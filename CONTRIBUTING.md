@@ -95,12 +95,12 @@ Refs #12
 
 ### Required checks
 
-Every pull request runs [`.github/workflows/pr-checks.yml`](.github/workflows/pr-checks.yml):
+Every pull request runs [`.github/workflows/pr-checks.yml`](.github/workflows/pr-checks.yml) and [`.github/workflows/app-checks.yml`](.github/workflows/app-checks.yml):
 
 - **PR title and linked issue:** the title is a Conventional Commit and the description links its issue with an English closing keyword (`Closes #12`). The check is [`.github/scripts/check-pr.sh`](.github/scripts/check-pr.sh), which you can run locally.
 - **Secret scan:** gitleaks scans the branch history. Any finding fails the check; remove the secret and rotate it.
 
-Type check, lint and format check, and unit and integration tests are added when the app scaffold exists.
+- **App checks** (`app-checks.yml`): `npm run typecheck`, `npm run lint` and `npm test`.
 
 On the GitHub Free organization plan these checks cannot be made mandatory, so a failing check blocks the merge by team rule. Once the organization moves to GitHub Team, the `main` ruleset marks them as required.
 

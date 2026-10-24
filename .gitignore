@@ -8,3 +8,11 @@
 .env
 .env.*
 !.env.example
+
+# Expo / React Native
+node_modules/
+.expo/
+android/
+ios/
+dist/
+expo-env.d.ts
