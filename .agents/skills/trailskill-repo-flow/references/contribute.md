@@ -16,7 +16,7 @@ Rulebook: `CONTRIBUTING.md`, including its Definition of Done.
 4. Run every check listed under Commands in `AGENTS.md`; all must pass.
 5. Commit in small Conventional Commits ending with `Refs #<n>`.
 6. `git push -u origin <branch>`, then `gh pr create --draft --title "<conventional title>" --body-file <filled copy of ../assets/pr-body.md>`.
-7. Walk the Definition of Done. Run `gh pr ready` only when every item holds.
+7. Wait for the PR checks (`gh pr checks <n> --watch`); fix any failure. Walk the Definition of Done. Run `gh pr ready` only when every item holds.
 8. After the maintainer merges: `git worktree remove ../trailskill-worktrees/<n>-<slug>`, `git branch -D <branch>` (squash merges look unmerged locally), and confirm the issue is closed.
 
 Closing check: PR URL exists, CI is green, every Definition of Done item is reported as met or not met.
