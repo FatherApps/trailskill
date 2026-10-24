@@ -14,7 +14,7 @@ Rulebook: `CONTRIBUTING.md`, including its Definition of Done.
 3. For each acceptance criterion, write a failing test, then implement until it passes.
 4. Run every check listed under Commands in `AGENTS.md`; all must pass.
 5. Commit in small Conventional Commits ending with `Refs #<n>`.
-6. `git push -u origin <branch>`, then `gh pr create --draft --title "<conventional title>" --body-file <filled copy of ../assets/pr-body.md>`.
+6. `git push -u origin <branch>`, then `gh pr create --draft --title "<conventional title>" --body-file <filled copy of ../../../../.github/pull_request_template.md, written in Spanish>`.
 7. Walk the Definition of Done. Run `gh pr ready` only when every item holds.
 8. After the maintainer merges: `git worktree remove ../trailskill-worktrees/<n>-<slug>`, `git branch -D <branch>` (squash merges look unmerged locally), and confirm the issue is closed.
 
