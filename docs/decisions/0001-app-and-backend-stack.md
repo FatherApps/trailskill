@@ -1,6 +1,6 @@
 # 0001. App and backend stack: Expo with Supabase and PowerSync
 
-- Status: Accepted
+- Status: Accepted; hosting and region amended by [0002](0002-backend-hosting-on-dokploy.md)
 - Date: 2026-10-24
 - Decider: maintainer
 - Issue: #11
