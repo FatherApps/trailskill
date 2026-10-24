@@ -67,7 +67,7 @@ Stop and ask the maintainer in the issue. A missing rule is not permission, the 
 
 ## Language
 
-Code, commits, pull requests, issues, and docs in English. Conversation with the maintainer in Spanish.
+Code, commits, and docs in English. Issues and pull request descriptions in Spanish, using the templates in `.github/` (keep `Closes #N` in English). Conversation with the maintainer in Spanish.
 
 ## Commands
 
