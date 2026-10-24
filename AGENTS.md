@@ -15,7 +15,7 @@ Decided by the maintainer on 2026-10-24:
 - **One app, one repository.** A single Expo app serves every role: guardians and adult athletes on phones, school administrators and coaches on tablets (the school console). What each person sees depends on their role and screen size. Permissions are always enforced by the backend, never only by hiding screens.
 - **Android first, iOS from the same code.** Keep Android-only APIs inside isolated native modules so iOS builds stay possible.
 - **Not a monorepo yet.** Code is organized by feature inside the app (layout defined with the scaffold). Move to a multi-package monorepo only when a second deployable appears, such as a custom backend service, and record that change as an ADR in `docs/decisions/`.
-- **Backend:** Supabase with PowerSync for offline sync (ADR 0001). Its migrations, policies, and functions live in this repository under `supabase/`.
+- **Backend:** Supabase with PowerSync for offline sync (ADR 0001), both self-hosted on the team's Dokploy server (ADR 0002). Its migrations, policies, and functions live in this repository under `supabase/`.
 - **Race timing:** the Kotlin prototype `cronometro-natacion-fase3` is kept outside this repository as a reference only; do not copy it in. Its pure logic (stopwatch state machine, splits, arrival assignment) is rewritten in TypeScript with tests. Only button capture with a native timestamp becomes a small Expo local module. An on-screen stopwatch is always available as a fallback. The prototype's USB headset volume keys work on Android only; buttons meant for iOS must send regular keyboard keys.
 
 ## Sources of truth

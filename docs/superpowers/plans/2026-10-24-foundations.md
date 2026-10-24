@@ -235,7 +235,7 @@ powersync/sync-config.yaml    Sync Streams (edition 3)
 - Create: `docs/testing/foundations-device-check.md` (the steps below and their observed results)
 
 **Interfaces:**
-- Consumes: everything above, a development Supabase project in `sa-east-1` and a PowerSync instance (credentials from the maintainer, never committed).
+- Consumes: everything above, the Supabase and PowerSync services on the Dokploy server (ADR 0002) (credentials from the maintainer, never committed).
 
 - [ ] **Step 1:** `eas build --profile development --platform android`; install on an Android device.
 - [ ] **Step 2:** Sign in as the seeded coach. Expected: only the seeded coach's athletes are listed (temporary debug list on Home is acceptable and removed in this task).
