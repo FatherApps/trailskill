@@ -95,12 +95,14 @@ Refs #12
 
 ### Required checks
 
-These run in CI on every pull request and become required as soon as the project scaffold exists:
+Every pull request runs [`.github/workflows/pr-checks.yml`](.github/workflows/pr-checks.yml):
 
-- type check
-- lint and format check
-- unit and integration tests
-- pull request title follows Conventional Commits
+- **PR title and linked issue:** the title is a Conventional Commit and the description links its issue with an English closing keyword (`Closes #12`). The check is [`.github/scripts/check-pr.sh`](.github/scripts/check-pr.sh), which you can run locally.
+- **Secret scan:** gitleaks scans the branch history. Any finding fails the check; remove the secret and rotate it.
+
+Type check, lint and format check, and unit and integration tests are added when the app scaffold exists.
+
+On the GitHub Free organization plan these checks cannot be made mandatory, so a failing check blocks the merge by team rule. Once the organization moves to GitHub Team, the `main` ruleset marks them as required.
 
 ## Definition of Done
 
