@@ -26,6 +26,7 @@ Decided by the maintainer on 2026-10-24:
 | Versioning, releases, OTA updates, Google Play | [`docs/RELEASING.md`](docs/RELEASING.md) |
 | Product rules and pilot scope | [`PROJECT-HANDOFF-2026-10-24.md`](PROJECT-HANDOFF-2026-10-24.md) (moving to `docs/product/`) |
 | Architecture decisions | `docs/decisions/` (created with the first decision) |
+| Visual design: palette, typography, components, logo | [`design/README.md`](design/README.md), which links the design system (the source of truth) |
 
 Product documents mark items as **confirmed**, **proposed**, or **open**. Only confirmed items are requirements.
 
@@ -52,7 +53,8 @@ Agents never:
 - use real personal data (FECNA, the pilot school, real users) in code, tests, fixtures, logs, or examples;
 - implement product rules marked proposed or open;
 - add dependencies or change CI or release configuration unless the issue asks for it;
-- edit files outside the issue's scope or work on another agent's branch.
+- edit files outside the issue's scope or work on another agent's branch;
+- change the palette, typography, shapes, iconography, or logo, or use a visual value that is not in the design system (see [`design/README.md`](design/README.md)).
 
 ## Google Play requirements
 
