@@ -82,7 +82,7 @@ Refs #12
 ## Pull requests
 
 - **Title:** a valid Conventional Commit. It becomes the squash commit message on `main`.
-- **Description:** linked issue (`Closes #12`), what changed and why, how it was tested, screenshots or recordings for UI changes (synthetic data only), and risks (data, privacy, migrations, breaking changes).
+- **Description:** in Spanish, following [`.github/pull_request_template.md`](.github/pull_request_template.md): summary, linked issue (`Closes #12`), changes, how it was tested, screenshots (synthetic data only), risks, the Definition of Done checklist, and whether maintainer approval is needed.
 - **Merge method:** squash merge only. Linear history on `main`.
 - **Draft pull requests** are welcome for early feedback. Mark them ready only when the Definition of Done is met.
 
@@ -134,7 +134,7 @@ TrailSkill handles personal data of minors. These rules are not optional:
 
 ## Issues
 
-Each issue states:
+Issues are written in Spanish with the templates in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/): feature or task, and bug. Each issue states:
 
 - **Problem or goal:** what a user can or cannot do today.
 - **Scope:** what is included, plus explicit non-goals.
@@ -145,4 +145,4 @@ Large features are split into sub-issues that can each be merged on their own.
 
 ## Language
 
-Code, identifiers, comments, commits, pull requests, issues, and documentation are written in English. User-facing app copy follows the product's localization files.
+Code, identifiers, comments, commits, and documentation are written in English. Issues and pull request descriptions are written in Spanish, using the templates in `.github/`. Pull request titles stay Conventional Commits in English, and closing keywords stay in English (`Closes #12`) because GitHub only recognizes them in English. User-facing app copy follows the product's localization files.

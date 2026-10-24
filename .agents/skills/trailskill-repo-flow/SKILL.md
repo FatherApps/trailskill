@@ -19,7 +19,7 @@ Load for any TrailSkill repository-process task: setting up the repository, work
 - No open issue with acceptance criteria means no branch: ask the maintainer.
 - Implement only confirmed product rules. A proposed or open rule: label the issue `needs-decision`, ask, and stop that part.
 - Synthetic data only. Never stage or print secrets.
-- Conventional Commits in English, no AI attribution.
+- Conventional Commits in English, no AI attribution. Issues and pull request descriptions in Spanish, using the templates in `.github/` (keep `Closes #N` in English).
 
 ## Decision Gates
 
@@ -46,5 +46,6 @@ Return: path taken; what changed (issue, branch, PR, tag, build or update IDs, P
 - `references/setup.md` — one-time repository setup
 - `references/contribute.md` — issue to merged pull request
 - `references/release.md` — releases, hotfixes, OTA, Google Play
-- `assets/pr-body.md` — pull request description template
+- `../../../.github/pull_request_template.md` — pull request description template (Spanish)
+- `../../../.github/ISSUE_TEMPLATE/` — issue templates (Spanish)
 - `../../../CONTRIBUTING.md`, `../../../docs/RELEASING.md`, `../../../AGENTS.md`
