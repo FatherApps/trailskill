@@ -46,6 +46,7 @@ supabase/
   functions/<module>-<name>/
   functions/results-import/providers/<country>-<organization>/
 powersync/sync-config.yaml  One stream group per module, prefixed <module>_
+deploy/                     Dokploy deployment: compose, migration runner, PowerSync config (deploy/README.md)
 ```
 
 Every module has the same shape: `src/modules/<module>/index.ts` (its only public entry), `screens/`, `components/`, `data/` (repositories), `i18n/`, `__tests__/`.

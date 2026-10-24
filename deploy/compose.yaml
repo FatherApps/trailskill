@@ -1,0 +1,83 @@
+# Deployed by Dokploy from GitHub on every push to main (compose path: deploy/compose.yaml).
+# Supabase and Mailpit are NOT here: they come from Dokploy templates (see deploy/README.md).
+# Dokploy clones the repo and writes the service environment to deploy/.env, so each service
+# mounts only the folders it needs, never the whole repository. Every secret comes from the
+# service environment in Dokploy; nothing sensitive is stored in this repository.
+
+name: trailskill-deploy
+
+services:
+  # One-shot: prepares powersync_role, applies supabase/migrations, optionally the seed.
+  migrate:
+    image: postgres:17-alpine
+    restart: "no"
+    command: ["sh", "/scripts/migrate.sh"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - ../supabase:/repo/supabase:ro
+    environment:
+      PGHOST: ${SUPABASE_DB_HOST:?Set SUPABASE_DB_HOST to the Supabase database host on the supabase network (db)}
+      PGPORT: ${SUPABASE_DB_PORT:-5432}
+      PGUSER: ${SUPABASE_DB_USER:-postgres}
+      PGPASSWORD: ${SUPABASE_DB_PASSWORD:?Set SUPABASE_DB_PASSWORD}
+      PGDATABASE: ${SUPABASE_DB_NAME:-postgres}
+      POWERSYNC_DB_PASSWORD: ${POWERSYNC_DB_PASSWORD:?Set POWERSYNC_DB_PASSWORD}
+      APPLY_SEED: ${APPLY_SEED:-false}
+    networks:
+      - supabase
+
+  # Bucket storage for PowerSync (separate from the app database).
+  powersync-storage:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: powersync_storage
+      POSTGRES_DB: powersync_storage
+      POSTGRES_PASSWORD: ${POWERSYNC_STORAGE_PASSWORD:?Set POWERSYNC_STORAGE_PASSWORD}
+    volumes:
+      - powersync-storage-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U powersync_storage -d powersync_storage"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - default
+
+  powersync:
+    image: journeyapps/powersync-service:1.21.0
+    restart: unless-stopped
+    command: ["start", "-r", "unified"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      powersync-storage:
+        condition: service_healthy
+    volumes:
+      - ./powersync:/config:ro
+      - ../powersync:/sync:ro
+    environment:
+      POWERSYNC_CONFIG_PATH: /config/powersync.yaml
+      PS_DATA_SOURCE_URI: postgresql://powersync_role:${POWERSYNC_DB_PASSWORD}@${SUPABASE_DB_HOST}:${SUPABASE_DB_PORT:-5432}/${SUPABASE_DB_NAME:-postgres}
+      PS_STORAGE_URI: postgresql://powersync_storage:${POWERSYNC_STORAGE_PASSWORD}@powersync-storage:5432/powersync_storage
+      PS_SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:?Set SUPABASE_JWT_SECRET to the JWT secret of the Supabase stack}
+      PS_SYNC_CONFIG_PATH: ${PS_SYNC_CONFIG_PATH:-/config/empty-sync-config.yaml}
+      NODE_OPTIONS: --max-old-space-size=1000
+    # No published ports: Traefik routes the public domain to container port 8080.
+    networks:
+      - default
+      - supabase
+      - traefik
+
+volumes:
+  powersync-storage-data:
+
+networks:
+  # Default network of the Supabase stack (in Dokploy: <supabase app name>_default).
+  supabase:
+    name: ${SUPABASE_NETWORK:?Set SUPABASE_NETWORK to the default network of the Supabase stack}
+    external: true
+  # Only for Traefik routing to powersync.
+  traefik:
+    name: ${DOKPLOY_NETWORK:-dokploy-network}
+    external: true
