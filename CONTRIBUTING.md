@@ -34,7 +34,7 @@ TrailSkill uses **trunk-based development**: one long-lived branch (`main`), sho
 ### `main`
 
 - Always releasable: builds, passes CI, and contains no half-finished feature exposed to users.
-- Protected: no direct pushes, no force pushes, no deletion.
+- Protected: no direct pushes, no force pushes, no deletion. Two layers enforce it: a GitHub branch ruleset (the private repository needs GitHub Pro for it), and the versioned hook `.githooks/pre-push`, which stops the mistake on your machine before it reaches GitHub. Run `git config core.hooksPath .githooks` once in every clone.
 - Changes enter only through a reviewed pull request with passing checks.
 - Unfinished features that must merge early stay behind a feature flag or unreachable from the UI.
 

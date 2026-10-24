@@ -9,6 +9,7 @@ Rulebook: `CONTRIBUTING.md`, including its Definition of Done.
 | Change grows beyond ~400 lines | Propose sub-issues before continuing |
 | Touches auth, personal data, consent, data model, sync, release config, CI, or dependencies | Mark the PR as needing maintainer approval |
 
+0. First time in this clone: `git config core.hooksPath .githooks` (blocks pushes to `main`).
 1. `gh issue view <n>`: confirm it is open; read scope, non-goals, and acceptance criteria.
 2. `git fetch origin`, then `git worktree add ../trailskill-worktrees/<n>-<slug> -b <type>/<n>-<slug> origin/main`. Work only in that worktree.
 3. For each acceptance criterion, write a failing test, then implement until it passes.
