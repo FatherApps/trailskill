@@ -1,0 +1,25 @@
+# PowerSync Open Edition service config. Only PS_* variables can be substituted with !env.
+# Reference: https://docs.powersync.com/self-hosting/installation/powersync-service-setup
+telemetry:
+  disable_telemetry_sharing: true
+
+replication:
+  connections:
+    - type: postgresql
+      uri: !env PS_DATA_SOURCE_URI
+      sslmode: disable # internal Docker network
+
+storage:
+  type: postgresql
+  uri: !env PS_STORAGE_URI
+  sslmode: disable # internal Docker network
+
+port: 8080
+
+sync_config:
+  path: !env PS_SYNC_CONFIG_PATH
+
+client_auth:
+  supabase: true
+  supabase_jwt_secret: !env PS_SUPABASE_JWT_SECRET
+  audience: ["authenticated"]
