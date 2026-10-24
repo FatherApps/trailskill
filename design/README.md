@@ -46,11 +46,3 @@ For orientation only. If it disagrees with the design system, the design system 
 | `trailskill-construction.svg` | Construction grid (reference, not for use in the app) |
 
 The files were downloaded from the design system on 2026-10-24. The PNG files are byte-identical to the source. The design system's asset service re-serializes SVG markup when it serves it, so the SVG files draw the same image but are not byte-identical to the uploads.
-
-## Pending updates in the design system
-
-Product discovery on 2026-10-24 found differences that must be resolved in the design system before the related screens are built:
-
-- **Series timing:** the design uses one Stop button per lane. The maintainer described one button that records arrival positions, followed by fast name-card assignment.
-- **School console:** listed as an open decision; it was decided to be the same Expo app on tablets.
-- **Training plans:** described by the maintainer (repetitions × distance × stroke × equipment) but not designed yet.
