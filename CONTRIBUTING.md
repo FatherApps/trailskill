@@ -121,6 +121,7 @@ A pull request is ready to merge when:
 - Product rules live in the product documents (currently [`PROJECT-HANDOFF-2026-10-24.md`](PROJECT-HANDOFF-2026-10-24.md), moving to `docs/product/`). They distinguish **confirmed**, **proposed**, and **open** items. Only confirmed items are requirements.
 - If an issue depends on an open item, stop and ask the maintainer. Do not fill the gap with an assumption.
 - Significant technical decisions (backend, sync strategy, auth provider, and similar) are recorded as Architecture Decision Records in `docs/decisions/NNNN-short-title.md` with context, decision, and consequences.
+- Visual design (palette, typography, components, logo) comes only from the TrailSkill design system linked in [`design/README.md`](design/README.md). Design changes start there, never in code.
 
 ## Personal data and security
 
