@@ -177,7 +177,9 @@ Timing has three modes. All of them save to the device first.
 - Shows full name, category, group, guardian and contact. Never ID numbers or birth dates.
 - **Categories (My call):** each school keeps its own category list, seeded with the federation's categories and editable by the school administrator. Athletes are placed in a category by the administrator or at registration; the category is never derived from the birth date, so it never changes silently.
 
-### 6.6 FECNA history import (Decided: optional, initial scope)
+### 6.6 Official results import (Decided: optional, initial scope)
+
+- Built as the generic `results-import` module with one provider per federation (ADR 0003). In the Colombian pilot the source is FECNA, through the `co-fecna` provider; another country adds its own provider without changing the module. The rules below use FECNA as the pilot's example.
 
 - Optional, started by the guardian or adult athlete (the school can suggest it), for one swimmer at a time. No bulk collection, no unrelated athletes.
 - The guardian confirms the matched history ("¿Es esta persona?") before import, even when club or league reflect an earlier affiliation. The source's ID number and birth date are never displayed.
@@ -257,7 +259,7 @@ Each step is a group of issues that can reach the closed track on its own:
 5. School console on tablets, including coaches and records by category.
 6. Planned trainings: blocks, templates, assignment, fulfillment, versioning, Today view.
 7. External button native module (after hardware validation).
-8. FECNA import (after its research).
+8. Official results import with the `co-fecna` provider (after its research).
 
 Criterion 4 of section 11 needs steps 1 to 3; the closed test can start as soon as they reach the closed track.
 

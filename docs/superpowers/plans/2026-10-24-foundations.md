@@ -46,18 +46,18 @@ jest.config.js                jest-expo preset
 src/app/_layout.tsx           Root providers: fonts, theme, i18n, session, PowerSync
 src/app/(auth)/sign-in.tsx    Email code sign-in
 src/app/(app)/index.tsx       Home placeholder with global sync status
-src/theme/tokens.ts           Design-system tokens as typed constants
-src/theme/contrast.ts         WCAG contrast ratio
-src/theme/ThemeProvider.tsx   useTheme()
-src/i18n/index.ts             i18next setup; src/i18n/es-CO.json
-src/domain/time.ts            Time values and formatting
-src/data/schema.ts            PowerSync client schema
-src/data/db.ts                PowerSyncDatabase instance
-src/data/supabase.ts          Supabase client
-src/data/connector.ts         SupabaseConnector (fetchCredentials, uploadData)
-src/data/writes.ts            writeRecord / deleteRecord with pending_writes
-src/data/syncState.ts         Per-record and global sync state
-src/session/SessionProvider.tsx  Session, sign-in, guarded sign-out
+src/core/theme/tokens.ts           Design-system tokens as typed constants
+src/core/theme/contrast.ts         WCAG contrast ratio
+src/core/theme/ThemeProvider.tsx   useTheme()
+src/core/i18n/index.ts             i18next setup; src/core/i18n/es-CO.json
+src/core/time/time.ts            Time values and formatting
+src/core/sync/schema.ts            PowerSync client schema
+src/core/sync/db.ts                PowerSyncDatabase instance
+src/core/sync/supabase.ts          Supabase client
+src/core/sync/connector.ts         SupabaseConnector (fetchCredentials, uploadData)
+src/core/sync/writes.ts            writeRecord / deleteRecord with pending_writes
+src/core/sync/syncState.ts         Per-record and global sync state
+src/core/session/SessionProvider.tsx  Session, sign-in, guarded sign-out
 supabase/config.toml
 supabase/migrations/20261025000000_foundations.sql
 supabase/seed.sql             Synthetic data only
@@ -82,7 +82,8 @@ powersync/sync-config.yaml    Sync Streams (edition 3)
 - [ ] **Step 3: Write the failing test** `src/app/__tests__/home.test.tsx`: renders `src/app/(app)/index.tsx` and asserts the text from key `home.title` (`"TrailSkill"`) is on screen.
 - [ ] **Step 4: Run** `npm test -- home` → FAIL (screen missing).
 - [ ] **Step 5: Implement** the home screen showing `t('home.title')`.
-- [ ] **Step 6: Run** `npm run typecheck && npm run lint && npm test` → all pass.
+- [ ] **Step 6: Module boundaries.** Create `src/core/` and `src/modules/` as described in `AGENTS.md` → Architecture (each module starts with only an `index.ts` exporting nothing). Add an ESLint `no-restricted-imports` configuration that fails when code outside a module imports `src/modules/<module>/` internals instead of its `index.ts`, and when `src/core/` imports anything from `src/modules/`. Add `src/core/__tests__/boundaries.lint-fixture.ts` importing `../../modules/timing/screens/x` and prove with `npx eslint --no-ignore src/core/__tests__/boundaries.lint-fixture.ts` that lint reports the violation; then exclude that fixture from the normal `lint` run.
+- [ ] **Step 6b: Run** `npm run typecheck && npm run lint && npm test` → all pass.
 - [ ] **Step 7: CI.** `.github/workflows/app-checks.yml` on `pull_request`: checkout pinned by SHA (`actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1`, v7.0.1), `actions/setup-node` pinned by SHA (look up the latest release's commit), Node LTS, `npm ci`, then `npm run typecheck`, `npm run lint`, `npm test`. `permissions: contents: read`. Validate with `actionlint`.
 - [ ] **Step 8: Docs.** Replace "Pending" in `AGENTS.md` → Commands with: install `npm ci`; run `npx expo start --dev-client`; `npm run typecheck`; `npm run lint`; `npm test`; development build `eas build --profile development --platform android`.
 - [ ] **Step 9: Commit** `build: scaffold Expo app with CI checks`.
@@ -90,7 +91,7 @@ powersync/sync-config.yaml    Sync Streams (edition 3)
 ### Task 2: Theme, fonts and i18n from the design system
 
 **Files:**
-- Create: `src/theme/tokens.ts`, `src/theme/contrast.ts`, `src/theme/ThemeProvider.tsx`, `src/theme/__tests__/tokens.test.ts`, `src/theme/__tests__/ThemeProvider.test.tsx`, `src/i18n/index.ts`, `src/i18n/es-CO.json`
+- Create: `src/core/theme/tokens.ts`, `src/core/theme/contrast.ts`, `src/core/theme/ThemeProvider.tsx`, `src/core/theme/__tests__/tokens.test.ts`, `src/core/theme/__tests__/ThemeProvider.test.tsx`, `src/core/i18n/index.ts`, `src/core/i18n/es-CO.json`
 - Modify: `src/app/_layout.tsx`
 
 **Interfaces:**
@@ -110,7 +111,7 @@ powersync/sync-config.yaml    Sync Streams (edition 3)
 ### Task 3: Time values
 
 **Files:**
-- Create: `src/domain/time.ts`, `src/domain/__tests__/time.test.ts`
+- Create: `src/core/time/time.ts`, `src/core/time/__tests__/time.test.ts`
 
 **Interfaces:**
 - Produces: `type Hundredths = number`; `type TimeKind = 'repetition' | 'series_total' | 'race' | 'split'`; `formatTime(value: Hundredths | null, options?: { decimalSeparator?: ',' | '.' }): string` (default separator `','`); `hundredthsFromNanos(elapsedNanos: bigint): Hundredths`.
@@ -121,7 +122,7 @@ powersync/sync-config.yaml    Sync Streams (edition 3)
   - `formatTime(3391) === '33,91'`, `formatTime(7240) === '1:12,40'`, `formatTime(3391, { decimalSeparator: '.' }) === '33.91'`.
   - `hundredthsFromNanos(339_199_999_999n) === 33919` (truncates, never rounds up).
 - [ ] **Step 2: Run** `npm test -- time` → FAIL.
-- [ ] **Step 3: Implement** in `src/domain/time.ts`.
+- [ ] **Step 3: Implement** in `src/core/time/time.ts`.
 - [ ] **Step 4: Run** `npm test -- time` → PASS.
 - [ ] **Step 5: Commit** `feat(domain): add time values that never treat missing as zero`.
 
@@ -164,7 +165,7 @@ powersync/sync-config.yaml    Sync Streams (edition 3)
 ### Task 5: PowerSync schema, Sync Streams and Supabase connector
 
 **Files:**
-- Create: `powersync/sync-config.yaml`, `src/data/schema.ts`, `src/data/db.ts`, `src/data/supabase.ts`, `src/data/connector.ts`, `src/data/__tests__/connector.test.ts`
+- Create: `powersync/sync-config.yaml`, `src/core/sync/schema.ts`, `src/core/sync/db.ts`, `src/core/sync/supabase.ts`, `src/core/sync/connector.ts`, `src/core/sync/__tests__/connector.test.ts`
 - Modify: `package.json` (`@powersync/react-native`, `@op-engineering/op-sqlite` ≥ 1.17.0, `@powersync/react`, `@supabase/supabase-js`), `app.config.ts` (plugins required by op-sqlite, if any)
 
 **Interfaces:**
@@ -189,7 +190,7 @@ powersync/sync-config.yaml    Sync Streams (edition 3)
 ### Task 6: Local-first writes and sync state
 
 **Files:**
-- Create: `src/data/writes.ts`, `src/data/syncState.ts`, `src/data/__tests__/writes.test.ts`, `src/data/__tests__/syncState.test.ts`
+- Create: `src/core/sync/writes.ts`, `src/core/sync/syncState.ts`, `src/core/sync/__tests__/writes.test.ts`, `src/core/sync/__tests__/syncState.test.ts`
 
 **Interfaces:**
 - Consumes: `db`, `AppSchema` local-only tables (Task 5).
@@ -213,8 +214,8 @@ powersync/sync-config.yaml    Sync Streams (edition 3)
 ### Task 7: Session, sign-in and guarded sign-out
 
 **Files:**
-- Create: `src/session/SessionProvider.tsx`, `src/session/__tests__/signOut.test.ts`, `src/app/(auth)/sign-in.tsx`, `src/app/(auth)/__tests__/sign-in.test.tsx`
-- Modify: `src/app/_layout.tsx` (session gate and `PowerSyncContext.Provider`), `src/app/(app)/index.tsx` (global sync pill), `src/i18n/es-CO.json`
+- Create: `src/core/session/SessionProvider.tsx`, `src/core/session/__tests__/signOut.test.ts`, `src/app/(auth)/sign-in.tsx`, `src/app/(auth)/__tests__/sign-in.test.tsx`
+- Modify: `src/app/_layout.tsx` (session gate and `PowerSyncContext.Provider`), `src/app/(app)/index.tsx` (global sync pill), `src/core/i18n/es-CO.json`
 
 **Interfaces:**
 - Consumes: `supabase`, `db`, `SupabaseConnector`, `useGlobalSyncSummary`.

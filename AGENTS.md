@@ -18,6 +18,53 @@ Decided by the maintainer on 2026-10-24:
 - **Backend:** Supabase with PowerSync for offline sync (ADR 0001). Its migrations, policies, and functions live in this repository under `supabase/`.
 - **Race timing:** the Kotlin prototype `cronometro-natacion-fase3` is kept outside this repository as a reference only; do not copy it in. Its pure logic (stopwatch state machine, splits, arrival assignment) is rewritten in TypeScript with tests. Only button capture with a native timestamp becomes a small Expo local module. An on-screen stopwatch is always available as a fallback. The prototype's USB headset volume keys work on Android only; buttons meant for iOS must send regular keyboard keys.
 
+## Architecture
+
+Decided in [`docs/decisions/0003-modular-architecture.md`](docs/decisions/0003-modular-architecture.md). Follow it for every change.
+
+### Folder structure
+
+```text
+src/
+  app/                      Expo Router routes only; each route renders a module screen
+  core/                     Shared foundation; changes need maintainer review
+    theme/  i18n/  ui/      Design-system theme, translations, components
+    sync/                   PowerSync database, connector, local-first writes, sync state
+    session/                Sign-in and session
+    time/                   Time values (missing time is never zero)
+    sport/                  Sport catalogs: strokes, distances, pools
+  modules/
+    accounts/               Registration, guardian and adult accounts, authorizations
+    timing/                 Stopwatch, series, arrival assignment
+    training-plans/         Plans, blocks, versions, fulfillment
+    athletes/               Profile, history, trends
+    school-console/         School administration on tablets
+    results-import/         Official results import through federation providers
+supabase/
+  migrations/               <timestamp>_<module>_<change>.sql
+  tests/database/<module>/
+  functions/<module>-<name>/
+  functions/results-import/providers/<country>-<organization>/
+powersync/sync-config.yaml  One stream group per module, prefixed <module>_
+```
+
+Every module has the same shape: `src/modules/<module>/index.ts` (its only public entry), `screens/`, `components/`, `data/` (repositories), `i18n/`, `__tests__/`.
+
+### Rules
+
+- Use another module only through its `index.ts`; never import its internal files.
+- `src/core/` never imports a module. `src/app/` imports only module `index.ts` files and `src/core/`.
+- Each table belongs to one module. Other modules read it through that module's public API.
+- Put new code in the module that owns the behavior. Move code to `src/core/` only when two modules need it and the maintainer approves.
+
+### Patterns
+
+- **Repository:** screens and hooks never query the database. Use the module's repository interfaces; the PowerSync implementation lives in `data/`, and tests use in-memory fakes.
+- **Ports and adapters:** an external system is a port (interface) owned by its module, each concrete system is an adapter, and a registry picks the adapter from data. Federation results use the `ResultsProvider` port with adapters named `<country>-<organization>` (for example `co-fecna`).
+- **Generic organizations:** federations, leagues, clubs and schools are rows in `organizations` (type, ISO country code, parent). Never write an organization, federation, league or country name in code.
+- **Sport layer:** sport vocabulary comes from `src/core/sport/` catalogs, never hard-coded in a module.
+- No other patterns (dependency injection containers, generic factories) without a new ADR.
+
 ## Sources of truth
 
 | Topic | Document |
