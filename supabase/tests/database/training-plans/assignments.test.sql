@@ -8,7 +8,7 @@
 -- what concerns their own athletes. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(125);
+select plan(132);
 
 -- Users: school admin S, coach C1 (group g1 and direct e2), coach C2 (direct
 -- e1), coach N (school 1, assigned to nobody), coach F (school 2), guardian G
@@ -612,6 +612,69 @@ select is(
   array['70000000-0000-4000-8000-000000000046', '70000000-0000-4000-8000-000000000049'], 'the mark after the new authorization is visible; the ones in between stay hidden'
 );
 
+-- Issue #272: the write-back must not be forgeable. The old mechanism read the
+-- ids from the session setting app.hidden_fulfillments, which any client with
+-- SQL access can set by hand. A mark captured in between (like 048) ends hidden.
+reset role;
+create function pg_temp.upload_hidden_mark(new_id uuid)
+returns bigint
+language sql
+as $$
+  with ins as (
+    insert into public.training_plan_fulfillments
+      (id, device_id, assignment_id, version_id, block_id, athlete_id, status, captured_at)
+    values
+      (new_id, 'device-1', '70000000-0000-4000-8000-000000000032', '70000000-0000-4000-8000-000000000011',
+       '70000000-0000-4000-8000-000000000021', '70000000-0000-4000-8000-0000000000e5', 'done', '2026-10-07 09:00:00+00')
+    on conflict (id) do nothing
+    returning id
+  )
+  select count(*) from ins
+$$;
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "70000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select set_config('app.hidden_fulfillments', '70000000-0000-4000-8000-000000000048,', true);
+select is(
+  (select count(*) from public.training_plan_fulfillments where id = '70000000-0000-4000-8000-000000000048'),
+  0::bigint, 'an author who sets app.hidden_fulfillments by hand does not read the hidden mark'
+);
+select set_config('app.hidden_fulfillments', '', true);
+
+savepoint upload_mark;
+select is(
+  pg_temp.upload_hidden_mark('70000000-0000-4000-8000-00000000004a'),
+  1::bigint, 'inside a savepoint, the upload of a mark that ends hidden still comes back from RETURNING'
+);
+release savepoint upload_mark;
+select is(
+  (select count(*) from public.training_plan_fulfillments where id = '70000000-0000-4000-8000-00000000004a'),
+  0::bigint, 'in the next statement of the same transaction the author no longer reads the mark just uploaded hidden'
+);
+savepoint discarded_mark;
+select pg_temp.upload_hidden_mark('70000000-0000-4000-8000-00000000004b');
+rollback to savepoint discarded_mark;
+select is(
+  public.confirm_training_plan_fulfillment_insert(jsonb_build_object('id', '70000000-0000-4000-8000-00000000004a', 'status', 'done')),
+  'stored', 'the hidden retry of that mark is still confirmed as stored'
+);
+reset role;
+select is(
+  (select array_agg(id::text || ':' || hidden::text) from public.training_plan_fulfillments
+   where id in ('70000000-0000-4000-8000-00000000004a', '70000000-0000-4000-8000-00000000004b')),
+  array['70000000-0000-4000-8000-00000000004a:true'], 'the released mark is stored hidden and the rolled back one is gone'
+);
+select is(
+  (select count(*) from app.hidden_fulfillment_write_backs),
+  0::bigint, 'no mark write-back survives the statement that made it'
+);
+select ok(
+  not has_table_privilege('authenticated', 'app.hidden_fulfillment_write_backs', 'select, insert, update, delete')
+    and not has_table_privilege('anon', 'app.hidden_fulfillment_write_backs', 'select, insert, update, delete')
+    and not has_function_privilege('anon', 'app.hidden_fulfillment_written_back(uuid)', 'execute'),
+  'clients can neither read nor write the mark write-backs, and anon cannot execute the write-back check'
+);
+set local role authenticated;
+
 -- Plans for guardians: the assigned plan, the assigned version and its blocks.
 set local request.jwt.claims = '{"sub": "70000000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
 select is(
@@ -803,7 +866,7 @@ select id from public.training_plan_fulfillments
 where athlete_id in (select athlete_id from public.athlete_managers where user_id = '70000000-0000-4000-8000-0000000000aa');
 select set_eq(
   $$ select id from stream_f_g2 $$,
-  $$ values ('70000000-0000-4000-8000-000000000046'::uuid), ('70000000-0000-4000-8000-000000000047'), ('70000000-0000-4000-8000-000000000048'), ('70000000-0000-4000-8000-000000000049') $$,
+  $$ values ('70000000-0000-4000-8000-000000000046'::uuid), ('70000000-0000-4000-8000-000000000047'), ('70000000-0000-4000-8000-000000000048'), ('70000000-0000-4000-8000-000000000049'), ('70000000-0000-4000-8000-00000000004a') $$,
   'the guardian fulfillment stream has no hidden filter, so it carries the hidden marks'
 );
 create temp table stream_f_g as

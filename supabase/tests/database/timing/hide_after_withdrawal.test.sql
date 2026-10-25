@@ -6,7 +6,7 @@
 -- hides anything. Measurements from before the withdrawal do not change. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(69);
+select plan(76);
 
 -- Users: coach C, school admin S, guardian G, platform admin P, and X, a coach
 -- of another school who has nothing to do with these athletes.
@@ -483,6 +483,69 @@ reset role;
 select is(
   (select hidden from public.measurements where id = '58000000-0000-4000-8000-0000000000e7'),
   true, 'and it is stored hidden'
+);
+
+-- Issue #272: the write-back must not be forgeable. The old mechanism read the
+-- ids from the session setting app.hidden_measurements, which any client with
+-- SQL access can set by hand.
+create function pg_temp.upload_hidden(new_id uuid)
+returns bigint
+language sql
+as $$
+  with ins as (
+    insert into public.measurements
+      (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+    values
+      ('58000000-0000-4000-8000-0000000000b1', new_id, 'repetition', '58000000-0000-4000-8000-0000000000e3',
+       '58000000-0000-4000-8000-0000000000c1', 3550, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
+       '2026-10-10 09:00:00+00')
+    on conflict (id) do nothing
+    returning id
+  )
+  select count(*) from ins
+$$;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select set_config('app.hidden_measurements', '58000000-0000-4000-8000-0000000000e7,', true);
+select is(
+  (select count(*) from public.measurements where id = '58000000-0000-4000-8000-0000000000e7'),
+  0::bigint, 'an author who sets app.hidden_measurements by hand does not read the hidden row'
+);
+select set_config('app.hidden_measurements', '', true);
+
+savepoint upload;
+select is(
+  pg_temp.upload_hidden('58000000-0000-4000-8000-0000000000fa'),
+  1::bigint, 'inside a savepoint, the upload of a row that ends hidden still comes back from RETURNING'
+);
+release savepoint upload;
+select is(
+  (select count(*) from public.measurements where id = '58000000-0000-4000-8000-0000000000fa'),
+  0::bigint, 'in the next statement of the same transaction the author no longer reads the row just uploaded hidden'
+);
+savepoint discarded;
+select pg_temp.upload_hidden('58000000-0000-4000-8000-0000000000fb');
+rollback to savepoint discarded;
+select is(
+  public.confirm_measurement_insert(jsonb_build_object('id', '58000000-0000-4000-8000-0000000000fa', 'hundredths', 3550)),
+  'stored', 'the hidden retry of that row is still confirmed as stored'
+);
+reset role;
+select is(
+  (select array_agg(id::text || ':' || hidden::text) from public.measurements
+   where id in ('58000000-0000-4000-8000-0000000000fa', '58000000-0000-4000-8000-0000000000fb')),
+  array['58000000-0000-4000-8000-0000000000fa:true'], 'the released upload is stored hidden and the rolled back one is gone'
+);
+select is(
+  (select count(*) from app.hidden_measurement_write_backs),
+  0::bigint, 'no write-back survives the statement that made it'
+);
+select ok(
+  not has_table_privilege('authenticated', 'app.hidden_measurement_write_backs', 'select, insert, update, delete')
+    and not has_table_privilege('anon', 'app.hidden_measurement_write_backs', 'select, insert, update, delete')
+    and not has_function_privilege('anon', 'app.hidden_measurement_written_back(uuid)', 'execute'),
+  'clients can neither read nor write the write-backs, and anon cannot execute the write-back check'
 );
 
 -- A write must unlock only the rows it really writes. PostgREST runs an upload
