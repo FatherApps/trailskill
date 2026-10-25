@@ -182,6 +182,20 @@ describe('Stopwatch stopped', () => {
     expect(screen.getAllByText('0:33,91', hidden)).toHaveLength(1);
   });
 
+  it('wraps the personal best row instead of overflowing, centered and with its gap', async () => {
+    await renderWatch({ state: 'stopped', elapsedHundredths: 3391, bestTime: 3482 });
+
+    const caption = screen.getByText('MP 34,82');
+    expect(styleOf(caption.parent!.props.style)).toMatchObject({
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    });
+    expect(styleOf(caption.props.style).flexShrink).toBe(1);
+  });
+
   it('slower than the personal best: shows the difference without the tag', async () => {
     await renderWatch({ state: 'stopped', elapsedHundredths: 3522, bestTime: 3482 });
 

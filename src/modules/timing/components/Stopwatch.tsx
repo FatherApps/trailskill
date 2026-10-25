@@ -76,8 +76,16 @@ export function Stopwatch({
           {formatTime(elapsedHundredths, clockFormat)}
         </Text>
         {stopped && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2] }}>
-            <Text style={[typography.caption, { color: colors['ink-muted'] }]}>
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: space[2],
+            }}
+          >
+            <Text style={[typography.caption, { flexShrink: 1, color: colors['ink-muted'] }]}>
               {t('timing.stopwatch.personal_best', { time: formatTime(bestTime) })}
             </Text>
             {/* The clock above is the time: TimeValue only adds the difference and the MP tag. */}
