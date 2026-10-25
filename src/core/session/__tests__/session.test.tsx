@@ -2,6 +2,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-li
 import { Text } from 'react-native';
 
 import { db, SupabaseConnector } from '../../sync';
+import { Button, ConfirmSheet, StateView } from '../../ui';
 import { CodeMismatchError, SessionProvider, signOutDecision, useSession } from '../SessionProvider';
 
 const mockCalls: string[] = [];
@@ -63,6 +64,20 @@ jest.mock('../../sync', () => ({
     },
   },
 }));
+
+// react-native, safe-area-context and svg load their components on first use, so the first render of a file pays to
+// load and transform them (over a second with a cold cache, several on a loaded CI runner). Do it here, with its own
+// timeout, so no test spends its 5 s on it.
+beforeAll(async () => {
+  const { unmount } = await render(
+    <>
+      <ConfirmSheet visible title="" message="" confirmLabel="" cancelLabel="" onConfirm={() => {}} onCancel={() => {}} />
+      <StateView kind="error" title="" message="" action={{ label: '', onPress: () => {} }} />
+      <Button variant="ghost" label="" onPress={() => {}} />
+    </>,
+  );
+  unmount();
+}, 60_000);
 
 beforeEach(() => {
   mockCalls.length = 0;
