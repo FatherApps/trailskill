@@ -46,6 +46,8 @@ describe('src/core/ui rules', () => {
         />
         <TimeValue value={3482} />
         <TimeValue value={null} size="time-sm" />
+        <TimeValue value={null} completed />
+        <TimeValue value={3482} personalBest={3573} newPersonalBest />
       </>,
     );
 

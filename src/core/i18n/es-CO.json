@@ -86,6 +86,28 @@
   "state": {
     "loading": "Cargando"
   },
+  "time": {
+    "spoken": {
+      "minutes_one": "{{count}} minuto",
+      "minutes_other": "{{count}} minutos",
+      "seconds_one": "{{count}} segundo",
+      "seconds_other": "{{count}} segundos",
+      "hundredths_one": "{{count}} centésima",
+      "hundredths_other": "{{count}} centésimas",
+      "join": "{{first}}, {{second}}",
+      "with_hundredths": "{{time}} con {{hundredths}}"
+    }
+  },
+  "time_value": {
+    "completed": "Completado",
+    "completed_spoken": "Completado, sin tiempo",
+    "not_recorded": "Sin registro",
+    "pb_tag": "MP",
+    "pb_spoken": "Marca personal",
+    "vs_pb": "vs MP",
+    "delta_faster": "{{time}} menos que la marca personal",
+    "delta_slower": "{{time}} más que la marca personal"
+  },
   "sync": {
     "on_device": "En el teléfono",
     "sending": "Enviando",
