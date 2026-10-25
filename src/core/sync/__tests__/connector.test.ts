@@ -16,15 +16,41 @@ function entry(op: 'PUT' | 'PATCH' | 'DELETE', id: string, opData?: Record<strin
 type Statements = [string, unknown[]][];
 
 function setup(
-  results: { upsert?: Result; update?: Result; delete?: Result; readBack?: Result } = {},
+  // readBack may be a list: the Nth read-back query gets the Nth result, the last one repeats.
+  results: { upsert?: Result; update?: Result; delete?: Result; readBack?: Result | Result[] } = {},
   options: { maxAttempts?: number; sleep?: (ms: number, signal: AbortSignal) => Promise<void> } = {},
 ) {
   // An upsert is awaited directly, or chained with .select('id') when the connector needs the inserted row.
   const upsertResult = results.upsert ?? { data: null, error: null };
   const upsertSelect = jest.fn().mockResolvedValue(upsertResult);
   const upsert = jest.fn().mockImplementation(() => Object.assign(Promise.resolve(upsertResult), { select: upsertSelect }));
-  const readBackEq = jest.fn().mockResolvedValue(results.readBack ?? ok);
-  const readBack = jest.fn().mockReturnValue({ eq: readBackEq });
+  const readResults = Array.isArray(results.readBack) ? results.readBack : [results.readBack ?? ok];
+  // The filters of each read-back query, in call order.
+  const readQueries: [string, unknown][][] = [];
+  const readBackEq = jest.fn();
+  const readBack = jest.fn().mockImplementation(() => {
+    const filters: [string, unknown][] = [];
+    readQueries.push(filters);
+    const result = readResults[Math.min(readQueries.length - 1, readResults.length - 1)];
+    const query = {
+      eq: (column: string, value: unknown) => {
+        readBackEq(column, value);
+        filters.push([column, value]);
+        return query;
+      },
+      // Recorded as 'is.null' / 'not.is.null', the PostgREST spelling of a null-ness filter.
+      is: (column: string, value: unknown) => {
+        filters.push([column, `is.${value}`]);
+        return query;
+      },
+      not: (column: string, operator: string, value: unknown) => {
+        filters.push([column, `not.${operator}.${value}`]);
+        return query;
+      },
+      then: (resolve: (value: Result) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve(result).then(resolve, reject),
+    };
+    return query;
+  });
   const updateEq = jest.fn().mockReturnValue({ select: jest.fn().mockResolvedValue(results.update ?? ok) });
   const update = jest.fn().mockReturnValue({ eq: updateEq });
   const deleteEq = jest.fn().mockReturnValue({ select: jest.fn().mockResolvedValue(results.delete ?? ok) });
@@ -60,7 +86,7 @@ function setup(
   const connector = new SupabaseConnector(client as unknown as SupabaseClient, 'https://sync.example.test', options);
   return {
     client, connector, database, complete, execute, committed, writeTransaction, from,
-    upsert, upsertSelect, update, updateEq, del, deleteEq, readBack, readBackEq,
+    upsert, upsertSelect, update, updateEq, del, deleteEq, readBack, readBackEq, readQueries,
   };
 }
 
@@ -505,12 +531,125 @@ describe('SupabaseConnector.uploadData', () => {
       expect(failureInserts(t.committed)).toHaveLength(0);
     });
 
+    it('sends a revocation of an invitation as an update by id, not as an upsert', async () => {
+      const t = setup();
+      await t.connector.uploadData(t.database([entry('PATCH', 'i1', { revoked_at: '2026-10-25T10:00:00.000Z' }, 'school_invitations')]));
+
+      expect(t.update).toHaveBeenCalledWith({ revoked_at: '2026-10-25T10:00:00.000Z' });
+      expect(t.updateEq).toHaveBeenCalledWith('id', 'i1');
+      expect(t.upsert).not.toHaveBeenCalled();
+      expect(failureInserts(t.committed)).toHaveLength(0);
+    });
+
     it('keeps the plain upsert without options for other tables', async () => {
       const t = setup();
       await t.connector.uploadData(t.database([entry('PUT', 'a', { first_name: 'Ana' })]));
 
       expect(t.upsert.mock.calls[0]).toEqual([{ id: 'a', first_name: 'Ana' }]);
       expect(t.readBack).not.toHaveBeenCalled();
+    });
+
+    describe('a PUT that does not insert (issue 158)', () => {
+      const denied: Result = { data: null, error: { code: '42501', message: 'denied' } };
+      const conflict: Result = { data: [], error: null };
+      const withdrawal = { user_id: 'u1', athlete_id: 'at1', accepted_at: '2026-10-01T10:00:00.000Z', withdrawn_at: '2026-10-02T10:00:00.000Z', note: null };
+      const authorization = () => entry('PUT', 'au1', withdrawal, 'authorizations');
+      const changed = (op: CrudEntry, code: string) => [op.table, op.id, 'PUT', JSON.stringify(op.opData), code, expect.any(String), 1];
+
+      it('conflict and the stored row has every non-null column: success, filtered by id and each non-null column', async () => {
+        const t = setup({ upsert: conflict, readBack: ok });
+        await t.connector.uploadData(t.database([authorization()]));
+
+        expect(t.readQueries).toEqual([
+          [['id', 'au1'], ['user_id', 'u1'], ['athlete_id', 'at1'], ['withdrawn_at', 'not.is.null']],
+        ]);
+        expect(failureInserts(t.committed)).toHaveLength(0);
+        expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['authorizations', 'au1']]);
+        expect(t.complete).toHaveBeenCalledTimes(1);
+      });
+
+      it('conflict and the row exists with other values: insert_only_changed (a withdrawal sent as PUT is not ignored)', async () => {
+        const t = setup({ upsert: conflict, readBack: [empty, ok] });
+        await t.connector.uploadData(t.database([authorization()]));
+
+        expect(t.readQueries[1]).toEqual([['id', 'au1']]);
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([changed(authorization(), 'insert_only_changed')]);
+        expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['authorizations', 'au1']]);
+        expect(t.complete).toHaveBeenCalledTimes(1);
+      });
+
+      it('conflict and no row is visible: no_rows_affected', async () => {
+        const t = setup({ upsert: conflict, readBack: empty });
+        await t.connector.uploadData(t.database([authorization()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([changed(authorization(), 'no_rows_affected')]);
+      });
+
+      it('a permanent 42501 on a row that is already saved is a success, so a retry after losing the insert permission does not fail', async () => {
+        const t = setup({ upsert: denied, readBack: ok });
+        await t.connector.uploadData(t.database([authorization()]));
+
+        expect(failureInserts(t.committed)).toHaveLength(0);
+        expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['authorizations', 'au1']]);
+        expect(t.complete).toHaveBeenCalledTimes(1);
+      });
+
+      it('a permanent 42501 and the row exists with other values: insert_only_changed', async () => {
+        const t = setup({ upsert: denied, readBack: [empty, ok] });
+        await t.connector.uploadData(t.database([authorization()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([changed(authorization(), 'insert_only_changed')]);
+      });
+
+      it('a permanent 42501 and the row is absent: the 42501 is recorded', async () => {
+        const t = setup({ upsert: denied, readBack: empty });
+        await t.connector.uploadData(t.database([authorization()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([changed(authorization(), '42501')]);
+      });
+
+      it('a permanent 42501 and the row cannot be read: the 42501 of the insert is recorded', async () => {
+        const t = setup({ upsert: denied, readBack: { data: null, error: { code: '42501', message: 'no select' } } });
+        await t.connector.uploadData(t.database([authorization()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([changed(authorization(), '42501')]);
+      });
+
+      it('a retry of an invitation with the token and expiry the server replaced counts as sent', async () => {
+        const invitation = entry('PUT', 'i1', { school_id: 's1', token: 'client-token', expires_at: '2026-11-01T10:00:00.000Z', revoked_at: null, created_at: '2026-10-25T10:00:00.000Z' }, 'school_invitations');
+        const t = setup({ upsert: conflict, readBack: ok });
+        await t.connector.uploadData(t.database([invitation]));
+
+        expect(t.readQueries).toEqual([[['id', 'i1'], ['school_id', 's1']]]);
+        expect(failureInserts(t.committed)).toHaveLength(0);
+      });
+
+      it('a retry of an authorization whose accepted_at the server clamped counts as sent', async () => {
+        const accepted = entry('PUT', 'au2', { user_id: 'u1', athlete_id: 'at1', accepted_at: '2026-10-25T10:00:01.000Z', received_at: '2026-10-25T10:00:00.000Z' }, 'authorizations');
+        const t = setup({ upsert: conflict, readBack: ok });
+        await t.connector.uploadData(t.database([accepted]));
+
+        expect(t.readQueries).toEqual([[['id', 'au2'], ['user_id', 'u1'], ['athlete_id', 'at1'], ['withdrawn_at', 'is.null']]]);
+        expect(failureInserts(t.committed)).toHaveLength(0);
+      });
+
+      it('an authorization sent as PUT with withdrawn_at over a row without a withdrawal: insert_only_changed', async () => {
+        const op = entry('PUT', 'au3', { user_id: 'u1', athlete_id: 'at1', withdrawn_at: '2026-10-26T10:00:00.000Z' }, 'authorizations');
+        const t = setup({ upsert: conflict, readBack: [empty, ok] });
+        await t.connector.uploadData(t.database([op]));
+
+        expect(t.readQueries).toEqual([[['id', 'au3'], ['user_id', 'u1'], ['athlete_id', 'at1'], ['withdrawn_at', 'not.is.null']], [['id', 'au3']]]);
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([changed(op, 'insert_only_changed')]);
+      });
+
+      it('a transient error while reading back is retried, not recorded', async () => {
+        const error = { message: 'Network request failed' };
+        const t = setup({ upsert: conflict, readBack: { data: null, error } }, { sleep: jest.fn().mockResolvedValue(undefined) });
+        await expect(t.connector.uploadData(t.database([authorization()]))).rejects.toBe(error);
+
+        expect(t.writeTransaction).not.toHaveBeenCalled();
+        expect(t.complete).not.toHaveBeenCalled();
+      });
     });
   });
 

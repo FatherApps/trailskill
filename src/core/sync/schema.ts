@@ -73,6 +73,8 @@ export const AppSchema = new Schema({
     school_id: column.text,
     group_id: column.text,
     token: column.text,
+    expires_at: column.text,
+    revoked_at: column.text,
   }),
   pending_writes: new Table(
     { table_name: column.text, record_id: column.text },
