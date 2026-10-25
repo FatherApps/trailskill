@@ -590,3 +590,82 @@ describe('SwimmerRow status column width', () => {
     expect(statusColumn()).toMatchObject({ maxWidth: '100%' });
   });
 });
+
+describe('SwimmerRow at a narrow width', () => {
+  beforeEach(() => setOsFontScale(1));
+  afterEach(() => jest.restoreAllMocks());
+
+  const withTag = { ...base, tag: { label: 'Consentimiento', variant: 'warn' } } as const;
+  const name = () => screen.getByText('Lucía R.', { includeHiddenElements: true });
+  const tag = () => screen.getByText('Consentimiento', { includeHiddenElements: true });
+  const stacked = () => {
+    const column = chainOf(name()).find((style) => style.flexDirection === 'column' && style.flex === 1);
+    return column !== undefined && chainOf(tag()).some((style) => style === column);
+  };
+  const chainOf = (node: { parent: unknown; props: { style?: unknown } }) => {
+    const styles: Record<string, unknown>[] = [];
+    for (let n = node as typeof node | null; n; n = n.parent as typeof node | null) {
+      styles.push(StyleSheet.flatten(n.props.style as never) ?? {});
+    }
+    return styles;
+  };
+  const layout = (element: Parameters<typeof fireEvent>[0], width: number) =>
+    fireEvent(element, 'layout', { nativeEvent: { layout: { width, height: 64, x: 0, y: 0 } } });
+  // The trailing wrapper is the first ancestor of the tag that is not a hidden column of its own.
+  const trailingWrapper = () => {
+    for (let n = tag().parent; n; n = n.parent) {
+      if (n.props.onLayout && n !== screen.getByLabelText(/Consentimiento/)) return n;
+    }
+    throw new Error('no trailing wrapper');
+  };
+  const renderRow = async () => {
+    await render(<SwimmerRow {...withTag} />);
+    // What the trailing element measures side by side (time + tag + gap), in dp.
+    await layout(trailingWrapper(), 180);
+  };
+
+  it('is side by side before any layout event', async () => {
+    await render(<SwimmerRow {...withTag} />);
+
+    expect(stacked()).toBe(false);
+  });
+
+  it('stacks the trailing element below the name when the row is too narrow at 100 %', async () => {
+    await renderRow();
+    await layout(screen.getByLabelText(/Consentimiento/), 300);
+
+    expect(stacked()).toBe(true);
+  });
+
+  it('stays side by side when the row is wide at 100 %', async () => {
+    await renderRow();
+    await layout(screen.getByLabelText(/Consentimiento/), 420);
+
+    expect(stacked()).toBe(false);
+  });
+
+  it('keeps a time-only row side by side on a phone-width row', async () => {
+    await render(<SwimmerRow {...base} />);
+    await layout(screen.getByLabelText(/Lucía R\./), 360);
+
+    expect(chainOf(name()).some((style) => style.flexDirection === 'column')).toBe(false);
+  });
+
+  it('stays stacked when the same width is reported again', async () => {
+    await renderRow();
+    const row = screen.getByLabelText(/Consentimiento/);
+    await layout(row, 300);
+    expect(stacked()).toBe(true);
+
+    await layout(row, 300);
+    expect(stacked()).toBe(true);
+  });
+
+  it('stacks the status layout too when the row is too narrow', async () => {
+    await render(<SwimmerRow {...withTag} status={<Text>Estado</Text>} />);
+    const row = screen.getByLabelText(/Consentimiento/).parent!;
+    await layout(row, 200);
+
+    expect(chainOf(tag()).some((style) => style.flexWrap === 'wrap')).toBe(true);
+  });
+});

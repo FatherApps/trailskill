@@ -81,6 +81,23 @@ describe('development gallery', () => {
     expect(screen.getByRole('radio', { name: 'with-improvement' })).toBeChecked();
   });
 
+  it('lists the school console group with its entries and opens the screen with its states', async () => {
+    const view = await renderRouter(routes, { initialUrl: '/gallery' });
+
+    expect(screen.getByText('school-console')).toBeOnTheScreen();
+    for (const name of ['Logo', 'ConsoleNav', 'SideSheet', 'AthleteIndicators', 'AthleteFilters', 'AthleteTable', 'AthleteDetail']) {
+      expect(screen.getByRole('button', { name })).toBeOnTheScreen();
+    }
+
+    await fireEvent.press(screen.getByRole('button', { name: 'AthletesScreen' }));
+
+    expect(view.getPathname()).toBe('/gallery/athletesScreen');
+    for (const state of ['with-data', 'loading', 'empty', 'error', 'offline-with-data', 'offline-no-data', 'denied', 'expanded-1280', 'medium-800', 'compact-360']) {
+      expect(screen.getByRole('radio', { name: state })).toBeOnTheScreen();
+    }
+    expect(screen.getByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
+  });
+
   it('lists the accounts screens under their own group and opens one with its states', async () => {
     const view = await renderRouter(routes, { initialUrl: '/gallery' });
 

@@ -173,6 +173,13 @@ export const size = {
   'field-h': 52,
 } as const;
 
+// Layout breakpoints (minimum width in dp) from the design system.
+export const breakpoint = {
+  'bp-compact': 0, // Phone: one column.
+  'bp-medium': 600, // Tablet portrait.
+  'bp-expanded': 1024, // Tablet landscape and desktop: side navigation + content + detail.
+} as const;
+
 export type Elevation = {
   elevation: number;
   shadowColor: string;

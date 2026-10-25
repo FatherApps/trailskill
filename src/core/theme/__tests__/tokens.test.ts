@@ -1,5 +1,5 @@
 import { contrastRatio } from '../contrast';
-import { colors, type ThemeName } from '../tokens';
+import { breakpoint, colors, type ThemeName } from '../tokens';
 
 const themes: ThemeName[] = ['light', 'dark'];
 
@@ -41,5 +41,11 @@ describe('contrastRatio', () => {
   it('is symmetric and 1 for equal colors', () => {
     expect(contrastRatio('#FFFFFF', '#000000')).toBeCloseTo(21, 2);
     expect(contrastRatio('#C8EF55', '#C8EF55')).toBeCloseTo(1, 2);
+  });
+});
+
+describe('breakpoint tokens', () => {
+  it('matches the design system layout breakpoints', () => {
+    expect(breakpoint).toEqual({ 'bp-compact': 0, 'bp-medium': 600, 'bp-expanded': 1024 });
   });
 });

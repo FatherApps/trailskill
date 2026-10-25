@@ -4,6 +4,7 @@ import { galleryEntries, type GalleryEntry } from '../../core/ui';
 import { galleryEntries as timingGalleryEntries } from '../../modules/timing';
 import { galleryEntries as accountsEntries } from '../../modules/accounts';
 import { galleryEntries as athletesGalleryEntries } from '../../modules/athletes';
+import { galleryEntries as schoolConsoleGalleryEntries } from '../../modules/school-console';
 import { galleryEntries as trainingPlansGalleryEntries } from '../../modules/training-plans';
 
 type GalleryGroup = { id: string; title: string; entries: GalleryEntry[] };
@@ -14,6 +15,7 @@ export const galleryGroups: GalleryGroup[] = [
   { id: 'timing', title: 'timing', entries: timingGalleryEntries },
   { id: 'accounts', title: 'accounts', entries: accountsEntries },
   { id: 'athletes', title: 'athletes', entries: athletesGalleryEntries },
+  { id: 'school-console', title: 'school-console', entries: schoolConsoleGalleryEntries },
   { id: 'training-plans', title: 'training-plans', entries: trainingPlansGalleryEntries },
 ];
 
