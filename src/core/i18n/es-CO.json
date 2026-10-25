@@ -37,7 +37,7 @@
     "sign_out_rejected_other": "{{count}} de ellos no se pudieron enviar: hay que reintentarlos o revisarlos uno por uno, no se enviarán solos.",
     "sign_out_anyway": "Cerrar sesión igual",
     "sign_out_keep": "Seguir y enviar",
-    "sign_out_offline": "La sincronización no está conectada: los registros se envían cuando vuelva la conexión.",
+    "sign_out_offline": "La sincronización no está conectada: si sigues en la sesión, se envían cuando vuelva la conexión.",
     "sign_out_failed": "No pudimos cerrar la sesión. Inténtalo de nuevo."
   },
   "sport": {

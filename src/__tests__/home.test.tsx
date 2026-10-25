@@ -151,7 +151,7 @@ describe('sign out from home', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
 
     await screen.findByRole('header', { name: pendingTitle });
-    expect(screen.queryByText(/los registros se envían cuando vuelva la conexión/) !== null).toBe(shown);
+    expect(screen.queryByText(/si sigues en la sesión, se envían cuando vuelva la conexión/) !== null).toBe(shown);
   });
 
   it('tells the person when signing out failed', async () => {
