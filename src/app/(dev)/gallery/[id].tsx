@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -147,7 +147,10 @@ function Body({
             onChange={onFontScale}
           />
           <ThemeProvider name={themeName} fontScale={Number(fontScale)}>
-            <PreviewBox>{entry.states[stateKey]?.()}</PreviewBox>
+            {/* Keyed by state: a preview that holds its own state must not carry it over to the next state. */}
+            <PreviewBox>
+              <Fragment key={stateKey}>{entry.states[stateKey]?.()}</Fragment>
+            </PreviewBox>
           </ThemeProvider>
         </>
       )}
