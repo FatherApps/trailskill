@@ -31,9 +31,9 @@ function toBlock(row: BlockRow): PlanBlock {
 }
 
 // `reader` is the database, or a batch so the save reads what it is about to change in its own transaction.
-type Reader = Pick<WriteBatch, 'getAll'>;
+export type Reader = Pick<WriteBatch, 'getAll'>;
 
-async function latestVersionId(reader: Reader, planId: string): Promise<string | null> {
+export async function latestVersionId(reader: Reader, planId: string): Promise<string | null> {
   const [version] = await reader.getAll<{ id: string }>(
     'SELECT id FROM training_plan_versions WHERE plan_id = ? ORDER BY version DESC LIMIT 1',
     [planId],
