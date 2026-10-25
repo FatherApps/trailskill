@@ -7,3 +7,4 @@ export { countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyn
 export type { RecordSyncState } from './syncState';
 export { RecordSyncStatus } from './RecordSyncStatus';
 export { deleteRecord, retryFailedRecord, writeRecord } from './writes';
+export type { RetryResult } from './writes';

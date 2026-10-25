@@ -11,11 +11,13 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { I18nextProvider } from 'react-i18next';
+import { StatusBar, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { i18n } from '../core/i18n';
 import { SessionProvider, useSession } from '../core/session';
 import { db } from '../core/sync';
-import { ThemeProvider } from '../core/theme';
+import { ThemeProvider, useTheme } from '../core/theme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -23,16 +25,32 @@ SplashScreen.preventAutoHideAsync();
 // redirectTo is needed for a cold start: without it the guarded "/" is an unmatched route.
 export function SessionGate() {
   const { session } = useSession();
+  const { name, colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
+  // The bars are translucent (edge-to-edge): this padding keeps every screen out from under them.
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={session != null} redirectTo="/sign-in">
-        <Stack.Screen name="(app)" />
-      </Stack.Protected>
-      <Stack.Protected guard={session == null}>
-        <Stack.Screen name="(auth)" />
-      </Stack.Protected>
-    </Stack>
+    <View
+      testID="safe-area-root"
+      style={{
+        flex: 1,
+        backgroundColor: colors['surface-0'],
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom,
+        paddingLeft: insets.left,
+        paddingRight: insets.right,
+      }}
+    >
+      <StatusBar barStyle={name === 'dark' ? 'light-content' : 'dark-content'} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={session != null} redirectTo="/sign-in">
+          <Stack.Screen name="(app)" />
+        </Stack.Protected>
+        <Stack.Protected guard={session == null}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+      </Stack>
+    </View>
   );
 }
 

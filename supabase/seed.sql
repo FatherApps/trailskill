@@ -53,3 +53,10 @@ insert into public.athlete_groups (athlete_id, group_id) values
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000c1', 'guardian'),
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000c2', 'guardian');
+
+-- One synthetic text per purpose. Placeholders only: the real, legally
+-- reviewed texts are not part of the repository.
+insert into public.authorization_texts (purpose, version, language, body) values
+  ('record_times', 1, 'es-CO', 'SYNTHETIC PLACEHOLDER, not legal text: authorization to record times.'),
+  ('import_official_results', 1, 'es-CO', 'SYNTHETIC PLACEHOLDER, not legal text: authorization to import official results.'),
+  ('share_results_with_school', 1, 'es-CO', 'SYNTHETIC PLACEHOLDER, not legal text: authorization to share results with another school.');

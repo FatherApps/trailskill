@@ -27,8 +27,8 @@ describe('core/ui gallery entries', () => {
     expect(stateKeys('tag')).toEqual(['neutral', 'outline', 'info', 'ok', 'warn']);
     expect(stateKeys('icon')).toEqual(['icon-md', 'icon-sm']);
     expect(stateKeys('stepHeader')).toEqual(['first', 'middle', 'last']);
-    expect(stateKeys('stateView')).toEqual(['loading', 'empty', 'error', 'offline', 'denied']);
-    expect(stateKeys('syncStatus')).toEqual(['on_device', 'sending', 'synced', 'not_sent']);
+    expect(stateKeys('stateView')).toEqual(['loading', 'empty', 'empty-group', 'error', 'offline', 'denied']);
+    expect(stateKeys('syncStatus')).toEqual(['on_device', 'sending', 'synced', 'not_sent', 'not_sent con mensaje']);
     expect(stateKeys('confirmSheet')).toEqual(['stop', 'primary', 'signOut']);
   });
 

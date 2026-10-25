@@ -17,7 +17,8 @@ function failureCode(result: Result): string | null {
 }
 
 // Spec "New measurements are append-only" (2026-10-24-pilot-design.md): these tables are only ever inserted, never updated by the app.
-const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series']);
+// authorizations are evidence: a withdrawal goes up as a PATCH, never as a re-sent PUT.
+const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series', 'authorizations', 'school_invitations']);
 
 /** Refresh a session that expires within this window, so a skewed device clock does not send an expired token. */
 const TOKEN_REFRESH_MARGIN_SECONDS = 60;
@@ -133,8 +134,8 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         const code = codes[i];
         if (!code || done.has(op.clientId)) continue;
         await tx.execute(
-          'INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at) VALUES (uuid(), ?, ?, ?, ?, ?, ?)',
-          [op.table, op.id, op.op, JSON.stringify(op.opData ?? {}), code, new Date().toISOString()],
+          'INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at, client_id) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?)',
+          [op.table, op.id, op.op, JSON.stringify(op.opData ?? {}), code, new Date().toISOString(), op.clientId],
         );
       }
       for (const clientId of new Set(transaction.crud.map((op) => op.clientId))) {

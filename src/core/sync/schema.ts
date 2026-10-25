@@ -41,6 +41,39 @@ export const AppSchema = new Schema({
     },
     { indexes: { series: ['series_id'] } },
   ),
+  authorization_texts: new Table({
+    ...audit,
+    purpose: column.text,
+    version: column.integer,
+    language: column.text,
+    body: column.text,
+  }),
+  authorizations: new Table({
+    created_at: column.text,
+    user_id: column.text,
+    athlete_id: column.text,
+    purpose: column.text,
+    text_id: column.text,
+    accepted_at: column.text,
+    received_at: column.text,
+    withdrawn_at: column.text,
+    withdrawn_by: column.text,
+    withdrawal_received_at: column.text,
+  }),
+  authorization_status: new Table({
+    athlete_id: column.text,
+    purpose: column.text,
+    // SQLite has no boolean: 1 granted, 0 not granted.
+    is_granted: column.integer,
+    updated_at: column.text,
+  }),
+  school_invitations: new Table({
+    created_at: column.text,
+    created_by: column.text,
+    school_id: column.text,
+    group_id: column.text,
+    token: column.text,
+  }),
   pending_writes: new Table(
     { table_name: column.text, record_id: column.text },
     { localOnly: true, indexes: { record: ['table_name', 'record_id'] } },
@@ -53,6 +86,8 @@ export const AppSchema = new Schema({
       payload: column.text,
       error_code: column.text,
       failed_at: column.text,
+      // The op's queue number; the order key when two failures share a failed_at.
+      client_id: column.integer,
     },
     { localOnly: true },
   ),
