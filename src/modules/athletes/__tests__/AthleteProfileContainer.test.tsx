@@ -100,6 +100,7 @@ describe('athlete profile container', () => {
     await show({ history: createInMemoryHistoryRepository([measurement({ id: 'm1', kind: 'series_total', hundredths: 1000 })]) });
 
     expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
-    expect(screen.queryByText('10,00', { includeHiddenElements: true })).toBeNull();
+    // Only the history row shows it: the personal best card has no time.
+    expect(screen.getAllByText('10,00', { includeHiddenElements: true })).toHaveLength(1);
   });
 });
