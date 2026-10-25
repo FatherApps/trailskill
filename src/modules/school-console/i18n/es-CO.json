@@ -110,6 +110,36 @@
     },
     "offline_empty": "No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
   },
+  "records": {
+    "title": "Récords",
+    "count_one": "{{count}} prueba",
+    "count_other": "{{count}} pruebas",
+    "event": "Prueba",
+    "best_mark": "Mejor marca",
+    "athlete": "Deportista",
+    "date": "Fecha",
+    "none": "—",
+    "no_mark": "sin marca",
+    "category": "Categoría",
+    "category_spoken": "Categoría: {{value}}",
+    "pool_filter": "Piscina",
+    "pool": {
+      "SCM": "25 m",
+      "LCM": "50 m"
+    },
+    "pool_empty": {
+      "title": "Aún no hay récords en esta piscina",
+      "message": "Aparecen cuando se registra una marca de esta categoría en esta piscina."
+    },
+    "empty": {
+      "title": "Aún no hay récords",
+      "message": "Aparecen cuando los entrenadores registran marcas de los deportistas de la categoría."
+    },
+    "error": {
+      "title": "No pudimos cargar los récords"
+    },
+    "offline_empty": "No hay récords guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
+  },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",
