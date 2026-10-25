@@ -12,10 +12,10 @@ const noop = () => {};
 // The preview box shrinks its children to their content; screens need the full width.
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
 
-// A screen with a bottom-anchored action needs a real screen height to show it.
+// A real screen height, so a bottom-anchored action shows; it grows with large text so the gallery scroll reaches it.
 function FullScreen({ children }: { children: ReactNode }) {
   const { height } = useWindowDimensions();
-  return <View style={{ alignSelf: 'stretch', height }}>{children}</View>;
+  return <View style={{ alignSelf: 'stretch', minHeight: height }}>{children}</View>;
 }
 
 const person = { name: fx.person.name, email: fx.person.email, phone: fx.person.phone };
