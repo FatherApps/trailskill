@@ -1,12 +1,13 @@
 -- Timing measurements and series: the five kinds, no 0 for a missing time,
 -- author and device on every row, and who reads and writes them. Coaches
 -- write their assigned athletes, unassigned arrivals belong to the series
--- author, guardians read only, school admins read their school. A coach who
--- loses an assignment can no longer write that athlete's measurements. All
+-- author, guardians read only, school admins read their school. Completing an
+-- arrival changes only its athlete, and a measurement goes only into the
+-- author's own series. A coach who loses an assignment can no longer write that athlete's measurements. All
 -- users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(40);
 
 -- Users: coaches A and B, guardian G, school admin S.
 insert into auth.users (id, email) values
@@ -206,6 +207,18 @@ select throws_ok(
   '42501', null,
   'an unassigned arrival outside a series is rejected'
 );
+select throws_ok(
+  $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1', hundredths = 1000
+     where id = '20000000-0000-4000-8000-0000000000f7' $$,
+  '42501', null,
+  'completing an arrival cannot change its time'
+);
+select throws_ok(
+  $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1', kind = 'race'
+     where id = '20000000-0000-4000-8000-0000000000f7' $$,
+  '42501', null,
+  'completing an arrival cannot change its kind'
+);
 select isnt_empty(
   $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1'
      where id = '20000000-0000-4000-8000-0000000000f6' returning id $$,
@@ -231,6 +244,15 @@ select throws_ok(
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-b', '2026-10-24 08:00:00+00') $$,
   '42501', null,
   'coach B cannot add an unassigned arrival to A''s series'
+);
+select throws_ok(
+  $$ insert into public.measurements
+       (kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+     values
+       ('repetition', '20000000-0000-4000-8000-0000000000e2', '20000000-0000-4000-8000-0000000000c1', 3500,
+        'FR', '50m', 'SCM', 'training', 'screen_button', 'device-b', '2026-10-24 08:00:00+00') $$,
+  '42501', null,
+  'coach B cannot add a measurement to A''s series'
 );
 select is_empty(
   $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e2'
@@ -267,9 +289,10 @@ select throws_ok(
   '42501', null,
   'guardian G cannot insert a measurement'
 );
-select is_empty(
+select throws_ok(
   $$ update public.measurements set hundredths = 1000
-     where id = '20000000-0000-4000-8000-0000000000f1' returning id $$,
+     where id = '20000000-0000-4000-8000-0000000000f1' $$,
+  '42501', null,
   'guardian G cannot edit a measurement'
 );
 select throws_ok(
@@ -335,14 +358,16 @@ select throws_ok(
   '42501', null,
   'after losing the direct assignment, coach A cannot insert a measurement of that athlete'
 );
-select is_empty(
+select throws_ok(
   $$ update public.measurements set hundredths = 1000
-     where id = '20000000-0000-4000-8000-0000000000fb' returning id $$,
+     where id = '20000000-0000-4000-8000-0000000000fb' $$,
+  '42501', null,
   'after losing the group assignment, coach A updates no measurement of that athlete'
 );
-select is_empty(
+select throws_ok(
   $$ update public.measurements set hundredths = 1000
-     where id = '20000000-0000-4000-8000-0000000000f1' returning id $$,
+     where id = '20000000-0000-4000-8000-0000000000f1' $$,
+  '42501', null,
   'after losing the direct assignment, coach A updates no measurement of that athlete'
 );
 select throws_ok(
