@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import type { GalleryEntry } from '../../core/ui';
 import {
   athletesFixture,
+  categoryChoiceFixture,
   detailFixture,
   detailFor,
   detailsFixture,
@@ -299,6 +300,11 @@ export const galleryEntries: GalleryEntry[] = [
     'pending-no-bests': () => (
       <FullWidth>
         <AthleteDetail athlete={detailsFixture.a3} onViewProfile={noop} />
+      </FullWidth>
+    ),
+    'category-selector': () => (
+      <FullWidth>
+        <AthleteDetail athlete={{ ...detailFixture, categoryChoice: categoryChoiceFixture }} onViewProfile={noop} />
       </FullWidth>
     ),
     'long-text': () => (

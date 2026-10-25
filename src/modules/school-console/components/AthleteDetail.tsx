@@ -3,8 +3,9 @@ import { Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime } from '../../../core/time';
-import { Button, Tag, TimeValue } from '../../../core/ui';
+import { Banner, Button, Tag, TimeValue } from '../../../core/ui';
 import '../i18n';
+import { OptionRow } from './AthleteFilterOptions';
 import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 import type { AthleteDetailData } from './athleteTypes';
 
@@ -30,6 +31,7 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
   const valid = athlete.authorization === 'valid';
   const large = useTextScale() >= LARGE_TEXT_SCALE;
   const noData = t('schoolConsole.common.no_data');
+  const choice = athlete.categoryChoice;
 
   return (
     <View style={{ gap: space[4] }}>
@@ -44,6 +46,17 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
           icon={valid ? 'verified_user' : 'schedule'}
         />
       </View>
+      {choice && (
+        <View>
+          <Text accessibilityRole="header" style={[typography.label, { color: colors[athleteDetailColors.title] }]}>
+            {t('schoolConsole.detail.category')}
+          </Text>
+          {choice.options.map((option) => (
+            <OptionRow key={option.id ?? 'none'} label={option.label} selected={option.id === choice.selectedId} onPress={() => choice.onChoose(option.id)} />
+          ))}
+          {choice.error && <Banner variant="warn" icon="error">{choice.error}</Banner>}
+        </View>
+      )}
       <View style={{ gap: space[1] }}>
         <Text style={[typography.caption, { color: colors[athleteDetailColors.caption] }]}>
           {t('schoolConsole.detail.guardian')}

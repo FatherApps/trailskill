@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { t } from '../../../core/i18n';
 import '../i18n';
-import type { AthleteBest, AthleteFilterId, AthleteRow } from '../components/athleteTypes';
+import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
+import type { CategoriesRepository, Category } from '../data/categories';
 import { athleteIndicators, filterAthletes, filterOptions, startOfWeek } from '../data/athletesList';
 import { CONSOLE_BEST_EVENT, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import { AthletesScreen, type AthletesContent, type AthletesView } from './AthletesScreen';
@@ -12,6 +13,8 @@ import type { ConsoleSectionProps } from './ConsoleScreen';
 export type AthletesSectionProps = ConsoleSectionProps & {
   schoolId: string;
   repository: ConsoleAthletesRepository;
+  // Without it the detail shows the category but cannot change it.
+  categories?: CategoriesRepository;
   // The list is read again when this changes (a sync completed).
   refreshKey?: unknown;
   // When the local database last finished a sync; `null` when it never did.
@@ -29,6 +32,26 @@ type Filters = Partial<Record<AthleteFilterId, string>>;
 const defaultNow = () => new Date();
 
 const MINUTE_MS = 60_000;
+
+const ASSIGN_ERRORS = ['category_inactive', 'category_wrong_school', 'category_missing', 'athlete_school_missing'];
+// The message of a failed assignment: the repository's own error code when it has a text, a generic one otherwise.
+const assignError = (error: unknown) => {
+  const code = error instanceof Error && ASSIGN_ERRORS.includes(error.message) ? error.message : 'other';
+  return t(`schoolConsole.detail.category_error.${code}`);
+};
+
+// What the admin can pick: the active categories, the one the athlete has even if inactive, and none.
+function categoryOptions(list: Category[], current: string | null): CategoryChoice['options'] {
+  return [
+    ...list
+      .filter((category) => category.active || category.id === current)
+      .map((category) => ({
+        id: category.id,
+        label: category.active ? category.name : t('schoolConsole.detail.inactive_option', { name: category.name }),
+      })),
+    { id: null, label: t('schoolConsole.detail.no_category') },
+  ];
+}
 
 // Local date as YYYY-MM-DD, the form the screen formats.
 const localDate = (date: Date) =>
@@ -57,6 +80,7 @@ export function AthletesSection({
   onNavigate,
   schoolId,
   repository,
+  categories,
   refreshKey,
   lastSyncedAt,
   connected,
@@ -68,6 +92,10 @@ export function AthletesSection({
   const [filters, setFilters] = useState<Filters>({});
   const [sheetId, setSheetId] = useState<AthleteFilterId | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [categoryList, setCategoryList] = useState<Category[]>([]);
+  // Bumped after each assignment so the list and the tags show the new category.
+  const [version, setVersion] = useState(0);
+  const [assignFailure, setAssignFailure] = useState<{ athleteId: string; message: string }>();
   const [bests, setBests] = useState<{ athleteId: string; bests: AthleteBest[] }>();
 
   useEffect(() => {
@@ -82,7 +110,16 @@ export function AthletesSection({
     return () => {
       active = false;
     };
-  }, [repository, schoolId, refreshKey, attempt, now]);
+  }, [repository, schoolId, refreshKey, attempt, now, version]);
+
+  useEffect(() => {
+    if (!categories) return;
+    let active = true;
+    categories.list(schoolId).then((list) => active && setCategoryList(list), () => active && setCategoryList([]));
+    return () => {
+      active = false;
+    };
+  }, [categories, schoolId, refreshKey, version]);
 
   useEffect(() => {
     if (selectedId === null) return;
@@ -131,6 +168,19 @@ export function AthletesSection({
             guardian: { name: null, contact: null },
             // Until the athlete's own bests arrive the list is empty, never another athlete's.
             bests: bests?.athleteId === selected.id ? bests.bests : [],
+            categoryChoice: categories && {
+              options: categoryOptions(categoryList, selected.categoryId),
+              selectedId: selected.categoryId,
+              error: assignFailure?.athleteId === selected.id ? assignFailure.message : null,
+              onChoose: (categoryId) =>
+                categories.assignAthlete(selected.id, schoolId, categoryId).then(
+                  () => {
+                    setAssignFailure(undefined);
+                    setVersion((n) => n + 1);
+                  },
+                  (error) => setAssignFailure({ athleteId: selected.id, message: assignError(error) }),
+                ),
+            },
           }
         : null,
     };

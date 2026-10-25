@@ -1,4 +1,4 @@
-import type { AthleteDetailData, AthleteRow } from '../components/athleteTypes';
+import type { AthleteDetailData, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 
 // Synthetic data for the development gallery and the tests: fictional people and school, no real organizations.
 export const schoolNameFixture = 'Escuela Delfines';
@@ -68,6 +68,19 @@ export const detailFor = (athlete: AthleteRow): AthleteDetailData =>
     guardian: { name: 'Camila Torres', contact: 'camila.torres@example.com' },
     bests: [{ id: `${athlete.id}-best`, event: 'Libre 50', time: athlete.bestTime }],
   };
+
+// The category selector of the detail: two active categories, the athlete's own inactive one, and none.
+export const categoryChoiceFixture: CategoryChoice = {
+  options: [
+    { id: 'c1', label: 'Infantil A' },
+    { id: 'c2', label: 'Infantil B' },
+    { id: 'c3', label: 'Juvenil · Inactiva' },
+    { id: null, label: 'Sin categoría' },
+  ],
+  selectedId: 'c2',
+  error: null,
+  onChoose: () => {},
+};
 
 export const longTextDetailFixture: AthleteDetailData = {
   ...detailFixture,
