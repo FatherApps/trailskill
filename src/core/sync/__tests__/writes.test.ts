@@ -102,10 +102,12 @@ describe('deleteRecord', () => {
 
 describe('editRecord', () => {
   // A versioned table stands in for measurements: the sync fake only creates the plain ones.
-  const seedVersioned = (version: number | null) => {
+  const seedVersioned = (version: number | null, stored: { base_version?: number; edited_device_id?: string } = {}) => {
     const seed = new DatabaseSync(store.path);
     seed.exec('CREATE TABLE versioned (id TEXT PRIMARY KEY, hundredths INTEGER, version INTEGER, base_version INTEGER, edited_device_id TEXT)');
-    seed.prepare("INSERT INTO versioned (id, hundredths, version) VALUES ('r1', 3000, ?)").run(version);
+    seed
+      .prepare("INSERT INTO versioned (id, hundredths, version, base_version, edited_device_id) VALUES ('r1', 3000, ?, ?, ?)")
+      .run(version, stored.base_version ?? null, stored.edited_device_id ?? null);
     seed.close();
   };
   const row = () => mockDb.getAll('SELECT * FROM versioned WHERE id = ?', ['r1'])[0];
@@ -128,6 +130,55 @@ describe('editRecord', () => {
     expect(row()).toMatchObject({ version: null, base_version: 1 });
   });
 
+  const updatesOf = (transaction: number) => mockDb.transactions[transaction].filter(({ sql }) => sql.startsWith('UPDATE'));
+
+  it('first edit of a synced row: nothing to reset, so one op carries the values, the metadata and the base version', async () => {
+    seedVersioned(3);
+
+    await editRecord('versioned', 'r1', { hundredths: 2950 }, { edited_device_id: 'device-a' });
+
+    expect(updatesOf(0)).toEqual([
+      { sql: 'UPDATE versioned SET hundredths = ?, edited_device_id = ?, base_version = ? WHERE id = ?', params: [2950, 'device-a', 3, 'r1'] },
+    ]);
+    expect(row()).toEqual({ id: 'r1', hundredths: 2950, version: 3, base_version: 3, edited_device_id: 'device-a' });
+    expect(pending()).toHaveLength(1);
+  });
+
+  it('resets only the columns that hold a value, then writes the edit: one marker per op', async () => {
+    seedVersioned(3, { edited_device_id: 'device-1' });
+
+    await editRecord('versioned', 'r1', { hundredths: 2950 }, { edited_device_id: 'device-2' });
+
+    expect(updatesOf(0)).toEqual([
+      { sql: 'UPDATE versioned SET edited_device_id = ? WHERE id = ?', params: [null, 'r1'] },
+      { sql: 'UPDATE versioned SET hundredths = ?, edited_device_id = ?, base_version = ? WHERE id = ?', params: [2950, 'device-2', 3, 'r1'] },
+    ]);
+    expect(pending()).toHaveLength(2);
+  });
+
+  it('a second edit before sync resets the base version and the device, then writes the edit again', async () => {
+    seedVersioned(3);
+    await editRecord('versioned', 'r1', { hundredths: 2950 }, { edited_device_id: 'device-a' });
+
+    await editRecord('versioned', 'r1', { hundredths: 2900 }, { edited_device_id: 'device-a' });
+
+    expect(updatesOf(1).map(({ params }) => params)).toEqual([
+      [null, null, 'r1'],
+      [2900, 'device-a', 3, 'r1'],
+    ]);
+    expect(row()).toMatchObject({ hundredths: 2900, base_version: 3, edited_device_id: 'device-a' });
+    expect(pending()).toHaveLength(3);
+  });
+
+  it('never nulls the edited values', async () => {
+    seedVersioned(3);
+
+    await editRecord('versioned', 'r1', { hundredths: 2950 }, { edited_device_id: 'device-a' });
+    await editRecord('versioned', 'r1', { hundredths: 2900 }, { edited_device_id: 'device-a' });
+
+    expect(updatesOf(1)[0].sql).not.toContain('hundredths');
+  });
+
   it('keeps the version it was based on when edited again before the server answers', async () => {
     seedVersioned(3);
 
@@ -135,7 +186,7 @@ describe('editRecord', () => {
     await editRecord('versioned', 'r1', { hundredths: 2900 });
 
     expect(row()).toMatchObject({ hundredths: 2900, version: 3, base_version: 3 });
-    expect(pending()).toHaveLength(2);
+    expect(pending()).toHaveLength(3);
   });
 
   it('rejects a record that is not on the device and writes nothing', async () => {

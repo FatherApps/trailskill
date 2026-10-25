@@ -8,7 +8,7 @@
 -- here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(82);
+select plan(89);
 
 -- Users: coaches C1 and C2 of e1, coach X of another school, school admin S,
 -- guardian G, platform admin P.
@@ -527,6 +527,53 @@ select is(
   1::bigint, 'the platform admin still reads it'
 );
 reset role;
+
+-- PowerSync uploads only the columns whose value changed, so the device resets
+-- base_version and the edit metadata to null before every edit (editRecord): the
+-- second upload then always carries them. One coach, two devices: D2 edits and
+-- syncs, then D1 edits twice offline from version 1. Both edits conflict and D2's
+-- value is never overwritten, which an omitted edited_device_id would allow.
+insert into public.measurements
+  (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+values ('59000000-0000-4000-8000-0000000000d9', 'repetition', '59000000-0000-4000-8000-0000000000e1', '59000000-0000-4000-8000-0000000000c1', 3600,
+        'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1', '2026-10-01 10:00:00+00', '59000000-0000-4000-8000-0000000000a1');
+-- Captured before the withdrawal above, so it stays visible.
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+
+select isnt_empty(
+  $$ update public.measurements set base_version = null, edited_device_id = null, edit_reason = null
+     where id = '59000000-0000-4000-8000-0000000000d9' returning id $$,
+  'the reset upload is accepted'
+);
+select is(
+  (select hundredths || '|' || version || '|' || (edited_by is null) from public.measurements where id = '59000000-0000-4000-8000-0000000000d9'),
+  '3600|1|true', 'and it is a no-op: same value, same version, no edit recorded'
+);
+select lives_ok(
+  $$ update public.measurements set hundredths = 3400, base_version = 1, edited_device_id = 'dev-d2' where id = '59000000-0000-4000-8000-0000000000d9' $$,
+  'device D2 edits and syncs'
+);
+select lives_ok(
+  $$ update public.measurements set base_version = null, edited_device_id = null, edit_reason = null where id = '59000000-0000-4000-8000-0000000000d9' $$,
+  'device D1 uploads its reset'
+);
+select lives_ok(
+  $$ update public.measurements set hundredths = 3300, base_version = 1, edited_device_id = 'dev-d1' where id = '59000000-0000-4000-8000-0000000000d9' $$,
+  'and its first edit from version 1'
+);
+select lives_ok(
+  $$ update public.measurements set base_version = null, edited_device_id = null, edit_reason = null where id = '59000000-0000-4000-8000-0000000000d9';
+     update public.measurements set hundredths = 3200, base_version = 1, edited_device_id = 'dev-d1' where id = '59000000-0000-4000-8000-0000000000d9' $$,
+  'and its second edit, again after a reset'
+);
+reset role;
+select is(
+  (select hundredths || '|' || version || '|' || edited_device_id from public.measurements where id = '59000000-0000-4000-8000-0000000000d9')
+  || '|' || (select count(*) from public.measurement_conflicts where measurement_id = '59000000-0000-4000-8000-0000000000d9'),
+  '3400|2|dev-d2|2',
+  'D2''s edit is kept and both of D1''s edits are conflicts'
+);
 
 select * from finish();
 rollback;

@@ -71,13 +71,16 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
       });
     },
     async edit(id, { hundredths, athleteId }, { deviceId, editReason }) {
-      await editRecord('measurements', id, {
-        ...(hundredths !== undefined && { hundredths }),
-        ...(athleteId !== undefined && { athlete_id: athleteId }),
+      await editRecord(
+        'measurements',
+        id,
+        {
+          ...(hundredths !== undefined && { hundredths }),
+          ...(athleteId !== undefined && { athlete_id: athleteId }),
+        },
         // Always sent, so the server never keeps an older device or reason for this version.
-        edited_device_id: deviceId,
-        edit_reason: editReason ?? null,
-      });
+        { edited_device_id: deviceId, edit_reason: editReason ?? null },
+      );
     },
     async listBySeries(seriesId) {
       // `IS NULL` sorts first in SQLite; the flag puts unplaced arrivals last, like the in-memory repository.

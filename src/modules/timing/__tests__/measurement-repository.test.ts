@@ -237,6 +237,7 @@ describe('PowerSync measurement repository edits', () => {
     await repository.edit('m1', { hundredths: 2950 }, { deviceId: 'device-b', editReason: 'typo' });
 
     expect(rowOf('m1')).toMatchObject({ hundredths: 2950, version: 4, base_version: 4, edited_device_id: 'device-b', edit_reason: 'typo' });
+    // A synced row has nothing to reset: one op.
     expect(pendingCount()).toBe(pendingBefore + 1);
   });
 
