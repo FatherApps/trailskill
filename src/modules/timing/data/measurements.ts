@@ -62,9 +62,9 @@ export class InvalidMeasurementTimeError extends Error {
   override name = 'InvalidMeasurementTimeError';
 }
 
-/** Rejects a time the server would turn into a permanent upload failure, so the change is refused before anything is written. */
+/** Rejects a time the server would turn into a permanent upload failure (zero, negative or non-integer), so the change is refused before anything is written. */
 export function assertEditableTime(kind: MeasurementKind, hundredths: number | null | undefined): void {
   if (typeof hundredths !== 'number') return;
   if (kind === 'completed') throw new CompletedMeasurementTimeError('A completed measurement has no time');
-  if (hundredths <= 0) throw new InvalidMeasurementTimeError('A time must be greater than 0');
+  if (!Number.isInteger(hundredths) || hundredths <= 0) throw new InvalidMeasurementTimeError('A time must be greater than 0');
 }

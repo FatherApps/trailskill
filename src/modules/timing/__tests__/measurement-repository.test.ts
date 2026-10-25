@@ -225,7 +225,7 @@ describe.each(factories)('%s measurement repository', (_name, create) => {
       });
     });
 
-    it.each([0, -5])('rejects a time of %s: a missing time is null, never 0', async (hundredths) => {
+    it.each([0, -5, NaN, 29.5, Infinity])('rejects a time of %s: a missing time is null, never 0', async (hundredths) => {
       const repository = create();
       const original = arrival('m1', 'S', 1, 'athlete-1');
       await repository.add(original);
