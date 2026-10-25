@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../i18n';
 import { useTheme, type ColorToken } from '../theme';
@@ -55,6 +55,10 @@ export function SwimmerRow({
   onPress,
 }: SwimmerRowProps) {
   const { colors, space, radius, typography } = useTheme();
+  // The OS text scale grows Text but is not in the theme tokens; the avatar grows with it so the initials stay inside.
+  const { fontScale } = useWindowDimensions();
+  // 40 is the design-system avatar size at 100 % (not a token).
+  const avatarSize = Math.max(40, Math.ceil(typography.label.lineHeight * fontScale) + 2 * space[2]);
 
   const label = [
     name,
@@ -87,8 +91,8 @@ export function SwimmerRow({
       <View
         {...hidden}
         style={{
-          minWidth: 40,
-          minHeight: 40,
+          width: avatarSize,
+          height: avatarSize,
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: radius.full,
