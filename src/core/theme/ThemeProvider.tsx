@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
 import {
+  breakpoint,
   colors,
   elevation,
   radius,
@@ -20,6 +21,7 @@ export type Theme = {
   space: typeof space;
   radius: typeof radius;
   size: typeof size;
+  breakpoint: typeof breakpoint;
   elevation: Record<ElevationToken, Elevation>;
   typography: typeof typography;
 };
@@ -45,6 +47,7 @@ function buildTheme(name: ThemeName, fontScale = 1): Theme {
     space,
     radius,
     size,
+    breakpoint,
     elevation: elevation[name],
     typography: scaleText(fontScale),
   };

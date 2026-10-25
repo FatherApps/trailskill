@@ -2,6 +2,7 @@ export { contrastRatio } from './contrast';
 export { darken } from './darken';
 export { ThemeProvider, useTheme, type Theme } from './ThemeProvider';
 export {
+  breakpoint,
   colors,
   elevation,
   fontFamily,
