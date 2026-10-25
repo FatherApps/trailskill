@@ -2,7 +2,7 @@
 -- admin still does. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(21);
 
 -- Users: school admin S (schools 1 and 3), coach C1 (school 1), coach C2
 -- (school 2 only), N with no memberships, platform admin P, former coach F
@@ -51,6 +51,10 @@ insert into public.athlete_schools (athlete_id, school_id) values
 insert into public.athlete_managers (user_id, athlete_id, relation)
 values ('20000000-0000-4000-8000-0000000000a7', '20000000-0000-4000-8000-0000000000e1', 'guardian');
 
+-- F also still has a direct athlete assignment.
+insert into public.coach_athlete_assignments (coach_user_id, athlete_id)
+values ('20000000-0000-4000-8000-0000000000a6', '20000000-0000-4000-8000-0000000000e1');
+
 set local role authenticated;
 
 -- School admin S
@@ -89,6 +93,17 @@ select lives_ok(
   $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id)
      values ('20000000-0000-4000-8000-0000000000a2', '20000000-0000-4000-8000-0000000000e1') $$,
   'school admin S can assign a coach of S''s school to an athlete of S''s school'
+);
+select throws_ok(
+  $$ update public.coach_athlete_assignments set coach_user_id = '20000000-0000-4000-8000-0000000000a4'
+     where coach_user_id = '20000000-0000-4000-8000-0000000000a2' and athlete_id = '20000000-0000-4000-8000-0000000000e1' $$,
+  '42501', null,
+  'school admin S cannot move a direct assignment to a user without a coach membership'
+);
+select isnt_empty(
+  $$ delete from public.coach_athlete_assignments
+     where coach_user_id = '20000000-0000-4000-8000-0000000000a6' returning id $$,
+  'school admin S can still remove the direct assignment of a coach who lost the membership'
 );
 select throws_ok(
   $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id)
@@ -162,6 +177,13 @@ select isnt_empty(
      delete from public.schools
      where id = '20000000-0000-4000-8000-0000000000b3' returning id $$,
   'platform admin P can delete a school'
+);
+
+reset role;
+select isnt_empty(
+  $$ select 1 from public.athlete_managers
+     where user_id = '20000000-0000-4000-8000-0000000000a7' and athlete_id = '20000000-0000-4000-8000-0000000000e1' $$,
+  'the guardian link school admin S tried to remove still exists'
 );
 
 select * from finish();
