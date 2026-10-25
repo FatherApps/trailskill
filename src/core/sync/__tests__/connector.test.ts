@@ -38,6 +38,15 @@ function setup(
         filters.push([column, value]);
         return query;
       },
+      // Recorded as 'is.null' / 'not.is.null', the PostgREST spelling of a null-ness filter.
+      is: (column: string, value: unknown) => {
+        filters.push([column, `is.${value}`]);
+        return query;
+      },
+      not: (column: string, operator: string, value: unknown) => {
+        filters.push([column, `not.${operator}.${value}`]);
+        return query;
+      },
       then: (resolve: (value: Result) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve(result).then(resolve, reject),
     };
     return query;
@@ -552,7 +561,7 @@ describe('SupabaseConnector.uploadData', () => {
         await t.connector.uploadData(t.database([authorization()]));
 
         expect(t.readQueries).toEqual([
-          [['id', 'au1'], ['user_id', 'u1'], ['athlete_id', 'at1'], ['accepted_at', withdrawal.accepted_at], ['withdrawn_at', withdrawal.withdrawn_at]],
+          [['id', 'au1'], ['user_id', 'u1'], ['athlete_id', 'at1'], ['withdrawn_at', 'not.is.null']],
         ]);
         expect(failureInserts(t.committed)).toHaveLength(0);
         expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['authorizations', 'au1']]);
@@ -604,6 +613,33 @@ describe('SupabaseConnector.uploadData', () => {
         await t.connector.uploadData(t.database([authorization()]));
 
         expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([changed(authorization(), '42501')]);
+      });
+
+      it('a retry of an invitation with the token and expiry the server replaced counts as sent', async () => {
+        const invitation = entry('PUT', 'i1', { school_id: 's1', token: 'client-token', expires_at: '2026-11-01T10:00:00.000Z', revoked_at: null, created_at: '2026-10-25T10:00:00.000Z' }, 'school_invitations');
+        const t = setup({ upsert: conflict, readBack: ok });
+        await t.connector.uploadData(t.database([invitation]));
+
+        expect(t.readQueries).toEqual([[['id', 'i1'], ['school_id', 's1']]]);
+        expect(failureInserts(t.committed)).toHaveLength(0);
+      });
+
+      it('a retry of an authorization whose accepted_at the server clamped counts as sent', async () => {
+        const accepted = entry('PUT', 'au2', { user_id: 'u1', athlete_id: 'at1', accepted_at: '2026-10-25T10:00:01.000Z', received_at: '2026-10-25T10:00:00.000Z' }, 'authorizations');
+        const t = setup({ upsert: conflict, readBack: ok });
+        await t.connector.uploadData(t.database([accepted]));
+
+        expect(t.readQueries).toEqual([[['id', 'au2'], ['user_id', 'u1'], ['athlete_id', 'at1'], ['withdrawn_at', 'is.null']]]);
+        expect(failureInserts(t.committed)).toHaveLength(0);
+      });
+
+      it('an authorization sent as PUT with withdrawn_at over a row without a withdrawal: insert_only_changed', async () => {
+        const op = entry('PUT', 'au3', { user_id: 'u1', athlete_id: 'at1', withdrawn_at: '2026-10-26T10:00:00.000Z' }, 'authorizations');
+        const t = setup({ upsert: conflict, readBack: [empty, ok] });
+        await t.connector.uploadData(t.database([op]));
+
+        expect(t.readQueries).toEqual([[['id', 'au3'], ['user_id', 'u1'], ['athlete_id', 'at1'], ['withdrawn_at', 'not.is.null']], [['id', 'au3']]]);
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([changed(op, 'insert_only_changed')]);
       });
 
       it('a transient error while reading back is retried, not recorded', async () => {

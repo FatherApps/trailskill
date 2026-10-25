@@ -20,6 +20,14 @@ function failureCode(result: Result): string | null {
 // authorizations are evidence: a withdrawal goes up as a PATCH. A PUT that would change an existing row is recorded as insert_only_changed, never ignored.
 const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series', 'authorizations', 'school_invitations']);
 
+// Columns the server assigns or rewrites on insert (clamps, replaced tokens): a retry from the device never carries their stored value, so they are not compared.
+const SERVER_SET_COLUMNS: Record<string, string[]> = {
+  school_invitations: ['token', 'expires_at', 'revoked_at', 'created_at'],
+  authorizations: ['accepted_at', 'received_at', 'withdrawal_received_at', 'withdrawn_at'],
+};
+// Of a server-set column only whether it is null is compared: a withdrawal sent as a PUT must still be detected.
+const NULLNESS_ONLY_COLUMNS: Record<string, string[]> = { authorizations: ['withdrawn_at'] };
+
 /** Refresh a session that expires within this window, so a skewed device clock does not send an expired token. */
 const TOKEN_REFRESH_MARGIN_SECONDS = 60;
 const DEFAULT_MAX_ATTEMPTS = 5;
@@ -213,15 +221,21 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   /**
    * An insert-only PUT that was not applied is fine only if that same row is already stored (a retry). The columns are compared by PostgREST filters,
    * so Postgres compares them in their own types. The same id with other values is a PUT trying to change the row; no row keeps the original outcome.
-   * shortcut: a column the server rewrites (authorizations.accepted_at is clamped to received_at) makes a retry from a device with a fast clock report
-   * insert_only_changed although the row is saved (a false "No enviado", no data loss), and a PUT that sets a column to null is not detected; compare server-side if either shows up.
+   * Server-set columns (SERVER_SET_COLUMNS) are not compared; of them only the null-ness of NULLNESS_ONLY_COLUMNS is.
+   * shortcut: a PUT that sets a column to null is not detected; compare server-side if it shows up.
    */
   private async confirmInsert(op: CrudEntry, rejection: string | null): Promise<string | null> {
-    const columns = Object.entries(op.opData ?? {}).filter(([column, value]) => column !== 'id' && value != null);
-    const find = (filters: [string, unknown][]) =>
-      filters.reduce((query, [column, value]) => query.eq(column, value as never), this.client.from(op.table).select('id').eq('id', op.id)) as PromiseLike<Result>;
-    for (const [filters, found] of [[columns, null], [[], 'insert_only_changed']] as const) {
-      const result = await find([...filters]);
+    const serverSet = SERVER_SET_COLUMNS[op.table] ?? [];
+    const columns = Object.entries(op.opData ?? {}).filter(([column, value]) => column !== 'id' && value != null && !serverSet.includes(column));
+    const find = (filters: [string, unknown][], withNullness: boolean) => {
+      let query = filters.reduce((q, [column, value]) => q.eq(column, value as never), this.client.from(op.table).select('id').eq('id', op.id));
+      for (const column of withNullness ? (NULLNESS_ONLY_COLUMNS[op.table] ?? []) : []) {
+        query = op.opData?.[column] != null ? query.not(column, 'is', null) : query.is(column, null);
+      }
+      return query as PromiseLike<Result>;
+    };
+    for (const [filters, withNullness, found] of [[columns, true, null], [[], false, 'insert_only_changed']] as const) {
+      const result = await find([...filters], withNullness);
       // A read that is permanently rejected cannot tell, so the original outcome stands.
       const failure = failureCode(result);
       if (failure !== null) return rejection ?? failure;
