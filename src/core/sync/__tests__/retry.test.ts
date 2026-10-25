@@ -15,29 +15,40 @@ jest.mock('../db', () => ({
 
 type QueuedOp = { op: string; id: string; type: string; data: string | null };
 
+type Failure = { op: string; payload: object };
+
 let store: ReturnType<typeof createStore>;
 beforeEach(() => {
   store = createStore();
   // The fake store has no PowerSync core: a plain table stands in for its powersync_crud queue.
   const raw = new DatabaseSync(store.path);
   raw.exec('CREATE TABLE powersync_crud (op TEXT, id TEXT, type TEXT, data TEXT)');
+  // The shared fake athletes table has no server-assigned audit columns; add the ones the retry rules name.
+  raw.exec('ALTER TABLE athletes ADD COLUMN created_at TEXT');
+  raw.exec('ALTER TABLE athletes ADD COLUMN created_by TEXT');
   raw.close();
   mockDb = openDatabase(store.path);
 });
 afterEach(() => store.remove());
 
 const queue = () => mockDb.getAll<QueuedOp>('SELECT op, id, type, data FROM powersync_crud');
-const failures = () => mockDb.getAll<{ record_id: string }>('SELECT record_id FROM upload_failures');
+const remainingFailures = () => mockDb.getAll<{ record_id: string }>('SELECT record_id FROM upload_failures');
 const pending = () => mockDb.getAll<{ table_name: string; record_id: string }>('SELECT table_name, record_id FROM pending_writes');
 
-function seed(row: { id: string; first_name: string | null; last_name: string | null } | null, failure?: { op: string; payload: object }) {
+type Row = { id: string; first_name: string | null; last_name: string | null; created_at?: string | null };
+
+function seed(row: Row | null, ...failures: Failure[]) {
   const raw = new DatabaseSync(store.path);
-  if (row) raw.prepare('INSERT INTO athletes (id, first_name, last_name) VALUES (?, ?, ?)').run(row.id, row.first_name, row.last_name);
-  if (failure) {
+  if (row) {
+    raw
+      .prepare('INSERT INTO athletes (id, first_name, last_name, created_at) VALUES (?, ?, ?, ?)')
+      .run(row.id, row.first_name, row.last_name, row.created_at ?? null);
+  }
+  failures.forEach((failure, index) => {
     raw
       .prepare('INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run('f-1', 'athletes', 'a-1', failure.op, JSON.stringify(failure.payload), '42501', '2026-10-24T10:00:00.000Z');
-  }
+      .run(`f-${index}`, 'athletes', 'a-1', failure.op, JSON.stringify(failure.payload), '42501', `2026-10-24T1${index}:00:00.000Z`);
+  });
   raw.close();
 }
 
@@ -49,7 +60,7 @@ describe('retryFailedRecord', () => {
 
     expect(queue()).toEqual([{ op: 'PUT', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana', last_name: 'Ríos' }) }]);
     expect(pending()).toEqual([{ table_name: 'athletes', record_id: 'a-1' }]);
-    expect(failures()).toEqual([]);
+    expect(remainingFailures()).toEqual([]);
     expect(mockDb.transactions).toHaveLength(1);
 
     // Feed the queued row to the connector as PowerSync would.
@@ -71,7 +82,7 @@ describe('retryFailedRecord', () => {
     expect(upsert).toHaveBeenCalledWith({ id: 'a-1', first_name: 'Ana', last_name: 'Ríos' });
     expect(complete).toHaveBeenCalledTimes(1);
     expect(pending()).toEqual([]);
-    expect(failures()).toEqual([]);
+    expect(remainingFailures()).toEqual([]);
   });
 
   it('never uploads old values over a newer edit: a failed PATCH is requeued with the current values of its columns', async () => {
@@ -82,13 +93,23 @@ describe('retryFailedRecord', () => {
     expect(queue()).toEqual([{ op: 'PATCH', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'New' }) }]);
   });
 
-  it('omits columns that are null locally from a requeued PUT so the server applies its defaults', async () => {
-    // last_name stands in for a never-synced column such as created_at (not null default now() on the server).
-    seed({ id: 'a-1', first_name: 'Ana', last_name: null }, { op: 'PUT', payload: { first_name: 'Old' } });
+  it('omits only the server-assigned audit columns when they are null in a requeued PUT; every other null is sent', async () => {
+    seed({ id: 'a-1', first_name: 'Ana', last_name: null, created_at: null }, { op: 'PUT', payload: { first_name: 'Old' } });
 
     await retryFailedRecord('athletes', 'a-1');
 
-    expect(queue()).toEqual([{ op: 'PUT', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana' }) }]);
+    // created_at and created_by are null locally and left out; last_name was cleared by the user and is sent as null.
+    expect(queue()).toEqual([{ op: 'PUT', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana', last_name: null }) }]);
+  });
+
+  it('sends the audit columns in a requeued PUT when they have a value', async () => {
+    seed({ id: 'a-1', first_name: 'Ana', last_name: 'Ríos', created_at: '2026-10-24T09:00:00.000Z' }, { op: 'PUT', payload: {} });
+
+    await retryFailedRecord('athletes', 'a-1');
+
+    expect(queue()).toEqual([
+      { op: 'PUT', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana', last_name: 'Ríos', created_at: '2026-10-24T09:00:00.000Z' }) },
+    ]);
   });
 
   it('still sends an explicit null in a requeued PATCH', async () => {
@@ -99,14 +120,33 @@ describe('retryFailedRecord', () => {
     expect(queue()).toEqual([{ op: 'PATCH', id: 'a-1', type: 'athletes', data: JSON.stringify({ last_name: null }) }]);
   });
 
-  it('queues a DELETE without data when the row no longer exists', async () => {
-    seed(null, { op: 'PUT', payload: { first_name: 'Old' } });
+  it('queues a DELETE without data when the latest failure is a DELETE and the row is gone', async () => {
+    seed(null, { op: 'DELETE', payload: {} });
 
     await retryFailedRecord('athletes', 'a-1');
 
     expect(queue()).toEqual([{ op: 'DELETE', id: 'a-1', type: 'athletes', data: null }]);
     expect(pending()).toEqual([{ table_name: 'athletes', record_id: 'a-1' }]);
-    expect(failures()).toEqual([]);
+    expect(remainingFailures()).toEqual([]);
+  });
+
+  it('queues a DELETE, not a PUT, when the latest failure is a DELETE and the row was downloaded back', async () => {
+    seed({ id: 'a-1', first_name: 'Ana', last_name: 'Ríos' }, { op: 'PUT', payload: {} }, { op: 'DELETE', payload: {} });
+
+    await retryFailedRecord('athletes', 'a-1');
+
+    expect(queue()).toEqual([{ op: 'DELETE', id: 'a-1', type: 'athletes', data: null }]);
+    expect(remainingFailures()).toEqual([]);
+  });
+
+  it('does nothing when the row is missing and the latest failure is not a DELETE: the user never deleted it', async () => {
+    seed(null, { op: 'PUT', payload: { first_name: 'Old' } });
+
+    await retryFailedRecord('athletes', 'a-1');
+
+    expect(queue()).toEqual([]);
+    expect(pending()).toEqual([]);
+    expect(remainingFailures()).toHaveLength(1);
   });
 
   it('writes nothing when the record has no failure', async () => {
@@ -118,18 +158,36 @@ describe('retryFailedRecord', () => {
     expect(pending()).toEqual([]);
   });
 
-  it('uses the latest failure when the record failed more than once', async () => {
-    seed({ id: 'a-1', first_name: 'Ana', last_name: 'Ríos' }, { op: 'PUT', payload: {} });
-    const raw = new DatabaseSync(store.path);
-    raw
-      .prepare('INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run('f-2', 'athletes', 'a-1', 'PATCH', JSON.stringify({ last_name: 'Old' }), '42501', '2026-10-24T11:00:00.000Z');
-    raw.close();
+  it('requeues one PUT with the full current row when a PUT failure is followed by a PATCH failure', async () => {
+    seed({ id: 'a-1', first_name: 'Ana', last_name: 'Ríos' }, { op: 'PUT', payload: {} }, { op: 'PATCH', payload: { last_name: 'Old' } });
 
     await retryFailedRecord('athletes', 'a-1');
 
-    expect(queue()).toEqual([{ op: 'PATCH', id: 'a-1', type: 'athletes', data: JSON.stringify({ last_name: 'Ríos' }) }]);
-    expect(failures()).toEqual([]);
+    expect(queue()).toEqual([{ op: 'PUT', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana', last_name: 'Ríos' }) }]);
+    expect(remainingFailures()).toEqual([]);
+  });
+
+  it('requeues one PATCH with the current values of the union of all failed PATCH columns', async () => {
+    seed(
+      { id: 'a-1', first_name: 'Ana', last_name: 'Ríos' },
+      { op: 'PATCH', payload: { first_name: 'Old' } },
+      { op: 'PATCH', payload: { last_name: 'Old' } },
+    );
+
+    await retryFailedRecord('athletes', 'a-1');
+
+    expect(queue()).toEqual([{ op: 'PATCH', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana', last_name: 'Ríos' }) }]);
+    expect(remainingFailures()).toEqual([]);
+  });
+
+  it('does nothing when no failed PATCH column is a column of the row any more', async () => {
+    seed({ id: 'a-1', first_name: 'Ana', last_name: 'Ríos' }, { op: 'PATCH', payload: { removed_column: 'x' } });
+
+    await retryFailedRecord('athletes', 'a-1');
+
+    expect(queue()).toEqual([]);
+    expect(pending()).toEqual([]);
+    expect(remainingFailures()).toHaveLength(1);
   });
 
   it('rejects an unsafe table name and writes nothing', async () => {
