@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import { createStore, openDatabase, type FakeDatabase } from '../testing/fakeDatabase';
-import { deleteRecord, editRecord, writeRecord } from '../writes';
+import { deleteRecord, editRecord, writeBatch, writeRecord } from '../writes';
 
 let mockDb: FakeDatabase;
 jest.mock('../db', () => ({
@@ -96,6 +96,94 @@ describe('deleteRecord', () => {
   it('adds no pending entry when the row does not exist', async () => {
     await deleteRecord('athletes', 'missing');
 
+    expect(pending()).toEqual([]);
+  });
+});
+
+describe('writeBatch', () => {
+  it('writes and deletes several rows in one transaction, with one pending entry per change', async () => {
+    await writeRecord('athletes', { id: 'athlete-1', first_name: 'Ana' });
+
+    const id = await writeBatch(async (batch) => {
+      await batch.delete('athletes', 'athlete-1');
+      await batch.write('athletes', { id: 'athlete-2', first_name: 'Bea' });
+      return batch.write('athletes', { first_name: 'Cata' });
+    });
+
+    expect(mockDb.transactions).toHaveLength(2);
+    expect(id).toMatch(UUID);
+    expect(athlete('athlete-1')).toBeUndefined();
+    expect(athlete('athlete-2')).toEqual({ id: 'athlete-2', first_name: 'Bea', last_name: null });
+    expect(athlete(id)).toEqual({ id, first_name: 'Cata', last_name: null });
+    expect(pending()).toEqual([
+      { table_name: 'athletes', record_id: 'athlete-1' },
+      { table_name: 'athletes', record_id: 'athlete-1' },
+      { table_name: 'athletes', record_id: 'athlete-2' },
+      { table_name: 'athletes', record_id: id },
+    ]);
+  });
+
+  it('reads inside the same transaction, seeing its own earlier writes', async () => {
+    const names = await writeBatch(async (batch) => {
+      await batch.write('athletes', { id: 'athlete-1', first_name: 'Ana' });
+      return batch.getAll<{ first_name: string }>('SELECT first_name FROM athletes');
+    });
+
+    expect(names).toEqual([{ first_name: 'Ana' }]);
+    expect(mockDb.transactions).toHaveLength(1);
+  });
+
+  it('keeps the no-op rules of writeRecord and deleteRecord: no pending entry when nothing changes', async () => {
+    await writeRecord('athletes', { id: 'athlete-1', first_name: 'Ana' });
+
+    await writeBatch(async (batch) => {
+      await batch.write('athletes', { id: 'athlete-1' });
+      await batch.delete('athletes', 'missing');
+    });
+
+    expect(pending()).toHaveLength(1);
+  });
+
+  it('leaves no change and no pending entry when a later write fails', async () => {
+    await writeRecord('athletes', { id: 'athlete-1', first_name: 'Ana' });
+
+    await expect(
+      writeBatch(async (batch) => {
+        await batch.write('athletes', { id: 'athlete-1', first_name: 'Bea' });
+        await batch.delete('athletes', 'athlete-1');
+        await batch.write('athletes', { id: 'athlete-2', first_name: 'Cata' });
+        await batch.write('athletes', { id: 'athlete-3', no_such_column: 'x' });
+      }),
+    ).rejects.toThrow();
+
+    expect(mockDb.getAll('SELECT * FROM athletes')).toEqual([{ id: 'athlete-1', first_name: 'Ana', last_name: null }]);
+    expect(pending()).toEqual([{ table_name: 'athletes', record_id: 'athlete-1' }]);
+  });
+
+  it.each([
+    ['athletes; DROP TABLE athletes', { first_name: 'Ana' }],
+    ['athletes', { 'first_name = 1; --': 'Ana' }],
+  ])('rejects the unsafe identifier in %p and rolls back the earlier writes of the batch', async (table, values) => {
+    await expect(
+      writeBatch(async (batch) => {
+        await batch.write('athletes', { id: 'athlete-1', first_name: 'Ana' });
+        await batch.write(table, values);
+      }),
+    ).rejects.toThrow('Unsafe SQL identifier');
+
+    expect(athlete('athlete-1')).toBeUndefined();
+    expect(pending()).toEqual([]);
+  });
+
+  it('rejects an unsafe table name on delete and rolls back the batch', async () => {
+    await expect(
+      writeBatch(async (batch) => {
+        await batch.write('athletes', { id: 'athlete-1', first_name: 'Ana' });
+        await batch.delete('athletes; --', 'athlete-1');
+      }),
+    ).rejects.toThrow('Unsafe SQL identifier');
+
+    expect(athlete('athlete-1')).toBeUndefined();
     expect(pending()).toEqual([]);
   });
 });

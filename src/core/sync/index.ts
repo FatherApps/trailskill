@@ -6,5 +6,5 @@ export { supabase, supabaseConfigError } from './supabase';
 export { countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState } from './syncState';
 export type { RecordSyncState } from './syncState';
 export { RecordSyncStatus } from './RecordSyncStatus';
-export { deleteRecord, editRecord, retryFailedRecord, writeRecord } from './writes';
-export type { RetryResult } from './writes';
+export { deleteRecord, editRecord, retryFailedRecord, writeBatch, writeRecord } from './writes';
+export type { RetryResult, WriteBatch } from './writes';
