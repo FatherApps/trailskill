@@ -208,19 +208,19 @@ select throws_ok(
   'an unassigned arrival outside a series is rejected'
 );
 select throws_ok(
-  $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1', hundredths = 1000
+  $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1', stroke = 'BK'
      where id = '20000000-0000-4000-8000-0000000000f7' $$,
-  '42501', 'only athlete_id can change on a measurement',
-  'completing an arrival cannot change its time'
+  '42501', 'only athlete_id and hundredths can change on a measurement',
+  'completing an arrival cannot change its stroke'
 );
 select throws_ok(
   $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1', kind = 'race'
      where id = '20000000-0000-4000-8000-0000000000f7' $$,
-  '42501', 'only athlete_id can change on a measurement',
+  '42501', 'only athlete_id and hundredths can change on a measurement',
   'completing an arrival cannot change its kind'
 );
 select isnt_empty(
-  $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1'
+  $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1', base_version = 1
      where id = '20000000-0000-4000-8000-0000000000f6' returning id $$,
   'coach A completes an unassigned arrival with an assigned athlete'
 );

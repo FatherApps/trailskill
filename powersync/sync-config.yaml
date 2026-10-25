@@ -79,6 +79,15 @@ streams:
       - SELECT * FROM training_plan_versions WHERE plan_id IN (SELECT id FROM training_plans WHERE school_id IN member_school_ids)
       - SELECT * FROM training_plan_blocks WHERE version_id IN (SELECT id FROM training_plan_versions WHERE plan_id IN (SELECT id FROM training_plans WHERE school_id IN member_school_ids))
 
+  # Authors see their conflicts (as the stored version's author or the one whose
+  # edit was not applied); the generic record_conflicts table is how the device
+  # flags the record. Platform admins read the rest online.
+  timing_measurement_conflicts:
+    auto_subscribe: true
+    queries:
+      - SELECT id, 'measurements' AS table_name, measurement_id AS record_id, status FROM measurement_conflicts AS record_conflicts WHERE incoming_by = auth.user_id()
+      - SELECT id, 'measurements' AS table_name, measurement_id AS record_id, status FROM measurement_conflicts AS record_conflicts WHERE current_by = auth.user_id()
+
   accounts_authorization_texts:
     auto_subscribe: true
     queries:
