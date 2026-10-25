@@ -317,6 +317,7 @@ export const galleryEntries: GalleryEntry[] = [
       chevron: () => <SwimmerRowPreview {...sr.chevron} chevron />,
       'missing-time': () => <SwimmerRowPreview {...sr.missingTime} bestTime={null} />,
       'long-text': () => <SwimmerRowPreview {...sr.longText} chevron />,
+      'time-and-tag': () => <SwimmerRowPreview {...sr.timeAndTag} />,
     },
   },
   {

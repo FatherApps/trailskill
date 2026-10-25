@@ -332,4 +332,40 @@ describe('SwimmerRow at large text', () => {
     expect(nearest(name(), 'flexShrink')).toMatchObject({ flexShrink: 1, minWidth: 0 });
     expect(chain(tag()).some((style) => style.flexShrink === 0)).toBe(true);
   });
+
+  describe('with a time and a tag together', () => {
+    const renderBoth = async (fontScale: number) => {
+      setOsFontScale(1);
+      await render(
+        <ThemeProvider fontScale={fontScale}>
+          <SwimmerRow
+            {...base}
+            bestTime={undefined}
+            time={3391}
+            name="Un nombre de nadador especialmente largo"
+            tag={{ label: 'Consentimiento', variant: 'warn', icon: 'schedule' }}
+          />
+        </ThemeProvider>,
+      );
+    };
+    const time = () => screen.getByText('33,91', { includeHiddenElements: true });
+
+    it('stacks both below the name in one column at 200 %', async () => {
+      await renderBoth(2);
+
+      const column = chain(name()).find((style) => style.flexDirection === 'column' && style.flex === 1);
+      expect(column).toMatchObject({ minWidth: 0 });
+      expect(chain(time()).some((style) => style === column)).toBe(true);
+      expect(chain(tag()).some((style) => style === column)).toBe(true);
+    });
+
+    it('keeps both fixed and the name shrinkable at 100 %', async () => {
+      await renderBoth(1);
+
+      expect(chain(name()).some((style) => style.flexDirection === 'column')).toBe(false);
+      expect(nearest(name(), 'flexShrink')).toMatchObject({ flexShrink: 1, minWidth: 0 });
+      expect(chain(time()).some((style) => style.flexShrink === 0)).toBe(true);
+      expect(chain(tag()).some((style) => style.flexShrink === 0)).toBe(true);
+    });
+  });
 });
