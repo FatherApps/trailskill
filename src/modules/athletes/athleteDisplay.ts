@@ -1,3 +1,5 @@
+import { formatShortName } from './formatShortName';
+
 export type AthleteColor = 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
 
 const colors: AthleteColor[] = ['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4'];
@@ -8,7 +10,7 @@ export function athleteDisplay(athlete: { firstName: string; lastName: string },
   const last = athlete.lastName.trim().split(/\s+/)[0] ?? '';
   const initial = (word: string) => word.charAt(0).toUpperCase();
   return {
-    shortName: last ? `${first} ${initial(last)}.` : first,
+    shortName: formatShortName(athlete.firstName, athlete.lastName),
     initials: `${initial(first)}${initial(last)}`,
     color: colors[index % colors.length]!,
   };
