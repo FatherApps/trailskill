@@ -3,7 +3,8 @@ import { Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import type { RecordSyncState } from '../sync';
-import { space, useTheme } from '../theme';
+import { space, typography, useTheme } from '../theme';
+import { bannerFixture as bn } from './__fixtures__/banner';
 import { buttonFixture as b } from './__fixtures__/button';
 import { confirmSheetFixture as cs } from './__fixtures__/confirmSheet';
 import { navBarFixture as nb } from './__fixtures__/navBar';
@@ -14,6 +15,7 @@ import { swimmerRowFixture as sr } from './__fixtures__/swimmerRow';
 import { tagFixture as tg } from './__fixtures__/tag';
 import { textFieldFixture as tf } from './__fixtures__/textField';
 import { timeValueFixture as tv } from './__fixtures__/timeValue';
+import { Banner } from './Banner';
 import { Button } from './Button';
 import { ConfirmSheet } from './ConfirmSheet';
 import { Icon } from './Icon';
@@ -159,6 +161,40 @@ export const galleryEntries: GalleryEntry[] = [
       info: () => <Tag variant="info" icon="emoji_events" label={tg.info} />,
       ok: () => <Tag variant="ok" icon="verified_user" label={tg.ok} />,
       warn: () => <Tag variant="warn" icon="schedule" label={tg.warn} />,
+    },
+  },
+  {
+    id: 'banner',
+    title: 'Banner',
+    states: {
+      info: () => (
+        <FullWidth>
+          <Banner variant="info" icon="info">
+            {bn.infoBefore}
+            <Text style={typography['body-strong']}>{bn.school}</Text>
+            {bn.infoAfter}
+          </Banner>
+        </FullWidth>
+      ),
+      warn: () => (
+        <FullWidth>
+          <Banner variant="warn" icon="wifi_off">
+            {bn.warn}
+          </Banner>
+        </FullWidth>
+      ),
+      success: () => (
+        <FullWidth>
+          <Banner variant="success" icon="check_circle">
+            {bn.success}
+          </Banner>
+        </FullWidth>
+      ),
+      noIcon: () => (
+        <FullWidth>
+          <Banner variant="info">{bn.noIcon}</Banner>
+        </FullWidth>
+      ),
     },
   },
   {

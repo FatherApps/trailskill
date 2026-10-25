@@ -31,6 +31,7 @@ describe('core/ui gallery entries', () => {
     expect(stateKeys('syncStatus')).toEqual(['on_device', 'sending', 'synced', 'not_sent', 'not_sent con mensaje']);
     expect(stateKeys('confirmSheet')).toEqual(['stop', 'primary', 'signOut', 'discardIncomplete', 'signOutOffline']);
     expect(stateKeys('segmented')).toEqual(['strokes', 'distances', 'long-text']);
+    expect(stateKeys('banner')).toEqual(['info', 'warn', 'success', 'noIcon']);
     expect(stateKeys('timeValue')).toEqual(['time-lg', 'time-md', 'time-sm', 'missing', 'decimal-point']);
     expect(stateKeys('swimmerRow')).toEqual([
       'normal',
@@ -47,7 +48,7 @@ describe('core/ui gallery entries', () => {
     await render(<ThemeProvider name={theme} fontScale={scale}>{entryById(id).states[state]()}</ThemeProvider>);
   });
 
-  it.each(['stepHeader', 'stateView', 'segmented', 'swimmerRow', 'navBar'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
+  it.each(['stepHeader', 'stateView', 'segmented', 'swimmerRow', 'navBar', 'banner'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
     '%s / %s fills the width of the preview',
     async (id, state) => {
       await render(<ThemeProvider>{entryById(id).states[state]()}</ThemeProvider>);
