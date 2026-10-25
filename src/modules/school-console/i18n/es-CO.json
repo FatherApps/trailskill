@@ -80,6 +80,36 @@
       "title": "Esta información es privada"
     }
   },
+  "coaches": {
+    "title": "Entrenadores",
+    "count_one": "{{count}} entrenador",
+    "count_other": "{{count}} entrenadores",
+    "athletes_one": "{{count}} deportista",
+    "athletes_other": "{{count}} deportistas",
+    "no_groups": "Sin grupos",
+    "invite": "Invitar entrenador",
+    "deactivate": "Desactivar",
+    "deactivate_hint": "Desactivar a {{name}}",
+    "cancel": "Cancelar",
+    "invite_confirm": {
+      "title": "¿Invitar a un entrenador?",
+      "message": "La persona invitada podrá registrar mediciones de los deportistas que le asignes.",
+      "confirm": "Enviar invitación"
+    },
+    "deactivate_confirm": {
+      "title": "¿Desactivar a {{name}}?",
+      "message": "{{name}} dejará de ser entrenador activo de la escuela. Sus registros anteriores conservan su autoría.",
+      "confirm": "Desactivar entrenador"
+    },
+    "empty": {
+      "title": "Aún no hay entrenadores",
+      "message": "Invita a un entrenador para que pueda registrar mediciones de sus deportistas."
+    },
+    "error": {
+      "title": "No pudimos cargar los entrenadores"
+    },
+    "offline_empty": "No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
+  },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",
