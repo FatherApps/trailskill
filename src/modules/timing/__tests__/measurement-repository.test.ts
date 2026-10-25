@@ -4,6 +4,7 @@ import { createStore, openDatabase, type FakeDatabase } from '../../../core/sync
 import {
   CompletedMeasurementTimeError,
   createInMemoryMeasurementRepository,
+  DiscardedMeasurementError,
   createPowerSyncMeasurementRepository,
   InvalidMeasurementTimeError,
   type Measurement,
@@ -486,6 +487,17 @@ describe('discarded arrivals', () => {
 
   it('listByAthlete leaves it out', async () => {
     expect((await (await withDiscarded()).listByAthlete('athlete-1')).map((m) => m.id)).toEqual(['kept']);
+  });
+
+  it('refuses to give it an athlete or a new time, and queues nothing', async () => {
+    const repository = await withDiscarded();
+    const pending = mockDb.getAll('SELECT id FROM pending_writes').length;
+
+    await expect(repository.edit('gone', { athleteId: 'athlete-2' }, { deviceId: 'device-b' })).rejects.toBeInstanceOf(DiscardedMeasurementError);
+    await expect(repository.edit('gone', { hundredths: 2950 }, { deviceId: 'device-b' })).rejects.toBeInstanceOf(DiscardedMeasurementError);
+
+    expect(mockDb.getAll('SELECT id FROM pending_writes')).toHaveLength(pending);
+    expect(mockDb.getAll("SELECT athlete_id, hundredths FROM measurements WHERE id = 'gone'")).toEqual([{ athlete_id: 'athlete-1', hundredths: 3002 }]);
   });
 
   it('countCapturedSince does not count it', async () => {

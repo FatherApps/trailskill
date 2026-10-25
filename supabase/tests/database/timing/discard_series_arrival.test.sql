@@ -6,7 +6,7 @@
 -- no-op that still returns the row. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(44);
 
 -- Users: coach A (the author) and coach B of e1, guardian G of e1, school admin
 -- S, platform admin P.
@@ -166,6 +166,38 @@ select throws_ok(
   'a discarded arrival cannot leave its series'
 );
 select throws_ok(
+  $$ update public.measurements set athlete_id = '50000000-0000-4000-8000-0000000000e1'
+     where id = '50000000-0000-4000-8000-0000000000f1' $$,
+  '42501', 'a discarded measurement cannot change',
+  'a discarded arrival cannot be assigned afterwards'
+);
+select throws_ok(
+  $$ update public.measurements set hundredths = 3101, base_version = 1, edited_device_id = 'dev-1'
+     where id = '50000000-0000-4000-8000-0000000000f1' $$,
+  '42501', 'a discarded measurement cannot change',
+  'nor have its time edited'
+);
+select throws_ok(
+  $$ update public.measurements
+       set discarded_at = '2026-10-25 10:00:00+00', discarded_by = '50000000-0000-4000-8000-0000000000a1',
+           athlete_id = '50000000-0000-4000-8000-0000000000e1'
+     where id = '50000000-0000-4000-8000-0000000000f1' $$,
+  '42501', 'a discarded measurement cannot change',
+  'nor assigned by a PATCH that repeats the same discard'
+);
+select is(
+  (select (athlete_id is null)::text || '|' || hundredths || '|' || version
+   from public.measurements where id = '50000000-0000-4000-8000-0000000000f1'),
+  'true|3100|1',
+  'the discarded arrival is unchanged'
+);
+select isnt_empty(
+  $$ update public.measurements
+       set discarded_at = '2026-10-25 10:00:00+00', discarded_by = '50000000-0000-4000-8000-0000000000a1'
+     where id = '50000000-0000-4000-8000-0000000000f1' returning id $$,
+  'the identical discard retry still returns the row'
+);
+select throws_ok(
   $$ update public.measurements set created_by = '50000000-0000-4000-8000-0000000000a2'
      where id = '50000000-0000-4000-8000-0000000000f2' $$,
   '42501', 'only athlete_id and hundredths can change on a measurement',
@@ -323,6 +355,13 @@ select set_eq(
   'only the author''s own discards are stored'
 );
 select is((select count(*) from public.measurement_conflicts), 0::bigint, 'no discard made a conflict');
+
+-- Without a signed-in user (the owner, the service role) the discard rules do not apply.
+set local request.jwt.claims = '{}';
+select lives_ok(
+  $$ update public.measurements set hundredths = 3105 where id = '50000000-0000-4000-8000-0000000000f1' $$,
+  'the owner can still correct a discarded arrival'
+);
 
 select * from finish();
 rollback;

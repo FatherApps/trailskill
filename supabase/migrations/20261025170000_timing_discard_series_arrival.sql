@@ -4,7 +4,8 @@
 -- with who discarded it and when; every client read leaves discarded rows out.
 -- Only the author discards, only an arrival of a series that is still
 -- unassigned, and only once: an assigned arrival or an individual time is never
--- discarded, and a discard is never cleared or changed. Measurements still have
+-- discarded, and a discard is never cleared or changed. A discarded arrival is
+-- never assigned nor has its time edited afterwards. Measurements still have
 -- no delete policy. Provisional pending maintainer confirmation of the data model.
 --
 -- A discard is a PATCH of discarded_at and discarded_by only. It changes no
@@ -38,6 +39,9 @@ begin
     if new.discarded_at is null and new.discarded_by is null then
       return new;
     end if;
+  elsif old.discarded_at is not null
+        and (new.hundredths is distinct from old.hundredths or new.athlete_id is distinct from old.athlete_id) then
+    raise exception 'a discarded measurement cannot change' using errcode = '42501';
   elsif new.discarded_at is not distinct from old.discarded_at and new.discarded_by is not distinct from old.discarded_by then
     -- Not a discard, or the retry of one already stored.
     return new;

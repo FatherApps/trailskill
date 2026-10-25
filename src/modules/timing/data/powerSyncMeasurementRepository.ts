@@ -1,5 +1,5 @@
 import { db, editRecord, writeRecord } from '../../../core/sync';
-import { assertEditableTime, type Measurement, type MeasurementRepository } from './measurements';
+import { assertEditableTime, DiscardedMeasurementError, type Measurement, type MeasurementRepository } from './measurements';
 
 type MeasurementRow = {
   id: string;
@@ -79,7 +79,12 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
     },
     async edit(id, { hundredths, athleteId }, { deviceId, editReason }) {
       // kind is not editable, so reading it before the edit cannot race; a missing row is left to editRecord to reject.
-      const [stored] = await db.getAll<{ kind: Measurement['kind'] }>('SELECT kind FROM measurements WHERE id = ?', [id]);
+      const [stored] = await db.getAll<{ kind: Measurement['kind']; discarded_at: string | null }>(
+        'SELECT kind, discarded_at FROM measurements WHERE id = ?',
+        [id],
+      );
+      // The server would refuse it for good (a permanent upload failure), so nothing is written.
+      if (stored?.discarded_at) throw new DiscardedMeasurementError('A discarded arrival cannot change');
       if (stored) assertEditableTime(stored.kind, hundredths);
       await editRecord(
         'measurements',
