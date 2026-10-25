@@ -1,5 +1,8 @@
 import { assertEditableTime, type Measurement, type MeasurementRepository } from './measurements';
 
+const newestFirst = (a: Measurement, b: Measurement) =>
+  a.capturedAt === b.capturedAt ? a.id.localeCompare(b.id) : b.capturedAt.localeCompare(a.capturedAt);
+
 export function createInMemoryMeasurementRepository(): MeasurementRepository {
   const byId = new Map<string, Measurement>();
   return {
@@ -26,7 +29,14 @@ export function createInMemoryMeasurementRepository(): MeasurementRepository {
     async listByAthleteEvent(athleteId, { stroke, distance, pool }) {
       return [...byId.values()]
         .filter((m) => m.athleteId === athleteId && m.stroke === stroke && m.distance === distance && m.pool === pool)
-        .sort((a, b) => (a.capturedAt === b.capturedAt ? a.id.localeCompare(b.id) : b.capturedAt.localeCompare(a.capturedAt)));
+        .sort(newestFirst);
+    },
+    async listByAthlete(athleteId) {
+      return [...byId.values()].filter((m) => m.athleteId === athleteId).sort(newestFirst);
+    },
+    async countCapturedSince(athleteIds, since) {
+      const wanted = new Set(athleteIds);
+      return [...byId.values()].filter((m) => m.athleteId !== null && wanted.has(m.athleteId) && Date.parse(m.capturedAt) >= Date.parse(since)).length;
     },
   };
 }
