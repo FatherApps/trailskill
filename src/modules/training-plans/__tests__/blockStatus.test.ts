@@ -19,7 +19,7 @@ describe('blockStatus', () => {
       icon: 'incomplete_circle',
       label: 'Parcial · 3 de 8',
     });
-    expect(statusTag({ status: 'absent', repetitions: 4 })).toEqual({ variant: 'neutral', label: 'No asistió' });
+    expect(statusTag({ status: 'absent', repetitions: 4 })).toEqual({ variant: 'neutral', icon: 'close', label: 'No asistió' });
     expect(statusTag({ status: 'not_marked', repetitions: 4 })).toEqual({
       variant: 'outline',
       icon: 'radio_button_unchecked',

@@ -30,8 +30,7 @@ export function statusTag({ status, completedRepetitions, repetitions }: StatusI
             : t('training_plans.today.status.partial_plain'),
       };
     case 'absent':
-      // shortcut: 'No asistió' gets the close icon once issue 95's icons land on main.
-      return { variant: 'neutral', label: t('training_plans.today.status.absent') };
+      return { variant: 'neutral', icon: 'close', label: t('training_plans.today.status.absent') };
     case 'not_marked':
       return { variant: 'outline', icon: 'radio_button_unchecked', label: t('training_plans.today.status.not_marked') };
   }
