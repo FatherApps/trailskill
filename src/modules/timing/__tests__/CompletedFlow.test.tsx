@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../../core/theme';
+import { retryFailedRecord } from '../../../core/sync';
 import {
   CompletedFlow,
   createInMemoryMeasurementRepository,
@@ -11,7 +12,7 @@ import {
 const mockSyncStates = jest.fn((_table: string, _ids: string[]) => new Map());
 jest.mock('../../../core/sync', () => ({
   useRecordSyncStates: (table: string, ids: string[]) => mockSyncStates(table, ids),
-  retryFailedRecord: jest.fn(),
+  retryFailedRecord: jest.fn(() => Promise.resolve()),
 }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 let mockId = 0;
@@ -121,6 +122,40 @@ describe('completed flow', () => {
 
     expect(screen.getByText('En el teléfono', { includeHiddenElements: true })).toBeOnTheScreen();
     expect((await measurements.listByAthlete('a1'))).toHaveLength(1);
+    mockSyncStates.mockImplementation(() => new Map());
+  });
+
+  it('shows the switches off for another event and leaves the measurements of the first one alone', async () => {
+    const { measurements } = await setup();
+    await toggle('Ana M.');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Espalda' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Empezar toma' }));
+
+    expect(screen.getByRole('switch', { name: 'Completado, Ana M.' })).not.toBeChecked();
+    expect(await measurements.listByAthlete('a1')).toHaveLength(1);
+  });
+
+  it('keeps the ticks when going back to the setup and starting the same event again', async () => {
+    await setup();
+    await toggle('Ana M.');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Empezar toma' }));
+
+    expect(screen.getByRole('switch', { name: 'Completado, Ana M.' })).toBeChecked();
+  });
+
+  it('retries the upload of a completed measurement that was not sent', async () => {
+    const { measurements } = await setup();
+    mockSyncStates.mockImplementation((_table, ids) => new Map(ids.map((id) => [id, 'not_sent' as const])));
+    await toggle('Ana M.');
+    const [ana] = await measurements.listByAthlete('a1');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(retryFailedRecord).toHaveBeenCalledWith('measurements', ana!.id);
     mockSyncStates.mockImplementation(() => new Map());
   });
 

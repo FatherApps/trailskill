@@ -32,8 +32,14 @@ export function CompletedFlow(props: CompletedFlowProps) {
 function CompletedSession({ subtitle, roster, measurements, setups, userId, deviceId, offline, onExit }: CompletedFlowProps & { roster: RosterAthlete[] }) {
   const { choice, selectedIds, ready, changeChoice, changeSelected } = useSessionSetup(setups, roster);
   const [athletes, setAthletes] = useState<RosterAthlete[]>();
-  // Athlete id to the id of their live completed measurement. Unticking discards that measurement and ticking again writes a new one.
+  // Athlete id to the id of their live completed measurement, for the event being recorded. Unticking discards that measurement and
+  // ticking again writes a new one. The ref is the source of truth, so a tap right after a save never reads a stale render; the state only draws it.
+  const live = useRef(new Map<string, string>());
   const [marks, setMarks] = useState<ReadonlyMap<string, string>>(new Map());
+  const setLive = (change: (current: Map<string, string>) => void) => {
+    change(live.current);
+    setMarks(new Map(live.current));
+  };
   const [error, setError] = useState<string>();
   // The athletes whose last tap is still being saved: a second tap on them waits for it.
   const saving = useRef(new Set<string>());
@@ -46,7 +52,11 @@ function CompletedSession({ subtitle, roster, measurements, setups, userId, devi
         subtitle={subtitle}
         roster={roster}
         choice={choice}
-        onChoiceChange={changeChoice}
+        // The ticks belong to the event they were made in: another event starts with every switch off (the first one's records stay).
+        onChoiceChange={(change) => {
+          changeChoice(change);
+          setLive((current) => current.clear());
+        }}
         selectedIds={selectedIds}
         onSelectedIdsChange={changeSelected}
         sourceLabel={t('timing.source.phone')}
@@ -60,10 +70,10 @@ function CompletedSession({ subtitle, roster, measurements, setups, userId, devi
     if (saving.current.has(athleteId)) return;
     saving.current.add(athleteId);
     try {
-      const live = marks.get(athleteId);
-      if (live) {
-        await measurements.discard(live, userId);
-        setMarks((current) => new Map([...current].filter(([id]) => id !== athleteId)));
+      const markId = live.current.get(athleteId);
+      if (markId) {
+        await measurements.discard(markId, userId);
+        setLive((current) => current.delete(athleteId));
       } else {
         const id = randomUUID();
         await measurements.add({
@@ -87,7 +97,7 @@ function CompletedSession({ subtitle, roster, measurements, setups, userId, devi
           editedAt: null,
           editReason: null,
         } as Measurement);
-        setMarks((current) => new Map(current).set(athleteId, id));
+        setLive((current) => current.set(athleteId, id));
       }
       setError(undefined);
     } catch {
@@ -109,7 +119,7 @@ function CompletedSession({ subtitle, roster, measurements, setups, userId, devi
       error={error}
       onToggle={toggle}
       onRetry={(athleteId) => {
-        const id = marks.get(athleteId);
+        const id = live.current.get(athleteId);
         if (id) retryFailedRecord('measurements', id).catch(() => {});
       }}
       onFinish={onExit}
