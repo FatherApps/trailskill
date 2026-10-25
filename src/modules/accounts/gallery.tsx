@@ -5,6 +5,8 @@ import type { GalleryEntry } from '../../core/ui';
 import { accountsFixture as fx } from './__fixtures__/accounts';
 import { AccountDetailsScreen, type AccountDetailsScreenProps } from './screens/AccountDetailsScreen';
 import { SignInScreen, type SignInScreenProps } from './screens/SignInScreen';
+import { ConsentCard } from './components/ConsentCard';
+import type { AuthorizationRecord, AuthorizationText } from './data/authorizations';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';
 
 const noop = () => {};
@@ -68,6 +70,20 @@ const whoSwims = (props: Partial<WhoSwimsScreenProps> = {}): ReactElement => (
   </FullScreen>
 );
 
+// Synthetic text and acceptance for the consent card states.
+const consentText: AuthorizationText = { id: 'gallery-text', purpose: 'record_times', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' };
+const consentAccepted: AuthorizationRecord = {
+  id: 'gallery-authorization',
+  userId: 'gallery-user',
+  athleteId: 'gallery-athlete',
+  purpose: 'record_times',
+  textId: consentText.id,
+  textVersion: 1,
+  textBody: consentText.body,
+  acceptedAt: '2026-10-25T12:00:00.000Z',
+  withdrawnAt: null,
+};
+
 export const galleryEntries: GalleryEntry[] = [
   {
     id: 'whoSwims',
@@ -113,6 +129,22 @@ export const galleryEntries: GalleryEntry[] = [
       ),
       sending: () => <SignInPreview values={{ email: fx.person.email, code: '' }} busy="sending" />,
       offline: () => <SignInPreview values={{ email: fx.person.email, code: '' }} codeSent offline />,
+    },
+  },
+  {
+    id: 'consentCard',
+    title: 'ConsentCard',
+    states: {
+      unchecked: () => (
+        <FullWidth>
+          <ConsentCard text={consentText} checked={false} onToggle={noop} onWithdraw={noop} />
+        </FullWidth>
+      ),
+      accepted: () => (
+        <FullWidth>
+          <ConsentCard text={consentText} accepted={consentAccepted} checked={false} onToggle={noop} onWithdraw={noop} />
+        </FullWidth>
+      ),
     },
   },
 ];
