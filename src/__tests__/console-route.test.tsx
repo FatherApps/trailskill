@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import ConsoleRoute from '../app/(app)/console';
 import { ThemeProvider } from '../core/theme';
@@ -14,6 +14,10 @@ const mockListAdminSchools = jest.fn();
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   ...jest.requireActual('../modules/school-console/screens/ConsoleScreen'),
+  ...jest.requireActual('../modules/school-console/screens/CoachesScreen'),
+  ...jest.requireActual('../modules/school-console/screens/RecordsScreen'),
+  ...jest.requireActual('../modules/school-console/screens/MeasurementsScreen'),
+  ...jest.requireActual('../modules/school-console/screens/AuthorizationsScreen'),
   createPowerSyncStaffSchoolRepository: () => ({
     listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
   }),
@@ -56,6 +60,29 @@ describe('console route', () => {
 
     expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
     expect(screen.queryByText(/redirected/)).toBeNull();
+  });
+
+  it.each([
+    ['Entrenadores', 'Aún no hay entrenadores'],
+    ['Récords', 'Aún no hay récords'],
+    ['Mediciones', 'Aún no hay mediciones'],
+    ['Autorizaciones', 'Aún no hay autorizaciones'],
+  ])('shows the %s screen, not the empty section, until its data is connected', async (tab, emptyTitle) => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    await show();
+    await fireEvent.press(await screen.findByRole('tab', { name: tab }));
+
+    expect(screen.getByRole('header', { name: tab })).toBeOnTheScreen();
+    expect(screen.getByText(emptyTitle)).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: tab })).toBeSelected();
+  });
+
+  it('keeps the settings section as its title only', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    await show();
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Ajustes' }));
+
+    expect(screen.queryByTestId('state-view')).toBeNull();
   });
 
   it('shows nothing while the lookup is pending', async () => {
