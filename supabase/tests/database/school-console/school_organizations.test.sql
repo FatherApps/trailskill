@@ -4,7 +4,7 @@
 -- data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(22);
 
 insert into auth.users (id, email) values
   ('31000000-0000-4000-8000-0000000000a1', 'platform-p@example.test'),
@@ -152,6 +152,25 @@ select is(
   (select organization_id from public.schools where id = '31000000-0000-4000-8000-0000000000b2'),
   '31000000-0000-4000-8000-0000000000c3'::uuid,
   'the school points at the organization it was relinked to'
+);
+
+-- Clearing the organization of an existing school creates a new one.
+select lives_ok(
+  $$ update public.schools set organization_id = null
+     where id = '31000000-0000-4000-8000-0000000000b2' $$,
+  'the owner can clear the organization of a school'
+);
+select is(
+  (select o.type from public.schools s join public.organizations o on o.id = s.organization_id
+   where s.id = '31000000-0000-4000-8000-0000000000b2'),
+  'school',
+  'a school whose organization was cleared gets a new organization of type school'
+);
+select is(
+  (select o.name = s.name from public.schools s join public.organizations o on o.id = s.organization_id
+   where s.id = '31000000-0000-4000-8000-0000000000b2'),
+  true,
+  'the new organization is named after the school'
 );
 
 select lives_ok('set constraints all immediate', 'every school still points at an existing organization');

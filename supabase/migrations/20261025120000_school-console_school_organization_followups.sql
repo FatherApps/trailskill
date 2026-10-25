@@ -15,7 +15,8 @@ alter table public.schools
 -- Relinking is limited to platform admins among signed-in users: the
 -- schools_update policy also lets a school admin update the row. Without a
 -- signed-in user (the owner, the service role) it is allowed, as in
--- measurements_check_update.
+-- measurements_check_update. An UPDATE that clears the id creates the
+-- organization here, since the AFTER INSERT trigger will not fire for it.
 create or replace function app.set_school_organization()
 returns trigger
 language plpgsql
@@ -33,7 +34,12 @@ begin
       using errcode = 'insufficient_privilege';
   end if;
   if new.organization_id is null then
-    new.organization_id := gen_random_uuid();
+    if tg_op = 'INSERT' then
+      new.organization_id := gen_random_uuid();
+    else
+      insert into public.organizations (type, name) values ('school', new.name)
+      returning id into new.organization_id;
+    end if;
     return new;
   end if;
   select type into org_type from public.organizations where id = new.organization_id;
