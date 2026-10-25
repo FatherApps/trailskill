@@ -76,6 +76,22 @@ describe('finishRegistration', () => {
     expect(next).toBe('add_athletes');
   });
 
+  it('child: asks again to open the add screen on a later launch, when the names are already blank', async () => {
+    const { next } = await run(createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: '' }));
+
+    expect(next).toBe('add_athletes');
+  });
+
+  it('adult: keeps the draft when the own athlete profile cannot be created', async () => {
+    const drafts = createInMemoryRegistrationDraftRepository(draft);
+    const managedProfiles = { createManagedAthlete: jest.fn().mockRejectedValue(new Error('write failed')) };
+
+    await expect(
+      finishRegistration({ userId: 'user-1', email: 'camila@example.test', drafts, profiles: createInMemoryAdultProfileRepository(), managedProfiles }),
+    ).rejects.toThrow('write failed');
+    expect(await drafts.load()).toEqual(draft);
+  });
+
   it('clears the draft when there is no swimmer choice', async () => {
     const { swimmer: _swimmer, ...noSwimmer } = draft;
     const { drafts, profiles, athletes } = await run(createInMemoryRegistrationDraftRepository(noSwimmer));

@@ -79,6 +79,8 @@ export async function finishRegistration({
   if (!draft) return;
   const firstName = draft.firstName?.trim();
   const lastName = draft.lastName?.trim();
+  // A guardian who left the add screen unfinished comes back to it: the names were already saved and blanked.
+  if ((!firstName || !lastName) && draft.swimmer === 'child') return 'add_athletes';
   if (!firstName || !lastName) return;
   if (draft.email?.trim().toLowerCase() !== email.trim().toLowerCase()) return;
   await profiles.save({ userId, firstName, lastName });

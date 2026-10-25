@@ -26,7 +26,8 @@ export default function AddAthletesRoute() {
       drafts={drafts}
       renderStatus={(id) => <RecordSyncStatus table="athletes" id={id} />}
       onContinue={() => router.replace('/')}
-      onBack={() => router.back()}
+      // Reached with replace, so back has no history: it goes home.
+      onBack={() => router.replace('/')}
     />
   );
 }

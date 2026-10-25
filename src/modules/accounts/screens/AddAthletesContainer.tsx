@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { athleteDisplay, type AthleteRepository } from '../../athletes';
 import type { RegistrationDraftRepository } from '../data/registrationDraft';
@@ -49,12 +49,15 @@ export function AddAthletesContainer({
     refresh().catch(() => {});
   }, [drafts, refresh]);
 
+  // Draft writes run one after another, so a slow keystroke save can never land after a later add or clear.
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const enqueue = (write: () => Promise<void>) => (queue.current = queue.current.then(write).catch(() => {}));
   // Never throws: losing a draft must not block typing.
   const persist = (athlete: typeof empty | undefined) =>
-    drafts
-      .load()
-      .then((current) => drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: '', ...current, athlete }))
-      .catch(() => {});
+    enqueue(async () => {
+      const current = await drafts.load();
+      await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: '', ...current, athlete });
+    });
 
   function change(field: AddAthleteField, value: string) {
     const next = { ...values, [field]: value };
@@ -67,20 +70,22 @@ export function AddAthletesContainer({
     setFailed(false);
     try {
       await profiles.createManagedAthlete({ userId, relation: 'guardian', ...values });
-      setValues(empty);
-      void persist(undefined);
-      await refresh();
     } catch {
       // Nothing was saved: the names stay in the form and the person can try again.
       setFailed(true);
-    } finally {
       setBusy(false);
+      return;
     }
+    setValues(empty);
+    void persist(undefined);
+    // Saved already: a failed list read must not look like a failed save.
+    await refresh().catch(() => {});
+    setBusy(false);
   }
 
   // The profiles are saved: the draft, swimmer choice included, has nothing left to keep.
   async function finish() {
-    await drafts.clear().catch(() => {});
+    await enqueue(() => drafts.clear());
     onContinue();
   }
 

@@ -18,7 +18,7 @@ function setup() {
   const onContinue = jest.fn();
   const mount = () =>
     render(<AddAthletesContainer userId="guardian-1" profiles={profiles} athletes={athletes} drafts={drafts} onContinue={onContinue} onBack={jest.fn()} />);
-  return { mount, onContinue, drafts, profiles };
+  return { mount, onContinue, drafts, profiles, athletes };
 }
 
 describe('AddAthletesContainer', () => {
@@ -75,5 +75,42 @@ describe('AddAthletesContainer', () => {
 
     expect(await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeOnTheScreen();
     expect(screen.getByDisplayValue('Lucía')).toBeOnTheScreen();
+  });
+
+  it('a slow keystroke save never resurrects the athlete in the draft after add', async () => {
+    const { mount, drafts, profiles } = setup();
+    const save = drafts.save;
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    let first = true;
+    drafts.save = async (d) => {
+      if (first) {
+        first = false;
+        await slow;
+      }
+      return save(d);
+    };
+    await mount();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await screen.findByLabelText('Lucía R., Hijo o hija');
+    release();
+
+    await waitFor(async () => expect((await drafts.load())?.athlete).toBeUndefined());
+    expect(profiles).toBeDefined();
+  });
+
+  it('a failed list read after a save shows no save error and clears the form', async () => {
+    const { mount, athletes } = setup();
+    await mount();
+    jest.spyOn(athletes, 'listManaged').mockRejectedValue(new Error('read failed'));
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+
+    await waitFor(() => expect(screen.getByLabelText('Nombre').props.value).toBe(''));
+    expect(screen.queryByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeNull();
   });
 });
