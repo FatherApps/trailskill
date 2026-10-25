@@ -1,4 +1,30 @@
 {
+  "profile": {
+    "school": "Escuela",
+    "authorization_valid": "Autorización vigente",
+    "authorization_pending": "Autorización pendiente",
+    "updated": "Actualizado hace {{count}} min",
+    "updated_now": "Actualizado hace un momento"
+  },
+  "event_selector": {
+    "stroke": "Estilo",
+    "distance": "Distancia",
+    "pool": "Piscina"
+  },
+  "personal_best": {
+    "title": "Marca personal",
+    "caption": "Marca personal · {{stroke}} {{distance}} ({{pool}})",
+    "none_spoken": "Sin marca personal",
+    "improvement_one": "−{{time}} en {{count}} mes",
+    "improvement_other": "−{{time}} en {{count}} meses",
+    "improvement_spoken_one": "mejoró {{time}} en {{count}} mes",
+    "improvement_spoken_other": "mejoró {{time}} en {{count}} meses",
+    "kind": {
+      "competition": "Competencia",
+      "training": "Entrenamiento"
+    },
+    "kind_and_date": "{{kind}} · {{date}}"
+  },
   "history": {
     "context": {
       "training": "Entrenamiento",
