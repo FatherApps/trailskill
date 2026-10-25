@@ -34,7 +34,7 @@ const structure = createInMemorySchoolStructureRepository({
   ],
   // Coach k1 has group g1 and the athlete a4 directly.
   groupAssignments: [{ coachId: 'k1', groupId: 'g1' }],
-  athleteAssignments: [{ coachId: 'k1', athleteId: 'a4' }],
+  athleteAssignments: [{ coachId: 'k1', athleteId: 'a4', schoolId: 's1' }],
   coachMemberships: [{ coachId: 'k1', schoolId: 's1' }],
 });
 const schools = createInMemoryStaffSchoolRepository([
