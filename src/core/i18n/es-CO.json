@@ -24,6 +24,21 @@
       "LCM": "Piscina de 50 m"
     }
   },
+  "dev": {
+    "gallery": {
+      "open": "Abrir galería de desarrollo",
+      "title": "Galería de desarrollo",
+      "state": "Estado",
+      "theme": "Tema",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "font_scale": "Tamaño de texto",
+      "scale_normal": "100 %",
+      "scale_double": "200 %",
+      "not_found": "No hay una entrada con ese nombre",
+      "not_found_hint": "Vuelve a la galería y elige una entrada de la lista."
+    }
+  },
   "common": {
     "back": "Volver"
   },
