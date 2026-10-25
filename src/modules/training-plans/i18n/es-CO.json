@@ -67,11 +67,36 @@
     "status": {
       "done": "Hecho",
       "partial": "Parcial · {{done}} de {{total}}",
+      "partial_plain": "Parcial",
       "absent": "No asistió",
       "not_marked": "Sin marcar"
     },
     "rep": "Rep. {{n}}",
     "series_total": "Total serie",
     "report": "Avisar algo al entrenador"
+  },
+  "fulfillment": {
+    "caption": "Cumplimiento · {{date}}",
+    "hint": "Toca una celda para cambiar su estado.",
+    "times_one": "{{done}}/{{count}} tiempo",
+    "times_other": "{{done}}/{{count}} tiempos",
+    "marked_by": "Marcado por {{name}} · {{date}}",
+    "corrected_by": "Corregido por {{name}} · {{date}}",
+    "cell_label": "{{athlete}} · {{position}}, {{summary}}: {{status}}",
+    "cell_extra": ", {{text}}",
+    "cell_hint": "Toca para cambiar a {{next}}",
+    "empty_athletes_title": "Aún no hay deportistas en este plan",
+    "empty_athletes_message": "Asigna el plan a un grupo o a deportistas para marcar el cumplimiento.",
+    "empty_blocks_title": "Este plan no tiene bloques",
+    "empty_blocks_message": "Agrega bloques en el constructor para marcar el cumplimiento.",
+    "error_title": "No pudimos cargar el cumplimiento",
+    "error_message": "Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Intentar de nuevo",
+    "offline_title": "Estás sin conexión",
+    "offline_message": "El cumplimiento aparecerá cuando vuelva la señal.",
+    "denied_title": "Esta información es privada",
+    "denied_message": "Solo los entrenadores del grupo pueden ver y marcar el cumplimiento.",
+    "banner_title": "Sin conexión.",
+    "banner_dated": "Datos del {{date}}. Las marcas se guardan en la tableta y se envían cuando vuelva la señal."
   }
 }

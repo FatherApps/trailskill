@@ -3,13 +3,12 @@ import { ScrollView, Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { Banner, Button, StateView, Tag, TimeValue, type TagProps } from '../../../core/ui';
+import { Banner, Button, StateView, Tag, TimeValue } from '../../../core/ui';
 import '../i18n';
 import { BlockCard } from '../components/BlockCard';
-import type { PlanBlock, PlanVocabulary } from '../types';
+import { statusTag } from '../components/blockStatus';
+import type { BlockStatus, PlanBlock, PlanVocabulary } from '../types';
 import { labelOf } from '../vocabulary';
-
-export type BlockStatus = 'done' | 'partial' | 'absent' | 'not_marked';
 
 export type TodayBlock = {
   block: PlanBlock;
@@ -42,25 +41,6 @@ export type TodayScreenProps = {
   scrollEnabled?: boolean;
 };
 
-function statusTag(entry: TodayBlock): TagProps {
-  switch (entry.status) {
-    case 'done':
-      return { variant: 'ok', icon: 'check', label: t('training_plans.today.status.done') };
-    case 'partial':
-      return {
-        variant: 'warn',
-        label: t('training_plans.today.status.partial', {
-          done: entry.completedRepetitions ?? 0,
-          total: entry.block.repetitions,
-        }),
-      };
-    case 'absent':
-      return { variant: 'neutral', label: t('training_plans.today.status.absent') };
-    case 'not_marked':
-      return { variant: 'outline', label: t('training_plans.today.status.not_marked') };
-  }
-}
-
 function TimeRow({ label, value }: { label: string; value: Hundredths | null }) {
   const { colors, space, typography } = useTheme();
   return (
@@ -76,7 +56,7 @@ function BlockStatusAndTimes({ entry }: { entry: TodayBlock }) {
   const times = entry.times ?? [];
   return (
     <View style={{ gap: space[2] }}>
-      <Tag {...statusTag(entry)} />
+      <Tag {...statusTag({ ...entry, repetitions: entry.block.repetitions })} />
       {/* A completion-only block has no time to show: never a zero. */}
       {entry.block.recording === 'per_repetition' &&
         times.map((time, index) => (

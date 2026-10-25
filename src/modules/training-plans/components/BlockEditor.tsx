@@ -5,7 +5,7 @@ import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { Button, Icon, Segmented } from '../../../core/ui';
 import '../i18n';
-import type { BlockPhase, BlockRecording, PlanBlock, PlanVocabulary } from '../types';
+import { phases, recordings, type PlanBlock, type PlanVocabulary } from '../types';
 import { formatSendOff } from './formatSendOff';
 
 export type BlockEditorProps = {
@@ -15,8 +15,6 @@ export type BlockEditorProps = {
   onDone: () => void;
 };
 
-const phases: BlockPhase[] = ['warm_up', 'main', 'technique', 'cool_down'];
-const recordings: BlockRecording[] = ['completion', 'per_repetition', 'series_total'];
 const SEND_OFF_STEP = 5;
 
 function Field({ label, children }: { label: string; children: ReactNode }) {

@@ -4,10 +4,13 @@ import { useWindowDimensions, View } from 'react-native';
 import { space } from '../../core/theme';
 import type { GalleryEntry } from '../../core/ui';
 import { BlockCard } from './components/BlockCard';
+import { cellKey, type FulfillmentCell, type FulfillmentContent } from './components/fulfillment';
+import { fulfillmentFixture } from './__fixtures__/fulfillment';
 import { plansFixture } from './__fixtures__/plans';
+import { FulfillmentScreen, type FulfillmentView } from './screens/FulfillmentScreen';
 import { PlanBuilderScreen } from './screens/PlanBuilderScreen';
 import { TodayScreen, type TodayView } from './screens/TodayScreen';
-import type { BlockPhase, BlockRecording, PlanBlock } from './types';
+import { phases, recordings, type BlockStatus, type PlanBlock } from './types';
 
 const noop = () => {};
 const { vocabulary, blocks, today, athleteName, storedOnLabel } = plansFixture;
@@ -21,9 +24,6 @@ function ScreenFrame({ children }: { children: ReactNode }) {
 function Stack({ children }: { children: ReactNode }) {
   return <View style={{ alignSelf: 'stretch', gap: space[2] }}>{children}</View>;
 }
-
-const phases: BlockPhase[] = ['warm_up', 'main', 'technique', 'cool_down'];
-const recordings: BlockRecording[] = ['completion', 'per_repetition', 'series_total'];
 
 // Holds the blocks, so adding, moving and editing really work in the gallery.
 function BuilderPreview({ initial, initialEditingId = null }: { initial: PlanBlock[]; initialEditingId?: string | null }) {
@@ -80,6 +80,40 @@ function TodayPreview({ view }: { view: TodayView }) {
   );
 }
 
+// Holds the cells, so tapping a cell really cycles its status in the gallery. Every change is a coach correction.
+function FulfillmentPreview({ view }: { view: FulfillmentView }) {
+  const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
+  const [cells, setCells] = useState<Record<string, FulfillmentCell>>(content?.cells ?? {});
+
+  const cycle = (athleteId: string, blockId: string, status: BlockStatus) =>
+    setCells((current) => {
+      const key = cellKey(athleteId, blockId);
+      const block = content?.blocks.find((candidate) => candidate.id === blockId);
+      const cell: FulfillmentCell = {
+        ...current[key],
+        status,
+        change: { kind: 'corrected', author: 'Paula G.', dateLabel: '24 oct' },
+      };
+      // Leaving partial forgets its count; entering it marks half the repetitions. A recorded time count stays but is not shown.
+      if (status === 'partial') cell.completedRepetitions = Math.ceil((block?.repetitions ?? 1) / 2);
+      else delete cell.completedRepetitions;
+      return { ...current, [key]: cell };
+    });
+
+  const live: FulfillmentView =
+    view.kind === 'data' || view.kind === 'offline' ? { ...view, content: { ...view.content, cells } as FulfillmentContent } : view;
+  return (
+    <ScreenFrame>
+      <FulfillmentScreen
+        planName={fulfillmentFixture.planName}
+        dateLabel={fulfillmentFixture.dateLabel}
+        view={live}
+        onCycle={cycle}
+      />
+    </ScreenFrame>
+  );
+}
+
 export const galleryEntries: GalleryEntry[] = [
   {
     id: 'blockCard',
@@ -121,6 +155,25 @@ export const galleryEntries: GalleryEntry[] = [
       offline: () => <TodayPreview view={{ kind: 'offline', storedOnLabel, content: today }} />,
       'offline-empty': () => <TodayPreview view={{ kind: 'offline-empty' }} />,
       denied: () => <TodayPreview view={{ kind: 'denied' }} />,
+    },
+  },
+  {
+    id: 'fulfillment',
+    title: 'FulfillmentScreen',
+    states: {
+      grid: () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.grid }} />,
+      'many-blocks': () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.manyBlocks }} />,
+      loading: () => <FulfillmentPreview view={{ kind: 'loading' }} />,
+      'empty-athletes': () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.noAthletes }} />,
+      'empty-blocks': () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.noBlocks }} />,
+      error: () => <FulfillmentPreview view={{ kind: 'error', onRetry: noop }} />,
+      offline: () => (
+        <FulfillmentPreview
+          view={{ kind: 'offline', storedOnLabel: fulfillmentFixture.storedOnLabel, content: fulfillmentFixture.grid }}
+        />
+      ),
+      'offline-empty': () => <FulfillmentPreview view={{ kind: 'offline-empty' }} />,
+      denied: () => <FulfillmentPreview view={{ kind: 'denied' }} />,
     },
   },
 ] satisfies { id: string; title: string; states: Record<string, () => ReactElement> }[];
