@@ -9,13 +9,16 @@ type Result = { data: { id: string }[] | null; error: { code?: string; message: 
 const ok: Result = { data: [{ id: 'row-1' }], error: null };
 const empty: Result = { data: [], error: null };
 
-function entry(op: 'PUT' | 'PATCH' | 'DELETE', id: string, opData?: Record<string, unknown>, table = 'athletes') {
-  return { op, table, id, opData } as unknown as CrudEntry;
+function entry(op: 'PUT' | 'PATCH' | 'DELETE', id: string, opData?: Record<string, unknown>, table = 'athletes', clientId = 1) {
+  return { op, table, id, opData, clientId } as unknown as CrudEntry;
 }
 
 type Statements = [string, unknown[]][];
 
-function setup(results: { upsert?: Result; update?: Result; delete?: Result; readBack?: Result } = {}) {
+function setup(
+  results: { upsert?: Result; update?: Result; delete?: Result; readBack?: Result } = {},
+  options: { maxAttempts?: number; sleep?: (ms: number) => Promise<void> } = {},
+) {
   // An upsert is awaited directly, or chained with .select('id') when the connector needs the inserted row.
   const upsertResult = results.upsert ?? { data: null, error: null };
   const upsertSelect = jest.fn().mockResolvedValue(upsertResult);
@@ -53,7 +56,7 @@ function setup(results: { upsert?: Result; update?: Result; delete?: Result; rea
       writeTransaction,
     } as unknown as AbstractPowerSyncDatabase;
   };
-  const connector = new SupabaseConnector(client as unknown as SupabaseClient, 'https://sync.example.test');
+  const connector = new SupabaseConnector(client as unknown as SupabaseClient, 'https://sync.example.test', options);
   return {
     client, connector, database, complete, execute, committed, writeTransaction, from,
     upsert, upsertSelect, update, updateEq, del, deleteEq, readBack, readBackEq,
@@ -124,6 +127,120 @@ describe('SupabaseConnector.uploadData', () => {
     expect(t.complete).not.toHaveBeenCalled();
     expect(t.execute).not.toHaveBeenCalled();
     expect(t.writeTransaction).not.toHaveBeenCalled();
+  });
+
+  describe('retry limit for persistent coded errors', () => {
+    const transient = { code: '42P01', message: 'relation does not exist' };
+    const put = (clientId = 1) => entry('PUT', 'a', { first_name: 'Ana' }, 'athletes', clientId);
+
+    it('throws with a growing wait for 4 attempts, then records the code and completes on the 5th', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const t = setup({ upsert: { data: null, error: transient } }, { sleep });
+
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(transient);
+      }
+      expect(sleep.mock.calls).toEqual([[1000], [2000], [4000], [8000]]);
+      expect(t.complete).not.toHaveBeenCalled();
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+
+      await expect(t.connector.uploadData(t.database([put()]))).resolves.toBeUndefined();
+      expect(sleep).toHaveBeenCalledTimes(4);
+      const inserts = failureInserts(t.committed);
+      expect(inserts).toHaveLength(1);
+      expect(inserts[0][1]).toEqual(['athletes', 'a', 'PUT', JSON.stringify({ first_name: 'Ana' }), '42P01', expect.any(String)]);
+      expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['athletes', 'a']]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('caps the wait at 30 seconds', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const t = setup({ upsert: { data: null, error: transient } }, { sleep, maxAttempts: 10 });
+      for (let attempt = 1; attempt <= 9; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(transient);
+      }
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000]);
+    });
+
+    it('gives up one op and still sends the rest of the transaction', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const t = setup({ upsert: { data: null, error: transient } }, { sleep, maxAttempts: 1 });
+      await t.connector.uploadData(t.database([put(), entry('PATCH', 'b', { first_name: 'Bea' }, 'athletes', 2)]));
+
+      expect(t.update).toHaveBeenCalledTimes(1);
+      expect(failureInserts(t.committed)).toHaveLength(1);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps a given-up op at the limit, so a multi-op transaction ends in linear rounds', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const code = '42703';
+      const t = setup({ upsert: { data: null, error: { code, message: 'no column' } } }, { sleep });
+      const ops = [put(1), put(2), put(3)];
+
+      let rounds = 0;
+      let done = false;
+      while (!done && rounds < 20) {
+        rounds++;
+        done = await t.connector.uploadData(t.database(ops)).then(() => true, () => false);
+      }
+      // Each op needs maxAttempts - 1 throwing rounds, then the last op's give-up round completes.
+      expect(rounds).toBe(13);
+      expect(failureInserts(t.committed).map(([, params]) => params[4])).toEqual([code, code, code]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+      // A given-up op never sleeps again: only 4 waits per op.
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000, 8000, 1000, 2000, 4000, 8000, 1000, 2000, 4000, 8000]);
+    });
+
+    it('never counts or gives up a code-less network error', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { message: 'Network request failed' };
+      const t = setup({ upsert: { data: null, error } }, { sleep });
+
+      for (let attempt = 1; attempt <= 8; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
+      }
+      expect(sleep).not.toHaveBeenCalled();
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
+    it('never counts or gives up an expired-session error (PGRST303)', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code: 'PGRST303', message: 'JWT expired' };
+      const t = setup({ upsert: { data: null, error } }, { sleep });
+
+      for (let attempt = 1; attempt <= 8; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
+      }
+      expect(sleep).not.toHaveBeenCalled();
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
+    it('drops the counter of a completed op: another op starts at attempt 1', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const failing = setup({ upsert: { data: null, error: transient } }, { sleep });
+      // Reuse one connector across a failing op that gives up and a new op with a different clientId.
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        await failing.connector.uploadData(failing.database([put(1)])).catch(() => undefined);
+      }
+      sleep.mockClear();
+      await expect(failing.connector.uploadData(failing.database([put(2)]))).rejects.toBe(transient);
+      expect(sleep.mock.calls).toEqual([[1000]]);
+    });
+
+    it('a successful send resets the counter of that op', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const t = setup({ upsert: { data: null, error: transient } }, { sleep });
+      await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(transient);
+      t.upsert.mockImplementation(() => Object.assign(Promise.resolve({ data: null, error: null }), { select: jest.fn() }));
+      await t.connector.uploadData(t.database([put()]));
+      t.upsert.mockImplementation(() => Object.assign(Promise.resolve({ data: null, error: transient }), { select: jest.fn() }));
+      sleep.mockClear();
+      await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(transient);
+      expect(sleep.mock.calls).toEqual([[1000]]);
+    });
   });
 
   describe('append-only tables (case 1)', () => {
@@ -298,6 +415,23 @@ describe('SupabaseConnector.fetchCredentials', () => {
   it('returns the current token when the session is still valid', async () => {
     const t = setup();
     t.client.auth.getSession.mockResolvedValue({ data: { session: { access_token: 'current', expires_at: nowSeconds() + 3600 } }, error: null });
+
+    await expect(t.connector.fetchCredentials()).resolves.toEqual({ endpoint: 'https://sync.example.test', token: 'current' });
+    expect(t.client.auth.refreshSession).not.toHaveBeenCalled();
+  });
+
+  it('refreshes a session that expires within the margin (clock skew)', async () => {
+    const t = setup();
+    t.client.auth.getSession.mockResolvedValue({ data: { session: { access_token: 'old', expires_at: nowSeconds() + 30 } }, error: null });
+    t.client.auth.refreshSession.mockResolvedValue({ data: { session: { access_token: 'fresh' } }, error: null });
+
+    await expect(t.connector.fetchCredentials()).resolves.toEqual({ endpoint: 'https://sync.example.test', token: 'fresh' });
+    expect(t.client.auth.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refresh a session that expires in 10 minutes', async () => {
+    const t = setup();
+    t.client.auth.getSession.mockResolvedValue({ data: { session: { access_token: 'current', expires_at: nowSeconds() + 600 } }, error: null });
 
     await expect(t.connector.fetchCredentials()).resolves.toEqual({ endpoint: 'https://sync.example.test', token: 'current' });
     expect(t.client.auth.refreshSession).not.toHaveBeenCalled();

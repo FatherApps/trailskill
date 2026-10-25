@@ -19,11 +19,30 @@ function failureCode(result: Result): string | null {
 // Spec "New measurements are append-only" (2026-10-24-pilot-design.md): these tables are only ever inserted, never updated by the app.
 const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series']);
 
+/** Refresh a session that expires within this window, so a skewed device clock does not send an expired token. */
+const TOKEN_REFRESH_MARGIN_SECONDS = 60;
+const DEFAULT_MAX_ATTEMPTS = 5;
+/** PostgREST JWT invalid, missing or expired: they last until the session is refreshed or the user signs in again, so they must never exhaust the retries. */
+const AUTH_ERROR_CODES = new Set(['PGRST301', 'PGRST302', 'PGRST303']);
+const BASE_WAIT_MS = 1000;
+const MAX_WAIT_MS = 30_000;
+
+export type ConnectorOptions = { maxAttempts?: number; sleep?: (ms: number) => Promise<void> };
+
 export class SupabaseConnector implements PowerSyncBackendConnector {
+  private readonly maxAttempts: number;
+  private readonly sleep: (ms: number) => Promise<void>;
+  // shortcut: attempts are counted in memory, so they reset when the app restarts; persist the counter if a restart loop is ever seen.
+  private readonly attempts = new Map<number, number>();
+
   constructor(
     private readonly client: SupabaseClient,
     private readonly endpoint: string,
-  ) {}
+    options: ConnectorOptions = {},
+  ) {
+    this.maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  }
 
   async fetchCredentials(): Promise<{ endpoint: string; token: string } | null> {
     const { data, error } = await this.client.auth.getSession();
@@ -31,7 +50,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     let session = data.session;
     if (!session) return null;
 
-    if (session.expires_at !== undefined && session.expires_at <= Math.floor(Date.now() / 1000)) {
+    if (session.expires_at !== undefined && session.expires_at <= Math.floor(Date.now() / 1000) + TOKEN_REFRESH_MARGIN_SECONDS) {
       const refreshed = await this.client.auth.refreshSession();
       if (refreshed.error) throw refreshed.error;
       session = refreshed.data.session;
@@ -46,7 +65,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
 
     // Every op is sent before any bookkeeping: a thrown network error must leave local state untouched for the retry.
     const codes: (string | null)[] = [];
-    for (const op of transaction.crud) codes.push(await this.send(op));
+    for (const op of transaction.crud) codes.push(await this.sendLimited(op));
 
     // One transaction: either every mark and failure of this batch is recorded, or none.
     // Successes clear the record's old failures first, then this batch's failures are inserted, so a failure recorded here is never cleared by it.
@@ -70,6 +89,28 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     });
     // complete() runs in its own transaction: a crash between the two re-sends ops already sent, which is safe (inserts are idempotent, marks are per op).
     await transaction.complete();
+    for (const op of transaction.crud) this.attempts.delete(op.clientId);
+  }
+
+  /**
+   * Sends one op. An error with a code that is not permanent is retried with a growing wait; after maxAttempts it becomes a recorded failure ("No enviado").
+   * An error without a code (network) or a JWT/auth error (AUTH_ERROR_CODES) is rethrown at once and never counted: offline or an expired session never gives up.
+   */
+  private async sendLimited(op: CrudEntry): Promise<string | null> {
+    try {
+      const code = await this.send(op);
+      this.attempts.delete(op.clientId);
+      return code;
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (!code || AUTH_ERROR_CODES.has(code)) throw error;
+      const attempt = (this.attempts.get(op.clientId) ?? 0) + 1;
+      // The count is kept even on give-up: if a later op throws, this op gives up at once next round. uploadData clears it after complete().
+      this.attempts.set(op.clientId, attempt);
+      if (attempt >= this.maxAttempts) return code;
+      await this.sleep(Math.min(BASE_WAIT_MS * 2 ** (attempt - 1), MAX_WAIT_MS));
+      throw error;
+    }
   }
 
   /** Sends one op. Returns a failure code for a permanent rejection, throws on any other error. */
