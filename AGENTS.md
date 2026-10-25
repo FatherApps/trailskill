@@ -121,7 +121,12 @@ Code, commits, and docs in English. Issues and pull request descriptions in Span
 
 ## Commands
 
-Pending: install, run, test, lint, and type-check commands are added here when the Expo project is scaffolded.
+- Install: `npm ci`
+- Run: `npx expo start --dev-client`
+- Type check: `npm run typecheck`
+- Lint (includes the module boundary rules): `npm run lint`
+- Test: `npm test`
+- Development build: `eas build --profile development --platform android`
 
 ## Reporting
 
