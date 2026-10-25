@@ -9,7 +9,7 @@ import { Button, StateView, StepHeader, TextField } from '../../core/ui';
 const CODE_LENGTH = 6;
 
 export default function SignIn() {
-  const { requestCode, verifyCode } = useSession();
+  const { requestCode, verifyCode, configError } = useSession();
   const { colors, space, typography } = useTheme();
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
@@ -72,7 +72,9 @@ export default function SignIn() {
 
   return (
     <View style={{ flex: 1, padding: space[4], gap: space[4], backgroundColor: colors['surface-0'] }}>
-      {step === 'email' ? (
+      {configError ? (
+        <StateView kind="error" title={t('auth.not_configured_title')} message={t('auth.not_configured_message')} />
+      ) : step === 'email' ? (
         <>
           <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
             {t('auth.email_title')}

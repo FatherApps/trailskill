@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { countUnsentRecords, db, supabase, SupabaseConnector } from '../sync';
+import { countUnsentRecords, db, supabase, supabaseConfigError, SupabaseConnector } from '../sync';
 
 type SignOutResult = 'signed_out' | 'blocked_pending';
 
@@ -9,6 +9,8 @@ type SessionValue = {
   session: Session | null;
   /** The local database could not connect to the sync service; records stay on the phone. */
   syncConnectFailed: boolean;
+  /** The server settings are missing from the build; no request can succeed. For diagnostics, never for display. */
+  configError: string | null;
   requestCode(email: string): Promise<void>;
   verifyCode(email: string, code: string): Promise<void>;
   signOut(options?: { force?: boolean }): Promise<SignOutResult>;
@@ -46,7 +48,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Keyed on the user, not the session object: token refreshes must not reconnect.
   const userId = session?.user.id;
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || supabaseConfigError) return;
     let current = true;
     // Expo inlines EXPO_PUBLIC_* only on direct `process.env.NAME` access.
     db.connect(new SupabaseConnector(supabase, process.env.EXPO_PUBLIC_POWERSYNC_URL ?? '')).catch(() => {
@@ -60,12 +62,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const syncConnectFailed = userId !== undefined && syncFailedFor === userId;
 
   const requestCode = useCallback(async (email: string) => {
+    if (supabaseConfigError) throw new Error(supabaseConfigError);
     // Accounts are created by registration, never by asking for a code.
     const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
     if (error) throw error;
   }, []);
 
   const verifyCode = useCallback(async (email: string, code: string) => {
+    if (supabaseConfigError) throw new Error(supabaseConfigError);
     const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
     if (!error) return;
     throw error.code === 'otp_expired' ? new CodeMismatchError() : error;
@@ -86,7 +90,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ session, syncConnectFailed, requestCode, verifyCode, signOut }),
+    () => ({ session, syncConnectFailed, configError: supabaseConfigError, requestCode, verifyCode, signOut }),
     [session, syncConnectFailed, requestCode, verifyCode, signOut],
   );
 

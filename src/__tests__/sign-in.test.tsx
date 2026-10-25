@@ -8,6 +8,7 @@ jest.mock('../core/sync', () => ({}));
 
 const mockSession = {
   session: null,
+  configError: null as string | null,
   requestCode: jest.fn(),
   verifyCode: jest.fn(),
   signOut: jest.fn(),
@@ -20,6 +21,7 @@ jest.mock('../core/session', () => ({
 const email = 'ana@example.com';
 
 beforeEach(() => {
+  mockSession.configError = null;
   mockSession.requestCode.mockReset().mockResolvedValue(undefined);
   mockSession.verifyCode.mockReset().mockResolvedValue(undefined);
 });
@@ -32,6 +34,16 @@ async function openCodeStep() {
 }
 
 describe('sign-in screen', () => {
+  it('replaces the form with a not-ready notice when the server is not configured', async () => {
+    mockSession.configError = 'Missing EXPO_PUBLIC_SUPABASE_URL';
+    await render(<SignIn />);
+
+    expect(screen.getByText('La app no está lista para ingresar')).toBeTruthy();
+    expect(screen.getByText('Falta la configuración del servidor. Avísale a quien administra la app.')).toBeTruthy();
+    expect(screen.queryByLabelText('Correo electrónico')).toBeNull();
+    expect(screen.queryByText(/EXPO_PUBLIC/)).toBeNull();
+  });
+
   it('requests a code for the typed email and then asks for it', async () => {
     await openCodeStep();
 

@@ -6,6 +6,7 @@ import { CodeMismatchError, SessionProvider, signOutDecision, useSession } from 
 const mockCalls: string[] = [];
 let mockUnsent: Promise<number>;
 let mockConnect: () => Promise<unknown>;
+let mockConfigError: string | null = null;
 const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
 const mockSignInWithOtp = jest.fn();
 const mockVerifyOtp = jest.fn();
@@ -14,6 +15,9 @@ const mockGetSession = jest.fn();
 
 jest.mock('../../sync', () => ({
   countUnsentRecords: () => mockUnsent,
+  get supabaseConfigError() {
+    return mockConfigError;
+  },
   SupabaseConnector: jest.fn(),
   db: {
     connect: jest.fn(() => mockConnect()),
@@ -35,6 +39,7 @@ jest.mock('../../sync', () => ({
 
 beforeEach(() => {
   mockCalls.length = 0;
+  mockConfigError = null;
   mockUnsent = Promise.resolve(0);
   mockConnect = async () => mockCalls.push('db.connect');
   mockSignInWithOtp.mockReset().mockResolvedValue({ error: null });
@@ -123,6 +128,47 @@ describe('useSession', () => {
     const session = await renderSession();
 
     await expect(session.current.verifyCode('ana@example.com', '123456')).rejects.toBe(failure);
+  });
+});
+
+describe('useSession without server configuration', () => {
+  beforeEach(() => {
+    mockConfigError = 'Missing EXPO_PUBLIC_SUPABASE_URL';
+  });
+
+  it('exposes the configuration error', async () => {
+    const session = await renderSession();
+
+    expect(session.current.configError).toBe('Missing EXPO_PUBLIC_SUPABASE_URL');
+  });
+
+  it('has no configuration error when configured', async () => {
+    mockConfigError = null;
+    const session = await renderSession();
+
+    expect(session.current.configError).toBeNull();
+  });
+
+  it('rejects requestCode at once without calling Supabase', async () => {
+    const session = await renderSession();
+
+    await expect(session.current.requestCode('ana@example.com')).rejects.toThrow('Missing EXPO_PUBLIC_SUPABASE_URL');
+    expect(mockSignInWithOtp).not.toHaveBeenCalled();
+  });
+
+  it('rejects verifyCode at once without calling Supabase', async () => {
+    const session = await renderSession();
+
+    await expect(session.current.verifyCode('ana@example.com', '123456')).rejects.toThrow(
+      'Missing EXPO_PUBLIC_SUPABASE_URL',
+    );
+    expect(mockVerifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('does not connect the local database even with a stored session', async () => {
+    await renderSession();
+
+    expect(mockCalls).toEqual([]);
   });
 });
 
