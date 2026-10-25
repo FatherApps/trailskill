@@ -1,3 +1,4 @@
+import { Link } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { t } from '../../core/i18n';
@@ -19,6 +20,7 @@ export default function Home() {
       <Text>{t('home.title')}</Text>
       <SyncStatus state={state} />
       {syncConnectFailed && <Text accessibilityLiveRegion="polite">{t('sync.connect_failed')}</Text>}
+      {__DEV__ && <Link href="/gallery">{t('dev.gallery.open')}</Link>}
     </View>
   );
 }
