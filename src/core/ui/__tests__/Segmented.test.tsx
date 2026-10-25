@@ -264,6 +264,32 @@ describe('Segmented', () => {
         expect(scrollTo).toHaveBeenLastCalledWith({ x: 480, animated: false });
       });
 
+      it('does nothing until both the viewport and the content are measured', async () => {
+        await render(renderWith('c'));
+        await fireEvent(scrollerOf(), 'contentSizeChange', 500, 48);
+        await layOut(longOptions, { ...layouts, c: { x: 400, width: 120 } });
+        expect(scrollTo).not.toHaveBeenCalled();
+
+        await fireEvent(scrollerOf(), 'layout', layoutEvent({ x: 0, width: 200 }));
+
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 300, animated: false });
+      });
+
+      it('uses the fresh position of an option that is removed and added back', async () => {
+        const view = await render(renderWith('a'));
+        await measureScroller(200, 800);
+        await layOut();
+
+        const without = longOptions.slice(0, 2);
+        await view.rerender(renderWith('a', without));
+        await view.rerender(renderWith('a', longOptions));
+        await layOut(longOptions, { ...layouts, c: { x: 350, width: 340 } });
+        scrollTo.mockClear();
+        await view.rerender(renderWith('c'));
+
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 350, animated: true });
+      });
+
       it('scrolls without animation when the scroller is measured after the options', async () => {
         await render(renderWith('c'));
         await layOut(longOptions, { ...layouts, c: { x: 400, width: 120 } });

@@ -36,7 +36,9 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
   const reveal = useCallback((target: T, animated: boolean) => {
     const layout = layouts.current.get(target);
     const max = content.current - viewport.current;
-    if (layout && max > 0) scroller.current?.scrollTo({ x: Math.max(0, Math.min(layout.x, max)), animated });
+    // Layout events can arrive in any order: wait until both sizes are known.
+    if (layout && viewport.current > 0 && content.current > 0 && max > 0)
+      scroller.current?.scrollTo({ x: Math.max(0, Math.min(layout.x, max)), animated });
   }, []);
   // Drop removed options only: kept ones are not re-measured when their frame does not move.
   // Declared before the reveal effect so it never scrolls to a removed option's position.
