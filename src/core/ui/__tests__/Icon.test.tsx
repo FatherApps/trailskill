@@ -38,6 +38,9 @@ describe('Icon', () => {
         'home',
         'person',
         'chevron_right',
+        'arrow_back',
+        'check_circle',
+        'edit',
       ].sort(),
     );
   });
