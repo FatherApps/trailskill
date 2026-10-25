@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -60,6 +60,25 @@ function Choice<T extends string>({
   );
 }
 
+// Reads its colors from the preview theme, so it must render inside the forced ThemeProvider.
+function PreviewBox({ children }: { children: ReactNode }) {
+  const { colors, space, radius } = useTheme();
+
+  return (
+    <View
+      testID="gallery-preview"
+      style={{
+        backgroundColor: colors['surface-1'],
+        borderRadius: radius.md,
+        padding: space[4],
+        alignItems: 'flex-start',
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
 function Body({
   entry,
   themeName,
@@ -73,7 +92,7 @@ function Body({
   onTheme: (value: ThemeName) => void;
   onFontScale: (value: '1' | '2') => void;
 }) {
-  const { colors, space, radius, typography } = useTheme();
+  const { colors, space, typography } = useTheme();
   const insets = useSafeAreaInsets();
   const [stateKey, setStateKey] = useState(() => Object.keys(entry?.states ?? {})[0]);
 
@@ -87,6 +106,7 @@ function Body({
 
   return (
     <ScrollView
+      testID="gallery-screen"
       style={{ backgroundColor: colors['surface-0'] }}
       contentContainerStyle={{
         padding: space[5],
@@ -129,17 +149,9 @@ function Body({
             value={fontScale}
             onChange={onFontScale}
           />
-          <View
-            testID="gallery-preview"
-            style={{
-              backgroundColor: colors['surface-1'],
-              borderRadius: radius.md,
-              padding: space[4],
-              alignItems: 'flex-start',
-            }}
-          >
-            {entry.states[stateKey]()}
-          </View>
+          <ThemeProvider name={themeName} fontScale={Number(fontScale)}>
+            <PreviewBox>{entry.states[stateKey]?.()}</PreviewBox>
+          </ThemeProvider>
         </>
       )}
     </ScrollView>
@@ -151,15 +163,17 @@ export default function GalleryEntryScreen() {
   const [themeName, setThemeName] = useState<ThemeName>(useTheme().name);
   const [fontScale, setFontScale] = useState<'1' | '2'>('1');
 
+  const entry = findGalleryEntry(id);
+
+  // Remount per entry: the chosen state key belongs to the previous entry when the id changes in place.
   return (
-    <ThemeProvider name={themeName} fontScale={Number(fontScale)}>
-      <Body
-        entry={findGalleryEntry(id)}
-        themeName={themeName}
-        fontScale={fontScale}
-        onTheme={setThemeName}
-        onFontScale={setFontScale}
-      />
-    </ThemeProvider>
+    <Body
+      key={entry?.id}
+      entry={entry}
+      themeName={themeName}
+      fontScale={fontScale}
+      onTheme={setThemeName}
+      onFontScale={setFontScale}
+    />
   );
 }
