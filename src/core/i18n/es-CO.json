@@ -23,5 +23,21 @@
       "SCM": "Piscina de 25 m",
       "LCM": "Piscina de 50 m"
     }
+  },
+  "common": {
+    "back": "Volver"
+  },
+  "step": {
+    "progress": "Paso {{step}} de {{total}}"
+  },
+  "state": {
+    "loading": "Cargando"
+  },
+  "sync": {
+    "on_device": "En el teléfono",
+    "sending": "Enviando",
+    "synced": "Enviado",
+    "not_sent": "No enviado",
+    "retry": "Intentar de nuevo"
   }
 }
