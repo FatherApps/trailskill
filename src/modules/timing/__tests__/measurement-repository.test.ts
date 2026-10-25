@@ -1,8 +1,14 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import { createStore, openDatabase, type FakeDatabase } from '../../../core/sync/testing/fakeDatabase';
-import { createInMemoryMeasurementRepository, createPowerSyncMeasurementRepository } from '..';
-import type { Measurement, MeasurementRepository } from '..';
+import {
+  CompletedMeasurementTimeError,
+  createInMemoryMeasurementRepository,
+  createPowerSyncMeasurementRepository,
+  InvalidMeasurementTimeError,
+  type Measurement,
+  type MeasurementRepository,
+} from '..';
 
 // @powersync/react-native ships ESM only and Jest cannot load it, so the real database is replaced by
 // the SQLite-backed fake. The core/sync barrel is mocked for the same reason (it pulls in the connector
@@ -190,6 +196,45 @@ describe.each(factories)('%s measurement repository', (_name, create) => {
       expect((await repository.listBySeries('S'))[0]).toMatchObject({ version: 1, editReason: 'typo' });
     });
 
+    describe('a completed measurement has no time', () => {
+      const completed = () => ({ ...arrival('c1', 'S', 1, 'athlete-1'), kind: 'completed', hundredths: null }) as Measurement;
+
+      it('rejects a time and leaves the measurement as it was', async () => {
+        const repository = create();
+        await repository.add(completed());
+
+        await expect(repository.edit('c1', { hundredths: 2950 }, meta)).rejects.toBeInstanceOf(CompletedMeasurementTimeError);
+
+        await expect(repository.listBySeries('S')).resolves.toEqual([completed()]);
+      });
+
+      it('still lets the athlete change', async () => {
+        const repository = create();
+        await repository.add(completed());
+
+        await repository.edit('c1', { athleteId: 'athlete-2' }, meta);
+
+        expect((await repository.listBySeries('S'))[0]).toMatchObject({ athleteId: 'athlete-2', hundredths: null });
+      });
+
+      it('accepts clearing the time, which it already lacks', async () => {
+        const repository = create();
+        await repository.add(completed());
+
+        await expect(repository.edit('c1', { hundredths: null }, meta)).resolves.toBeUndefined();
+      });
+    });
+
+    it.each([0, -5])('rejects a time of %s: a missing time is null, never 0', async (hundredths) => {
+      const repository = create();
+      const original = arrival('m1', 'S', 1, 'athlete-1');
+      await repository.add(original);
+
+      await expect(repository.edit('m1', { hundredths }, meta)).rejects.toBeInstanceOf(InvalidMeasurementTimeError);
+
+      await expect(repository.listBySeries('S')).resolves.toEqual([original]);
+    });
+
     it('rejects a measurement that is not stored', async () => {
       const repository = create();
 
@@ -257,6 +302,18 @@ describe('PowerSync measurement repository edits', () => {
     await repository.edit('m1', { hundredths: 2900 }, { deviceId: 'device-b' });
 
     expect(rowOf('m1')).toMatchObject({ edit_reason: null, edited_device_id: 'device-b' });
+  });
+
+  it('queues nothing when an edit is rejected', async () => {
+    const repository = factories[1]![1]();
+    await repository.add({ ...arrival('c1', 'S', 1, 'athlete-1'), kind: 'completed', hundredths: null } as Measurement);
+    await repository.add(arrival('m1', 'S', 2, 'athlete-1'));
+    const pendingBefore = pendingCount();
+
+    await expect(repository.edit('c1', { hundredths: 2950 }, { deviceId: 'device-b' })).rejects.toBeInstanceOf(CompletedMeasurementTimeError);
+    await expect(repository.edit('m1', { hundredths: 0 }, { deviceId: 'device-b' })).rejects.toBeInstanceOf(InvalidMeasurementTimeError);
+
+    expect(pendingCount()).toBe(pendingBefore);
   });
 
   it('never writes the columns the server owns', async () => {

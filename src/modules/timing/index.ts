@@ -1,4 +1,5 @@
 export { createInMemoryMeasurementRepository } from './data/inMemoryMeasurementRepository';
+export { CompletedMeasurementTimeError, InvalidMeasurementTimeError } from './data/measurements';
 export type {
   Measurement,
   MeasurementEvent,

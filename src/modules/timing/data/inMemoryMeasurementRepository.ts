@@ -1,4 +1,4 @@
-import type { Measurement, MeasurementRepository } from './measurements';
+import { assertEditableTime, type Measurement, type MeasurementRepository } from './measurements';
 
 export function createInMemoryMeasurementRepository(): MeasurementRepository {
   const byId = new Map<string, Measurement>();
@@ -9,6 +9,7 @@ export function createInMemoryMeasurementRepository(): MeasurementRepository {
     async edit(id, { hundredths, athleteId }, { editReason }) {
       const stored = byId.get(id);
       if (!stored) throw new Error(`Cannot edit measurement ${id}: it is not stored`);
+      assertEditableTime(stored.kind, hundredths);
       // The server bumps the version and stamps the author and time once it applies the edit: here only the edit itself shows.
       byId.set(id, {
         ...stored,

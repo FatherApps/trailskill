@@ -1,5 +1,5 @@
 import { db, editRecord, writeRecord } from '../../../core/sync';
-import type { Measurement, MeasurementRepository } from './measurements';
+import { assertEditableTime, type Measurement, type MeasurementRepository } from './measurements';
 
 type MeasurementRow = {
   id: string;
@@ -71,6 +71,9 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
       });
     },
     async edit(id, { hundredths, athleteId }, { deviceId, editReason }) {
+      // kind is not editable, so reading it before the edit cannot race; a missing row is left to editRecord to reject.
+      const [stored] = await db.getAll<{ kind: Measurement['kind'] }>('SELECT kind FROM measurements WHERE id = ?', [id]);
+      if (stored) assertEditableTime(stored.kind, hundredths);
       await editRecord(
         'measurements',
         id,

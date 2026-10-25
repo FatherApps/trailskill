@@ -51,3 +51,20 @@ export interface MeasurementRepository {
     meta: { deviceId: string; editReason?: string },
   ): Promise<void>;
 }
+
+/** A completed measurement records a done repetition without a time, so a time cannot be set on it. */
+export class CompletedMeasurementTimeError extends Error {
+  override name = 'CompletedMeasurementTimeError';
+}
+
+/** A time is above zero: a missing time is null, never 0. */
+export class InvalidMeasurementTimeError extends Error {
+  override name = 'InvalidMeasurementTimeError';
+}
+
+/** Rejects a time the server would turn into a permanent upload failure, so the change is refused before anything is written. */
+export function assertEditableTime(kind: MeasurementKind, hundredths: number | null | undefined): void {
+  if (typeof hundredths !== 'number') return;
+  if (kind === 'completed') throw new CompletedMeasurementTimeError('A completed measurement has no time');
+  if (hundredths <= 0) throw new InvalidMeasurementTimeError('A time must be greater than 0');
+}
