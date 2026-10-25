@@ -4,12 +4,13 @@ import TimingRoute from '../app/(app)/timing';
 
 let mockUserId: string | undefined;
 let mockParams: { mode?: string } = {};
+let mockLastSyncedAt: Date | null = null;
 jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
 jest.mock('../core/sync', () => ({
   db: { getClientId: () => Promise.resolve('device-1') },
-  useGlobalSyncSummary: () => ({ lastSyncedAt: null }),
+  useGlobalSyncSummary: () => ({ lastSyncedAt: mockLastSyncedAt }),
 }));
 const mockListStaffSchools = jest.fn();
 jest.mock('../modules/school-console', () => ({
@@ -62,6 +63,7 @@ jest.mock('expo-router', () => {
 beforeEach(() => {
   mockUserId = 'user-1';
   mockParams = {};
+  mockLastSyncedAt = null;
   mockListStaffSchools.mockReset().mockResolvedValue([]);
   mockListBySchool.mockReset().mockResolvedValue([]);
   mockListGranted.mockReset().mockResolvedValue([]);
@@ -131,6 +133,21 @@ describe('timing route', () => {
 
     expect((await mockLoadRoster()).map((a) => a.id)).toEqual(['a9']);
     expect(mockListBySchool).toHaveBeenCalledWith('s2');
+  });
+
+  it('gives the flow a new roster loader after each sync, so a withdrawal marks the athlete as skipped at once', async () => {
+    mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockLastSyncedAt = new Date(1_000);
+    const view = await render(<TimingRoute />);
+    await screen.findByText(/timing flow/);
+    const before = mockLoadRoster;
+
+    await view.rerender(<TimingRoute />);
+    expect(mockLoadRoster).toBe(before);
+
+    mockLastSyncedAt = new Date(2_000);
+    await view.rerender(<TimingRoute />);
+    expect(mockLoadRoster).not.toBe(before);
   });
 
   it('gives the flow the best time of the athlete in the event, read from the history on the device', async () => {

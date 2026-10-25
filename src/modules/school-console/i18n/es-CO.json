@@ -249,7 +249,8 @@
     "offline_empty": "No hay autorizaciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.",
     "resend_error": "No pudimos crear la invitación. Revisa la conexión e inténtalo de nuevo.",
     "sharing_error": "No pudimos actualizar la solicitud. Revisa la conexión e inténtalo de nuevo.",
-    "share_message": "{{school}} te invita a TrailSkill para responder las autorizaciones de tu deportista. Código de invitación: {{token}}. Vence el {{date}}."
+    "share_message": "{{school}} te invita a TrailSkill para responder las autorizaciones de tu deportista. Código de invitación: {{token}}. Vence el {{date}}.",
+    "share_message_no_date": "{{school}} te invita a TrailSkill para responder las autorizaciones de tu deportista. Código de invitación: {{token}}."
   },
   "date": {
     "short": "{{day}} {{month}} {{year}}",

@@ -28,6 +28,7 @@ describe('training-plans gallery entries', () => {
     expect(Object.keys(entry('fulfillment').states)).toEqual([
       'grid',
       'many-blocks',
+      'skipped',
       'loading',
       'empty-athletes',
       'empty-blocks',
@@ -73,6 +74,7 @@ describe('training-plans gallery entries', () => {
     ['today', 'denied', 'Esta información es privada'],
     ['fulfillment', 'grid', 'Toca una celda para cambiar su estado.'],
     ['fulfillment', 'many-blocks', 'Toca una celda para cambiar su estado.'],
+    ['fulfillment', 'skipped', 'Se omitirá'],
     ['fulfillment', 'loading', 'Cumplimiento · 24 oct'],
     ['fulfillment', 'empty-athletes', 'Aún no hay deportistas en este plan'],
     ['fulfillment', 'empty-blocks', 'Este plan no tiene bloques'],

@@ -228,3 +228,107 @@ describe('retryFailedRecord', () => {
     expect(pending()).toEqual([]);
   });
 });
+
+describe('retryFailedRecord for an athlete created with its manager link (create_managed_athlete)', () => {
+  const user = '00000000-0000-4000-8000-000000000001';
+
+  beforeEach(() => {
+    const raw = new DatabaseSync(store.path);
+    raw.exec('CREATE TABLE athlete_managers (id TEXT PRIMARY KEY, user_id TEXT, athlete_id TEXT, relation TEXT, created_at TEXT, created_by TEXT)');
+    raw.exec('CREATE TABLE athlete_schools (id TEXT PRIMARY KEY, athlete_id TEXT, school_id TEXT, created_at TEXT, created_by TEXT)');
+    raw.exec('CREATE TABLE uploaded_ops (id TEXT PRIMARY KEY, client_id INTEGER)');
+    raw.close();
+  });
+
+  function seedRows(sql: string[], failures: [table: string, id: string, op: string, payload: object][]) {
+    const raw = new DatabaseSync(store.path);
+    sql.forEach((statement) => raw.exec(statement));
+    failures.forEach(([table, id, op, payload], index) => {
+      raw
+        .prepare('INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at, client_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(`f-${index}`, table, id, op, JSON.stringify(payload), '42501', '2026-10-24T10:00:00.000Z', index + 1);
+    });
+    raw.close();
+  }
+
+  const athleteRow = "INSERT INTO athletes (id, first_name, last_name) VALUES ('a-1', 'Ana', 'Ríos')";
+  const managerRow = `INSERT INTO athlete_managers (id, user_id, athlete_id, relation) VALUES ('m-1', '${user}', 'a-1', 'guardian')`;
+  const managerData = { user_id: user, athlete_id: 'a-1', relation: 'guardian' };
+  // The connector sends both ops of the pair as one RPC and records its outcome on both: they fail together.
+  const pairFailures: [string, string, string, object][] = [
+    ['athletes', 'a-1', 'PUT', { first_name: 'Ana', last_name: 'Ríos' }],
+    ['athlete_managers', 'm-1', 'PUT', managerData],
+  ];
+
+  it.each([
+    ['athletes', 'a-1'],
+    ['athlete_managers', 'm-1'],
+  ])('retrying the %s record requeues the whole pair, and the connector sends it as one create_managed_athlete call', async (table, id) => {
+    seedRows([athleteRow, managerRow], pairFailures);
+
+    await expect(retryFailedRecord(table, id)).resolves.toBe('queued');
+
+    expect(queue()).toEqual([
+      { op: 'PUT', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana', last_name: 'Ríos' }) },
+      { op: 'PUT', id: 'm-1', type: 'athlete_managers', data: JSON.stringify(managerData) },
+    ]);
+    expect(pending()).toEqual([
+      { table_name: 'athletes', record_id: 'a-1' },
+      { table_name: 'athlete_managers', record_id: 'm-1' },
+    ]);
+    expect(remainingFailures()).toEqual([]);
+    // One local transaction: PowerSync hands both ops to the connector as one CRUD transaction.
+    expect(mockDb.transactions).toHaveLength(1);
+
+    const crud = queue().map((queued, index) => ({
+      clientId: index + 1, op: queued.op, id: queued.id, table: queued.type, opData: JSON.parse(queued.data!),
+    })) as unknown as CrudEntry[];
+    const rpc = jest.fn().mockResolvedValue({ data: 'stored', error: null });
+    const from = jest.fn();
+    const complete = jest.fn().mockResolvedValue(undefined);
+    const database = {
+      getNextCrudTransaction: jest.fn().mockResolvedValue({ crud, complete }),
+      writeTransaction: mockDb.writeTransaction.bind(mockDb),
+    } as unknown as AbstractPowerSyncDatabase;
+
+    await new SupabaseConnector({ rpc, from } as unknown as SupabaseClient, 'https://sync.example.test').uploadData(database);
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('create_managed_athlete', {
+      payload: { athlete: { id: 'a-1', first_name: 'Ana', last_name: 'Ríos' }, manager: { id: 'm-1', ...managerData } },
+    });
+    expect(from).not.toHaveBeenCalled();
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(pending()).toEqual([]);
+    expect(remainingFailures()).toEqual([]);
+  });
+
+  it('requeues only the athlete when its manager link did not fail', async () => {
+    seedRows([athleteRow, managerRow], [pairFailures[0]]);
+
+    await expect(retryFailedRecord('athletes', 'a-1')).resolves.toBe('queued');
+
+    expect(queue()).toEqual([{ op: 'PUT', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana', last_name: 'Ríos' }) }]);
+  });
+
+  it('requeues only a failed athlete edit (PATCH), never a failed manager link with it', async () => {
+    seedRows([athleteRow, managerRow], [['athletes', 'a-1', 'PATCH', { first_name: 'Old' }], pairFailures[1]]);
+
+    await expect(retryFailedRecord('athletes', 'a-1')).resolves.toBe('queued');
+
+    expect(queue()).toEqual([{ op: 'PATCH', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana' }) }]);
+    expect(remainingFailures()).toEqual([{ record_id: 'm-1' }]);
+  });
+
+  it('requeues only the record of another table, even when it links a failed athlete', async () => {
+    seedRows(
+      [athleteRow, "INSERT INTO athlete_schools (id, athlete_id, school_id) VALUES ('s-1', 'a-1', 'school-1')"],
+      [pairFailures[0], ['athlete_schools', 's-1', 'PUT', { athlete_id: 'a-1', school_id: 'school-1' }]],
+    );
+
+    await expect(retryFailedRecord('athlete_schools', 's-1')).resolves.toBe('queued');
+
+    expect(queue()).toEqual([{ op: 'PUT', id: 's-1', type: 'athlete_schools', data: JSON.stringify({ athlete_id: 'a-1', school_id: 'school-1' }) }]);
+    expect(remainingFailures()).toEqual([{ record_id: 'a-1' }]);
+  });
+});

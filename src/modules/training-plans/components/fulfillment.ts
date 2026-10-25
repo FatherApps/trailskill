@@ -1,6 +1,7 @@
 import type { BlockStatus, PlanBlock, PlanVocabulary } from '../types';
 
-export type FulfillmentAthlete = { id: string; shortName: string };
+// `skipped`: no current record_times authorization, so the athlete is not timed and their cells cannot be marked.
+export type FulfillmentAthlete = { id: string; shortName: string; skipped?: boolean };
 
 export type FulfillmentChange = {
   kind: 'marked' | 'corrected';

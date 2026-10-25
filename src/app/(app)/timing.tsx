@@ -39,9 +39,11 @@ const loadBestTime = (athleteId: string, event: MeasurementEvent) => personalBes
 const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
 // The flow of the school every time is written for.
-function SchoolTiming({ school, mode, userId, deviceId }: { school: StaffSchool; mode?: string; userId: string; deviceId: string }) {
-  // Stable per school: the flow loads the roster again whenever this function changes.
-  const loadRoster = useCallback(() => loadSchoolRoster(school.id), [school.id]);
+function SchoolTiming({ school, mode, userId, deviceId, lastSyncedAt }: { school: StaffSchool; mode?: string; userId: string; deviceId: string; lastSyncedAt?: number }) {
+  // The flow loads the roster again whenever this function changes: new per school and after each sync, so a withdrawal that arrives
+  // marks the athlete "se omitirá" at once. The sync time is not read by the loader: it is only what makes the function new.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const loadRoster = useCallback(() => loadSchoolRoster(school.id), [school.id, lastSyncedAt]);
   const flow = { subtitle: school.name, schoolId: school.id, loadRoster, userId, deviceId, setups: sessionSetups, onExit: leave };
   if (mode === 'series') return <SeriesTimingFlow {...flow} series={seriesRepository} />;
   if (mode === 'completed') return <CompletedFlow {...flow} measurements={measurements} />;
@@ -70,5 +72,5 @@ export default function TimingRoute() {
   if (!deviceId) return null;
   const school = access.schools.length === 1 ? access.schools[0] : access.schools.find(({ id }) => id === chosenSchoolId);
   if (!school) return <SchoolChoiceScreen schools={access.schools} onChoose={setChosenSchoolId} onBack={leave} />;
-  return <SchoolTiming school={school} mode={mode} userId={session.user.id} deviceId={deviceId} />;
+  return <SchoolTiming school={school} mode={mode} userId={session.user.id} deviceId={deviceId} lastSyncedAt={lastSyncedAt} />;
 }
