@@ -253,11 +253,10 @@ select throws_ok(
   'the author of a version cannot change'
 );
 
-select throws_ok(
+select lives_ok(
   $$ update public.training_plan_versions set created_at = '2026-01-01 00:00:00+00'
      where id = '69000000-0000-4000-8000-0000000000d1' $$,
-  '42501', null,
-  'the date of a version cannot change'
+  'a change of the date of a version is ignored: the server keeps it (issue #74, replayed upserts)'
 );
 
 select throws_ok(
