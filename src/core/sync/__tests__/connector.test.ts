@@ -163,6 +163,48 @@ describe('SupabaseConnector.uploadData', () => {
     expect(t.writeTransaction).not.toHaveBeenCalled();
   });
 
+  describe('JSON text columns that are arrays on the server', () => {
+    const blocks = 'training_plan_blocks';
+
+    it('uploads a PUT equipment JSON text as a real array', async () => {
+      const t = setup();
+      await t.connector.uploadData(t.database([entry('PUT', 'a', { name: 'Fins', equipment: '["fins","paddles"]' }, blocks)]));
+
+      expect(t.upsert).toHaveBeenCalledWith({ id: 'a', name: 'Fins', equipment: ['fins', 'paddles'] });
+    });
+
+    it('uploads a PATCH equipment JSON text as a real array', async () => {
+      const t = setup();
+      await t.connector.uploadData(t.database([entry('PATCH', 'a', { equipment: '["fins"]' }, blocks)]));
+
+      expect(t.update).toHaveBeenCalledWith({ equipment: ['fins'] });
+    });
+
+    it('keeps a null equipment as null', async () => {
+      const t = setup();
+      await t.connector.uploadData(t.database([entry('PUT', 'a', { equipment: null }, blocks)]));
+
+      expect(t.upsert).toHaveBeenCalledWith({ id: 'a', equipment: null });
+    });
+
+    it('leaves the same column name on another table as the same string', async () => {
+      const t = setup();
+      await t.connector.uploadData(t.database([entry('PUT', 'a', { equipment: '["fins"]' }, 'athletes')]));
+
+      expect(t.upsert).toHaveBeenCalledWith({ id: 'a', equipment: '["fins"]' });
+    });
+
+    it.each(['{fins', '"fins"'])('sends invalid text %s unchanged and records the server rejection', async (text) => {
+      const t = setup({ upsert: { data: null, error: { code: '22P02', message: 'malformed array literal' } } });
+      await t.connector.uploadData(t.database([entry('PUT', 'a', { equipment: text }, blocks)]));
+
+      expect(t.upsert).toHaveBeenCalledWith({ id: 'a', equipment: text });
+      const inserts = failureInserts(t.committed);
+      expect(inserts).toHaveLength(1);
+      expect(inserts[0][1]).toEqual([blocks, 'a', 'PUT', JSON.stringify({ equipment: text }), '22P02', expect.any(String), 1]);
+    });
+  });
+
   describe('retry limit for persistent coded errors', () => {
     const persistent = { code: '42P01', message: 'relation does not exist' };
     const put = (clientId = 1) => entry('PUT', 'a', { first_name: 'Ana' }, 'athletes', clientId);
