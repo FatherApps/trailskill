@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { AccessibilityInfo, ScrollView, Text, View } from 'react-native';
+import { AccessibilityInfo, PixelRatio, ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
-import { useTheme } from '../../../core/theme';
+import { typography as baseTypography, useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
 import { Button, TimeValue } from '../../../core/ui';
 import '../i18n';
@@ -22,6 +22,9 @@ export type StopwatchProps = {
   onSave: () => void;
   onDiscard: () => void;
 };
+
+// Same threshold as the athletes HistoryList: from this combined (theme x system) text scale, stack.
+const largeTextScale = 1.5;
 
 // The clock always shows minutes, in every state, so it keeps one shape from 0:00,00 on.
 const clockFormat = { alwaysShowMinutes: true };
@@ -53,6 +56,19 @@ export function Stopwatch({
       );
     }
   }, [finalTime]);
+
+  const large =
+    (typography.caption.fontSize / baseTypography.caption.fontSize) * PixelRatio.getFontScale() >= largeTextScale;
+  const discard = (
+    <View key="discard" style={{ flex: large ? undefined : 1 }}>
+      <Button variant="secondary" size="timing" label={t('timing.stopwatch.discard')} onPress={onDiscard} />
+    </View>
+  );
+  const save = (
+    <View key="save" style={{ flex: large ? undefined : 1.4 }}>
+      <Button size="timing" label={t('timing.stopwatch.save')} onPress={onSave} />
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, gap: space[4], padding: space[4], backgroundColor: colors['surface-0'] }}>
@@ -133,13 +149,9 @@ export function Stopwatch({
         </View>
       )}
       {stopped && (
-        <View style={{ flexDirection: 'row', gap: space[2] }}>
-          <View style={{ flex: 1 }}>
-            <Button variant="secondary" size="timing" label={t('timing.stopwatch.discard')} onPress={onDiscard} />
-          </View>
-          <View style={{ flex: 1.4 }}>
-            <Button size="timing" label={t('timing.stopwatch.save')} onPress={onSave} />
-          </View>
+        <View testID="stopwatch-stopped-actions" style={{ flexDirection: large ? 'column' : 'row', gap: space[2] }}>
+          {/* Stacked, the main action goes on top; in the row, Descartar stays on the left. */}
+          {large ? [save, discard] : [discard, save]}
         </View>
       )}
     </View>

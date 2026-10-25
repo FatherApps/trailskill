@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { AccessibilityInfo, StyleSheet } from 'react-native';
+import { AccessibilityInfo, PixelRatio, StyleSheet } from 'react-native';
 
-import { colors } from '../../../core/theme';
+import { colors, ThemeProvider } from '../../../core/theme';
 import { Stopwatch } from '../components/Stopwatch';
 
 type Props = Parameters<typeof Stopwatch>[0];
@@ -21,6 +21,8 @@ async function renderWatch(props: Partial<Props> = {}) {
 const hidden = { includeHiddenElements: true };
 const styleOf = (element: Parameters<typeof StyleSheet.flatten>[0]) => StyleSheet.flatten(element);
 
+// Jest reports a system font scale of 2: pin 1 so the layout only depends on the theme scale under test.
+beforeEach(() => jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1));
 afterEach(() => jest.restoreAllMocks());
 
 describe('Stopwatch ready', () => {
@@ -218,5 +220,47 @@ describe('Stopwatch stopped', () => {
     await renderWatch({ state: 'stopped', elapsedHundredths: 3391 });
 
     expect(announce).toHaveBeenCalledWith('Tiempo detenido: 0:33,91');
+  });
+});
+
+describe('Stopwatch stopped actions layout', () => {
+  const props = { state: 'stopped', elapsedHundredths: 3391, bestTime: 3482 } as const;
+  const noop = jest.fn();
+  const handlers = { onStart: noop, onSplit: noop, onStop: noop, onSave: noop, onDiscard: noop };
+  const order = () => {
+    const tree = JSON.stringify(screen.toJSON());
+    return tree.indexOf('"Guardar"') < tree.indexOf('"Descartar"') ? 'save-first' : 'discard-first';
+  };
+
+  it('keeps the 1 : 1.4 row at normal text size, Descartar first', async () => {
+    await renderWatch(props);
+
+    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style)).toMatchObject({ flexDirection: 'row' });
+    expect(order()).toBe('discard-first');
+  });
+
+  it('stacks the buttons full width with Guardar on top at a combined scale of 1.5 or more', async () => {
+    await render(
+      <ThemeProvider fontScale={2}>
+        <Stopwatch elapsedHundredths={3391} state="stopped" bestTime={3482} {...handlers} />
+      </ThemeProvider>,
+    );
+
+    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style).flexDirection).toBe('column');
+    expect(order()).toBe('save-first');
+  });
+
+  it('also stacks when only the system font scale is large', async () => {
+    jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1.5);
+    await renderWatch(props);
+
+    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style).flexDirection).toBe('column');
+  });
+
+  it('keeps the row just below the threshold', async () => {
+    jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1.4);
+    await renderWatch(props);
+
+    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style).flexDirection).toBe('row');
   });
 });
