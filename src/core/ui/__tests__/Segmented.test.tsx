@@ -237,22 +237,41 @@ describe('Segmented', () => {
         expect(scrollTo).toHaveBeenLastCalledWith({ x: 300, animated: true });
       });
 
-      it('uses the newly measured position after the options are replaced', async () => {
+      it('keeps the positions of the options that stay when the set changes', async () => {
         const view = await render(renderWith('a'));
         await measureScroller(200, 800);
         await layOut();
 
-        const replaced = [
-          { value: 'x', label: 'Combinado' },
-          { value: 'c', label: '100 m combinado individual' },
-        ];
-        await view.rerender(renderWith('c', replaced));
-        // The old x of `c` (480) is stale and must not be used.
-        expect(scrollTo).not.toHaveBeenCalledWith({ x: 480, animated: true });
-
+        // Same frames for `a` and `b`: React Native sends no new layout event for them.
+        const replaced = [longOptions[0], longOptions[1], { value: 'd', label: 'Combinado' }];
+        await view.rerender(renderWith('a', replaced));
         scrollTo.mockClear();
-        await layOut(replaced, { x: { x: 0, width: 200 }, c: { x: 250, width: 340 } });
-        expect(scrollTo).toHaveBeenLastCalledWith({ x: 250, animated: false });
+        await view.rerender(renderWith('b', replaced));
+
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 300, animated: true });
+      });
+
+      it('uses the newly measured position of an option that replaces another', async () => {
+        const view = await render(renderWith('a'));
+        await measureScroller(200, 800);
+        await layOut();
+
+        const replaced = [longOptions[0], longOptions[1], { value: 'd', label: 'Combinado' }];
+        await view.rerender(renderWith('d', replaced));
+        scrollTo.mockClear();
+        await layOut(replaced, { ...layouts, d: { x: 480, width: 340 } });
+
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 480, animated: false });
+      });
+
+      it('scrolls without animation when the scroller is measured after the options', async () => {
+        await render(renderWith('c'));
+        await layOut(longOptions, { ...layouts, c: { x: 400, width: 120 } });
+        expect(scrollTo).not.toHaveBeenCalled();
+
+        await measureScroller(200, 500);
+
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 300, animated: false });
       });
     });
   });

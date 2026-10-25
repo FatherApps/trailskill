@@ -30,7 +30,6 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
   const layouts = useRef(new Map<T, { x: number }>());
   const viewport = useRef(0);
   const content = useRef(0);
-  const optionKey = options.map((option) => option.value).join('|');
 
   // Options keep the width of their label, so a long set scrolls: bring the selected one into view.
   // Nothing to do when everything fits, and the target never goes past the end of the content.
@@ -39,8 +38,13 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
     const max = content.current - viewport.current;
     if (layout && max > 0) scroller.current?.scrollTo({ x: Math.max(0, Math.min(layout.x, max)), animated });
   }, []);
-  // Declared before the reveal effect so a changed option set never scrolls to a stale position.
-  useEffect(() => layouts.current.clear(), [optionKey]);
+  // Drop removed options only: kept ones are not re-measured when their frame does not move.
+  // Declared before the reveal effect so it never scrolls to a removed option's position.
+  useEffect(() => {
+    for (const key of layouts.current.keys()) {
+      if (!options.some((option) => option.value === key)) layouts.current.delete(key);
+    }
+  }, [options]);
   useEffect(() => reveal(value, true), [reveal, value]);
 
   return (
