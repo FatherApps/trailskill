@@ -1,7 +1,7 @@
 import type { DistanceCode, PoolCode, StrokeCode } from '../../../core/sport';
-import { writeBatch } from '../../../core/sync';
+import { db, writeBatch } from '../../../core/sync';
 import type { InMemoryMeasurementRepository } from './inMemoryMeasurementRepository';
-import { type Measurement, type SessionType } from './measurements';
+import { DiscardedMeasurementError, type Measurement, type SessionType } from './measurements';
 import { createPowerSyncMeasurementRepository, measurementRow } from './powerSyncMeasurementRepository';
 
 /** A series of athletes who start together: one row, and the arrivals are its measurements. */
@@ -15,6 +15,19 @@ export type SeriesRecord = {
   sessionType: SessionType;
 };
 
+/** A series with arrivals still waiting for their athlete ("por asignar"): enough to name it and to reopen its assignment. */
+export type PendingSeries = {
+  seriesId: string;
+  stroke: StrokeCode;
+  distance: DistanceCode;
+  pool: PoolCode;
+  sessionType: SessionType;
+  /** The latest capture among the arrivals still waiting. */
+  capturedAt: string;
+  /** How many arrivals of the series have no athlete and are not discarded. */
+  pending: number;
+};
+
 export interface SeriesRepository {
   /** Opens the series: its row and its first arrival in one transaction, so no arrival can upload before its series. */
   open(series: SeriesRecord, first: Measurement): Promise<void>;
@@ -25,9 +38,26 @@ export interface SeriesRepository {
    * the server accepts it once, only for the author's own unassigned series arrival. An arrival not on the phone is left alone.
    */
   discardArrival(id: string, discardedBy: string): Promise<void>;
-  /** Gives saved arrivals their athletes; the arrivals not listed stay "por asignar". */
+  /**
+   * Gives saved arrivals their athletes; the arrivals not listed stay "por asignar". All or nothing on the phone: a discarded
+   * arrival rejects with DiscardedMeasurementError and a missing one rejects, in both cases without changing any arrival.
+   */
   assign(assignments: { id: string; athleteId: string }[], meta: { deviceId: string }): Promise<void>;
+  /** The arrivals of a series that are not discarded, by arrival position (assigned or not). */
+  listArrivals(seriesId: string): Promise<Measurement[]>;
+  /** The series with arrivals still waiting for an athlete, newest first: what "Series por asignar" shows, even in another app session. */
+  listPending(): Promise<PendingSeries[]>;
 }
+
+type PendingRow = {
+  series_id: string;
+  stroke: StrokeCode;
+  distance: DistanceCode;
+  pool: PoolCode;
+  session_type: SessionType;
+  captured_at: string;
+  pending: number;
+};
 
 export function createPowerSyncSeriesRepository(): SeriesRepository {
   const measurements = createPowerSyncMeasurementRepository();
@@ -58,7 +88,41 @@ export function createPowerSyncSeriesRepository(): SeriesRepository {
       });
     },
     async assign(assignments, meta) {
-      for (const { id, athleteId } of assignments) await measurements.edit(id, { athleteId }, meta);
+      if (assignments.length === 0) return;
+      await writeBatch(async (batch) => {
+        // The ids travel as one JSON parameter, like the other reads. A missing id is rejected by batch.edit.
+        const discarded = await batch.getAll<{ id: string }>(
+          'SELECT id FROM measurements WHERE id IN (SELECT value FROM json_each(?)) AND discarded_at IS NOT NULL',
+          [JSON.stringify(assignments.map(({ id }) => id))],
+        );
+        // The server would refuse it for good (a permanent upload failure), so nothing is written.
+        if (discarded.length > 0) throw new DiscardedMeasurementError('A discarded arrival cannot change');
+        for (const { id, athleteId } of assignments) {
+          // The same metadata PowerSyncMeasurementRepository.edit sends.
+          await batch.edit('measurements', id, { athlete_id: athleteId }, { edited_device_id: meta.deviceId, edit_reason: null });
+        }
+      });
+    },
+    listArrivals: (seriesId) => measurements.listBySeries(seriesId),
+    async listPending() {
+      // The local database only holds the author's own unassigned arrivals (sync rules), so no filter by user is needed.
+      // julianday compares moments: synced rows may use a space instead of 'T' between date and time.
+      const rows = await db.getAll<PendingRow>(
+        `SELECT series_id, stroke, distance, pool, session_type, MAX(captured_at) AS captured_at, COUNT(*) AS pending
+         FROM measurements
+         WHERE series_id IS NOT NULL AND athlete_id IS NULL AND discarded_at IS NULL
+         GROUP BY series_id, stroke, distance, pool, session_type
+         ORDER BY MAX(julianday(captured_at)) DESC, series_id`,
+      );
+      return rows.map((row) => ({
+        seriesId: row.series_id,
+        stroke: row.stroke,
+        distance: row.distance,
+        pool: row.pool,
+        sessionType: row.session_type,
+        capturedAt: row.captured_at,
+        pending: row.pending,
+      }));
     },
   };
 }
@@ -70,7 +134,30 @@ export function createInMemorySeriesRepository(measurements: InMemoryMeasurement
     addArrival: (arrival) => measurements.add(arrival),
     discardArrival: (id) => measurements.discard(id),
     async assign(assignments, meta) {
+      measurements.assertEditable(assignments.map(({ id }) => id));
       for (const { id, athleteId } of assignments) await measurements.edit(id, { athleteId }, meta);
+    },
+    listArrivals: (seriesId) => measurements.listBySeries(seriesId),
+    async listPending() {
+      const groups = new Map<string, PendingSeries>();
+      for (const m of await measurements.listUnassigned()) {
+        const group = groups.get(m.seriesId!);
+        if (!group) {
+          groups.set(m.seriesId!, {
+            seriesId: m.seriesId!,
+            stroke: m.stroke,
+            distance: m.distance,
+            pool: m.pool,
+            sessionType: m.sessionType,
+            capturedAt: m.capturedAt,
+            pending: 1,
+          });
+        } else {
+          group.pending += 1;
+          if (Date.parse(m.capturedAt) > Date.parse(group.capturedAt)) group.capturedAt = m.capturedAt;
+        }
+      }
+      return [...groups.values()].sort((a, b) => Date.parse(b.capturedAt) - Date.parse(a.capturedAt) || a.seriesId.localeCompare(b.seriesId));
     },
   };
 }

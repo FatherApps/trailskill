@@ -6,11 +6,11 @@ import { useRecordSyncStates } from '../../../core/sync';
 import { hundredthsFromNanos, type Hundredths } from '../../../core/time';
 import { ConfirmSheet, StateView } from '../../../core/ui';
 import type { Measurement } from '../data/measurements';
-import type { SeriesRecord, SeriesRepository } from '../data/series';
-import type { SessionSetupRepository } from '../data/sessionSetup';
-import { arrivals, assignHighlighted, press, readySeries, reopen, undoLastArrival, type Series } from '../domain/series';
+import type { PendingSeries, SeriesRecord, SeriesRepository } from '../data/series';
+import type { Choice, SessionSetupRepository } from '../data/sessionSetup';
+import { arrivals, press, readySeries, undoLastArrival, type Series } from '../domain/series';
 import '../i18n';
-import { SeriesAssignmentScreen } from './SeriesAssignmentScreen';
+import { SeriesAssignmentStep } from './SeriesAssignmentStep';
 import { SeriesTimingScreen } from './SeriesTimingScreen';
 import { eventSubtitleOf, kindOf, RosterGate, TimingSetupStep, type RosterAthlete } from './timingSession';
 import { useSessionSetup } from './useSessionSetup';
@@ -30,7 +30,11 @@ export type SeriesTimingFlowProps = {
   onExit: () => void;
 };
 
-type Step = { kind: 'setup' } | { kind: 'timing'; queue: RosterAthlete[] } | { kind: 'assign'; queue: RosterAthlete[] };
+// `assign` is the naming of a series saved on the phone: the one just timed (`live`, whose session is reset when it ends) or an earlier one (`pending`).
+type Step =
+  | { kind: 'setup' }
+  | { kind: 'timing'; queue: RosterAthlete[] }
+  | { kind: 'assign'; queue: RosterAthlete[]; seriesId: string; eventSubtitle: string; origin: 'live' | 'pending' };
 
 // The series being timed. It lives in a ref so each touch reads and writes the latest value at once; `commit` redraws the screen.
 type Session = {
@@ -65,6 +69,10 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
   const [series, setSeries] = useState<Series>(readySeries);
   const [ids, setIds] = useState<string[]>([]);
   const [exitConfirm, setExitConfirm] = useState(false);
+  const [pending, setPending] = useState<PendingSeries[]>([]);
+  const [nameFailed, setNameFailed] = useState(false);
+  const leaving = useRef(false);
+  const naming = useRef(false);
   const [, setTick] = useState(0);
 
   const commit = () => {
@@ -73,6 +81,7 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
   };
   const reset = () => {
     session.current = newSession();
+    setNameFailed(false);
     commit();
   };
 
@@ -83,11 +92,26 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
     return () => clearInterval(timer);
   }, [running]);
 
+  // Arrivals of earlier series that still have no name, read again every time the setup opens (a series just named drops out).
+  useEffect(() => {
+    if (step.kind !== 'setup') return;
+    let active = true;
+    repository
+      .listPending()
+      .then((list) => active && setPending(list))
+      // Without a fresh read an old notice could be about a series that is named by now: show none.
+      .catch(() => active && setPending([]));
+    return () => {
+      active = false;
+    };
+  }, [repository, step.kind]);
+
   const syncStates = useRecordSyncStates('measurements', ids);
   const eventSubtitle = eventSubtitleOf(choice);
   const positions = arrivals(series);
   const toSetup = () => {
     reset();
+    leaving.current = false;
     setExitConfirm(false);
     setStep({ kind: 'setup' });
   };
@@ -178,8 +202,33 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
     commit();
   };
 
+  // Ends the capture and names the arrivals, which are all on the phone by then.
+  async function nameArrivals(queue: RosterAthlete[]) {
+    // A second tap while the first is still writing would write the same arrivals twice.
+    if (naming.current) return;
+    naming.current = true;
+    setNameFailed(false);
+    const s = session.current;
+    try {
+      await flush(s);
+      // An arrival still not written cannot be named: stay and say so, and the next tap tries again.
+      if (s.unsaved.size > 0 || s.discards.size > 0 || !s.seriesId) {
+        setNameFailed(true);
+        return;
+      }
+      setStep({ kind: 'assign', queue, seriesId: s.seriesId, eventSubtitle, origin: 'live' });
+    } catch {
+      // Stay on the timing screen, say so; the next tap tries again.
+      setNameFailed(true);
+    } finally {
+      naming.current = false;
+    }
+  }
+
   if (step.kind === 'setup') {
     if (!ready) return <StateView kind="loading" />;
+    const [first] = pending;
+    const event = first && eventSubtitleOf({ stroke: first.stroke, distance: first.distance, pool: first.pool, sessionType: first.sessionType } as Choice);
     return (
       <TimingSetupStep
         subtitle={subtitle}
@@ -189,6 +238,14 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
         selectedIds={selectedIds}
         onSelectedIdsChange={changeSelected}
         sourceLabel={t('timing.source.phone')}
+        pending={
+          first && {
+            count: first.pending,
+            event: event!,
+            onOpen: () =>
+              setStep({ kind: 'assign', queue: roster.filter((a) => a.authorized), seriesId: first.seriesId, eventSubtitle: event!, origin: 'pending' }),
+          }
+        }
         onStart={(queue) => setStep({ kind: 'timing', queue })}
         onBack={onExit}
       />
@@ -208,10 +265,11 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
             return { id, time, syncState: syncStates.get(id) ?? 'on_device' };
           })}
           running={running}
+          error={nameFailed ? t('timing.series.name_error') : undefined}
           offline={offline}
           onArrival={() => arriveAt(now())}
           onUndoLast={undoLast}
-          onAssignNames={() => setStep({ kind: 'assign', queue: step.queue })}
+          onAssignNames={() => nameArrivals(step.queue)}
           // Leaving with arrivals keeps them on the phone as "por asignar"; the container asks first.
           onBack={() => (positions.length === 0 ? toSetup() : setExitConfirm(true))}
         />
@@ -222,6 +280,9 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
           confirmLabel={t('timing.series.exit_confirm')}
           cancelLabel={t('timing.series.exit_cancel')}
           onConfirm={async () => {
+            // A second tap while the first one is still writing would write everything twice.
+            if (leaving.current) return;
+            leaving.current = true;
             // Leaving must not drop an arrival whose write failed: one more try, then out.
             await flush(session.current).catch(() => {});
             toSetup();
@@ -232,41 +293,25 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
     );
   }
 
-  // The arrivals are on the phone already: saving writes the names and any arrival whose write had failed, then the next series is ready.
-  async function save() {
-    const s = session.current;
-    try {
-      await flush(s);
-      if (s.unsaved.size > 0 || s.discards.size > 0) return;
-      const assignments = arrivals(s.series).flatMap(({ position, athleteId }) => (athleteId ? [{ id: s.ids[position - 1]!, athleteId }] : []));
-      await repository.assign(assignments, { deviceId });
-    } catch {
-      // The assignment stays on screen so it can be saved again.
-      return;
+  const done = () => {
+    // The series just timed is over: the next one is ready. An earlier one goes back to the setup, which lists what is still unnamed.
+    if (step.origin === 'live') {
+      reset();
+      setStep({ kind: 'timing', queue: step.queue });
+    } else {
+      setStep({ kind: 'setup' });
     }
-    reset();
-    setStep({ kind: 'timing', queue: step.kind === 'assign' ? step.queue : [] });
-  }
+  };
 
   return (
-    <SeriesAssignmentScreen
-      positions={positions}
+    <SeriesAssignmentStep
+      series={repository}
+      seriesId={step.seriesId}
       athletes={step.queue}
-      eventSubtitle={eventSubtitle}
+      eventSubtitle={step.eventSubtitle}
+      deviceId={deviceId}
       offline={offline}
-      onAssign={(athleteId) => {
-        // A duplicate or a full list changes nothing: the cards already show who has a position.
-        const result = assignHighlighted(session.current.series, athleteId);
-        if (!result.ok) return;
-        session.current.series = result.series;
-        commit();
-      }}
-      onReopen={(position) => {
-        session.current.series = reopen(session.current.series, position);
-        commit();
-      }}
-      onSave={save}
-      onBack={() => setStep({ kind: 'timing', queue: step.queue })}
+      onDone={done}
     />
   );
 }

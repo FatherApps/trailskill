@@ -293,3 +293,80 @@ describe('editRecord', () => {
     expect(pending()).toEqual([]);
   });
 });
+
+describe('writeBatch edit', () => {
+  const seed = () => {
+    const db = new DatabaseSync(store.path);
+    db.exec('CREATE TABLE versioned (id TEXT PRIMARY KEY, hundredths INTEGER, version INTEGER, base_version INTEGER, edited_device_id TEXT)');
+    db.exec("INSERT INTO versioned (id, hundredths, version) VALUES ('r1', 3000, 3), ('r2', 3100, 3)");
+    db.close();
+  };
+  const rows = () => mockDb.getAll('SELECT * FROM versioned ORDER BY id');
+
+  it('queues several edits in one transaction, with the markers separate editRecord calls would queue', async () => {
+    seed();
+
+    await writeBatch(async (batch) => {
+      await batch.edit('versioned', 'r1', { hundredths: 2950 }, { edited_device_id: 'device-a' });
+      await batch.edit('versioned', 'r2', { hundredths: 2960 }, { edited_device_id: 'device-a' });
+    });
+
+    expect(mockDb.transactions).toHaveLength(1);
+    expect(rows()).toEqual([
+      { id: 'r1', hundredths: 2950, version: 3, base_version: 3, edited_device_id: 'device-a' },
+      { id: 'r2', hundredths: 2960, version: 3, base_version: 3, edited_device_id: 'device-a' },
+    ]);
+    expect(pending()).toEqual([
+      { table_name: 'versioned', record_id: 'r1' },
+      { table_name: 'versioned', record_id: 'r2' },
+    ]);
+  });
+
+  it('resets what a row already holds, like editRecord, when it is edited again', async () => {
+    seed();
+    await editRecord('versioned', 'r1', { hundredths: 2950 }, { edited_device_id: 'device-a' });
+
+    await writeBatch((batch) => batch.edit('versioned', 'r1', { hundredths: 2900 }, { edited_device_id: 'device-a' }));
+
+    expect(mockDb.transactions[1].filter(({ sql }) => sql.startsWith('UPDATE')).map(({ params }) => params)).toEqual([
+      [null, null, 'r1'],
+      [2900, 'device-a', 3, 'r1'],
+    ]);
+  });
+
+  it('rejects a row that is not on the device and rolls the whole batch back', async () => {
+    seed();
+
+    await expect(
+      writeBatch(async (batch) => {
+        await batch.edit('versioned', 'r1', { hundredths: 2950 }, { edited_device_id: 'device-a' });
+        await batch.edit('versioned', 'missing', { hundredths: 2960 });
+      }),
+    ).rejects.toThrow('missing');
+
+    expect(pending()).toEqual([]);
+    expect(rows()).toEqual([
+      { id: 'r1', hundredths: 3000, version: 3, base_version: null, edited_device_id: null },
+      { id: 'r2', hundredths: 3100, version: 3, base_version: null, edited_device_id: null },
+    ]);
+  });
+
+  it.each([
+    ['versioned; --', { hundredths: 1 }, {}],
+    ['versioned', { 'hundredths = 0; --': 1 }, {}],
+    ['versioned', { hundredths: 1 }, { 'edited_device_id = 1; --': 'x' }],
+  ])('rejects the unsafe identifier of %p and rolls the batch back', async (table, values, meta) => {
+    seed();
+
+    await expect(
+      writeBatch(async (batch) => {
+        await batch.edit('versioned', 'r1', { hundredths: 2950 });
+        await batch.edit(table, 'r2', values, meta);
+      }),
+    ).rejects.toThrow('Unsafe SQL identifier');
+
+    expect(pending()).toEqual([]);
+    expect(rows()[0]).toMatchObject({ hundredths: 3000 });
+  });
+});
+

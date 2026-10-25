@@ -29,6 +29,8 @@ export type SeriesTimingScreenProps = {
   onBack: () => void;
   // The shared clock is running: the screen stays awake.
   running?: boolean;
+  // Why the last attempt to name the arrivals did not go through; absent when there is nothing to say.
+  error?: string;
   // Shows the offline notice. Nothing is disabled: times are saved on the phone.
   offline?: boolean;
   externalTimerDisconnected?: boolean;
@@ -45,6 +47,7 @@ export function SeriesTimingScreen({
   onAssignNames,
   onBack,
   running = false,
+  error,
   offline = false,
   externalTimerDisconnected = false,
   onUseOnScreenStopwatch,
@@ -60,6 +63,13 @@ export function SeriesTimingScreen({
       <TimingHeader title={t('timing.series.title', { count: athleteCount })} subtitle={eventSubtitle} onBack={onBack} />
       <View style={{ paddingHorizontal: space[4], gap: space[2] }}>
         {offline && <OfflineBanner />}
+        {error && (
+          <View accessibilityLiveRegion="polite">
+            <Banner variant="warn" icon="error">
+              {error}
+            </Banner>
+          </View>
+        )}
         {externalTimerDisconnected && (
           <View testID="external-disconnected" accessibilityLiveRegion="polite">
             <Banner variant="warn" icon="link">

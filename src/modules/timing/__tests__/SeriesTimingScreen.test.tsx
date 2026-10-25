@@ -170,4 +170,16 @@ describe('SeriesTimingScreen', () => {
 
     expect(screen.queryByLabelText('En el teléfono')).toBeNull();
   });
+
+  it('shows why the arrivals could not be named, in a notice that is read out', async () => {
+    await renderScreen({ error: 'No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.' });
+
+    expect(screen.getByText('No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.')).toBeOnTheScreen();
+  });
+
+  it('shows no notice without an error', async () => {
+    await renderScreen();
+
+    expect(screen.queryByText(/No pudimos guardar/)).toBeNull();
+  });
 });
