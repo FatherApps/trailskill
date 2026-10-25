@@ -244,6 +244,13 @@ describe.each(factories)('%s categories repository', (_name, create) => {
     it('rejects an unknown category', async () => {
       await expect(create().repository.assignAthlete('athlete-1', 'school-1', 'missing')).rejects.toThrow('category_missing');
     });
+
+    it('accepts re-setting the current category even when it is inactive, and still rejects it for another athlete', async () => {
+      const { repository, athleteCategory } = create();
+      await repository.assignAthlete('athlete-2', 'school-1', 'c3');
+      expect(athleteCategory('athlete-2', 'school-1')).toBe('c3');
+      await expect(repository.assignAthlete('athlete-1', 'school-1', 'c3')).rejects.toThrow('category_inactive');
+    });
   });
 });
 
@@ -264,5 +271,21 @@ describe('PowerSync categories repository writes', () => {
     const queued = mockDb.getAll<{ table_name: string; record_id: string }>('SELECT table_name, record_id FROM pending_writes ORDER BY record_id');
     expect(queued.every((row) => row.table_name === 'categories')).toBe(true);
     expect(queued.map((row) => row.record_id).sort()).toEqual(['c1', id].sort());
+  });
+});
+
+describe('PowerSync categories repository with rows synced before the column existed', () => {
+  it('reads a category without an active value as active and lets it be assigned', async () => {
+    const { repository, athleteCategory } = createPowerSync();
+    await mockDb.writeTransaction((tx) => tx.execute('UPDATE categories SET active = NULL WHERE id = ?', ['c1']));
+    expect((await repository.list('school-1'))[0]).toEqual(category('c1', 'school-1', 'Categoría A', 0, true));
+    await repository.assignAthlete('athlete-1', 'school-1', 'c1');
+    expect(athleteCategory('athlete-1', 'school-1')).toBe('c1');
+  });
+
+  it('still reads a category with active 0 as inactive and rejects it', async () => {
+    const { repository } = createPowerSync();
+    expect((await repository.list('school-1'))[2].active).toBe(false);
+    await expect(repository.assignAthlete('athlete-1', 'school-1', 'c3')).rejects.toThrow('category_inactive');
   });
 });

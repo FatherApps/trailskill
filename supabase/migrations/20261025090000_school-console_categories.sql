@@ -21,6 +21,8 @@ alter table public.athlete_schools
 -- blocks the delete.
 alter table public.categories
   add column active boolean not null default true;
+-- PowerSync replicates the new value only for rows that are updated.
+update public.categories set active = true;
 
 -- Organizations: federations, leagues, clubs and schools as generic rows
 -- (ADR 0003). Only platform admins write them; any signed-in user may read

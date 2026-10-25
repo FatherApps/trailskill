@@ -41,7 +41,8 @@ const toCategory = (row: CategoryRow): Category => ({
   schoolId: row.school_id,
   name: row.name,
   sortOrder: row.sort_order ?? 0,
-  active: row.active === 1,
+  // Rows synced before the column existed have no value yet: only an explicit 0 means inactive.
+  active: row.active !== 0,
 });
 
 export function createPowerSyncCategoriesRepository(): CategoriesRepository {
@@ -81,13 +82,17 @@ export function createPowerSyncCategoriesRepository(): CategoriesRepository {
     setActive: async (id, active) => update(id, { active: active ? 1 : 0 }),
     async assignAthlete(athleteId, schoolId, categoryId) {
       await writeBatch(async (batch) => {
-        const [row] = await batch.getAll<{ id: string }>('SELECT id FROM athlete_schools WHERE athlete_id = ? AND school_id = ?', [athleteId, schoolId]);
+        const [row] = await batch.getAll<{ id: string; category_id: string | null }>(
+          'SELECT id, category_id FROM athlete_schools WHERE athlete_id = ? AND school_id = ?',
+          [athleteId, schoolId],
+        );
         if (!row) throw new Error('athlete_school_missing');
         if (categoryId !== null) {
           const [found] = await batch.getAll<CategoryRow>(`SELECT ${COLUMNS} FROM categories WHERE id = ?`, [categoryId]);
           if (!found) throw new Error('category_missing');
           if (found.school_id !== schoolId) throw new Error('category_wrong_school');
-          if (found.active !== 1) throw new Error('category_inactive');
+          // Like the server guard, re-setting the current category is a no-op even if it is inactive.
+          if (found.active === 0 && row.category_id !== categoryId) throw new Error('category_inactive');
         }
         await batch.write('athlete_schools', { id: row.id, category_id: categoryId });
       });
@@ -145,7 +150,7 @@ export function createInMemoryCategoriesRepository(
       if (categoryId !== null) {
         const found = find(categoryId);
         if (found.schoolId !== schoolId) throw new Error('category_wrong_school');
-        if (!found.active) throw new Error('category_inactive');
+        if (!found.active && row.categoryId !== categoryId) throw new Error('category_inactive');
       }
       row.categoryId = categoryId;
     },
