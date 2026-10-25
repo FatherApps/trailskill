@@ -1,7 +1,22 @@
-export { distances, isDistance, isPool, isStroke, pools, strokes } from './catalogs';
+export {
+  distances,
+  equipment,
+  isDistance,
+  isEquipment,
+  isPhase,
+  isPool,
+  isStroke,
+  phases,
+  pools,
+  strokes,
+} from './catalogs';
 export type {
   Distance,
   DistanceCode,
+  Equipment,
+  EquipmentCode,
+  Phase,
+  PhaseCode,
   Pool,
   PoolCode,
   Stroke,

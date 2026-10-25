@@ -28,12 +28,33 @@ export const pools = catalog([
   { code: 'LCM', lengthMeters: 50, nameKey: 'sport.pool.LCM' },
 ] as const);
 
+// Training equipment a block may ask for (design section 6.3).
+export const equipment = catalog([
+  { code: 'fins', nameKey: 'sport.equipment.fins' },
+  { code: 'paddles', nameKey: 'sport.equipment.paddles' },
+  { code: 'snorkel', nameKey: 'sport.equipment.snorkel' },
+  { code: 'kickboard', nameKey: 'sport.equipment.kickboard' },
+  { code: 'pull_buoy', nameKey: 'sport.equipment.pull_buoy' },
+] as const);
+
+// Phases of a training session, in session order (design section 6.3).
+export const phases = catalog([
+  { code: 'warm_up', nameKey: 'sport.phase.warm_up' },
+  { code: 'main', nameKey: 'sport.phase.main' },
+  { code: 'technique', nameKey: 'sport.phase.technique' },
+  { code: 'cool_down', nameKey: 'sport.phase.cool_down' },
+] as const);
+
 export type Stroke = (typeof strokes)[number];
 export type Distance = (typeof distances)[number];
 export type Pool = (typeof pools)[number];
 export type StrokeCode = Stroke['code'];
 export type DistanceCode = Distance['code'];
 export type PoolCode = Pool['code'];
+export type Equipment = (typeof equipment)[number];
+export type Phase = (typeof phases)[number];
+export type EquipmentCode = Equipment['code'];
+export type PhaseCode = Phase['code'];
 
 function hasCode(entries: readonly { code: string }[], value: unknown): boolean {
   return entries.some((entry) => entry.code === value);
@@ -42,3 +63,5 @@ function hasCode(entries: readonly { code: string }[], value: unknown): boolean 
 export const isStroke = (value: unknown): value is StrokeCode => hasCode(strokes, value);
 export const isDistance = (value: unknown): value is DistanceCode => hasCode(distances, value);
 export const isPool = (value: unknown): value is PoolCode => hasCode(pools, value);
+export const isEquipment = (value: unknown): value is EquipmentCode => hasCode(equipment, value);
+export const isPhase = (value: unknown): value is PhaseCode => hasCode(phases, value);
