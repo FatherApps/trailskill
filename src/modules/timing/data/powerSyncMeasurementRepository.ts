@@ -49,26 +49,31 @@ function toMeasurement(row: MeasurementRow): Measurement {
   } as Measurement;
 }
 
+// The columns a new measurement is written with; the server owns the edit trail.
+export function measurementRow(m: Measurement) {
+  return {
+    id: m.id,
+    kind: m.kind,
+    athlete_id: m.athleteId,
+    series_id: m.seriesId,
+    arrival_position: m.arrivalPosition,
+    hundredths: m.hundredths,
+    stroke: m.stroke,
+    distance: m.distance,
+    pool: m.pool,
+    session_type: m.sessionType,
+    source: m.source,
+    created_by: m.createdBy,
+    device_id: m.deviceId,
+    captured_at: m.capturedAt,
+    parent_id: m.parentId,
+  };
+}
+
 export function createPowerSyncMeasurementRepository(): MeasurementRepository {
   return {
     async add(m) {
-      await writeRecord('measurements', {
-        id: m.id,
-        kind: m.kind,
-        athlete_id: m.athleteId,
-        series_id: m.seriesId,
-        arrival_position: m.arrivalPosition,
-        hundredths: m.hundredths,
-        stroke: m.stroke,
-        distance: m.distance,
-        pool: m.pool,
-        session_type: m.sessionType,
-        source: m.source,
-        created_by: m.createdBy,
-        device_id: m.deviceId,
-        captured_at: m.capturedAt,
-        parent_id: m.parentId,
-      });
+      await writeRecord('measurements', measurementRow(m));
     },
     async edit(id, { hundredths, athleteId }, { deviceId, editReason }) {
       // kind is not editable, so reading it before the edit cannot race; a missing row is left to editRecord to reject.
