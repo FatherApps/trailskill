@@ -1,4 +1,4 @@
-import { db, writeRecord } from '../../../core/sync';
+import { db, editRecord, writeRecord } from '../../../core/sync';
 import type { Measurement, MeasurementRepository } from './measurements';
 
 type MeasurementRow = {
@@ -17,6 +17,10 @@ type MeasurementRow = {
   device_id: string;
   captured_at: string;
   parent_id: string | null;
+  version: number | null;
+  edited_by: string | null;
+  edited_at: string | null;
+  edit_reason: string | null;
 };
 
 // Rows are trusted: the server enforces the kind/hundredths rule, so the union is restored by cast.
@@ -37,6 +41,11 @@ function toMeasurement(row: MeasurementRow): Measurement {
     deviceId: row.device_id,
     capturedAt: row.captured_at,
     parentId: row.parent_id,
+    // A row not uploaded yet has no server version: the server starts every measurement at 1.
+    version: row.version ?? 1,
+    editedBy: row.edited_by,
+    editedAt: row.edited_at,
+    editReason: row.edit_reason,
   } as Measurement;
 }
 
@@ -59,6 +68,15 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
         device_id: m.deviceId,
         captured_at: m.capturedAt,
         parent_id: m.parentId,
+      });
+    },
+    async edit(id, { hundredths, athleteId }, { deviceId, editReason }) {
+      await editRecord('measurements', id, {
+        ...(hundredths !== undefined && { hundredths }),
+        ...(athleteId !== undefined && { athlete_id: athleteId }),
+        // Always sent, so the server never keeps an older device or reason for this version.
+        edited_device_id: deviceId,
+        edit_reason: editReason ?? null,
       });
     },
     async listBySeries(seriesId) {
