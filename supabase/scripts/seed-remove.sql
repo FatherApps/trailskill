@@ -47,6 +47,18 @@ where id in (
   '00000000-0000-4000-8000-000000000003'
 );
 
+-- Plan assignments and their marks (they point at athletes, groups, categories,
+-- timing series and plans, so they go first).
+delete from public.training_plan_fulfillments
+where athlete_id in (select id from seed_remove_athletes)
+   or created_by in (select id from seed_remove_users)
+   or assignment_id in (
+     select id from public.training_plan_assignments
+     where school_id = '00000000-0000-4000-8000-0000000000a1'
+   );
+delete from public.training_plan_assignments
+where school_id = '00000000-0000-4000-8000-0000000000a1';
+
 -- Times.
 delete from public.measurement_conflicts
 where measurement_id in (
