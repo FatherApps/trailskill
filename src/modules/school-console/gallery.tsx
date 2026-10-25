@@ -22,6 +22,7 @@ import { personalBestLabel } from './components/eventLabel';
 import { Logo } from './components/Logo';
 import { SideSheet } from './components/SideSheet';
 import { ConsolePreview, filterValues, FullWidth, noop, toggleFilter } from './gallerySupport';
+import { gallerySectionEntries } from './gallerySections';
 import { AthletesScreen, type AthletesContent, type AthletesView } from './screens/AthletesScreen';
 import { ConsoleScreen } from './screens/ConsoleScreen';
 import { EmptySectionScreen } from './screens/EmptySectionScreen';
@@ -227,4 +228,5 @@ export const galleryEntries: GalleryEntry[] = [
     'medium-800': () => <EmptySectionPreview fixedWidth={800} />,
     'compact-360': () => <EmptySectionPreview fixedWidth={360} />,
   }),
+  ...gallerySectionEntries,
 ];
