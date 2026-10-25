@@ -27,6 +27,27 @@ issue → branch (own worktree) → small commits → pull request → CI green 
 3. **Small pull requests.** Aim for about 400 changed lines or fewer. Split larger work into issues that can be merged independently.
 4. **Close out.** After the merge: the branch is deleted, the worktree is removed, and the issue is closed by the pull request.
 
+## Running the app
+
+The app uses native modules (op-sqlite, PowerSync) that Expo Go does not include, so it runs in a **development build**: a debug build of TrailSkill with `expo-dev-client` that loads its JavaScript from Metro.
+
+Prerequisites: Android Studio with the Android SDK, the `Medium_Phone_API_37.0` emulator running, and `JAVA_HOME` set to Android Studio's JDK (on macOS, `/Applications/Android Studio.app/Contents/jbr/Contents/Home`).
+
+1. Install dependencies: `npm ci`.
+2. Build and install the development build on the emulator: `npx expo run:android --no-bundler`. It generates `android/` (ignored by Git). Rebuild only when a native dependency or a config plugin changes; JavaScript changes do not need a new build.
+3. Start Metro in watch mode: `npx expo start --dev-client`, then press `a` to open TrailSkill on the emulator. Saving a file reloads the app.
+
+Several worktrees and sessions share the emulator:
+
+- If port 8081 is taken, add `--port <free port>` to step 3. Do not set `CI=1`: it turns off reloads.
+- Sessions that cannot press `a` run `adb reverse tcp:<port> tcp:<port>`, open TrailSkill on the emulator, and connect the launcher to `http://localhost:<port>` (type it under Development servers and tap Connect, or tap it under Recently opened).
+- On its first start the launcher asks for the nearby devices permission to find local servers; allow it on the emulator.
+- Expo Go (`host.exp.exponent`) is a different app. Before a screenshot, check that TrailSkill is in front: `adb shell dumpsys activity activities | grep topResumedActivity` must show `com.fatherapps.trailskill`.
+
+**Screenshots.** Sessions that check visual work capture the emulator with `adb exec-out screencap -p > <name>.png` and attach the image to the pull request. Use synthetic data only and keep screenshots out of the repository.
+
+Without a local Android toolchain, `eas build --profile development --platform android` builds the same development build in the cloud.
+
 ## Branching model
 
 TrailSkill uses **trunk-based development**: one long-lived branch (`main`), short-lived work branches, and tags for releases. There is no `develop` branch.
