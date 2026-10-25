@@ -91,3 +91,21 @@ describe.each(factories)('%s history repository', (_name, create) => {
     expect(listed.every((m) => m.origin === 'own')).toBe(true);
   });
 });
+
+describe('history repository origin', () => {
+  it('marks a measurement from an external button as external_timer and the others as own', async () => {
+    const measurements = createInMemoryMeasurementRepository();
+    const { origin: _origin, ...base } = measurement('base');
+    await measurements.add({ ...base, id: 'external', source: 'external_button', capturedAt: '2026-02-01T08:00:00Z' });
+    await measurements.add({ ...base, id: 'stopwatch', source: 'screen_stopwatch', capturedAt: '2026-01-02T08:00:00Z' });
+    await measurements.add({ ...base, id: 'button', source: 'screen_button', capturedAt: '2026-01-01T08:00:00Z' });
+
+    const listed = await createHistoryRepository(measurements).listByAthlete('athlete-1');
+
+    expect(listed.map((m) => [m.id, m.origin])).toEqual([
+      ['external', 'external_timer'],
+      ['stopwatch', 'own'],
+      ['button', 'own'],
+    ]);
+  });
+});

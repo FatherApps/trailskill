@@ -119,7 +119,6 @@ function HistoryRow({ result }: { result: HistoryResult }) {
   const origin = originTag(result);
   const shortDate = formatDate(result.date, 'short');
   const longDate = formatDate(result.date, 'long');
-  const synced = result.syncState === 'synced';
 
   // A malformed date is left out rather than shown wrong.
   const meta = [shortDate, context, value].filter(Boolean).join(' · ');
@@ -137,7 +136,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
     origin?.label,
     spokenResult,
     result.time !== null && result.isPersonalBest ? t('time_value.pb_spoken') : null,
-    synced ? null : t(`sync.${result.syncState}`),
+    t(`sync.${result.syncState}`),
   ]
     .filter(Boolean)
     .join(', ');
@@ -173,7 +172,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
           completed={result.completed}
           newPersonalBest={result.isPersonalBest}
         />
-        {!synced && <SyncStatus state={result.syncState} />}
+        <SyncStatus state={result.syncState} />
       </View>
     </View>
   );
