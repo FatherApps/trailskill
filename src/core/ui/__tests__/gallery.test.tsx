@@ -30,13 +30,15 @@ describe('core/ui gallery entries', () => {
     expect(stateKeys('stateView')).toEqual(['loading', 'empty', 'empty-group', 'error', 'offline', 'denied']);
     expect(stateKeys('syncStatus')).toEqual(['on_device', 'sending', 'synced', 'not_sent', 'not_sent con mensaje']);
     expect(stateKeys('confirmSheet')).toEqual(['stop', 'primary', 'signOut']);
+    expect(stateKeys('segmented')).toEqual(['strokes', 'distances', 'long-text']);
+    expect(stateKeys('timeValue')).toEqual(['time-lg', 'time-md', 'time-sm', 'missing', 'decimal-point']);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
     await render(<ThemeProvider name={theme} fontScale={scale}>{entryById(id).states[state]()}</ThemeProvider>);
   });
 
-  it.each(['stepHeader', 'stateView'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
+  it.each(['stepHeader', 'stateView', 'segmented'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
     '%s / %s fills the width of the preview',
     async (id, state) => {
       await render(<ThemeProvider>{entryById(id).states[state]()}</ThemeProvider>);
@@ -65,5 +67,38 @@ describe('core/ui gallery entries', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: cancel }));
     expect(screen.queryByText(title)).toBeNull();
+  });
+
+  it.each([
+    ['strokes', 'Libre', 'Espalda'],
+    ['distances', '25 m', '50 m'],
+  ])('segmented / %s starts on %s and moves the selection to %s when tapped', async (state, first, second) => {
+    await render(<ThemeProvider>{entryById('segmented').states[state]()}</ThemeProvider>);
+    expect(screen.getByRole('radio', { name: first })).toBeSelected();
+
+    await fireEvent.press(screen.getByRole('radio', { name: second }));
+
+    expect(screen.getByRole('radio', { name: second })).toBeSelected();
+    expect(screen.getByRole('radio', { name: first })).not.toBeSelected();
+  });
+
+  it('segmented / strokes and distances use the sport catalog names', async () => {
+    await render(<ThemeProvider>{entryById('segmented').states.strokes()}</ThemeProvider>);
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    for (const label of ['Libre', 'Espalda', 'Pecho']) {
+      expect(screen.getByRole('radio', { name: label })).toBeOnTheScreen();
+    }
+  });
+
+  it.each([
+    ['time-lg', '34,82'],
+    ['time-md', '1:12,40'],
+    ['time-sm', '16,40'],
+    ['missing', '—'],
+    ['decimal-point', '34.82'],
+  ])('timeValue / %s shows %s', async (state, text) => {
+    await render(<ThemeProvider>{entryById('timeValue').states[state]()}</ThemeProvider>);
+
+    expect(screen.getByText(text)).toBeOnTheScreen();
   });
 });

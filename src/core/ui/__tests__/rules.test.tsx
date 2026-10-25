@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { StyleSheet } from 'react-native';
 
-import { Button, Icon, StateView, StepHeader, SyncStatus, Tag, TextField } from '..';
+import { Button, Icon, Segmented, StateView, StepHeader, SyncStatus, Tag, TextField, TimeValue } from '..';
 
 const uiDir = path.join(__dirname, '..');
 
@@ -35,6 +35,17 @@ describe('src/core/ui rules', () => {
         <StepHeader step={2} total={4} title="Datos del nadador" onBack={jest.fn()} />
         <SyncStatus state="not_sent" onRetry={jest.fn()} />
         <StateView kind="error" title="No pudimos cargar el historial" message="Revisa tu conexión." />
+        <Segmented
+          accessibilityLabel="Estilo"
+          options={[
+            { value: 'FR', label: 'Libre' },
+            { value: 'BK', label: 'Espalda' },
+          ]}
+          value="FR"
+          onChange={jest.fn()}
+        />
+        <TimeValue value={3482} />
+        <TimeValue value={null} size="time-sm" />
       </>,
     );
 
@@ -46,7 +57,12 @@ describe('src/core/ui rules', () => {
       expect(text.props.numberOfLines).toBeUndefined();
     }
 
-    for (const control of [...screen.getAllByRole('button'), ...screen.getAllByRole('text', { name: /pendiente/ })]) {
+    const controls = [
+      ...screen.getAllByRole('button'),
+      ...screen.getAllByRole('text', { name: /pendiente/ }),
+      ...screen.getAllByRole('radio'),
+    ];
+    for (const control of controls) {
       const style = StyleSheet.flatten(control.props.style);
       expect(style.width).toBeUndefined();
       expect(style.height).toBeUndefined();
