@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef } from 'react';
+import { Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
 
 import { useTheme, type ColorToken } from '../theme';
 
@@ -25,13 +26,22 @@ export const segmentedColors: {
 
 export function Segmented<T extends string>({ options, value, onChange, accessibilityLabel }: SegmentedProps<T>) {
   const { colors, space, radius, size, typography } = useTheme();
+  const scroller = useRef<ScrollViewInstance>(null);
+  const layouts = useRef(new Map<T, { x: number }>());
+
+  // Options keep the width of their label, so a long set scrolls: bring the selected one into view.
+  const reveal = useCallback((target: T, animated: boolean) => {
+    const layout = layouts.current.get(target);
+    if (layout) scroller.current?.scrollTo({ x: layout.x, animated });
+  }, []);
+  useEffect(() => reveal(value, true), [reveal, value]);
 
   return (
     <View
       accessibilityRole="radiogroup"
       accessibilityLabel={accessibilityLabel}
       style={{
-        flexDirection: 'row',
+        overflow: 'hidden',
         padding: space[1],
         borderWidth: 1.5,
         borderColor: colors.border,
@@ -39,37 +49,52 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
         backgroundColor: colors[segmentedColors.track],
       }}
     >
-      {options.map((option) => {
-        const selected = option.value === value;
-        const { background, text } = segmentedColors.selected;
-        return (
-          <Pressable
-            key={option.value}
-            accessibilityRole="radio"
-            // Android reads `checked` for radios, iOS reads `selected`.
-            accessibilityState={{ checked: selected, selected }}
-            onPress={() => onChange(option.value)}
-            style={{
-              flex: 1,
-              minHeight: size['target-min'],
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingHorizontal: space[3],
-              borderRadius: radius.full,
-              backgroundColor: selected ? colors[background] : 'transparent',
-            }}
-          >
-            <Text
-              style={[
-                typography.label,
-                { textAlign: 'center', color: colors[selected ? text : segmentedColors.unselected] },
-              ]}
+      <ScrollView
+        ref={scroller}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
+        {options.map((option) => {
+          const selected = option.value === value;
+          const { background, text } = segmentedColors.selected;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="radio"
+              // Android reads `checked` for radios, iOS reads `selected`.
+              accessibilityState={{ checked: selected, selected }}
+              onPress={() => onChange(option.value)}
+              onLayout={({ nativeEvent: { layout } }) => {
+                layouts.current.set(option.value, { x: layout.x });
+                if (selected) reveal(option.value, false);
+              }}
+              style={{
+                flexGrow: 1,
+                flexShrink: 0,
+                minHeight: size['target-min'],
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: space[3],
+                borderRadius: radius.full,
+                backgroundColor: selected ? colors[background] : 'transparent',
+              }}
             >
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+              <Text
+                style={[
+                  typography.label,
+                  {
+                    textAlign: 'center',
+                    color: colors[selected ? text : segmentedColors.unselected],
+                  },
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }

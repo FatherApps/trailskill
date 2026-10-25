@@ -1,12 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, size, typography, type ThemeName } from '../../theme';
+import { colors, contrastRatio, size, ThemeProvider, typography, type ThemeName } from '../../theme';
 import { Segmented, segmentedColors } from '../Segmented';
 
 const themes: ThemeName[] = ['light', 'dark'];
 // A group must not be `accessible` (that would hide its options from screen readers), so role queries skip it.
 const groupOf = () => screen.container.queryAll((node) => node.props.accessibilityRole === 'radiogroup');
+
+// The horizontal ScrollView inside the pill track (host component of the Jest mock).
+const scrollerOf = () => screen.container.queryAll((node) => node.type === 'RCTScrollView')[0];
 
 const options = [
   { value: 'FR', label: 'Libre' },
@@ -36,7 +39,10 @@ describe('Segmented', () => {
     await renderSegmented('BK');
 
     const selected = screen.getByRole('radio', { name: 'Espalda' });
-    expect(selected.props.accessibilityState).toMatchObject({ selected: true, checked: true });
+    expect(selected.props.accessibilityState).toMatchObject({
+      selected: true,
+      checked: true,
+    });
     for (const label of ['Libre', 'Pecho']) {
       expect(screen.getByRole('radio', { name: label }).props.accessibilityState).toMatchObject({
         selected: false,
@@ -55,20 +61,34 @@ describe('Segmented', () => {
     expect(onChange).toHaveBeenCalledWith('BR');
   });
 
-  it('is a pill track with segments at least 48 dp tall that share the width', async () => {
+  it('is a pill track with segments at least 48 dp tall that keep the width of their label', async () => {
     await renderSegmented();
 
     const track = StyleSheet.flatten(groupOf()[0].props.style);
-    expect(track).toMatchObject({ borderRadius: 999, flexDirection: 'row' });
+    expect(track).toMatchObject({ borderRadius: 999, overflow: 'hidden' });
     for (const radio of screen.getAllByRole('radio')) {
       const style = StyleSheet.flatten(radio.props.style);
       expect(style.minHeight).toBeGreaterThanOrEqual(48);
       expect(style.minHeight).toBe(size['target-min']);
       expect(style.borderRadius).toBe(999);
-      expect(style.flex).toBe(1);
+      // Fill the track when everything fits, never shrink below the label when it does not.
+      expect(style.flexGrow).toBe(1);
+      expect(style.flexShrink).toBe(0);
+      expect(style.flex).toBeUndefined();
       expect(style.width).toBeUndefined();
       expect(style.height).toBeUndefined();
     }
+  });
+
+  it('scrolls horizontally inside the pill track instead of squeezing the options', async () => {
+    await renderSegmented();
+
+    const scroller = scrollerOf();
+    expect(scroller.props.horizontal).toBe(true);
+    expect(scroller.props.showsHorizontalScrollIndicator).toBe(false);
+    expect(StyleSheet.flatten(scroller.props.contentContainerStyle)).toMatchObject({ flexGrow: 1 });
+    expect(within(scroller).getAllByRole('radio')).toHaveLength(3);
+    expect(within(groupOf()[0]).getByRole('radio', { name: 'Libre' })).toBeOnTheScreen();
   });
 
   it('paints the selected option primary with on-primary text and the others in ink', async () => {
@@ -103,6 +123,93 @@ describe('Segmented', () => {
       expect(text.props.numberOfLines).toBeUndefined();
       expect(text.props.allowFontScaling).not.toBe(false);
     }
+  });
+
+  describe('long labels with the text at 200 %', () => {
+    const longOptions = [
+      { value: 'a', label: 'Esperanza de la mañana' },
+      { value: 'b', label: 'Mariposa' },
+      { value: 'c', label: '100 m combinado individual' },
+    ];
+
+    it('keeps the radio semantics, the 48 dp minimum and never truncates a label', async () => {
+      await render(
+        <ThemeProvider fontScale={2}>
+          <Segmented accessibilityLabel="Estilo" options={longOptions} value="b" onChange={jest.fn()} />
+        </ThemeProvider>,
+      );
+
+      expect(groupOf()[0].props.accessibilityLabel).toBe('Estilo');
+      expect(screen.getAllByRole('radio')).toHaveLength(3);
+      expect(screen.getByRole('radio', { name: 'Mariposa' }).props.accessibilityState).toMatchObject({
+        checked: true,
+        selected: true,
+      });
+      expect(screen.getAllByRole('radio', { selected: true })).toHaveLength(1);
+      for (const radio of screen.getAllByRole('radio')) {
+        const style = StyleSheet.flatten(radio.props.style);
+        expect(style.minHeight).toBeGreaterThanOrEqual(48);
+        expect(style.flexShrink).toBe(0);
+        expect(style.flex).toBeUndefined();
+      }
+      for (const { label } of longOptions) {
+        const text = screen.getByText(label);
+        expect(text.props.numberOfLines).toBeUndefined();
+        expect(StyleSheet.flatten(text.props.style).fontSize).toBe(typography.label.fontSize * 2);
+      }
+    });
+
+    // The Jest ScrollView mock has no layout engine: the test feeds the option layouts and watches `scrollTo`.
+    describe('keeps the selected option in view', () => {
+      const layouts = {
+        a: { x: 0, width: 300 },
+        b: { x: 300, width: 180 },
+        c: { x: 480, width: 340 },
+      };
+      const layoutEvent = ({ x, width }: { x: number; width: number }) => ({
+        nativeEvent: { layout: { x, y: 0, width, height: 48 } },
+      });
+      let scrollTo: jest.SpyInstance;
+      beforeEach(() => {
+        scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo');
+      });
+      afterEach(() => scrollTo.mockRestore());
+
+      const renderWith = (value: string) => (
+        <ThemeProvider fontScale={2}>
+          <Segmented accessibilityLabel="Estilo" options={longOptions} value={value} onChange={jest.fn()} />
+        </ThemeProvider>
+      );
+
+      async function layOut() {
+        for (const option of longOptions) {
+          await fireEvent(
+            screen.getByRole('radio', { name: option.label }),
+            'layout',
+            layoutEvent(layouts[option.value as 'a']),
+          );
+        }
+      }
+
+      it('scrolls to the option that is selected when it is laid out', async () => {
+        await render(renderWith('c'));
+        await layOut();
+
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 480, animated: false });
+      });
+
+      it('scrolls to the newly selected option when the value changes', async () => {
+        const view = await render(renderWith('a'));
+        await layOut();
+        scrollTo.mockClear();
+
+        await view.rerender(renderWith('c'));
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 480, animated: true });
+
+        await view.rerender(renderWith('b'));
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 300, animated: true });
+      });
+    });
   });
 
   describe.each(themes)('%s theme contrast', (theme) => {
