@@ -10,8 +10,9 @@ export type AuthorizationRecord = {
   athleteId: string;
   purpose: AuthorizationPurpose;
   textId: string;
-  textVersion: number;
-  textBody: string;
+  // Null while the accepted text has not reached this phone yet; the acceptance is still valid.
+  textVersion: number | null;
+  textBody: string | null;
   acceptedAt: string;
   withdrawnAt: string | null;
 };
@@ -56,8 +57,8 @@ type RecordRow = {
   athlete_id: string;
   purpose: AuthorizationPurpose;
   text_id: string;
-  text_version: number;
-  text_body: string;
+  text_version: number | null;
+  text_body: string | null;
   accepted_at: string;
   withdrawn_at: string | null;
 };
@@ -75,7 +76,7 @@ export function createPowerSyncAuthorizationRepository(): AuthorizationRepositor
     async listAuthorizations(userId, athleteIds) {
       const rows = await db.getAll<RecordRow>(
         `SELECT a.id, a.user_id, a.athlete_id, a.purpose, a.text_id, t.version AS text_version, t.body AS text_body, a.accepted_at, a.withdrawn_at
-         FROM authorizations a JOIN authorization_texts t ON t.id = a.text_id
+         FROM authorizations a LEFT JOIN authorization_texts t ON t.id = a.text_id
          WHERE a.user_id = ? AND a.athlete_id IN (SELECT value FROM json_each(?))
          ORDER BY julianday(a.accepted_at), a.id`,
         [userId, JSON.stringify(athleteIds)],

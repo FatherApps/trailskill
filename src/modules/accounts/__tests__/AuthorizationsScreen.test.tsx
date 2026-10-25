@@ -173,6 +173,67 @@ describe('AuthorizationsContainer', () => {
     expect(screen.queryByText(/^Autorizado el /)).toBeNull();
   });
 
+  it('an authorization in force whose text is not on the phone yet is not offered again', async () => {
+    const base = createInMemoryAuthorizationRepository(texts);
+    const record: AuthorizationRecord = {
+      id: 'r1', userId: 'guardian-1', athleteId: 'a1', purpose: 'record_times', textId: 't-not-synced', textVersion: null,
+      textBody: null, acceptedAt: '2026-01-01T00:00:00.000Z', withdrawnAt: null,
+    };
+    await renderContainer({ repository: { ...base, listAuthorizations: async () => [record], isInForce: async () => true } });
+
+    expect(await screen.findByText('Cargando el texto aceptado…')).toBeOnTheScreen();
+    expect(screen.queryByRole('checkbox', { name: RECORD })).toBeNull();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    expect(screen.getByText(/^Autorizado el /)).toBeOnTheScreen();
+  });
+
+  it('a reload that started before accepting and lands after it does not undo it', async () => {
+    const base = createInMemoryAuthorizationRepository(texts);
+    let release = () => {};
+    let holdNext = false;
+    const repository: AuthorizationRepository = {
+      ...base,
+      listAuthorizations: async (...args) => {
+        const rows = await base.listAuthorizations(...args);
+        if (holdNext) {
+          holdNext = false;
+          await new Promise<void>((resolve) => (release = resolve));
+        }
+        return rows;
+      },
+    };
+    const element = (refreshKey: number) => (
+      <AuthorizationsContainer repository={repository} userId="guardian-1" athletes={athletes} mode="manage" onDone={jest.fn()} refreshKey={refreshKey} />
+    );
+    const view = await render(element(1));
+    await screen.findByRole('checkbox', { name: IMPORT });
+
+    // A sync reload starts and reads the rows as they are now: nothing accepted.
+    holdNext = true;
+    await view.rerender(element(2));
+    await fireEvent.press(screen.getByRole('checkbox', { name: IMPORT }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar' }));
+    expect(await screen.findByText(/^Autorizado el /)).toBeOnTheScreen();
+
+    await act(async () => release());
+
+    expect(screen.getByText(/^Autorizado el /)).toBeOnTheScreen();
+  });
+
+  it('an adult never sees the 4-step header while the draft is still loading', async () => {
+    const drafts = createInMemoryRegistrationDraftRepository({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+    let release = () => {};
+    const load = drafts.load;
+    drafts.load = () => new Promise((resolve) => (release = () => resolve(load())));
+    await renderContainer({ mode: 'registration', drafts });
+    await act(async () => {});
+
+    expect(screen.queryByText('Paso 4 de 4')).toBeNull();
+
+    await act(async () => release());
+    expect(await screen.findByText('Paso 3 de 3')).toBeOnTheScreen();
+  });
+
   it('a load error shows the failure banner', async () => {
     const repository: AuthorizationRepository = {
       ...createInMemoryAuthorizationRepository(texts),

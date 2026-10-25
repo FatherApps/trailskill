@@ -143,6 +143,31 @@ describe.each(factories)('%s authorization repository', (_name, create) => {
   });
 });
 
+describe('PowerSync authorization whose text is not on the phone yet', () => {
+  it('is still listed, without its text, and is still in force', async () => {
+    const repository = createPowerSync();
+    mockDb.getAll(
+      "INSERT INTO authorizations (id, user_id, athlete_id, purpose, text_id, accepted_at) VALUES ('x1', 'guardian-1', 'a1', 'record_times', 't-not-synced', ?)",
+      [now.toISOString()],
+    );
+
+    expect(await repository.listAuthorizations('guardian-1', ['a1'])).toEqual([
+      {
+        id: 'x1',
+        userId: 'guardian-1',
+        athleteId: 'a1',
+        purpose: 'record_times',
+        textId: 't-not-synced',
+        textVersion: null,
+        textBody: null,
+        acceptedAt: now.toISOString(),
+        withdrawnAt: null,
+      },
+    ]);
+    expect(await repository.isInForce('a1', 'record_times')).toBe(true);
+  });
+});
+
 describe('PowerSync authorization in force', () => {
   function seedStatus(isGranted: boolean, updatedAt: string) {
     mockDb.getAll(

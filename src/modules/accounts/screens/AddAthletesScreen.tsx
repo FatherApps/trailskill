@@ -25,7 +25,8 @@ export type AddAthletesScreenProps = {
   athletes: AddedAthlete[];
   busy?: boolean;
   // The last add did not work: nothing was saved and the typed names are still there.
-  failed?: boolean;
+  // 'add': the profile was not saved; 'continue': the reached step was not saved.
+  failed?: false | 'add' | 'continue';
   // The sync state of one profile, supplied by the caller (src/core/sync owns it).
   renderStatus?: (athleteId: string) => ReactNode;
   onChange: (field: AddAthleteField, value: string) => void;
@@ -93,7 +94,7 @@ export function AddAthletesScreen({
       )}
       {failed && (
         <Banner variant="warn" icon="error">
-          {t('accounts.athletes.add_failed')}
+          {t(failed === 'add' ? 'accounts.athletes.add_failed' : 'accounts.athletes.continue_failed')}
         </Banner>
       )}
       <TextField
