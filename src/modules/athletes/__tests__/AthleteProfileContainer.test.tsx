@@ -94,6 +94,34 @@ describe('athlete profile container', () => {
     expect(screen.getAllByText('34,82', { includeHiddenElements: true }).length).toBeGreaterThan(0);
   });
 
+  it('does not reload the profile when the connection flaps for a viewer without other-school results', async () => {
+    const history = createInMemoryHistoryRepository([measurement({ id: 'm1' })]);
+    const listByEvent = jest.spyOn(history, 'listByEvent');
+    const granted = authorizations(true);
+    const tree = (online: boolean) => (
+      <ThemeProvider>
+        <AthleteProfileContainer
+          athleteId="a1"
+          athletes={athletes}
+          history={history}
+          authorizations={granted}
+          schoolLinks={schoolLinks}
+          schoolNames={schoolNames}
+          categories={categories}
+          lastSyncedAt={null}
+          online={online}
+        />
+      </ThemeProvider>
+    );
+    const view = await render(tree(true));
+    expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+
+    await view.rerender(tree(false));
+
+    expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+    expect(listByEvent).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the authorization as pending when the athlete has not granted recording times', async () => {
     await show({ authorizations: authorizations(false) });
 

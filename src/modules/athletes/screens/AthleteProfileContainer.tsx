@@ -104,7 +104,9 @@ export function AthleteProfileContainer({
   const [attempt, setAttempt] = useState(0);
   const [chosenSchoolId, setChosenSchoolId] = useState('');
   // The answer is stored with the request it belongs to: any other request shows as loading until its own answer lands.
-  const requestKey = `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${attempt}|${online}`;
+  // The connection only matters to viewers that ask for other schools' results; for the rest a connection change is not a new request.
+  const connection = otherSchoolResults ? online : null;
+  const requestKey = `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${attempt}|${connection}`;
   const [answer, setAnswer] = useState<{ key: string; result: Loaded }>();
   const loaded = useMemo<Loaded>(() => (answer?.key === requestKey ? answer.result : { kind: 'loading' }), [answer, requestKey]);
   // The age of the last sync is read once, when the profile opens, so it does not change on every render.
@@ -117,7 +119,7 @@ export function AthleteProfileContainer({
       if (!athlete) return { kind: 'denied' } as const;
       // Offline, or when the server fails, none of them show; the rest of the profile does not depend on them.
       const otherSchool =
-        otherSchoolResults && online
+        otherSchoolResults && connection
           ? otherSchoolResults.listByEvent(athleteId, event).then(
               (results) => ({ results, offline: false }),
               () => ({ results: [], offline: true }),
@@ -144,7 +146,7 @@ export function AthleteProfileContainer({
     return () => {
       active = false;
     };
-  }, [athleteId, athletes, authorizations, history, schoolLinks, schoolNames, categories, event, requestKey, otherSchoolResults, online]);
+  }, [athleteId, athletes, authorizations, history, schoolLinks, schoolNames, categories, event, requestKey, otherSchoolResults, connection]);
 
   const ids = useMemo(() => (loaded.kind === 'ready' ? loaded.measurements.map((m) => m.id) : []), [loaded]);
   const syncStates = useRecordSyncStates('measurements', ids);

@@ -52,6 +52,14 @@ describe('other school results repository', () => {
     ]);
   });
 
+  it('normalises the PostgREST timestamp to the ISO form local rows use', async () => {
+    const client = clientReturning([row({ captured_at: '2026-10-05T08:00:00+00:00' })]);
+
+    const [result] = await createSupabaseOtherSchoolResultsRepository(client).listByEvent('a1', event);
+
+    expect(result!.capturedAt).toBe('2026-10-05T08:00:00.000Z');
+  });
+
   it('rejects when the server fails', async () => {
     const client = clientReturning(null, new Error('offline'));
 

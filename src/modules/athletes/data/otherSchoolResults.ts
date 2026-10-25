@@ -46,7 +46,8 @@ export function createSupabaseOtherSchoolResultsRepository(client: RpcClient = s
           distance: r.distance,
           pool: r.pool,
           sessionType: r.session_type,
-          capturedAt: r.captured_at,
+          // PostgREST sends '+00:00'; local rows use 'Z' and the history sorts by string.
+          capturedAt: new Date(r.captured_at).toISOString(),
           arrivalPosition: r.arrival_position,
         }));
     },
