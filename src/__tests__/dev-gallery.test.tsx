@@ -50,6 +50,20 @@ describe('development gallery', () => {
     expect(screen.getByRole('button', { name: 'Button' })).toBeOnTheScreen();
   });
 
+  it('lists the athletes group with its entries and opens one', async () => {
+    const view = await renderRouter(routes, { initialUrl: '/gallery' });
+
+    expect(screen.getByText('athletes')).toBeOnTheScreen();
+    for (const title of ['ProfileHeader', 'EventSelector', 'PersonalBest']) {
+      expect(screen.getByRole('button', { name: title })).toBeOnTheScreen();
+    }
+
+    await fireEvent.press(screen.getByRole('button', { name: 'PersonalBest' }));
+
+    expect(view.getPathname()).toBe('/gallery/personalBest');
+    expect(screen.getByRole('radio', { name: 'with-improvement' })).toBeChecked();
+  });
+
   it('opens an entry with a radio per state and the first one checked', async () => {
     const view = await openButtonEntry();
 
