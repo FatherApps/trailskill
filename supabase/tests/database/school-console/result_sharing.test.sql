@@ -4,10 +4,10 @@
 -- and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(73);
+select plan(83);
 
 -- Users: admin A, admin B, coach A, coach B, guardian G (of e1), adult D (self
--- of e2) and N with no relations.
+-- of e2), N with no relations and admin C (of school C).
 insert into auth.users (id, email) values
   ('26800000-0000-4000-8000-0000000000a1', 'admin-a@example.test'),
   ('26800000-0000-4000-8000-0000000000a2', 'admin-b@example.test'),
@@ -15,7 +15,8 @@ insert into auth.users (id, email) values
   ('26800000-0000-4000-8000-0000000000a4', 'coach-b@example.test'),
   ('26800000-0000-4000-8000-0000000000a5', 'guardian-g@example.test'),
   ('26800000-0000-4000-8000-0000000000a6', 'adult-d@example.test'),
-  ('26800000-0000-4000-8000-0000000000a7', 'no-relation-n@example.test');
+  ('26800000-0000-4000-8000-0000000000a7', 'no-relation-n@example.test'),
+  ('26800000-0000-4000-8000-0000000000a8', 'admin-c@example.test');
 
 insert into public.schools (id, name) values
   ('26800000-0000-4000-8000-0000000000b1', 'Sharing School A'),
@@ -26,7 +27,8 @@ insert into public.school_memberships (school_id, user_id, role) values
   ('26800000-0000-4000-8000-0000000000b1', '26800000-0000-4000-8000-0000000000a1', 'school_admin'),
   ('26800000-0000-4000-8000-0000000000b2', '26800000-0000-4000-8000-0000000000a2', 'school_admin'),
   ('26800000-0000-4000-8000-0000000000b1', '26800000-0000-4000-8000-0000000000a3', 'coach'),
-  ('26800000-0000-4000-8000-0000000000b2', '26800000-0000-4000-8000-0000000000a4', 'coach');
+  ('26800000-0000-4000-8000-0000000000b2', '26800000-0000-4000-8000-0000000000a4', 'coach'),
+  ('26800000-0000-4000-8000-0000000000b3', '26800000-0000-4000-8000-0000000000a8', 'school_admin');
 
 -- e1: A and B. e2: A, B and C. e3: only B. e4: only A.
 insert into public.athletes (id, first_name, last_name) values
@@ -219,6 +221,30 @@ select is_empty(
   'coach A lists nothing for school A'
 );
 
+set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
+select is_empty(
+  $$ select * from public.result_sharing_requests('26800000-0000-4000-8000-0000000000b1') $$,
+  'coach B lists nothing for school A'
+);
+
+set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
+select is_empty(
+  $$ select * from public.result_sharing_requests('26800000-0000-4000-8000-0000000000b1') $$,
+  'guardian G lists nothing for school A'
+);
+
+set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
+select is_empty(
+  $$ select * from public.result_sharing_requests('26800000-0000-4000-8000-0000000000b1') $$,
+  'adult D lists nothing for school A'
+);
+
+set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
+select is_empty(
+  $$ select * from public.result_sharing_requests('26800000-0000-4000-8000-0000000000b1') $$,
+  'a user with no relations lists nothing for school A'
+);
+
 -- Approve. The id of the A->B request travels in a transaction setting, which
 -- every role can read.
 reset role;
@@ -347,6 +373,20 @@ select throws_ok(
   $$ select public.withdraw_result_sharing(current_setting('test.sharing_ab')::uuid) $$,
   '42501', null,
   'guardian G cannot withdraw'
+);
+
+set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
+select throws_ok(
+  $$ select public.withdraw_result_sharing(current_setting('test.sharing_ab')::uuid) $$,
+  '42501', null,
+  'coach B cannot withdraw'
+);
+
+set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
+select throws_ok(
+  $$ select public.withdraw_result_sharing(current_setting('test.sharing_ab')::uuid) $$,
+  '42501', null,
+  'adult D cannot withdraw'
 );
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
@@ -501,6 +541,19 @@ select is(
   'a pending request shares nothing'
 );
 
+-- e3 has no manager: the owner records its authorization, so only the missing
+-- membership in the source school can fail.
+insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at) values
+  ('26800000-0000-4000-8000-0000000000a5', '26800000-0000-4000-8000-0000000000e3',
+   'share_results_with_school', '26800000-0000-4000-8000-0000000000f1', '2026-10-01 08:00:00+00');
+
+select is(
+  app.result_sharing_in_force('26800000-0000-4000-8000-0000000000b1',
+    '26800000-0000-4000-8000-0000000000b2', '26800000-0000-4000-8000-0000000000e3'),
+  false,
+  'an athlete that is not in the source school is never shared'
+);
+
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
 select lives_ok(
@@ -559,6 +612,36 @@ select throws_ok(
        and target_school_id = '26800000-0000-4000-8000-0000000000b2' $$,
   '55000', null,
   'not even the owner approves a declined request'
+);
+
+-- Declining a pending request through the function: admin C declines C->B.
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select is(
+  public.request_result_sharing('26800000-0000-4000-8000-0000000000e2', '26800000-0000-4000-8000-0000000000b2'),
+  2,
+  'admin B asks again from e2: new requests to A and C'
+);
+
+set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a8", "role": "authenticated"}';
+select lives_ok(
+  $$ select public.withdraw_result_sharing(id) from public.school_result_sharing
+     where school_id = '26800000-0000-4000-8000-0000000000b3'
+       and target_school_id = '26800000-0000-4000-8000-0000000000b2'
+       and withdrawn_at is null $$,
+  'admin C declines the pending request through withdraw_result_sharing'
+);
+
+reset role;
+select results_eq(
+  $$ select approved_by, approved_at, withdrawn_by, withdrawn_at is not null
+     from public.school_result_sharing
+     where school_id = '26800000-0000-4000-8000-0000000000b3'
+       and target_school_id = '26800000-0000-4000-8000-0000000000b2'
+       and requested_at = (select max(requested_at) from public.school_result_sharing
+                           where school_id = '26800000-0000-4000-8000-0000000000b3') $$,
+  $$ values (null::uuid, null::timestamptz, '26800000-0000-4000-8000-0000000000a8'::uuid, true) $$,
+  'a declined request is never approved and records admin C and its time'
 );
 
 select * from finish();
