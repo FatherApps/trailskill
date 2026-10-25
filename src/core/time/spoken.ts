@@ -19,3 +19,15 @@ export function spokenTime(value: Hundredths): string {
   if (!whole) return centsText;
   return cents > 0 ? t('time.spoken.with_hundredths', { time: whole, hundredths: centsText }) : whole;
 }
+
+// Time minus personal best: negative when faster. `null` when there is nothing to compare or no difference.
+export function personalBestDifference(value: Hundredths | null, personalBest: Hundredths | null | undefined): number | null {
+  if (value === null || typeof personalBest !== 'number' || value === personalBest) return null;
+  return value - personalBest;
+}
+
+export function spokenDifference(difference: number): string {
+  return t(difference < 0 ? 'time_value.delta_faster' : 'time_value.delta_slower', {
+    time: spokenTime(Math.abs(difference)),
+  });
+}

@@ -178,6 +178,35 @@ describe('TimeValue', () => {
     });
   });
 
+  describe('deltaOnly', () => {
+    it('shows the tag and the difference without printing the time', async () => {
+      await render(<TimeValue value={3391} personalBest={3482} newPersonalBest deltaOnly />);
+
+      expect(screen.queryByText('33,91', { includeHiddenElements: true })).toBeNull();
+      expect(screen.getByText('−0,91 vs MP', { includeHiddenElements: true })).toBeOnTheScreen();
+      expect(screen.getByText('MP', { includeHiddenElements: true })).toBeOnTheScreen();
+    });
+
+    it('speaks only the difference and the personal best, not the time', async () => {
+      await render(<TimeValue value={3391} personalBest={3482} newPersonalBest deltaOnly />);
+
+      expect(
+        screen.getByLabelText('91 centésimas menos que la marca personal. Marca personal'),
+      ).toBeOnTheScreen();
+    });
+
+    it('draws nothing when there is no difference and no tag, or no time', async () => {
+      await render(<TimeValue value={3482} personalBest={3482} deltaOnly />);
+      expect(screen.toJSON()).toBeNull();
+
+      await render(<TimeValue value={3482} deltaOnly />);
+      expect(screen.toJSON()).toBeNull();
+
+      await render(<TimeValue value={null} personalBest={3482} newPersonalBest deltaOnly />);
+      expect(screen.toJSON()).toBeNull();
+    });
+  });
+
   describe('spoken label', () => {
     it('is the spoken time for a time', async () => {
       await render(<TimeValue value={7240} />);

@@ -59,6 +59,43 @@ describe('SwimmerRow time', () => {
   });
 });
 
+describe('SwimmerRow difference against the personal best', () => {
+  const timed = { name: 'Lucía R.', initials: 'LR', color: 'athlete-1', detail: '', time: 3391, timeLabel: 'Tiempo' } as const;
+
+  it('shows the difference under the name and announces it, with the new personal best', async () => {
+    await render(<SwimmerRow {...timed} personalBest={3482} newPersonalBest />);
+
+    expect(
+      screen.getByLabelText(
+        'Lucía R., Tiempo 33,91, 91 centésimas menos que la marca personal, Marca personal',
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('−0,91 vs MP', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('33,91', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('shows and announces a slower time', async () => {
+    await render(<SwimmerRow {...timed} time={3522} personalBest={3482} />);
+
+    expect(
+      screen.getByLabelText('Lucía R., Tiempo 35,22, 40 centésimas más que la marca personal'),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('+0,40 vs MP', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('adds nothing without a personal best, with an equal one or without a time', async () => {
+    await render(<SwimmerRow {...timed} personalBest={null} />);
+    expect(screen.getByLabelText('Lucía R., Tiempo 33,91')).toBeOnTheScreen();
+    expect(screen.queryByText(/vs MP/, { includeHiddenElements: true })).toBeNull();
+
+    await render(<SwimmerRow {...timed} personalBest={3391} />);
+    expect(screen.queryAllByText(/vs MP/, { includeHiddenElements: true })).toHaveLength(0);
+
+    await render(<SwimmerRow {...timed} time={null} personalBest={3482} newPersonalBest />);
+    expect(screen.queryAllByText(/vs MP/, { includeHiddenElements: true })).toHaveLength(0);
+  });
+});
+
 describe('SwimmerRow', () => {
   it('is one accessible element with a composed label', async () => {
     await render(<SwimmerRow {...base} onPress={jest.fn()} />);

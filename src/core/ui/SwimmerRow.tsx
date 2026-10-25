@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import { useTheme, type ColorToken } from '../theme';
-import { formatTime, type Hundredths } from '../time';
+import { formatTime, personalBestDifference, spokenDifference, type Hundredths } from '../time';
 import { Icon } from './Icon';
 import { Tag, type TagProps } from './Tag';
 import { TimeValue } from './TimeValue';
@@ -23,6 +23,9 @@ export type SwimmerRowProps = {
   time?: Hundredths | null;
   // Spoken prefix of `time` for screen readers, for example "Tiempo".
   timeLabel?: string;
+  // Difference against this personal best under the name (only with a `time`); `newPersonalBest` adds the MP tag.
+  personalBest?: Hundredths | null;
+  newPersonalBest?: boolean;
   tag?: TagProps;
   chevron?: boolean;
   selected?: boolean;
@@ -55,6 +58,8 @@ export function SwimmerRow({
   bestTimeLabel,
   time,
   timeLabel,
+  personalBest,
+  newPersonalBest = false,
   tag,
   chevron = false,
   selected = false,
@@ -72,10 +77,15 @@ export function SwimmerRow({
         ? t('swimmer_row.time_missing', { label: timeLabel ?? '' }).trim()
         : [timeLabel, formatTime(time)].filter(Boolean).join(' ');
 
+  const difference = time === undefined ? null : personalBestDifference(time, personalBest);
+  const showPbRow = time != null && (difference !== null || newPersonalBest);
+
   const label = [
     name,
     detail,
     spokenTime,
+    difference !== null && spokenDifference(difference),
+    showPbRow && newPersonalBest && t('time_value.pb_spoken'),
     !showBest || bestTime === undefined
       ? null
       : bestTime === null
@@ -117,6 +127,7 @@ export function SwimmerRow({
       <View {...hidden} style={{ flex: 1 }}>
         <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
         <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
+        {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
       </View>
       {time !== undefined && (
         <View {...hidden} style={{ alignItems: 'flex-end' }}>
