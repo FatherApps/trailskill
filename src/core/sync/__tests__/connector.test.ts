@@ -2,36 +2,66 @@ import type { AbstractPowerSyncDatabase, CrudEntry } from '@powersync/react-nati
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { isPermanentUploadError, SupabaseConnector } from '../connector';
+import { createStore, openDatabase } from '../testing/fakeDatabase';
 
 type Result = { data: { id: string }[] | null; error: { code?: string; message: string } | null };
 
 const ok: Result = { data: [{ id: 'row-1' }], error: null };
 const empty: Result = { data: [], error: null };
 
-function entry(op: 'PUT' | 'PATCH' | 'DELETE', id: string, opData?: Record<string, unknown>) {
-  return { op, table: 'athletes', id, opData } as unknown as CrudEntry;
+function entry(op: 'PUT' | 'PATCH' | 'DELETE', id: string, opData?: Record<string, unknown>, table = 'athletes') {
+  return { op, table, id, opData } as unknown as CrudEntry;
 }
 
-function setup(results: { upsert?: Result; update?: Result; delete?: Result } = {}) {
-  const upsert = jest.fn().mockResolvedValue(results.upsert ?? { data: null, error: null });
+type Statements = [string, unknown[]][];
+
+function setup(results: { upsert?: Result; update?: Result; delete?: Result; readBack?: Result } = {}) {
+  // An upsert is awaited directly, or chained with .select('id') when the connector needs the inserted row.
+  const upsertResult = results.upsert ?? { data: null, error: null };
+  const upsertSelect = jest.fn().mockResolvedValue(upsertResult);
+  const upsert = jest.fn().mockImplementation(() => Object.assign(Promise.resolve(upsertResult), { select: upsertSelect }));
+  const readBackEq = jest.fn().mockResolvedValue(results.readBack ?? ok);
+  const readBack = jest.fn().mockReturnValue({ eq: readBackEq });
   const updateEq = jest.fn().mockReturnValue({ select: jest.fn().mockResolvedValue(results.update ?? ok) });
   const update = jest.fn().mockReturnValue({ eq: updateEq });
   const deleteEq = jest.fn().mockReturnValue({ select: jest.fn().mockResolvedValue(results.delete ?? ok) });
   const del = jest.fn().mockReturnValue({ eq: deleteEq });
-  const from = jest.fn().mockReturnValue({ upsert, update, delete: del });
+  const from = jest.fn().mockReturnValue({ upsert, update, delete: del, select: readBack });
   const client = { from, auth: { getSession: jest.fn(), refreshSession: jest.fn() } };
   const complete = jest.fn().mockResolvedValue(undefined);
+  // database.execute must never be used for bookkeeping: it would escape the transaction.
   const execute = jest.fn().mockResolvedValue(undefined);
-  const database = (crud: CrudEntry[]) =>
-    ({ getNextCrudTransaction: jest.fn().mockResolvedValue({ crud, complete }), execute }) as unknown as AbstractPowerSyncDatabase;
+  // Statements that reached storage: a write transaction commits only if its callback resolves (otherwise it rolls back).
+  const committed: Statements = [];
+  const writeTransaction = jest.fn().mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
+    const staged: Statements = [];
+    const result = await callback({
+      execute: async (sql: string, params: unknown[] = []) => {
+        if (failOn && sql.startsWith(failOn)) throw new Error('disk full');
+        staged.push([sql, params]);
+      },
+    });
+    committed.push(...staged);
+    return result;
+  });
+  let failOn: string | undefined;
+  const database = (crud: CrudEntry[], options: { failOn?: string } = {}) => {
+    failOn = options.failOn;
+    return {
+      getNextCrudTransaction: jest.fn().mockResolvedValue({ crud, complete }),
+      execute,
+      writeTransaction,
+    } as unknown as AbstractPowerSyncDatabase;
+  };
   const connector = new SupabaseConnector(client as unknown as SupabaseClient, 'https://sync.example.test');
-  return { client, connector, database, complete, execute, from, upsert, update, updateEq, del, deleteEq };
+  return {
+    client, connector, database, complete, execute, committed, writeTransaction, from,
+    upsert, upsertSelect, update, updateEq, del, deleteEq, readBack, readBackEq,
+  };
 }
 
-const pendingDeletes = (execute: jest.Mock) =>
-  execute.mock.calls.filter(([sql]) => String(sql).startsWith('DELETE FROM pending_writes'));
-const failureInserts = (execute: jest.Mock) =>
-  execute.mock.calls.filter(([sql]) => String(sql).startsWith('INSERT INTO upload_failures'));
+const pendingDeletes = (statements: Statements) => statements.filter(([sql]) => sql.startsWith('DELETE FROM pending_writes'));
+const failureInserts = (statements: Statements) => statements.filter(([sql]) => sql.startsWith('INSERT INTO upload_failures'));
 
 describe('SupabaseConnector.uploadData', () => {
   it('sends PUT, PATCH and DELETE, completes once and clears each pending write', async () => {
@@ -45,22 +75,22 @@ describe('SupabaseConnector.uploadData', () => {
     expect(t.del).toHaveBeenCalledWith();
     expect(t.deleteEq).toHaveBeenCalledWith('id', 'c');
     expect(t.complete).toHaveBeenCalledTimes(1);
-    expect(pendingDeletes(t.execute).map(([, params]) => params)).toEqual([
+    expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([
       ['athletes', 'a'],
       ['athletes', 'b'],
       ['athletes', 'c'],
     ]);
-    expect(failureInserts(t.execute)).toHaveLength(0);
+    expect(failureInserts(t.committed)).toHaveLength(0);
   });
 
   it('records a permanent 42501 rejection, clears the pending write and advances the queue', async () => {
     const t = setup({ upsert: { data: null, error: { code: '42501', message: 'denied' } } });
     await expect(t.connector.uploadData(t.database([entry('PUT', 'a', { first_name: 'Ana' })]))).resolves.toBeUndefined();
 
-    const inserts = failureInserts(t.execute);
+    const inserts = failureInserts(t.committed);
     expect(inserts).toHaveLength(1);
     expect(inserts[0][1]).toEqual(['athletes', 'a', 'PUT', JSON.stringify({ first_name: 'Ana' }), '42501', expect.any(String)]);
-    expect(pendingDeletes(t.execute).map(([, params]) => params)).toEqual([['athletes', 'a']]);
+    expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['athletes', 'a']]);
     expect(t.complete).toHaveBeenCalledTimes(1);
   });
 
@@ -68,10 +98,10 @@ describe('SupabaseConnector.uploadData', () => {
     const t = setup({ update: empty });
     await expect(t.connector.uploadData(t.database([entry('PATCH', 'b', { first_name: 'Bea' })]))).resolves.toBeUndefined();
 
-    const inserts = failureInserts(t.execute);
+    const inserts = failureInserts(t.committed);
     expect(inserts).toHaveLength(1);
     expect(inserts[0][1]).toEqual(['athletes', 'b', 'PATCH', JSON.stringify({ first_name: 'Bea' }), 'no_rows_affected', expect.any(String)]);
-    expect(pendingDeletes(t.execute).map(([, params]) => params)).toEqual([['athletes', 'b']]);
+    expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['athletes', 'b']]);
     expect(t.complete).toHaveBeenCalledTimes(1);
   });
 
@@ -79,10 +109,10 @@ describe('SupabaseConnector.uploadData', () => {
     const t = setup({ delete: empty });
     await expect(t.connector.uploadData(t.database([entry('DELETE', 'c')]))).resolves.toBeUndefined();
 
-    const inserts = failureInserts(t.execute);
+    const inserts = failureInserts(t.committed);
     expect(inserts).toHaveLength(1);
     expect(inserts[0][1]).toEqual(['athletes', 'c', 'DELETE', '{}', 'no_rows_affected', expect.any(String)]);
-    expect(pendingDeletes(t.execute).map(([, params]) => params)).toEqual([['athletes', 'c']]);
+    expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['athletes', 'c']]);
     expect(t.complete).toHaveBeenCalledTimes(1);
   });
 
@@ -93,6 +123,163 @@ describe('SupabaseConnector.uploadData', () => {
 
     expect(t.complete).not.toHaveBeenCalled();
     expect(t.execute).not.toHaveBeenCalled();
+    expect(t.writeTransaction).not.toHaveBeenCalled();
+  });
+
+  describe('append-only tables (case 1)', () => {
+    const measurement = (id: string) => entry('PUT', id, { value: 1 }, 'measurements');
+
+    it('retry of an already saved row: the insert returns no row, the read-back finds it, so it succeeds', async () => {
+      const t = setup({ upsert: { data: [], error: null }, readBack: ok });
+      await t.connector.uploadData(t.database([measurement('m1')]));
+
+      expect(t.upsert).toHaveBeenCalledWith({ id: 'm1', value: 1 }, { onConflict: 'id', ignoreDuplicates: true });
+      expect(t.readBack).toHaveBeenCalledWith('id');
+      expect(t.readBackEq).toHaveBeenCalledWith('id', 'm1');
+      expect(failureInserts(t.committed)).toHaveLength(0);
+      expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['measurements', 'm1']]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('records no_rows_affected when the insert returned no row and the read-back finds nothing', async () => {
+      const t = setup({ upsert: { data: [], error: null }, readBack: empty });
+      await t.connector.uploadData(t.database([measurement('m1')]));
+
+      const inserts = failureInserts(t.committed);
+      expect(inserts).toHaveLength(1);
+      expect(inserts[0][1]).toEqual(['measurements', 'm1', 'PUT', JSON.stringify({ value: 1 }), 'no_rows_affected', expect.any(String)]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not read back when the insert returned the row', async () => {
+      const t = setup({ upsert: ok });
+      await t.connector.uploadData(t.database([measurement('m1')]));
+
+      expect(t.readBack).not.toHaveBeenCalled();
+      expect(failureInserts(t.committed)).toHaveLength(0);
+    });
+
+    it('applies to timing_series too', async () => {
+      const t = setup({ upsert: { data: [], error: null }, readBack: ok });
+      await t.connector.uploadData(t.database([entry('PUT', 's1', { name: 'x' }, 'timing_series')]));
+
+      expect(t.upsert).toHaveBeenCalledWith({ id: 's1', name: 'x' }, { onConflict: 'id', ignoreDuplicates: true });
+      expect(failureInserts(t.committed)).toHaveLength(0);
+    });
+
+    it('keeps the plain upsert without options for other tables', async () => {
+      const t = setup();
+      await t.connector.uploadData(t.database([entry('PUT', 'a', { first_name: 'Ana' })]));
+
+      expect(t.upsert.mock.calls[0]).toEqual([{ id: 'a', first_name: 'Ana' }]);
+      expect(t.readBack).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('DELETE already applied (case 5)', () => {
+    it('succeeds when the delete affected no row and the row is gone', async () => {
+      const t = setup({ delete: empty, readBack: empty });
+      await t.connector.uploadData(t.database([entry('DELETE', 'c')]));
+
+      expect(t.readBackEq).toHaveBeenCalledWith('id', 'c');
+      expect(failureInserts(t.committed)).toHaveLength(0);
+      expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['athletes', 'c']]);
+    });
+
+    it('records no_rows_affected when the delete affected no row but the row is still visible', async () => {
+      const t = setup({ delete: empty, readBack: ok });
+      await t.connector.uploadData(t.database([entry('DELETE', 'c')]));
+
+      expect(failureInserts(t.committed)[0][1]).toEqual(['athletes', 'c', 'DELETE', '{}', 'no_rows_affected', expect.any(String)]);
+    });
+  });
+
+  describe('bookkeeping (cases 2, 3 and 4)', () => {
+    it('runs all bookkeeping inside one write transaction, never through database.execute', async () => {
+      const t = setup({ update: empty });
+      await t.connector.uploadData(t.database([entry('PUT', 'a', { first_name: 'Ana' }), entry('PATCH', 'b', { first_name: 'Bea' })]));
+
+      expect(t.writeTransaction).toHaveBeenCalledTimes(1);
+      expect(t.execute).not.toHaveBeenCalled();
+      expect(pendingDeletes(t.committed)).toHaveLength(2);
+      expect(failureInserts(t.committed)).toHaveLength(1);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['DELETE FROM pending_writes', 'INSERT INTO upload_failures'])(
+      'commits nothing and does not complete when a bookkeeping statement (%s) throws',
+      async (failOn) => {
+        const t = setup({ update: empty });
+        const crud = [entry('PUT', 'a', { first_name: 'Ana' }), entry('PATCH', 'b', { first_name: 'Bea' })];
+        await expect(t.connector.uploadData(t.database(crud, { failOn }))).rejects.toThrow('disk full');
+
+        expect(t.committed).toEqual([]);
+        expect(t.complete).not.toHaveBeenCalled();
+      },
+    );
+
+    describe('against a real SQLite store', () => {
+      const pendingCount = (db: ReturnType<typeof openDatabase>, id: string) =>
+        db.getAll("SELECT id FROM pending_writes WHERE table_name = 'athletes' AND record_id = ?", [id]).length;
+      const failures = (db: ReturnType<typeof openDatabase>, id: string) =>
+        db.getAll<{ error_code: string }>("SELECT error_code FROM upload_failures WHERE table_name = 'athletes' AND record_id = ?", [id]);
+
+      function withStore(run: (db: ReturnType<typeof openDatabase>, uploaded: (t: ReturnType<typeof setup>, crud: CrudEntry[]) => Promise<void>) => Promise<void>) {
+        return async () => {
+          const store = createStore();
+          try {
+            const db = openDatabase(store.path);
+            const uploaded = (t: ReturnType<typeof setup>, crud: CrudEntry[]) => {
+              const base = t.database(crud) as unknown as Record<string, unknown>;
+              return t.connector.uploadData({ ...base, writeTransaction: db.writeTransaction.bind(db) } as unknown as AbstractPowerSyncDatabase);
+            };
+            await run(db, uploaded);
+          } finally {
+            store.remove();
+          }
+        };
+      }
+
+      it(
+        'deletes exactly one pending mark per uploaded op, so a newer queued write stays pending',
+        withStore(async (db, uploaded) => {
+          await db.writeTransaction(async (tx) => {
+            await tx.execute("INSERT INTO pending_writes (id, table_name, record_id) VALUES ('w1', 'athletes', 'a'), ('w2', 'athletes', 'a')");
+          });
+          await uploaded(setup(), [entry('PUT', 'a', { first_name: 'Ana' })]);
+
+          expect(pendingCount(db, 'a')).toBe(1);
+        }),
+      );
+
+      it(
+        'clears the previous failures of a record when its op succeeds',
+        withStore(async (db, uploaded) => {
+          await db.writeTransaction(async (tx) => {
+            await tx.execute("INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at) VALUES ('f1', 'athletes', 'a', 'PUT', '{}', '42501', 'x')");
+            await tx.execute("INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at) VALUES ('f2', 'athletes', 'z', 'PUT', '{}', '42501', 'x')");
+          });
+          await uploaded(setup(), [entry('PUT', 'a', { first_name: 'Ana' })]);
+
+          expect(failures(db, 'a')).toEqual([]);
+          expect(failures(db, 'z')).toHaveLength(1);
+        }),
+      );
+
+      it(
+        'keeps a failure recorded by the same transaction, whatever the order of the ops of that record',
+        withStore(async (db, uploaded) => {
+          // Rule: successes clear old failures first, then this transaction's failures are inserted; a failure never disappears here.
+          const t = setup({ update: empty });
+          await uploaded(t, [entry('PUT', 'a', { first_name: 'Ana' }), entry('PATCH', 'a', { first_name: 'Bea' })]);
+          expect(failures(db, 'a')).toEqual([{ error_code: 'no_rows_affected' }]);
+
+          const t2 = setup({ update: empty });
+          await uploaded(t2, [entry('PATCH', 'b', { first_name: 'Bea' }), entry('PUT', 'b', { first_name: 'Ana' })]);
+          expect(failures(db, 'b')).toEqual([{ error_code: 'no_rows_affected' }]);
+        }),
+      );
+    });
   });
 });
 
