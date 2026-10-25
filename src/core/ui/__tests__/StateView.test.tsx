@@ -72,6 +72,19 @@ describe('StateView', () => {
       expect(screen.getByTestId('state-view')).toBeBusy();
       expect(fetchSpy).not.toHaveBeenCalled();
     });
+
+    it('waits the full delay again when loading starts a second time', async () => {
+      await render(<StateView kind="loading" />);
+      await act(() => jest.advanceTimersByTime(300));
+      expect(screen.getByText('Cargando')).toBeOnTheScreen();
+
+      await screen.rerender(<StateView kind="error" title="No pudimos cargar" message="Revisa tu conexión." />);
+      await screen.rerender(<StateView kind="loading" />);
+      expect(screen.queryByText('Cargando')).toBeNull();
+
+      await act(() => jest.advanceTimersByTime(300));
+      expect(screen.getByText('Cargando')).toBeOnTheScreen();
+    });
   });
 
   describe.each(themes)('%s theme contrast', (theme) => {

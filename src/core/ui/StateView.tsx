@@ -87,7 +87,11 @@ export function StateView(props: StateViewProps) {
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => setShowSkeleton(true), SKELETON_DELAY_MS);
-    return () => clearTimeout(timer);
+    // Reset on leave, so a later loading state waits the full delay again.
+    return () => {
+      clearTimeout(timer);
+      setShowSkeleton(false);
+    };
   }, [loading]);
 
   return (

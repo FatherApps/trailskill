@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { colors, contrastRatio, type ThemeName } from '../../theme';
 import { SyncStatus, syncStatusColors, type RecordSyncState } from '..';
+import { buttonColors } from '../Button';
 
 const themes: ThemeName[] = ['light', 'dark'];
 
@@ -49,7 +50,7 @@ describe('SyncStatus', () => {
 
     it('the retry link is at least 4.5:1 on the canvas and on a card', () => {
       for (const surface of [c['surface-0'], c['surface-1']]) {
-        expect(contrastRatio(c.ink, surface)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(c[buttonColors.ghost.text], surface)).toBeGreaterThanOrEqual(4.5);
       }
     });
   });
