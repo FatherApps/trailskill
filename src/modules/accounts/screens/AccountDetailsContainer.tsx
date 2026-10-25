@@ -45,6 +45,7 @@ export function AccountDetailsContainer({ drafts, requestCode, verifyCode, onBac
   const [busy, setBusy] = useState<CodeBusy>();
   const [failure, setFailure] = useState<Failure>();
   const lastAction = useRef<'request' | 'verify'>('request');
+  const writes = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let current = true;
@@ -65,7 +66,9 @@ export function AccountDetailsContainer({ drafts, requestCode, verifyCode, onBac
     const next = { ...values, [field]: value };
     setErrors((current) => ({ ...current, [field]: undefined }));
     if (field !== 'code') {
-      drafts.save({ swimmer: loaded?.swimmer, firstName: next.firstName, lastName: next.lastName, email: next.email }).catch(() => {});
+      const draft = { swimmer: loaded?.swimmer, firstName: next.firstName, lastName: next.lastName, email: next.email };
+      // One write at a time, in typing order: an older write that finishes late must not end up last.
+      writes.current = writes.current.then(() => drafts.save(draft)).catch(() => {});
     }
     // A code belongs to the email it was sent to.
     if (field === 'email' && codeSent) {

@@ -21,8 +21,11 @@ jest.mock('../core/session', () => ({
 }));
 
 const mockLoadDraft = jest.fn();
+const mockClearDraft = jest.fn();
 jest.mock('../modules/accounts', () => ({
-  createSecureStoreRegistrationDraftRepository: () => ({ load: () => mockLoadDraft() }),
+  createSecureStoreRegistrationDraftRepository: () => ({ clear: () => mockClearDraft() }),
+  loadResumableDraft: () => mockLoadDraft(),
+  ResumeRegistration: jest.requireActual('../modules/accounts/components/ResumeRegistration').ResumeRegistration,
 }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 
@@ -31,6 +34,7 @@ const email = 'ana@example.com';
 beforeEach(() => {
   mockSession.configError = null;
   mockLoadDraft.mockReset().mockResolvedValue(null);
+  mockClearDraft.mockReset().mockResolvedValue(undefined);
   jest.mocked(router.push).mockClear();
   mockSession.requestCode.mockReset().mockResolvedValue(undefined);
   mockSession.verifyCode.mockReset().mockResolvedValue(undefined);
@@ -52,33 +56,46 @@ describe('sign-in screen', () => {
     expect(router.push).toHaveBeenCalledWith('/register');
   });
 
-  it('continues a registration left half done', async () => {
-    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: 'ana@example.com' });
-    await render(<SignIn />);
+  describe('a registration left half done', () => {
+    const RESUME = 'Retomar el registro de ana@example.com';
+    const unfinished = { swimmer: 'adult', firstName: 'Ana', lastName: 'Mora', email: ' ana@example.com ' };
 
-    await waitFor(() => expect(router.push).toHaveBeenLastCalledWith('/register/details'));
+    it('offers to resume it and does not move the person on its own', async () => {
+      mockLoadDraft.mockResolvedValue(unfinished);
+      await render(<SignIn />);
+
+      expect(await screen.findByRole('button', { name: RESUME })).toBeOnTheScreen();
+      expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it('resumes where it stopped, with Back still working', async () => {
+      mockLoadDraft.mockResolvedValue(unfinished);
+      await render(<SignIn />);
+
+      await fireEvent.press(await screen.findByRole('button', { name: RESUME }));
+
+      expect(jest.mocked(router.push).mock.calls).toEqual([['/register'], ['/register/details']]);
+    });
+
+    it('starts again only after confirming, and deletes the draft', async () => {
+      mockLoadDraft.mockResolvedValue(unfinished);
+      await render(<SignIn />);
+
+      await fireEvent.press(await screen.findByRole('button', { name: 'Empezar de nuevo' }));
+      expect(mockClearDraft).not.toHaveBeenCalled();
+      await fireEvent.press(await screen.findByRole('button', { name: 'Borrar y empezar de nuevo' }));
+
+      expect(mockClearDraft).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(screen.queryByRole('button', { name: RESUME })).not.toBeOnTheScreen());
+    });
   });
 
-  it('does not reopen registration for a draft left with only the swimmer choice', async () => {
-    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+  it('offers nothing when there is no registration to resume', async () => {
     await render(<SignIn />);
 
     await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
-    expect(router.push).not.toHaveBeenCalled();
-  });
-
-  it('does not reopen registration for a draft kept to resume the authorizations, even with its email', async () => {
-    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: 'ana@example.com', step: 'authorizations' });
-    await render(<SignIn />);
-
-    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
-    expect(router.push).not.toHaveBeenCalled();
-  });
-
-  it('stays on sign-in when no registration was started', async () => {
-    await render(<SignIn />);
-
-    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /Retomar el registro/ })).not.toBeOnTheScreen();
     expect(router.push).not.toHaveBeenCalled();
   });
 

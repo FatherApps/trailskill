@@ -6,6 +6,7 @@ import {
   createInMemoryRegistrationDraftRepository,
   createSecureStoreRegistrationDraftRepository,
   finishRegistration,
+  loadResumableDraft,
   type RegistrationDraft,
 } from '../data/registrationDraft';
 
@@ -31,7 +32,7 @@ describe.each([
     expect(await drafts.load()).toBeNull();
 
     await drafts.save(draft);
-    expect(await drafts.load()).toEqual(draft);
+    expect(await drafts.load()).toMatchObject(draft);
 
     await drafts.clear();
     expect(await drafts.load()).toBeNull();
@@ -42,6 +43,49 @@ describe('SecureStore draft', () => {
   it('loads null when the stored text is not valid', async () => {
     mockStore.set('trailskill-registration-draft', '{not json');
     expect(await createSecureStoreRegistrationDraftRepository().load()).toBeNull();
+  });
+
+  it('stamps when the draft was last saved', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(5_000);
+    const drafts = createSecureStoreRegistrationDraftRepository();
+    await drafts.save(draft);
+    now.mockReturnValue(9_000);
+    await drafts.save(draft);
+    now.mockRestore();
+
+    expect((await drafts.load())?.savedAt).toBe(9_000);
+  });
+});
+
+describe('loadResumableDraft', () => {
+  const NOW = 1_000_000_000;
+  const HOUR = 60 * 60 * 1000;
+  const typed: RegistrationDraft = { swimmer: 'adult', firstName: 'Camila', lastName: 'Rojas', email: 'camila@example.test', savedAt: NOW - HOUR };
+
+  it('returns a draft typed before the account existed', async () => {
+    expect(await loadResumableDraft(createInMemoryRegistrationDraftRepository(typed), NOW)).toEqual(typed);
+  });
+
+  it.each([
+    ['older than 24 hours', { ...typed, savedAt: NOW - 25 * HOUR }],
+    ['saved before drafts were stamped', { ...typed, savedAt: undefined }],
+  ])('discards a draft %s', async (_name, stale) => {
+    const drafts = createInMemoryRegistrationDraftRepository(stale);
+
+    expect(await loadResumableDraft(drafts, NOW)).toBeNull();
+    expect(await drafts.load()).toBeNull();
+  });
+
+  it.each([
+    ['only the swimmer choice', { swimmer: 'child', firstName: '', lastName: '', email: '', savedAt: NOW }],
+    ['no swimmer choice', { ...typed, swimmer: undefined }],
+    ['an account that already exists (resume step)', { ...typed, step: 'authorizations' }],
+    ['an account that already exists (blank names)', { ...typed, firstName: '', lastName: '' }],
+  ] as [string, RegistrationDraft][])('offers nothing for %s and leaves it alone', async (_name, kept) => {
+    const drafts = createInMemoryRegistrationDraftRepository(kept);
+
+    expect(await loadResumableDraft(drafts, NOW)).toBeNull();
+    expect(await drafts.load()).toEqual(kept);
   });
 });
 
@@ -145,6 +189,27 @@ describe('finishRegistration', () => {
     const { profiles } = await run(blank);
 
     expect(profiles.saved).toEqual([]);
+  });
+
+  describe.each(['adult', 'child'] as const)('%s: an account that already has a profile', (swimmer) => {
+    const existing = { userId: 'user-1', firstName: 'Lucía', lastName: 'Pardo' };
+
+    it('keeps the stored name, drops the draft and routes nowhere', async () => {
+      const profiles = createInMemoryAdultProfileRepository({ existing });
+      const { drafts, athletes, next } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer }), profiles);
+
+      expect(profiles.saved).toEqual([existing]);
+      expect(await drafts.load()).toBeNull();
+      await expect(athletes.listManaged('user-1')).resolves.toEqual([]);
+      expect(next).toBeUndefined();
+    });
+
+    it('goes on when the stored name is the one typed, as in a retry after a failed step', async () => {
+      const profiles = createInMemoryAdultProfileRepository({ existing: { ...existing, firstName: 'camila', lastName: 'ROJAS' } });
+      const { next } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer }), profiles);
+
+      expect(next).toBe(swimmer === 'adult' ? 'authorizations' : 'add_athletes');
+    });
   });
 
   it('keeps the draft when the profile cannot be saved', async () => {

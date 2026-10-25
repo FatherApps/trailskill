@@ -11,6 +11,7 @@ export {
 } from './screens/AuthorizationsContainer';
 export { AuthorizationsScreen, type AuthorizationsScreenProps } from './screens/AuthorizationsScreen';
 export { ConsentCard, type ConsentCardProps } from './components/ConsentCard';
+export { ResumeRegistration, type ResumeRegistrationProps } from './components/ResumeRegistration';
 export { LEGAL_REVIEW_PENDING } from './legalReview';
 export { AddAthletesScreen, type AddAthleteField, type AddAthletesScreenProps, type AddedAthlete } from './screens/AddAthletesScreen';
 export { AddAthletesContainer, type AddAthletesContainerProps, } from './screens/AddAthletesContainer';
@@ -60,6 +61,7 @@ export {
   createInMemoryRegistrationDraftRepository,
   createSecureStoreRegistrationDraftRepository,
   finishRegistration,
+  loadResumableDraft,
   useFinishRegistration,
   type RegistrationDraft,
   type RegistrationDraftRepository,

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 
 import { CodeMismatchError } from '../../../core/session';
 import { accountsFixture as fx } from '../__fixtures__/accounts';
-import { createInMemoryRegistrationDraftRepository } from '../data/registrationDraft';
+import { createInMemoryRegistrationDraftRepository, type RegistrationDraft } from '../data/registrationDraft';
 import { AccountDetailsContainer } from '../screens/AccountDetailsContainer';
 import { WhoSwimsContainer } from '../screens/WhoSwimsContainer';
 
@@ -43,6 +43,26 @@ describe('AccountDetailsContainer', () => {
     expect(screen.getByDisplayValue(typed.firstName)).toBeOnTheScreen();
     expect(screen.getByDisplayValue(typed.lastName)).toBeOnTheScreen();
     expect(screen.getByDisplayValue(typed.email)).toBeOnTheScreen();
+  });
+
+  it('writes the draft in the order it was typed, even when an older write is slower', async () => {
+    const stored = createInMemoryRegistrationDraftRepository();
+    const finish: (() => void)[] = [];
+    // Each write ends only when the test lets it.
+    const drafts = {
+      ...stored,
+      save: (draft: RegistrationDraft) => new Promise<void>((resolve) => finish.push(() => void stored.save(draft).then(resolve))),
+    };
+    await renderDetails(drafts);
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Cam');
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Camila');
+
+    // The newest pending write ends first, which is how an old one ends up last.
+    await waitFor(async () => {
+      while (finish.length > 0) finish.pop()?.();
+      expect((await stored.load())?.firstName).toBe('Camila');
+    });
   });
 
   it('shows the required errors on the fields and asks for no code', async () => {

@@ -6,7 +6,12 @@ import { t } from '../../core/i18n';
 import { CodeMismatchError, useSession } from '../../core/session';
 import { useTheme } from '../../core/theme';
 import { Button, StateView, StepHeader, TextField } from '../../core/ui';
-import { createSecureStoreRegistrationDraftRepository } from '../../modules/accounts';
+import {
+  createSecureStoreRegistrationDraftRepository,
+  loadResumableDraft,
+  ResumeRegistration,
+  type RegistrationDraft,
+} from '../../modules/accounts';
 
 const CODE_LENGTH = 6;
 const registrationDrafts = createSecureStoreRegistrationDraftRepository();
@@ -24,23 +29,29 @@ export default function SignIn() {
   const [notice, setNotice] = useState<string>();
   const attempt = useRef(0);
 
-  // A registration left half done continues where it stopped; the stack is rebuilt so Back still works.
+  const [unfinished, setUnfinished] = useState<RegistrationDraft | null>(null);
+
+  // A registration left half done is offered, never forced: the person may be signing in with another account.
   useEffect(() => {
     let current = true;
-    registrationDrafts
-      .load()
-      .then((draft) => {
-        if (!current || !draft?.swimmer) return;
-        // A draft left with only the swimmer choice, or kept to resume a later step, means the account already exists.
-        if (draft.step || ![draft.email, draft.firstName, draft.lastName].some((value) => value?.trim())) return;
-        router.push('/register');
-        router.push('/register/details');
-      })
+    loadResumableDraft(registrationDrafts)
+      .then((draft) => current && setUnfinished(draft))
       .catch(() => {});
     return () => {
       current = false;
     };
   }, []);
+
+  // The stack is rebuilt so Back still works.
+  function resume() {
+    router.push('/register');
+    router.push('/register/details');
+  }
+
+  function startOver() {
+    setUnfinished(null);
+    registrationDrafts.clear().catch(() => {});
+  }
 
   async function sendCode() {
     setSending(true);
@@ -97,6 +108,7 @@ export default function SignIn() {
         <StateView kind="error" title={t('auth.not_configured_title')} message={t('auth.not_configured_message')} />
       ) : step === 'email' ? (
         <>
+          {unfinished && <ResumeRegistration email={unfinished.email.trim()} onResume={resume} onRestart={startOver} />}
           <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
             {t('auth.email_title')}
           </Text>

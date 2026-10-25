@@ -14,6 +14,8 @@ export type RegistrationDraft = {
   athlete?: { firstName: string; lastName: string };
   // The step reached once the account and profiles exist; the authorizations step clears the draft.
   step?: 'authorizations';
+  // Stamped by the SecureStore repository on every save; never set by callers.
+  savedAt?: number;
 };
 
 export type RegistrationDraftRepository = {
@@ -53,9 +55,25 @@ export function createSecureStoreRegistrationDraftRepository(): RegistrationDraf
         return null;
       }
     },
-    save: (draft) => SecureStore.setItemAsync(DRAFT_KEY, JSON.stringify(draft)),
+    save: (draft) => SecureStore.setItemAsync(DRAFT_KEY, JSON.stringify({ ...draft, savedAt: Date.now() })),
     clear: () => SecureStore.deleteItemAsync(DRAFT_KEY),
   };
+}
+
+export const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
+// A registration typed on this phone and left unfinished (no account yet): offered back for 24 hours, then dropped,
+// so whoever opens the sign-in next never sees someone else's data. A draft with no stamp predates the expiry and is dropped too.
+// Drafts of an account that already exists (resume step, blank names) are left alone: they route the next sign-in.
+export async function loadResumableDraft(drafts: RegistrationDraftRepository, now = Date.now()): Promise<RegistrationDraft | null> {
+  const draft = await drafts.load();
+  const typedNames = [draft?.firstName, draft?.lastName].some((name) => name?.trim());
+  if (!draft?.swimmer || draft.step || !typedNames || !draft.email?.trim()) return null;
+  if (draft.savedAt === undefined || now - draft.savedAt > DRAFT_TTL_MS) {
+    await drafts.clear();
+    return null;
+  }
+  return draft;
 }
 
 export type RegistrationStep = 'add_athletes' | 'authorizations';
@@ -73,6 +91,8 @@ export type FinishRegistrationInput = {
 // and the result names the next step ('add_athletes' for a guardian, 'authorizations' for an adult); the authorizations step clears the draft.
 // The kept draft of an adult and of a guardian stays bound to the account by its email; the add-athletes step records the guardian's reached step.
 // A draft typed for another email is left alone, and a failed save keeps the draft so the next launch retries.
+// An account that already had a profile under another name was signing in through registration: its profile stays as it is,
+// the draft is dropped and nothing is routed.
 export async function finishRegistration({
   userId,
   email,
@@ -92,7 +112,12 @@ export async function finishRegistration({
     return draft.swimmer === 'adult' && draft.step === 'authorizations' ? 'authorizations' : undefined;
   }
   if (!sameEmail) return;
-  await profiles.save({ userId, firstName, lastName });
+  const stored = await profiles.save({ userId, firstName, lastName });
+  const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  if (!sameName(stored.firstName, firstName) || !sameName(stored.lastName, lastName)) {
+    await drafts.clear();
+    return;
+  }
   if (draft.swimmer === 'child') {
     await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: draft.email });
     return 'add_athletes';
