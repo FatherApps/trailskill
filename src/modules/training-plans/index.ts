@@ -1,10 +1,18 @@
 import './i18n';
 
 export { BlockCard, type BlockCardProps } from './components/BlockCard';
+export { FulfillmentGrid, type FulfillmentGridProps } from './components/FulfillmentGrid';
+export {
+  cellKey,
+  type FulfillmentAthlete,
+  type FulfillmentCell,
+  type FulfillmentChange,
+  type FulfillmentContent,
+} from './components/fulfillment';
+export { FulfillmentScreen, type FulfillmentScreenProps, type FulfillmentView } from './screens/FulfillmentScreen';
 export { PlanBuilderScreen, type PlanBuilderScreenProps } from './screens/PlanBuilderScreen';
 export {
   TodayScreen,
-  type BlockStatus,
   type TodayBlock,
   type TodayContent,
   type TodayScreenProps,
@@ -13,8 +21,16 @@ export {
 export type {
   BlockPhase,
   BlockRecording,
+  BlockStatus,
   PlanBlock,
   PlanVocabulary,
   VocabularyOption,
 } from './types';
+export { PlanEditorScreen, type PlanEditorScreenProps } from './screens/PlanEditorScreen';
+export { PlansScreen, type PlansScreenProps } from './screens/PlansScreen';
+export { PlanListScreen, type PlanListScreenProps, type PlanListView } from './screens/PlanListScreen';
+export { planVocabulary } from './vocabulary';
 export { galleryEntries } from './gallery';
+export { createInMemoryTrainingPlanRepository } from './data/inMemoryTrainingPlanRepository';
+export { createPowerSyncTrainingPlanRepository } from './data/powerSyncTrainingPlanRepository';
+export type { Plan, PlanSummary, TrainingPlanRepository } from './data/plans';

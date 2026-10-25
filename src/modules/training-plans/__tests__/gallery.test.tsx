@@ -11,14 +11,26 @@ const cases = galleryEntries.flatMap((e) =>
 );
 
 describe('training-plans gallery entries', () => {
-  it('cover the block card, the plan builder and the today view', () => {
-    expect(galleryEntries.map((e) => e.id)).toEqual(['blockCard', 'planBuilder', 'today']);
+  it('cover the block card, the plan builder, the plan list, the today view and the fulfillment grid', () => {
+    expect(galleryEntries.map((e) => e.id)).toEqual(['blockCard', 'planBuilder', 'planList', 'today', 'fulfillment']);
     expect(Object.keys(entry('blockCard').states)).toEqual(['phases', 'recordings']);
-    expect(Object.keys(entry('planBuilder').states)).toEqual(['empty', 'blocks', 'editing']);
+    expect(Object.keys(entry('planBuilder').states)).toEqual(['empty', 'blocks', 'editing', 'errors', 'drill', 'removing', 'saved']);
+    expect(Object.keys(entry('planList').states)).toEqual(['data', 'empty', 'loading', 'error', 'no-school']);
     expect(Object.keys(entry('today').states)).toEqual([
       'today',
       'loading',
       'empty',
+      'error',
+      'offline',
+      'offline-empty',
+      'denied',
+    ]);
+    expect(Object.keys(entry('fulfillment').states)).toEqual([
+      'grid',
+      'many-blocks',
+      'loading',
+      'empty-athletes',
+      'empty-blocks',
       'error',
       'offline',
       'offline-empty',
@@ -41,6 +53,17 @@ describe('training-plans gallery entries', () => {
     ['planBuilder', 'empty', 'Aún no hay bloques'],
     ['planBuilder', 'blocks', 'Guardar como plantilla'],
     ['planBuilder', 'editing', 'Listo'],
+    ['planBuilder', 'errors', 'Elige qué se registra en este bloque.'],
+    ['planBuilder', 'errors', 'Escribe un nombre para el plan.'],
+    ['planBuilder', 'drill', 'Ejercicio técnico'],
+    ['planBuilder', 'removing', '¿Quitar este bloque?'],
+    ['planBuilder', 'saved', 'Plan guardado.'],
+    ['planList', 'data', 'Sesión de velocidad'],
+    ['planList', 'data', 'Semana de afinación'],
+    ['planList', 'empty', 'Crea el primer plan o usa una plantilla.'],
+    ['planList', 'loading', 'Planes de entrenamiento'],
+    ['planList', 'error', 'No pudimos cargar los planes'],
+    ['planList', 'no-school', 'Aún no tienes una escuela'],
     ['today', 'today', 'Lleva hoy'],
     ['today', 'loading', 'Hoy'],
     ['today', 'empty', 'Hoy no hay plan'],
@@ -48,10 +71,32 @@ describe('training-plans gallery entries', () => {
     ['today', 'offline', 'Plan guardado el'],
     ['today', 'offline-empty', 'Estás sin conexión'],
     ['today', 'denied', 'Esta información es privada'],
+    ['fulfillment', 'grid', 'Toca una celda para cambiar su estado.'],
+    ['fulfillment', 'many-blocks', 'Toca una celda para cambiar su estado.'],
+    ['fulfillment', 'loading', 'Cumplimiento · 24 oct'],
+    ['fulfillment', 'empty-athletes', 'Aún no hay deportistas en este plan'],
+    ['fulfillment', 'empty-blocks', 'Este plan no tiene bloques'],
+    ['fulfillment', 'error', 'No pudimos cargar el cumplimiento'],
+    ['fulfillment', 'offline', 'Las marcas se guardan en la tableta'],
+    ['fulfillment', 'offline-empty', 'El cumplimiento aparecerá cuando vuelva la señal.'],
+    ['fulfillment', 'denied', 'Solo los entrenadores del grupo'],
   ])('%s / %s shows its content', async (id, state, text) => {
     await render(<ThemeProvider>{entry(id).states[state]()}</ThemeProvider>);
 
     expect(screen.getAllByText(text, { exact: false, includeHiddenElements: true }).length).toBeGreaterThan(0);
+  });
+
+  it('cycles a cell of the fulfillment preview to the next status', async () => {
+    await render(<ThemeProvider>{entry('fulfillment').states.grid()}</ThemeProvider>);
+    const lucia = () => screen.getByRole('button', { name: /^Lucía R\. · Bloque 1,/ });
+    expect(lucia().props.accessibilityLabel).toContain(': Hecho');
+
+    await fireEvent.press(lucia());
+    expect(lucia().props.accessibilityLabel).toContain(': Parcial · 1 de 1');
+
+    await fireEvent.press(lucia());
+    expect(lucia().props.accessibilityLabel).toContain(': No asistió');
+    expect(lucia().props.accessibilityLabel).toContain('Corregido por Paula G. · 24 oct');
   });
 
   it('opens the editor when a block is added in the builder preview', async () => {
@@ -76,6 +121,18 @@ describe('training-plans gallery entries', () => {
     expect(summaries().slice(0, 2)).toEqual([second, first]);
     expect(screen.getAllByRole('button', { name: 'Subir' })).toHaveLength(4);
     expect(screen.getAllByRole('button', { name: 'Bajar' })).toHaveLength(4);
+  });
+
+  it('saves and removes in the builder preview', async () => {
+    await render(<ThemeProvider>{entry('planBuilder').states.blocks()}</ThemeProvider>);
+    expect(screen.queryByText('Plan guardado.')).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar plan' }));
+    expect(screen.getByText('Plan guardado.')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Quitar' })[0]);
+    await fireEvent.press(screen.getByRole('button', { name: 'Quitar bloque' }));
+    expect(screen.getByText('4 bloques')).toBeOnTheScreen();
   });
 
   it('closes the editor in the builder preview', async () => {

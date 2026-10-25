@@ -4,8 +4,12 @@ import path from 'node:path';
 import { StyleSheet } from 'react-native';
 
 import { BlockCard } from '../components/BlockCard';
+import { newDraftBlock } from '../draft';
+import { PlanListScreen } from '../screens/PlanListScreen';
 import { PlanBuilderScreen } from '../screens/PlanBuilderScreen';
+import { FulfillmentScreen } from '../screens/FulfillmentScreen';
 import { TodayScreen } from '../screens/TodayScreen';
+import { fulfillmentFixture } from '../__fixtures__/fulfillment';
 import { plansFixture } from '../__fixtures__/plans';
 
 const moduleDir = path.join(__dirname, '..');
@@ -33,6 +37,12 @@ describe('src/modules/training-plans rules', () => {
     expect(relative(offenders)).toEqual([]);
   });
 
+  it('the fulfillment grid and screen keep the phase as plain text, without PhaseTag', () => {
+    const files = shown().filter((file) => /Fulfillment(Grid|Screen)\.tsx$/.test(file));
+    expect(relative(files)).toHaveLength(2);
+    expect(relative(files.filter((file) => /PhaseTag|phaseColors/.test(fs.readFileSync(file, 'utf8'))))).toEqual([]);
+  });
+
   it('no file of the module has a hexadecimal color literal', () => {
     const offenders = filesIn(moduleDir).filter(
       (file) =>
@@ -55,17 +65,35 @@ describe('src/modules/training-plans rules', () => {
         <BlockCard block={blocks[1]} vocabulary={vocabulary} />
         <PlanBuilderScreen
           planName="Resistencia aeróbica"
-          blocks={blocks}
+          blocks={[...blocks, { ...newDraftBlock('new', vocabulary), id: 'new' }]}
           vocabulary={vocabulary}
-          editingId="b2"
+          editingId="new"
+          editingErrors={{ activity: 'required', recording: 'required' }}
+          nameError
+          message={{ kind: 'success', text: 'Plan guardado.' }}
+          onChangeName={noop}
           onAddBlock={noop}
           onEditBlock={noop}
           onMoveBlock={noop}
           onChangeBlock={noop}
           onDoneEditing={noop}
+          onRemoveBlock={noop}
+          onSave={noop}
           onSaveTemplate={noop}
         />
+        <PlanListScreen
+          view={{ kind: 'data', ...plansFixture.planList, copyFailed: true }}
+          onNewPlan={noop}
+          onUseTemplate={noop}
+          onOpenPlan={noop}
+        />
         <TodayScreen athleteName="Lucía R." view={{ kind: 'data', content: today }} onReportToCoach={noop} />
+        <FulfillmentScreen
+          planName="Resistencia aeróbica"
+          dateLabel="24 oct"
+          view={{ kind: 'data', content: fulfillmentFixture.grid }}
+          onCycle={noop}
+        />
       </>,
     );
 

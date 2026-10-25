@@ -52,6 +52,7 @@ describe('Icon', () => {
         'settings',
         'search',
         'person_add',
+        'incomplete_circle',
         'close',
       ].sort(),
     );

@@ -20,3 +20,10 @@ export type PlanBlock = {
   sendOffSeconds: number | null;
   recording: BlockRecording;
 };
+
+export type BlockStatus = 'done' | 'partial' | 'absent' | 'not_marked';
+
+export const phases: readonly BlockPhase[] = ['warm_up', 'main', 'technique', 'cool_down'];
+export const recordings: readonly BlockRecording[] = ['completion', 'per_repetition', 'series_total'];
+// Also the order a status cycles in: done → partial → absent → not_marked → done.
+export const blockStatuses: readonly BlockStatus[] = ['done', 'partial', 'absent', 'not_marked'];

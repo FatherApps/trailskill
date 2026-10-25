@@ -34,7 +34,13 @@
     "more_repetitions": "Sumar una repetición",
     "less_send_off": "Quitar {{seconds}} segundos",
     "more_send_off": "Sumar {{seconds}} segundos",
-    "done": "Listo"
+    "done": "Listo",
+    "drill": "Ejercicio técnico",
+    "drill_placeholder": "Ej.: patada con tabla",
+    "drill_help": "Escríbelo si no es un estilo. Máximo 120 caracteres.",
+    "activity_required": "Elige un estilo o escribe un ejercicio técnico.",
+    "drill_too_long": "Usa máximo 120 caracteres.",
+    "recording_required": "Elige qué se registra en este bloque."
   },
   "builder": {
     "count_one": "{{count}} bloque",
@@ -46,7 +52,32 @@
     "move_up": "Subir",
     "move_down": "Bajar",
     "add": "Agregar bloque",
-    "save_template": "Guardar como plantilla"
+    "save_template": "Guardar como plantilla",
+    "name": "Nombre del plan",
+    "name_placeholder": "Ej.: Resistencia aeróbica",
+    "name_required": "Escribe un nombre para el plan.",
+    "untitled": "Plan nuevo",
+    "remove": "Quitar",
+    "remove_title": "¿Quitar este bloque?",
+    "remove_message": "El bloque {{position}} sale del plan cuando lo guardes.",
+    "remove_confirm": "Quitar bloque",
+    "remove_cancel": "Conservar bloque",
+    "save": "Guardar plan",
+    "saved": "Plan guardado.",
+    "save_failed": "No pudimos guardar el plan. Inténtalo de nuevo.",
+    "template_saved": "Plantilla guardada.",
+    "template_failed": "No pudimos guardar la plantilla. Inténtalo de nuevo.",
+    "fix_errors": "Revisa los campos marcados antes de guardar."
+  },
+  "load": {
+    "not_found_title": "No encontramos este plan",
+    "not_found_message": "Puede que se haya quitado. Vuelve a la lista de planes.",
+    "error_title": "No pudimos cargar el plan",
+    "error_message": "Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Intentar de nuevo",
+    "no_school_title": "Aún no tienes una escuela",
+    "no_school_message": "Para crear planes necesitas pertenecer a una escuela. Pídele al administrador que te agregue.",
+    "list_error_title": "No pudimos cargar los planes"
   },
   "today": {
     "title": "Hoy",
@@ -67,11 +98,47 @@
     "status": {
       "done": "Hecho",
       "partial": "Parcial · {{done}} de {{total}}",
+      "partial_plain": "Parcial",
       "absent": "No asistió",
       "not_marked": "Sin marcar"
     },
     "rep": "Rep. {{n}}",
     "series_total": "Total serie",
     "report": "Avisar algo al entrenador"
+  },
+  "fulfillment": {
+    "caption": "Cumplimiento · {{date}}",
+    "hint": "Toca una celda para cambiar su estado.",
+    "times_one": "{{done}}/{{count}} tiempo",
+    "times_other": "{{done}}/{{count}} tiempos",
+    "marked_by": "Marcado por {{name}} · {{date}}",
+    "corrected_by": "Corregido por {{name}} · {{date}}",
+    "cell_label": "{{athlete}} · {{position}}, {{summary}}: {{status}}",
+    "cell_extra": ", {{text}}",
+    "cell_hint": "Toca para cambiar a {{next}}",
+    "empty_athletes_title": "Aún no hay deportistas en este plan",
+    "empty_athletes_message": "Asigna el plan a un grupo o a deportistas para marcar el cumplimiento.",
+    "empty_blocks_title": "Este plan no tiene bloques",
+    "empty_blocks_message": "Agrega bloques en el constructor para marcar el cumplimiento.",
+    "error_title": "No pudimos cargar el cumplimiento",
+    "error_message": "Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Intentar de nuevo",
+    "offline_title": "Estás sin conexión",
+    "offline_message": "El cumplimiento aparecerá cuando vuelva la señal.",
+    "denied_title": "Esta información es privada",
+    "denied_message": "Solo los entrenadores del grupo pueden ver y marcar el cumplimiento.",
+    "banner_title": "Sin conexión.",
+    "banner_dated": "Datos del {{date}}. Las marcas se guardan en la tableta y se envían cuando vuelva la señal."
+  },
+  "list": {
+    "title": "Planes de entrenamiento",
+    "new": "Plan nuevo",
+    "templates": "Plantillas",
+    "plans": "Planes",
+    "use_template": "Crear plan",
+    "edit": "Editar",
+    "empty_title": "Aún no hay planes",
+    "empty_message": "Crea el primer plan o usa una plantilla.",
+    "copy_failed": "No pudimos crear el plan. Inténtalo de nuevo."
   }
 }
