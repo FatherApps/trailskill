@@ -136,7 +136,8 @@ select col_default_is('public', 'training_plan_fulfillments', 'status', 'not_mar
 
 set local role authenticated;
 
--- Assignments written by staff. Coach C1 writes one per target.
+-- Assignments written by staff, one per target: coach C1 the athlete and the
+-- group, school admin S the category and the school (issue #274).
 set local request.jwt.claims = '{"sub": "70000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 
 select lives_ok(
@@ -149,20 +150,21 @@ select lives_ok(
      values ('70000000-0000-4000-8000-000000000032', '70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-0000000000f1', '70000000-0000-4000-8000-000000000011', '2026-10-26', 'group', '70000000-0000-4000-8000-0000000000c1') $$,
   'a coach assigns it to a group'
 );
-select lives_ok(
-  $$ insert into public.training_plan_assignments (id, school_id, plan_id, version_id, session_date, target, category_id)
-     values ('70000000-0000-4000-8000-000000000033', '70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-0000000000f1', '70000000-0000-4000-8000-000000000011', '2026-10-26', 'category', '70000000-0000-4000-8000-0000000000ca') $$,
-  'a coach assigns it to a category'
-);
-select lives_ok(
-  $$ insert into public.training_plan_assignments (id, school_id, plan_id, version_id, session_date, target)
-     values ('70000000-0000-4000-8000-000000000034', '70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-0000000000f1', '70000000-0000-4000-8000-000000000011', '2026-10-26', 'school') $$,
-  'a coach assigns it to the whole school'
-);
 select is(
   (select created_by from public.training_plan_assignments where id = '70000000-0000-4000-8000-000000000031'),
   '70000000-0000-4000-8000-0000000000a2'::uuid,
   'an assignment keeps its author'
+);
+set local request.jwt.claims = '{"sub": "70000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select lives_ok(
+  $$ insert into public.training_plan_assignments (id, school_id, plan_id, version_id, session_date, target, category_id)
+     values ('70000000-0000-4000-8000-000000000033', '70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-0000000000f1', '70000000-0000-4000-8000-000000000011', '2026-10-26', 'category', '70000000-0000-4000-8000-0000000000ca') $$,
+  'the school admin assigns it to a category'
+);
+select lives_ok(
+  $$ insert into public.training_plan_assignments (id, school_id, plan_id, version_id, session_date, target)
+     values ('70000000-0000-4000-8000-000000000034', '70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-0000000000f1', '70000000-0000-4000-8000-000000000011', '2026-10-26', 'school') $$,
+  'the school admin assigns it to the whole school'
 );
 
 -- Checks on the target and on the school of everything it points to.
@@ -208,12 +210,11 @@ select throws_ok(
 );
 select throws_ok(
   $$ insert into public.training_plan_assignments (school_id, plan_id, version_id, session_date, target, created_by)
-     values ('70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-0000000000f1', '70000000-0000-4000-8000-000000000011', '2026-10-26', 'school', '70000000-0000-4000-8000-0000000000a1') $$,
+     values ('70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-0000000000f1', '70000000-0000-4000-8000-000000000011', '2026-10-26', 'school', '70000000-0000-4000-8000-0000000000a2') $$,
   '42501', null, 'an assignment cannot name someone else as its author'
 );
 
 -- School admin S adds the rest.
-set local request.jwt.claims = '{"sub": "70000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select lives_ok(
   $$ insert into public.training_plan_assignments (id, school_id, plan_id, version_id, session_date, target, group_id)
      values ('70000000-0000-4000-8000-000000000035', '70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-0000000000f1', '70000000-0000-4000-8000-000000000011', '2026-10-27', 'group', '70000000-0000-4000-8000-0000000000c2') $$,
@@ -226,11 +227,11 @@ select lives_ok(
   'the school admin assigns the plan to two athletes'
 );
 
--- Coach F (school 2) assigns in school 2 only.
+-- Coach F (school 2) assigns in school 2 only, to the athlete in their charge.
 set local request.jwt.claims = '{"sub": "70000000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
 select lives_ok(
-  $$ insert into public.training_plan_assignments (id, school_id, plan_id, version_id, session_date, target)
-     values ('70000000-0000-4000-8000-000000000038', '70000000-0000-4000-8000-0000000000b2', '70000000-0000-4000-8000-0000000000f3', '70000000-0000-4000-8000-000000000014', '2026-10-26', 'school') $$,
+  $$ insert into public.training_plan_assignments (id, school_id, plan_id, version_id, session_date, target, athlete_id)
+     values ('70000000-0000-4000-8000-000000000038', '70000000-0000-4000-8000-0000000000b2', '70000000-0000-4000-8000-0000000000f3', '70000000-0000-4000-8000-000000000014', '2026-10-26', 'athlete', '70000000-0000-4000-8000-0000000000e9') $$,
   'the coach of school 2 assigns in school 2'
 );
 select throws_ok(
