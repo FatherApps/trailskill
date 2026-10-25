@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { processColor, StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, type ThemeName } from '../../theme';
-import { StateView, stateViewColors, type StateKind } from '..';
+import { colors, contrastRatio, ThemeProvider, typography, type ThemeName } from '../../theme';
+import { iconPaths, StateView, stateViewColors, type IconName, type StateKind } from '..';
 
 const themes: ThemeName[] = ['light', 'dark'];
 
@@ -11,6 +12,14 @@ const states: [Exclude<StateKind, 'loading'>, string, string][] = [
   ['offline', 'Estás sin conexión', 'Mostramos lo guardado en este teléfono el martes 7:12.'],
   ['denied', 'Esta información es privada', 'Solo el acudiente y su escuela pueden verla.'],
 ];
+
+const pathsOf = () => screen.container.queryAll((node) => node.type === 'RNSVGPath');
+const defaultIcons: Record<Exclude<StateKind, 'loading'>, IconName> = {
+  empty: 'timer',
+  error: 'error',
+  offline: 'wifi_off',
+  denied: 'lock',
+};
 
 describe('StateView', () => {
   let fetchSpy: jest.SpyInstance;
@@ -52,6 +61,52 @@ describe('StateView', () => {
   it('shows no action when none is given', async () => {
     await render(<StateView kind="offline" title="Estás sin conexión" message="Mostramos lo guardado." />);
     expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  describe('icon', () => {
+    it.each(states)('%s shows the icon of its kind in the color of its ring', async (kind, title, message) => {
+      await render(<StateView kind={kind} title={title} message={message} />);
+
+      const paths = pathsOf();
+      expect(paths).toHaveLength(1);
+      expect(paths[0].props.d).toBe(iconPaths[defaultIcons[kind]]);
+      expect(paths[0].props.fill).toEqual({
+        type: 0,
+        payload: processColor(colors.light[stateViewColors.kinds[kind].icon]),
+      });
+    });
+
+    it('lets the caller pick another icon of the set', async () => {
+      await render(<StateView kind="empty" icon="group" title="Aún no hay grupos" message="Crea el primero." />);
+
+      expect(pathsOf().map((path) => path.props.d)).toEqual([iconPaths.group]);
+    });
+
+    it('loading shows no icon', async () => {
+      await render(<StateView kind="loading" />);
+
+      expect(pathsOf()).toHaveLength(0);
+    });
+  });
+
+  describe('title size', () => {
+    const titleSize = () => StyleSheet.flatten(screen.getByRole('header').props.style).fontSize;
+
+    it('uses the title token of the theme', async () => {
+      await render(<StateView kind="error" title="No pudimos cargar" message="Revisa tu conexión." />);
+
+      expect(titleSize()).toBe(typography.title.fontSize);
+    });
+
+    it('grows with the text scale', async () => {
+      await render(
+        <ThemeProvider fontScale={2}>
+          <StateView kind="error" title="No pudimos cargar" message="Revisa tu conexión." />
+        </ThemeProvider>,
+      );
+
+      expect(titleSize()).toBe(typography.title.fontSize * 2);
+    });
   });
 
   describe('loading', () => {

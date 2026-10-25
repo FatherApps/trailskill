@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import { Fragment } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
@@ -10,14 +9,12 @@ import { galleryGroups } from '../_layout';
 
 export default function GalleryIndex() {
   const { colors, space, typography } = useTheme();
-  const insets = useSafeAreaInsets();
 
   return (
     <ScrollView
       style={{ backgroundColor: colors['surface-0'] }}
       contentContainerStyle={{
         padding: space[5],
-        paddingTop: insets.top + space[5],
         gap: space[4],
       }}
     >

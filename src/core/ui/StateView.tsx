@@ -1,9 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import { useTheme, type ColorToken } from '../theme';
 import { Button, type ButtonVariant } from './Button';
+import { Icon } from './Icon';
+import type { IconName } from './icons';
 
 export type StateKind = 'loading' | 'empty' | 'error' | 'offline' | 'denied';
 
@@ -20,8 +22,8 @@ export type StateViewProps =
       // At most one action. Empty uses the lime primary button: if the screen already has its main
       // action, do not pass one here, so the screen keeps a single lime action.
       action?: { label: string; onPress: () => void };
-      // Material Symbol for the ring (timer, error, wifi_off, lock); icons arrive with issue 109.
-      icon?: ReactNode;
+      // Replaces the default Material Symbol of the kind (see stateViewIcons), e.g. group or table for empty.
+      icon?: IconName;
     };
 
 // Below this delay nothing is shown, so fast loads do not flash a skeleton.
@@ -45,6 +47,9 @@ export const stateViewColors: {
     denied: { ring: 'lilac', icon: 'on-color', action: 'ghost' },
   },
 };
+
+// Default icon of each kind, from the design-system README. Loading has none: it shows a skeleton.
+const stateViewIcons: Record<Message, IconName> = { empty: 'timer', error: 'error', offline: 'wifi_off', denied: 'lock' };
 
 const styles = StyleSheet.create({
   card: { alignItems: 'center' },
@@ -120,11 +125,11 @@ export function StateView(props: StateViewProps) {
               { borderRadius: radius.full, marginBottom: space[2], backgroundColor: colors[stateViewColors.kinds[props.kind].ring] },
             ]}
           >
-            {props.icon}
+            <Icon name={props.icon ?? stateViewIcons[props.kind]} color={stateViewColors.kinds[props.kind].icon} />
           </View>
           <Text
             accessibilityRole="header"
-            style={[typography.title, styles.text, { fontSize: 20, color: colors[stateViewColors.title] }]}
+            style={[typography.title, styles.text, { color: colors[stateViewColors.title] }]}
           >
             {props.title}
           </Text>

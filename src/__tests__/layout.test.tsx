@@ -1,15 +1,23 @@
 import { act, renderRouter, screen } from 'expo-router/testing-library';
 import { useSyncExternalStore as mockUseSyncExternalStore } from 'react';
-import { Text } from 'react-native';
+import { StatusBar, StyleSheet, Text, useColorScheme } from 'react-native';
 
 import AppLayout from '../app/(app)/_layout';
 import AuthLayout from '../app/(auth)/_layout';
 import { SessionGate } from '../app/_layout';
+import { colors, ThemeProvider } from '../core/theme';
 
 // Avoid loading the native PowerSync database and the ESM-only @powersync/react.
 jest.mock('../core/sync', () => ({ db: {} }));
 jest.mock('@powersync/react', () => ({ PowerSyncContext: { Provider: ({ children }: { children: unknown }) => children } }));
 jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn(), hideAsync: jest.fn() }));
+
+jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ default: jest.fn() }));
+// expo-router brings its own provider, so insets are mocked to be non-zero on every side.
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context'),
+  useSafeAreaInsets: () => ({ top: 24, bottom: 16, left: 8, right: 12 }),
+}));
 
 let mockSession: object | null = null;
 const mockListeners = new Set<() => void>();
@@ -73,5 +81,41 @@ describe('session gate', () => {
     await act(async () => setSession(null));
 
     expect(await screen.findByText('sign-in')).toBeOnTheScreen();
+  });
+
+  describe('root container', () => {
+    beforeEach(() => jest.mocked(useColorScheme).mockReturnValue('light'));
+
+    it('keeps every screen inside the safe area, on the app background', async () => {
+      setSession(null);
+      await renderRouter(routes, { initialUrl: '/', wrapper: ThemeProvider });
+      await screen.findByText('sign-in');
+
+      expect(StyleSheet.flatten(screen.getByTestId('safe-area-root').props.style)).toMatchObject({
+        flex: 1,
+        backgroundColor: colors.light['surface-0'],
+        paddingTop: 24,
+        paddingBottom: 16,
+        paddingLeft: 8,
+        paddingRight: 12,
+      });
+    });
+
+    it.each([
+      ['light', 'dark-content'],
+      ['dark', 'light-content'],
+    ] as const)('draws the status bar for the %s theme with %s', async (scheme, barStyle) => {
+      jest.mocked(useColorScheme).mockReturnValue(scheme);
+      const pushed = jest.spyOn(StatusBar, 'pushStackEntry');
+      setSession(null);
+      await renderRouter(routes, { initialUrl: '/', wrapper: ThemeProvider });
+      await screen.findByText('sign-in');
+
+      expect(pushed).toHaveBeenCalledWith(expect.objectContaining({ barStyle }));
+      expect(StyleSheet.flatten(screen.getByTestId('safe-area-root').props.style).backgroundColor).toBe(
+        colors[scheme]['surface-0'],
+      );
+      pushed.mockRestore();
+    });
   });
 });

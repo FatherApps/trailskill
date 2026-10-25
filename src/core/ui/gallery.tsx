@@ -147,14 +147,18 @@ export const galleryEntries: GalleryEntry[] = [
       ),
       empty: () => (
         <FullWidth>
-          <StateView kind="empty" icon={<Icon name="timer" color="on-color" />} {...sv.empty} />
+          <StateView kind="empty" {...sv.empty} />
+        </FullWidth>
+      ),
+      'empty-group': () => (
+        <FullWidth>
+          <StateView kind="empty" icon="group" {...sv.empty} />
         </FullWidth>
       ),
       error: () => (
         <FullWidth>
           <StateView
             kind="error"
-            icon={<Icon name="error" color="danger-text" />}
             title={sv.error.title}
             message={sv.error.message}
             action={{ label: sv.error.action, onPress: noop }}
@@ -163,14 +167,13 @@ export const galleryEntries: GalleryEntry[] = [
       ),
       offline: () => (
         <FullWidth>
-          <StateView kind="offline" icon={<Icon name="wifi_off" color="warning-text" />} {...sv.offline} />
+          <StateView kind="offline" {...sv.offline} />
         </FullWidth>
       ),
       denied: () => (
         <FullWidth>
           <StateView
             kind="denied"
-            icon={<Icon name="lock" color="on-color" />}
             title={sv.denied.title}
             message={sv.denied.message}
             action={{ label: sv.denied.action, onPress: noop }}
