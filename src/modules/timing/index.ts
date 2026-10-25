@@ -8,6 +8,8 @@ export type {
 } from './data/measurements';
 export { createPowerSyncMeasurementRepository } from './data/powerSyncMeasurementRepository';
 export { galleryEntries } from './gallery';
+export { ArrivalList, type ArrivalListProps } from './components/ArrivalList';
+export { NameCard, type NameCardProps } from './components/NameCard';
 export { Stopwatch, type StopwatchProps, type StopwatchState } from './components/Stopwatch';
 export { TimingHeader, type TimingHeaderProps } from './components/TimingHeader';
 export { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';

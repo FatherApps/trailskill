@@ -12,7 +12,13 @@ const cases = galleryEntries.flatMap((e) =>
 
 describe('timing gallery entries', () => {
   it('cover setup and every stopwatch state', () => {
-    expect(galleryEntries.map((e) => e.id)).toEqual(['timingSetup', 'timingSummary', 'stopwatch']);
+    expect(galleryEntries.map((e) => e.id)).toEqual([
+      'timingSetup',
+      'timingSummary',
+      'stopwatch',
+      'arrivalList',
+      'nameCard',
+    ]);
     expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-empty']);
     expect(Object.keys(entry('timingSummary').states)).toEqual([
       'summary',
@@ -31,6 +37,8 @@ describe('timing gallery entries', () => {
       'exit-confirm',
       'offline',
     ]);
+    expect(Object.keys(entry('arrivalList').states)).toEqual(['arrivals', 'many-arrivals']);
+    expect(Object.keys(entry('nameCard').states)).toEqual(['unassigned', 'assigned', 'all-colours']);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
@@ -67,6 +75,11 @@ describe('timing gallery entries', () => {
     ['timingSummary', 'summary-empty', 'Sin tiempos guardados'],
     ['timingSummary', 'summary-offline', 'Sin conexión. Se guarda en el teléfono.'],
     ['stopwatch', 'offline', 'Sin conexión. Se guarda en el teléfono.'],
+    ['arrivalList', 'arrivals', '31,05'],
+    ['arrivalList', 'many-arrivals', '8.º'],
+    ['nameCard', 'unassigned', 'Mateo C.'],
+    ['nameCard', 'assigned', '2.º'],
+    ['nameCard', 'all-colours', 'Tomás V.'],
   ])('%s / %s shows its content', async (id, state, text) => {
     await render(<ThemeProvider>{entry(id).states[state]()}</ThemeProvider>);
 

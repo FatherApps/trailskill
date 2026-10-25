@@ -3,10 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { StyleSheet } from 'react-native';
 
+import { ArrivalList } from '../components/ArrivalList';
+import { NameCard } from '../components/NameCard';
 import { Stopwatch } from '../components/Stopwatch';
 import { StopwatchScreen } from '../screens/StopwatchScreen';
 import { TimingSetupScreen } from '../screens/TimingSetupScreen';
 import { TimingSummaryScreen } from '../screens/TimingSummaryScreen';
+import { seriesFixture } from '../__fixtures__/series';
 import { fixture } from '../__fixtures__/timing';
 
 const moduleDir = path.join(__dirname, '..');
@@ -87,6 +90,8 @@ describe('src/modules/timing rules', () => {
           onFinish={noop}
           onBack={noop}
         />
+        <ArrivalList arrivals={seriesFixture.arrivals} />
+        <NameCard name="Mateo C." color="athlete-1" position={1} onPress={noop} />
       </>,
       // The exit sheet is a Modal: keep it closed so every node is reachable.
     );

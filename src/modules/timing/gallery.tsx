@@ -1,8 +1,12 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
+import { space } from '../../core/theme';
 import type { GalleryEntry } from '../../core/ui';
+import { seriesFixture } from './__fixtures__/series';
 import { fixture } from './__fixtures__/timing';
+import { ArrivalList } from './components/ArrivalList';
+import { NameCard } from './components/NameCard';
 import { useFakeClock } from './__fixtures__/fakeClock';
 import { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
 import { TimingSetupScreen, type SetupAthlete } from './screens/TimingSetupScreen';
@@ -117,6 +121,11 @@ function SummaryPreview(props: Partial<TimingSummaryScreenProps>) {
   );
 }
 
+// A component preview stretches to the preview width and stacks its cards.
+function Stack({ children }: { children: ReactNode }) {
+  return <View style={{ alignSelf: 'stretch', gap: space[2] }}>{children}</View>;
+}
+
 const stopped = { state: 'stopped', elapsedHundredths: fixture.times.final } as const;
 
 export const galleryEntries: GalleryEntry[] = [
@@ -154,6 +163,44 @@ export const galleryEntries: GalleryEntry[] = [
       'stopped-no-pb': () => <StopwatchPreview {...stopped} bestTime={null} />,
       'exit-confirm': () => <ExitConfirmPreview />,
       offline: () => <RunningPreview withSplits={false} offline />,
+    },
+  },
+  {
+    id: 'arrivalList',
+    title: 'ArrivalList',
+    states: {
+      arrivals: () => <ArrivalList arrivals={seriesFixture.arrivals} />,
+      'many-arrivals': () => <ArrivalList arrivals={seriesFixture.manyArrivals} />,
+    },
+  },
+  {
+    id: 'nameCard',
+    title: 'NameCard',
+    states: {
+      unassigned: () => (
+        <Stack>
+          <NameCard name={seriesFixture.athletes[0].shortName} color="athlete-1" onPress={noop} />
+        </Stack>
+      ),
+      assigned: () => (
+        <Stack>
+          <NameCard name={seriesFixture.athletes[1].shortName} color="athlete-2" position={2} onPress={noop} />
+        </Stack>
+      ),
+      // Two assigned and two waiting, as in the middle of an assignment.
+      'all-colours': () => (
+        <Stack>
+          {seriesFixture.athletes.map((athlete, index) => (
+            <NameCard
+              key={athlete.id}
+              name={athlete.shortName}
+              color={athlete.color}
+              position={index < 2 ? index + 1 : null}
+              onPress={noop}
+            />
+          ))}
+        </Stack>
+      ),
     },
   },
 ] satisfies { id: string; title: string; states: Record<string, () => ReactElement> }[];
