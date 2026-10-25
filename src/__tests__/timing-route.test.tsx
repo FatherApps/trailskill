@@ -15,7 +15,6 @@ jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   createPowerSyncStaffSchoolRepository: () => ({ listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args) }),
 }));
-jest.mock('../modules/accounts', () => ({ createPowerSyncAuthorizationStatusRepository: () => ({}) }));
 jest.mock('../modules/athletes', () => ({
   ...jest.requireActual('../modules/athletes/athleteDisplay'),
   createPowerSyncSchoolAthleteRepository: () => ({}),
