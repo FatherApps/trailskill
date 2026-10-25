@@ -290,6 +290,7 @@ describe('home by role', () => {
     await screen.findByRole('button', { name: /Ana M\./ });
 
     expect(screen.queryByRole('button', { name: 'Toma de tiempos' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Toma en serie' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Planes de entrenamiento' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Consola' })).toBeNull();
   });
@@ -301,6 +302,8 @@ describe('home by role', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Toma de tiempos' }));
 
     expect(router.push).toHaveBeenCalledWith('/timing');
+    await fireEvent.press(screen.getByRole('button', { name: 'Toma en serie' }));
+    expect(router.push).toHaveBeenCalledWith('/timing?mode=series');
     expect(screen.getByRole('button', { name: 'Planes de entrenamiento' })).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Consola' })).toBeNull();
   });

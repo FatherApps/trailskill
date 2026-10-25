@@ -2,6 +2,7 @@
   "home": {
     "title": "TrailSkill",
     "timing": "Toma de tiempos",
+    "timing_series": "Toma en serie",
     "plans": "Planes de entrenamiento",
     "console": "Consola"
   },
