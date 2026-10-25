@@ -501,7 +501,11 @@ describe('series timing flow', () => {
 
       await press('Asignar a Ana M.');
       expect(await positionsOf(measurements, seriesOf(openSpy))).toEqual([[1, null], [2, null]]);
+      // The position is not marked as named, and the coach is told.
+      expect(screen.getByText('No pudimos guardar ese nombre. Toca la tarjeta de nuevo.')).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Asignar a Ana M.' })).toBeOnTheScreen();
       await press('Asignar a Ana M.');
+      expect(screen.queryByText(/No pudimos guardar ese nombre/)).toBeNull();
 
       await waitFor(async () => expect(await positionsOf(measurements, seriesOf(openSpy))).toEqual([[1, 'a1'], [2, null]]));
     });
@@ -555,6 +559,26 @@ describe('series timing flow', () => {
     await press('Asignar nombres');
 
     expect(screen.getByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
+    expect(screen.getByText('No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.')).toBeOnTheScreen();
+  });
+
+  it('tells the coach when the arrivals cannot be written, and lets them try again', async () => {
+    const { measurements, openSpy } = await setup();
+    openSpy.mockRejectedValueOnce(new Error('disk full')).mockRejectedValueOnce(new Error('disk full'));
+    await startSeries();
+    await press('Llegada');
+    await arrive(31n);
+    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+
+    await press('Asignar nombres');
+    expect(screen.getByText('No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: /Asignar nombres/ })).toBeEnabled();
+
+    await press('Asignar nombres');
+
+    await screen.findByRole('header', { name: 'Asignar nombres' });
+    expect(await measurements.listBySeries(openSpy.mock.calls[2]![0].id)).toHaveLength(1);
+    expect(screen.queryByText(/No pudimos guardar/)).toBeNull();
   });
 
   it('shows no pending notice when the list of pending arrivals cannot be read', async () => {

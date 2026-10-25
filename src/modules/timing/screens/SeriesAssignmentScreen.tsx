@@ -5,7 +5,7 @@ import { t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
-import { Button, SwimmerRow, SyncStatus, TimeValue, type SwimmerRowProps } from '../../../core/ui';
+import { Banner, Button, SwimmerRow, SyncStatus, TimeValue, type SwimmerRowProps } from '../../../core/ui';
 import { useLargeText } from '../components/ActionRow';
 import { NameCard } from '../components/NameCard';
 import { OfflineBanner } from '../components/OfflineBanner';
@@ -38,6 +38,8 @@ export type SeriesAssignmentScreenProps = {
   onSave: () => void;
   onBack: () => void;
   offline?: boolean;
+  // Why the last tap on a card did not go through; absent when there is nothing to say.
+  error?: string;
   // Work that only records completion: one switch per athlete instead of times.
   completionOnly?: boolean;
   completedIds?: string[];
@@ -93,6 +95,7 @@ export function SeriesAssignmentScreen({
   onSave,
   onBack,
   offline = false,
+  error,
   completionOnly = false,
   completedIds = [],
   onToggleCompleted = noop,
@@ -110,9 +113,16 @@ export function SeriesAssignmentScreen({
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       <TimingHeader title={t('timing.series.assign_title')} subtitle={eventSubtitle} onBack={onBack} />
-      {offline && (
-        <View style={{ paddingHorizontal: space[4] }}>
-          <OfflineBanner />
+      {(offline || error) && (
+        <View style={{ paddingHorizontal: space[4], gap: space[2] }}>
+          {offline && <OfflineBanner />}
+          {error && (
+            <View accessibilityLiveRegion="polite">
+              <Banner variant="warn" icon="error">
+                {error}
+              </Banner>
+            </View>
+          )}
         </View>
       )}
       {/* Android needs nestedScrollEnabled for this list to scroll when hosted inside another ScrollView (e.g. the dev gallery preview). */}

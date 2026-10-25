@@ -90,6 +90,8 @@
       "undo_last": "Deshacer última",
       "assign_names": "Asignar nombres",
       "assign_names_disabled": "Registra una llegada primero",
+      "name_error": "No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.",
+      "assign_error": "No pudimos guardar ese nombre. Toca la tarjeta de nuevo.",
       "unassigned": "por asignar",
       "completed": "Completado",
       "external_disconnected_title": "Cronómetro externo desconectado.",

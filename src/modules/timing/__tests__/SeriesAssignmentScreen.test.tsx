@@ -137,6 +137,16 @@ describe('SeriesAssignmentScreen', () => {
     expect(isSelected(1)).toBe(false);
   });
 
+  it('shows why a tap did not go through, only when there is something to say', async () => {
+    await renderScreen({ error: 'No pudimos guardar ese nombre. Toca la tarjeta de nuevo.' });
+    expect(screen.getByText('No pudimos guardar ese nombre. Toca la tarjeta de nuevo.')).toBeOnTheScreen();
+  });
+
+  it('shows no error notice by default', async () => {
+    await renderScreen();
+    expect(screen.queryByText(/No pudimos guardar/)).toBeNull();
+  });
+
   it('shows the all-assigned message when the highlight is none', async () => {
     await renderScreen({ positions: snapshots.pending, highlightedPosition: null });
 

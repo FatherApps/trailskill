@@ -28,6 +28,7 @@ export function SeriesAssignmentStep({ series: repository, seriesId, athletes, e
   // A position the user tapped to choose another card for it.
   const [reopened, setReopened] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [failed, setFailed] = useState(false);
   const writing = useRef(false);
 
   useEffect(() => {
@@ -68,13 +69,15 @@ export function SeriesAssignmentStep({ series: repository, seriesId, athletes, e
       try {
         await repository.assign([{ id: row.id, athleteId }], { deviceId });
       } catch {
-        // Nothing is logged with the names (personal data); the card stays as it was and can be tapped again.
+        // Nothing is logged with the names (personal data); the card stays as it was and can be tapped again, and the coach is told.
+        setFailed(true);
         return;
       } finally {
         writing.current = false;
       }
       setRows((current) => (Array.isArray(current) ? current.map((r) => (r.id === row.id ? { ...r, athleteId } : r)) : current));
     }
+    setFailed(false);
     setReopened(null);
   }
 
@@ -86,6 +89,7 @@ export function SeriesAssignmentStep({ series: repository, seriesId, athletes, e
       athletes={athletes}
       eventSubtitle={eventSubtitle}
       offline={offline}
+      error={failed ? t('timing.series.assign_error') : undefined}
       onAssign={onAssign}
       onReopen={(position) => setReopened((current) => reopen(rows, current, position))}
       onSave={onDone}

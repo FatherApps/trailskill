@@ -70,6 +70,7 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
   const [ids, setIds] = useState<string[]>([]);
   const [exitConfirm, setExitConfirm] = useState(false);
   const [pending, setPending] = useState<PendingSeries[]>([]);
+  const [nameFailed, setNameFailed] = useState(false);
   const leaving = useRef(false);
   const naming = useRef(false);
   const [, setTick] = useState(0);
@@ -80,6 +81,7 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
   };
   const reset = () => {
     session.current = newSession();
+    setNameFailed(false);
     commit();
   };
 
@@ -205,14 +207,19 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
     // A second tap while the first is still writing would write the same arrivals twice.
     if (naming.current) return;
     naming.current = true;
+    setNameFailed(false);
     const s = session.current;
     try {
       await flush(s);
-      // An arrival still not written cannot be named: stay, and the next tap tries again.
-      if (s.unsaved.size > 0 || s.discards.size > 0 || !s.seriesId) return;
+      // An arrival still not written cannot be named: stay and say so, and the next tap tries again.
+      if (s.unsaved.size > 0 || s.discards.size > 0 || !s.seriesId) {
+        setNameFailed(true);
+        return;
+      }
       setStep({ kind: 'assign', queue, seriesId: s.seriesId, eventSubtitle, origin: 'live' });
     } catch {
-      // Stay on the timing screen; the next tap tries again.
+      // Stay on the timing screen, say so; the next tap tries again.
+      setNameFailed(true);
     } finally {
       naming.current = false;
     }
@@ -258,6 +265,7 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
             return { id, time, syncState: syncStates.get(id) ?? 'on_device' };
           })}
           running={running}
+          error={nameFailed ? t('timing.series.name_error') : undefined}
           offline={offline}
           onArrival={() => arriveAt(now())}
           onUndoLast={undoLast}
