@@ -18,7 +18,7 @@ export type LogoProps = {
 };
 
 // Colors per theme: the light lockup has a dark badge, the reversed one (dark theme) has none and a white wordmark.
-// The lockup's #141414 and #FFFFFF map to primary/ink and on-primary/on-header, #FF5E45 to coral: no color gap.
+// Every color of the lockup is a token: its dark ink is primary/ink, its white is on-primary/on-header, its coral is coral.
 export const logoColors: Record<'light' | 'dark', { badge: ColorToken | null; symbol: ColorToken; wordmark: ColorToken; accent: ColorToken }> = {
   light: { badge: 'primary', symbol: 'on-primary', wordmark: 'ink', accent: 'coral' },
   dark: { badge: null, symbol: 'on-header', wordmark: 'on-header', accent: 'coral' },

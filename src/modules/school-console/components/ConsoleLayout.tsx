@@ -10,7 +10,7 @@ import { DETAIL_WIDTH, SideSheet } from './SideSheet';
 
 export type ConsoleLayoutKind = 'expanded' | 'medium' | 'compact';
 
-// The layout of a width in dp, cut exactly at the breakpoint tokens (>= 1024 expanded, >= 600 medium).
+// The layout of a width in dp, cut exactly at the breakpoint tokens: expanded from bp-expanded, medium from bp-medium.
 export function consoleLayoutFor(width: number, breakpoint: Theme['breakpoint']): ConsoleLayoutKind {
   if (width >= breakpoint['bp-expanded']) return 'expanded';
   if (width >= breakpoint['bp-medium']) return 'medium';
@@ -47,6 +47,15 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
   );
 
   const root = { flexGrow: 1, alignSelf: 'stretch', backgroundColor: colors['surface-0'] } as const;
+  // A detail taller than the screen scrolls on its own; in the gallery the page scrolls instead.
+  const scrollDetail = (node: ReactNode) =>
+    scrollEnabled ? (
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: space[4] }}>
+        {node}
+      </ScrollView>
+    ) : (
+      node
+    );
 
   if (layout === 'compact') {
     if (!detail) return <View style={root}>{content}</View>;
@@ -55,7 +64,7 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
         <View style={{ alignItems: 'flex-start' }}>
           <IconButton icon="arrow_back" label={t('common.back')} onPress={detail.onClose} />
         </View>
-        {detail.content}
+        {scrollDetail(detail.content)}
       </View>
     );
   }
@@ -88,7 +97,7 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
             <View style={{ alignItems: 'flex-end' }}>
               <IconButton icon="close" label={t('schoolConsole.layout.close')} onPress={detail.onClose} />
             </View>
-            {detail.content}
+            {scrollDetail(detail.content)}
           </View>
         )}
       </View>

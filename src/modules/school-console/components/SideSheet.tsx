@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
-import { AccessibilityInfo, BackHandler, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
@@ -65,7 +65,7 @@ export function SideSheet({ label, onClose, children }: SideSheetProps) {
         <View style={{ alignItems: 'flex-end' }}>
           <IconButton ref={closeRef} icon="close" label={t('schoolConsole.layout.close')} onPress={onClose} />
         </View>
-        {children}
+        <ScrollView contentContainerStyle={{ gap: space[4] }}>{children}</ScrollView>
       </View>
     </View>
   );

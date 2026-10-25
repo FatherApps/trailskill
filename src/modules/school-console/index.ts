@@ -16,3 +16,10 @@ export type {
   AthleteFilterId,
   AthleteRow,
 } from './components/athleteTypes';
+export {
+  AthletesScreen,
+  type AthletesContent,
+  type AthletesScreenProps,
+  type AthletesView,
+} from './screens/AthletesScreen';
+export { galleryEntries } from './gallery';

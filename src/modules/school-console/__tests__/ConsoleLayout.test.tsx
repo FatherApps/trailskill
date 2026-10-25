@@ -131,6 +131,24 @@ describe('ConsoleLayout', () => {
     });
   });
 
+  // The content scrolls too, except in the compact detail, which replaces it.
+  it.each([
+    [1280, 'panel', 2, 0],
+    [360, 'full-screen detail', 1, 0],
+    [800, 'side sheet', 2, 1],
+  ])('lets a tall detail scroll in the %s dp %s, unless a parent scrolls instead', async (width, _, scrolling, parentScrolls) => {
+    const scrolls = async (extra: Partial<ConsoleLayoutProps>) => {
+      await show(width, { detail, ...extra });
+      const count = JSON.stringify(screen.toJSON()).split('RCTScrollView').length - 1;
+      await screen.unmount();
+      return count;
+    };
+
+    expect(await scrolls({})).toBe(scrolling);
+    // The sheet is an overlay over the layout, so it scrolls itself even when the page scrolls.
+    expect(await scrolls({ scrollEnabled: false })).toBe(parentScrolls);
+  });
+
   it('scrolls its content unless a parent scrolls instead', async () => {
     await show(1280);
     expect(JSON.stringify(screen.toJSON())).toContain('RCTScrollView');

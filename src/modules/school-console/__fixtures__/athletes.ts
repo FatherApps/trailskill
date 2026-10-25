@@ -58,4 +58,23 @@ export const detailsFixture: Record<string, AthleteDetailData> = {
   },
 };
 
+// The detail of any athlete of the list: the written ones, or a generic one built from the row.
+export const detailFor = (athlete: AthleteRow): AthleteDetailData =>
+  detailsFixture[athlete.id] ?? {
+    id: athlete.id,
+    name: athlete.name,
+    category: athlete.category,
+    authorization: athlete.authorization,
+    guardian: { name: 'Camila Torres', contact: 'camila.torres@example.com' },
+    bests: [{ id: `${athlete.id}-best`, event: 'Libre 50', time: athlete.bestTime }],
+  };
+
+export const longTextDetailFixture: AthleteDetailData = {
+  ...detailFixture,
+  name: 'María Fernanda de los Ángeles Restrepo Villegas',
+  category: 'Infantil B, grupo de desarrollo',
+  guardian: { name: 'Luz Marina Villegas de Restrepo', contact: 'luz.marina.villegas.restrepo@example.com' },
+  bests: [{ id: 'l1', event: 'Combinado individual 200', time: 12966, source: 'Asociación Departamental de Natación' }],
+};
+
 export const storedOnFixture = '2026-10-23';

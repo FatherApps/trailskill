@@ -1,0 +1,219 @@
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import fs from 'node:fs';
+import path from 'node:path';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+
+import { ThemeProvider, type ThemeName } from '../../../core/theme';
+import { galleryEntries } from '../gallery';
+
+const themes: ThemeName[] = ['light', 'dark'];
+const scales = [1, 2];
+
+const entryById = (id: string) => galleryEntries.find((entry) => entry.id === id)!;
+const stateKeys = (id: string) => Object.keys(entryById(id).states);
+const state = (id: string, key: string) => entryById(id).states[key]();
+
+const cases = galleryEntries.flatMap((entry) =>
+  Object.keys(entry.states).flatMap((key) => themes.flatMap((theme) => scales.map((scale) => [entry.id, key, theme, scale] as const))),
+);
+
+const moduleDir = path.join(__dirname, '..');
+function filesIn(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? filesIn(full) : [full];
+  });
+}
+const sourceFiles = filesIn(moduleDir).filter((file) => !file.includes('__tests__') && /\.(tsx?|json)$/.test(file));
+
+// The preview reports its measured width the way the device does.
+const measure = (width: number) =>
+  act(() => fireEvent(screen.getByTestId('console-preview'), 'layout', { nativeEvent: { layout: { width, height: 800, x: 0, y: 0 } } }));
+
+const layoutShown = () =>
+  screen.queryByTestId('console-nav-side', { includeHiddenElements: true })
+    ? 'expanded'
+    : screen.queryByTestId('console-nav-top', { includeHiddenElements: true })
+      ? 'medium'
+      : 'compact';
+
+describe('school console gallery entries', () => {
+  it('have unique ids and the expected states', () => {
+    expect(galleryEntries.map((entry) => entry.id)).toEqual([
+      'logo',
+      'consoleNav',
+      'sideSheet',
+      'athleteIndicators',
+      'athleteFilters',
+      'athleteTable',
+      'athleteDetail',
+      'athletesScreen',
+    ]);
+    expect(stateKeys('logo')).toEqual(['default', 'large']);
+    expect(stateKeys('consoleNav')).toEqual(['side', 'top']);
+    expect(stateKeys('sideSheet')).toEqual(['open']);
+    expect(stateKeys('athleteIndicators')).toEqual(['default', 'large-numbers']);
+    expect(stateKeys('athleteFilters')).toEqual(['empty', 'with-filter', 'all-filters']);
+    expect(stateKeys('athleteTable')).toEqual(['default', 'selected', 'long-text', 'compact']);
+    expect(stateKeys('athleteDetail')).toEqual(['default', 'pending-no-bests', 'long-text']);
+    expect(stateKeys('athletesScreen')).toEqual([
+      'with-data',
+      'loading',
+      'empty',
+      'error',
+      'offline-with-data',
+      'offline-no-data',
+      'denied',
+      'expanded-1280',
+      'medium-800',
+      'compact-360',
+    ]);
+  });
+
+  it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, key, theme, scale) => {
+    await render(<ThemeProvider name={theme} fontScale={scale}>{state(id, key)}</ThemeProvider>);
+  });
+
+  // The fixed-width screens, the logo, the side sheet and the side navigation size themselves.
+  it.each(
+    galleryEntries
+      .flatMap((entry) => Object.keys(entry.states).map((key) => [entry.id, key]))
+      // The side navigation has its own fixed width.
+      .filter(([id, key]) => !['logo', 'sideSheet'].includes(id) && !/^(expanded|medium|compact)-\d+$/.test(key) && !(id === 'consoleNav' && key === 'side')),
+  )('%s / %s fills the width of the preview', async (id, key) => {
+    await render(<ThemeProvider>{state(id, key)}</ThemeProvider>);
+
+    const root = screen.toJSON() as unknown as { props: { style: StyleProp<ViewStyle> } };
+    expect(StyleSheet.flatten(root.props.style)?.alignSelf).toBe('stretch');
+  });
+
+  describe('athletesScreen', () => {
+    it('with-data follows the measured width of the preview: tablet landscape, tablet portrait and phone', async () => {
+      await render(<ThemeProvider>{state('athletesScreen', 'with-data')}</ThemeProvider>);
+
+      await measure(1280);
+      expect(layoutShown()).toBe('expanded');
+      await measure(800);
+      expect(layoutShown()).toBe('medium');
+      await measure(360);
+      expect(layoutShown()).toBe('compact');
+      await measure(1024);
+      expect(layoutShown()).toBe('expanded');
+      await measure(1023);
+      expect(layoutShown()).toBe('medium');
+      await measure(599);
+      expect(layoutShown()).toBe('compact');
+      await measure(600);
+      expect(layoutShown()).toBe('medium');
+    });
+
+    it.each([
+      ['expanded-1280', 'expanded'],
+      ['medium-800', 'medium'],
+      ['compact-360', 'compact'],
+    ])('%s shows the %s layout whatever the device', async (key, layout) => {
+      await render(<ThemeProvider>{state('athletesScreen', key)}</ThemeProvider>);
+
+      expect(layoutShown()).toBe(layout);
+    });
+
+    it('expanded-1280 starts with the detail of the first athlete open in the panel', async () => {
+      await render(<ThemeProvider>{state('athletesScreen', 'expanded-1280')}</ThemeProvider>);
+
+      expect(screen.getByTestId('detail-panel')).toBeOnTheScreen();
+      expect(screen.getByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
+    });
+
+    it('opens and closes the detail when a row is tapped and keeps no state when mounted again', async () => {
+      const { unmount } = await render(<ThemeProvider>{state('athletesScreen', 'medium-800')}</ThemeProvider>);
+      expect(screen.queryByTestId('side-sheet')).toBeNull();
+
+      await fireEvent.press(screen.getByRole('button', { name: /^Mateo Castro/ }));
+      expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+      expect(screen.queryByTestId('side-sheet')).toBeNull();
+
+      await fireEvent.press(screen.getByRole('button', { name: /^Mateo Castro/ }));
+      await unmount();
+      await render(<ThemeProvider>{state('athletesScreen', 'medium-800')}</ThemeProvider>);
+      expect(screen.queryByTestId('side-sheet')).toBeNull();
+    });
+
+    it('compact-360 opens the detail full screen and Volver returns to the list', async () => {
+      await render(<ThemeProvider>{state('athletesScreen', 'compact-360')}</ThemeProvider>);
+
+      await fireEvent.press(screen.getByRole('button', { name: /^Sara Peña/ }));
+      expect(screen.getByRole('header', { name: 'Sara Peña' })).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: /^Mateo Castro/ })).toBeNull();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+      expect(screen.getByRole('button', { name: /^Mateo Castro/ })).toBeOnTheScreen();
+    });
+
+    it('with-data filters and searches in place', async () => {
+      await render(<ThemeProvider>{state('athletesScreen', 'expanded-1280')}</ThemeProvider>);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Categoría' }));
+      expect(screen.getByRole('button', { name: 'Categoría: Infantil B' })).toBeSelected();
+      await fireEvent.press(screen.getByRole('button', { name: 'Categoría: Infantil B' }));
+      expect(screen.getByRole('button', { name: 'Categoría' })).not.toBeSelected();
+      await fireEvent.changeText(screen.getByLabelText('Buscar por nombre'), 'Lu');
+      expect(screen.getByLabelText('Buscar por nombre').props.value).toBe('Lu');
+    });
+
+    it.each([
+      ['loading', 'state-view'],
+      ['empty', 'state-view'],
+      ['error', 'state-view'],
+      ['offline-with-data', 'banner'],
+      ['offline-no-data', 'state-view'],
+      ['denied', 'state-view'],
+    ])('%s shows its view state', async (key, testID) => {
+      await render(<ThemeProvider>{state('athletesScreen', key)}</ThemeProvider>);
+
+      expect(screen.getByTestId(testID)).toBeOnTheScreen();
+    });
+  });
+
+  it('athleteFilters / with-filter turns a chip on and off in place', async () => {
+    await render(<ThemeProvider>{state('athleteFilters', 'with-filter')}</ThemeProvider>);
+    expect(screen.getByRole('button', { name: 'Categoría: Infantil B' })).toBeSelected();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Grupo' }));
+    expect(screen.getByRole('button', { name: 'Grupo: Grupo B' })).toBeSelected();
+  });
+
+  it('athleteTable / default selects a row in place', async () => {
+    await render(<ThemeProvider>{state('athleteTable', 'default')}</ThemeProvider>);
+
+    await fireEvent.press(screen.getByRole('button', { name: /^Julián Ortiz/ }));
+
+    expect(screen.getByRole('button', { name: /^Julián Ortiz/ })).toBeSelected();
+  });
+
+  it('no module file contains a hexadecimal color, a line limit or a font-scaling opt-out', () => {
+    const offenders = sourceFiles.filter((file) => {
+      const text = fs.readFileSync(file, 'utf8');
+      return (
+        /#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\b/i.test(text) ||
+        /numberOfLines|adjustsFontSizeToFit|allowFontScaling=\{false\}/.test(text)
+      );
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it('only imports other modules and core through their public entry', () => {
+    const offenders = sourceFiles
+      .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx'))
+      .filter((file) => /from '(?:\.\.\/)+(?:core|modules)\/[^']*\/[^']+'/.test(fs.readFileSync(file, 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('never uses a literal breakpoint width', () => {
+    const offenders = sourceFiles
+      .filter((file) => file.endsWith('.tsx'))
+      .filter((file) => /\b(?:600|1024|599|1023)\b/.test(fs.readFileSync(file, 'utf8')) && !file.endsWith('gallery.tsx'));
+    expect(offenders).toEqual([]);
+  });
+});
