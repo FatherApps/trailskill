@@ -3,7 +3,14 @@ import { activateKeepAwakeAsync } from 'expo-keep-awake';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../../core/theme';
-import { createInMemoryMeasurementRepository, createInMemorySeriesRepository, SeriesTimingFlow, type SeriesTimingFlowProps } from '..';
+import {
+  createInMemoryMeasurementRepository,
+  createInMemorySeriesRepository,
+  SeriesTimingFlow,
+  type Measurement,
+  type SeriesRepository,
+  type SeriesTimingFlowProps,
+} from '..';
 
 const mockSyncStates = jest.fn((_table: string, _ids: string[]): Map<string, string> => new Map());
 jest.mock('../../../core/sync', () => ({
@@ -25,9 +32,10 @@ let clock: bigint;
 const second = 1_000_000_000n;
 const event = { stroke: 'FR', distance: '50m', pool: 'SCM' } as const;
 
-const setup = async (over: Partial<SeriesTimingFlowProps> = {}) => {
+const setup = async (over: Partial<SeriesTimingFlowProps> = {}, seed?: (series: SeriesRepository) => Promise<void>) => {
   const measurements = createInMemoryMeasurementRepository();
   const series = createInMemorySeriesRepository(measurements);
+  await seed?.(series);
   const openSpy = jest.spyOn(series, 'open');
   const onExit = jest.fn();
   clock = 10n * second;
@@ -110,7 +118,7 @@ describe('series timing flow', () => {
 
     await press('Asignar a Ana M.');
     await press('Asignar a Cleo O.');
-    await press('Guardar serie');
+    await press('Listo');
 
     expect(await screen.findByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
     expect(openSpy).toHaveBeenCalledTimes(1);
@@ -128,7 +136,7 @@ describe('series timing flow', () => {
     await arrive(31n);
     await press('Asignar nombres');
     await press('Asignar a Ana M.');
-    await press('Guardar serie');
+    await press('Listo');
     await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
 
     const [series] = openSpy.mock.calls[0]!;
@@ -155,7 +163,7 @@ describe('series timing flow', () => {
     await press('Llegada');
     await arrive(31n);
     await press('Asignar nombres');
-    await press('Guardar serie');
+    await press('Listo');
     await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
 
     const [saved] = await measurements.listBySeries(openSpy.mock.calls[0]![0].id);
@@ -172,7 +180,7 @@ describe('series timing flow', () => {
     await press('Asignar nombres');
     await press('Asignar a Ana M.');
 
-    await press('Guardar serie');
+    await press('Listo');
     await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
 
     const saved = await measurements.listBySeries(openSpy.mock.calls[0]![0].id);
@@ -189,7 +197,7 @@ describe('series timing flow', () => {
 
     await press(/^Ana M\.,? .*Posición 1/); // the assigned row reopens its position
     await press('Asignar a Cleo O.');
-    await press('Guardar serie');
+    await press('Listo');
     await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
 
     const [saved] = await measurements.listBySeries(openSpy.mock.calls[0]![0].id);
@@ -299,7 +307,7 @@ describe('series timing flow', () => {
       await press('Asignar nombres');
       await press('Asignar a Ana M.');
 
-      await press('Guardar serie');
+      await press('Listo');
       await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
 
       const saved = await measurements.listBySeries(openSpy.mock.calls[1]![0].id);
@@ -337,7 +345,7 @@ describe('series timing flow', () => {
       await press('Asignar nombres');
       await press('Asignar a Ana M.');
 
-      await press('Guardar serie');
+      await press('Listo');
       await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
 
       expect(series.discardArrival).toHaveBeenCalledTimes(2);
@@ -352,7 +360,7 @@ describe('series timing flow', () => {
       await press('Asignar nombres');
       await press('Asignar a Ana M.');
 
-      await press('Guardar serie');
+      await press('Listo');
 
       expect(await screen.findByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
       expect(screen.getByText('Aún no hay llegadas')).toBeOnTheScreen();
@@ -392,6 +400,216 @@ describe('series timing flow', () => {
       expect(activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
       expect(impactAsync).toHaveBeenCalledTimes(2);
     });
+  });
+
+  describe('naming the arrivals', () => {
+    const seriesOf = (openSpy: jest.SpyInstance) => openSpy.mock.calls[0]![0].id as string;
+    const positionsOf = async (measurements: { listBySeries(id: string): Promise<Measurement[]> }, id: string) =>
+      (await measurements.listBySeries(id)).map((m) => [m.arrivalPosition, m.athleteId]);
+
+    // Two arrivals, already on the phone, then the naming screen.
+    async function nameTwo(over: Partial<SeriesTimingFlowProps> = {}) {
+      const result = await setup(over);
+      await startSeries();
+      await press('Llegada');
+      await arrive(31n);
+      await arrive(3n);
+      await press('Asignar nombres');
+      await screen.findByRole('header', { name: 'Asignar nombres' });
+      return result;
+    }
+
+    it('writes each name the moment its card is tapped, with the device, before leaving', async () => {
+      const { measurements, series, openSpy } = await nameTwo();
+      const assign = jest.spyOn(series, 'assign');
+
+      await press('Asignar a Ana M.');
+
+      await waitFor(async () => expect(await positionsOf(measurements, seriesOf(openSpy))).toEqual([[1, 'a1'], [2, null]]));
+      expect(assign).toHaveBeenCalledTimes(1);
+      expect(assign.mock.calls[0]![1]).toEqual({ deviceId: 'device-1' });
+      expect(screen.getByLabelText('Ana M., en la posición 1')).toBeOnTheScreen();
+    });
+
+    it('leaves the unnamed positions "por asignar" on the phone when leaving, and offers them at the next setup', async () => {
+      const { measurements, openSpy } = await nameTwo();
+      await press('Asignar a Ana M.');
+
+      await press('Listo');
+      await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+      await press('Volver');
+
+      expect(await screen.findByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+      expect(await positionsOf(measurements, seriesOf(openSpy))).toEqual([[1, 'a1'], [2, null]]);
+    });
+
+    it('takes the arrivals up again in another session and names them', async () => {
+      const pendingSeries = { id: 'S-old', createdBy: 'coach-1', deviceId: 'device-1', ...event, sessionType: 'training' } as const;
+      const arrival = (id: string, position: number, hundredths: number | null) =>
+        ({ id, kind: 'repetition', athleteId: null, seriesId: 'S-old', arrivalPosition: position, hundredths, ...event, sessionType: 'training', source: 'screen_button', createdBy: 'coach-1', deviceId: 'device-1', capturedAt: '2026-10-25T08:00:00Z', parentId: null, version: 1, editedBy: null, editedAt: null, editReason: null }) as Measurement;
+      const { measurements } = await setup({}, async (series) => {
+        await series.open(pendingSeries, arrival('old-1', 1, 3100));
+        await series.addArrival(arrival('old-2', 2, null));
+      });
+      await screen.findByText('Nadadores (2 de 3)');
+      expect(await screen.findByText('2 llegadas sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+
+      await press('Asignar nombres');
+      await screen.findByRole('header', { name: 'Asignar nombres' });
+      // The arrival saved without a time reads as missing, never 0,00.
+      expect(screen.queryByText(/0,00/)).toBeNull();
+      await press('Asignar a Cleo O.');
+      await press('Listo');
+
+      await waitFor(async () => expect(await positionsOf(measurements, 'S-old')).toEqual([[1, 'a3'], [2, null]]));
+      // Back at the setup, what is still unnamed is still offered.
+      expect(await screen.findByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+    });
+
+    it('offers nothing at the setup when no arrival is waiting', async () => {
+      await setup();
+      await screen.findByText('Nadadores (2 de 3)');
+
+      expect(screen.queryByText(/sin nombre de/)).toBeNull();
+    });
+
+    it('reopens a named position to choose another card for it, and frees the first athlete', async () => {
+      const { measurements, openSpy } = await nameTwo();
+      await press('Asignar a Ana M.');
+      await press(/^Ana M\.,? .*Posición 1/);
+
+      await press('Asignar a Cleo O.');
+      await press('Asignar a Ana M.');
+
+      await waitFor(async () => expect(await positionsOf(measurements, seriesOf(openSpy))).toEqual([[1, 'a3'], [2, 'a1']]));
+    });
+
+    it('refuses an athlete another position holds, writing nothing', async () => {
+      const { series } = await nameTwo();
+      await press('Asignar a Ana M.');
+      const assign = jest.spyOn(series, 'assign');
+
+      // Her card now says where she is.
+      await press('Ana M., en la posición 1');
+
+      expect(assign).not.toHaveBeenCalled();
+    });
+
+    it('keeps the card free when its write fails, so it can be tapped again', async () => {
+      const { measurements, series, openSpy } = await nameTwo();
+      jest.spyOn(series, 'assign').mockRejectedValueOnce(new Error('disk full'));
+
+      await press('Asignar a Ana M.');
+      expect(await positionsOf(measurements, seriesOf(openSpy))).toEqual([[1, null], [2, null]]);
+      // The position is not marked as named, and the coach is told.
+      expect(screen.getByText('No pudimos guardar ese nombre. Toca la tarjeta de nuevo.')).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Asignar a Ana M.' })).toBeOnTheScreen();
+      await press('Asignar a Ana M.');
+      expect(screen.queryByText(/No pudimos guardar ese nombre/)).toBeNull();
+
+      await waitFor(async () => expect(await positionsOf(measurements, seriesOf(openSpy))).toEqual([[1, 'a1'], [2, null]]));
+    });
+
+    it('shows the sync state of each arrival while naming', async () => {
+      await nameTwo();
+      expect(screen.getAllByLabelText('En el teléfono')).toHaveLength(2);
+
+      mockSyncStates.mockImplementation((_table, ids) => new Map(ids.map((id) => [id, 'synced'])));
+      await press('Asignar a Ana M.');
+
+      expect(screen.getAllByLabelText('Enviado')).toHaveLength(2);
+    });
+
+    it('ends the capture: going back from the naming starts the next series', async () => {
+      await nameTwo();
+
+      await press('Volver');
+
+      expect(await screen.findByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
+      expect(screen.getByText('Aún no hay llegadas')).toBeOnTheScreen();
+    });
+  });
+
+  it('writes a pending arrival only once when "Asignar nombres" is tapped twice in a row', async () => {
+    const { openSpy } = await setup();
+    openSpy.mockRejectedValueOnce(new Error('disk full'));
+    await startSeries();
+    await press('Llegada');
+    await arrive(31n);
+    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+    const name = screen.getByRole('button', { name: /Asignar nombres/ });
+
+    await act(async () => {
+      fireEvent.press(name);
+      fireEvent.press(name);
+    });
+
+    await screen.findByRole('header', { name: 'Asignar nombres' });
+    expect(openSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays on the timing screen, without an unhandled rejection, when the arrivals cannot be written', async () => {
+    const { openSpy } = await setup();
+    openSpy.mockRejectedValue(new Error('disk full'));
+    await startSeries();
+    await press('Llegada');
+    await arrive(31n);
+    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+
+    await press('Asignar nombres');
+
+    expect(screen.getByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
+    expect(screen.getByText('No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.')).toBeOnTheScreen();
+  });
+
+  it('tells the coach when the arrivals cannot be written, and lets them try again', async () => {
+    const { measurements, openSpy } = await setup();
+    openSpy.mockRejectedValueOnce(new Error('disk full')).mockRejectedValueOnce(new Error('disk full'));
+    await startSeries();
+    await press('Llegada');
+    await arrive(31n);
+    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+
+    await press('Asignar nombres');
+    expect(screen.getByText('No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: /Asignar nombres/ })).toBeEnabled();
+
+    await press('Asignar nombres');
+
+    await screen.findByRole('header', { name: 'Asignar nombres' });
+    expect(await measurements.listBySeries(openSpy.mock.calls[2]![0].id)).toHaveLength(1);
+    expect(screen.queryByText(/No pudimos guardar/)).toBeNull();
+  });
+
+  it('shows no pending notice when the list of pending arrivals cannot be read', async () => {
+    const { series, onExit } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    jest.spyOn(series, 'listPending').mockRejectedValue(new Error('unreadable'));
+    await startSeries();
+    await press('Volver');
+
+    expect(await screen.findByText('Nadadores (2 de 3)')).toBeOnTheScreen();
+    expect(screen.queryByText(/sin nombre de/)).toBeNull();
+    expect(onExit).not.toHaveBeenCalled();
+  });
+
+  it('writes a pending arrival only once when the exit is confirmed twice in a row', async () => {
+    const { openSpy } = await setup();
+    openSpy.mockRejectedValueOnce(new Error('disk full'));
+    await startSeries();
+    await press('Llegada');
+    await arrive(31n);
+    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+    await press('Volver');
+    const confirm = screen.getByRole('button', { name: 'Salir de la serie' });
+
+    await act(async () => {
+      fireEvent.press(confirm);
+      fireEvent.press(confirm);
+    });
+
+    await screen.findByText('Nadadores (2 de 3)');
+    expect(openSpy).toHaveBeenCalledTimes(2);
   });
 
   it('does not start when nobody is authorized', async () => {

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
-import { Button, Segmented, StateView, SwimmerRow, type SegmentedOption } from '../../../core/ui';
+import { Banner, Button, Segmented, StateView, SwimmerRow, type SegmentedOption } from '../../../core/ui';
 import { TimingHeader } from '../components/TimingHeader';
 import '../i18n';
 
@@ -38,6 +38,8 @@ export type TimingSetupScreenProps = {
   selectedCount: number;
   groupCount: number;
   onChooseAthletes: () => void;
+  // Arrivals of an earlier series still without a name; absent when there are none.
+  pending?: { count: number; event: string; onOpen: () => void };
   onStart: () => void;
   onBack: () => void;
 };
@@ -58,6 +60,7 @@ export function TimingSetupScreen({
   selectedCount,
   groupCount,
   onChooseAthletes,
+  pending,
   onStart,
   onBack,
 }: TimingSetupScreenProps) {
@@ -67,6 +70,14 @@ export function TimingSetupScreen({
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       <TimingHeader title={t('timing.setup.title')} subtitle={subtitle} onBack={onBack} />
       <ScrollView contentContainerStyle={{ gap: space[4], padding: space[4] }}>
+        {pending && (
+          <View style={{ gap: space[2] }}>
+            <Banner variant="warn" icon="schedule">
+              {t('timing.setup.pending_message', { count: pending.count, event: pending.event })}
+            </Banner>
+            <Button variant="secondary" label={t('timing.setup.pending_open')} onPress={pending.onOpen} />
+          </View>
+        )}
         <Text style={[typography.subtitle, { color: colors.ink }]}>{t('timing.setup.question')}</Text>
         <Segmented accessibilityLabel={t('timing.setup.stroke')} onChange={onStrokeChange} {...stroke} />
         <Segmented accessibilityLabel={t('timing.setup.distance')} onChange={onDistanceChange} {...distance} />

@@ -40,7 +40,7 @@ export function createPowerSyncAssignmentRepository(): AssignmentRepository {
     async list(schoolId, sessionDate) {
       const rows = await db.getAll<AssignmentRow>(
         `SELECT id, school_id, plan_id, version_id, session_date, target, athlete_id, group_id, category_id
-         FROM training_plan_assignments WHERE school_id = ? AND session_date = ? ORDER BY created_at, id`,
+         FROM training_plan_assignments WHERE school_id = ? AND session_date = ? AND withdrawn_at IS NULL ORDER BY created_at, id`,
         [schoolId, sessionDate],
       );
       return rows.map(
@@ -68,6 +68,15 @@ export function createPowerSyncAssignmentRepository(): AssignmentRepository {
           session_date: sessionDate,
           ...targetColumns(target),
         });
+      });
+    },
+    withdraw(id) {
+      // One transaction: writing alone would INSERT a broken row for an id that is not here. Only withdrawn_at is sent; the server sets withdrawn_by.
+      return writeBatch(async (batch) => {
+        const [row] = await batch.getAll<{ withdrawn_at: string | null }>('SELECT withdrawn_at FROM training_plan_assignments WHERE id = ?', [id]);
+        if (!row) throw new Error(`Cannot withdraw assignment ${id}: it is not on this device`);
+        if (row.withdrawn_at !== null) return;
+        await batch.write('training_plan_assignments', { id, withdrawn_at: new Date().toISOString() });
       });
     },
   };

@@ -38,7 +38,7 @@ export function createInMemoryManagedAthleteProfileRepository(
   athletes: AthleteRepository,
   rows: ManagedAthleteRow[],
 ): ManagedAthleteProfileRepository {
-  const batch: WriteBatch = { getAll: async () => [], write: async () => '', delete: async () => {} };
+  const batch: WriteBatch = { getAll: async () => [], write: async () => '', edit: async () => {}, delete: async () => {} };
   return {
     async createManagedAthlete({ userId, firstName, lastName, relation }) {
       const own = rows.find((row) => row.userId === userId && row.relation === 'self');

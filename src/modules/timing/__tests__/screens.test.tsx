@@ -295,6 +295,26 @@ describe('TimingSetupScreen', () => {
     expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['Volver', 'Elegir', 'Empezar toma']);
   });
 
+  it('offers the arrivals still without a name, above the questions', async () => {
+    const onOpen = jest.fn();
+    await renderSetup({ pending: { count: 2, event: 'Libre 50 m · Entrenamiento', onOpen } });
+
+    expect(screen.getByText('2 llegadas sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Asignar nombres' }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('says one arrival in the singular and offers nothing without pending ones', async () => {
+    await renderSetup({ pending: { count: 1, event: 'Libre 50 m · Entrenamiento', onOpen: jest.fn() } });
+    expect(screen.getByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+  });
+
+  it('shows no pending notice without pending arrivals', async () => {
+    await renderSetup();
+    expect(screen.queryByText(/sin nombre de/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Asignar nombres' })).toBeNull();
+  });
+
   it('asks the container to choose athletes', async () => {
     const { onChooseAthletes } = await renderSetup();
 

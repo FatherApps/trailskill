@@ -6,7 +6,7 @@
 -- no-op that still returns the row. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(45);
 
 -- Users: coach A (the author) and coach B of e1, guardian G of e1, school admin
 -- S, platform admin P.
@@ -361,6 +361,11 @@ set local request.jwt.claims = '{}';
 select lives_ok(
   $$ update public.measurements set hundredths = 3105 where id = '50000000-0000-4000-8000-0000000000f1' $$,
   'the owner can still correct a discarded arrival'
+);
+select is(
+  (select hundredths from public.measurements where id = '50000000-0000-4000-8000-0000000000f1'),
+  3105,
+  'and the correction is stored'
 );
 
 select * from finish();

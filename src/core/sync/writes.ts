@@ -79,24 +79,29 @@ export async function editRecord(
   values: Record<string, unknown>,
   meta: Record<string, unknown> = {},
 ): Promise<void> {
+  assertEditable(table, values, meta);
+  await db.writeTransaction((tx) => editRow(tx, table, id, values, meta));
+}
+
+function assertEditable(table: string, values: Record<string, unknown>, meta: Record<string, unknown>): void {
   assertIdentifier(table);
   Object.keys(values).forEach(assertIdentifier);
   Object.keys(meta).forEach(assertIdentifier);
+}
 
-  await db.writeTransaction(async (tx) => {
-    const columns = ['version', 'base_version', ...Object.keys(meta)];
-    const row = await tx.getOptional<Record<string, unknown>>(`SELECT ${columns.join(', ')} FROM ${table} WHERE id = ?`, [id]);
-    if (!row) throw new Error(`Cannot edit ${table} ${id}: it is not on this device`);
-    // Only a column that holds a value can be reset: resetting a NULL one changes nothing and would upload an empty PATCH.
-    const reset = columns.filter((column) => column !== 'version' && row[column] !== null);
-    if (reset.length > 0) {
-      await updateRow(tx, table, id, Object.fromEntries(reset.map((column) => [column, null])));
-      await markPending(tx, table, id);
-    }
-    // base_version is now NULL, so this op always carries it (and every non-null meta column). One marker per op, like the connector clears them.
-    await updateRow(tx, table, id, { ...values, ...meta, base_version: (row.version as number | null) ?? 1 });
+async function editRow(tx: Transaction, table: string, id: string, values: Record<string, unknown>, meta: Record<string, unknown>): Promise<void> {
+  const columns = ['version', 'base_version', ...Object.keys(meta)];
+  const row = await tx.getOptional<Record<string, unknown>>(`SELECT ${columns.join(', ')} FROM ${table} WHERE id = ?`, [id]);
+  if (!row) throw new Error(`Cannot edit ${table} ${id}: it is not on this device`);
+  // Only a column that holds a value can be reset: resetting a NULL one changes nothing and would upload an empty PATCH.
+  const reset = columns.filter((column) => column !== 'version' && row[column] !== null);
+  if (reset.length > 0) {
+    await updateRow(tx, table, id, Object.fromEntries(reset.map((column) => [column, null])));
     await markPending(tx, table, id);
-  });
+  }
+  // base_version is now NULL, so this op always carries it (and every non-null meta column). One marker per op, like the connector clears them.
+  await updateRow(tx, table, id, { ...values, ...meta, base_version: (row.version as number | null) ?? 1 });
+  await markPending(tx, table, id);
 }
 
 /** Deletes a row on the device and queues the deletion for upload in the same transaction. */
@@ -105,10 +110,11 @@ export async function deleteRecord(table: string, id: string): Promise<void> {
   await db.writeTransaction((tx) => removeRow(tx, table, id));
 }
 
-/** The writes of one batch: `write` and `delete` behave like writeRecord and deleteRecord; `getAll` reads inside the batch. */
+/** The writes of one batch: `write`, `edit` and `delete` behave like writeRecord, editRecord and deleteRecord; `getAll` reads inside the batch. */
 export type WriteBatch = {
   getAll<T>(sql: string, params?: unknown[]): Promise<T[]>;
   write(table: string, values: Record<string, unknown> & { id?: string }): Promise<string>;
+  edit(table: string, id: string, values: Record<string, unknown>, meta?: Record<string, unknown>): Promise<void>;
   delete(table: string, id: string): Promise<void>;
 };
 
@@ -124,6 +130,10 @@ export async function writeBatch<T>(writes: (batch: WriteBatch) => Promise<T>): 
       write: async (table, values) => {
         assertWritable(table, values);
         return putRow(tx, table, values);
+      },
+      edit: async (table, id, values, meta = {}) => {
+        assertEditable(table, values, meta);
+        return editRow(tx, table, id, values, meta);
       },
       delete: async (table, id) => {
         assertIdentifier(table);

@@ -9,7 +9,7 @@ import type { Choice } from '../data/sessionSetup';
 import { orderedSelection, toggleAthlete } from '../domain/athleteSelection';
 import '../i18n';
 import { AthletePickerScreen } from './AthletePickerScreen';
-import { TimingSetupScreen, type SetupAthlete } from './TimingSetupScreen';
+import { TimingSetupScreen, type SetupAthlete, type TimingSetupScreenProps } from './TimingSetupScreen';
 
 // An athlete of the roster as the flows need it. The container of the app builds it, so this module never reads another module's tables.
 export type RosterAthlete = Pick<SetupAthlete, 'id' | 'shortName' | 'initials' | 'color' | 'authorized'>;
@@ -65,12 +65,14 @@ export type TimingSetupStepProps = {
   onSelectedIdsChange: (update: (ids: string[]) => string[]) => void;
   // Source of the times: the one the flow uses, shown as the only option.
   sourceLabel: string;
+  // Arrivals of an earlier series still without a name.
+  pending?: TimingSetupScreenProps['pending'];
   onStart: (authorized: RosterAthlete[]) => void;
   onBack: () => void;
 };
 
 // The setup screen of both flows: the event, the type of session and the athletes who will be timed.
-export function TimingSetupStep({ subtitle, roster, choice, onChoiceChange, selectedIds, onSelectedIdsChange, sourceLabel, onStart, onBack }: TimingSetupStepProps) {
+export function TimingSetupStep({ subtitle, roster, choice, onChoiceChange, selectedIds, onSelectedIdsChange, sourceLabel, pending, onStart, onBack }: TimingSetupStepProps) {
   const field = (value: string, options: readonly { code: string; nameKey: string }[]) => ({ value, options: options.map(option) });
   const authorized = roster.filter((a) => a.authorized);
   const [picking, setPicking] = useState(false);
@@ -112,6 +114,7 @@ export function TimingSetupStep({ subtitle, roster, choice, onChoiceChange, sele
       selectedCount={selected.length}
       groupCount={roster.length}
       onChooseAthletes={() => setPicking(true)}
+      pending={pending}
       onStart={() => selected.length > 0 && onStart(selected)}
       onBack={onBack}
     />
