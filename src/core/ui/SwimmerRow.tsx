@@ -108,7 +108,9 @@ export function SwimmerRow({
     .join(', ');
 
   // The trailing element keeps its own width; at large scale it starts at the name's edge.
-  const trailingStyle = { alignItems: large ? 'flex-start' : 'flex-end', flexShrink: 0 } as const;
+  const trailingStyle = large
+    ? ({ alignItems: 'flex-start', flexShrink: 0, maxWidth: '100%' } as const)
+    : ({ alignItems: 'flex-end', flexShrink: 0 } as const);
 
   const rowStyle = {
     flexDirection: 'row',
@@ -172,7 +174,8 @@ export function SwimmerRow({
             <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
             {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>{trailing}</View>
+          {/* Wraps so a part that does not fit goes to the next line instead of running past the row. */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3] }}>{trailing}</View>
         </View>
       ) : (
         <>

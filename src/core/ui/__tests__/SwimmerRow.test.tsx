@@ -359,6 +359,17 @@ describe('SwimmerRow at large text', () => {
       expect(chain(tag()).some((style) => style === column)).toBe(true);
     });
 
+    it('lets the trailing group wrap and bounds each part to its width at 200 %', async () => {
+      await renderBoth(2);
+
+      const group = chain(time()).find((style) => style.flexWrap === 'wrap');
+      expect(group).toMatchObject({ flexDirection: 'row' });
+      expect(chain(tag()).some((style) => style === group)).toBe(true);
+      for (const part of [time(), tag()]) {
+        expect(chain(part).some((style) => style.maxWidth === '100%' && style.flexShrink === 0)).toBe(true);
+      }
+    });
+
     it('keeps both fixed and the name shrinkable at 100 %', async () => {
       await renderBoth(1);
 
