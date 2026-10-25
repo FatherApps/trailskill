@@ -51,12 +51,17 @@ grant select on table public.measurement_conflicts to authenticated;
 
 alter publication powersync add table public.measurement_conflicts;
 
--- The platform admin and the two authors read a conflict.
+-- The platform admin reads every conflict. The two authors read theirs only
+-- while they can still read the measurement: the subquery runs under their own
+-- measurements policy, so a row hidden after a withdrawal (issue #54) does not
+-- leak its times through current_values and incoming_values.
 create policy measurement_conflicts_select on public.measurement_conflicts for select to authenticated
   using (
     (select app.is_platform_admin())
-    or current_by = (select auth.uid())
-    or incoming_by = (select auth.uid())
+    or (
+      (current_by = (select auth.uid()) or incoming_by = (select auth.uid()))
+      and measurement_id in (select id from public.measurements)
+    )
   );
 
 -- A new measurement starts at version 1, unedited, whatever the client sends.
@@ -170,14 +175,26 @@ begin
   -- A stale base still applies when the stored version is this same user's, from
   -- this same device: offline, the device only knows the version it last synced,
   -- and its own earlier edit is not an edit it failed to see.
+  -- With no signed-in user (the owner or the service role) an edit applies
+  -- directly and never conflicts: the conflict resolution of issue #56 uses it.
   if auth.uid() is null or new.base_version = old.version
      or (old.edited_by = auth.uid() and new.edited_device_id is not null
          and old.edited_device_id = new.edited_device_id) then
+    -- A reason belongs to the edit that sent it: an omitted one arrives as the old value.
+    if new.edit_reason is not distinct from old.edit_reason then
+      new.edit_reason := null;
+    end if;
     new.version := old.version + 1;
     new.edited_by := auth.uid();
     new.edited_at := clock_timestamp();
     new.base_version := null;
     return new;
+  end if;
+
+  -- The table check only fires on an applied edit: refuse invalid values here
+  -- too, so they are not kept in a conflict.
+  if new.hundredths <= 0 then
+    raise exception 'hundredths must be greater than 0' using errcode = '23514';
   end if;
 
   incoming := jsonb_build_object(

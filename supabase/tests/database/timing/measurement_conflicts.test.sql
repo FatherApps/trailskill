@@ -8,7 +8,7 @@
 -- here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(70);
+select plan(82);
 
 -- Users: coaches C1 and C2 of e1, coach X of another school, school admin S,
 -- guardian G, platform admin P.
@@ -69,7 +69,9 @@ from (values
   ('59000000-0000-4000-8000-0000000000f1', null, 3550),
   ('59000000-0000-4000-8000-0000000000f2', null, 3560),
   ('59000000-0000-4000-8000-0000000000f3', null, 3570),
-  ('59000000-0000-4000-8000-0000000000d6', '59000000-0000-4000-8000-0000000000e1', 3580)
+  ('59000000-0000-4000-8000-0000000000d6', '59000000-0000-4000-8000-0000000000e1', 3580),
+  ('59000000-0000-4000-8000-0000000000d7', '59000000-0000-4000-8000-0000000000e1', 3590),
+  ('59000000-0000-4000-8000-0000000000d8', '59000000-0000-4000-8000-0000000000e1', 3595)
 ) as v(id, athlete, h);
 
 -- d5 becomes hidden: its athlete e2 withdraws record_times, and d5 was
@@ -448,6 +450,83 @@ select lives_ok(
 );
 reset role;
 select is((select count(*) from public.measurement_conflicts), 5::bigint, 'it is a conflict too');
+
+-- A reason belongs to the edit that sent it: after an admin correction with a
+-- reason, a coach edit without one does not inherit it.
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
+select lives_ok(
+  $$ update public.measurements set hundredths = 3591, base_version = 1, edit_reason = 'Admin reason', edited_device_id = 'dev-s'
+     where id = '59000000-0000-4000-8000-0000000000d7' $$,
+  'a school admin corrects a time with a reason'
+);
+set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select lives_ok(
+  $$ update public.measurements set hundredths = 3592, base_version = 2, edited_device_id = 'dev-1'
+     where id = '59000000-0000-4000-8000-0000000000d7' $$,
+  'a coach edits it without a reason'
+);
+select is(
+  (select version || '|' || (edit_reason is null) || '|' || edited_by::text from public.measurements
+   where id = '59000000-0000-4000-8000-0000000000d7'),
+  '3|true|59000000-0000-4000-8000-0000000000a1',
+  'the new version has no reason and its editor is the coach'
+);
+
+-- Invalid values never reach a conflict.
+select throws_ok(
+  $$ update public.measurements set hundredths = 0, base_version = 1, edited_device_id = 'dev-1'
+     where id = '59000000-0000-4000-8000-0000000000d7' $$,
+  '23514', null, 'a stale edit with a time of 0 is refused'
+);
+select throws_ok(
+  $$ update public.measurements set hundredths = -5, base_version = 3, edited_device_id = 'dev-1'
+     where id = '59000000-0000-4000-8000-0000000000d7' $$,
+  '23514', null, 'and so is a negative one'
+);
+
+-- A conflict stops being readable by its authors once the measurement is hidden.
+set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select lives_ok(
+  $$ update public.measurements set hundredths = 3596, base_version = 1, edited_device_id = 'dev-1'
+     where id = '59000000-0000-4000-8000-0000000000d8' $$,
+  'coach C1 edits d8'
+);
+set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select lives_ok(
+  $$ update public.measurements set hundredths = 3597, base_version = 1, edited_device_id = 'dev-2'
+     where id = '59000000-0000-4000-8000-0000000000d8' $$,
+  'coach C2 edits d8 from the same base'
+);
+select is(
+  (select count(*) from public.measurement_conflicts where measurement_id = '59000000-0000-4000-8000-0000000000d8'),
+  1::bigint, 'both coaches read the conflict while d8 is visible'
+);
+reset role;
+insert into public.authorizations
+  (id, athlete_id, purpose, text_id, accepted_at, user_id, withdrawn_at, withdrawn_by, withdrawal_received_at)
+values
+  ('59000000-0000-4000-8000-000000000102', '59000000-0000-4000-8000-0000000000e1', 'record_times',
+   '59000000-0000-4000-8000-0000000000aa', '2026-10-01 08:00:00+00', '59000000-0000-4000-8000-0000000000a5',
+   '2026-10-01 12:00:00+00', '59000000-0000-4000-8000-0000000000a5', clock_timestamp());
+select is((select hidden from public.measurements where id = '59000000-0000-4000-8000-0000000000d8'), true, 'd8 is now hidden');
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select is_empty(
+  $$ select 1 from public.measurement_conflicts where measurement_id = '59000000-0000-4000-8000-0000000000d8' $$,
+  'coach C1 no longer reads the conflict of a hidden measurement'
+);
+set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select is_empty(
+  $$ select 1 from public.measurement_conflicts where measurement_id = '59000000-0000-4000-8000-0000000000d8' $$,
+  'nor does coach C2'
+);
+set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
+select is(
+  (select count(*) from public.measurement_conflicts where measurement_id = '59000000-0000-4000-8000-0000000000d8'),
+  1::bigint, 'the platform admin still reads it'
+);
+reset role;
 
 select * from finish();
 rollback;
