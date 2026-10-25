@@ -3,6 +3,7 @@ import { Redirect, Stack } from 'expo-router';
 import { galleryEntries, type GalleryEntry } from '../../core/ui';
 import { galleryEntries as timingGalleryEntries } from '../../modules/timing';
 import { galleryEntries as accountsEntries } from '../../modules/accounts';
+import { galleryEntries as athletesGalleryEntries } from '../../modules/athletes';
 
 type GalleryGroup = { id: string; title: string; entries: GalleryEntry[] };
 
@@ -11,6 +12,7 @@ export const galleryGroups: GalleryGroup[] = [
   { id: 'core-ui', title: 'core/ui', entries: galleryEntries },
   { id: 'timing', title: 'timing', entries: timingGalleryEntries },
   { id: 'accounts', title: 'accounts', entries: accountsEntries },
+  { id: 'athletes', title: 'athletes', entries: athletesGalleryEntries },
 ];
 
 export function findGalleryEntry(id: string): GalleryEntry | undefined {

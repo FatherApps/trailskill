@@ -1,0 +1,61 @@
+{
+  "history": {
+    "context": {
+      "training": "Entrenamiento",
+      "competition": "Competencia"
+    },
+    "meta": "{{date}} · {{context}}",
+    "meta_with_value": "{{date}} · {{context}} · {{value}}",
+    "value": {
+      "repetition": "Rep. {{index}}",
+      "series_total": "Total serie",
+      "split": "Parcial {{distance}}"
+    },
+    "origin": {
+      "import": "Importado",
+      "external_timer": "Botón externo",
+      "other_school": "Otra escuela",
+      "other_school_named": "Otra escuela: {{source}}"
+    }
+  },
+  "import_prompt": {
+    "question": "¿{{name}} compitió antes?",
+    "offer": "Puedes traer su historial de {{source}}. Tú lo confirmas antes de importar.",
+    "imported": "Ya importamos el historial de {{name}} desde {{source}}. Puedes actualizarlo cuando quieras.",
+    "dismiss": "Ahora no",
+    "learn_more": "Ver cómo",
+    "refresh": "Actualizar desde {{source}}"
+  },
+  "date": {
+    "short": "{{day}} {{month}} {{year}}",
+    "long": "{{day}} de {{month}} de {{year}}",
+    "month_short": {
+      "1": "ene",
+      "2": "feb",
+      "3": "mar",
+      "4": "abr",
+      "5": "may",
+      "6": "jun",
+      "7": "jul",
+      "8": "ago",
+      "9": "sep",
+      "10": "oct",
+      "11": "nov",
+      "12": "dic"
+    },
+    "month_long": {
+      "1": "enero",
+      "2": "febrero",
+      "3": "marzo",
+      "4": "abril",
+      "5": "mayo",
+      "6": "junio",
+      "7": "julio",
+      "8": "agosto",
+      "9": "septiembre",
+      "10": "octubre",
+      "11": "noviembre",
+      "12": "diciembre"
+    }
+  }
+}
