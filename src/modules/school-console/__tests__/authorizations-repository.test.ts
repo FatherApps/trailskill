@@ -28,7 +28,10 @@ const athlete = (id: string, name: string, groupIds: string[]): ConsoleAthlete =
 
 const athletes = [athlete('a1', 'Lucía Ramírez', ['g1', 'g2']), athlete('a2', 'Mateo Castro', []), athlete('a3', 'Sara Peña', ['g2'])];
 
-const setup = (statuses: AuthorizationStatusRow[]) => {
+type RpcResult = { data: unknown; error: Error | null };
+
+const setup = (statuses: AuthorizationStatusRow[], rpcResult: RpcResult = { data: [], error: null }) => {
+  const rpc = jest.fn().mockResolvedValue(rpcResult);
   const listAthletes = jest.fn().mockResolvedValue(athletes);
   const statusRepository = createInMemoryAuthorizationStatusRepository(statuses);
   const invitations = createInMemoryInvitationRepository();
@@ -36,8 +39,9 @@ const setup = (statuses: AuthorizationStatusRow[]) => {
     athletes: { listAthletes },
     statuses: statusRepository,
     invitations,
+    sharing: { rpc },
   });
-  return { repository, listAthletes, statusRepository, invitations };
+  return { repository, listAthletes, statusRepository, invitations, rpc };
 };
 
 describe('authorizations repository', () => {
@@ -112,5 +116,43 @@ describe('authorizations repository', () => {
       { schoolId: 'school-1', groupId: 'g1' },
     ]);
     await expect(statusRepository.listStatuses(['a1'])).resolves.toEqual([{ athleteId: 'a1', purpose: 'record_times', isGranted: true }]);
+  });
+
+  describe('sharing requests (online, through the server functions)', () => {
+    it('reads the requests addressed to the school: pending without an approval date, approved with one', async () => {
+      const { repository, rpc } = setup([], {
+        data: [
+          { id: 'r1', target_school_name: 'Escuela Tiburones', requested_at: '2026-10-22T15:00:00.000Z', approved_at: null },
+          { id: 'r2', target_school_name: 'Club Olas', requested_at: '2026-10-24T15:00:00.000Z', approved_at: '2026-10-25T15:00:00.000Z' },
+        ],
+        error: null,
+      });
+
+      await expect(repository.listSharingRequests('school-1')).resolves.toEqual([
+        { id: 'r1', school: 'Escuela Tiburones', requestedOn: '2026-10-22', status: 'pending' },
+        { id: 'r2', school: 'Club Olas', requestedOn: '2026-10-24', status: 'approved' },
+      ]);
+      expect(rpc).toHaveBeenCalledWith('result_sharing_requests', { school: 'school-1' });
+    });
+
+    it('rejects when the server fails, never an empty list', async () => {
+      const { repository } = setup([], { data: null, error: new Error('offline') });
+
+      await expect(repository.listSharingRequests('school-1')).rejects.toThrow('offline');
+    });
+
+    it('approves and withdraws through their own function with the request id, and rejects on error', async () => {
+      const { repository, rpc } = setup([]);
+
+      await repository.approveSharing('r1');
+      await repository.withdrawSharing('r2');
+
+      expect(rpc).toHaveBeenNthCalledWith(1, 'approve_result_sharing', { sharing: 'r1' });
+      expect(rpc).toHaveBeenNthCalledWith(2, 'withdraw_result_sharing', { sharing: 'r2' });
+
+      const failing = setup([], { data: null, error: new Error('denied') });
+      await expect(failing.repository.approveSharing('r1')).rejects.toThrow('denied');
+      await expect(failing.repository.withdrawSharing('r1')).rejects.toThrow('denied');
+    });
   });
 });

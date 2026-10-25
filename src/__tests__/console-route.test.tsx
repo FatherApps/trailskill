@@ -37,6 +37,9 @@ jest.mock('../modules/school-console', () => ({
   createPowerSyncAuthorizationsRepository: () => ({
     listAthletes: () => Promise.resolve([]),
     resend: () => Promise.reject(new Error('not used')),
+    listSharingRequests: () => Promise.resolve([]),
+    approveSharing: () => Promise.reject(new Error('not used')),
+    withdrawSharing: () => Promise.reject(new Error('not used')),
   }),
   createPowerSyncStaffSchoolRepository: () => ({
     listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
