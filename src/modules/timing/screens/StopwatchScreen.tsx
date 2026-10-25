@@ -1,3 +1,4 @@
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useEffect } from 'react';
 import { BackHandler, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +10,7 @@ import { ConfirmSheet, SyncStatus } from '../../../core/ui';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { Stopwatch, type StopwatchProps } from '../components/Stopwatch';
 import { TimingHeader } from '../components/TimingHeader';
+import { withTap } from '../components/withTap';
 import '../i18n';
 
 export type StopwatchScreenProps = StopwatchProps & {
@@ -34,6 +36,8 @@ export type StopwatchScreenProps = StopwatchProps & {
   onCancelExit: () => void;
 };
 
+const KEEP_AWAKE_TAG = 'stopwatch';
+
 export function StopwatchScreen({
   athleteName,
   position,
@@ -50,6 +54,15 @@ export function StopwatchScreen({
 }: StopwatchScreenProps) {
   const { colors, space } = useTheme();
   const running = stopwatch.state === 'running';
+
+  // The screen must not go dark mid-lap: awake from the start until it stops or the screen is left.
+  useEffect(() => {
+    if (!running) return;
+    activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
+    return () => {
+      deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
+    };
+  }, [running]);
 
   useEffect(() => {
     if (!running) return;
@@ -73,7 +86,12 @@ export function StopwatchScreen({
           <OfflineBanner />
         </View>
       )}
-      <Stopwatch {...stopwatch} />
+      <Stopwatch
+        {...stopwatch}
+        onStart={withTap(stopwatch.onStart)}
+        onSplit={withTap(stopwatch.onSplit)}
+        onStop={withTap(stopwatch.onStop)}
+      />
       <ConfirmSheet
         visible={exitConfirmVisible}
         destructive

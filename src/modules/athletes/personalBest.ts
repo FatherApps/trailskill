@@ -1,6 +1,7 @@
 import type { Hundredths } from '../../core/time';
 import type { MeasurementKind } from '../timing';
-import type { HistoryMeasurement } from './data/history';
+import type { EventValue } from './components/EventSelector';
+import type { HistoryMeasurement, HistoryRepository } from './data/history';
 import type { HistoryOrigin } from './components/HistoryList';
 
 /**
@@ -50,4 +51,9 @@ export function personalBest(measurements: readonly HistoryMeasurement[]): Perso
       ? { hundredths: (previous.hundredths - best.hundredths) as Hundredths, previousDate: previous.capturedAt }
       : null,
   };
+}
+
+/** The athlete's best time in the event, read from the local history; null when there is none, never 0. */
+export async function personalBestTime(history: HistoryRepository, athleteId: string, event: EventValue): Promise<Hundredths | null> {
+  return personalBest(await history.listByEvent(athleteId, event))?.hundredths ?? null;
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSession } from '../../core/session';
 import { db, useGlobalSyncSummary } from '../../core/sync';
 import { createPowerSyncAuthorizationStatusRepository } from '../../modules/accounts';
-import { athleteDisplay, createPowerSyncSchoolAthleteRepository } from '../../modules/athletes';
+import { athleteDisplay, createPowerSyncHistoryRepository, createPowerSyncSchoolAthleteRepository, personalBestTime } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useStaffSchool } from '../../modules/school-console';
 import {
   createPowerSyncMeasurementRepository,
@@ -12,6 +12,7 @@ import {
   createSecureStoreSessionSetupRepository,
   IndividualTimingFlow,
   SeriesTimingFlow,
+  type MeasurementEvent,
   type RosterAthlete,
 } from '../../modules/timing';
 
@@ -20,6 +21,7 @@ const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const authorizations = createPowerSyncAuthorizationStatusRepository();
 const measurements = createPowerSyncMeasurementRepository();
 const seriesRepository = createPowerSyncSeriesRepository();
+const history = createPowerSyncHistoryRepository();
 const sessionSetups = createSecureStoreSessionSetupRepository();
 
 // The athletes on this device (the sync streams already limit them to the ones this person may see) and who allowed recording times.
@@ -28,6 +30,9 @@ async function loadRoster(): Promise<RosterAthlete[]> {
   const [athletes, granted] = await Promise.all([schoolAthletes.listAll(), authorizations.listGrantedAthleteIds('record_times')]);
   return athletes.map((athlete, index) => ({ id: athlete.id, ...athleteDisplay(athlete, index), authorized: granted.includes(athlete.id) }));
 }
+
+// The best time on this device for the event, shown against the time just stopped.
+const loadBestTime = (athleteId: string, event: MeasurementEvent) => personalBestTime(history, athleteId, event);
 
 const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -52,6 +57,6 @@ export default function TimingRoute() {
   return mode === 'series' ? (
     <SeriesTimingFlow {...flow} series={seriesRepository} />
   ) : (
-    <IndividualTimingFlow {...flow} measurements={measurements} />
+    <IndividualTimingFlow {...flow} measurements={measurements} loadBestTime={loadBestTime} />
   );
 }

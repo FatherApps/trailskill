@@ -8,3 +8,6 @@ require('react-native-safe-area-context');
 require('react-native-svg');
 require('@supabase/supabase-js');
 require('expo-secure-store');
+// Native modules of the timing screens: the tests look at the calls, never at the device.
+jest.mock('expo-keep-awake', () => ({ activateKeepAwakeAsync: jest.fn(() => Promise.resolve()), deactivateKeepAwake: jest.fn(() => Promise.resolve()) }));
+jest.mock('expo-haptics', () => ({ impactAsync: jest.fn(() => Promise.resolve()), ImpactFeedbackStyle: { Light: 'light' } }));

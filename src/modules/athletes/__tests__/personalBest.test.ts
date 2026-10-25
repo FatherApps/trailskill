@@ -1,6 +1,7 @@
 import type { Hundredths } from '../../../core/time';
 import type { HistoryMeasurement } from '../data/history';
-import { personalBest } from '../personalBest';
+import { createInMemoryHistoryRepository } from '../data/inMemoryHistoryRepository';
+import { personalBest, personalBestTime } from '../personalBest';
 
 function result(id: string, hundredths: number | null, capturedAt: string, kind: HistoryMeasurement['kind'] = 'race'): HistoryMeasurement {
   return {
@@ -107,5 +108,24 @@ describe('personalBest', () => {
     ];
 
     expect(personalBest([...list].reverse())).toEqual(personalBest(list));
+  });
+});
+
+describe('personalBestTime', () => {
+  const event = { stroke: 'FR', distance: '50m', pool: 'SCM' } as const;
+
+  it('reads the best time of the athlete in the event from the history', async () => {
+    const history = createInMemoryHistoryRepository([
+      result('a', 3500, '2026-01-01T08:00:00Z'),
+      result('b', 3400, '2026-01-02T08:00:00Z'),
+      result('c', null, '2026-01-03T08:00:00Z'),
+    ]);
+
+    expect(await personalBestTime(history, 'athlete-1', event)).toBe(3400);
+  });
+
+  it('is null, never 0, when the athlete has no eligible time in the event', async () => {
+    expect(await personalBestTime(createInMemoryHistoryRepository([result('a', null, '2026-01-01T08:00:00Z')]), 'athlete-1', event)).toBeNull();
+    expect(await personalBestTime(createInMemoryHistoryRepository([]), 'athlete-1', event)).toBeNull();
   });
 });

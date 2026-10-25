@@ -9,6 +9,7 @@ import {
   CompletedMeasurementTimeError,
   InvalidMeasurementTimeError,
   type Measurement,
+  type MeasurementEvent,
   type MeasurementRepository,
 } from '../data/measurements';
 import { elapsedAt, idleStopwatch, reset, split, splitTimes, start, stop, totalTime, type Stopwatch } from '../domain/stopwatch';
@@ -27,6 +28,8 @@ export type IndividualTimingFlowProps = {
   measurements: MeasurementRepository;
   // Remembers the event and the athletes between sessions; without it the setup lives only while the flow is open.
   setups?: SessionSetupRepository;
+  // The athlete's best time in the event, to show how the new time compares; without it, or when it fails, no difference is shown.
+  loadBestTime?(athleteId: string, event: MeasurementEvent): Promise<Hundredths | null>;
   userId: string;
   deviceId: string;
   // Monotonic clock in nanoseconds; the stopwatch only uses differences.
@@ -63,6 +66,7 @@ function IndividualSession({
   roster,
   measurements,
   setups,
+  loadBestTime,
   userId,
   deviceId,
   now = clock,
@@ -81,6 +85,20 @@ function IndividualSession({
     const timer = setInterval(() => setTick((n) => n + 1), TICK_MS);
     return () => clearInterval(timer);
   }, [running]);
+
+  // The best belongs to the athlete being timed; a read that comes back late for another one is ignored.
+  const [best, setBest] = useState<{ athleteId: string; value: Hundredths | null }>();
+  const timedId = step.kind === 'timing' ? step.queue[step.position]!.id : undefined;
+  useEffect(() => {
+    if (!loadBestTime || !timedId) return;
+    let active = true;
+    loadBestTime(timedId, { stroke: choice.stroke, distance: choice.distance, pool: choice.pool } as MeasurementEvent)
+      .then((value) => active && setBest({ athleteId: timedId, value }))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [loadBestTime, timedId, choice.stroke, choice.distance, choice.pool]);
 
   const savedIds = step.kind === 'setup' ? [] : step.saved.map((s) => s.id);
   const syncStates = useRecordSyncStates('measurements', savedIds);
@@ -107,6 +125,11 @@ function IndividualSession({
   if (step.kind === 'timing') {
     const athlete = step.queue[step.position]!;
     const elapsed = elapsedAt(stopwatch, now()) ?? (0 as Hundredths);
+    // The mark is taken here, at the touch: the updater runs when React renders, which may be later.
+    const markedAt = (apply: (current: Stopwatch, at: bigint) => Stopwatch) => () => {
+      const at = now();
+      setStopwatch((current) => apply(current, at));
+    };
     const toSetup = () => {
       setStopwatch(reset());
       setExitConfirm(false);
@@ -164,10 +187,11 @@ function IndividualSession({
         offline={offline}
         state={stopwatch.status === 'idle' ? 'ready' : stopwatch.status}
         elapsedHundredths={elapsed}
+        bestTime={best?.athleteId === athlete.id ? best.value : null}
         splits={splitTimes(stopwatch).map((value, i) => ({ label: `${t('timing.stopwatch.split')} ${i + 1}`, value }))}
-        onStart={() => setStopwatch((sw) => start(sw, now()))}
-        onSplit={() => setStopwatch((sw) => split(sw, now()))}
-        onStop={() => setStopwatch((sw) => stop(sw, now()))}
+        onStart={markedAt(start)}
+        onSplit={markedAt(split)}
+        onStop={markedAt(stop)}
         onSave={save}
         onDiscard={() => setStopwatch(reset())}
         // Leaving with a running or stopped time would lose it: the container asks first.
