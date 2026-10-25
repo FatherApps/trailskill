@@ -9,7 +9,7 @@ const config: ExpoConfig = {
     // Provisional until the maintainer confirms it, before the first Play upload.
     package: 'com.fatherapps.trailskill',
   },
-  plugins: ['expo-router'],
+  plugins: ['expo-router', 'expo-secure-store'],
 };
 
 export default config;
