@@ -5,10 +5,11 @@
 -- nothing here is synced. All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(26);
 
 -- Users: admin A, admin B, coach B (assigned to e1), guardian G (of e1 and e2,
--- no school role), N with no relations, admin C, coach B2 (of B, not assigned).
+-- no school role), N with no relations, admin C, coach B2 (of B, not assigned), X (coach of B
+-- not assigned to e1 and admin of C).
 insert into auth.users (id, email) values
   ('06800000-0000-4000-8000-0000000000a1', 'admin-a@example.test'),
   ('06800000-0000-4000-8000-0000000000a2', 'admin-b@example.test'),
@@ -16,7 +17,8 @@ insert into auth.users (id, email) values
   ('06800000-0000-4000-8000-0000000000a4', 'guardian-g@example.test'),
   ('06800000-0000-4000-8000-0000000000a5', 'no-relation-n@example.test'),
   ('06800000-0000-4000-8000-0000000000a6', 'admin-c@example.test'),
-  ('06800000-0000-4000-8000-0000000000a7', 'coach-b2@example.test');
+  ('06800000-0000-4000-8000-0000000000a7', 'coach-b2@example.test'),
+  ('06800000-0000-4000-8000-0000000000a8', 'coach-b-admin-c@example.test');
 
 insert into public.schools (id, name) values
   ('06800000-0000-4000-8000-0000000000b1', 'Results School A'),
@@ -28,7 +30,9 @@ insert into public.school_memberships (school_id, user_id, role) values
   ('06800000-0000-4000-8000-0000000000b2', '06800000-0000-4000-8000-0000000000a2', 'school_admin'),
   ('06800000-0000-4000-8000-0000000000b2', '06800000-0000-4000-8000-0000000000a3', 'coach'),
   ('06800000-0000-4000-8000-0000000000b3', '06800000-0000-4000-8000-0000000000a6', 'school_admin'),
-  ('06800000-0000-4000-8000-0000000000b2', '06800000-0000-4000-8000-0000000000a7', 'coach');
+  ('06800000-0000-4000-8000-0000000000b2', '06800000-0000-4000-8000-0000000000a7', 'coach'),
+  ('06800000-0000-4000-8000-0000000000b2', '06800000-0000-4000-8000-0000000000a8', 'coach'),
+  ('06800000-0000-4000-8000-0000000000b3', '06800000-0000-4000-8000-0000000000a8', 'school_admin');
 
 -- e1: A, B and C, authorized to share. e2: A and B, not authorized to share.
 insert into public.athletes (id, first_name, last_name) values
@@ -62,7 +66,8 @@ update public.authorizations set withdrawn_at = '2026-10-10 08:00:00+00' where i
 
 -- d1: A's race of e1, the only row B may see. d2: A's split of e1. d3: A's
 -- repetition of e1 after the withdrawal (hidden). d4: B's own race of e1.
--- d5: C's race of e1. d6: A's race of e2.
+-- d5: C's race of e1. d6: A's race of e2. d7: A's race of e1 that its author
+-- discarded.
 insert into public.measurements
   (id, kind, athlete_id, school_id, hundredths, stroke, distance, pool, session_type, source,
    device_id, created_by, captured_at, parent_id, arrival_position)
@@ -79,6 +84,14 @@ values
    'device-c', '06800000-0000-4000-8000-0000000000a6', '2026-10-07 08:00:00+00', null, null),
   ('06800000-0000-4000-8000-0000000000d6', 'race', '06800000-0000-4000-8000-0000000000e2', '06800000-0000-4000-8000-0000000000b1', 3700, 'FR', '50m', 'SCM', 'competition', 'screen_stopwatch',
    'device-a', '06800000-0000-4000-8000-0000000000a1', '2026-10-05 09:00:00+00', null, null);
+
+insert into public.measurements
+  (id, kind, athlete_id, school_id, hundredths, stroke, distance, pool, session_type, source,
+   device_id, created_by, captured_at, parent_id, arrival_position, discarded_at, discarded_by)
+values
+  ('06800000-0000-4000-8000-0000000000d7', 'race', '06800000-0000-4000-8000-0000000000e1', '06800000-0000-4000-8000-0000000000b1', 3400, 'FR', '50m', 'SCM', 'competition', 'screen_stopwatch',
+   'device-a', '06800000-0000-4000-8000-0000000000a1', '2026-10-08 08:00:00+00', null, null,
+   '2026-10-08 09:00:00+00', '06800000-0000-4000-8000-0000000000a1');
 
 select is((select hidden from public.measurements where id = '06800000-0000-4000-8000-0000000000d3'), true,
   'fixture: d3 is hidden by the record_times withdrawal');
@@ -110,11 +123,16 @@ select results_eq(
   $$ values ('06800000-0000-4000-8000-0000000000d1'::uuid, 'race'::text, 3482, 'FR'::text, '50m'::text, 'SCM'::text, 'competition'::text,
              '2026-10-05 08:00:00+00'::timestamptz, null::int) $$,
   'approved and authorized: admin B gets exactly the race of A, not its split, its hidden row, B''s own or C''s');
+select is((select array_agg(id order by id) from public.other_school_results('06800000-0000-4000-8000-0000000000e1')),
+  array['06800000-0000-4000-8000-0000000000d1']::uuid[],
+  'A''s discarded race d7 is not returned to admin B while d1 still is');
 select is_empty($$ select * from public.other_school_results('06800000-0000-4000-8000-0000000000e2') $$, 'without the athlete''s sharing authorization admin B gets nothing (e2)');
 set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
 select results_eq($$ select id from public.other_school_results('06800000-0000-4000-8000-0000000000e1') $$, $$ values ('06800000-0000-4000-8000-0000000000d1'::uuid) $$, 'coach B assigned to e1 gets the race of A');
 set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
 select is_empty($$ select * from public.other_school_results('06800000-0000-4000-8000-0000000000e1') $$, 'coach B2 not assigned to e1 gets nothing');
+set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a8", "role": "authenticated"}';
+select is_empty($$ select * from public.other_school_results('06800000-0000-4000-8000-0000000000e1') $$, 'coach of B not assigned to e1 who is also admin of C gets nothing: C''s visibility is not B''s approval');
 set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
 select is_empty($$ select * from public.other_school_results('06800000-0000-4000-8000-0000000000e1') $$, 'guardian G, with no role in B, gets nothing');
 set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
