@@ -61,11 +61,15 @@ function toResult(m: HistoryMeasurement, personalBestId: string | undefined, syn
 export function AthleteProfileContainer({ athleteId, athletes, history, authorizations, lastSyncedAt }: AthleteProfileContainerProps) {
   const [event, setEvent] = useState<EventValue>(initialEvent);
   const [attempt, setAttempt] = useState(0);
-  const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' });
+  // The answer is stored with the request it belongs to: any other request shows as loading until its own answer lands.
+  const requestKey = `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${attempt}`;
+  const [answer, setAnswer] = useState<{ key: string; result: Loaded }>();
+  const loaded = useMemo<Loaded>(() => (answer?.key === requestKey ? answer.result : { kind: 'loading' }), [answer, requestKey]);
+  // The age of the last sync is read once, when the profile opens, so it does not change on every render.
+  const [openedAt] = useState(() => Date.now());
 
   useEffect(() => {
     let active = true;
-    setLoaded({ kind: 'loading' });
     (async () => {
       const [athlete] = await athletes.listByIds([athleteId]);
       if (!athlete) return { kind: 'denied' } as const;
@@ -73,11 +77,11 @@ export function AthleteProfileContainer({ athleteId, athletes, history, authoriz
       return { kind: 'ready', athlete, authorized: granted.includes(athleteId), measurements } as const;
     })()
       .catch((): Loaded => ({ kind: 'error' }))
-      .then((result) => active && setLoaded(result));
+      .then((result) => active && setAnswer({ key: requestKey, result }));
     return () => {
       active = false;
     };
-  }, [athleteId, athletes, authorizations, history, event, attempt]);
+  }, [athleteId, athletes, authorizations, history, event, requestKey]);
 
   const ids = useMemo(() => (loaded.kind === 'ready' ? loaded.measurements.map((m) => m.id) : []), [loaded]);
   const syncStates = useRecordSyncStates('measurements', ids);
@@ -97,7 +101,7 @@ export function AthleteProfileContainer({ athleteId, athletes, history, authoriz
       schools: [],
       schoolId: '',
       authorization: authorized ? ('valid' as const) : ('pending' as const),
-      updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.round((Date.now() - lastSyncedAt.getTime()) / 60000)) : null,
+      updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.round((openedAt - lastSyncedAt.getTime()) / 60000)) : null,
     },
     event: {
       strokes: strokes.map((s) => s.code),

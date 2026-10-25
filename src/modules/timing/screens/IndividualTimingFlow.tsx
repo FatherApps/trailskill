@@ -20,7 +20,7 @@ export type RosterAthlete = Pick<SetupAthlete, 'id' | 'shortName' | 'initials' |
 export type IndividualTimingFlowProps = {
   // For example the school name.
   subtitle: string;
-  loadRoster: () => Promise<RosterAthlete[]>;
+  loadRoster(): Promise<RosterAthlete[]>;
   measurements: MeasurementRepository;
   userId: string;
   deviceId: string;
