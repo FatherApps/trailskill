@@ -56,7 +56,8 @@ describe('AccountDetailsScreen states', () => {
     const code = screen.getByLabelText('Código de 6 dígitos');
     expect(code.props.accessibilityHint).toBe(`Te enviamos un código de 6 dígitos a ${fx.person.email}.`);
     expect(code.props.keyboardType).toBe('number-pad');
-    expect(code.props.maxLength).toBe(6);
+    // No maxLength: the platform would cut a pasted "123 456" before the separators are stripped.
+    expect(code.props.maxLength).toBeUndefined();
     expect(screen.getByRole('button', { name: 'Verificar y continuar' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Pedir un código nuevo' })).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Enviarme un código' })).toBeNull();
@@ -82,6 +83,17 @@ describe('AccountDetailsScreen states', () => {
     expect(onSignIn).toHaveBeenCalledTimes(1);
   });
 
+  it('code field: separators are stripped and the code is cut to 6 digits', async () => {
+    const { onChange } = await renderScreen({ values: filled, codeSent: true });
+    const field = screen.getByLabelText('Código de 6 dígitos');
+    expect(field.props.maxLength).toBeUndefined();
+
+    await fireEvent.changeText(field, '123 456');
+    expect(onChange).toHaveBeenLastCalledWith('code', '123456');
+    await fireEvent.changeText(field, '1234567');
+    expect(onChange).toHaveBeenLastCalledWith('code', '123456');
+  });
+
   it('offline: says verifying needs signal, keeps what was typed and marks network buttons', async () => {
     await renderScreen({ values: filled, codeSent: true, offline: true });
 
@@ -92,16 +104,18 @@ describe('AccountDetailsScreen states', () => {
     expect(screen.getByDisplayValue(fx.person.email)).toBeOnTheScreen();
     expect(screen.getByDisplayValue(fx.person.phone)).toBeOnTheScreen();
     for (const name of [
-      'Continuar con Google',
-      'Continuar con Microsoft',
+      'Continuar con Google · Necesitas señal',
+      'Continuar con Microsoft · Necesitas señal',
       'Verificar y continuar',
       'Pedir un código nuevo',
     ]) {
       const button = screen.getByRole('button', { name });
       expect(button).toBeDisabled();
-      expect(button.props.accessibilityHint).toBe('Necesitas señal');
+      if (!name.startsWith('Continuar')) expect(button.props.accessibilityHint).toBe('Necesitas señal');
     }
-    expect(screen.getAllByText('Necesitas señal')).toHaveLength(4);
+    expect(screen.getAllByText('Necesitas señal')).toHaveLength(2);
+    expect(screen.getByText('Continuar con Google · Necesitas señal')).toBeOnTheScreen();
+    expect(screen.getByText('Continuar con Microsoft · Necesitas señal')).toBeOnTheScreen();
   });
 
   it('offline before the code: the code request needs signal too', async () => {

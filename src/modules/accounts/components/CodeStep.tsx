@@ -33,7 +33,6 @@ export function CodeStep({ email, code, error, busy, offline = false, onChange, 
         value={code}
         onChangeText={(text) => onChange(text.replace(/\D/g, '').slice(0, CODE_LENGTH))}
         keyboardType="number-pad"
-        maxLength={CODE_LENGTH}
         autoComplete="one-time-code"
         textContentType="oneTimeCode"
       />

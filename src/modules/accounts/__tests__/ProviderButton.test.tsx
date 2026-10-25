@@ -48,15 +48,22 @@ describe('ProviderButton', () => {
     expect(screen.queryByTestId('provider-mark-disc', { includeHiddenElements: true })).toBeNull();
       });
 
-  it('shows the reason instead of going silent when it cannot be used', async () => {
+  it('keeps its identity when it cannot be used: provider and reason in text and accessible name', async () => {
     const onPress = jest.fn();
-    await render(<ProviderButton provider="google" disabledReason="Necesitas señal" onPress={onPress} />);
+    await render(
+      <>
+        <ProviderButton provider="google" disabledReason="Necesitas señal" onPress={onPress} />
+        <ProviderButton provider="microsoft" disabledReason="Necesitas señal" onPress={onPress} />
+      </>,
+    );
 
-    const button = screen.getByRole('button', { name: 'Continuar con Google' });
-    expect(screen.getByText('Necesitas señal')).toBeOnTheScreen();
-    expect(button).toBeDisabled();
-    expect(button.props.accessibilityHint).toBe('Necesitas señal');
-    await fireEvent.press(button);
+    for (const text of ['Continuar con Google · Necesitas señal', 'Continuar con Microsoft · Necesitas señal']) {
+      const button = screen.getByRole('button', { name: text });
+      expect(screen.getByText(text)).toBeOnTheScreen();
+      expect(button.props.accessibilityLabel).toBe(text);
+      expect(button).toBeDisabled();
+      await fireEvent.press(button);
+    }
     expect(onPress).not.toHaveBeenCalled();
   });
 });

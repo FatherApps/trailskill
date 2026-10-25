@@ -67,6 +67,17 @@ describe('SignInScreen states', () => {
     expect(screen.getByRole('button', { name: 'Enviar código' })).toBeBusy();
   });
 
+  it('code field: separators are stripped and the code is cut to 6 digits', async () => {
+    const { onChange } = await renderScreen({ values: typed, codeSent: true });
+    const field = screen.getByLabelText('Código de 6 dígitos');
+    expect(field.props.maxLength).toBeUndefined();
+
+    await fireEvent.changeText(field, '123 456');
+    expect(onChange).toHaveBeenLastCalledWith('code', '123456');
+    await fireEvent.changeText(field, '1234567');
+    expect(onChange).toHaveBeenLastCalledWith('code', '123456');
+  });
+
   it('offline: says verifying needs signal, keeps the email and marks network buttons', async () => {
     await renderScreen({ values: typed, codeSent: true, offline: true });
 
@@ -75,14 +86,14 @@ describe('SignInScreen states', () => {
     );
     expect(screen.getByDisplayValue(fx.person.email)).toBeOnTheScreen();
     for (const name of [
-      'Continuar con Google',
-      'Continuar con Microsoft',
+      'Continuar con Google · Necesitas señal',
+      'Continuar con Microsoft · Necesitas señal',
       'Verificar y continuar',
       'Pedir un código nuevo',
     ]) {
       const button = screen.getByRole('button', { name });
       expect(button).toBeDisabled();
-      expect(button.props.accessibilityHint).toBe('Necesitas señal');
+      if (!name.startsWith('Continuar')) expect(button.props.accessibilityHint).toBe('Necesitas señal');
     }
   });
 });

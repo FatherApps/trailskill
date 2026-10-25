@@ -62,12 +62,13 @@ export function ProviderButton({ provider, onPress, disabledReason }: ProviderBu
   const unavailable = disabledReason !== undefined;
   const background = unavailable ? colors['surface-2'] : colors['surface-1'];
   const text = colors[unavailable ? 'ink-muted' : 'ink'];
+  // Unavailable: keep the provider in the name so two blocked buttons stay distinguishable.
+  const name = unavailable ? `${label} · ${disabledReason}` : label;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={disabledReason}
+      accessibilityLabel={name}
       accessibilityState={{ disabled: unavailable }}
       disabled={unavailable}
       onPress={onPress}
@@ -94,7 +95,7 @@ export function ProviderButton({ provider, onPress, disabledReason }: ProviderBu
           <Mark provider={provider} />
         </View>
       )}
-      <Text style={[typography['body-strong'], styles.label, { color: text }]}>{disabledReason ?? label}</Text>
+      <Text style={[typography['body-strong'], styles.label, { color: text }]}>{name}</Text>
     </Pressable>
   );
 }
