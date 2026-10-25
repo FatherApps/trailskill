@@ -41,6 +41,7 @@ const styles = StyleSheet.create({
   },
   ghost: { paddingHorizontal: 12 },
   underline: { textDecorationLine: 'underline' },
+  label: { flexShrink: 1, textAlign: 'center' },
 });
 
 export function Button({
@@ -62,14 +63,15 @@ export function Button({
   const { background, text } = unavailable ? unavailableColors : buttonColors[variant];
   const ghost = !unavailable && background === null;
 
-  const shownLabel = unavailable ? disabledReason : loading ? (loadingLabel ?? label) : label;
+  // Unavailable: keep the label so two blocked buttons stay distinguishable, also for screen readers.
+  const shownLabel = unavailable ? `${label} · ${disabledReason}` : loading ? (loadingLabel ?? label) : label;
   const minHeight = timing && variant === 'stop' ? size['target-timing'] : timing ? 72 : size['target-min'];
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={disabledReason ?? accessibilityHint}
+      accessibilityLabel={unavailable ? shownLabel : label}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: unavailable, busy: loading }}
       // Pressable only stops claiming touches (and RNTL only skips onPress) when `disabled` is set; it also reports disabled while loading.
       disabled={unavailable || loading}
@@ -115,6 +117,7 @@ export function Button({
               key={textColor}
               style={[
                 typography['body-strong'],
+                styles.label,
                 timing && { fontSize: 18 },
                 { color: textColor },
                 ghost && styles.underline,
