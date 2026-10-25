@@ -15,12 +15,16 @@ export type SyncStatusProps = {
   message?: string;
 };
 
-export const syncStatusColors: Record<RecordSyncState, { background: ColorToken; text: ColorToken; dot: ColorToken }> =
+type SyncStatusColors = { background: ColorToken; text: ColorToken; dot: ColorToken; border?: ColorToken };
+
+export const syncStatusColors: Record<RecordSyncState, SyncStatusColors> =
   {
     on_device: { background: 'warning-bg', text: 'warning-text', dot: 'warning' },
     sending: { background: 'primary-tint', text: 'on-primary-tint', dot: 'on-primary-tint' },
     synced: { background: 'success-bg', text: 'success', dot: 'success' },
     not_sent: { background: 'danger-bg', text: 'danger-text', dot: 'danger-text' },
+    // Like on_device but outlined, so a conflict is told apart from a pending write.
+    needs_review: { background: 'warning-bg', text: 'warning-text', dot: 'warning-text', border: 'warning-text' },
   };
 
 const styles = StyleSheet.create({
@@ -32,7 +36,7 @@ const styles = StyleSheet.create({
 // Presentational: the caller derives `state` from each record's real outbox state, never from connectivity alone.
 export function SyncStatus({ state, count, onRetry, message }: SyncStatusProps) {
   const { colors, space, radius, typography } = useTheme();
-  const { background, text, dot } = syncStatusColors[state];
+  const { background, text, dot, border } = syncStatusColors[state];
   const label = count === undefined ? t(`sync.${state}`) : `${t(`sync.${state}`)} · ${count}`;
 
   return (
@@ -42,7 +46,11 @@ export function SyncStatus({ state, count, onRetry, message }: SyncStatusProps) 
           accessible
           accessibilityRole="text"
           accessibilityLabel={label}
-          style={[styles.pill, { gap: 6, borderRadius: radius.full, backgroundColor: colors[background] }]}
+          style={[
+            styles.pill,
+            { gap: 6, borderRadius: radius.full, backgroundColor: colors[background] },
+            border && { borderWidth: 1.5, borderColor: colors[border] },
+          ]}
         >
           <View style={[styles.dot, { borderRadius: radius.full, backgroundColor: colors[dot] }]} />
           <Text

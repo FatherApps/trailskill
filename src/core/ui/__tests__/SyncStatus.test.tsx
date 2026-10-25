@@ -12,7 +12,16 @@ const labels: [RecordSyncState, string][] = [
   ['sending', 'Enviando'],
   ['synced', 'Enviado'],
   ['not_sent', 'No enviado'],
+  ['needs_review', 'Revisar'],
 ];
+
+// The four states that existed before needs_review keep exactly their colors.
+const previousColors = {
+  on_device: { background: 'warning-bg', text: 'warning-text', dot: 'warning' },
+  sending: { background: 'primary-tint', text: 'on-primary-tint', dot: 'on-primary-tint' },
+  synced: { background: 'success-bg', text: 'success', dot: 'success' },
+  not_sent: { background: 'danger-bg', text: 'danger-text', dot: 'danger-text' },
+};
 
 describe('SyncStatus', () => {
   it.each(labels)('%s shows "%s" and offers a retry only when not sent', async (state, label) => {
@@ -22,6 +31,17 @@ describe('SyncStatus', () => {
     const retry = screen.queryByRole('button', { name: 'Intentar de nuevo' });
     if (state === 'not_sent') expect(retry).toBeOnTheScreen();
     else expect(retry).toBeNull();
+  });
+
+  it.each(Object.entries(previousColors))('%s keeps its previous colors and has no border', (state, expected) => {
+    expect(syncStatusColors[state as keyof typeof previousColors]).toEqual(expected);
+  });
+
+  it('needs_review is a warning pill with a warning-text border, and its count reads "Revisar · N"', async () => {
+    expect(syncStatusColors.needs_review).toMatchObject({ background: 'warning-bg', text: 'warning-text', border: 'warning-text' });
+
+    await render(<SyncStatus state="needs_review" count={2} />);
+    expect(screen.getByRole('text', { name: 'Revisar · 2' })).toBeOnTheScreen();
   });
 
   it('emits the retry event and leaves the upload to the caller', async () => {

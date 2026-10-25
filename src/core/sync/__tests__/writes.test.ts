@@ -1,5 +1,7 @@
+import { DatabaseSync } from 'node:sqlite';
+
 import { createStore, openDatabase, type FakeDatabase } from '../testing/fakeDatabase';
-import { deleteRecord, writeRecord } from '../writes';
+import { deleteRecord, editRecord, writeRecord } from '../writes';
 
 let mockDb: FakeDatabase;
 jest.mock('../db', () => ({
@@ -94,6 +96,61 @@ describe('deleteRecord', () => {
   it('adds no pending entry when the row does not exist', async () => {
     await deleteRecord('athletes', 'missing');
 
+    expect(pending()).toEqual([]);
+  });
+});
+
+describe('editRecord', () => {
+  // A versioned table stands in for measurements: the sync fake only creates the plain ones.
+  const seedVersioned = (version: number | null) => {
+    const seed = new DatabaseSync(store.path);
+    seed.exec('CREATE TABLE versioned (id TEXT PRIMARY KEY, hundredths INTEGER, version INTEGER, base_version INTEGER, edited_device_id TEXT)');
+    seed.prepare("INSERT INTO versioned (id, hundredths, version) VALUES ('r1', 3000, ?)").run(version);
+    seed.close();
+  };
+  const row = () => mockDb.getAll('SELECT * FROM versioned WHERE id = ?', ['r1'])[0];
+
+  it('writes the values with the version they were based on and queues the upload in one transaction', async () => {
+    seedVersioned(3);
+
+    await editRecord('versioned', 'r1', { hundredths: 2950, edited_device_id: 'device-a' });
+
+    expect(mockDb.transactions).toHaveLength(1);
+    expect(row()).toEqual({ id: 'r1', hundredths: 2950, version: 3, base_version: 3, edited_device_id: 'device-a' });
+    expect(pending()).toEqual([{ table_name: 'versioned', record_id: 'r1' }]);
+  });
+
+  it('treats a row not uploaded yet (no version) as version 1, so its own correction is not a conflict', async () => {
+    seedVersioned(null);
+
+    await editRecord('versioned', 'r1', { hundredths: 2950 });
+
+    expect(row()).toMatchObject({ version: null, base_version: 1 });
+  });
+
+  it('keeps the version it was based on when edited again before the server answers', async () => {
+    seedVersioned(3);
+
+    await editRecord('versioned', 'r1', { hundredths: 2950 });
+    await editRecord('versioned', 'r1', { hundredths: 2900 });
+
+    expect(row()).toMatchObject({ hundredths: 2900, version: 3, base_version: 3 });
+    expect(pending()).toHaveLength(2);
+  });
+
+  it('rejects a record that is not on the device and writes nothing', async () => {
+    seedVersioned(3);
+
+    await expect(editRecord('versioned', 'missing', { hundredths: 2950 })).rejects.toThrow('missing');
+
+    expect(pending()).toEqual([]);
+    expect(row()).toMatchObject({ hundredths: 3000, base_version: null });
+  });
+
+  it('rejects an unsafe column name', async () => {
+    seedVersioned(3);
+
+    await expect(editRecord('versioned', 'r1', { 'hundredths = 0; --': 1 })).rejects.toThrow('Unsafe SQL identifier');
     expect(pending()).toEqual([]);
   });
 });

@@ -5,7 +5,7 @@
 -- data, and anyone but the author gets 'absent'. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(18);
 
 -- Users: coach C (the author), guardian G, and X, a coach of another school.
 insert into auth.users (id, email) values
@@ -109,6 +109,19 @@ select is(
   public.confirm_measurement_insert(current_setting('test.sent')::jsonb || '{"created_at": "2020-01-01T00:00:00Z", "hidden": false}'),
   'stored',
   'server-set columns (created_at, hidden) are not compared'
+);
+-- A re-sent whole row carries the edit-version columns of issue #55 (a retried PUT requeues the current row): the server owns them.
+select is(
+  public.confirm_measurement_insert(current_setting('test.sent')::jsonb
+    || '{"version": null, "base_version": null, "edited_by": null, "edited_at": null, "edited_device_id": null, "edit_reason": null}'),
+  'stored',
+  'edit-version columns sent as null are not compared'
+);
+select is(
+  public.confirm_measurement_insert(current_setting('test.sent')::jsonb
+    || '{"version": 2, "base_version": 2, "edited_by": "59000000-0000-4000-8000-0000000000a1", "edited_at": "2026-10-07T08:00:00Z", "edited_device_id": "device-c", "edit_reason": "typo"}'),
+  'stored',
+  'edit-version columns with values are not compared either'
 );
 select is(
   public.confirm_measurement_insert(current_setting('test.sent')::jsonb || '{"captured_at": "2026-10-06T03:00:00-05:00"}'),

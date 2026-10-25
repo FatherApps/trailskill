@@ -36,6 +36,26 @@ describe('recordSyncState', () => {
   ] as const)('maps %p to %s', (input, state) => {
     expect(recordSyncState(input)).toBe(state);
   });
+
+  it.each([
+    [{ pending: true, failed: false, uploading: false }, 'on_device'],
+    [{ pending: true, failed: false, uploading: true }, 'sending'],
+    [{ pending: false, failed: false, uploading: false }, 'synced'],
+    [{ pending: false, failed: true, uploading: false }, 'not_sent'],
+    [{ pending: true, failed: true, uploading: true }, 'not_sent'],
+  ] as const)('a record with no conflict keeps its state: %p is %s', (input, state) => {
+    expect(recordSyncState({ ...input, conflict: false })).toBe(state);
+  });
+
+  it.each([
+    [{ pending: false, failed: false, uploading: false }, 'needs_review'],
+    [{ pending: true, failed: false, uploading: false }, 'needs_review'],
+    [{ pending: true, failed: false, uploading: true }, 'needs_review'],
+    [{ pending: false, failed: true, uploading: false }, 'not_sent'],
+    [{ pending: true, failed: true, uploading: true }, 'not_sent'],
+  ] as const)('a conflict shows review unless the upload was rejected: %p is %s', (input, state) => {
+    expect(recordSyncState({ ...input, conflict: true })).toBe(state);
+  });
 });
 
 describe('useRecordSyncState', () => {
@@ -71,6 +91,41 @@ describe('useRecordSyncState', () => {
     );
 
     expect(await stateOf(id)).toBe('not_sent');
+  });
+
+  const addConflict = (recordId: string, status: string, table = 'athletes') =>
+    mockDb.writeTransaction((tx) =>
+      tx.execute('INSERT INTO record_conflicts (id, table_name, record_id, status) VALUES (uuid(), ?, ?, ?)', [table, recordId, status]),
+    );
+
+  it('reports needs_review for a record with an open conflict, even when it is pending', async () => {
+    const id = await writeRecord('athletes', { first_name: 'Ana' });
+    await addConflict(id, 'open');
+
+    expect(await stateOf(id)).toBe('needs_review');
+  });
+
+  it('reports needs_review for a synced record with an open conflict', async () => {
+    await addConflict('a-1', 'open');
+
+    expect(await stateOf('a-1')).toBe('needs_review');
+  });
+
+  it('ignores a resolved conflict and the conflicts of other records and tables', async () => {
+    await addConflict('a-1', 'resolved');
+    await addConflict('a-2', 'open');
+    await addConflict('a-1', 'open', 'measurements');
+
+    expect(await stateOf('a-1')).toBe('synced');
+  });
+
+  it('reports not_sent before needs_review', async () => {
+    await addConflict('a-1', 'open');
+    await mockDb.writeTransaction((tx) =>
+      tx.execute("INSERT INTO upload_failures (id, table_name, record_id) VALUES (uuid(), 'athletes', 'a-1')"),
+    );
+
+    expect(await stateOf('a-1')).toBe('not_sent');
   });
 });
 

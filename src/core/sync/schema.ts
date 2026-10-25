@@ -38,8 +38,20 @@ export const AppSchema = new Schema({
       source: column.text,
       captured_at: column.text,
       parent_id: column.text,
+      // Edit versioning (issue #55): the server bumps `version`; the device sends `base_version`, `edited_device_id` and `edit_reason` with an edit.
+      version: column.integer,
+      base_version: column.integer,
+      edited_by: column.text,
+      edited_at: column.text,
+      edited_device_id: column.text,
+      edit_reason: column.text,
     },
     { indexes: { series: ['series_id'] } },
+  ),
+  // One row per edit conflict of any table (task 3.9a); a record with an open one shows "Revisar".
+  record_conflicts: new Table(
+    { table_name: column.text, record_id: column.text, status: column.text },
+    { indexes: { record: ['table_name', 'record_id'] } },
   ),
   training_plans: new Table(
     // SQLite has no boolean: is_template is 1 for a school template, 0 otherwise.
