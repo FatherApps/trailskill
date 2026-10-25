@@ -1,6 +1,12 @@
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
-import { createInMemoryStaffSchoolRepository, useAdminSchool, type AdminSchoolResult, type StaffSchoolRepository } from '..';
+import {
+  createInMemoryStaffSchoolRepository,
+  useAdminSchool,
+  type AdminSchoolResult,
+  type StaffSchool,
+  type StaffSchoolRepository,
+} from '..';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
@@ -43,6 +49,33 @@ describe('useAdminSchool', () => {
     const { result } = await renderHook(() => useAdminSchool(failing, 'admin-1'));
 
     await waitFor(() => expect(result.current).toEqual({ status: 'denied' }));
+  });
+
+  it('never shows the previous user as admin while the next user is being looked up', async () => {
+    let release: (schools: StaffSchool[]) => void = () => {};
+    const switching: StaffSchoolRepository = {
+      ...repository,
+      listAdminSchools: (id) =>
+        id === 'admin-1' ? repository.listAdminSchools(id) : new Promise<StaffSchool[]>((resolve) => (release = resolve)),
+    };
+    const seen: string[] = [];
+    const { result, rerender } = await renderHook<AdminSchoolResult, { userId: string }>(
+      ({ userId }) => {
+        const value = useAdminSchool(switching, userId);
+        seen.push(value.status);
+        return value;
+      },
+      { initialProps: { userId: 'admin-1' } },
+    );
+    await waitFor(() => expect(result.current.status).toBe('admin'));
+
+    seen.length = 0;
+    await rerender({ userId: 'coach-1' });
+    expect(result.current).toEqual({ status: 'loading' });
+
+    await act(async () => release([]));
+    await waitFor(() => expect(result.current).toEqual({ status: 'denied' }));
+    expect(seen).not.toContain('admin');
   });
 
   it('looks again when the refresh key changes', async () => {

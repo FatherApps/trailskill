@@ -11,19 +11,22 @@ export function useAdminSchool(
   userId: string | undefined,
   refreshKey?: unknown,
 ): AdminSchoolResult {
-  const [result, setResult] = useState<AdminSchoolResult>({ status: 'loading' });
+  // The answer is stored with the user who asked, so another user never inherits it while their own lookup runs.
+  const [answer, setAnswer] = useState<{ userId: string; result: AdminSchoolResult }>();
   useEffect(() => {
     let active = true;
     if (userId) {
+      const settle = (result: AdminSchoolResult) => active && setAnswer({ userId, result });
       repository
         .listAdminSchools(userId)
         // shortcut: takes the first admin school by name, no school picker; upgrade when an admin runs more than one school.
-        .then((schools) => active && setResult(schools[0] ? { status: 'admin', school: schools[0] } : { status: 'denied' }))
-        .catch(() => active && setResult({ status: 'denied' }));
+        .then((schools) => settle(schools[0] ? { status: 'admin', school: schools[0] } : { status: 'denied' }))
+        .catch(() => settle({ status: 'denied' }));
     }
     return () => {
       active = false;
     };
   }, [repository, userId, refreshKey]);
-  return userId ? result : { status: 'denied' };
+  if (!userId) return { status: 'denied' };
+  return answer?.userId === userId ? answer.result : { status: 'loading' };
 }
