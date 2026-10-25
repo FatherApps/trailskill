@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { fontFamily, useTheme, type ColorToken } from '../theme';
@@ -25,6 +26,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
+    maxWidth: '100%',
     minHeight: 24,
     paddingHorizontal: 10,
   },
@@ -33,6 +35,8 @@ const styles = StyleSheet.create({
 export function Tag({ label, variant = 'neutral', icon }: TagProps) {
   const { colors, space, radius, typography } = useTheme();
   const { background, text } = tagColors[variant];
+  // A pill radius turns a wrapped label into an oval, so wrapped text gets radius-md.
+  const [wrapped, setWrapped] = useState(false);
 
   return (
     <View
@@ -44,7 +48,7 @@ export function Tag({ label, variant = 'neutral', icon }: TagProps) {
         styles.tag,
         {
           gap: space[1],
-          borderRadius: radius.full,
+          borderRadius: wrapped ? radius.md : radius.full,
           backgroundColor: background ? colors[background] : 'transparent',
         },
         variant === 'outline' && {
@@ -57,7 +61,9 @@ export function Tag({ label, variant = 'neutral', icon }: TagProps) {
       <Text
         importantForAccessibility="no"
         accessibilityElementsHidden
+        onTextLayout={(e) => setWrapped(e.nativeEvent.lines.length > 1)}
         style={[
+          { flexShrink: 1 },
           typography.caption,
           {
             fontFamily: fontFamily.sansMedium,

@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import { processColor, StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, type ThemeName } from '../../theme';
+import { colors, contrastRatio, radius, type ThemeName } from '../../theme';
 import { iconPaths } from '../icons';
 import { Tag, tagColors, type TagVariant } from '../Tag';
 
@@ -39,6 +39,33 @@ describe('Tag', () => {
     expect(style.minHeight).toBe(24);
     expect(style.height).toBeUndefined();
     expect(style.width).toBeUndefined();
+  });
+
+  const layout = (lines: number) => ({ nativeEvent: { lines: Array.from({ length: lines }, () => ({})) } });
+
+  it.each(variants)('%s keeps the pill radius for one line of text', async (variant) => {
+    await render(<Tag label="Infantil B" variant={variant} />);
+    const tag = screen.getByRole('text', { name: 'Infantil B' });
+    expect(StyleSheet.flatten(tag.props.style).borderRadius).toBe(radius.full);
+
+    await fireEvent(screen.getByText('Infantil B', { includeHiddenElements: true }), 'textLayout', layout(1));
+    expect(StyleSheet.flatten(tag.props.style).borderRadius).toBe(radius.full);
+  });
+
+  it.each(variants)('%s uses radius-md once its text wraps', async (variant) => {
+    const label = 'Otra escuela: Club Acuático Norte del Litoral Occidental';
+    await render(<Tag label={label} variant={variant} />);
+
+    await fireEvent(screen.getByText(label, { includeHiddenElements: true }), 'textLayout', layout(2));
+    const style = StyleSheet.flatten(screen.getByRole('text', { name: label }).props.style);
+    expect(style.borderRadius).toBe(radius.md);
+  });
+
+  it('never truncates its label', async () => {
+    await render(<Tag label="Infantil B" />);
+    const props = screen.getByText('Infantil B', { includeHiddenElements: true }).props;
+    expect(props.numberOfLines).toBeUndefined();
+    expect(props.ellipsizeMode).toBeUndefined();
   });
 
   describe.each(themes)('%s theme contrast', (theme) => {

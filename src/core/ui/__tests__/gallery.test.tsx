@@ -24,7 +24,7 @@ describe('core/ui gallery entries', () => {
 
   it('cover every core/ui component with all its states', () => {
     expect(stateKeys('textField')).toEqual(['rest', 'help', 'error', 'protected']);
-    expect(stateKeys('tag')).toEqual(['neutral', 'outline', 'info', 'ok', 'warn']);
+    expect(stateKeys('tag')).toEqual(['neutral', 'outline', 'info', 'ok', 'warn', 'long-text']);
     expect(stateKeys('icon')).toEqual(['icon-md', 'icon-sm']);
     expect(stateKeys('stepHeader')).toEqual(['first', 'middle', 'last']);
     expect(stateKeys('stateView')).toEqual(['loading', 'empty', 'empty-group', 'error', 'offline', 'denied']);

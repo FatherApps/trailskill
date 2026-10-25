@@ -161,6 +161,7 @@ export const galleryEntries: GalleryEntry[] = [
       info: () => <Tag variant="info" icon="emoji_events" label={tg.info} />,
       ok: () => <Tag variant="ok" icon="verified_user" label={tg.ok} />,
       warn: () => <Tag variant="warn" icon="schedule" label={tg.warn} />,
+      'long-text': () => <Tag variant="outline" label={tg.longText} />,
     },
   },
   {
