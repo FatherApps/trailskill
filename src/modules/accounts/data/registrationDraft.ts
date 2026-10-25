@@ -56,6 +56,8 @@ export function createSecureStoreRegistrationDraftRepository(): RegistrationDraf
   };
 }
 
+export type RegistrationStep = 'add_athletes' | 'authorizations';
+
 export type FinishRegistrationInput = {
   userId: string;
   email: string;
@@ -65,8 +67,8 @@ export type FinishRegistrationInput = {
 };
 
 // Runs once the account exists: stores the profile typed during registration, then drops the draft's personal fields.
-// An adult also gets their own athlete profile (relation 'self', idempotent) and the draft is cleared; for a child the draft keeps
-// the swimmer choice and the result is 'add_athletes': the guardian adds the profiles next.
+// An adult also gets their own athlete profile (relation 'self', idempotent). In both cases the draft keeps only the swimmer choice
+// and the result names the next step ('add_athletes' for a guardian, 'authorizations' for an adult); the authorizations step clears the draft.
 // A draft typed for another email is left alone, and a failed save keeps the draft so the next launch retries.
 export async function finishRegistration({
   userId,
@@ -74,21 +76,24 @@ export async function finishRegistration({
   drafts,
   profiles,
   managedProfiles,
-}: FinishRegistrationInput): Promise<'add_athletes' | undefined> {
+}: FinishRegistrationInput): Promise<RegistrationStep | undefined> {
   const draft = await drafts.load();
   if (!draft) return;
   const firstName = draft.firstName?.trim();
   const lastName = draft.lastName?.trim();
-  // A guardian who left the add screen unfinished comes back to it: the names were already saved and blanked.
-  if ((!firstName || !lastName) && draft.swimmer === 'child') return 'add_athletes';
-  if (!firstName || !lastName) return;
+  // A person who left the flow unfinished comes back to the step they were on: the names were already saved and blanked.
+  if (!firstName || !lastName) return draft.swimmer === 'child' ? 'add_athletes' : draft.swimmer === 'adult' ? 'authorizations' : undefined;
   if (draft.email?.trim().toLowerCase() !== email.trim().toLowerCase()) return;
   await profiles.save({ userId, firstName, lastName });
   if (draft.swimmer === 'child') {
     await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: '' });
     return 'add_athletes';
   }
-  if (draft.swimmer === 'adult') await managedProfiles.createManagedAthlete({ userId, firstName, lastName, relation: 'self' });
+  if (draft.swimmer === 'adult') {
+    await managedProfiles.createManagedAthlete({ userId, firstName, lastName, relation: 'self' });
+    await drafts.save({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+    return 'authorizations';
+  }
   await drafts.clear();
 }
 
@@ -98,12 +103,12 @@ export function useFinishRegistration(
   drafts: RegistrationDraftRepository,
   profiles: AdultProfileRepository,
   managedProfiles: ManagedAthleteProfileRepository,
-  onAddAthletes: () => void,
+  onNext: (step: RegistrationStep) => void,
 ): void {
   useEffect(() => {
     if (!userId || !email) return;
     finishRegistration({ userId, email, drafts, profiles, managedProfiles })
-      .then((next) => next === 'add_athletes' && onAddAthletes())
+      .then((next) => next && onNext(next))
       .catch(() => {});
-  }, [userId, email, drafts, profiles, managedProfiles, onAddAthletes]);
+  }, [userId, email, drafts, profiles, managedProfiles, onNext]);
 }

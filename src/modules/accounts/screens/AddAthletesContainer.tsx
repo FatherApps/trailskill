@@ -83,9 +83,9 @@ export function AddAthletesContainer({
     setBusy(false);
   }
 
-  // The profiles are saved: the draft, swimmer choice included, has nothing left to keep.
+  // The profiles are saved, so the typed names have nothing left to keep; the swimmer choice stays until the authorizations step ends.
   async function finish() {
-    await enqueue(() => drafts.clear());
+    await persist(undefined);
     onContinue();
   }
 

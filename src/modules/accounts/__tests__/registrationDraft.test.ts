@@ -58,14 +58,14 @@ describe('finishRegistration', () => {
     }));
   };
 
-  it('adult: saves the trimmed profile, creates the own athlete profile and clears the draft', async () => {
+  it('adult: saves the trimmed profile, creates the own athlete profile, keeps the swimmer and asks to open the authorizations', async () => {
     const { drafts, profiles, athletes, next } = await run();
 
     expect(profiles.saved).toEqual([{ userId: 'user-1', firstName: 'Camila', lastName: 'Rojas' }]);
     const own = await athletes.listManaged('user-1');
     expect(own.map((a) => `${a.firstName} ${a.lastName}`)).toEqual(['Camila Rojas']);
-    expect(await drafts.load()).toBeNull();
-    expect(next).toBeUndefined();
+    expect(await drafts.load()).toEqual({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+    expect(next).toBe('authorizations');
   });
 
   it('child: keeps only the swimmer choice, creates no athlete and asks to open the add screen', async () => {
