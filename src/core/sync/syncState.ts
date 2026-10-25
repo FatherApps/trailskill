@@ -49,7 +49,7 @@ export async function countUnsentRecords(): Promise<{ unsent: number; rejected: 
   return { unsent: rows[0]?.unsent ?? 0, rejected: rows[0]?.rejected ?? 0 };
 }
 
-export function useGlobalSyncSummary(): { pending: number; failed: number; uploading: boolean; lastSyncedAt: Date | null } {
+export function useGlobalSyncSummary(): { pending: number; failed: number; uploading: boolean; lastSyncedAt: Date | null; connected: boolean } {
   const { data } = useQuery<{ pending: number; failed: number }>(
     `SELECT (SELECT COUNT(*) FROM (${pendingRecords})) AS pending, (SELECT COUNT(*) FROM (${failedRecords})) AS failed`,
   );
@@ -60,5 +60,6 @@ export function useGlobalSyncSummary(): { pending: number; failed: number; uploa
     failed: data[0]?.failed ?? 0,
     uploading: status.dataFlowStatus.uploading,
     lastSyncedAt: status.lastSyncedAt ?? null,
+    connected: status.connected,
   };
 }

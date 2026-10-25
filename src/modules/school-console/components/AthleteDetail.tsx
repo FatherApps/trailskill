@@ -10,7 +10,8 @@ import type { AthleteDetailData } from './athleteTypes';
 
 export type AthleteDetailProps = {
   athlete: AthleteDetailData;
-  onViewProfile: () => void;
+  // Absent while there is no profile screen: the button is not shown.
+  onViewProfile?: () => void;
 };
 
 export const athleteDetailColors: { background: ColorToken; title: ColorToken; caption: ColorToken; divider: ColorToken } = {
@@ -28,6 +29,7 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
   const { colors, space, typography } = useTheme();
   const valid = athlete.authorization === 'valid';
   const large = useTextScale() >= LARGE_TEXT_SCALE;
+  const noData = t('schoolConsole.common.no_data');
 
   return (
     <View style={{ gap: space[4] }}>
@@ -46,8 +48,8 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
         <Text style={[typography.caption, { color: colors[athleteDetailColors.caption] }]}>
           {t('schoolConsole.detail.guardian')}
         </Text>
-        <Text style={[typography.body, { color: colors[athleteDetailColors.title] }]}>{athlete.guardian.name}</Text>
-        <Text style={[typography.body, { color: colors[athleteDetailColors.caption] }]}>{athlete.guardian.contact}</Text>
+        <Text style={[typography.body, { color: colors[athleteDetailColors.title] }]}>{athlete.guardian.name ?? noData}</Text>
+        <Text style={[typography.body, { color: colors[athleteDetailColors.caption] }]}>{athlete.guardian.contact ?? noData}</Text>
       </View>
       <View>
         <Text accessibilityRole="header" style={[typography.label, { color: colors[athleteDetailColors.title] }]}>
@@ -99,7 +101,7 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
           ))
         )}
       </View>
-      <Button variant="secondary" label={t('schoolConsole.detail.view_profile')} onPress={onViewProfile} />
+      {onViewProfile && <Button variant="secondary" label={t('schoolConsole.detail.view_profile')} onPress={onViewProfile} />}
     </View>
   );
 }

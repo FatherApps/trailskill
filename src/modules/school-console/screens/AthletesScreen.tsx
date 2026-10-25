@@ -1,15 +1,16 @@
-import { Text, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { Banner, Button, Icon, StateView } from '../../../core/ui';
 import '../i18n';
 import { AthleteDetail } from '../components/AthleteDetail';
+import { AthleteFilterOptions, filterSheetLabel, type AthleteFilterOption } from '../components/AthleteFilterOptions';
 import { AthleteFilters, type AthleteFiltersProps } from '../components/AthleteFilters';
 import { AthleteIndicators, type AthleteIndicatorsProps } from '../components/AthleteIndicators';
-import { AthleteTable } from '../components/AthleteTable';
+import { AthleteTable, AthleteTableHeader, AthleteTableRow, useTableForm } from '../components/AthleteTable';
 import type { AthleteDetailData, AthleteFilterId, AthleteRow } from '../components/athleteTypes';
-import { ConsoleLayout, consoleLayoutFor } from '../components/ConsoleLayout';
+import { consoleContentPadding, ConsoleLayout, consoleLayoutFor } from '../components/ConsoleLayout';
 import type { ConsoleDestinationId } from '../components/ConsoleNav';
 import { formatDate } from '../components/formatDate';
 
@@ -38,19 +39,35 @@ export type AthletesView =
   | { kind: 'offline-empty' }
   | { kind: 'denied' };
 
+// The options of the filter whose chip was pressed, shown in a side sheet over the screen.
+export type AthletesFilterSheet = {
+  id: AthleteFilterId;
+  options: AthleteFilterOption[];
+  // The option that is applied now, if any.
+  selectedId?: string;
+  onChoose: (optionId: string) => void;
+  onClose: () => void;
+};
+
 export type AthletesScreenProps = {
   // The width available to the console in dp: the caller measures it (window or preview).
   width: number;
   schoolName: string;
   view: AthletesView;
   onNavigate: (id: ConsoleDestinationId) => void;
-  onInvite: () => void;
+  // Absent while there is no invitation flow: the button is not shown.
+  onInvite?: () => void;
   onQueryChange: (query: string) => void;
   onFilterPress: (id: AthleteFilterId) => void;
   onSelect: (id: string) => void;
   onCloseDetail: () => void;
-  onViewProfile: (id: string) => void;
-  // Set to false when a parent ScrollView scrolls instead (the development gallery).
+  // Absent while there is no athlete profile screen: the detail has no "Ver perfil completo".
+  onViewProfile?: (id: string) => void;
+  filterSheet?: AthletesFilterSheet;
+  // Clears the search and the filters; the "no athlete matches" state offers it as its action.
+  onClearFilters?: () => void;
+  // False when a parent ScrollView scrolls instead (the development gallery). True: the athletes are a virtualized list
+  // that scrolls on its own, with everything above the table as its header.
   scrollEnabled?: boolean;
 };
 
@@ -72,13 +89,17 @@ export function AthletesScreen({
   onSelect,
   onCloseDetail,
   onViewProfile,
+  filterSheet,
+  onClearFilters,
   scrollEnabled = true,
 }: AthletesScreenProps) {
   const { colors, space, breakpoint, typography } = useTheme();
-  const compact = consoleLayoutFor(width, breakpoint) === 'compact';
+  const layout = consoleLayoutFor(width, breakpoint);
+  const compact = layout === 'compact';
+  const form = useTableForm(compact);
 
   const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
-  const canInvite = content !== null || view.kind === 'empty';
+  const canInvite = onInvite !== undefined && (content !== null || view.kind === 'empty');
 
   let caption: string | null = null;
   if (content) {
@@ -161,34 +182,90 @@ export function AthletesScreen({
       );
       break;
     default:
-      body = (
-        <>
-          {view.kind === 'offline' && (
-            <Banner variant="warn" icon="wifi_off">
-              <Text style={typography['body-strong']}>{t('schoolConsole.screen.offline.title')}</Text>{' '}
-              {/* A malformed date is left out rather than shown wrong. */}
-              {storedOn
-                ? t('schoolConsole.screen.offline.banner_dated', { date: storedOn })
-                : t('schoolConsole.screen.offline.banner_undated')}
-            </Banner>
-          )}
-          <AthleteIndicators {...view.content.indicators} />
-          <AthleteFilters
-            query={view.content.query}
-            onQueryChange={onQueryChange}
-            filters={view.content.filters}
-            onFilterPress={onFilterPress}
-          />
+      body = null;
+  }
+
+  // The parts of the content, in the order they are shown.
+  const banner =
+    view.kind === 'offline' ? (
+      <Banner variant="warn" icon="wifi_off">
+        <Text style={typography['body-strong']}>{t('schoolConsole.screen.offline.title')}</Text>{' '}
+        {/* A malformed date is left out rather than shown wrong. */}
+        {storedOn ? t('schoolConsole.screen.offline.banner_dated', { date: storedOn }) : t('schoolConsole.screen.offline.banner_undated')}
+      </Banner>
+    ) : null;
+  const noMatch = (
+    <StateView
+      kind="empty"
+      icon="search"
+      title={t('schoolConsole.screen.no_match.title')}
+      message={t('schoolConsole.screen.no_match.message')}
+      action={onClearFilters ? { label: t('schoolConsole.screen.no_match.clear'), onPress: onClearFilters } : undefined}
+    />
+  );
+  const filters = content && (
+    <AthleteFilters query={content.query} onQueryChange={onQueryChange} filters={content.filters} onFilterPress={onFilterPress} />
+  );
+
+  // The athletes are a virtualized list: everything above the rows is its header, so it all scrolls together.
+  const virtualized = scrollEnabled && content !== null;
+  if (content && !virtualized) {
+    body = (
+      <>
+        {banner}
+        <AthleteIndicators {...content.indicators} />
+        {filters}
+        {content.athletes.length === 0 ? (
+          noMatch
+        ) : (
           <AthleteTable
-            athletes={view.content.athletes}
-            bestLabel={view.content.bestLabel}
-            selectedId={view.content.selectedId}
+            athletes={content.athletes}
+            bestLabel={content.bestLabel}
+            selectedId={content.selectedId}
             onSelect={onSelect}
             compact={compact}
           />
-        </>
-      );
+        )}
+      </>
+    );
   }
+
+  const virtualizedList = content && virtualized && (
+    <FlatList
+      data={content.athletes}
+      keyExtractor={(athlete) => athlete.id}
+      // The rows depend on more than the item: the selection, the form of the table and the column name.
+      extraData={[content.selectedId, form.list, content.bestLabel]}
+      renderItem={({ item, index }) => (
+        <AthleteTableRow
+          athlete={item}
+          bestLabel={content.bestLabel}
+          selected={item.id === content.selectedId}
+          onSelect={onSelect}
+          list={form.list}
+          last={index === content.athletes.length - 1}
+          corners={{ top: form.list && index === 0, bottom: index === content.athletes.length - 1 }}
+        />
+      )}
+      ListHeaderComponent={
+        // An element, not a component: the search field keeps its focus while the list changes.
+        <View
+          testID="athletes-list-header"
+          onLayout={form.onLayout}
+          style={{ gap: space[4], marginBottom: content.athletes.length === 0 || form.list ? space[4] : 0 }}
+        >
+          {header}
+          {banner}
+          <AthleteIndicators {...content.indicators} />
+          {filters}
+          {content.athletes.length > 0 && !form.list && <AthleteTableHeader bestLabel={content.bestLabel} rounded />}
+        </View>
+      }
+      ListEmptyComponent={noMatch}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ padding: consoleContentPadding(layout, space) }}
+    />
+  );
 
   const detail = content?.detail ?? null;
 
@@ -199,18 +276,39 @@ export function AthletesScreen({
       activeId="athletes"
       onSelect={onNavigate}
       scrollEnabled={scrollEnabled}
+      childrenScroll={virtualized}
+      sheet={
+        filterSheet
+          ? {
+              label: filterSheetLabel(filterSheet.id),
+              content: (
+                <AthleteFilterOptions
+                  id={filterSheet.id}
+                  options={filterSheet.options}
+                  selectedId={filterSheet.selectedId}
+                  onChoose={filterSheet.onChoose}
+                />
+              ),
+              onClose: filterSheet.onClose,
+            }
+          : undefined
+      }
       detail={
         detail
           ? {
               label: t('schoolConsole.layout.detail_dialog', { name: detail.name }),
-              content: <AthleteDetail athlete={detail} onViewProfile={() => onViewProfile(detail.id)} />,
+              content: <AthleteDetail athlete={detail} onViewProfile={onViewProfile && (() => onViewProfile(detail.id))} />,
               onClose: onCloseDetail,
             }
           : undefined
       }
     >
-      {header}
-      {body}
+      {virtualizedList || (
+        <>
+          {header}
+          {body}
+        </>
+      )}
     </ConsoleLayout>
   );
 }

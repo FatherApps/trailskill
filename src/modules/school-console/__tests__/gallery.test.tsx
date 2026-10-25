@@ -73,6 +73,10 @@ describe('school console gallery entries', () => {
       'expanded-1280',
       'medium-800',
       'compact-360',
+      'filter-sheet',
+      'filter-sheet-coach',
+      'no-match',
+      'sin-dato',
     ]);
   });
 
@@ -183,6 +187,37 @@ describe('school console gallery entries', () => {
 
       await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
       expect(screen.getByRole('button', { name: /^Mateo Castro/ })).toBeOnTheScreen();
+    });
+
+    it('filter-sheet shows the options of a filter and chooses one in place', async () => {
+      await render(<ThemeProvider>{state('athletesScreen', 'filter-sheet')}</ThemeProvider>);
+
+      expect(screen.getByTestId('side-sheet')).toHaveProp('accessibilityLabel', 'Filtrar por categoría');
+      await fireEvent.press(screen.getByRole('button', { name: 'Juvenil' }));
+      expect(screen.queryByTestId('side-sheet')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Categoría: Juvenil' })).toBeSelected();
+    });
+
+    it('filter-sheet-coach says the coach names are not available', async () => {
+      await render(<ThemeProvider>{state('athletesScreen', 'filter-sheet-coach')}</ThemeProvider>);
+
+      expect(screen.getByText('Los nombres de los entrenadores aún no están disponibles.')).toBeOnTheScreen();
+    });
+
+    it('no-match says nothing matches and clears in place', async () => {
+      await render(<ThemeProvider>{state('athletesScreen', 'no-match')}</ThemeProvider>);
+
+      expect(screen.getByText('Ningún deportista coincide con la búsqueda')).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Limpiar búsqueda y filtros' }));
+      expect(screen.getByRole('button', { name: /^Lucía Ramírez/ })).toBeOnTheScreen();
+    });
+
+    it('sin-dato shows the missing values as Sin dato, never as 0 or blank', async () => {
+      await render(<ThemeProvider>{state('athletesScreen', 'sin-dato')}</ThemeProvider>);
+
+      expect(screen.getByLabelText('Por revisar: Sin dato')).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: /^Lucía Ramírez, Infantil B, Grupo B, Sin dato/ })).toBeOnTheScreen();
+      expect(screen.getAllByText('Sin dato').length).toBeGreaterThanOrEqual(2);
     });
 
     it('with-data filters and searches in place', async () => {

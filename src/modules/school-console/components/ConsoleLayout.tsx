@@ -29,18 +29,39 @@ export type ConsoleLayoutProps = {
   detail?: { label: string; content: ReactNode; onClose: () => void };
   // False when a parent scroll view scrolls instead (the development gallery).
   scrollEnabled?: boolean;
+  // True when the children are one scrollable list that scrolls on its own (a virtualized list): the layout does not wrap
+  // them in a scroll view, and they use `consoleContentPadding` as their own padding. The detail still scrolls.
+  childrenScroll?: boolean;
+  // A side sheet over the whole console, in every layout (for example the options of a filter). It hides what is behind it.
+  sheet?: { label: string; content: ReactNode; onClose: () => void };
 };
 
 // Hides what is behind an open sheet from screen readers.
 const hiddenBehind = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
-export function ConsoleLayout({ width, schoolName, activeId, onSelect, children, detail, scrollEnabled = true }: ConsoleLayoutProps) {
+// The padding around the content of a layout; a list that scrolls on its own (`childrenScroll`) applies it itself.
+export const consoleContentPadding = (layout: ConsoleLayoutKind, space: Theme['space']) =>
+  layout === 'compact' ? space[4] : space[6];
+
+export function ConsoleLayout({
+  width,
+  schoolName,
+  activeId,
+  onSelect,
+  children,
+  detail,
+  scrollEnabled = true,
+  childrenScroll = false,
+  sheet,
+}: ConsoleLayoutProps) {
   const { colors, space, breakpoint } = useTheme();
   const layout = consoleLayoutFor(width, breakpoint);
   const largeText = useTextScale() >= LARGE_TEXT_SCALE;
 
-  const padding = layout === 'compact' ? space[4] : space[6];
-  const content = scrollEnabled ? (
+  const padding = consoleContentPadding(layout, space);
+  const content = childrenScroll ? (
+    <View style={{ flex: 1 }}>{children}</View>
+  ) : scrollEnabled ? (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding, gap: space[4] }}>
       {children}
     </ScrollView>
@@ -81,14 +102,22 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
     />
   );
   const testID = `console-layout-${layout}`;
+  const sheetNode = sheet && (
+    <SideSheet label={sheet.label} onClose={sheet.onClose}>
+      {sheet.content}
+    </SideSheet>
+  );
 
   if (layout === 'compact') {
     // The compact navigation is not defined in the design system, so it reuses the medium top navigation.
     if (!detail) {
       return (
         <View testID={testID} style={root}>
-          {nav}
-          {content}
+          <View {...(sheet ? hiddenBehind : null)} style={{ flex: 1 }}>
+            {nav}
+            {content}
+          </View>
+          {sheetNode}
         </View>
       );
     }
@@ -105,7 +134,7 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
 
   return (
     <View testID={testID} style={root}>
-      <View {...(sheetOpen ? hiddenBehind : null)} style={{ flexGrow: 1, flexDirection: sideNav ? 'row' : 'column' }}>
+      <View {...(sheetOpen || sheet ? hiddenBehind : null)} style={{ flexGrow: 1, flexDirection: sideNav ? 'row' : 'column' }}>
         {nav}
         {/* Expanded with the top navigation: the content and the detail panel share the row under it. */}
         <View style={{ flexGrow: 1, flex: 1, flexDirection: layout === 'expanded' ? 'row' : 'column' }}>
@@ -133,6 +162,7 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
           {detail.content}
         </SideSheet>
       )}
+      {sheetNode}
     </View>
   );
 }
