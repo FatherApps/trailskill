@@ -4,8 +4,6 @@ const newestFirst = (a: Measurement, b: Measurement) =>
   a.capturedAt === b.capturedAt ? a.id.localeCompare(b.id) : b.capturedAt.localeCompare(a.capturedAt);
 
 export type InMemoryMeasurementRepository = MeasurementRepository & {
-  /** Marks the arrival as discarded, like the real repository: the row stays and no read returns it. */
-  discard(id: string): Promise<void>;
   /** The arrivals of a series that have no athlete yet (individual times never), by id. */
   listUnassigned(): Promise<Measurement[]>;
   /** Throws, changing nothing, when an id is missing or discarded: lets a caller check a whole batch before editing any of it. */
@@ -26,6 +24,7 @@ export function createInMemoryMeasurementRepository(): InMemoryMeasurementReposi
     async add(measurement) {
       byId.set(measurement.id, measurement);
     },
+    // The row stays stored, like the real repository: no read returns it. Who discarded it is not kept here.
     async discard(id) {
       if (byId.has(id)) discarded.add(id);
     },

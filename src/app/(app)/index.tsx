@@ -92,6 +92,7 @@ export default function Home() {
       )}
       {isStaff && <Button label={t('home.timing')} onPress={() => router.push('/timing')} />}
       {isStaff && <Button label={t('home.timing_series')} onPress={() => router.push('/timing?mode=series')} />}
+      {isStaff && <Button label={t('home.timing_completed')} onPress={() => router.push('/timing?mode=completed')} />}
       {isStaff && <Button label={t('home.plans')} onPress={() => router.push('/plans')} />}
       {isAdmin && <Button label={t('home.console')} onPress={() => router.push('/console')} />}
       <Button variant="secondary" label={t('session.sign_out')} onPress={() => signOutWith(false)} loading={signingOut} />

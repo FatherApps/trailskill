@@ -9,6 +9,7 @@ import { createPowerSyncStaffSchoolRepository, useStaffSchool } from '../../modu
 import {
   createPowerSyncMeasurementRepository,
   createPowerSyncSeriesRepository,
+  CompletedFlow,
   createSecureStoreSessionSetupRepository,
   IndividualTimingFlow,
   SeriesTimingFlow,
@@ -36,7 +37,8 @@ const loadBestTime = (athleteId: string, event: MeasurementEvent) => personalBes
 
 const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
-// "/timing" times one athlete at a time; "/timing?mode=series" times a group that starts together.
+// "/timing" times one athlete at a time; "/timing?mode=series" times a group that starts together;
+// "/timing?mode=completed" records that the work was done, without a time.
 export default function TimingRoute() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const { session } = useSession();
@@ -54,9 +56,7 @@ export default function TimingRoute() {
   if (access.status === 'denied' || !session) return <Redirect href="/" />;
   if (!deviceId) return null;
   const flow = { subtitle: access.school.name, loadRoster, userId: session.user.id, deviceId, setups: sessionSetups, onExit: leave };
-  return mode === 'series' ? (
-    <SeriesTimingFlow {...flow} series={seriesRepository} />
-  ) : (
-    <IndividualTimingFlow {...flow} measurements={measurements} loadBestTime={loadBestTime} />
-  );
+  if (mode === 'series') return <SeriesTimingFlow {...flow} series={seriesRepository} />;
+  if (mode === 'completed') return <CompletedFlow {...flow} measurements={measurements} />;
+  return <IndividualTimingFlow {...flow} measurements={measurements} loadBestTime={loadBestTime} />;
 }

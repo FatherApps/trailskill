@@ -1,12 +1,13 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
-import { Banner, Button, SwimmerRow, SyncStatus, TimeValue, type SwimmerRowProps } from '../../../core/ui';
+import { Banner, Button, SwimmerRow, SyncStatus, type SwimmerRowProps } from '../../../core/ui';
 import { useLargeText } from '../components/ActionRow';
+import { CompletionRow } from '../components/CompletionRow';
 import { NameCard } from '../components/NameCard';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { TimingHeader } from '../components/TimingHeader';
@@ -47,43 +48,6 @@ export type SeriesAssignmentScreenProps = {
 };
 
 const noop = () => {};
-
-function CompletionRow({
-  athlete,
-  checked,
-  onToggle,
-}: {
-  athlete: AssignmentAthlete;
-  checked: boolean;
-  onToggle: () => void;
-}) {
-  const { space } = useTheme();
-
-  return (
-    <View>
-      <SwimmerRow name={athlete.shortName} initials={athlete.initials} color={athlete.color} detail={athlete.detail ?? ''} />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3], padding: space[4] }}>
-        {/* The Pressable is the switch; the Button only draws it (core has no switch component). */}
-        <Pressable
-          accessibilityRole="switch"
-          accessibilityLabel={t('timing.series.completed_for', { name: athlete.shortName })}
-          accessibilityState={{ checked }}
-          onPress={onToggle}
-        >
-          <View
-            pointerEvents="none"
-            importantForAccessibility="no-hide-descendants"
-            accessibilityElementsHidden
-          >
-            <Button variant="secondary" label={t('timing.series.completed')} onPress={noop} />
-          </View>
-        </Pressable>
-        {/* A completion has no time: null never prints 0,00. */}
-        {checked && <TimeValue value={null} completed />}
-      </View>
-    </View>
-  );
-}
 
 export function SeriesAssignmentScreen({
   positions,

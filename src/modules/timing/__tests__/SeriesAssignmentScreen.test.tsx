@@ -257,6 +257,7 @@ describe('SeriesAssignmentScreen', () => {
       await renderScreen({ ...completionProps, completedIds: [] });
 
       for (const toggle of screen.getAllByRole('switch')) expect(toggle).not.toBeChecked();
+      expect(screen.getAllByLabelText('Sin registro', hidden)).toHaveLength(4);
       expect(screen.queryByText('0,00', { exact: false, ...hidden })).toBeNull();
     });
 

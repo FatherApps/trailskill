@@ -46,3 +46,5 @@ export {
   type SessionSetup,
   type SessionSetupRepository,
 } from './data/sessionSetup';
+export { CompletedFlow, type CompletedFlowProps } from './screens/CompletedFlow';
+export { CompletedScreen, type CompletedAthlete, type CompletedScreenProps } from './screens/CompletedScreen';

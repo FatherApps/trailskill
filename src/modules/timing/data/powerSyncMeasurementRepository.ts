@@ -1,4 +1,4 @@
-import { db, editRecord, writeRecord } from '../../../core/sync';
+import { db, editRecord, writeBatch, writeRecord } from '../../../core/sync';
 import { assertEditableTime, DiscardedMeasurementError, type Measurement, type MeasurementRepository } from './measurements';
 
 type MeasurementRow = {
@@ -76,6 +76,16 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
   return {
     async add(m) {
       await writeRecord('measurements', measurementRow(m));
+    },
+    async discard(id, discardedBy) {
+      await writeBatch(async (batch) => {
+        // writeRecord would insert a row that is not there, and the server refuses a second discard with another time:
+        // a missing or already discarded measurement changes nothing.
+        const [stored] = await batch.getAll<{ discarded_at: string | null }>('SELECT discarded_at FROM measurements WHERE id = ?', [id]);
+        if (stored && stored.discarded_at === null) {
+          await batch.write('measurements', { id, discarded_at: new Date().toISOString(), discarded_by: discardedBy });
+        }
+      });
     },
     async edit(id, { hundredths, athleteId }, { deviceId, editReason }) {
       // kind is not editable, so reading it before the edit cannot race; a missing row is left to editRecord to reject.

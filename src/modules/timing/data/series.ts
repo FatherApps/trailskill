@@ -77,16 +77,7 @@ export function createPowerSyncSeriesRepository(): SeriesRepository {
       });
     },
     addArrival: (arrival) => measurements.add(arrival),
-    async discardArrival(id, discardedBy) {
-      await writeBatch(async (batch) => {
-        // writeRecord would insert a row that is not there, and the server refuses a second discard with another time:
-        // a missing or already discarded arrival changes nothing.
-        const [stored] = await batch.getAll<{ discarded_at: string | null }>('SELECT discarded_at FROM measurements WHERE id = ?', [id]);
-        if (stored && stored.discarded_at === null) {
-          await batch.write('measurements', { id, discarded_at: new Date().toISOString(), discarded_by: discardedBy });
-        }
-      });
-    },
+    discardArrival: (id, discardedBy) => measurements.discard(id, discardedBy),
     async assign(assignments, meta) {
       if (assignments.length === 0) return;
       await writeBatch(async (batch) => {
@@ -132,7 +123,7 @@ export function createInMemorySeriesRepository(measurements: InMemoryMeasurement
   return {
     open: (_series, first) => measurements.add(first),
     addArrival: (arrival) => measurements.add(arrival),
-    discardArrival: (id) => measurements.discard(id),
+    discardArrival: (id, discardedBy) => measurements.discard(id, discardedBy),
     async assign(assignments, meta) {
       measurements.assertEditable(assignments.map(({ id }) => id));
       for (const { id, athleteId } of assignments) await measurements.edit(id, { athleteId }, meta);
