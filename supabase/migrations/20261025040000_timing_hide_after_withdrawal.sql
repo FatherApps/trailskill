@@ -100,6 +100,26 @@ $$;
 -- can re-grant: recompute them retroactively. Rewriting through athlete_id
 -- makes the compute trigger recalculate hidden; only rows whose value changes
 -- are written, so the others are not synced again.
+create function public.measurements_recompute_hidden(athlete uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  -- Same lock as the compute trigger: see there.
+  perform pg_advisory_xact_lock(hashtextextended(measurements_recompute_hidden.athlete::text || ':' || 'record_times', 0));
+  update public.measurements m
+    set athlete_id = m.athlete_id
+    where m.athlete_id = measurements_recompute_hidden.athlete
+      and m.hidden is distinct from coalesce(
+        app.recorded_after_withdrawal(m.athlete_id, m.captured_at), false);
+end;
+$$;
+
+-- Takes an athlete id, so it must not be callable through the API.
+revoke execute on function public.measurements_recompute_hidden(uuid) from public, anon, authenticated, service_role;
+
 create function public.measurements_refresh_hidden_after_withdrawal()
 returns trigger
 language plpgsql
@@ -107,13 +127,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- Same lock as the compute trigger: see there.
-  perform pg_advisory_xact_lock(hashtextextended(new.athlete_id::text || ':' || 'record_times', 0));
-  update public.measurements m
-    set athlete_id = m.athlete_id
-    where m.athlete_id = new.athlete_id
-      and m.hidden is distinct from coalesce(
-        app.recorded_after_withdrawal(m.athlete_id, m.captured_at), false);
+  perform public.measurements_recompute_hidden(new.athlete_id);
   return null;
 end;
 $$;
@@ -147,3 +161,8 @@ create policy measurements_select on public.measurements for select to authentic
       and series_id in (select id from public.timing_series where created_by = (select auth.uid()))
     )
   );
+
+-- Withdrawals and measurements that existed before this migration: hidden was
+-- just added with its default, so compute it for every stored measurement now.
+select public.measurements_recompute_hidden(a.athlete_id)
+from (select distinct athlete_id from public.measurements where athlete_id is not null) a;

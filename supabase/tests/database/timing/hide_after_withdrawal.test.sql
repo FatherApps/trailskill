@@ -6,7 +6,7 @@
 -- hides anything. Measurements from before the withdrawal do not change. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(63);
+select plan(67);
 
 -- Users: coach C, school admin S, guardian G, platform admin P, and X, a coach
 -- of another school who has nothing to do with these athletes.
@@ -569,6 +569,43 @@ select is(
   array[true, false],
   'an authorization inserted already withdrawn hides what was captured after it, not before'
 );
+
+-- Backfill: a measurement stored before this feature existed, captured after a
+-- withdrawal that was already recorded, still has hidden = false. The compute
+-- trigger is disabled to simulate that stale row (owner, inside the transaction).
+alter table public.measurements disable trigger measurements_compute_hidden;
+insert into public.measurements
+  (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+values
+  ('58000000-0000-4000-8000-0000000000dd', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+   '58000000-0000-4000-8000-0000000000c1', 3800, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
+   '2026-10-06 10:00:00+00', '58000000-0000-4000-8000-0000000000a1'),
+  ('58000000-0000-4000-8000-0000000000de', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+   '58000000-0000-4000-8000-0000000000c1', 3810, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
+   '2026-10-02 10:00:00+00', '58000000-0000-4000-8000-0000000000a1');
+alter table public.measurements enable trigger measurements_compute_hidden;
+select is(
+  (select array_agg(hidden order by id) from public.measurements
+   where id in ('58000000-0000-4000-8000-0000000000dd', '58000000-0000-4000-8000-0000000000de')),
+  array[false, false], 'before the backfill the stale row after the withdrawal is not hidden'
+);
+select lives_ok(
+  $$ select public.measurements_recompute_hidden('58000000-0000-4000-8000-0000000000e1') $$,
+  'the backfill recomputes hidden for the athlete'
+);
+select is(
+  (select array_agg(hidden order by id) from public.measurements
+   where id in ('58000000-0000-4000-8000-0000000000dd', '58000000-0000-4000-8000-0000000000de')),
+  array[true, false], 'it hides the row captured after the withdrawal and keeps the earlier one'
+);
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select is(
+  (select array_agg(id::text) from public.measurements
+   where id in ('58000000-0000-4000-8000-0000000000dd', '58000000-0000-4000-8000-0000000000de')),
+  array['58000000-0000-4000-8000-0000000000de'], 'and coach C no longer sees the hidden one'
+);
+reset role;
 
 select * from finish();
 rollback;
