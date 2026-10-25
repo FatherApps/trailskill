@@ -150,11 +150,12 @@ export function AthletesScreen({
       );
       break;
     case 'denied':
+      // Who can see the list is decided by roles and policies, not by this screen: the state only says it is private.
       body = (
         <StateView
           kind="denied"
           title={t('schoolConsole.screen.denied.title')}
-          message={t('schoolConsole.screen.denied.message')}
+          message=""
         />
       );
       break;

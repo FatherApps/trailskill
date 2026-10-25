@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View, type LayoutChangeEvent } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { Icon, Tag } from '../../../core/ui';
 import '../i18n';
 import type { AthleteFilterId } from './athleteTypes';
+import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 
 export type AthleteFiltersProps = {
   query: string;
@@ -35,16 +36,21 @@ const filterIds: AthleteFilterId[] = ['category', 'group', 'coach'];
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
 // Gap: core TextField has no leading icon, so the search field is built here with the TextField tokens.
-function SearchField({ query, onQueryChange }: Pick<AthleteFiltersProps, 'query' | 'onQueryChange'>) {
+// Narrowest row that holds the field and the three chips side by side; it is not a token.
+const MIN_INLINE_WIDTH = 560;
+
+function SearchField({ query, onQueryChange, stacked }: Pick<AthleteFiltersProps, 'query' | 'onQueryChange'> & { stacked: boolean }) {
   const { colors, space, radius, size, typography } = useTheme();
   const [focused, setFocused] = useState(false);
   const label = t('schoolConsole.filters.search');
 
   return (
     <View
+      testID="athlete-search"
       style={{
         flexGrow: 1,
-        flexBasis: 220,
+        // Stacked: the field takes the whole row, so its placeholder is never cut.
+        flexBasis: stacked ? '100%' : 220,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space[2],
@@ -79,10 +85,17 @@ function SearchField({ query, onQueryChange }: Pick<AthleteFiltersProps, 'query'
 // The search field and the filter chips. Presentational: the query and the active filters arrive by props.
 export function AthleteFilters({ query, onQueryChange, filters, onFilterPress }: AthleteFiltersProps) {
   const { space, size } = useTheme();
+  const scale = useTextScale();
+  const [width, setWidth] = useState<number | null>(null);
+  const stacked = scale >= LARGE_TEXT_SCALE || (width !== null && width < MIN_INLINE_WIDTH);
 
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
-      <SearchField query={query} onQueryChange={onQueryChange} />
+    <View
+      testID="athlete-filters"
+      onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
+      style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}
+    >
+      <SearchField query={query} onQueryChange={onQueryChange} stacked={stacked} />
       {filterIds.map((id) => {
         const name = t(`schoolConsole.filters.${id}`);
         const value = filters[id];

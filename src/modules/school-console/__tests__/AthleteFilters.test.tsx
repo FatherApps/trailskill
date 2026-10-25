@@ -1,8 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, type ThemeName } from '../../../core/theme';
+import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { AthleteFilters, athleteFiltersColors, type AthleteFiltersProps } from '../components/AthleteFilters';
+
+// The React Native jest setup reports a system font scale of 2: these tests start from 100 %.
+const realGet = Dimensions.get.bind(Dimensions);
+beforeEach(() => {
+  jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 }));
+});
+afterEach(() => jest.restoreAllMocks());
 
 const themes: ThemeName[] = ['light', 'dark'];
 const hidden = { includeHiddenElements: true };
@@ -58,6 +65,33 @@ describe('AthleteFilters', () => {
     // The active chip carries the close icon, the inactive ones none.
     expect(screen.getByLabelText('Infantil B', hidden).queryAll((node) => String(node.type) === 'RNSVGSvgView').length).toBe(1);
     expect(inactiveTag.queryAll((node) => String(node.type) === 'RNSVGSvgView').length).toBe(0);
+  });
+
+  describe('search field by width and text size', () => {
+    const search = () => StyleSheet.flatten(screen.getByTestId('athlete-search').props.style);
+    const measure = (width: number) =>
+      act(() => fireEvent(screen.getByTestId('athlete-filters'), 'layout', { nativeEvent: { layout: { width, height: 100, x: 0, y: 0 } } }));
+
+    it('shares the row with the chips when there is room', async () => {
+      await render(<AthleteFilters {...base} />);
+      await measure(700);
+
+      expect(search().flexBasis).toBe(220);
+    });
+
+    it.each([559, 400])('takes the whole row at %s dp and the chips wrap below it', async (width) => {
+      await render(<AthleteFilters {...base} />);
+      await measure(width);
+
+      expect(search().flexBasis).toBe('100%');
+    });
+
+    it('takes the whole row at 200 % text whatever the width', async () => {
+      await render(<ThemeProvider fontScale={2}><AthleteFilters {...base} /></ThemeProvider>);
+      await measure(1200);
+
+      expect(search().flexBasis).toBe('100%');
+    });
   });
 
   it('gives every chip a touch area of at least 48 dp', async () => {

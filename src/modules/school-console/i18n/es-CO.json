@@ -32,14 +32,13 @@
   "table": {
     "athlete": "Deportista",
     "category": "Categoría",
-    "group": "Grupo",
-    "coach": "Entrenador",
     "authorization": "Autorización",
     "valid": "Vigente",
     "pending": "Pendiente",
     "personal_best": "MP {{event}}",
     "best_spoken": "{{label}}: {{time}}",
-    "no_best": "sin marca"
+    "no_best": "sin marca",
+    "group_coach": "Grupo · Entrenador"
   },
   "detail": {
     "guardian": "Acudiente",
@@ -74,8 +73,7 @@
       "message": "No hay deportistas guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
     },
     "denied": {
-      "title": "Esta información es privada",
-      "message": "Solo la administración de la escuela puede ver la lista de deportistas."
+      "title": "Esta información es privada"
     }
   },
   "date": {

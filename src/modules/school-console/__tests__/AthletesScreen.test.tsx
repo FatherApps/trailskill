@@ -227,11 +227,11 @@ describe('AthletesScreen', () => {
       expect(screen.queryByTestId('banner')).toBeNull();
     });
 
-    it('denied says it is private and who can see it, with no data and no invite', async () => {
+    it('denied says only that it is private, with no data and no invite', async () => {
       await show({ kind: 'denied' });
 
       expect(screen.getByText('Esta información es privada')).toBeOnTheScreen();
-      expect(screen.getByText('Solo la administración de la escuela puede ver la lista de deportistas.')).toBeOnTheScreen();
+      expect(screen.queryByText(/administración/)).toBeNull();
       expect(screen.queryByRole('button', { name: 'Invitar acudiente' })).toBeNull();
       expect(screen.queryByRole('button', { name: /^Lucía Ramírez/ })).toBeNull();
     });

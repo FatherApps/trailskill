@@ -5,6 +5,7 @@ import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime } from '../../../core/time';
 import { Button, Tag, TimeValue } from '../../../core/ui';
 import '../i18n';
+import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 import type { AthleteDetailData } from './athleteTypes';
 
 export type AthleteDetailProps = {
@@ -26,6 +27,7 @@ const hidden = { importantForAccessibility: 'no-hide-descendants', accessibility
 export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
   const { colors, space, typography } = useTheme();
   const valid = athlete.authorization === 'valid';
+  const large = useTextScale() >= LARGE_TEXT_SCALE;
 
   return (
     <View style={{ gap: space[4] }}>
@@ -75,10 +77,23 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
                 },
               ]}
             >
-              <View {...hidden} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
-                <Text style={[typography.body, { flex: 1, color: colors[athleteDetailColors.title] }]}>{best.event}</Text>
-                {best.source ? <Tag label={best.source} variant="info" /> : null}
-                <TimeValue value={best.time} size="time-sm" />
+              {/* Large text: the source and the time go below the event name, so the name keeps its whole line. */}
+              <View
+                {...hidden}
+                style={large ? { flexDirection: 'column', gap: space[2] } : { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}
+              >
+                <Text style={[typography.body, { flexGrow: 1, color: colors[athleteDetailColors.title] }]}>{best.event}</Text>
+                {large ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
+                    {best.source ? <Tag label={best.source} variant="info" /> : null}
+                    <TimeValue value={best.time} size="time-sm" />
+                  </View>
+                ) : (
+                  <>
+                    {best.source ? <Tag label={best.source} variant="info" /> : null}
+                    <TimeValue value={best.time} size="time-sm" />
+                  </>
+                )}
               </View>
             </View>
           ))

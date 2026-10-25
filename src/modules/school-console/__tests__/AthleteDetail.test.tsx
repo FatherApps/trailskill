@@ -1,9 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, type ThemeName } from '../../../core/theme';
+import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { detailFixture, detailsFixture, sourceFixture } from '../__fixtures__/athletes';
 import { AthleteDetail, athleteDetailColors } from '../components/AthleteDetail';
+
+// The React Native jest setup reports a system font scale of 2: these tests start from 100 %.
+const realGet = Dimensions.get.bind(Dimensions);
+beforeEach(() => {
+  jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 }));
+});
+afterEach(() => jest.restoreAllMocks());
 
 const themes: ThemeName[] = ['light', 'dark'];
 const hidden = { includeHiddenElements: true };
@@ -42,6 +49,19 @@ describe('AthleteDetail', () => {
     expect(screen.getByLabelText(`Libre 100, 1 minuto, 19 segundos con 66 centésimas, ${sourceFixture}`)).toBeOnTheScreen();
     expect(StyleSheet.flatten(screen.getByLabelText(sourceFixture, hidden).props.style).backgroundColor).toBe(colors.light['primary-tint']);
     expect(screen.queryByLabelText('Libre 50', hidden)).toBeNull();
+  });
+
+  it('puts the source and the time below the event name at 200 % text, and beside it at 100 %', async () => {
+    const row = () => StyleSheet.flatten(screen.getByText('Libre 100', hidden).parent!.props.style);
+    await render(<AthleteDetail athlete={detailFixture} onViewProfile={() => {}} />);
+    expect(row().flexDirection).toBe('row');
+    expect(StyleSheet.flatten(screen.getByText('Libre 100', hidden).props.style).flexShrink).not.toBe(0);
+
+    await screen.unmount();
+    await render(<ThemeProvider fontScale={2}><AthleteDetail athlete={detailFixture} onViewProfile={() => {}} /></ThemeProvider>);
+    expect(row().flexDirection).toBe('column');
+    // The event name keeps its own line, whole.
+    expect(StyleSheet.flatten(screen.getByText('Libre 100', hidden).props.style).flex).toBeUndefined();
   });
 
   it('shows a dash for a mark without time and says there are none when the list is empty', async () => {

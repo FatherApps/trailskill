@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
@@ -6,6 +7,7 @@ import { spokenTime } from '../../../core/time';
 import { SwimmerRow, Tag, TimeValue } from '../../../core/ui';
 import '../i18n';
 import type { AthleteAuthorization, AthleteRow } from './athleteTypes';
+import { useTextScale } from './textScale';
 
 export type AthleteTableProps = {
   athletes: AthleteRow[];
@@ -31,8 +33,16 @@ export const athleteTableColors: {
   divider: 'border',
 };
 
-// Relative widths of the columns: athlete, category, group, coach, authorization, time.
-const flex = [2.2, 1.2, 1.3, 1.5, 1.3, 1.2] as const;
+// The five columns: the three text columns share what is left (relative widths); the tag and the time keep their
+// own width, which grows with the text scale, and never shrink.
+const textFlex = [2.2, 1.2, 2] as const;
+const TAG_WIDTH = 112;
+const TIME_WIDTH = 88;
+
+// Narrowest the table can be at normal text size without breaking a word or a time: the longest word of each text
+// column (about 75 + 55 + 60 dp) plus the tag (112) and time (88) columns, their paddings and the row padding, with margin
+// for longer names. Below `MIN_TABLE_WIDTH * text scale` (the width of the table's own box) the list form is used.
+const MIN_TABLE_WIDTH = 540;
 
 const authorizationVariant: Record<AthleteAuthorization, 'ok' | 'warn'> = { valid: 'ok', pending: 'warn' };
 const authorizationLabel = (value: AthleteAuthorization) => t(`schoolConsole.table.${value === 'valid' ? 'valid' : 'pending'}`);
@@ -41,6 +51,10 @@ const hidden = { importantForAccessibility: 'no-hide-descendants', accessibility
 
 export function AthleteTable({ athletes, bestLabel, selectedId = null, onSelect, compact = false }: AthleteTableProps) {
   const { colors, space, radius, size, typography } = useTheme();
+  const scale = useTextScale();
+  const [width, setWidth] = useState<number | null>(null);
+  // Until the width is known the table is shown.
+  const list = compact || (width !== null && width < MIN_TABLE_WIDTH * scale);
 
   const frame = {
     borderRadius: radius.md,
@@ -49,9 +63,11 @@ export function AthleteTable({ athletes, bestLabel, selectedId = null, onSelect,
   } as const;
   const divider = { borderBottomWidth: 1, borderBottomColor: colors[athleteTableColors.divider] } as const;
 
-  if (compact) {
+  const measured = { testID: 'athlete-table', onLayout: (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width) };
+
+  if (list) {
     return (
-      <View style={frame}>
+      <View {...measured} style={frame}>
         {athletes.map((athlete, index) => (
           <View key={athlete.id} style={index < athletes.length - 1 ? divider : undefined}>
             <SwimmerRow
@@ -74,15 +90,17 @@ export function AthleteTable({ athletes, bestLabel, selectedId = null, onSelect,
   const header = [
     t('schoolConsole.table.athlete'),
     t('schoolConsole.table.category'),
-    t('schoolConsole.table.group'),
-    t('schoolConsole.table.coach'),
+    t('schoolConsole.table.group_coach'),
     t('schoolConsole.table.authorization'),
     bestLabel,
   ];
   const cell = { paddingHorizontal: space[2] } as const;
 
+  const tagColumn = { flexShrink: 0, flexGrow: 0, width: TAG_WIDTH * scale } as const;
+  const timeColumn = { flexShrink: 0, flexGrow: 0, width: TIME_WIDTH * scale } as const;
+
   return (
-    <View style={frame}>
+    <View {...measured} style={frame}>
       <View style={[{ flexDirection: 'row', alignItems: 'flex-end', padding: space[3] }, divider]}>
         {header.map((column, index) => (
           <Text
@@ -90,7 +108,8 @@ export function AthleteTable({ athletes, bestLabel, selectedId = null, onSelect,
             style={[
               typography.label,
               cell,
-              { flex: flex[index], color: colors[athleteTableColors.header], textAlign: index === 5 ? 'right' : 'left' },
+              index === 3 ? tagColumn : index === 4 ? timeColumn : { flex: textFlex[index] },
+              { color: colors[athleteTableColors.header], textAlign: index === 4 ? 'right' : 'left' },
             ]}
           >
             {column}
@@ -128,14 +147,13 @@ export function AthleteTable({ athletes, bestLabel, selectedId = null, onSelect,
             ]}
           >
             <View {...hidden} style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={[typography['body-strong'], cell, text, { flex: flex[0] }]}>{athlete.name}</Text>
-              <Text style={[typography.body, cell, text, { flex: flex[1] }]}>{athlete.category}</Text>
-              <Text style={[typography.body, cell, text, { flex: flex[2] }]}>{athlete.group}</Text>
-              <Text style={[typography.body, cell, text, { flex: flex[3] }]}>{athlete.coach}</Text>
-              <View style={[cell, { flex: flex[4] }]}>
+              <Text style={[typography['body-strong'], cell, text, { flex: textFlex[0] }]}>{athlete.name}</Text>
+              <Text style={[typography.body, cell, text, { flex: textFlex[1] }]}>{athlete.category}</Text>
+              <Text style={[typography.body, cell, text, { flex: textFlex[2] }]}>{`${athlete.group} · ${athlete.coach}`}</Text>
+              <View style={[cell, tagColumn]}>
                 <Tag label={authorizationLabel(athlete.authorization)} variant={authorizationVariant[athlete.authorization]} />
               </View>
-              <View style={[cell, { flex: flex[5], alignItems: 'flex-end' }]}>
+              <View style={[cell, timeColumn, { alignItems: 'flex-end' }]}>
                 <TimeValue value={athlete.bestTime} size="time-sm" />
               </View>
             </View>

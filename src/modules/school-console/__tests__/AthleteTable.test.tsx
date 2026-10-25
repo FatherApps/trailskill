@@ -1,10 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, type ThemeName } from '../../../core/theme';
+import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { spokenTime } from '../../../core/time';
 import { athletesFixture, longTextAthleteFixture } from '../__fixtures__/athletes';
 import { AthleteTable, athleteTableColors, type AthleteTableProps } from '../components/AthleteTable';
+
+// The React Native jest setup reports a system font scale of 2: these tests start from 100 %.
+const realGet = Dimensions.get.bind(Dimensions);
+beforeEach(() => {
+  jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 }));
+});
+afterEach(() => jest.restoreAllMocks());
 
 const themes: ThemeName[] = ['light', 'dark'];
 const hidden = { includeHiddenElements: true };
@@ -18,12 +25,23 @@ const base: AthleteTableProps = {
 
 describe('AthleteTable', () => {
   describe('as a table', () => {
-    it('has the six columns, the last one named by the event passed in', async () => {
+    it('has the five columns, group and coach together, the last one named by the event passed in', async () => {
       await render(<AthleteTable {...base} />);
 
-      for (const column of ['Deportista', 'Categoría', 'Grupo', 'Entrenador', 'Autorización', 'MP Libre 50']) {
+      for (const column of ['Deportista', 'Categoría', 'Grupo · Entrenador', 'Autorización', 'MP Libre 50']) {
         expect(screen.getByText(column)).toBeOnTheScreen();
       }
+      expect(screen.queryByText('Grupo')).toBeNull();
+      expect(screen.queryByText('Entrenador')).toBeNull();
+      expect(screen.getAllByText('Grupo B · Paula G.', hidden)).toHaveLength(3);
+    });
+
+    it('never shrinks the tag and the time columns below their content', async () => {
+      await render(<AthleteTable {...base} />);
+
+      expect(StyleSheet.flatten(screen.getByText('34,82', hidden).parent!.props.style).flexShrink).toBe(0);
+      expect(StyleSheet.flatten(screen.getAllByLabelText('Vigente', hidden)[0].parent!.props.style).flexShrink).toBe(0);
+      expect(StyleSheet.flatten(screen.getByText('MP Libre 50').props.style).flexShrink).toBe(0);
     });
 
     it('lists one pressable row per athlete that says all its cells', async () => {
@@ -94,6 +112,46 @@ describe('AthleteTable', () => {
       await render(<AthleteTable {...base} />);
 
       expect(JSON.stringify(screen.toJSON())).not.toContain('RCTScrollView');
+    });
+  });
+
+  describe('table or list by the width it has', () => {
+    const measure = (width: number) =>
+      act(() => fireEvent(screen.getByTestId('athlete-table'), 'layout', { nativeEvent: { layout: { width, height: 400, x: 0, y: 0 } } }));
+    const isTable = () => screen.queryByText('Deportista') !== null;
+
+    it.each([
+      [992, 'expanded without the detail'],
+      [652, 'expanded with the detail open'],
+      [540, 'the narrowest table'],
+    ])('stays a table at %s dp (%s) at normal text size', async (width) => {
+      await render(<AthleteTable {...base} />);
+      await measure(width);
+
+      expect(isTable()).toBe(true);
+    });
+
+    it.each([539, 444, 360])('becomes the list at %s dp', async (width) => {
+      await render(<AthleteTable {...base} />);
+      await measure(width);
+
+      expect(isTable()).toBe(false);
+      expect(screen.getAllByText('MP Libre 50', hidden)).toHaveLength(athletesFixture.length);
+    });
+
+    it('needs twice the width at 200 % text, so even the widest console shows the list', async () => {
+      await render(<ThemeProvider fontScale={2}><AthleteTable {...base} /></ThemeProvider>);
+      await measure(992);
+      expect(isTable()).toBe(false);
+
+      await measure(1080);
+      expect(isTable()).toBe(true);
+    });
+
+    it('is a table until its width is known', async () => {
+      await render(<AthleteTable {...base} />);
+
+      expect(isTable()).toBe(true);
     });
   });
 
