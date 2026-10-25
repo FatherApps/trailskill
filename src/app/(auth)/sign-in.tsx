@@ -1,20 +1,13 @@
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../core/i18n';
 import { CodeMismatchError, useSession } from '../../core/session';
 import { useTheme } from '../../core/theme';
 import { Button, StateView, StepHeader, TextField } from '../../core/ui';
-import {
-  createSecureStoreRegistrationDraftRepository,
-  loadResumableDraft,
-  ResumeRegistration,
-  type RegistrationDraft,
-} from '../../modules/accounts';
 
 const CODE_LENGTH = 6;
-const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 
 export default function SignIn() {
   const { requestCode, verifyCode, configError } = useSession();
@@ -28,30 +21,6 @@ export default function SignIn() {
   const [resending, setResending] = useState(false);
   const [notice, setNotice] = useState<string>();
   const attempt = useRef(0);
-
-  const [unfinished, setUnfinished] = useState<RegistrationDraft | null>(null);
-
-  // A registration left half done is offered, never forced: the person may be signing in with another account.
-  useEffect(() => {
-    let current = true;
-    loadResumableDraft(registrationDrafts)
-      .then((draft) => current && setUnfinished(draft))
-      .catch(() => {});
-    return () => {
-      current = false;
-    };
-  }, []);
-
-  // The stack is rebuilt so Back still works.
-  function resume() {
-    router.push('/register');
-    router.push('/register/details');
-  }
-
-  function startOver() {
-    setUnfinished(null);
-    registrationDrafts.clear().catch(() => {});
-  }
 
   async function sendCode() {
     setSending(true);
@@ -108,7 +77,6 @@ export default function SignIn() {
         <StateView kind="error" title={t('auth.not_configured_title')} message={t('auth.not_configured_message')} />
       ) : step === 'email' ? (
         <>
-          {unfinished && <ResumeRegistration email={unfinished.email.trim()} onResume={resume} onRestart={startOver} />}
           <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
             {t('auth.email_title')}
           </Text>

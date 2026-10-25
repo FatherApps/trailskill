@@ -61,9 +61,10 @@ export {
   createInMemoryRegistrationDraftRepository,
   createSecureStoreRegistrationDraftRepository,
   finishRegistration,
-  loadResumableDraft,
+  discardStaleDraft,
   useFinishRegistration,
   type RegistrationDraft,
+  type RegistrationOffer,
   type RegistrationDraftRepository,
   type RegistrationStep,
 } from './data/registrationDraft';

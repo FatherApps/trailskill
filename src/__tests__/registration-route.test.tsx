@@ -10,6 +10,7 @@ jest.mock('../core/session', () => ({ useSession: () => ({ session: { user: { id
 
 // The layout hands the module a callback; the test calls it as the module would.
 let mockOnNext: (step: 'add_athletes' | 'authorizations') => void = () => {};
+let mockOffer: { email: string; resume: () => void; startOver: () => void } | undefined;
 jest.mock('../modules/accounts', () => ({
   createPowerSyncManagedAthleteProfileRepository: () => ({}),
   createPowerSyncManagedAthleteRepository: () => ({}),
@@ -17,6 +18,16 @@ jest.mock('../modules/accounts', () => ({
   createSupabaseAdultProfileRepository: () => ({}),
   useFinishRegistration: (...args: unknown[]) => {
     mockOnNext = args[5] as typeof mockOnNext;
+    return mockOffer;
+  },
+  ResumeRegistration: ({ email, onResume, onRestart }: { email: string; onResume: () => void; onRestart: () => void }) => {
+    const { Text } = jest.requireActual('react-native');
+    return (
+      <>
+        <Text onPress={onResume}>{`resume ${email}`}</Text>
+        <Text onPress={onRestart}>restart</Text>
+      </>
+    );
   },
 }));
 
@@ -28,6 +39,10 @@ const routes = {
 };
 
 describe('registration routing', () => {
+  beforeEach(() => {
+    mockOffer = undefined;
+  });
+
   it.each([
     ['add_athletes', 'add'],
     ['authorizations', 'authorizations'],
@@ -39,5 +54,18 @@ describe('registration routing', () => {
 
     expect(await screen.findByText(text)).toBeOnTheScreen();
     expect(screen.queryByText('home')).toBeNull();
+  });
+
+  it('offers to resume a draft instead of opening the app, and goes on once it is answered', async () => {
+    const offer = { email: 'camila@example.test', resume: jest.fn(), startOver: jest.fn() };
+    mockOffer = offer;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('resume camila@example.test')).toBeOnTheScreen();
+    expect(screen.queryByText('home')).toBeNull();
+    await act(async () => screen.getByText('resume camila@example.test').props.onPress());
+    expect(offer.resume).toHaveBeenCalledTimes(1);
+    await act(async () => screen.getByText('restart').props.onPress());
+    expect(offer.startOver).toHaveBeenCalledTimes(1);
   });
 });

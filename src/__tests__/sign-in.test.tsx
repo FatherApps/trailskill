@@ -20,12 +20,10 @@ jest.mock('../core/session', () => ({
   useSession: () => mockSession,
 }));
 
+// A draft waits on this phone: the sign-in must neither read it nor show anything about it before a session exists.
 const mockLoadDraft = jest.fn();
-const mockClearDraft = jest.fn();
 jest.mock('../modules/accounts', () => ({
-  createSecureStoreRegistrationDraftRepository: () => ({ clear: () => mockClearDraft() }),
-  loadResumableDraft: () => mockLoadDraft(),
-  ResumeRegistration: jest.requireActual('../modules/accounts/components/ResumeRegistration').ResumeRegistration,
+  createSecureStoreRegistrationDraftRepository: () => ({ load: () => mockLoadDraft() }),
 }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 
@@ -34,7 +32,6 @@ const email = 'ana@example.com';
 beforeEach(() => {
   mockSession.configError = null;
   mockLoadDraft.mockReset().mockResolvedValue(null);
-  mockClearDraft.mockReset().mockResolvedValue(undefined);
   jest.mocked(router.push).mockClear();
   mockSession.requestCode.mockReset().mockResolvedValue(undefined);
   mockSession.verifyCode.mockReset().mockResolvedValue(undefined);
@@ -56,46 +53,13 @@ describe('sign-in screen', () => {
     expect(router.push).toHaveBeenCalledWith('/register');
   });
 
-  describe('a registration left half done', () => {
-    const RESUME = 'Retomar el registro de ana@example.com';
-    const unfinished = { swimmer: 'adult', firstName: 'Ana', lastName: 'Mora', email: ' ana@example.com ' };
-
-    it('offers to resume it and does not move the person on its own', async () => {
-      mockLoadDraft.mockResolvedValue(unfinished);
-      await render(<SignIn />);
-
-      expect(await screen.findByRole('button', { name: RESUME })).toBeOnTheScreen();
-      expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
-      expect(router.push).not.toHaveBeenCalled();
-    });
-
-    it('resumes where it stopped, with Back still working', async () => {
-      mockLoadDraft.mockResolvedValue(unfinished);
-      await render(<SignIn />);
-
-      await fireEvent.press(await screen.findByRole('button', { name: RESUME }));
-
-      expect(jest.mocked(router.push).mock.calls).toEqual([['/register'], ['/register/details']]);
-    });
-
-    it('starts again only after confirming, and deletes the draft', async () => {
-      mockLoadDraft.mockResolvedValue(unfinished);
-      await render(<SignIn />);
-
-      await fireEvent.press(await screen.findByRole('button', { name: 'Empezar de nuevo' }));
-      expect(mockClearDraft).not.toHaveBeenCalled();
-      await fireEvent.press(await screen.findByRole('button', { name: 'Borrar y empezar de nuevo' }));
-
-      expect(mockClearDraft).toHaveBeenCalledTimes(1);
-      await waitFor(() => expect(screen.queryByRole('button', { name: RESUME })).not.toBeOnTheScreen());
-    });
-  });
-
-  it('offers nothing when there is no registration to resume', async () => {
+  it('never redirects to the registration nor mentions the draft left on the phone', async () => {
+    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: 'Ana', lastName: 'Mora', email: email });
     await render(<SignIn />);
 
-    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: /Retomar el registro/ })).not.toBeOnTheScreen();
+    expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
+    expect(screen.queryByText(/Retomar|Empezar de nuevo|ana@example/)).not.toBeOnTheScreen();
+    expect(mockLoadDraft).not.toHaveBeenCalled();
     expect(router.push).not.toHaveBeenCalled();
   });
 

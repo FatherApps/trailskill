@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryAthleteRepository } from '../../athletes';
 import { createInMemoryAdultProfileRepository } from '../data/adultProfiles';
@@ -12,7 +12,8 @@ jest.mock('../../../core/sync/db', () => ({ db: {} }));
 jest.mock('expo-secure-store', () => ({}));
 
 const EMAIL = 'camila@example.test';
-const base: RegistrationDraft = { firstName: 'Camila', lastName: 'Rojas', email: EMAIL };
+// codeRequested: the code was asked for from the registration screen, so verifying it completes the registration.
+const base: RegistrationDraft = { firstName: 'Camila', lastName: 'Rojas', email: EMAIL, codeRequested: true };
 
 function setup(draft: RegistrationDraft, profiles = createInMemoryAdultProfileRepository()) {
   const links: ManagedAthleteRow[] = [];
@@ -21,12 +22,13 @@ function setup(draft: RegistrationDraft, profiles = createInMemoryAdultProfileRe
   const onNext = jest.fn();
   const save = jest.spyOn(profiles, 'save');
   type Session = { userId?: string; email?: string };
+  const offer: { current: ReturnType<typeof useFinishRegistration> } = { current: undefined };
   function Probe({ userId, email }: Session) {
-    useFinishRegistration(userId, email, drafts, profiles, managed, onNext);
+    offer.current = useFinishRegistration(userId, email, drafts, profiles, managed, onNext);
     return null;
   }
   const mount = (session: Session) => render(<Probe {...session} />);
-  return { drafts, profiles, save, onNext, mount, Probe };
+  return { drafts, profiles, save, onNext, mount, Probe, offer };
 }
 
 describe('useFinishRegistration routing', () => {
@@ -84,5 +86,52 @@ describe('useFinishRegistration timing', () => {
 
     await waitFor(() => expect(onNext).toHaveBeenCalledWith('authorizations'));
     expect(save).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('useFinishRegistration offer', () => {
+  const typed: RegistrationDraft = { ...base, swimmer: 'adult', codeRequested: undefined };
+
+  it('offers to resume a draft typed here whose code was never asked for, and stores nothing yet', async () => {
+    const { offer, save, onNext, mount } = setup(typed);
+    await mount({ userId: 'user-1', email: EMAIL });
+
+    await waitFor(() => expect(offer.current?.email).toBe(EMAIL));
+    expect(save).not.toHaveBeenCalled();
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
+  it('resumes: stores the profile, goes on and withdraws the offer', async () => {
+    const { offer, save, onNext, mount } = setup(typed);
+    await mount({ userId: 'user-1', email: EMAIL });
+    await waitFor(() => expect(offer.current).toBeDefined());
+
+    await act(async () => offer.current?.resume());
+
+    await waitFor(() => expect(onNext).toHaveBeenCalledWith('authorizations'));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(offer.current).toBeUndefined();
+  });
+
+  it('starts again: deletes the draft and goes nowhere', async () => {
+    const { offer, drafts, save, onNext, mount } = setup(typed);
+    await mount({ userId: 'user-1', email: EMAIL });
+    await waitFor(() => expect(offer.current).toBeDefined());
+
+    await act(async () => offer.current?.startOver());
+
+    await waitFor(async () => expect(await drafts.load()).toBeNull());
+    expect(offer.current).toBeUndefined();
+    expect(save).not.toHaveBeenCalled();
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
+  it('shows nothing of a draft typed for another email', async () => {
+    const other = { ...typed, email: 'other@example.test' };
+    const { offer, drafts, mount } = setup(other);
+    await mount({ userId: 'user-1', email: EMAIL });
+
+    await waitFor(async () => expect(await drafts.load()).toEqual(other));
+    expect(offer.current).toBeUndefined();
   });
 });
