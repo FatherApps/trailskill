@@ -414,6 +414,24 @@ describe('SupabaseConnector.uploadData', () => {
       expect(t.complete).not.toHaveBeenCalled();
     });
 
+    it('a cancel while the last op is in flight records nothing', async () => {
+      let answer!: () => void;
+      const inFlight = new Promise<Result>((resolve) => (answer = () => resolve(empty)));
+      const t = setup();
+      t.updateEq.mockReturnValue({ select: jest.fn().mockReturnValue(inFlight) });
+
+      const rejection = expect(t.connector.uploadData(t.database([entry('PATCH', 'a', { first_name: 'Ana' })]))).rejects.toThrow(
+        'Upload canceled',
+      );
+      while (!t.update.mock.calls.length) await Promise.resolve();
+      t.connector.cancelWaits();
+      answer();
+      await rejection;
+
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
     it('the default sleep clears its timer when canceled', async () => {
       jest.useFakeTimers();
       try {
