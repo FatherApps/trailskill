@@ -3,7 +3,7 @@
 -- admins through their school. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(18);
 
 -- Users: coach A, guardian G, adult athlete X (relation 'self'), school
 -- admin S, and N with no relations.
@@ -87,6 +87,13 @@ select throws_ok(
   'coach A cannot insert into athlete_groups'
 );
 
+select throws_ok(
+  $$ insert into public.athlete_managers (user_id, athlete_id, relation)
+     values ('10000000-0000-4000-8000-0000000000a1', '10000000-0000-4000-8000-0000000000e1', 'guardian') $$,
+  '42501', null,
+  'coach A cannot insert into athlete_managers'
+);
+
 -- Guardian G
 set local request.jwt.claims = '{"sub": "10000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 select set_eq(
@@ -132,6 +139,12 @@ select throws_ok(
      values ('10000000-0000-4000-8000-0000000000e5', '10000000-0000-4000-8000-0000000000b1') $$,
   '42501', null,
   'school admin S cannot link an athlete of another school to S''s school'
+);
+
+select throws_ok(
+  $$ insert into public.platform_admins (user_id) values ('10000000-0000-4000-8000-0000000000a4') $$,
+  '42501', null,
+  'school admin S cannot make themselves a platform admin'
 );
 
 -- User with no relations
