@@ -10,6 +10,7 @@ import { fulfillmentFixture } from './__fixtures__/fulfillment';
 import { blockErrors, newDraftBlock, type BlockErrors, type DraftBlock } from './draft';
 import { plansFixture } from './__fixtures__/plans';
 import { FulfillmentScreen, type FulfillmentView } from './screens/FulfillmentScreen';
+import { AssignPlanScreen, type AssignPlanView } from './screens/AssignPlanScreen';
 import { PlanBuilderScreen } from './screens/PlanBuilderScreen';
 import { PlanListScreen, type PlanListView } from './screens/PlanListScreen';
 import { TodayScreen, type TodayView } from './screens/TodayScreen';
@@ -144,6 +145,29 @@ function PlanListPreview({ view }: { view: PlanListView }) {
   );
 }
 
+function AssignPreview({ view }: { view: AssignPlanView }) {
+  return (
+    <ScreenFrame>
+      <AssignPlanScreen view={view} onPreviousDay={noop} onNextDay={noop} onSelectPlan={noop} onSelectKind={noop} onSelectOption={noop} onAssign={noop} />
+    </ScreenFrame>
+  );
+}
+
+const assignContent = {
+  dateLabel: 'lunes, 2 de noviembre de 2026',
+  plans: [...planList.plans, ...planList.templates],
+  selectedPlanId: planList.plans[0]?.id ?? null,
+  kinds: ['athlete', 'group', 'category', 'school'] as const,
+  kind: 'group' as const,
+  options: [
+    { id: 'g1', label: 'Grupo A' },
+    { id: 'g2', label: 'Grupo B' },
+  ],
+  selectedOptionId: 'g1',
+  assigned: [{ id: 'a1', planName: planList.plans[0]?.name ?? '', targetLabel: 'Grupo A', athleteCount: 12 }],
+  saving: false,
+};
+
 export const galleryEntries: GalleryEntry[] = [
   {
     id: 'blockCard',
@@ -196,6 +220,18 @@ export const galleryEntries: GalleryEntry[] = [
       loading: () => <PlanListPreview view={{ kind: 'loading' }} />,
       error: () => <PlanListPreview view={{ kind: 'error', onRetry: noop }} />,
       'no-school': () => <PlanListPreview view={{ kind: 'no_school' }} />,
+    },
+  },
+  {
+    id: 'assignPlan',
+    title: 'AssignPlanScreen',
+    states: {
+      data: () => <AssignPreview view={{ kind: 'data', content: { ...assignContent, kinds: [...assignContent.kinds] } }} />,
+      empty: () => (
+        <AssignPreview
+          view={{ kind: 'data', content: { ...assignContent, kinds: [...assignContent.kinds], selectedPlanId: null, selectedOptionId: null, assigned: [] } }}
+        />
+      ),
     },
   },
   {

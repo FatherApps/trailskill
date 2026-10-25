@@ -35,3 +35,18 @@ export { createInMemoryTrainingPlanRepository } from './data/inMemoryTrainingPla
 export { createPowerSyncTrainingPlanRepository } from './data/powerSyncTrainingPlanRepository';
 export { BlockHasFulfillmentError } from './data/plans';
 export type { Plan, PlanSummary, TrainingPlanRepository } from './data/plans';
+export { createInMemoryAssignmentRepository } from './data/inMemoryAssignmentRepository';
+export { createPowerSyncAssignmentRepository } from './data/powerSyncAssignmentRepository';
+export {
+  athletesOfTarget,
+  PlanNotAssignableError,
+  TargetNotInChargeError,
+  TargetOutsideSchoolError,
+  type Assignment,
+  type AssignmentRepository,
+  type AssignmentTarget,
+  type NewAssignment,
+} from './data/assignments';
+export { assignPlan, checkTarget, listAssignmentsOfDay, loadAssignScope, type AssignScope } from './data/assignable';
+export { AssignPlanScreen, type AssignedRow, type AssignmentKind, type AssignOption, type AssignPlanContent, type AssignPlanScreenProps, type AssignPlanView } from './screens/AssignPlanScreen';
+export { AssignPlanContainer, type AssignPlanContainerProps } from './screens/AssignPlanContainer';
