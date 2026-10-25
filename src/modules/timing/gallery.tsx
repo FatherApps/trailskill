@@ -161,6 +161,7 @@ function SeriesTimingPreview({
         onUseOnScreenStopwatch={noop}
         onArrival={() => setArrivals((current) => [...current, { id: `arrival-${current.length + 1}`, time: elapsed }])}
         onUndoLast={() => setArrivals((current) => current.slice(0, -1))}
+        onAssignNames={noop}
         onBack={noop}
       />
     </ScreenFrame>

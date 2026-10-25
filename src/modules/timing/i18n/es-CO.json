@@ -69,6 +69,7 @@
       "arrival": "Llegada",
       "undo_last": "Deshacer última",
       "assign_names": "Asignar nombres",
+      "assign_names_disabled": "Registra una llegada primero",
       "unassigned": "por asignar",
       "completed": "Completado",
       "external_disconnected_title": "Cronómetro externo desconectado.",
