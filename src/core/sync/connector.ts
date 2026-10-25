@@ -17,8 +17,16 @@ function failureCode(result: Result): string | null {
 }
 
 // Spec "New measurements are append-only" (2026-10-24-pilot-design.md): these tables are only ever inserted, never updated by the app.
-// authorizations are evidence: a withdrawal goes up as a PATCH, never as a re-sent PUT.
+// authorizations are evidence: a withdrawal goes up as a PATCH. A PUT that would change an existing row is recorded as insert_only_changed, never ignored.
 const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series', 'authorizations', 'school_invitations']);
+
+// Columns the server assigns or rewrites on insert (clamps, replaced tokens): a retry from the device never carries their stored value, so they are not compared.
+const SERVER_SET_COLUMNS: Record<string, string[]> = {
+  school_invitations: ['token', 'expires_at', 'revoked_at', 'created_at'],
+  authorizations: ['accepted_at', 'received_at', 'withdrawal_received_at', 'withdrawn_at'],
+};
+// Of a server-set column only whether it is null is compared: a withdrawal sent as a PUT must still be detected.
+const NULLNESS_ONLY_COLUMNS: Record<string, string[]> = { authorizations: ['withdrawn_at'] };
 
 /** Refresh a session that expires within this window, so a skewed device clock does not send an expired token. */
 const TOKEN_REFRESH_MARGIN_SECONDS = 60;
@@ -184,9 +192,11 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     switch (op.op) {
       case 'PUT':
         if (INSERT_ONLY_TABLES.has(op.table)) {
-          // ON CONFLICT DO NOTHING: a retry of a saved row must not hit the update policy. No row back means a conflict, so confirm it exists.
+          // ON CONFLICT DO NOTHING: a retry of a saved row must not hit the update policy. No row back means a conflict, and Postgres checks the insert policy
+          // before the conflict, so a permanent rejection may also be a retry of a row already saved: either way, look at what is stored.
           result = await table.upsert({ id: op.id, ...op.opData }, { onConflict: 'id', ignoreDuplicates: true }).select('id');
-          return failureCode(result) ?? (result.data?.length ? null : this.confirm(op, true));
+          const rejection = failureCode(result);
+          return rejection === null && result.data?.length ? null : this.confirmInsert(op, rejection);
         }
         result = await table.upsert({ id: op.id, ...op.opData });
         return failureCode(result);
@@ -196,15 +206,41 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         return failureCode(result) ?? (result.data?.length ? null : 'no_rows_affected');
       default:
         result = await table.delete().eq('id', op.id).select('id');
-        return failureCode(result) ?? (result.data?.length ? null : this.confirm(op, false));
+        return failureCode(result) ?? (result.data?.length ? null : this.confirmGone(op));
     }
   }
 
-  /** An op that changed no row is fine only if the row is where it should be: present after an insert, absent after a delete. */
-  private async confirm(op: CrudEntry, expectedPresent: boolean): Promise<string | null> {
+  /** A delete that changed no row is fine only if the row is already gone. */
+  private async confirmGone(op: CrudEntry): Promise<string | null> {
     const result: Result = await this.client.from(op.table).select('id').eq('id', op.id);
     const failure = failureCode(result);
     if (failure !== null) return failure;
-    return !!result.data?.length === expectedPresent ? null : 'no_rows_affected';
+    return result.data?.length ? 'no_rows_affected' : null;
+  }
+
+  /**
+   * An insert-only PUT that was not applied is fine only if that same row is already stored (a retry). The columns are compared by PostgREST filters,
+   * so Postgres compares them in their own types. The same id with other values is a PUT trying to change the row; no row keeps the original outcome.
+   * Server-set columns (SERVER_SET_COLUMNS) are not compared; of them only the null-ness of NULLNESS_ONLY_COLUMNS is.
+   * shortcut: a PUT that sets a column to null is not detected; compare server-side if it shows up.
+   */
+  private async confirmInsert(op: CrudEntry, rejection: string | null): Promise<string | null> {
+    const serverSet = SERVER_SET_COLUMNS[op.table] ?? [];
+    const columns = Object.entries(op.opData ?? {}).filter(([column, value]) => column !== 'id' && value != null && !serverSet.includes(column));
+    const find = (filters: [string, unknown][], withNullness: boolean) => {
+      let query = filters.reduce((q, [column, value]) => q.eq(column, value as never), this.client.from(op.table).select('id').eq('id', op.id));
+      for (const column of withNullness ? (NULLNESS_ONLY_COLUMNS[op.table] ?? []) : []) {
+        query = op.opData?.[column] != null ? query.not(column, 'is', null) : query.is(column, null);
+      }
+      return query as PromiseLike<Result>;
+    };
+    for (const [filters, withNullness, found] of [[columns, true, null], [[], false, 'insert_only_changed']] as const) {
+      const result = await find([...filters], withNullness);
+      // A read that is permanently rejected cannot tell, so the original outcome stands.
+      const failure = failureCode(result);
+      if (failure !== null) return rejection ?? failure;
+      if (result.data?.length) return found;
+    }
+    return rejection ?? 'no_rows_affected';
   }
 }
