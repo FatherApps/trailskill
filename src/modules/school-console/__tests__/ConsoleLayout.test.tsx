@@ -62,7 +62,7 @@ describe('ConsoleLayout', () => {
       return ids;
     };
 
-    expect(await shown(599)).toEqual([]);
+    expect(await shown(599)).toEqual(['console-nav-top']);
     expect(await shown(600)).toEqual(['console-nav-top']);
     expect(await shown(1023)).toEqual(['console-nav-top']);
     expect(await shown(1024)).toEqual(['console-nav-side']);
@@ -91,9 +91,22 @@ describe('ConsoleLayout', () => {
     });
   });
 
-  it('compact has no console navigation: the phone navigation belongs to the app', async () => {
-    await show(360);
+  it.each([360, 599])('compact at %s dp shows the six destinations and reports the one pressed', async (width) => {
+    const onSelect = jest.fn();
+    await show(width, { onSelect });
 
+    expect(screen.getByTestId('console-nav-top')).toBeOnTheScreen();
+    expect(screen.getAllByRole('tab')).toHaveLength(6);
+    expect(screen.getByText('Contenido principal')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Mediciones' }));
+    expect(onSelect).toHaveBeenCalledWith('measurements');
+  });
+
+  it('compact with a detail open has no navigation', async () => {
+    await show(360, { detail });
+
+    expect(screen.queryByTestId('console-nav-top')).toBeNull();
     expect(screen.queryByRole('tab')).toBeNull();
   });
 

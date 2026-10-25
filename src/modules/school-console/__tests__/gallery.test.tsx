@@ -31,11 +31,9 @@ const measure = (width: number) =>
   act(() => fireEvent(screen.getByTestId('console-preview'), 'layout', { nativeEvent: { layout: { width, height: 800, x: 0, y: 0 } } }));
 
 const layoutShown = () =>
-  screen.queryByTestId('console-nav-side', { includeHiddenElements: true })
-    ? 'expanded'
-    : screen.queryByTestId('console-nav-top', { includeHiddenElements: true })
-      ? 'medium'
-      : 'compact';
+  (['expanded', 'medium', 'compact'] as const).find((layout) =>
+    screen.queryByTestId(`console-layout-${layout}`, { includeHiddenElements: true }),
+  );
 
 // The React Native jest setup reports a system font scale of 2: these tests start from 100 %.
 const realGet = Dimensions.get.bind(Dimensions);

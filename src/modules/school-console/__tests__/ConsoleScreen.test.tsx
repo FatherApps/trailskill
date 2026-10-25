@@ -23,11 +23,7 @@ const show = (width: number, sections?: ConsoleScreenProps['sections']) => (
 );
 
 const layoutShown = () =>
-  screen.queryByTestId('console-nav-side', hidden)
-    ? 'expanded'
-    : screen.queryByTestId('console-nav-top', hidden)
-      ? 'medium'
-      : 'compact';
+  (['expanded', 'medium', 'compact'] as const).find((layout) => screen.queryByTestId(`console-layout-${layout}`, hidden));
 
 describe('ConsoleScreen layout', () => {
   it.each([
@@ -58,6 +54,16 @@ describe('ConsoleScreen sections', () => {
     expect(screen.getByRole('tab', { name: 'Récords' })).toBeSelected();
   });
 
+  it('compact: shows the destinations and switches section when "Récords" is pressed', async () => {
+    await render(show(360));
+
+    expect(screen.getAllByRole('tab')).toHaveLength(6);
+    await fireEvent.press(screen.getByRole('tab', { name: 'Récords' }));
+
+    expect(screen.getByRole('header', { name: 'Récords' })).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: 'Récords' })).toBeSelected();
+  });
+
   it('keeps the active section when the width changes between layouts', async () => {
     const { rerender } = await render(show(1280));
     await fireEvent.press(screen.getByRole('tab', { name: 'Récords' }));
@@ -70,8 +76,7 @@ describe('ConsoleScreen sections', () => {
       await rerender(show(width));
       expect(layoutShown()).toBe(layout);
       expect(screen.getByRole('header', { name: 'Récords' })).toBeOnTheScreen();
-      // The compact layout has no console navigation.
-      if (layout !== 'compact') expect(screen.getByRole('tab', { name: 'Récords' })).toBeSelected();
+      expect(screen.getByRole('tab', { name: 'Récords' })).toBeSelected();
     }
   });
 

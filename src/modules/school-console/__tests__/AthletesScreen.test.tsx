@@ -146,7 +146,7 @@ describe('AthletesScreen', () => {
     it('compact: a list of SwimmerRow and a full-screen detail with Volver', async () => {
       const { actions } = await show({ kind: 'data', content }, { width: 599 });
       expect(screen.queryByTestId('console-nav-side')).toBeNull();
-      expect(screen.queryByTestId('console-nav-top')).toBeNull();
+      expect(screen.getByTestId('console-nav-top')).toBeOnTheScreen();
       expect(screen.queryByText('Categoría')).toBeNull();
       expect(screen.getByRole('button', { name: /^Lucía Ramírez, Infantil B · Grupo B · Paula G\./ })).toBeOnTheScreen();
 
@@ -170,7 +170,7 @@ describe('AthletesScreen', () => {
         return result;
       };
 
-      expect(await layoutAt(599)).toBe('none+list');
+      expect(await layoutAt(599)).toBe('top+list');
       expect(await layoutAt(600)).toBe('top+table');
       expect(await layoutAt(1023)).toBe('top+table');
       expect(await layoutAt(1024)).toBe('side+table');
