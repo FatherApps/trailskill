@@ -36,22 +36,22 @@ export function SyncStatus({ state, onRetry, message }: SyncStatusProps) {
   return (
     <View testID="sync-status" accessibilityLiveRegion="polite" style={{ gap: space[1] }}>
       <View style={[styles.row, { gap: space[2] }]}>
-      <View
-        accessible
-        accessibilityRole="text"
-        accessibilityLabel={label}
-        style={[styles.pill, { gap: 6, borderRadius: radius.full, backgroundColor: colors[background] }]}
-      >
-        <View style={[styles.dot, { borderRadius: radius.full, backgroundColor: colors[dot] }]} />
-        <Text
-          importantForAccessibility="no"
-          accessibilityElementsHidden
-          style={[typography.caption, { fontFamily: fontFamily.sansSemiBold, fontWeight: '600', color: colors[text] }]}
+        <View
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={label}
+          style={[styles.pill, { gap: 6, borderRadius: radius.full, backgroundColor: colors[background] }]}
         >
-          {label}
-        </Text>
-      </View>
-      {state === 'not_sent' && onRetry && <Button variant="ghost" label={t('sync.retry')} onPress={onRetry} />}
+          <View style={[styles.dot, { borderRadius: radius.full, backgroundColor: colors[dot] }]} />
+          <Text
+            importantForAccessibility="no"
+            accessibilityElementsHidden
+            style={[typography.caption, { fontFamily: fontFamily.sansSemiBold, fontWeight: '600', color: colors[text] }]}
+          >
+            {label}
+          </Text>
+        </View>
+        {state === 'not_sent' && onRetry && <Button variant="ghost" label={t('sync.retry')} onPress={onRetry} />}
       </View>
       {message ? <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{message}</Text> : null}
     </View>
