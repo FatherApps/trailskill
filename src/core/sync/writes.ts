@@ -22,33 +22,45 @@ function updateRow(tx: Transaction, table: string, id: string, fields: Record<st
   return tx.execute(`UPDATE ${table} SET ${assignments} WHERE id = ?`, [...columns.map((column) => fields[column]), id]);
 }
 
+function assertWritable(table: string, values: Record<string, unknown>): void {
+  assertIdentifier(table);
+  Object.keys(values).filter((column) => column !== 'id').forEach(assertIdentifier);
+}
+
+async function putRow(tx: Transaction, table: string, values: Record<string, unknown> & { id?: string }): Promise<string> {
+  const { id: givenId, ...fields } = values;
+  const columns = Object.keys(fields);
+  const id = givenId ?? (await tx.get<{ id: string }>('SELECT uuid() AS id')).id;
+  const params = columns.map((column) => fields[column]);
+
+  if (givenId !== undefined && (await rowExists(tx, table, id))) {
+    // Nothing changes, so there is nothing to upload and no marker that would never clear.
+    if (columns.length === 0) return id;
+    await updateRow(tx, table, id, fields);
+  } else {
+    const placeholders = ['?', ...columns.map(() => '?')].join(', ');
+    await tx.execute(`INSERT INTO ${table} (${['id', ...columns].join(', ')}) VALUES (${placeholders})`, [id, ...params]);
+  }
+
+  await markPending(tx, table, id);
+  return id;
+}
+
+async function removeRow(tx: Transaction, table: string, id: string): Promise<void> {
+  // A missing row produces no CRUD operation, so a marker would never clear.
+  if (!(await rowExists(tx, table, id))) return;
+  await tx.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
+  await markPending(tx, table, id);
+}
+
 /**
  * Saves a row on the device and queues it for upload in the same transaction, so a committed write
  * survives a force-quit. Inserts a new row (generating a UUID when `id` is missing) or updates only
  * the given columns of an existing one. Returns the row id.
  */
 export async function writeRecord(table: string, values: Record<string, unknown> & { id?: string }): Promise<string> {
-  const { id: givenId, ...fields } = values;
-  const columns = Object.keys(fields);
-  assertIdentifier(table);
-  columns.forEach(assertIdentifier);
-
-  return db.writeTransaction(async (tx) => {
-    const id = givenId ?? (await tx.get<{ id: string }>('SELECT uuid() AS id')).id;
-    const params = columns.map((column) => fields[column]);
-
-    if (givenId !== undefined && (await rowExists(tx, table, id))) {
-      // Nothing changes, so there is nothing to upload and no marker that would never clear.
-      if (columns.length === 0) return id;
-      await updateRow(tx, table, id, fields);
-    } else {
-      const placeholders = ['?', ...columns.map(() => '?')].join(', ');
-      await tx.execute(`INSERT INTO ${table} (${['id', ...columns].join(', ')}) VALUES (${placeholders})`, [id, ...params]);
-    }
-
-    await markPending(tx, table, id);
-    return id;
-  });
+  assertWritable(table, values);
+  return db.writeTransaction((tx) => putRow(tx, table, values));
 }
 
 /**
@@ -90,13 +102,35 @@ export async function editRecord(
 /** Deletes a row on the device and queues the deletion for upload in the same transaction. */
 export async function deleteRecord(table: string, id: string): Promise<void> {
   assertIdentifier(table);
+  await db.writeTransaction((tx) => removeRow(tx, table, id));
+}
 
-  await db.writeTransaction(async (tx) => {
-    // A missing row produces no CRUD operation, so a marker would never clear.
-    if (!(await rowExists(tx, table, id))) return;
-    await tx.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
-    await markPending(tx, table, id);
-  });
+/** The writes of one batch: `write` and `delete` behave like writeRecord and deleteRecord; `getAll` reads inside the batch. */
+export type WriteBatch = {
+  getAll<T>(sql: string, params?: unknown[]): Promise<T[]>;
+  write(table: string, values: Record<string, unknown> & { id?: string }): Promise<string>;
+  delete(table: string, id: string): Promise<void>;
+};
+
+/**
+ * Runs several writes and deletions in one local transaction: they are all saved and queued for upload together,
+ * or, when one fails or the app dies midway, none of them is. Reads made through the batch see its earlier writes
+ * and no other write can interleave. Returns what `writes` returns.
+ */
+export async function writeBatch<T>(writes: (batch: WriteBatch) => Promise<T>): Promise<T> {
+  return db.writeTransaction((tx) =>
+    writes({
+      getAll: (sql, params) => tx.getAll(sql, params),
+      write: async (table, values) => {
+        assertWritable(table, values);
+        return putRow(tx, table, values);
+      },
+      delete: async (table, id) => {
+        assertIdentifier(table);
+        return removeRow(tx, table, id);
+      },
+    }),
+  );
 }
 
 // Columns the server fills with a default; sending an explicit null breaks `not null default` (23502).

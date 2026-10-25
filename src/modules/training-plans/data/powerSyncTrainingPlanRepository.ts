@@ -1,5 +1,5 @@
 import { distances, isStroke } from '../../../core/sport';
-import { db, deleteRecord, writeRecord } from '../../../core/sync';
+import { db, writeBatch, type WriteBatch } from '../../../core/sync';
 import type { BlockPhase, BlockRecording, PlanBlock } from '../types';
 import { normalizeBlock, validatePlan, type PlanSummary, type TrainingPlanRepository } from './plans';
 
@@ -30,16 +30,19 @@ function toBlock(row: BlockRow): PlanBlock {
   };
 }
 
-async function latestVersionId(planId: string): Promise<string | null> {
-  const [version] = await db.getAll<{ id: string }>(
+// `reader` is the database, or a batch so the save reads what it is about to change in its own transaction.
+type Reader = Pick<WriteBatch, 'getAll'>;
+
+async function latestVersionId(reader: Reader, planId: string): Promise<string | null> {
+  const [version] = await reader.getAll<{ id: string }>(
     'SELECT id FROM training_plan_versions WHERE plan_id = ? ORDER BY version DESC LIMIT 1',
     [planId],
   );
   return version?.id ?? null;
 }
 
-async function blocksOf(versionId: string): Promise<BlockRow[]> {
-  return db.getAll<BlockRow>('SELECT * FROM training_plan_blocks WHERE version_id = ? ORDER BY position, id', [versionId]);
+async function blocksOf(reader: Reader, versionId: string): Promise<BlockRow[]> {
+  return reader.getAll<BlockRow>('SELECT * FROM training_plan_blocks WHERE version_id = ? ORDER BY position, id', [versionId]);
 }
 
 export function createPowerSyncTrainingPlanRepository(): TrainingPlanRepository {
@@ -49,8 +52,8 @@ export function createPowerSyncTrainingPlanRepository(): TrainingPlanRepository 
     async get(id) {
       const [plan] = await db.getAll<PlanRow>('SELECT id, school_id, name, is_template FROM training_plans WHERE id = ?', [id]);
       if (!plan) return null;
-      const versionId = await latestVersionId(id);
-      const blocks = versionId ? (await blocksOf(versionId)).map(toBlock) : [];
+      const versionId = await latestVersionId(db, id);
+      const blocks = versionId ? (await blocksOf(db, versionId)).map(toBlock) : [];
       return { id: plan.id, schoolId: plan.school_id, name: plan.name, isTemplate: plan.is_template === 1, blocks };
     },
     async list(schoolId) {
@@ -60,33 +63,35 @@ export function createPowerSyncTrainingPlanRepository(): TrainingPlanRepository 
       );
       return rows.map((row): PlanSummary => ({ id: row.id, name: row.name, isTemplate: row.is_template === 1 }));
     },
-    // shortcut: save is several writeRecord transactions, so a crash midway can leave a partial plan; upgrade to one batched write in core/sync (needs maintainer approval).
     async save(plan) {
       validatePlan(plan);
-      await writeRecord('training_plans', { id: plan.id, school_id: plan.schoolId, name: plan.name, is_template: plan.isTemplate ? 1 : 0 });
-      const versionId = (await latestVersionId(plan.id)) ?? (await writeRecord('training_plan_versions', { plan_id: plan.id, version: 1 }));
+      await writeBatch(async (batch) => {
+        await batch.write('training_plans', { id: plan.id, school_id: plan.schoolId, name: plan.name, is_template: plan.isTemplate ? 1 : 0 });
+        const versionId =
+          (await latestVersionId(batch, plan.id)) ?? (await batch.write('training_plan_versions', { plan_id: plan.id, version: 1 }));
 
-      const keep = new Set(plan.blocks.map((block) => block.id));
-      for (const stored of await blocksOf(versionId)) {
-        if (!keep.has(stored.id)) await deleteRecord('training_plan_blocks', stored.id);
-      }
-      for (const [index, raw] of plan.blocks.entries()) {
-        const block = normalizeBlock(raw);
-        const stroke = isStroke(block.activity);
-        await writeRecord('training_plan_blocks', {
-          id: block.id,
-          version_id: versionId,
-          position: index + 1,
-          repetitions: block.repetitions,
-          distance: distances.find((d) => d.meters === block.distance)!.code,
-          stroke: stroke ? block.activity : null,
-          drill: stroke ? null : block.activity,
-          equipment: JSON.stringify(block.equipment),
-          send_off_seconds: block.sendOffSeconds,
-          phase: block.phase,
-          recording: block.recording,
-        });
-      }
+        const keep = new Set(plan.blocks.map((block) => block.id));
+        for (const stored of await blocksOf(batch, versionId)) {
+          if (!keep.has(stored.id)) await batch.delete('training_plan_blocks', stored.id);
+        }
+        for (const [index, raw] of plan.blocks.entries()) {
+          const block = normalizeBlock(raw);
+          const stroke = isStroke(block.activity);
+          await batch.write('training_plan_blocks', {
+            id: block.id,
+            version_id: versionId,
+            position: index + 1,
+            repetitions: block.repetitions,
+            distance: distances.find((d) => d.meters === block.distance)!.code,
+            stroke: stroke ? block.activity : null,
+            drill: stroke ? null : block.activity,
+            equipment: JSON.stringify(block.equipment),
+            send_off_seconds: block.sendOffSeconds,
+            phase: block.phase,
+            recording: block.recording,
+          });
+        }
+      });
     },
     async copy(id, asTemplate) {
       const source = await repository.get(id);

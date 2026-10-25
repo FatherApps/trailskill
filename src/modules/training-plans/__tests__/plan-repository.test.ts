@@ -5,7 +5,7 @@ import { createInMemoryTrainingPlanRepository, createPowerSyncTrainingPlanReposi
 import type { Plan, PlanBlock, TrainingPlanRepository } from '..';
 
 // Same setup as the measurement repository test: the real database is replaced by the SQLite-backed
-// fake, and the core/sync barrel is mocked; `writeRecord` and `deleteRecord` stay the real ones.
+// fake, and the core/sync barrel is mocked; `writeBatch` stays the real one.
 let mockDb: FakeDatabase;
 jest.mock('../../../core/sync/db', () => ({
   get db() {
@@ -16,8 +16,7 @@ jest.mock('../../../core/sync', () => ({
   get db() {
     return mockDb;
   },
-  writeRecord: jest.requireActual('../../../core/sync/writes').writeRecord,
-  deleteRecord: jest.requireActual('../../../core/sync/writes').deleteRecord,
+  writeBatch: jest.requireActual('../../../core/sync/writes').writeBatch,
 }));
 
 const TABLES = `
@@ -30,6 +29,7 @@ const TABLES = `
 `;
 
 let removeStore: (() => void) | undefined;
+let storePath: string;
 afterEach(() => {
   removeStore?.();
   removeStore = undefined;
@@ -38,6 +38,7 @@ afterEach(() => {
 function createPowerSync(): TrainingPlanRepository {
   const store = createStore();
   removeStore = store.remove;
+  storePath = store.path;
   const seed = new DatabaseSync(store.path);
   seed.exec(TABLES);
   seed.close();
@@ -283,5 +284,51 @@ describe('PowerSync training plan repository', () => {
 
     const pending = mockDb.getAll<{ table_name: string; record_id: string }>('SELECT table_name, record_id FROM pending_writes');
     expect(pending.filter((p) => p.record_id === 'b2' || p.record_id === 'b3')).toHaveLength(4);
+  });
+
+  it('saves the plan, its version, the deletions and every block in one transaction', async () => {
+    const repository = createPowerSync();
+    await repository.save(plan('p1'));
+    await repository.save(plan('p1', { blocks: [block('b3'), block('b4')] }));
+
+    expect(mockDb.transactions).toHaveLength(2);
+    const sql = mockDb.transactions[1].map((s) => s.sql);
+    expect(sql.some((s) => s.startsWith('UPDATE training_plans'))).toBe(true);
+    expect(sql.filter((s) => s.startsWith('DELETE FROM training_plan_blocks'))).toHaveLength(2);
+    expect(sql.some((s) => s.startsWith('INSERT INTO training_plan_blocks'))).toBe(true);
+  });
+
+  const failInsertOf = (blockId: string) => {
+    const seed = new DatabaseSync(storePath);
+    seed.exec(`CREATE TRIGGER fail_block BEFORE INSERT ON training_plan_blocks WHEN NEW.id = '${blockId}' BEGIN SELECT RAISE(ABORT, 'disk full'); END`);
+    seed.close();
+  };
+  const pendingWrites = () => mockDb.getAll('SELECT table_name, record_id FROM pending_writes');
+
+  it('writes nothing and queues nothing when a block of a new plan fails', async () => {
+    const repository = createPowerSync();
+    failInsertOf('b3');
+
+    await expect(repository.save(plan('p1'))).rejects.toThrow('disk full');
+
+    expect(mockDb.getAll('SELECT id FROM training_plans')).toEqual([]);
+    expect(mockDb.getAll('SELECT id FROM training_plan_versions')).toEqual([]);
+    expect(mockDb.getAll('SELECT id FROM training_plan_blocks')).toEqual([]);
+    expect(pendingWrites()).toEqual([]);
+  });
+
+  it('keeps the previous plan whole and queues nothing new when a later save fails midway', async () => {
+    const repository = createPowerSync();
+    await repository.save(plan('p1'));
+    const before = await repository.get('p1');
+    const queued = pendingWrites();
+    failInsertOf('b5');
+
+    await expect(
+      repository.save(plan('p1', { name: 'Half saved', blocks: [block('b1', { repetitions: 9 }), block('b4'), block('b5')] })),
+    ).rejects.toThrow('disk full');
+
+    await expect(repository.get('p1')).resolves.toEqual(before);
+    expect(pendingWrites()).toEqual(queued);
   });
 });

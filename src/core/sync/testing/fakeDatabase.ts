@@ -45,6 +45,10 @@ export function openDatabase(path: string) {
       statements.push({ sql, params });
       return (store.prepare(sql).get(...bind(params)) as T | undefined) ?? null;
     },
+    async getAll<T>(sql: string, params: unknown[] = []) {
+      statements.push({ sql, params });
+      return store.prepare(sql).all(...bind(params)) as T[];
+    },
     async get<T>(sql: string, params: unknown[] = []) {
       statements.push({ sql, params });
       const row = store.prepare(sql).get(...bind(params));
