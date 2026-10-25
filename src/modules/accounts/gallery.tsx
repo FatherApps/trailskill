@@ -18,11 +18,11 @@ function FullScreen({ children }: { children: ReactNode }) {
   return <View style={{ alignSelf: 'stretch', minHeight: height }}>{children}</View>;
 }
 
-const person = { name: fx.person.name, email: fx.person.email, phone: fx.person.phone };
+const person = { firstName: fx.person.firstName, lastName: fx.person.lastName, email: fx.person.email };
 
 // Holds what is typed, so the fields of a state can be edited in the gallery.
 function AccountDetailsPreview(props: Partial<AccountDetailsScreenProps>) {
-  const [values, setValues] = useState({ name: '', email: '', phone: '', code: '', ...props.values });
+  const [values, setValues] = useState({ firstName: '', lastName: '', email: '', code: '', ...props.values });
 
   return (
     <FullWidth>
@@ -90,6 +90,10 @@ export const galleryEntries: GalleryEntry[] = [
       ),
       emailInUse: () => <AccountDetailsPreview values={{ ...person, code: '' }} errors={{ email: 'in_use' }} />,
       offline: () => <AccountDetailsPreview values={{ ...person, code: '' }} codeSent offline />,
+      required: () => (
+        <AccountDetailsPreview errors={{ firstName: 'required', lastName: 'required', email: 'required' }} />
+      ),
+      noSignal: () => <AccountDetailsPreview values={{ ...person, code: '' }} failure="offline" onRetry={noop} />,
       sending: () => <AccountDetailsPreview values={{ ...person, code: '' }} busy="sending" />,
       invitation: () => <AccountDetailsPreview values={{ ...person, code: '' }} invitation={fx.invitation} />,
     },

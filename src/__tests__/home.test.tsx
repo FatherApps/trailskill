@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { router } from 'expo-router';
 
@@ -27,7 +27,9 @@ jest.mock('../modules/school-console', () => ({
   }),
 }));
 const mockListManagedAthleteIds = jest.fn();
+const mockClearDraft = jest.fn();
 jest.mock('../modules/accounts', () => ({
+  createSecureStoreRegistrationDraftRepository: () => ({ clear: () => mockClearDraft() }),
   createPowerSyncManagedAthleteRepository: () => ({ listManagedAthleteIds: (...args: unknown[]) => mockListManagedAthleteIds(...args) }),
 }));
 const mockListByIds = jest.fn();
@@ -45,6 +47,7 @@ beforeEach(() => {
   mockSummary = { pending: 0, failed: 0, uploading: false, lastSyncedAt: null };
   mockSyncConnectFailed = false;
   mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
+  mockClearDraft.mockReset().mockResolvedValue(undefined);
   mockListStaffSchools.mockReset().mockResolvedValue([]);
   mockListAdminSchools.mockReset().mockResolvedValue([]);
   mockListManagedAthleteIds.mockReset().mockResolvedValue([]);
@@ -173,6 +176,17 @@ describe('sign out from home', () => {
 
     expect(mockSignOut).toHaveBeenCalledWith();
     expect(screen.queryByRole('header', { name: pendingTitle })).toBeNull();
+    await waitFor(() => expect(mockClearDraft).toHaveBeenCalledTimes(1));
+  });
+
+  it('keeps the registration draft when the sign-out is blocked', async () => {
+    mockSignOut.mockResolvedValue({ status: 'blocked_pending', unsent: 1, rejected: 0 });
+    await render(<Home />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
+    await screen.findByRole('header', { name: pendingTitle });
+
+    expect(mockClearDraft).not.toHaveBeenCalled();
   });
 
   it('warns with the number of unsent records, and continuing keeps the session', async () => {
