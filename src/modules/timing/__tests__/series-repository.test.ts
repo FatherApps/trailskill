@@ -189,10 +189,10 @@ describe.each(factories)('%s series repository', (_name, create) => {
 
     it('returns nothing when no arrival is waiting for an athlete', async () => {
       const { series: repository } = create();
-      expect(await repository.listPending()).toEqual([]);
+      expect(await repository.listPending('school-a')).toEqual([]);
 
       await repository.open(series, arrival('m1', 1, 'athlete-1'));
-      expect(await repository.listPending()).toEqual([]);
+      expect(await repository.listPending('school-a')).toEqual([]);
     });
 
     it('groups the unassigned arrivals by series, newest first, counting only the ones still waiting', async () => {
@@ -206,10 +206,20 @@ describe.each(factories)('%s series repository', (_name, create) => {
       // An individual time has no series: it never waits for a series assignment.
       await measurements.add({ ...arrival('solo', 1, null), seriesId: null, arrivalPosition: null, capturedAt: '2026-10-24T10:00:00Z' });
 
-      expect(await repository.listPending()).toEqual([
+      expect(await repository.listPending('school-a')).toEqual([
         { seriesId: 'T', stroke: 'BK', distance: '100m', pool: 'LCM', sessionType: 'competition', capturedAt: '2026-10-24T09:00:00Z', pending: 1 },
         { seriesId: 'S', stroke: 'FR', distance: '50m', pool: 'SCM', sessionType: 'training', capturedAt: '2026-10-24T08:00:05Z', pending: 2 },
       ]);
+    });
+
+    it('lists the pending series of one school only', async () => {
+      const { series: repository } = create();
+      await repository.open(series, arrival('m1', 1, null));
+      await repository.open({ ...other, schoolId: 'school-b' }, { ...arrival('b1', 1, null), seriesId: 'T', schoolId: 'school-b' });
+
+      expect((await repository.listPending('school-a')).map((p) => p.seriesId)).toEqual(['S']);
+      expect((await repository.listPending('school-b')).map((p) => p.seriesId)).toEqual(['T']);
+      expect(await repository.listPending('school-c')).toEqual([]);
     });
 
     it('drops a series once all its arrivals have their athlete', async () => {
@@ -219,7 +229,7 @@ describe.each(factories)('%s series repository', (_name, create) => {
 
       await repository.assign([{ id: 'm1', athleteId: 'athlete-1' }, { id: 'm2', athleteId: 'athlete-2' }], { deviceId: 'device-a' });
 
-      expect(await repository.listPending()).toEqual([]);
+      expect(await repository.listPending('school-a')).toEqual([]);
     });
   });
 });
@@ -342,7 +352,7 @@ describe('PowerSync series repository assignment', () => {
 
     mockDb = openDatabase(store.path);
 
-    expect(await createPowerSyncSeriesRepository().listPending()).toEqual([
+    expect(await createPowerSyncSeriesRepository().listPending('school-a')).toEqual([
       { seriesId: 'S', stroke: 'FR', distance: '50m', pool: 'SCM', sessionType: 'training', capturedAt: '2026-10-24T08:00:00Z', pending: 2 },
     ]);
   });

@@ -46,8 +46,11 @@ export interface SeriesRepository {
   assign(assignments: { id: string; athleteId: string }[], meta: { deviceId: string }): Promise<void>;
   /** The arrivals of a series that are not discarded, by arrival position (assigned or not). */
   listArrivals(seriesId: string): Promise<Measurement[]>;
-  /** The series with arrivals still waiting for an athlete, newest first: what "Series por asignar" shows, even in another app session. */
-  listPending(): Promise<PendingSeries[]>;
+  /**
+   * The series of one school with arrivals still waiting for an athlete, newest first: what "Series por asignar" shows, even in another app session.
+   * Another school's series are left out: naming them with this school's roster would be refused for good by the server.
+   */
+  listPending(schoolId: string): Promise<PendingSeries[]>;
 }
 
 type PendingRow = {
@@ -97,15 +100,16 @@ export function createPowerSyncSeriesRepository(): SeriesRepository {
       });
     },
     listArrivals: (seriesId) => measurements.listBySeries(seriesId),
-    async listPending() {
+    async listPending(schoolId) {
       // The local database only holds the author's own unassigned arrivals (sync rules), so no filter by user is needed.
       // julianday compares moments: synced rows may use a space instead of 'T' between date and time.
       const rows = await db.getAll<PendingRow>(
         `SELECT series_id, stroke, distance, pool, session_type, MAX(captured_at) AS captured_at, COUNT(*) AS pending
          FROM measurements
-         WHERE series_id IS NOT NULL AND athlete_id IS NULL AND discarded_at IS NULL
+         WHERE series_id IS NOT NULL AND athlete_id IS NULL AND discarded_at IS NULL AND school_id = ?
          GROUP BY series_id, stroke, distance, pool, session_type
          ORDER BY MAX(julianday(captured_at)) DESC, series_id`,
+        [schoolId],
       );
       return rows.map((row) => ({
         seriesId: row.series_id,
@@ -131,9 +135,10 @@ export function createInMemorySeriesRepository(measurements: InMemoryMeasurement
       for (const { id, athleteId } of assignments) await measurements.edit(id, { athleteId }, meta);
     },
     listArrivals: (seriesId) => measurements.listBySeries(seriesId),
-    async listPending() {
+    async listPending(schoolId) {
       const groups = new Map<string, PendingSeries>();
       for (const m of await measurements.listUnassigned()) {
+        if (m.schoolId !== schoolId) continue;
         const group = groups.get(m.seriesId!);
         if (!group) {
           groups.set(m.seriesId!, {

@@ -468,6 +468,24 @@ describe('series timing flow', () => {
       expect(await screen.findByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
     });
 
+    it('offers no arrival of another school for naming, and still offers the ones of the active school', async () => {
+      const arrival = (id: string, seriesId: string, schoolId: string) =>
+        ({ id, kind: 'repetition', athleteId: null, seriesId, arrivalPosition: 1, hundredths: 3100, ...event, sessionType: 'training', source: 'screen_button', createdBy: 'coach-1', schoolId, deviceId: 'device-1', capturedAt: '2026-10-25T08:00:00Z', parentId: null, version: 1, editedBy: null, editedAt: null, editReason: null }) as Measurement;
+      const seriesOf = (id: string, schoolId: string) => ({ id, createdBy: 'coach-1', schoolId, deviceId: 'device-1', ...event, sessionType: 'training' }) as const;
+      await setup({}, async (series) => {
+        await series.open(seriesOf('S-other', 'school-2'), arrival('other-1', 'S-other', 'school-2'));
+      });
+      await screen.findByText('Nadadores (2 de 3)');
+      expect(screen.queryByText(/sin nombre de/)).toBeNull();
+
+      await screen.unmount();
+      await setup({}, async (series) => {
+        await series.open(seriesOf('S-other', 'school-2'), arrival('other-1', 'S-other', 'school-2'));
+        await series.open(seriesOf('S-own', 'school-1'), arrival('own-1', 'S-own', 'school-1'));
+      });
+      expect(await screen.findByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+    });
+
     it('offers nothing at the setup when no arrival is waiting', async () => {
       await setup();
       await screen.findByText('Nadadores (2 de 3)');

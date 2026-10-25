@@ -99,14 +99,14 @@ function SeriesSession({ subtitle, schoolId, roster, series: repository, setups,
     if (step.kind !== 'setup') return;
     let active = true;
     repository
-      .listPending()
+      .listPending(schoolId)
       .then((list) => active && setPending(list))
       // Without a fresh read an old notice could be about a series that is named by now: show none.
       .catch(() => active && setPending([]));
     return () => {
       active = false;
     };
-  }, [repository, step.kind]);
+  }, [repository, schoolId, step.kind]);
 
   const syncStates = useRecordSyncStates('measurements', ids);
   const eventSubtitle = eventSubtitleOf(choice);
