@@ -17,13 +17,15 @@ const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 export default function Authorizations() {
   const { session } = useSession();
   const userId = session?.user.id;
-  const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, useGlobalSyncSummary().lastSyncedAt?.getTime());
+  const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();
+  const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, lastSyncedAt);
 
   if (!userId || managed.status !== 'ready') return null;
   return (
     <AuthorizationsContainer
       repository={authorizations}
       userId={userId}
+      refreshKey={lastSyncedAt}
       athletes={managed.athletes.map((athlete, index) => ({ id: athlete.id, name: athleteDisplay(athlete, index).shortName }))}
       mode="manage"
       onDone={() => router.back()}

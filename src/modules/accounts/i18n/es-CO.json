@@ -55,6 +55,7 @@
       "continue": "Continuar",
       "save": "Guardar",
       "empty": "No tienes deportistas para autorizar.",
+      "load_failed": "No pudimos cargar las autorizaciones. Inténtalo de nuevo.",
       "save_failed": "No pudimos guardar en el teléfono. Inténtalo de nuevo.",
       "withdraw_title": "¿Retirar esta autorización?",
       "withdraw_message": "Queda retirada desde ahora. Lo que aceptaste antes se conserva como evidencia.",

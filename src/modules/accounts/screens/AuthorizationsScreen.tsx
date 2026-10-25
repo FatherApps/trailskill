@@ -24,7 +24,8 @@ export type AuthorizationsScreenProps = {
   onSave: (selected: { athleteId: string; text: AuthorizationText }[]) => Promise<boolean>;
   onWithdraw: (authorizationId: string) => void;
   // The last save or withdrawal did not work on this device.
-  failed?: boolean;
+  // 'load': the texts or authorizations could not be read; true: the last save or withdrawal failed.
+  failed?: boolean | 'load';
   onBack?: () => void;
 };
 
@@ -36,9 +37,16 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
   const keyOf = (athleteId: string, purpose: AuthorizationPurpose) => `${athleteId}:${purpose}`;
   const registration = mode === 'registration';
 
+  // A purpose that is now in force (for example after a partial save) leaves the selection, so withdrawing it later shows it unchecked.
+  const stale = Object.keys(selected).filter((key) => {
+    const [athleteId, purpose] = key.split(':') as [string, AuthorizationPurpose];
+    return inForce[athleteId]?.[purpose];
+  });
+  if (stale.length > 0) setSelected(Object.fromEntries(Object.entries(selected).filter(([key]) => !stale.includes(key))));
+
   async function save() {
     const chosen = athletes.flatMap((athlete) =>
-      texts.filter((text) => selected[keyOf(athlete.id, text.purpose)]).map((text) => ({ athleteId: athlete.id, text })),
+      texts.filter((text) => selected[keyOf(athlete.id, text.purpose)] && !inForce[athlete.id]?.[text.purpose]).map((text) => ({ athleteId: athlete.id, text })),
     );
     // Manage with nothing checked has nothing to save; registration continues without authorizing.
     if (chosen.length === 0 && !registration) return;
@@ -66,7 +74,7 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
       )}
       {failed && (
         <Banner variant="warn" icon="error">
-          {t('accounts.authorizations.save_failed')}
+          {t(failed === 'load' ? 'accounts.authorizations.load_failed' : 'accounts.authorizations.save_failed')}
         </Banner>
       )}
       <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.authorizations.intro')}</Text>

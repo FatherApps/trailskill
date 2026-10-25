@@ -13,22 +13,25 @@ export type AuthorizationsContainerProps = {
   drafts?: RegistrationDraftRepository;
   onDone: () => void;
   onBack?: () => void;
+  // Changes when new data may have synced (for example the last sync time); the texts and authorizations are read again.
+  refreshKey?: unknown;
 };
 
-type Loaded = { texts: AuthorizationText[]; rows: AuthorizationRecord[] };
+type Loaded = { texts: AuthorizationText[]; rows: AuthorizationRecord[]; gate: Set<string>; error: boolean };
 
 // The in-force row of each athlete and purpose: the latest acceptance that was not withdrawn.
-function inForceOf(rows: AuthorizationRecord[]): AuthorizationsScreenProps['inForce'] {
+function inForceOf(rows: AuthorizationRecord[], gate: Set<string>): AuthorizationsScreenProps['inForce'] {
   const result: AuthorizationsScreenProps['inForce'] = {};
   for (const row of rows) {
-    if (row.withdrawnAt !== null) continue;
+    // The gate also counts the synced status (for example another adult's withdrawal), so the screen never disagrees with it.
+    if (row.withdrawnAt !== null || !gate.has(`${row.athleteId}:${row.purpose}`)) continue;
     (result[row.athleteId] ??= {})[row.purpose] = row;
   }
   return result;
 }
 
 // Loads the current texts and this adult's authorizations from the local database; accepting and withdrawing reload them.
-export function AuthorizationsContainer({ repository, userId, athletes, mode, drafts, onDone, onBack }: AuthorizationsContainerProps) {
+export function AuthorizationsContainer({ repository, userId, athletes, mode, drafts, onDone, onBack, refreshKey }: AuthorizationsContainerProps) {
   const [loaded, setLoaded] = useState<Loaded>();
   // 4 steps unless the draft says an adult swims, who skips the athlete details.
   const [total, setTotal] = useState(4);
@@ -36,11 +39,18 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
   const athleteKey = athletes.map((athlete) => athlete.id).join(',');
 
   const fetchAll = useCallback(async (): Promise<Loaded> => {
-    const [texts, rows] = await Promise.all([
-      repository.listCurrentTexts('es-CO'),
-      repository.listAuthorizations(userId, athleteKey ? athleteKey.split(',') : []),
-    ]).catch((): [AuthorizationText[], AuthorizationRecord[]] => [[], []]);
-    return { texts, rows };
+    try {
+      const [texts, rows] = await Promise.all([
+        repository.listCurrentTexts('es-CO'),
+        repository.listAuthorizations(userId, athleteKey ? athleteKey.split(',') : []),
+      ]);
+      const open = rows.filter((row) => row.withdrawnAt === null);
+      const checks = await Promise.all(open.map((row) => repository.isInForce(row.athleteId, row.purpose)));
+      const gate = new Set(open.filter((_, index) => checks[index]).map((row) => `${row.athleteId}:${row.purpose}`));
+      return { texts, rows, gate, error: false };
+    } catch {
+      return { texts: [], rows: [], gate: new Set(), error: true };
+    }
   }, [repository, userId, athleteKey]);
   const load = async () => setLoaded(await fetchAll());
 
@@ -50,7 +60,7 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
     return () => {
       current = false;
     };
-  }, [fetchAll]);
+  }, [fetchAll, refreshKey]);
 
   useEffect(() => {
     if (mode !== 'registration' || !drafts) return;
@@ -98,8 +108,8 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
       step={mode === 'registration' ? { current: total, total } : undefined}
       athletes={athletes}
       texts={loaded.texts}
-      inForce={inForceOf(loaded.rows)}
-      failed={failed}
+      inForce={inForceOf(loaded.rows, loaded.gate)}
+      failed={failed || (loaded.error ? 'load' : false)}
       onSave={save}
       onWithdraw={withdraw}
       onBack={onBack ?? onDone}
