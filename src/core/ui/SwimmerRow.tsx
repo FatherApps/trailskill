@@ -11,7 +11,8 @@ export type SwimmerRowProps = {
   name: string;
   initials: string;
   // The swimmer's colour in the design system; a swimmer keeps it everywhere.
-  color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
+  // Absent for something that is not a swimmer yet (for example an unassigned position): neutral avatar.
+  color?: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
   // Category or group line.
   detail: string;
   // Present: the row shows the personal best, `null` meaning none yet ("—").
@@ -161,10 +162,10 @@ export function SwimmerRow({
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: radius.full,
-          backgroundColor: colors[color],
+          backgroundColor: colors[color ?? 'surface-2'],
         }}
       >
-        <Text style={[typography.label, { color: colors[swimmerRowColors.initials] }]}>{initials}</Text>
+        <Text style={[typography.label, { color: colors[color ? swimmerRowColors.initials : 'ink'] }]}>{initials}</Text>
       </View>
       {large ? (
         // Large text: the trailing element goes below the name, aligned with it, so the name keeps the full width.

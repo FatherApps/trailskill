@@ -8,6 +8,9 @@ export type {
 } from './data/measurements';
 export { createPowerSyncMeasurementRepository } from './data/powerSyncMeasurementRepository';
 export { galleryEntries } from './gallery';
+export { ArrivalButton, type ArrivalButtonProps } from './components/ArrivalButton';
+export { ArrivalList, type ArrivalListProps } from './components/ArrivalList';
+export { NameCard, type NameCardProps } from './components/NameCard';
 export { Stopwatch, type StopwatchProps, type StopwatchState } from './components/Stopwatch';
 export { TimingHeader, type TimingHeaderProps } from './components/TimingHeader';
 export { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
@@ -18,3 +21,10 @@ export {
   type TimingSetupScreenProps,
 } from './screens/TimingSetupScreen';
 export { TimingSummaryScreen, type SummaryRecord, type TimingSummaryScreenProps } from './screens/TimingSummaryScreen';
+export {
+  SeriesAssignmentScreen,
+  type AssignmentAthlete,
+  type AssignmentPosition,
+  type SeriesAssignmentScreenProps,
+} from './screens/SeriesAssignmentScreen';
+export { SeriesTimingScreen, type SeriesTimingScreenProps } from './screens/SeriesTimingScreen';
