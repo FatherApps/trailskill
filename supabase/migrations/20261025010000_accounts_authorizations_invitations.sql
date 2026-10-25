@@ -2,8 +2,9 @@
 -- Versioned authorization texts, authorizations as append-only evidence, the
 -- current status per athlete and purpose, and school invitations, all with
 -- row level security. A function resolves an invitation token without a
--- session. The rule that decides the status (the most recent event wins
--- across all adults) is provisional until the legal review (#106).
+-- session. The status rule is provisional pending legal review (#106): the
+-- most recent event wins across all adults, judged by the device clock and
+-- the server clock together.
 
 -- Purposes are rows, not code: new ones need no deploy. The codes are
 -- technical ids, not legal text.
@@ -90,7 +91,8 @@ create trigger authorization_texts_immutable
   before update or delete on public.authorization_texts
   for each row execute function public.authorization_texts_immutable();
 
--- clock_timestamp, not now: events inside one transaction stay ordered.
+-- clock_timestamp, not now: events inside one transaction stay ordered. The
+-- device cannot claim an acceptance later than its reception.
 create function public.authorizations_set_received_at()
 returns trigger
 language plpgsql
@@ -98,6 +100,7 @@ set search_path = ''
 as $$
 begin
   new.received_at := clock_timestamp();
+  new.accepted_at := least(new.accepted_at, new.received_at);
   return new;
 end;
 $$;
@@ -120,11 +123,15 @@ begin
   end if;
 
   if old.withdrawn_at is not null then
-    -- Identical values pass: a retried upload of the same withdrawal is a no-op.
-    if (new.withdrawn_at, new.withdrawn_by, new.withdrawal_received_at)
-       is distinct from (old.withdrawn_at, old.withdrawn_by, old.withdrawal_received_at) then
+    -- A retried upload carries the original, possibly future, device time:
+    -- it clamps to the stored one, so it is a no-op.
+    if new.withdrawn_at is null
+       or least(new.withdrawn_at, old.withdrawal_received_at) is distinct from old.withdrawn_at
+       or new.withdrawn_by is distinct from old.withdrawn_by
+       or new.withdrawal_received_at is distinct from old.withdrawal_received_at then
       raise exception 'authorization withdrawal cannot change' using errcode = '42501';
     end if;
+    new.withdrawn_at := old.withdrawn_at;
   elsif new.withdrawn_at is null then
     if new.withdrawn_by is not null or new.withdrawal_received_at is not null then
       raise exception 'authorization withdrawal columns need a withdrawal' using errcode = '42501';
@@ -132,6 +139,7 @@ begin
   else
     new.withdrawn_by := auth.uid();
     new.withdrawal_received_at := clock_timestamp();
+    new.withdrawn_at := least(new.withdrawn_at, new.withdrawal_received_at);
   end if;
   return new;
 end;
@@ -155,9 +163,9 @@ create trigger authorizations_forbid_delete
   before delete on public.authorizations
   for each row execute function public.authorizations_forbid_delete();
 
--- The most recent event wins: granted when some authorization is still in
--- force and was received after the latest withdrawal of any adult for that
--- athlete and purpose. Runs as its owner because clients cannot write the
+-- The most recent event wins: granted when some authorization in force is later
+-- than the latest withdrawal of any adult for that athlete and purpose by both
+-- the device clock and the server clock. Runs as its owner because clients cannot write the
 -- status. The lock serializes concurrent events of one athlete and purpose.
 create function public.authorizations_refresh_status()
 returns trigger
@@ -170,15 +178,19 @@ begin
 
   insert into public.authorization_status (athlete_id, purpose, is_granted)
   select new.athlete_id, new.purpose, exists (
-    select 1 from public.authorizations a
+    select 1
+    from public.authorizations a
+    cross join lateral (
+      select coalesce(max(w.withdrawn_at), '-infinity') as device_at,
+             coalesce(max(w.withdrawal_received_at), '-infinity') as server_at
+      from public.authorizations w
+      where w.athlete_id = new.athlete_id and w.purpose = new.purpose
+    ) latest
     where a.athlete_id = new.athlete_id
       and a.purpose = new.purpose
       and a.withdrawn_at is null
-      and a.received_at > coalesce(
-        (select max(w.withdrawal_received_at) from public.authorizations w
-         where w.athlete_id = new.athlete_id and w.purpose = new.purpose),
-        '-infinity'
-      )
+      and a.accepted_at > latest.device_at
+      and a.received_at > latest.server_at
   )
   on conflict (athlete_id, purpose) do update
     set is_granted = excluded.is_granted, updated_at = clock_timestamp()

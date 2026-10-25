@@ -5,7 +5,7 @@
 -- token without a session. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(80);
+select plan(94);
 
 -- Users: guardians G and H, coaches C and D, school admins S and T, platform admin P.
 -- G and H both manage athlete e1; H also manages e2. Coach C is assigned to e1.
@@ -419,6 +419,89 @@ set local request.jwt.claims = '{"sub": "40000000-0000-4000-8000-0000000000a7", 
 select is((select count(*) from public.authorizations), 3::bigint, 'platform admin P reads all the evidence');
 select is((select count(*) from public.school_invitations), 2::bigint, 'platform admin P reads all the invitations');
 select is((select count(*) from public.authorization_status), 1::bigint, 'platform admin P reads all the status');
+
+-- Two clocks. Athlete e2, guardian H. An acceptance counts only if it is later
+-- than the latest withdrawal by the device clock and by the server clock.
+set local request.jwt.claims = '{"sub": "40000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+
+select lives_ok(
+  $$ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at)
+     values ('40000000-0000-4000-8000-000000000104', '40000000-0000-4000-8000-0000000000e2',
+             'record_times', '40000000-0000-4000-8000-0000000000f1', '2026-10-01 12:00:00+00') $$,
+  'guardian H accepts for e2'
+);
+select is(
+  (select is_granted from public.authorization_status where athlete_id = '40000000-0000-4000-8000-0000000000e2'),
+  true, 'e2 is granted'
+);
+select lives_ok(
+  $$ update public.authorizations set withdrawn_at = '2026-10-10 12:00:00+00'
+     where id = '40000000-0000-4000-8000-000000000104' $$,
+  'guardian H withdraws for e2'
+);
+select is(
+  (select is_granted from public.authorization_status where athlete_id = '40000000-0000-4000-8000-0000000000e2'),
+  false, 'e2 is not granted after the withdrawal'
+);
+
+-- Made before the withdrawal on the device, uploaded after it.
+select lives_ok(
+  $$ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at)
+     values ('40000000-0000-4000-8000-000000000105', '40000000-0000-4000-8000-0000000000e2',
+             'record_times', '40000000-0000-4000-8000-0000000000f1', '2026-10-09 12:00:00+00') $$,
+  'an offline acceptance made before the withdrawal is uploaded after it'
+);
+select is(
+  (select is_granted from public.authorization_status where athlete_id = '40000000-0000-4000-8000-0000000000e2'),
+  false, 'it does not grant the purpose again'
+);
+
+select lives_ok(
+  $$ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at)
+     values ('40000000-0000-4000-8000-000000000106', '40000000-0000-4000-8000-0000000000e2',
+             'record_times', '40000000-0000-4000-8000-0000000000f1', '2026-10-11 12:00:00+00') $$,
+  'an acceptance later than the withdrawal by both clocks'
+);
+select is(
+  (select is_granted from public.authorization_status where athlete_id = '40000000-0000-4000-8000-0000000000e2'),
+  true, 'it grants the purpose again'
+);
+
+-- The device cannot push its times forward.
+select lives_ok(
+  $$ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at)
+     values ('40000000-0000-4000-8000-000000000107', '40000000-0000-4000-8000-0000000000e2',
+             'record_times', '40000000-0000-4000-8000-0000000000f1', '2999-01-01 00:00:00+00') $$,
+  'an acceptance with a future device time is inserted'
+);
+select ok(
+  (select accepted_at = received_at from public.authorizations where id = '40000000-0000-4000-8000-000000000107'),
+  'a future acceptance time is clamped to the reception time'
+);
+select lives_ok(
+  $$ update public.authorizations set withdrawn_at = '2999-01-01 00:00:00+00'
+     where id = '40000000-0000-4000-8000-000000000107' $$,
+  'a withdrawal with a future device time is accepted'
+);
+select ok(
+  (select withdrawn_at = withdrawal_received_at from public.authorizations
+   where id = '40000000-0000-4000-8000-000000000107'),
+  'a future withdrawal time is clamped to the withdrawal reception time'
+);
+select set_config('test.withdrawal',
+  (select withdrawn_at::text || '|' || withdrawal_received_at::text || '|' || withdrawn_by::text
+   from public.authorizations where id = '40000000-0000-4000-8000-000000000107'), true);
+select lives_ok(
+  $$ update public.authorizations set withdrawn_at = '2999-01-01 00:00:00+00'
+     where id = '40000000-0000-4000-8000-000000000107' $$,
+  'retrying the same future withdrawal is a no-op'
+);
+select is(
+  (select withdrawn_at::text || '|' || withdrawal_received_at::text || '|' || withdrawn_by::text
+   from public.authorizations where id = '40000000-0000-4000-8000-000000000107'),
+  current_setting('test.withdrawal'),
+  'the retry left the withdrawal unchanged'
+);
 
 -- anon reads no table and resolves a token without a session.
 set local role anon;
