@@ -209,6 +209,20 @@ describe('SupabaseConnector.uploadData', () => {
       expect(t.complete).toHaveBeenCalledTimes(1);
     });
 
+    it('gives up a 500 with 40002 (a deferred constraint failing at COMMIT) after maxAttempts and records it', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code: '40002', message: 'deferred constraint failed' };
+      const t = setup({ upsert: { data: null, error, status: 500 } }, { sleep });
+
+      for (let attempt = 1; attempt < 5; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
+      }
+      await t.connector.uploadData(t.database([put()]));
+      expect(failureInserts(t.committed)).toHaveLength(1);
+      expect(failureInserts(t.committed)[0][1]).toContain('40002');
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
     it('never gives up a 500 without a code', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
       const error = { message: 'internal error' };

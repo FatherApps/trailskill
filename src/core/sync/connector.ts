@@ -25,7 +25,8 @@ const DEFAULT_MAX_ATTEMPTS = 5;
 /** PostgREST JWT invalid, missing or expired: they last until the session is refreshed or the user signs in again, so they must never exhaust the retries. */
 const AUTH_ERROR_CODES = new Set(['PGRST301', 'PGRST302', 'PGRST303']);
 /** Class 40 rollbacks (serialization, deadlock), statement timeout, lock not available and server shutdown/restart: the condition passes, so they are treated like a network error. */
-const isTransientCode = (code: string) => code.startsWith('40') || ['57014', '55P03', '57P01', '57P02', '57P03'].includes(code);
+// 40002 (a DEFERRABLE constraint failing at COMMIT) is deterministic: retrying it forever would block the queue.
+const isTransientCode = (code: string) => (code.startsWith('40') && code !== '40002') || ['57014', '55P03', '57P01', '57P02', '57P03'].includes(code);
 /** Gateway statuses: the request never reached PostgREST's own error handling, so the server may recover. A 5xx with a code outside isTransientCode is a deterministic SQLSTATE failure. */
 const GATEWAY_STATUSES = new Set([502, 503, 504]);
 const BASE_WAIT_MS = 1000;
