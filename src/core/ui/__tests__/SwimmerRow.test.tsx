@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { processColor, StyleSheet } from 'react-native';
+import { PixelRatio, processColor, StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, type ThemeName } from '../../theme';
+import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../theme';
 import { iconPaths } from '../icons';
 import { SwimmerRow, swimmerRowColors, type SwimmerRowProps } from '../SwimmerRow';
 
@@ -247,5 +247,53 @@ describe('SwimmerRow', () => {
     it.each(athleteColors)('on-color on %s is at least 4.5:1', (color) => {
       expect(contrastRatio(c[swimmerRowColors.initials], c[color])).toBeGreaterThanOrEqual(4.5);
     });
+  });
+});
+
+describe('SwimmerRow at large text', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  // Jest reports a system font scale of 2, so the baseline pins it to 1.
+  const renderAt = async (fontScale: number) => {
+    jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1);
+    await render(
+      <ThemeProvider fontScale={fontScale}>
+        <SwimmerRow
+          {...base}
+          name="Un nombre de nadador especialmente largo"
+          tag={{ label: 'Consentimiento', variant: 'warn' }}
+        />
+      </ThemeProvider>,
+    );
+  };
+  const name = () => screen.getByText('Un nombre de nadador especialmente largo', { includeHiddenElements: true });
+  const tag = () => screen.getByText('Consentimiento', { includeHiddenElements: true });
+  // Styles of the node and its ancestors, nearest first.
+  const chain = (node: { parent: unknown; props: { style?: unknown } }) => {
+    const styles: Record<string, unknown>[] = [];
+    for (let n = node as typeof node | null; n; n = n.parent as typeof node | null) {
+      styles.push(StyleSheet.flatten(n.props.style as never) ?? {});
+    }
+    return styles;
+  };
+  const nearest = (node: Parameters<typeof chain>[0], key: string) => chain(node).find((style) => key in style);
+
+  it('keeps the avatar left and puts the tag below the name in a column at 200 %', async () => {
+    await renderAt(2);
+
+    const row = screen.getByLabelText(/Consentimiento/);
+    expect(rowStyle(row).flexDirection).toBe('row');
+    // The name and the tag share one column that takes the width left by the avatar.
+    const column = chain(name()).find((style) => style.flexDirection === 'column' && style.flex === 1);
+    expect(column).toMatchObject({ minWidth: 0 });
+    expect(chain(tag()).some((style) => style === column)).toBe(true);
+  });
+
+  it('keeps the row layout at 100 %, with a shrinkable name and a fixed tag', async () => {
+    await renderAt(1);
+
+    expect(chain(name()).some((style) => style.flexDirection === 'column')).toBe(false);
+    expect(nearest(name(), 'flexShrink')).toMatchObject({ flexShrink: 1, minWidth: 0 });
+    expect(chain(tag()).some((style) => style.flexShrink === 0)).toBe(true);
   });
 });
