@@ -28,6 +28,13 @@ export {
 export { createInMemoryHistoryRepository } from './data/inMemoryHistoryRepository';
 export { createHistoryRepository, createPowerSyncHistoryRepository } from './data/measurementHistoryRepository';
 export { personalBest, personalBestKinds, type PersonalBestResult } from './personalBest';
+export { formatShortName } from './formatShortName';
+export {
+  createInMemoryAthleteRepository,
+  createPowerSyncAthleteRepository,
+  type AthleteProfileInput,
+  type AthleteRepository,
+} from './data/athleteRepository';
 export { athleteDisplay, type AthleteColor } from './athleteDisplay';
 export { useManagedAthletes, type ManagedAthletesResult } from './data/useManagedAthletes';
 export { AthleteProfileContainer, type AthleteProfileContainerProps } from './screens/AthleteProfileContainer';

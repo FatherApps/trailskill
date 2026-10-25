@@ -1,9 +1,10 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
-import type { GalleryEntry } from '../../core/ui';
+import { SyncStatus, type GalleryEntry } from '../../core/ui';
 import { accountsFixture as fx } from './__fixtures__/accounts';
 import { AccountDetailsScreen, type AccountDetailsScreenProps } from './screens/AccountDetailsScreen';
+import { AddAthletesScreen, type AddAthletesScreenProps } from './screens/AddAthletesScreen';
 import { SignInScreen, type SignInScreenProps } from './screens/SignInScreen';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';
 
@@ -19,6 +20,27 @@ function FullScreen({ children }: { children: ReactNode }) {
 }
 
 const person = { firstName: fx.person.firstName, lastName: fx.person.lastName, email: fx.person.email };
+
+// Holds what is typed, so the name fields can be edited in the gallery.
+function AddAthletesPreview(props: Partial<AddAthletesScreenProps>) {
+  const [values, setValues] = useState({ firstName: '', lastName: '', ...props.values });
+
+  return (
+    <FullWidth>
+      <AddAthletesScreen
+        step={3}
+        total={4}
+        athletes={[]}
+        onAdd={noop}
+        onContinue={noop}
+        onBack={noop}
+        {...props}
+        values={values}
+        onChange={(field, value) => setValues((current) => ({ ...current, [field]: value }))}
+      />
+    </FullWidth>
+  );
+}
 
 // Holds what is typed, so the fields of a state can be edited in the gallery.
 function AccountDetailsPreview(props: Partial<AccountDetailsScreenProps>) {
@@ -113,6 +135,19 @@ export const galleryEntries: GalleryEntry[] = [
       ),
       sending: () => <SignInPreview values={{ email: fx.person.email, code: '' }} busy="sending" />,
       offline: () => <SignInPreview values={{ email: fx.person.email, code: '' }} codeSent offline />,
+    },
+  },
+  {
+    id: 'addAthletes',
+    title: 'AddAthletesScreen',
+    states: {
+      // Two profiles already added, both still on the phone (not yet sent), and empty name fields.
+      withData: () => (
+        <AddAthletesPreview
+          athletes={[...fx.addedAthletes]}
+          renderStatus={() => <SyncStatus state="on_device" />}
+        />
+      ),
     },
   },
 ];

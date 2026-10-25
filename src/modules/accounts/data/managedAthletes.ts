@@ -17,7 +17,7 @@ export function createPowerSyncManagedAthleteRepository(): ManagedAthleteReposit
   };
 }
 
-export type ManagedAthleteRow = { userId: string; athleteId: string };
+export type ManagedAthleteRow = { userId: string; athleteId: string; relation?: 'guardian' | 'self' };
 
 export function createInMemoryManagedAthleteRepository(rows: ManagedAthleteRow[]): ManagedAthleteRepository {
   return {

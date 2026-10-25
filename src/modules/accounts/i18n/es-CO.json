@@ -46,6 +46,19 @@
       "before": "Te invitó ",
       "middle": " al grupo ",
       "after": ". Revisa tus datos y confirma."
+    },
+    "athletes": {
+      "title": "Agregar deportista",
+      "first_name_label": "Nombre",
+      "last_name_label": "Apellido",
+      "first_name_required": "Escribe el nombre.",
+      "last_name_required": "Escribe el apellido.",
+      "add": "Agregar deportista",
+      "add_another": "Agregar otro deportista",
+      "continue": "Continuar",
+      "add_first": "Agrega al menos un deportista",
+      "relation_guardian": "Hijo o hija",
+      "add_failed": "No pudimos guardar el deportista. Inténtalo de nuevo."
     }
   }
 }
