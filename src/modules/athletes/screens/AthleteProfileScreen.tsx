@@ -1,0 +1,180 @@
+import type { ReactNode } from 'react';
+import { Text, View } from 'react-native';
+
+import { t } from '../../../core/i18n';
+import { useTheme, type ColorToken } from '../../../core/theme';
+import { Banner, StateView } from '../../../core/ui';
+import '../i18n';
+import { EventSelector, type EventSelectorProps } from '../components/EventSelector';
+import { formatDate } from '../components/formatDate';
+import { HistoryList, type HistoryResult } from '../components/HistoryList';
+import { ImportPrompt, type ImportPromptProps } from '../components/ImportPrompt';
+import { PersonalBest, type PersonalBestProps } from '../components/PersonalBest';
+import { ProfileHeader, type ProfileHeaderProps } from '../components/ProfileHeader';
+
+export type AthleteProfileContent = {
+  header: ProfileHeaderProps;
+  event: EventSelectorProps;
+  personalBest: PersonalBestProps;
+  // Newest first.
+  history: HistoryResult[];
+  // The progress chart (task 9.5) goes here; nothing is reserved when it is absent.
+  chart?: ReactNode;
+  // Only guardians and adults get it: the caller decides by passing it or not.
+  importPrompt?: ImportPromptProps;
+};
+
+// Which of the view states the caller is in. Only the states that show the profile carry its content.
+export type AthleteProfileView =
+  | { kind: 'data'; content: AthleteProfileContent }
+  // No results yet: the header and selector stay, the personal best and history give way to an invitation.
+  | { kind: 'empty'; content: AthleteProfileContent }
+  | { kind: 'loading' }
+  | { kind: 'error'; onRetry: () => void }
+  // Offline with stored data: the content under a dated banner. `storedOn` is the ISO date (YYYY-MM-DD) it was saved.
+  | { kind: 'offline'; storedOn: string; content: AthleteProfileContent }
+  | { kind: 'offline-empty' }
+  // Results from another school are online-only: never a stale copy.
+  | { kind: 'other-school-offline' }
+  | { kind: 'denied'; onRequestAccess?: () => void };
+
+export type AthleteProfileScreenProps = {
+  // The athlete's short name, the only personal data the states without content may show.
+  name: string;
+  view: AthleteProfileView;
+  // Set to false when a parent ScrollView scrolls instead (the development gallery).
+  scrollEnabled?: boolean;
+};
+
+export const athleteProfileScreenColors: { title: ColorToken } = {
+  title: 'ink',
+};
+
+// Presentational: no network, database or repository; the caller supplies everything and handles the events.
+export function AthleteProfileScreen({ name, view, scrollEnabled = true }: AthleteProfileScreenProps) {
+  const { colors, space, typography } = useTheme();
+  const values = { name };
+  // A list that scrolls fills the height it is given; the gallery preview has none to give.
+  const frame = {
+    alignSelf: 'stretch',
+    flex: scrollEnabled ? 1 : undefined,
+    paddingHorizontal: space[4],
+  } as const;
+
+  switch (view.kind) {
+    case 'loading':
+      return (
+        <View style={[frame, { paddingVertical: space[4] }]}>
+          <StateView kind="loading" />
+        </View>
+      );
+    case 'error':
+      return (
+        <View style={[frame, { paddingVertical: space[4] }]}>
+          <StateView
+            kind="error"
+            title={t('athletes.screen.error.title')}
+            message={t('athletes.screen.error.message')}
+            action={{
+              label: t('athletes.screen.retry'),
+              onPress: view.onRetry,
+            }}
+          />
+        </View>
+      );
+    case 'offline-empty':
+      return (
+        <View style={[frame, { paddingVertical: space[4] }]}>
+          <StateView
+            kind="offline"
+            title={t('athletes.screen.offline.title')}
+            message={t('athletes.screen.offline.message', values)}
+          />
+        </View>
+      );
+    case 'other-school-offline':
+      return (
+        <View style={[frame, { paddingVertical: space[4] }]}>
+          <StateView
+            kind="offline"
+            title={t('athletes.screen.online_only.title')}
+            message={t('athletes.screen.online_only.message')}
+          />
+        </View>
+      );
+    case 'denied':
+      return (
+        <View style={[frame, { paddingVertical: space[4] }]}>
+          <StateView
+            kind="denied"
+            title={t('athletes.screen.denied.title')}
+            message={t('athletes.screen.denied.message', values)}
+            action={
+              view.onRequestAccess
+                ? {
+                    label: t('athletes.screen.denied.action'),
+                    onPress: view.onRequestAccess,
+                  }
+                : undefined
+            }
+          />
+        </View>
+      );
+  }
+
+  const { content } = view;
+  const empty = view.kind === 'empty';
+  const storedOn = view.kind === 'offline' ? formatDate(view.storedOn, 'long') : null;
+
+  const header = (
+    <View style={{ gap: space[4], paddingTop: space[4] }}>
+      {view.kind === 'offline' && (
+        <Banner variant="warn" icon="wifi_off">
+          <Text style={typography['body-strong']}>{t('athletes.screen.offline.title')}</Text>{' '}
+          {/* A malformed date is left out rather than shown wrong. */}
+          {storedOn
+            ? t('athletes.screen.offline.banner_dated', { date: storedOn })
+            : t('athletes.screen.offline.banner_undated')}
+        </Banner>
+      )}
+      <ProfileHeader {...content.header} />
+      <EventSelector {...content.event} />
+      {!empty && <PersonalBest {...content.personalBest} />}
+      {!empty && content.chart}
+      {!empty && content.history.length > 0 && (
+        <Text
+          accessibilityRole="header"
+          style={[typography.subtitle, { color: colors[athleteProfileScreenColors.title] }]}
+        >
+          {t('athletes.screen.history_title')}
+        </Text>
+      )}
+    </View>
+  );
+
+  const footer =
+    empty || content.importPrompt ? (
+      <View style={{ gap: space[4], paddingVertical: space[4] }}>
+        {empty && (
+          <StateView
+            kind="empty"
+            title={t('athletes.screen.empty.title')}
+            message={t('athletes.screen.empty.message', values)}
+          />
+        )}
+        {content.importPrompt && <ImportPrompt {...content.importPrompt} />}
+      </View>
+    ) : undefined;
+
+  return (
+    <View style={frame}>
+      {/* One virtualized list holds the whole screen, so the history is never a list inside a ScrollView. */}
+      <HistoryList
+        results={empty ? [] : content.history}
+        scrollEnabled={scrollEnabled}
+        header={header}
+        footer={footer}
+      />
+    </View>
+  );
+}

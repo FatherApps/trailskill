@@ -11,4 +11,10 @@ export {
   type HistoryValue,
 } from './components/HistoryList';
 export { ImportPrompt, type ImportPromptProps } from './components/ImportPrompt';
+export {
+  AthleteProfileScreen,
+  type AthleteProfileContent,
+  type AthleteProfileScreenProps,
+  type AthleteProfileView,
+} from './screens/AthleteProfileScreen';
 export { galleryEntries } from './gallery';
