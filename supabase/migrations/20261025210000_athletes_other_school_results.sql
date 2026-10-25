@@ -1,22 +1,11 @@
 -- Module: athletes. Issue #68.
--- School B reads, online only, the results school A recorded for an athlete of
--- both schools. Nothing of it is synced: no stream in powersync/sync-config.yaml.
--- A result is "of A" when measurements.school_id = A (#291). A row reaches the
--- caller only when:
---   * the caller has a membership in a school B other than A for which the
---     next condition holds, as B's school_admin, or as a coach of B with the
---     athlete in app.coach_athlete_ids. app.coach_athlete_ids does not filter by
---     school (coach assignments have no school yet, #300), so a coach of B
---     assigned to the athlete through another school counts as assigned. A
---     school_admin role in a school other than B never counts;
---   * app.result_sharing_in_force(A, B, athlete) holds (#268): A's admin approved
---     B and did not withdraw, the athlete is in both schools and its
---     'share_results_with_school' authorization is in force now;
---   * the measurement is not hidden (record_times withdrawn, #54), not
---     discarded (discarded_at, #50/#52, as every local read) and not a split.
--- Any other caller gets no rows, never an error, so the answer reveals nothing
--- about other schools. Only result columns are returned: no names, school ids,
--- authors, devices, birth dates or documents.
+-- public.other_school_results(athlete) returns the athlete's measurements whose
+-- school_id is a school A different from a school B of the caller, when:
+--   * the caller is B's school_admin, or a coach of B with the athlete in
+--     app.coach_athlete_ids() (that function does not filter by school, #300);
+--   * app.result_sharing_in_force(A, B, athlete) is true;
+--   * the measurement is not hidden, not discarded and not a split.
+-- Otherwise it returns no rows. It returns only the listed result columns.
 create function public.other_school_results(athlete uuid)
 returns table (
   id uuid, kind text, hundredths int, stroke text, distance text, pool text,
