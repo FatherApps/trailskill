@@ -32,7 +32,16 @@ describe('core/ui gallery entries', () => {
     expect(stateKeys('confirmSheet')).toEqual(['stop', 'primary', 'signOut', 'discardIncomplete', 'signOutOffline']);
     expect(stateKeys('segmented')).toEqual(['strokes', 'distances', 'long-text']);
     expect(stateKeys('banner')).toEqual(['info', 'warn', 'success', 'noIcon']);
-    expect(stateKeys('timeValue')).toEqual(['time-lg', 'time-md', 'time-sm', 'missing', 'decimal-point']);
+    expect(stateKeys('timeValue')).toEqual([
+      'time-lg',
+      'time-md',
+      'time-sm',
+      'missing',
+      'decimal-point',
+      'faster',
+      'slower',
+      'completed',
+    ]);
     expect(stateKeys('swimmerRow')).toEqual([
       'normal',
       'selected',
@@ -108,10 +117,16 @@ describe('core/ui gallery entries', () => {
     ['time-sm', '16,40'],
     ['missing', '—'],
     ['decimal-point', '34.82'],
+    ['faster', '34,82'],
+    ['faster', 'MP'],
+    ['faster', '−0,91 vs MP'],
+    ['slower', '1:12,40'],
+    ['slower', '+1,05 vs MP'],
+    ['completed', 'Completado'],
   ])('timeValue / %s shows %s', async (state, text) => {
     await render(<ThemeProvider>{entryById('timeValue').states[state]()}</ThemeProvider>);
 
-    expect(screen.getByText(text)).toBeOnTheScreen();
+    expect(screen.getByText(text, { includeHiddenElements: true })).toBeOnTheScreen();
   });
 
   it.each([
