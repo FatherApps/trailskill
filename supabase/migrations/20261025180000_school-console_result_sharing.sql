@@ -5,6 +5,10 @@
 --     B already shares with A. The request goes to every other school of that
 --     athlete, never twice while a pending or approved row of the pair is live,
 --     and B learns only how many requests it created, never school names.
+--   * B never reads the rows: their school ids would reveal which and how many
+--     other schools the athlete (often a minor) belongs to. B sees only counts
+--     per athlete through result_sharing_status. A reads its own rows, including
+--     who asked, to audit them.
 --   * Only an admin of B asks; only an admin of A approves or withdraws (a
 --     pending request is declined by withdrawing it). No platform admin.
 --     After a withdrawal B may ask again with a new row. Rows are never deleted
@@ -126,11 +130,9 @@ alter table public.school_result_sharing enable row level security;
 revoke all on table public.school_result_sharing from anon, authenticated;
 grant select on table public.school_result_sharing to authenticated;
 
+-- Only A's admin reads rows; B uses result_sharing_status.
 create policy school_result_sharing_select on public.school_result_sharing for select to authenticated
-  using (
-    school_id in (select app.admin_school_ids())
-    or target_school_id in (select app.admin_school_ids())
-  );
+  using (school_id in (select app.admin_school_ids()));
 
 -- B's admin asks, from an athlete of B, every other school of that athlete.
 -- Returns how many requests it created, never which schools.
@@ -224,17 +226,50 @@ as $$
   order by r.requested_at;
 $$;
 
+-- What B's admin sees about its own live requests for an athlete of B: counts
+-- only, always one row, never ids of schools or users.
+create function public.result_sharing_status(athlete uuid, school uuid)
+returns table (pending int, approved int)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not coalesce(
+    school in (select app.admin_school_ids()) and app.athlete_in_school(athlete, school),
+    false
+  ) then
+    raise exception 'only an admin of a school of this athlete can see the status' using errcode = '42501';
+  end if;
+
+  return query
+  select (count(*) filter (where r.approved_at is null))::int,
+         (count(*) filter (where r.approved_at is not null))::int
+  from public.school_result_sharing r
+  where r.target_school_id = result_sharing_status.school
+    and r.withdrawn_at is null
+    and r.school_id in (
+      select s.school_id from public.athlete_schools s
+      where s.athlete_id = result_sharing_status.athlete
+        and s.school_id <> result_sharing_status.school
+    );
+end;
+$$;
+
 revoke execute on function
   public.request_result_sharing(uuid, uuid),
   public.approve_result_sharing(uuid),
   public.withdraw_result_sharing(uuid),
-  public.result_sharing_requests(uuid)
+  public.result_sharing_requests(uuid),
+  public.result_sharing_status(uuid, uuid)
 from public, anon;
 grant execute on function
   public.request_result_sharing(uuid, uuid),
   public.approve_result_sharing(uuid),
   public.withdraw_result_sharing(uuid),
-  public.result_sharing_requests(uuid)
+  public.result_sharing_requests(uuid),
+  public.result_sharing_status(uuid, uuid)
 to authenticated;
 
 -- The condition #68 must use before showing target_school any result of

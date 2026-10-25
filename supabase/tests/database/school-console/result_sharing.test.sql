@@ -4,7 +4,7 @@
 -- and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(83);
+select plan(98);
 
 -- Users: admin A, admin B, coach A, coach B, guardian G (of e1), adult D (self
 -- of e2), N with no relations and admin C (of school C).
@@ -65,6 +65,14 @@ select is_empty(
      where pubname = 'powersync' and schemaname = 'public' and tablename = 'school_result_sharing' $$,
   'school_result_sharing is not synced: it is read online only'
 );
+-- to_regprocedure, not a cast, so a missing function fails here instead of aborting.
+select is(
+  (select array_agg(u.name order by u.i)
+   from pg_proc p, unnest(p.proargnames, p.proargmodes) with ordinality as u(name, mode, i)
+   where p.oid = to_regprocedure('public.result_sharing_status(uuid, uuid)') and u.mode = 't'),
+  array['pending', 'approved'],
+  'result_sharing_status returns only the counts pending and approved, no ids'
+);
 
 -- anon
 set local role anon;
@@ -84,6 +92,11 @@ select throws_ok(
   '42501', null,
   'anon cannot list result sharing requests'
 );
+select throws_ok(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2') $$,
+  '42501', null,
+  'anon cannot read the result sharing status'
+);
 
 -- Requests
 set local role authenticated;
@@ -94,12 +107,22 @@ select throws_ok(
   '42501', null,
   'a user with no relations cannot request result sharing'
 );
+select throws_ok(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2') $$,
+  '42501', null,
+  'a user with no relations cannot read the result sharing status'
+);
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
 select throws_ok(
   $$ select public.request_result_sharing('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2') $$,
   '42501', null,
   'coach B cannot request result sharing for B'
+);
+select throws_ok(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2') $$,
+  '42501', null,
+  'coach B cannot read the result sharing status of B'
 );
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
@@ -115,12 +138,22 @@ select throws_ok(
   '42501', null,
   'guardian G cannot request result sharing'
 );
+select throws_ok(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2') $$,
+  '42501', null,
+  'guardian G cannot read the result sharing status'
+);
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
 select throws_ok(
   $$ select public.request_result_sharing('26800000-0000-4000-8000-0000000000e2', '26800000-0000-4000-8000-0000000000b2') $$,
   '42501', null,
   'adult D cannot request result sharing'
+);
+select throws_ok(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e2', '26800000-0000-4000-8000-0000000000b2') $$,
+  '42501', null,
+  'adult D cannot read the result sharing status'
 );
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
@@ -129,12 +162,22 @@ select throws_ok(
   '42501', null,
   'admin A cannot request result sharing for school B'
 );
+select throws_ok(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2') $$,
+  '42501', null,
+  'admin A cannot read the result sharing status of school B'
+);
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 select throws_ok(
   $$ select public.request_result_sharing('26800000-0000-4000-8000-0000000000e4', '26800000-0000-4000-8000-0000000000b2') $$,
   '42501', null,
   'admin B cannot request from an athlete that is not in B'
+);
+select throws_ok(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e4', '26800000-0000-4000-8000-0000000000b2') $$,
+  '42501', null,
+  'admin B cannot read the status of an athlete that is not in B'
 );
 select throws_ok(
   $$ insert into public.school_result_sharing (school_id, target_school_id, athlete_id)
@@ -163,6 +206,25 @@ select is(
   1,
   'asking from e2 creates only the request to C'
 );
+select is_empty(
+  $$ select school_id from public.school_result_sharing $$,
+  'right after its own requests admin B reads no school of them'
+);
+select results_eq(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2') $$,
+  $$ values (1, 0) $$,
+  'admin B sees one pending request for e1'
+);
+select results_eq(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e2', '26800000-0000-4000-8000-0000000000b2') $$,
+  $$ values (2, 0) $$,
+  'admin B sees two pending requests for e2, from A and C'
+);
+select results_eq(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e3', '26800000-0000-4000-8000-0000000000b2') $$,
+  $$ values (0, 0) $$,
+  'admin B gets one row of zeros for an athlete only in B'
+);
 
 reset role;
 select results_eq(
@@ -180,7 +242,7 @@ select results_eq(
 set local role authenticated;
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
-select is((select count(*)::int from public.school_result_sharing), 2, 'admin B reads both requests of B');
+select is((select count(*)::int from public.school_result_sharing), 0, 'admin B reads no request, not even its own');
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select is((select count(*)::int from public.school_result_sharing), 1, 'admin A reads only the request to A');
@@ -353,6 +415,16 @@ select is(
   0,
   'an approved request in force is not duplicated'
 );
+select results_eq(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2') $$,
+  $$ values (0, 1) $$,
+  'admin B sees the approval for e1'
+);
+select results_eq(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e2', '26800000-0000-4000-8000-0000000000b2') $$,
+  $$ values (1, 1) $$,
+  'admin B sees one pending and one approved request for e2'
+);
 
 -- Withdraw
 select throws_ok(
@@ -435,6 +507,11 @@ select is_empty(
 
 -- Re-request
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select results_eq(
+  $$ select * from public.result_sharing_status('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2') $$,
+  $$ values (0, 0) $$,
+  'a withdrawn approval no longer counts for e1'
+);
 select is(
   public.request_result_sharing('26800000-0000-4000-8000-0000000000e1', '26800000-0000-4000-8000-0000000000b2'),
   1,
