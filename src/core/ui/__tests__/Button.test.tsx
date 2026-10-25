@@ -24,6 +24,19 @@ describe('Button', () => {
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the label alone and passes the hint through on an available button', async () => {
+    const onPress = jest.fn();
+    await render(<Button label="Guardar tiempo" accessibilityHint="Guarda 0:33,91 para Mateo C." onPress={onPress} />);
+
+    const button = screen.getByRole('button', { name: /^Guardar tiempo$/ });
+    expect(button).toBeEnabled();
+    expect(button.props.accessibilityHint).toBe('Guarda 0:33,91 para Mateo C.');
+    expect(screen.getByText(/^Guardar tiempo$/)).toBeOnTheScreen();
+
+    fireEvent.press(button);
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
   it('is busy while loading, shows the gerund label, and ignores presses', async () => {
     const onPress = jest.fn();
     await render(<Button label="Guardar tiempo" loadingLabel="Guardando" loading onPress={onPress} />);
@@ -40,10 +53,9 @@ describe('Button', () => {
     const onPress = jest.fn();
     await render(<Button label="Autorizar" disabledReason="Solo el acudiente puede autorizar" onPress={onPress} />);
 
-    const button = screen.getByRole('button', { name: 'Autorizar' });
+    const button = screen.getByRole('button', { name: 'Autorizar · Solo el acudiente puede autorizar' });
     expect(button).toBeDisabled();
-    expect(button.props.accessibilityHint).toBe('Solo el acudiente puede autorizar');
-    expect(screen.getByText('Solo el acudiente puede autorizar')).toBeOnTheScreen();
+    expect(screen.getByText('Autorizar · Solo el acudiente puede autorizar')).toBeOnTheScreen();
 
     fireEvent.press(button);
     expect(onPress).not.toHaveBeenCalled();

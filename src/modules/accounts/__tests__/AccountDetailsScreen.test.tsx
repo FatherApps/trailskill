@@ -106,14 +106,14 @@ describe('AccountDetailsScreen states', () => {
     for (const name of [
       'Continuar con Google · Necesitas señal',
       'Continuar con Microsoft · Necesitas señal',
-      'Verificar y continuar',
-      'Pedir un código nuevo',
+      'Verificar y continuar · Necesitas señal',
+      'Pedir un código nuevo · Necesitas señal',
     ]) {
       const button = screen.getByRole('button', { name });
       expect(button).toBeDisabled();
-      if (!name.startsWith('Continuar')) expect(button.props.accessibilityHint).toBe('Necesitas señal');
     }
-    expect(screen.getAllByText('Necesitas señal')).toHaveLength(2);
+    expect(screen.getByText('Verificar y continuar · Necesitas señal')).toBeOnTheScreen();
+    expect(screen.getByText('Pedir un código nuevo · Necesitas señal')).toBeOnTheScreen();
     expect(screen.getByText('Continuar con Google · Necesitas señal')).toBeOnTheScreen();
     expect(screen.getByText('Continuar con Microsoft · Necesitas señal')).toBeOnTheScreen();
   });
@@ -121,9 +121,8 @@ describe('AccountDetailsScreen states', () => {
   it('offline before the code: the code request needs signal too', async () => {
     await renderScreen({ values: filled, offline: true });
 
-    const button = screen.getByRole('button', { name: 'Enviarme un código' });
-    expect(button).toBeDisabled();
-    expect(button.props.accessibilityHint).toBe('Necesitas señal');
+    expect(screen.getByRole('button', { name: 'Enviarme un código · Necesitas señal' })).toBeDisabled();
+    expect(screen.getByText('Enviarme un código · Necesitas señal')).toBeOnTheScreen();
   });
 
   it('sending: the code button shows its loading label', async () => {
