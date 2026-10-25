@@ -3,6 +3,7 @@ import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ThemeProvider, type ThemeName } from '../../../core/theme';
 import { galleryEntries } from '..';
+import { historyFixture } from '../__fixtures__/history';
 
 const themes: ThemeName[] = ['light', 'dark'];
 const scales = [1, 2];
@@ -62,6 +63,9 @@ describe('athletes history gallery entries', () => {
   it('historyList / mixed shows an origin Tag from each kind of source', async () => {
     await render(<ThemeProvider>{entryById('historyList').states.mixed()}</ThemeProvider>);
 
-    expect(screen.getAllByLabelText(/^Libre 50 m/).length).toBeGreaterThan(0);
+    const hiddenText = (text: string) => screen.queryAllByText(text, { includeHiddenElements: true });
+    expect(hiddenText(historyFixture.sourceName)).toHaveLength(1);
+    expect(hiddenText('Botón externo')).toHaveLength(1);
+    expect(hiddenText(`Otra escuela: ${historyFixture.otherSchool}`)).toHaveLength(1);
   });
 });
