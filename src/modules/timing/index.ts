@@ -35,6 +35,7 @@ export type { RosterAthlete } from './screens/timingSession';
 export {
   createInMemorySeriesRepository,
   createPowerSyncSeriesRepository,
+  type PendingSeries,
   type SeriesRecord,
   type SeriesRepository,
 } from './data/series';

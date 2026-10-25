@@ -504,3 +504,45 @@ describe('discarded arrivals', () => {
     expect(await (await withDiscarded()).countCapturedSince(['athlete-1'], '2026-10-24T00:00:00Z')).toBe(1);
   });
 });
+
+// The fake behaves like the real repository: a discarded arrival stays stored, marked, and no read returns it.
+describe('in-memory measurement repository discards', () => {
+  const event = { stroke: 'FR', distance: '50m', pool: 'SCM' } as const;
+
+  async function withDiscarded() {
+    const repository = createInMemoryMeasurementRepository();
+    await repository.add(arrival('kept', 'S', 1, 'athlete-1'));
+    await repository.add(arrival('gone', 'S', 2, 'athlete-1'));
+    await repository.add(arrival('kept-open', 'S', 3, null));
+    await repository.add(arrival('gone-open', 'S', 4, null));
+    await repository.discard('gone');
+    await repository.discard('gone-open');
+    return repository;
+  }
+
+  it('leaves it out of every read', async () => {
+    const repository = await withDiscarded();
+
+    expect((await repository.listBySeries('S')).map((m) => m.id)).toEqual(['kept', 'kept-open']);
+    expect((await repository.listByAthleteEvent('athlete-1', event)).map((m) => m.id)).toEqual(['kept']);
+    expect((await repository.listByAthletesEvent(['athlete-1'], event)).map((m) => m.id)).toEqual(['kept']);
+    expect((await repository.listByAthlete('athlete-1')).map((m) => m.id)).toEqual(['kept']);
+    expect(await repository.countCapturedSince(['athlete-1'], '2026-10-24T00:00:00Z')).toBe(1);
+    expect((await repository.listUnassigned()).map((m) => m.id)).toEqual(['kept-open']);
+  });
+
+  it('refuses to edit it, like the real repository', async () => {
+    const repository = await withDiscarded();
+
+    await expect(repository.edit('gone', { athleteId: 'athlete-2' }, { deviceId: 'device-b' })).rejects.toBeInstanceOf(DiscardedMeasurementError);
+    await expect(repository.edit('gone', { hundredths: 2950 }, { deviceId: 'device-b' })).rejects.toBeInstanceOf(DiscardedMeasurementError);
+  });
+
+  it('lists only the arrivals of a series that still have no athlete; individual times never', async () => {
+    const repository = await withDiscarded();
+    await repository.add({ ...arrival('solo', 'S', 1, null), seriesId: null, arrivalPosition: null });
+
+    expect((await repository.listUnassigned()).map((m) => m.id)).toEqual(['kept-open']);
+  });
+});
+
