@@ -21,6 +21,10 @@ const memberships = [
   { schoolId: 'school-a', schoolName: 'Aqua Club', userId: 'user-1', role: 'coach' },
   { schoolId: 'school-a', schoolName: 'Aqua Club', userId: 'user-1', role: 'admin' },
   { schoolId: 'school-c', schoolName: 'Coral Swim', userId: 'user-2', role: 'admin' },
+  { schoolId: 'school-b', schoolName: 'Blue Dolphins', userId: 'user-3', role: 'school_admin' },
+  { schoolId: 'school-a', schoolName: 'Aqua Club', userId: 'user-3', role: 'school_admin' },
+  { schoolId: 'school-a', schoolName: 'Aqua Club', userId: 'user-3', role: 'school_admin' },
+  { schoolId: 'school-c', schoolName: 'Coral Swim', userId: 'user-3', role: 'coach' },
 ];
 
 let removeStore: (() => void) | undefined;
@@ -63,5 +67,18 @@ describe.each(factories)('%s staff school repository', (_name, create) => {
 
   it('returns an empty list for a user without memberships', async () => {
     await expect(create().listStaffSchools('nobody')).resolves.toEqual([]);
+  });
+
+  it('lists only the schools where the user is school_admin, by name, once', async () => {
+    await expect(create().listAdminSchools('user-3')).resolves.toEqual([
+      { id: 'school-a', name: 'Aqua Club' },
+      { id: 'school-b', name: 'Blue Dolphins' },
+    ]);
+  });
+
+  it('lists no admin school for a coach or for a user without memberships', async () => {
+    const repository = create();
+    await expect(repository.listAdminSchools('user-1')).resolves.toEqual([]);
+    await expect(repository.listAdminSchools('nobody')).resolves.toEqual([]);
   });
 });

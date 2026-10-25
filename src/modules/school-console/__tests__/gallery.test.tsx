@@ -55,6 +55,7 @@ describe('school console gallery entries', () => {
       'athleteTable',
       'athleteDetail',
       'athletesScreen',
+      'consoleScreen',
     ]);
     expect(stateKeys('logo')).toEqual(['default', 'large']);
     expect(stateKeys('consoleNav')).toEqual(['side', 'top']);
@@ -92,6 +93,34 @@ describe('school console gallery entries', () => {
 
     const root = screen.toJSON() as unknown as { props: { style: StyleProp<ViewStyle> } };
     expect(StyleSheet.flatten(root.props.style)?.alignSelf).toBe('stretch');
+  });
+
+  describe('consoleScreen', () => {
+    it('lists its states', () => {
+      expect(stateKeys('consoleScreen')).toEqual(['shell', 'expanded-1280', 'medium-800', 'compact-360']);
+    });
+
+    it('shell follows the measured width of the preview and keeps the section across it', async () => {
+      await render(<ThemeProvider>{state('consoleScreen', 'shell')}</ThemeProvider>);
+      await measure(1280);
+      expect(layoutShown()).toBe('expanded');
+      await fireEvent.press(screen.getByRole('tab', { name: 'Récords' }));
+      await measure(800);
+      expect(layoutShown()).toBe('medium');
+      await measure(360);
+      expect(layoutShown()).toBe('compact');
+      expect(screen.getByRole('header', { name: 'Récords' })).toBeOnTheScreen();
+    });
+
+    it.each([
+      ['expanded-1280', 'expanded'],
+      ['medium-800', 'medium'],
+      ['compact-360', 'compact'],
+    ])('%s shows "Categorías" in the %s layout', async (key, layout) => {
+      await render(<ThemeProvider>{state('consoleScreen', key)}</ThemeProvider>);
+      expect(layoutShown()).toBe(layout);
+      expect(screen.getByRole('header', { name: 'Categorías' })).toBeOnTheScreen();
+    });
   });
 
   describe('athletesScreen', () => {
