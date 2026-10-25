@@ -74,6 +74,10 @@
       "title": "Disponible con conexión",
       "message": "Los resultados de otra escuela se ven solo con conexión. No guardamos copias en este teléfono."
     },
+    "other_school_error": {
+      "title": "No pudimos cargar los resultados de otra escuela",
+      "message": "El resto del perfil se muestra igual. Inténtalo de nuevo en un momento."
+    },
     "denied": {
       "title": "Esta información es privada",
       "message": "Solo el acudiente de {{name}} y su escuela pueden verla.",
