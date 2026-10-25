@@ -23,6 +23,12 @@ function ScreenFrame({ children }: { children: ReactNode }) {
   return <View style={{ alignSelf: 'stretch', height: height * 0.8 }}>{children}</View>;
 }
 
+// The summary has its own ScrollView, which cannot scroll nested in the gallery: it takes a full height and the gallery scrolls.
+function FullScreen({ children }: { children: ReactNode }) {
+  const { height } = useWindowDimensions();
+  return <View style={{ alignSelf: 'stretch', minHeight: height }}>{children}</View>;
+}
+
 const handlers = { onStart: noop, onSplit: noop, onStop: noop, onSave: noop, onDiscard: noop, onBack: noop };
 
 function StopwatchPreview(props: Partial<StopwatchScreenProps>) {
@@ -109,7 +115,7 @@ function SetupPreview({ athletes, selectedCount }: { athletes: SetupAthlete[]; s
 
 function SummaryPreview(props: Partial<TimingSummaryScreenProps>) {
   return (
-    <ScreenFrame>
+    <FullScreen>
       <TimingSummaryScreen
         {...fixture.summaryScreen}
         status="ready"
@@ -120,7 +126,7 @@ function SummaryPreview(props: Partial<TimingSummaryScreenProps>) {
         onBack={noop}
         {...props}
       />
-    </ScreenFrame>
+    </FullScreen>
   );
 }
 
@@ -239,6 +245,7 @@ export const galleryEntries: GalleryEntry[] = [
       'stopped-no-pb': () => <StopwatchPreview {...stopped} bestTime={null} />,
       'exit-confirm': () => <ExitConfirmPreview />,
       offline: () => <RunningPreview withSplits={false} offline />,
+      'pending-count': () => <StopwatchPreview syncState="on_device" pendingCount={3} />,
     },
   },
   {

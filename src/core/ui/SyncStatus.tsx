@@ -7,6 +7,8 @@ import { Button } from './Button';
 
 export type SyncStatusProps = {
   state: RecordSyncState;
+  // Global pill in the top bar: how many records are in this state, drawn as "<label> · N".
+  count?: number;
   // Only emits the event: the upload retry itself belongs to src/core/sync.
   onRetry?: () => void;
   // Informative line under the pill (not an error), e.g. why a retry sent nothing.
@@ -28,10 +30,10 @@ const styles = StyleSheet.create({
 });
 
 // Presentational: the caller derives `state` from each record's real outbox state, never from connectivity alone.
-export function SyncStatus({ state, onRetry, message }: SyncStatusProps) {
+export function SyncStatus({ state, count, onRetry, message }: SyncStatusProps) {
   const { colors, space, radius, typography } = useTheme();
   const { background, text, dot } = syncStatusColors[state];
-  const label = t(`sync.${state}`);
+  const label = count === undefined ? t(`sync.${state}`) : `${t(`sync.${state}`)} · ${count}`;
 
   return (
     <View testID="sync-status" accessibilityLiveRegion="polite" style={{ gap: space[1] }}>

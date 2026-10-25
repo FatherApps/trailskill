@@ -115,6 +115,13 @@ describe('Stopwatch running', () => {
     expect(announce.mock.calls.every(([message]) => message === 'Cronómetro en marcha')).toBe(true);
   });
 
+  it('draws Stop coral on the clock block', async () => {
+    await renderWatch({ state: 'running', elapsedHundredths: 3391 });
+
+    const style = StyleSheet.flatten(screen.getByRole('button', { name: 'Detener' }).props.style);
+    expect(style.backgroundColor).toBe(colors.light.coral);
+  });
+
   it('offers split and stop', async () => {
     const { onSplit, onStop } = await renderWatch({ state: 'running', elapsedHundredths: 3391 });
 

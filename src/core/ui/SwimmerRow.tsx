@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../i18n';
@@ -27,6 +28,8 @@ export type SwimmerRowProps = {
   // Difference against this personal best under the name (only with a `time`); `newPersonalBest` adds the MP tag.
   personalBest?: Hundredths | null;
   newPersonalBest?: boolean;
+  // Shown under the time (or the personal best) in the end column, for example a sync pill. Not part of the row label.
+  status?: ReactNode;
   tag?: TagProps;
   chevron?: boolean;
   selected?: boolean;
@@ -64,6 +67,7 @@ export function SwimmerRow({
   timeLabel,
   personalBest,
   newPersonalBest = false,
+  status,
   tag,
   chevron = false,
   selected = false,
@@ -124,21 +128,63 @@ export function SwimmerRow({
     backgroundColor: colors[selected ? swimmerRowColors.selectedBackground : swimmerRowColors.background],
   } as const;
 
+  const avatar = (
+    <View
+      {...hidden}
+      style={{
+        width: avatarSize,
+        height: avatarSize,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radius.full,
+        backgroundColor: colors[color ?? 'surface-2'],
+      }}
+    >
+      <Text style={[typography.label, { color: colors[color ? swimmerRowColors.initials : 'ink'] }]}>{initials}</Text>
+    </View>
+  );
+
+  const nameBlock = (style: { flex?: number; flexShrink?: number; minWidth: number }) => (
+    <View {...hidden} style={style}>
+      <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
+      <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
+      {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
+    </View>
+  );
+
+  // A status can be wide (a pill plus a retry button): cap its column so it wraps instead of squeezing the name.
+  // At large text the column already sits below the name with the full width.
+  const statusColumnStyle = large ? trailingStyle : ({ ...trailingStyle, maxWidth: '50%' } as const);
+
+  // With a status the end column is not hidden as a whole: only the time is, and the status stays its own element.
+  const timeColumn = (timeBlock: ReactNode) =>
+    status ? (
+      <View style={statusColumnStyle}>
+        <View {...hidden} style={{ alignItems: trailingStyle.alignItems }}>
+          {timeBlock}
+        </View>
+        <View style={{ marginTop: space[1], alignItems: trailingStyle.alignItems }}>{status}</View>
+      </View>
+    ) : (
+      <View {...hidden} style={trailingStyle}>
+        {timeBlock}
+      </View>
+    );
+
   const trailing = (
     <>
-      {time !== undefined && (
-        <View {...hidden} style={trailingStyle}>
-          <TimeValue value={time} size="time-sm" />
-        </View>
-      )}
-      {showBest && (
-        <View {...hidden} style={trailingStyle}>
-          <TimeValue value={bestTime} size="time-sm" />
-          {bestTimeLabel ? (
-            <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{bestTimeLabel}</Text>
-          ) : null}
-        </View>
-      )}
+      {time !== undefined && timeColumn(<TimeValue value={time} size="time-sm" />)}
+      {showBest &&
+        timeColumn(
+          <>
+            <TimeValue value={bestTime} size="time-sm" />
+            {bestTimeLabel ? (
+              <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{bestTimeLabel}</Text>
+            ) : null}
+          </>,
+        )}
+      {/* time and best time are exclusive (showBest needs no time), so the status is drawn once in every case */}
+      {time === undefined && !showBest && status && <View style={statusColumnStyle}>{status}</View>}
       {tag && (
         <View {...hidden} style={trailingStyle}>
           <Tag {...tag} />
@@ -152,39 +198,65 @@ export function SwimmerRow({
     </>
   );
 
+  // Large text: the trailing element goes below the name, aligned with it. Wraps so a part that does not fit goes to
+  // the next line instead of running past the row.
+  const trailingGroupStyle = { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3] } as const;
+
+  // A status may hold a button, and an accessible element hides its children from iOS screen readers. So with a
+  // status the single accessible element (and touch target) is only the avatar and text; the trailing column,
+  // status included, sits beside it (below it at large text).
+  if (status) {
+    const group = { flexDirection: 'row', alignItems: 'center', gap: space[3] } as const;
+    const lead = (
+      <>
+        {avatar}
+        {nameBlock({ flex: 1, flexShrink: 1, minWidth: 0 })}
+      </>
+    );
+    return (
+      <View style={large ? { ...rowStyle, flexDirection: 'column', alignItems: 'stretch', gap: space[2] } : rowStyle}>
+        {onPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            accessibilityState={{ selected }}
+            onPress={onPress}
+            style={large ? group : { ...group, flex: 1 }}
+          >
+            {lead}
+          </Pressable>
+        ) : (
+          <View
+            accessible
+            accessibilityLabel={label}
+            accessibilityState={{ selected }}
+            style={large ? group : { ...group, flex: 1 }}
+          >
+            {lead}
+          </View>
+        )}
+        {large ? (
+          // Aligned with the name: avatar width plus the gap.
+          <View style={{ ...trailingGroupStyle, paddingLeft: avatarSize + space[3] }}>{trailing}</View>
+        ) : (
+          trailing
+        )}
+      </View>
+    );
+  }
+
   const content = (
     <>
-      <View
-        {...hidden}
-        style={{
-          width: avatarSize,
-          height: avatarSize,
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: radius.full,
-          backgroundColor: colors[color ?? 'surface-2'],
-        }}
-      >
-        <Text style={[typography.label, { color: colors[color ? swimmerRowColors.initials : 'ink'] }]}>{initials}</Text>
-      </View>
+      {avatar}
       {large ? (
         // Large text: the trailing element goes below the name, aligned with it, so the name keeps the full width.
         <View style={{ flex: 1, minWidth: 0, flexDirection: 'column', gap: space[2] }}>
-          <View {...hidden} style={{ minWidth: 0 }}>
-            <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
-            <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
-            {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
-          </View>
-          {/* Wraps so a part that does not fit goes to the next line instead of running past the row. */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3] }}>{trailing}</View>
+          {nameBlock({ minWidth: 0 })}
+          <View style={trailingGroupStyle}>{trailing}</View>
         </View>
       ) : (
         <>
-          <View {...hidden} style={{ flex: 1, flexShrink: 1, minWidth: 0 }}>
-            <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
-            <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
-            {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
-          </View>
+          {nameBlock({ flex: 1, flexShrink: 1, minWidth: 0 })}
           {trailing}
         </>
       )}

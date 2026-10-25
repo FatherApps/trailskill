@@ -38,6 +38,7 @@ describe('timing gallery entries', () => {
       'stopped-no-pb',
       'exit-confirm',
       'offline',
+      'pending-count',
     ]);
     expect(Object.keys(entry('arrivalList').states)).toEqual(['arrivals', 'many-arrivals']);
     expect(Object.keys(entry('nameCard').states)).toEqual(['unassigned', 'assigned', 'all-colours']);
