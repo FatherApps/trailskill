@@ -5,7 +5,9 @@ import { t } from '../../../core/i18n';
 import { distances, pools, strokes } from '../../../core/sport';
 import { StateView } from '../../../core/ui';
 import type { SessionType } from '../data/measurements';
+import { orderedSelection, toggleAthlete } from '../domain/athleteSelection';
 import '../i18n';
+import { AthletePickerScreen } from './AthletePickerScreen';
 import { TimingSetupScreen, type SetupAthlete } from './TimingSetupScreen';
 
 // An athlete of the roster as the flows need it. The container of the app builds it, so this module never reads another module's tables.
@@ -76,6 +78,26 @@ export type TimingSetupStepProps = {
 export function TimingSetupStep({ subtitle, roster, choice, onChoiceChange, sourceLabel, onStart, onBack }: TimingSetupStepProps) {
   const field = (value: string, options: readonly { code: string; nameKey: string }[]) => ({ value, options: options.map(option) });
   const authorized = roster.filter((a) => a.authorized);
+  // Everyone authorized is timed, in roster order, until the coach chooses otherwise.
+  const [selectedIds, setSelectedIds] = useState(() => authorized.map((a) => a.id));
+  const [picking, setPicking] = useState(false);
+  // Only an authorized athlete can be chosen; the others stay listed after them, marked as skipped.
+  const selected = orderedSelection(authorized, selectedIds);
+
+  if (picking) {
+    return (
+      <AthletePickerScreen
+        subtitle={subtitle}
+        athletes={authorized}
+        selectedIds={selectedIds}
+        groupCount={roster.length}
+        onToggle={(id) => setSelectedIds((ids) => toggleAthlete(ids, id))}
+        onDone={() => setPicking(false)}
+        onBack={() => setPicking(false)}
+      />
+    );
+  }
+
   return (
     <TimingSetupScreen
       subtitle={subtitle}
@@ -93,12 +115,11 @@ export function TimingSetupStep({ subtitle, roster, choice, onChoiceChange, sour
       onSessionTypeChange={(sessionType) => onChoiceChange({ sessionType: sessionType as SessionType })}
       onSourceChange={() => {}}
       // shortcut: the best time is not read yet, so the rows show "—"; upgrade with a read of each athlete's best for the event.
-      athletes={roster.map((a) => ({ ...a, bestTime: null }))}
-      selectedCount={authorized.length}
+      athletes={[...selected, ...roster.filter((a) => !a.authorized)].map((a) => ({ ...a, bestTime: null }))}
+      selectedCount={selected.length}
       groupCount={roster.length}
-      // shortcut: everyone authorized is timed, in roster order; the picker screen does not exist yet (issue 231).
-      onChooseAthletes={() => {}}
-      onStart={() => authorized.length > 0 && onStart(authorized)}
+      onChooseAthletes={() => setPicking(true)}
+      onStart={() => selected.length > 0 && onStart(selected)}
       onBack={onBack}
     />
   );
