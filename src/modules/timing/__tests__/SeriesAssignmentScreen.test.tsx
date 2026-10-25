@@ -168,6 +168,24 @@ describe('SeriesAssignmentScreen', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps Guardar serie outside the scrolling list so the last name card is never covered', async () => {
+    await renderScreen();
+
+    // Walk up from a name card to the ScrollView that holds the list (the jest mock wraps it, so match its props, not its type).
+    let node = screen.getByRole('button', { name: 'Asignar a Sara P.' }).parent;
+    while (node && node.props.contentContainerStyle === undefined) node = node.parent;
+    if (!node) throw new Error('No ScrollView above the name cards');
+    const scroll = node;
+    const list = within(scroll);
+
+    expect(list.queryByRole('button', { name: 'Guardar serie' })).toBeNull();
+    for (const label of ['Mateo C., en la posición 1', 'Lucía R., en la posición 2', 'Asignar a Sara P.', 'Asignar a Tomás V.']) {
+      expect(list.getByRole('button', { name: label })).toBeOnTheScreen();
+    }
+    const contentStyle = StyleSheet.flatten(scroll.props.contentContainerStyle);
+    expect(contentStyle?.paddingBottom ?? contentStyle?.padding).toBeGreaterThan(0);
+  });
+
   it('shows the offline notice', async () => {
     await renderScreen({ offline: true });
     expect(screen.getByText('Sin conexión.', { exact: false })).toBeOnTheScreen();
