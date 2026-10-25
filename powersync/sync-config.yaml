@@ -1,5 +1,6 @@
 # PowerSync Sync Streams. They mirror the select policies in supabase/migrations
-# (athletes_visibility_and_policies, school-console_policies, accounts_policies):
+# (athletes_visibility_and_policies, school-console_policies, accounts_policies,
+# timing_measurements):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -13,6 +14,7 @@ with:
   admin_athlete_ids: SELECT athlete_id FROM athlete_schools WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin')
   admin_group_ids: SELECT id FROM training_groups WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin')
   member_school_ids: SELECT school_id FROM school_memberships WHERE user_id = auth.user_id()
+  own_series_ids: SELECT id FROM timing_series WHERE created_by = auth.user_id()
 
 streams:
   athletes_visible:
@@ -40,3 +42,14 @@ streams:
       - SELECT * FROM school_memberships WHERE user_id = auth.user_id() OR school_id IN admin_school_ids
       - SELECT * FROM coach_group_assignments WHERE coach_user_id = auth.user_id() OR group_id IN admin_group_ids
       - SELECT * FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id() OR athlete_id IN admin_athlete_ids
+
+  timing_series_own:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM timing_series WHERE created_by = auth.user_id()
+
+  timing_measurements:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids OR athlete_id IN coach_direct_athlete_ids OR athlete_id IN coach_group_athlete_ids OR athlete_id IN admin_athlete_ids
+      - SELECT * FROM measurements WHERE athlete_id IS NULL AND series_id IN own_series_ids

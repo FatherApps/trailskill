@@ -6,3 +6,4 @@ export type {
   MeasurementSource,
   SessionType,
 } from './data/measurements';
+export { createPowerSyncMeasurementRepository } from './data/powerSyncMeasurementRepository';
