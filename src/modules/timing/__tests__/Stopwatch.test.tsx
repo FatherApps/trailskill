@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { AccessibilityInfo, StyleSheet, Text } from 'react-native';
+import { AccessibilityInfo, StyleSheet } from 'react-native';
 
 import { colors } from '../../../core/theme';
 import { Stopwatch } from '../components/Stopwatch';
@@ -41,13 +41,20 @@ describe('Stopwatch ready', () => {
     expect(style).toMatchObject({ fontSize: 72, textAlign: 'center', fontVariant: ['tabular-nums'], color: colors.light['ink-muted'] });
   });
 
-  it('pins the clock text size at 1.3 and leaves every other text unlimited', async () => {
+  it('fits the clock on one line and leaves every other text unlimited', async () => {
     await renderWatch({ state: 'stopped', elapsedHundredths: 3391, bestTime: 3482 });
 
-    expect(screen.getByText('0:33,91').props.maxFontSizeMultiplier).toBe(1.3);
+    const clock = screen.getByTestId('stopwatch-time');
+    expect(clock.props.maxFontSizeMultiplier).toBe(1.3);
+    expect(clock.props.adjustsFontSizeToFit).toBe(true);
+    expect(clock.props.numberOfLines).toBe(1);
     const others = screen.container.queryAll((node) => node.type === 'Text' && node.props.testID !== 'stopwatch-time');
     expect(others.length).toBeGreaterThan(0);
-    for (const text of others) expect(text.props.maxFontSizeMultiplier).toBeUndefined();
+    for (const text of others) {
+      expect(text.props.maxFontSizeMultiplier).toBeUndefined();
+      expect(text.props.adjustsFontSizeToFit).toBeUndefined();
+      expect(text.props.numberOfLines).toBeUndefined();
+    }
   });
 });
 
@@ -165,23 +172,29 @@ describe('Stopwatch stopped', () => {
     expect(screen.getByText('MP —')).toBeOnTheScreen();
   });
 
-  it('draws the delta slot after the personal best and nothing when it is absent', async () => {
-    const { unmount } = await renderWatch({
-      state: 'stopped',
-      elapsedHundredths: 3391,
-      bestTime: 3482,
-      pbDelta: <Text>delta slot</Text>,
-    });
-    const row = screen.getByText('MP 34,82').parent!;
-    expect(row.children.map((child) => (typeof child === 'string' ? child : child.props.children))).toEqual([
-      'MP 34,82',
-      'delta slot',
-    ]);
-    expect(styleOf(row.props.style)).toMatchObject({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 });
-
-    await unmount();
+  it('faster than the personal best: shows the difference and the new MP tag, spoken', async () => {
     await renderWatch({ state: 'stopped', elapsedHundredths: 3391, bestTime: 3482 });
-    expect(screen.queryByText('delta slot')).toBeNull();
+
+    expect(screen.getByText('−0,91 vs MP', hidden)).toBeOnTheScreen();
+    expect(screen.getByText('MP', hidden)).toBeOnTheScreen();
+    expect(screen.getByLabelText('91 centésimas menos que la marca personal. Marca personal')).toBeOnTheScreen();
+    // The clock is printed once: the delta row does not repeat it.
+    expect(screen.getAllByText('0:33,91', hidden)).toHaveLength(1);
+  });
+
+  it('slower than the personal best: shows the difference without the tag', async () => {
+    await renderWatch({ state: 'stopped', elapsedHundredths: 3522, bestTime: 3482 });
+
+    expect(screen.getByText('+0,40 vs MP', hidden)).toBeOnTheScreen();
+    expect(screen.queryByText('MP', hidden)).toBeNull();
+    expect(screen.getByLabelText('40 centésimas más que la marca personal')).toBeOnTheScreen();
+  });
+
+  it('without a personal best there is no difference', async () => {
+    await renderWatch({ state: 'stopped', elapsedHundredths: 3391, bestTime: null });
+
+    expect(screen.queryByText(/vs MP/, hidden)).toBeNull();
+    expect(screen.queryByText('MP', hidden)).toBeNull();
   });
 
   it('announces the final time once', async () => {

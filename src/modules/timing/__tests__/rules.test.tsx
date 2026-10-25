@@ -97,7 +97,7 @@ describe('src/modules/timing rules', () => {
       expect(text.props.allowFontScaling).not.toBe(false);
       // Only the stopwatch clock is limited (see Stopwatch.test.tsx).
       if (text.props.testID !== 'stopwatch-time') expect(text.props.maxFontSizeMultiplier).toBeUndefined();
-      expect(text.props.numberOfLines).toBeUndefined();
+      if (text.props.testID !== 'stopwatch-time') expect(text.props.numberOfLines).toBeUndefined();
     }
 
     const controls = [...screen.getAllByRole('button', { includeHiddenElements: true }), ...screen.getAllByRole('radio')];

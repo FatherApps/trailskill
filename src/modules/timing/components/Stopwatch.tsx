@@ -1,10 +1,10 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import { AccessibilityInfo, ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
-import { Button } from '../../../core/ui';
+import { Button, TimeValue } from '../../../core/ui';
 import '../i18n';
 
 export type StopwatchState = 'ready' | 'running' | 'stopped';
@@ -16,8 +16,6 @@ export type StopwatchProps = {
   splits?: { label: string; value: Hundredths }[];
   // `null` or absent means there is no personal best yet.
   bestTime?: Hundredths | null;
-  // The container fills this with the difference against the personal best (the TimeValue delta, issue 167).
-  pbDelta?: ReactNode;
   onStart: () => void;
   onSplit: () => void;
   onStop: () => void;
@@ -33,7 +31,6 @@ export function Stopwatch({
   state,
   splits = [],
   bestTime = null,
-  pbDelta,
   onStart,
   onSplit,
   onStop,
@@ -62,8 +59,10 @@ export function Stopwatch({
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', gap: space[4] }}>
         <Text
           testID="stopwatch-time"
-          // 72 sp would wrap "1:01,23" at 200 % text size.
+          // The only text with a line limit: a 72 sp mono clock at 1.3x (~383 dp for "1:31,45") is wider than a phone's content width and would wrap.
           maxFontSizeMultiplier={1.3}
+          adjustsFontSizeToFit
+          numberOfLines={1}
           // The running clock is not a live region and is hidden: only the state is announced.
           {...(running && {
             importantForAccessibility: 'no-hide-descendants' as const,
@@ -81,7 +80,13 @@ export function Stopwatch({
             <Text style={[typography.caption, { color: colors['ink-muted'] }]}>
               {t('timing.stopwatch.personal_best', { time: formatTime(bestTime) })}
             </Text>
-            {pbDelta}
+            {/* The clock above is the time: TimeValue only adds the difference and the MP tag. */}
+            <TimeValue
+              value={elapsedHundredths}
+              personalBest={bestTime}
+              newPersonalBest={bestTime !== null && elapsedHundredths < bestTime}
+              deltaOnly
+            />
           </View>
         )}
         {splits.length > 0 && (

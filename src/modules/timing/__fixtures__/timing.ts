@@ -26,9 +26,10 @@ const setupOptions = {
   },
 };
 
-const times: Record<'running' | 'final' | 'bestTime' | 'firstSplit', Hundredths> = {
+const times: Record<'running' | 'final' | 'slower' | 'bestTime' | 'firstSplit', Hundredths> = {
   running: 2150,
   final: 3391,
+  slower: 3522,
   bestTime: 3482,
   firstSplit: 1640,
 };
@@ -49,8 +50,8 @@ const athletes: Athlete[] = [
 ];
 
 const records = [
-  { id: 'r1', shortName: 'Mateo C.', initials: 'MC', color: 'athlete-1', time: 3391, syncState: 'on_device' },
-  { id: 'r2', shortName: 'Lucía R.', initials: 'LR', color: 'athlete-2', time: 3522, syncState: 'not_sent' },
+  { id: 'r1', shortName: 'Mateo C.', initials: 'MC', color: 'athlete-1', time: 3391, personalBest: 3482, syncState: 'on_device' },
+  { id: 'r2', shortName: 'Lucía R.', initials: 'LR', color: 'athlete-2', time: 3522, personalBest: 3482, syncState: 'not_sent' },
   { id: 'r3', shortName: 'Tomás V.', initials: 'TV', color: 'athlete-4', time: 3105, syncState: 'synced' },
   { id: 'r4', shortName: 'Sara P.', initials: 'SP', color: 'athlete-3', time: null, syncState: 'sending' },
 ] as const;

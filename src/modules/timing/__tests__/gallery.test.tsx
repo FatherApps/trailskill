@@ -26,6 +26,7 @@ describe('timing gallery entries', () => {
       'running',
       'running-splits',
       'stopped',
+      'stopped-slower',
       'stopped-no-pb',
       'exit-confirm',
       'offline',
@@ -78,6 +79,15 @@ describe('timing gallery entries', () => {
 
     await render(<ThemeProvider>{entry('stopwatch').states['stopped-no-pb']()}</ThemeProvider>);
     expect(screen.getByText('MP —')).toBeOnTheScreen();
+  });
+
+  it('shows the difference against the personal best, faster and slower', async () => {
+    const hidden = { includeHiddenElements: true };
+    await render(<ThemeProvider>{entry('stopwatch').states.stopped()}</ThemeProvider>);
+    expect(screen.getByText('−0,91 vs MP', hidden)).toBeOnTheScreen();
+
+    await render(<ThemeProvider>{entry('stopwatch').states['stopped-slower']()}</ThemeProvider>);
+    expect(screen.getByText('+0,40 vs MP', hidden)).toBeOnTheScreen();
   });
 
   it('opens the exit sheet from the back button while running', async () => {

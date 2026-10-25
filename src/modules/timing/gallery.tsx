@@ -148,6 +148,9 @@ export const galleryEntries: GalleryEntry[] = [
       running: () => <RunningPreview withSplits={false} />,
       'running-splits': () => <RunningPreview withSplits />,
       stopped: () => <StopwatchPreview {...stopped} bestTime={fixture.times.bestTime} splits={fixture.splits} />,
+      'stopped-slower': () => (
+        <StopwatchPreview {...stopped} elapsedHundredths={fixture.times.slower} bestTime={fixture.times.bestTime} />
+      ),
       'stopped-no-pb': () => <StopwatchPreview {...stopped} bestTime={null} />,
       'exit-confirm': () => <ExitConfirmPreview />,
       offline: () => <RunningPreview withSplits={false} offline />,

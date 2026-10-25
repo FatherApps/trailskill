@@ -239,7 +239,17 @@ describe('TimingSummaryScreen', () => {
 
     expect(screen.getByRole('header', { name: 'Resumen de la toma' })).toBeOnTheScreen();
     expect(screen.getByText('Grupo B · Libre 50 m')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Mateo C., Tiempo 33,91')).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText(
+        'Mateo C., Tiempo 33,91, 91 centésimas menos que la marca personal, Marca personal',
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('−0,91 vs MP', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText('Lucía R., Tiempo 35,22, 40 centésimas más que la marca personal'),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('+0,40 vs MP', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByLabelText('Tomás V., Tiempo 31,05')).toBeOnTheScreen();
     expect(screen.getByLabelText('Sara P., Tiempo sin registrar')).toBeOnTheScreen();
     for (const label of ['En el teléfono', 'No enviado', 'Enviado', 'Enviando']) {
       expect(screen.getByLabelText(label)).toBeOnTheScreen();

@@ -17,6 +17,8 @@ export type SummaryRecord = {
   color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
   // `null` is a missing time: the row shows "—", never 0,00.
   time: Hundredths | null;
+  // The athlete's personal best, to show the difference; absent or `null` means no comparison.
+  personalBest?: Hundredths | null;
   syncState: RecordSyncState;
 };
 
@@ -85,9 +87,12 @@ export function TimingSummaryScreen({
                   name={record.shortName}
                   initials={record.initials}
                   color={record.color}
-                  // The difference against the personal best (TimeValue delta, issue 167) goes in `detail` before merge.
                   detail=""
                   time={record.time}
+                  personalBest={record.personalBest}
+                  newPersonalBest={
+                    record.time !== null && typeof record.personalBest === 'number' && record.time < record.personalBest
+                  }
                   timeLabel={t('timing.summary.time_label')}
                 />
                 <View style={{ paddingHorizontal: space[4], paddingBottom: space[3] }}>
