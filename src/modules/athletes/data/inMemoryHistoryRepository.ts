@@ -10,6 +10,12 @@ export function createInMemoryHistoryRepository(measurements: HistoryMeasurement
         .filter((m) => m.athleteId === athleteId && m.stroke === stroke && m.distance === distance && m.pool === pool)
         .sort(newestFirst);
     },
+    async listByAthletesEvent(athleteIds, { stroke, distance, pool }) {
+      const wanted = new Set(athleteIds);
+      return measurements
+        .filter((m) => m.athleteId !== null && wanted.has(m.athleteId) && m.stroke === stroke && m.distance === distance && m.pool === pool)
+        .sort(newestFirst);
+    },
     async listByAthlete(athleteId) {
       return measurements.filter((m) => m.athleteId === athleteId).sort(newestFirst);
     },

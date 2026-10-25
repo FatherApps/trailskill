@@ -194,6 +194,45 @@ describe.each(factories)('%s measurement repository', (_name, create) => {
     });
   });
 
+  describe('listByAthletesEvent', () => {
+    const event = { stroke: 'FR', distance: '50m', pool: 'SCM' } as const;
+    const one = (id: string, over: Partial<Measurement> = {}) =>
+      ({ ...arrival(id, 'S', 1, 'athlete-1'), ...over }) as Measurement;
+
+    it('lists the listed athletes in that event, newest first (by id on a tie), and nobody else', async () => {
+      const repository = create();
+      await repository.add(one('old', { capturedAt: '2026-01-01T08:00:00Z' }));
+      await repository.add(one('b', { athleteId: 'athlete-2', capturedAt: '2026-03-01T08:00:00Z' }));
+      await repository.add(one('a', { capturedAt: '2026-03-01T08:00:00Z' }));
+      await repository.add(one('done', { kind: 'completed', hundredths: null, capturedAt: '2026-02-01T08:00:00Z' }));
+      await repository.add(one('stranger', { athleteId: 'athlete-3' }));
+      await repository.add(one('other-pool', { pool: 'LCM' }));
+      await repository.add(one('other-stroke', { stroke: 'BK' }));
+      await repository.add(one('unassigned', { athleteId: null }));
+
+      const listed = await repository.listByAthletesEvent(['athlete-1', 'athlete-2'], event);
+
+      expect(listed.map((m) => m.id)).toEqual(['a', 'b', 'done', 'old']);
+    });
+
+    it('returns nothing for an empty list of athletes', async () => {
+      const repository = create();
+      await repository.add(one('m'));
+
+      await expect(repository.listByAthletesEvent([], event)).resolves.toEqual([]);
+    });
+
+    it('handles more athletes than the SQLite parameter limit', async () => {
+      const repository = create();
+      await repository.add(one('m', { athleteId: 'athlete-5' }));
+      const ids = Array.from({ length: 40000 }, (_, i) => `athlete-${i}`);
+
+      const listed = await repository.listByAthletesEvent(ids, event);
+
+      expect(listed.map((m) => m.id)).toEqual(['m']);
+    });
+  });
+
   describe('countCapturedSince', () => {
     const at = (id: string, athleteId: string | null, capturedAt: string) =>
       ({ ...arrival(id, 'S', 1, athleteId), capturedAt }) as Measurement;
