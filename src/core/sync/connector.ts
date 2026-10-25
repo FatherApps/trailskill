@@ -20,11 +20,12 @@ function failureCode(result: Pick<Result, 'error' | 'status'>): string | null {
 // authorizations are evidence: a withdrawal goes up as a PATCH. A measurement is edited as a PATCH carrying its base_version (issue #55);
 // a stale edit from another user or device comes back as the unchanged stored row, which is a success: the server keeps the conflict.
 // A PUT that would change an existing row is recorded as insert_only_changed, never ignored.
-const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series', 'authorizations', 'school_invitations']);
+const INSERT_ONLY_TABLES = new Set(['measurements', 'training_plan_fulfillments', 'timing_series', 'authorizations', 'school_invitations']);
 
 // Columns the server assigns or rewrites on insert (clamps, replaced tokens): a retry from the device never carries their stored value, so they are not compared.
 const SERVER_SET_COLUMNS: Record<string, string[]> = {
   measurements: ['created_at', 'hidden', 'version', 'base_version', 'edited_by', 'edited_at', 'edited_device_id', 'edit_reason'],
+  training_plan_fulfillments: ['created_at', 'hidden'],
   school_invitations: ['token', 'expires_at', 'revoked_at', 'created_at'],
   authorizations: ['accepted_at', 'received_at', 'withdrawal_received_at', 'withdrawn_at'],
 };
@@ -33,7 +34,10 @@ const NULLNESS_ONLY_COLUMNS: Record<string, string[]> = { authorizations: ['with
 
 // Tables whose rows their author may no longer read once stored (a measurement hidden after a withdrawal, #54):
 // a server function confirms a re-sent insert and answers only 'stored', 'changed' or 'absent', never the row.
-const CONFIRM_INSERT_FUNCTIONS: Record<string, string> = { measurements: 'confirm_measurement_insert' };
+const CONFIRM_INSERT_FUNCTIONS: Record<string, string> = {
+  measurements: 'confirm_measurement_insert',
+  training_plan_fulfillments: 'confirm_training_plan_fulfillment_insert',
+};
 
 // Columns that are JSON text on the device (PowerSync syncs a Postgres array as JSON text) but arrays on the server: they are parsed before upload.
 const JSON_ARRAY_COLUMNS: Record<string, string[]> = { training_plan_blocks: ['equipment'] };
