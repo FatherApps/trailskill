@@ -50,6 +50,7 @@ describe('Icon', () => {
         'radio_button_unchecked',
         'school',
         'incomplete_circle',
+        'close',
       ].sort(),
     );
   });
