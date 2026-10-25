@@ -152,6 +152,12 @@
     "no_mark": "sin marca",
     "category": "Categoría",
     "category_spoken": "Categoría: {{value}}",
+    "group_spoken": "Grupo: {{value}}",
+    "all_groups": "Todos los grupos",
+    "sheet": {
+      "category": "Categoría",
+      "group": "Grupo de entrenamiento"
+    },
     "pool_filter": "Piscina",
     "pool": {
       "SCM": "25 m",

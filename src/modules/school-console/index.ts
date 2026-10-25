@@ -34,7 +34,17 @@ export { ConsoleScreen, type ConsoleScreenProps, type ConsoleSectionProps } from
 export { EmptySectionScreen, type EmptySectionScreenProps } from './screens/EmptySectionScreen';
 export { useAdminSchool, useStaffSchool, type AdminSchoolResult, type StaffSchoolResult } from './data/useAdminSchool';
 export { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from './screens/CoachesScreen';
-export { RecordsScreen, type RecordsContent, type RecordsScreenProps, type RecordsView } from './screens/RecordsScreen';
+export { RecordsScreen, type RecordsContent, type RecordsScreenProps, type RecordsSheet, type RecordsView } from './screens/RecordsScreen';
+export { RecordsSection, type RecordsSectionProps } from './screens/RecordsSection';
+export {
+  createCategoryRecordsRepository,
+  createInMemoryCategoryRecordsRepository,
+  createPowerSyncCategoryRecordsRepository,
+  selectCategoryRecords,
+  type CategoryRecord,
+  type CategoryRecordsQuery,
+  type CategoryRecordsRepository,
+} from './data/categoryRecords';
 export {
   MeasurementsScreen,
   type MeasurementsContent,
