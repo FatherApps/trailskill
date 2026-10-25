@@ -3,7 +3,7 @@ export { db } from './db';
 export { AppSchema } from './schema';
 export type { Database } from './schema';
 export { supabase, supabaseConfigError } from './supabase';
-export { countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState } from './syncState';
+export { countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState, useRecordSyncStates } from './syncState';
 export type { RecordSyncState } from './syncState';
 export { RecordSyncStatus } from './RecordSyncStatus';
 export { deleteRecord, editRecord, retryFailedRecord, writeBatch, writeRecord } from './writes';

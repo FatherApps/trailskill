@@ -27,7 +27,7 @@ export {
 export { AthletesSection, type AthletesSectionProps } from './screens/AthletesSection';
 export { ConsoleScreen, type ConsoleScreenProps, type ConsoleSectionProps } from './screens/ConsoleScreen';
 export { EmptySectionScreen, type EmptySectionScreenProps } from './screens/EmptySectionScreen';
-export { useAdminSchool, type AdminSchoolResult } from './data/useAdminSchool';
+export { useAdminSchool, useStaffSchool, type AdminSchoolResult, type StaffSchoolResult } from './data/useAdminSchool';
 export { galleryEntries } from './gallery';
 export { createInMemoryStaffSchoolRepository, createPowerSyncStaffSchoolRepository } from './data/staffSchools';
 export type { StaffMembershipRow, StaffSchool, StaffSchoolRepository } from './data/staffSchools';

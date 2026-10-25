@@ -34,6 +34,25 @@ export function useRecordSyncState(table: string, id: string): RecordSyncState {
   });
 }
 
+/** The sync state of many records of one table in a single watched read, by record id. */
+export function useRecordSyncStates(table: string, ids: string[]): Map<string, RecordSyncState> {
+  const { data } = useQuery<{ id: string; pending: number; failed: number; conflict: number }>(
+    `SELECT r.value AS id,
+            EXISTS (SELECT 1 FROM pending_writes WHERE table_name = ? AND record_id = r.value) AS pending,
+            EXISTS (SELECT 1 FROM upload_failures WHERE table_name = ? AND record_id = r.value) AS failed,
+            EXISTS (SELECT 1 FROM record_conflicts WHERE table_name = ? AND record_id = r.value AND status = 'open') AS conflict
+     FROM json_each(?) r`,
+    [table, table, table, JSON.stringify(ids)],
+  );
+  const { dataFlowStatus } = useStatus();
+  return new Map(
+    data.map((row) => [
+      row.id,
+      recordSyncState({ pending: row.pending === 1, failed: row.failed === 1, conflict: row.conflict === 1, uploading: dataFlowStatus.uploading }),
+    ]),
+  );
+}
+
 // A record can have several pending rows: count records, not rows.
 const pendingRecords = 'SELECT DISTINCT table_name, record_id FROM pending_writes';
 const failedRecords = 'SELECT DISTINCT table_name, record_id FROM upload_failures';

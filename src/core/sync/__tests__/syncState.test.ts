@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react-native';
 
-import { countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState } from '../syncState';
+import { countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState, useRecordSyncStates } from '../syncState';
 import { createStore, openDatabase, type FakeDatabase } from '../testing/fakeDatabase';
 import { writeRecord } from '../writes';
 
@@ -55,6 +55,31 @@ describe('recordSyncState', () => {
     [{ pending: true, failed: true, uploading: true }, 'not_sent'],
   ] as const)('a conflict shows review unless the upload was rejected: %p is %s', (input, state) => {
     expect(recordSyncState({ ...input, conflict: true })).toBe(state);
+  });
+});
+
+describe('useRecordSyncStates', () => {
+  const statesOf = async (ids: string[]) => (await renderHook(() => useRecordSyncStates('athletes', ids))).result.current;
+
+  it('gives the state of each record in one read', async () => {
+    const pending = await writeRecord('athletes', { first_name: 'Ana' });
+    const sent = await writeRecord('athletes', { first_name: 'Ben' });
+    await mockDb.writeTransaction((tx) => tx.execute('DELETE FROM pending_writes WHERE record_id = ?', [sent]));
+
+    expect(await statesOf([pending, sent])).toEqual(new Map([[pending, 'on_device'], [sent, 'synced']]));
+  });
+
+  it('gives an empty map for no ids', async () => {
+    expect(await statesOf([])).toEqual(new Map());
+  });
+
+  it('reports a record the server rejected as not_sent', async () => {
+    const id = await writeRecord('athletes', { first_name: 'Ana' });
+    await mockDb.writeTransaction((tx) =>
+      tx.execute("INSERT INTO upload_failures (id, table_name, record_id, op) VALUES ('f1', 'athletes', ?, 'PUT')", [id]),
+    );
+
+    expect((await statesOf([id])).get(id)).toBe('not_sent');
   });
 });
 

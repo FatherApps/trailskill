@@ -26,6 +26,17 @@ jest.mock('../modules/school-console', () => ({
     listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
   }),
 }));
+const mockListManagedAthleteIds = jest.fn();
+jest.mock('../modules/accounts', () => ({
+  createPowerSyncManagedAthleteRepository: () => ({ listManagedAthleteIds: (...args: unknown[]) => mockListManagedAthleteIds(...args) }),
+}));
+const mockListByIds = jest.fn();
+jest.mock('../modules/athletes', () => ({
+  // The real hook and display helper: only the repository, which needs the native database, is replaced.
+  ...jest.requireActual('../modules/athletes/data/useManagedAthletes'),
+  ...jest.requireActual('../modules/athletes/athleteDisplay'),
+  createPowerSyncSchoolAthleteRepository: () => ({ listByIds: (...args: unknown[]) => mockListByIds(...args) }),
+}));
 jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), router: { push: jest.fn() } }));
 jest.mock('@powersync/react', () => ({}));
 jest.mock('../core/sync/db', () => ({ db: {} }));
@@ -36,6 +47,8 @@ beforeEach(() => {
   mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
   mockListStaffSchools.mockReset().mockResolvedValue([]);
   mockListAdminSchools.mockReset().mockResolvedValue([]);
+  mockListManagedAthleteIds.mockReset().mockResolvedValue([]);
+  mockListByIds.mockReset().mockResolvedValue([]);
   (router.push as jest.Mock).mockClear();
 });
 
@@ -254,5 +267,51 @@ describe('t', () => {
 
   it('returns the key itself when the translation is missing', () => {
     expect(t('home.missing')).toBe('home.missing');
+  });
+});
+
+describe('home by role', () => {
+  const school = [{ id: 's1', name: 'Escuela Delfines' }];
+
+  it('shows a guardian their athletes and opens the profile of the one they press', async () => {
+    mockListManagedAthleteIds.mockResolvedValue(['a1']);
+    mockListByIds.mockResolvedValue([{ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] }]);
+    await render(<Home />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: /Ana M\./ }));
+
+    expect(router.push).toHaveBeenCalledWith('/athletes/a1');
+  });
+
+  it('shows a guardian neither the timing, the plans nor the console', async () => {
+    mockListManagedAthleteIds.mockResolvedValue(['a1']);
+    mockListByIds.mockResolvedValue([{ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] }]);
+    await render(<Home />);
+    await screen.findByRole('button', { name: /Ana M\./ });
+
+    expect(screen.queryByRole('button', { name: 'Toma de tiempos' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Planes de entrenamiento' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Consola' })).toBeNull();
+  });
+
+  it('opens the timing for a coach, who sees no console and no athlete list', async () => {
+    mockListStaffSchools.mockResolvedValue(school);
+    await render(<Home />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Toma de tiempos' }));
+
+    expect(router.push).toHaveBeenCalledWith('/timing');
+    expect(screen.getByRole('button', { name: 'Planes de entrenamiento' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Consola' })).toBeNull();
+  });
+
+  it('shows a school admin the timing, the plans and the console', async () => {
+    mockListStaffSchools.mockResolvedValue(school);
+    mockListAdminSchools.mockResolvedValue(school);
+    await render(<Home />);
+
+    expect(await screen.findByRole('button', { name: 'Consola' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Toma de tiempos' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Planes de entrenamiento' })).toBeOnTheScreen();
   });
 });
