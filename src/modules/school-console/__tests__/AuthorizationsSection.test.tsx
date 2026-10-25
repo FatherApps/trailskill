@@ -41,7 +41,7 @@ const setup = async (
     groupIds?: string[];
     statuses?: AuthorizationStatusRow[];
     failing?: boolean;
-    requests?: SharingRequest[] | Error;
+    requests?: SharingRequest[] | Error | Promise<SharingRequest[]>;
     connection?: 'connected' | 'offline';
   } = {},
 ) => {
@@ -133,16 +133,59 @@ describe('AuthorizationsSection', () => {
     expect(await screen.findByText('No pudimos actualizar la solicitud. Revisa la conexión e inténtalo de nuevo.')).toBeOnTheScreen();
   });
 
-  it.each<[string, { requests: SharingRequest[] | Error; connection?: 'offline' }]>([
-    ['the read fails', { requests: new Error('network') }],
-    ['the console is offline', { connection: 'offline', requests: [pendingRequest] }],
-  ])('keeps the athletes and shows the online-only note when %s', async (_name, options) => {
-    const { listSharingRequests } = await setup(options);
+  it('rejects a pending request after the confirmation and reads them again', async () => {
+    const { withdrawSharing, listSharingRequests } = await setup({ requests: [pendingRequest] });
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Rechazar' }));
+    expect(withdrawSharing).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Rechazar solicitud' }));
+
+    await waitFor(() => expect(withdrawSharing).toHaveBeenCalledWith('r1'));
+    await waitFor(() => expect(listSharingRequests).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Rechazar' })).toBeNull());
+  });
+
+  it('says so when withdrawing fails, and reads the requests again because they may have changed', async () => {
+    const { withdrawSharing, listSharingRequests } = await setup({ requests: [approvedRequest] });
+    withdrawSharing.mockRejectedValueOnce(new Error('denied'));
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Retirar' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Retirar acceso' }));
+
+    expect(await screen.findByText('No pudimos actualizar la solicitud. Revisa la conexión e inténtalo de nuevo.')).toBeOnTheScreen();
+    await waitFor(() => expect(listSharingRequests).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('button', { name: 'Retirar' })).toBeOnTheScreen();
+  });
+
+  it('keeps the athletes and shows the online-only note when the console is offline, without reading the requests', async () => {
+    const { listSharingRequests } = await setup({ connection: 'offline', requests: [pendingRequest] });
 
     expect(await screen.findByLabelText('Importar resultados oficiales: Pendiente')).toBeOnTheScreen();
     expect(screen.getByText('Las solicitudes de otras escuelas se ven solo con conexión.')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Aprobar' })).toBeNull();
-    if (options.connection === 'offline') expect(listSharingRequests).not.toHaveBeenCalled();
+    expect(listSharingRequests).not.toHaveBeenCalled();
+  });
+
+  it('shows a read error with a retry, not the online-only note, when the online read fails, and reads again on retry', async () => {
+    const { listSharingRequests } = await setup({ requests: new Error('network') });
+
+    expect(await screen.findByText('No pudimos cargar las solicitudes de otras escuelas.')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Importar resultados oficiales: Pendiente')).toBeOnTheScreen();
+    expect(screen.queryByText('Las solicitudes de otras escuelas se ven solo con conexión.')).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+    await waitFor(() => expect(listSharingRequests).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows no online-only note while the first online read is still loading', async () => {
+    let release: (requests: SharingRequest[]) => void = () => undefined;
+    await setup({ requests: new Promise<SharingRequest[]>((resolve) => (release = resolve)) });
+
+    expect(await screen.findByLabelText('Importar resultados oficiales: Pendiente')).toBeOnTheScreen();
+    expect(screen.queryByText('Las solicitudes de otras escuelas se ven solo con conexión.')).toBeNull();
+
+    release([pendingRequest]);
+    expect(await screen.findByText('Escuela Tiburones')).toBeOnTheScreen();
   });
 
   it('re-sends with a new invitation for the athlete group and opens the share sheet with its code', async () => {

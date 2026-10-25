@@ -109,7 +109,7 @@ describe('school console gallery entries', () => {
     expect(stateKeys('coachList')).toEqual(['default', 'long-text']);
     expect(stateKeys('recordTable')).toEqual(['default', 'other-pool', 'long-text', 'compact', 'pool-empty']);
     expect(stateKeys('measurementLog')).toEqual(['default', 'long-text', 'no-results']);
-    expect(stateKeys('authorizationList')).toEqual(['default', 'long-text', 'sharing-requests']);
+    expect(stateKeys('authorizationList')).toEqual(['default', 'long-text', 'sharing-requests', 'read-error']);
     for (const id of sectionScreens) expect(stateKeys(id)).toEqual(sectionScreenStates);
   });
 

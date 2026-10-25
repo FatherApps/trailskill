@@ -4,7 +4,7 @@ import { Share } from 'react-native';
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
 import '../i18n';
-import type { SharingRequest } from '../components/AuthorizationList';
+import type { SharingRequest, SharingRequestsState } from '../components/AuthorizationList';
 import { formatDate, localDate } from '../components/formatDate';
 import type { AuthorizationsRepository, ConsoleAuthorizationRow } from '../data/authorizations';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -80,8 +80,9 @@ export function AuthorizationsSection({
     };
   }, [repository, schoolId, refreshKey, requestsReload, offline]);
 
-  // Offline, still unread, another school's answer or a failed read: not available, never an empty list.
-  const sharingRequests = !offline && requestsAnswer?.schoolId === schoolId && requestsAnswer.result !== 'error' ? requestsAnswer.result : null;
+  // Never an empty list when the requests are not known: offline, another school's answer or still unread (loading), or a failed read.
+  const answered = requestsAnswer?.schoolId === schoolId ? requestsAnswer.result : 'loading';
+  const sharingRequests: SharingRequestsState = offline ? 'offline' : answered;
 
   const loaded = answer?.schoolId === schoolId && answer.attempt === attempt ? answer.result : undefined;
   const rows = loaded === undefined || loaded === 'error' ? undefined : loaded;
@@ -161,6 +162,10 @@ export function AuthorizationsSection({
       onResend={(athleteId) => void resend(athleteId)}
       onApproveSharing={(id) => void changeSharing('approveSharing', id)}
       onWithdrawSharing={(id) => void changeSharing('withdrawSharing', id)}
+      onRetrySharingRequests={() => {
+        setRequestsAnswer(undefined);
+        setRequestsReload((n) => n + 1);
+      }}
       resendError={resendError}
     />
   );
