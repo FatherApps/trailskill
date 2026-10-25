@@ -1,4 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { impactAsync } from 'expo-haptics';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { StyleSheet } from 'react-native';
 
 import { SeriesTimingScreen } from '../screens/SeriesTimingScreen';
@@ -126,5 +128,46 @@ describe('SeriesTimingScreen', () => {
     expect(button).toBeDisabled();
     expect(screen.getByText('Asignar nombres · Registra una llegada primero', hidden)).toBeOnTheScreen();
     expect(onAssignNames).not.toHaveBeenCalled();
+  });
+
+  it('gives a light haptic tap on each arrival and still reports it', async () => {
+    (impactAsync as jest.Mock).mockClear();
+    const { onArrival } = await renderScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Llegada' }));
+
+    expect(onArrival).toHaveBeenCalledTimes(1);
+    expect(impactAsync).toHaveBeenCalledWith('light');
+  });
+
+  it('keeps the screen awake only while the series runs', async () => {
+    (activateKeepAwakeAsync as jest.Mock).mockClear();
+    (deactivateKeepAwake as jest.Mock).mockClear();
+    const idle = await renderScreen();
+    expect(activateKeepAwakeAsync).not.toHaveBeenCalled();
+    await idle.view.unmount();
+
+    const running = await renderScreen({ running: true });
+    expect(activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
+    await running.view.unmount();
+    expect(deactivateKeepAwake).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the sync state of each arrival beside its time, reachable apart from the row', async () => {
+    await renderScreen({
+      arrivals: [
+        { id: 'arrival-1', time: 3100, syncState: 'on_device' },
+        { id: 'arrival-2', time: 3400, syncState: 'synced' },
+      ],
+    });
+
+    expect(screen.getByLabelText('En el teléfono')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Enviado')).toBeOnTheScreen();
+  });
+
+  it('shows no pill for an arrival without a known state', async () => {
+    await renderScreen({ arrivals: [{ id: 'arrival-1', time: 3100 }] });
+
+    expect(screen.queryByLabelText('En el teléfono')).toBeNull();
   });
 });

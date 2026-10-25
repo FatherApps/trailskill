@@ -45,6 +45,9 @@ export const AppSchema = new Schema({
       edited_at: column.text,
       edited_device_id: column.text,
       edit_reason: column.text,
+      // "Deshacer última" (issue #50): the author discards an unassigned series arrival once; the row stays and every read leaves it out.
+      discarded_at: column.text,
+      discarded_by: column.text,
     },
     { indexes: { series: ['series_id'] } },
   ),
