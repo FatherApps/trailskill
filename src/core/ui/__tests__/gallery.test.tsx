@@ -24,7 +24,7 @@ describe('core/ui gallery entries', () => {
 
   it('cover every core/ui component with all its states', () => {
     expect(stateKeys('textField')).toEqual(['rest', 'help', 'error', 'protected']);
-    expect(stateKeys('tag')).toEqual(['neutral', 'outline', 'info', 'ok', 'warn']);
+    expect(stateKeys('tag')).toEqual(['neutral', 'outline', 'info', 'ok', 'warn', 'long-text']);
     expect(stateKeys('icon')).toEqual(['icon-md', 'icon-sm']);
     expect(stateKeys('stepHeader')).toEqual(['first', 'middle', 'last']);
     expect(stateKeys('stateView')).toEqual(['loading', 'empty', 'empty-group', 'error', 'offline', 'denied']);
@@ -49,6 +49,7 @@ describe('core/ui gallery entries', () => {
       'chevron',
       'missing-time',
       'long-text',
+      'time-and-tag',
     ]);
     expect(stateKeys('navBar')).toEqual(['home-active', 'times-active', 'long-labels']);
   });
@@ -135,6 +136,7 @@ describe('core/ui gallery entries', () => {
     ['missing-authorization', 'Sara P., Juvenil A, Consentimiento'],
     ['chevron', 'Tomás V., Máster · Se registró él mismo'],
     ['missing-time', 'Lucía R., Infantil B · 3 tiempos este mes, sin marca personal, MP 100 E'],
+    ['time-and-tag', 'Sara P., Juvenil A, grupo de resistencia de la tarde, Tiempo 33,91, Consentimiento'],
   ])('swimmerRow / %s is one row labelled "%s"', async (state, label) => {
     await render(<ThemeProvider>{entryById('swimmerRow').states[state]()}</ThemeProvider>);
 

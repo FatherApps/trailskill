@@ -379,3 +379,132 @@ describe('SwimmerRow status slot', () => {
     expect(screen.getByText('33,91', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 });
+
+describe('SwimmerRow at large text', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  // Jest reports a system font scale of 2, so the baseline pins it to 1.
+  const renderAt = async (fontScale: number) => {
+    setOsFontScale(1);
+    await render(
+      <ThemeProvider fontScale={fontScale}>
+        <SwimmerRow
+          {...base}
+          name="Un nombre de nadador especialmente largo"
+          tag={{ label: 'Consentimiento', variant: 'warn' }}
+        />
+      </ThemeProvider>,
+    );
+  };
+  const name = () => screen.getByText('Un nombre de nadador especialmente largo', { includeHiddenElements: true });
+  const tag = () => screen.getByText('Consentimiento', { includeHiddenElements: true });
+  // Styles of the node and its ancestors, nearest first.
+  const chain = (node: { parent: unknown; props: { style?: unknown } }) => {
+    const styles: Record<string, unknown>[] = [];
+    for (let n = node as typeof node | null; n; n = n.parent as typeof node | null) {
+      styles.push(StyleSheet.flatten(n.props.style as never) ?? {});
+    }
+    return styles;
+  };
+  const nearest = (node: Parameters<typeof chain>[0], key: string) => chain(node).find((style) => key in style);
+
+  it('keeps the avatar left and puts the tag below the name in a column at 200 %', async () => {
+    await renderAt(2);
+
+    const row = screen.getByLabelText(/Consentimiento/);
+    expect(rowStyle(row).flexDirection).toBe('row');
+    // The name and the tag share one column that takes the width left by the avatar.
+    const column = chain(name()).find((style) => style.flexDirection === 'column' && style.flex === 1);
+    expect(column).toMatchObject({ minWidth: 0 });
+    expect(chain(tag()).some((style) => style === column)).toBe(true);
+  });
+
+  it('keeps the row layout at 100 %, with a shrinkable name and a fixed tag', async () => {
+    await renderAt(1);
+
+    expect(chain(name()).some((style) => style.flexDirection === 'column')).toBe(false);
+    expect(nearest(name(), 'flexShrink')).toMatchObject({ flexShrink: 1, minWidth: 0 });
+    expect(chain(tag()).some((style) => style.flexShrink === 0)).toBe(true);
+  });
+
+  describe('with a time and a tag together', () => {
+    const renderBoth = async (fontScale: number) => {
+      setOsFontScale(1);
+      await render(
+        <ThemeProvider fontScale={fontScale}>
+          <SwimmerRow
+            {...base}
+            bestTime={undefined}
+            time={3391}
+            name="Un nombre de nadador especialmente largo"
+            tag={{ label: 'Consentimiento', variant: 'warn', icon: 'schedule' }}
+          />
+        </ThemeProvider>,
+      );
+    };
+    const time = () => screen.getByText('33,91', { includeHiddenElements: true });
+
+    it('stacks both below the name in one column at 200 %', async () => {
+      await renderBoth(2);
+
+      const column = chain(name()).find((style) => style.flexDirection === 'column' && style.flex === 1);
+      expect(column).toMatchObject({ minWidth: 0 });
+      expect(chain(time()).some((style) => style === column)).toBe(true);
+      expect(chain(tag()).some((style) => style === column)).toBe(true);
+    });
+
+    it('lets the trailing group wrap and bounds each part to its width at 200 %', async () => {
+      await renderBoth(2);
+
+      const group = chain(time()).find((style) => style.flexWrap === 'wrap');
+      expect(group).toMatchObject({ flexDirection: 'row' });
+      expect(chain(tag()).some((style) => style === group)).toBe(true);
+      for (const part of [time(), tag()]) {
+        expect(chain(part).some((style) => style.maxWidth === '100%' && style.flexShrink === 0)).toBe(true);
+      }
+    });
+
+    it('keeps both fixed and the name shrinkable at 100 %', async () => {
+      await renderBoth(1);
+
+      expect(chain(name()).some((style) => style.flexDirection === 'column')).toBe(false);
+      expect(nearest(name(), 'flexShrink')).toMatchObject({ flexShrink: 1, minWidth: 0 });
+      expect(chain(time()).some((style) => style.flexShrink === 0)).toBe(true);
+      expect(chain(tag()).some((style) => style.flexShrink === 0)).toBe(true);
+    });
+  });
+});
+
+describe('SwimmerRow status at large text', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('stacks the time and the status under the name, once, with the button outside the labelled element', async () => {
+    setOsFontScale(1);
+    const onRetry = jest.fn();
+    await render(
+      <ThemeProvider fontScale={2}>
+        <SwimmerRow
+          {...base}
+          bestTime={undefined}
+          time={3391}
+          timeLabel="Tiempo"
+          status={
+            <Pressable accessibilityRole="button" accessibilityLabel="Reintentar" onPress={onRetry}>
+              <Text>Estado</Text>
+            </Pressable>
+          }
+        />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getAllByText('Estado')).toHaveLength(1);
+    const row = screen.getByLabelText('Lucía R., Infantil B, Tiempo 33,91');
+    expect(within(row).queryByRole('button', { name: 'Reintentar' })).toBeNull();
+    // The labelled element holds the name, not the time; the time and status share the column below it.
+    expect(within(row).queryByText('33,91', { includeHiddenElements: true })).toBeNull();
+    const column = screen.getByText('Estado').parent!.parent!.parent!;
+    expect(within(column).getByText('33,91', { includeHiddenElements: true })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});

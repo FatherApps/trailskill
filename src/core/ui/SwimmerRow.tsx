@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../i18n';
-import { useTheme, type ColorToken } from '../theme';
+import { typography as baseTypography, useTheme, type ColorToken } from '../theme';
 import { formatTime, personalBestDifference, spokenDifference, type Hundredths } from '../time';
 import { Icon } from './Icon';
 import { Tag, type TagProps } from './Tag';
@@ -49,6 +49,9 @@ export const swimmerRowColors: {
   initials: 'on-color',
 };
 
+// From this text scale up the name and the trailing element no longer fit side by side (as in HistoryList).
+const largeTextScale = 1.5;
+
 // The row is one accessible element: its parts are hidden from screen readers and the label says them all.
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
@@ -74,6 +77,8 @@ export function SwimmerRow({
   const { fontScale } = useWindowDimensions();
   // 40 is the design-system avatar size at 100 % (not a token).
   const avatarSize = Math.max(40, Math.ceil(typography.label.lineHeight * fontScale) + 2 * space[2]);
+  // The gallery preview scale (theme) and the system scale both apply.
+  const large = (typography.caption.fontSize / baseTypography.caption.fontSize) * fontScale >= largeTextScale;
 
   // `time` wins over `bestTime`: the row never shows two times on the right.
   const showBest = time === undefined && bestTime !== undefined;
@@ -106,6 +111,11 @@ export function SwimmerRow({
     .filter(Boolean)
     .join(', ');
 
+  // The trailing element keeps its own width; at large scale it starts at the name's edge.
+  const trailingStyle = large
+    ? ({ alignItems: 'flex-start', flexShrink: 0, maxWidth: '100%' } as const)
+    : ({ alignItems: 'flex-end', flexShrink: 0 } as const);
+
   const rowStyle = {
     flexDirection: 'row',
     alignItems: 'center',
@@ -117,53 +127,50 @@ export function SwimmerRow({
     backgroundColor: colors[selected ? swimmerRowColors.selectedBackground : swimmerRowColors.background],
   } as const;
 
-  const lead = (
-    <>
-      <View
-        {...hidden}
-        style={{
-          width: avatarSize,
-          height: avatarSize,
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: radius.full,
-          backgroundColor: colors[color],
-        }}
-      >
-        <Text style={[typography.label, { color: colors[swimmerRowColors.initials] }]}>{initials}</Text>
-      </View>
-      <View {...hidden} style={{ flex: 1 }}>
-        <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
-        <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
-        {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
-      </View>
-    </>
+  const avatar = (
+    <View
+      {...hidden}
+      style={{
+        width: avatarSize,
+        height: avatarSize,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radius.full,
+        backgroundColor: colors[color],
+      }}
+    >
+      <Text style={[typography.label, { color: colors[swimmerRowColors.initials] }]}>{initials}</Text>
+    </View>
+  );
+
+  const nameBlock = (style: { flex?: number; flexShrink?: number; minWidth: number }) => (
+    <View {...hidden} style={style}>
+      <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
+      <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
+      {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
+    </View>
   );
 
   // With a status the end column is not hidden as a whole: only the time is, and the status stays its own element.
-  const endColumn = (timeBlock: ReactNode) =>
+  const timeColumn = (timeBlock: ReactNode) =>
     status ? (
-      <View style={{ alignItems: 'flex-end' }}>
-        <View {...hidden} style={{ alignItems: 'flex-end' }}>
+      <View style={trailingStyle}>
+        <View {...hidden} style={{ alignItems: trailingStyle.alignItems }}>
           {timeBlock}
         </View>
-        <View style={{ marginTop: space[1], alignItems: 'flex-end' }}>{status}</View>
+        <View style={{ marginTop: space[1], alignItems: trailingStyle.alignItems }}>{status}</View>
       </View>
     ) : (
-      <View {...hidden} style={{ alignItems: 'flex-end' }}>
+      <View {...hidden} style={trailingStyle}>
         {timeBlock}
       </View>
     );
 
-  const showTimeColumn = time !== undefined || showBest;
-
-  const end = (
+  const trailing = (
     <>
-      {time !== undefined && endColumn(<TimeValue value={time} size="time-sm" />)}
-      {/* time and best time are exclusive (showBest needs no time), so the status is drawn once in every case */}
-      {!showTimeColumn && status && <View style={{ alignItems: 'flex-end' }}>{status}</View>}
+      {time !== undefined && timeColumn(<TimeValue value={time} size="time-sm" />)}
       {showBest &&
-        endColumn(
+        timeColumn(
           <>
             <TimeValue value={bestTime} size="time-sm" />
             {bestTimeLabel ? (
@@ -171,49 +178,83 @@ export function SwimmerRow({
             ) : null}
           </>,
         )}
+      {/* time and best time are exclusive (showBest needs no time), so the status is drawn once in every case */}
+      {time === undefined && !showBest && status && <View style={trailingStyle}>{status}</View>}
       {tag && (
-        <View {...hidden}>
+        <View {...hidden} style={trailingStyle}>
           <Tag {...tag} />
         </View>
       )}
       {chevron && (
-        <View {...hidden}>
+        <View {...hidden} style={trailingStyle}>
           <Icon name="chevron_right" color={swimmerRowColors.detail} />
         </View>
       )}
     </>
   );
 
+  // Large text: the trailing element goes below the name, aligned with it. Wraps so a part that does not fit goes to
+  // the next line instead of running past the row.
+  const trailingGroupStyle = { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3] } as const;
+
   // A status may hold a button, and an accessible element hides its children from iOS screen readers. So with a
-  // status the single accessible element (and touch target) is only the avatar and text; the status sits beside it.
+  // status the single accessible element (and touch target) is only the avatar and text; the trailing column,
+  // status included, sits beside it (below it at large text).
   if (status) {
-    const group = { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space[3] } as const;
+    const group = { flexDirection: 'row', alignItems: 'center', gap: space[3] } as const;
+    const lead = (
+      <>
+        {avatar}
+        {nameBlock({ flex: 1, flexShrink: 1, minWidth: 0 })}
+      </>
+    );
     return (
-      <View style={rowStyle}>
+      <View style={large ? { ...rowStyle, flexDirection: 'column', alignItems: 'stretch', gap: space[2] } : rowStyle}>
         {onPress ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={label}
             accessibilityState={{ selected }}
             onPress={onPress}
-            style={group}
+            style={large ? group : { ...group, flex: 1 }}
           >
             {lead}
           </Pressable>
         ) : (
-          <View accessible accessibilityLabel={label} accessibilityState={{ selected }} style={group}>
+          <View
+            accessible
+            accessibilityLabel={label}
+            accessibilityState={{ selected }}
+            style={large ? group : { ...group, flex: 1 }}
+          >
             {lead}
           </View>
         )}
-        {end}
+        {large ? (
+          // Aligned with the name: avatar width plus the gap.
+          <View style={{ ...trailingGroupStyle, paddingLeft: avatarSize + space[3] }}>{trailing}</View>
+        ) : (
+          trailing
+        )}
       </View>
     );
   }
 
   const content = (
     <>
-      {lead}
-      {end}
+      {avatar}
+      {large ? (
+        // Large text: the trailing element goes below the name, aligned with it, so the name keeps the full width.
+        <View style={{ flex: 1, minWidth: 0, flexDirection: 'column', gap: space[2] }}>
+          {nameBlock({ minWidth: 0 })}
+          <View style={trailingGroupStyle}>{trailing}</View>
+        </View>
+      ) : (
+        <>
+          {nameBlock({ flex: 1, flexShrink: 1, minWidth: 0 })}
+          {trailing}
+        </>
+      )}
     </>
   );
 
