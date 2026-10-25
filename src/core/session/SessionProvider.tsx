@@ -7,6 +7,8 @@ type SignOutResult = 'signed_out' | 'blocked_pending';
 
 type SessionValue = {
   session: Session | null;
+  /** The local database could not connect to the sync service; records stay on the phone. */
+  syncConnectFailed: boolean;
   requestCode(email: string): Promise<void>;
   verifyCode(email: string, code: string): Promise<void>;
   signOut(options?: { force?: boolean }): Promise<SignOutResult>;
@@ -29,6 +31,8 @@ const SessionContext = createContext<SessionValue | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [restored, setRestored] = useState(false);
+  // Keyed on the user, so a failure never carries over to the next person.
+  const [syncFailedFor, setSyncFailedFor] = useState<string>();
 
   useEffect(() => {
     // INITIAL_SESSION delivers the stored session, so there is no separate restore call.
@@ -43,9 +47,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const userId = session?.user.id;
   useEffect(() => {
     if (!userId) return;
+    let current = true;
     // Expo inlines EXPO_PUBLIC_* only on direct `process.env.NAME` access.
-    db.connect(new SupabaseConnector(supabase, process.env.EXPO_PUBLIC_POWERSYNC_URL ?? ''));
+    db.connect(new SupabaseConnector(supabase, process.env.EXPO_PUBLIC_POWERSYNC_URL ?? '')).catch(() => {
+      // Ignore a result that arrives after the user changed.
+      if (current) setSyncFailedFor(userId);
+    });
+    return () => {
+      current = false;
+    };
   }, [userId]);
+  const syncConnectFailed = userId !== undefined && syncFailedFor === userId;
 
   const requestCode = useCallback(async (email: string) => {
     // Accounts are created by registration, never by asking for a code.
@@ -72,8 +84,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ session, requestCode, verifyCode, signOut }),
-    [session, requestCode, verifyCode, signOut],
+    () => ({ session, syncConnectFailed, requestCode, verifyCode, signOut }),
+    [session, syncConnectFailed, requestCode, verifyCode, signOut],
   );
 
   // Render nothing until the stored session is known, so a signed-in person never sees the sign-in screen flash.

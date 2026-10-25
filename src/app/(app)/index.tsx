@@ -1,10 +1,12 @@
 import { Text, View } from 'react-native';
 
 import { t } from '../../core/i18n';
+import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { SyncStatus } from '../../core/ui';
 
 export default function Home() {
+  const { syncConnectFailed } = useSession();
   const summary = useGlobalSyncSummary();
   const state = recordSyncState({
     pending: summary.pending > 0,
@@ -16,6 +18,7 @@ export default function Home() {
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
       <Text>{t('home.title')}</Text>
       <SyncStatus state={state} />
+      {syncConnectFailed && <Text accessibilityLiveRegion="polite">{t('sync.connect_failed')}</Text>}
     </View>
   );
 }

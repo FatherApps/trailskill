@@ -1,10 +1,11 @@
-import { act, renderHook } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { SupabaseConnector } from '../../sync';
 import { CodeMismatchError, SessionProvider, signOutDecision, useSession } from '../SessionProvider';
 
 const mockCalls: string[] = [];
 let mockUnsent: Promise<number>;
+let mockConnect: () => Promise<unknown>;
 const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
 const mockSignInWithOtp = jest.fn();
 const mockVerifyOtp = jest.fn();
@@ -13,7 +14,7 @@ jest.mock('../../sync', () => ({
   countUnsentRecords: () => mockUnsent,
   SupabaseConnector: jest.fn(),
   db: {
-    connect: jest.fn(async () => mockCalls.push('db.connect')),
+    connect: jest.fn(() => mockConnect()),
     disconnectAndClear: jest.fn(async () => mockCalls.push('db.disconnectAndClear')),
   },
   supabase: {
@@ -35,6 +36,7 @@ jest.mock('../../sync', () => ({
 beforeEach(() => {
   mockCalls.length = 0;
   mockUnsent = Promise.resolve(0);
+  mockConnect = async () => mockCalls.push('db.connect');
   mockSignInWithOtp.mockReset().mockResolvedValue({ error: null });
   mockVerifyOtp.mockReset().mockResolvedValue({ error: null });
 });
@@ -61,6 +63,19 @@ describe('useSession', () => {
     expect(session.current.session).toBe(mockSignedIn);
     expect(mockCalls).toEqual(['db.connect']);
     expect(SupabaseConnector).toHaveBeenCalledTimes(1);
+  });
+
+  it('flags a failed sync connection instead of leaving an unhandled rejection', async () => {
+    mockConnect = () => Promise.reject(new Error('unreachable'));
+    const session = await renderSession();
+
+    await waitFor(() => expect(session.current.syncConnectFailed).toBe(true));
+  });
+
+  it('does not flag the sync connection when it succeeds', async () => {
+    const session = await renderSession();
+
+    expect(session.current.syncConnectFailed).toBe(false);
   });
 
   it('requests a code without creating accounts', async () => {

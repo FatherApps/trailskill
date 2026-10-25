@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../core/i18n';
@@ -17,6 +17,9 @@ export default function SignIn() {
   const [sending, setSending] = useState(false);
   const [requestFailed, setRequestFailed] = useState(false);
   const [codeError, setCodeError] = useState<string>();
+  const [resending, setResending] = useState(false);
+  const [notice, setNotice] = useState<string>();
+  const attempt = useRef(0);
 
   async function sendCode() {
     setSending(true);
@@ -32,24 +35,31 @@ export default function SignIn() {
     }
   }
 
-  async function changeCode(text: string) {
+  function changeCode(text: string) {
     const digits = text.replace(/\D/g, '').slice(0, CODE_LENGTH);
+    const mine = ++attempt.current;
     setCode(digits);
     setCodeError(undefined);
+    setNotice(undefined);
     if (digits.length < CODE_LENGTH) return;
-    try {
-      await verifyCode(email.trim(), digits);
-    } catch (error) {
+    verifyCode(email.trim(), digits).catch((error) => {
+      // A newer edit supersedes this attempt: its late failure must not overwrite the field.
+      if (mine !== attempt.current) return;
       setCodeError(error instanceof CodeMismatchError ? t('auth.code_mismatch') : t('auth.verify_failed'));
-    }
+    });
   }
 
   async function resend() {
     setCodeError(undefined);
+    setNotice(undefined);
+    setResending(true);
     try {
       await requestCode(email.trim());
+      setNotice(t('auth.resend_sent'));
     } catch {
-      setCodeError(t('auth.verify_failed'));
+      setCodeError(t('auth.resend_failed'));
+    } finally {
+      setResending(false);
     }
   }
 
@@ -57,6 +67,7 @@ export default function SignIn() {
     setStep('email');
     setCode('');
     setCodeError(undefined);
+    setNotice(undefined);
   }
 
   return (
@@ -94,7 +105,12 @@ export default function SignIn() {
             autoComplete="one-time-code"
             textContentType="oneTimeCode"
           />
-          <Button variant="ghost" label={t('auth.resend')} onPress={resend} />
+          {notice && (
+            <Text accessibilityLiveRegion="polite" style={[typography.caption, { color: colors['ink-muted'] }]}>
+              {notice}
+            </Text>
+          )}
+          <Button variant="ghost" label={t('auth.resend')} onPress={resend} loading={resending} />
         </>
       )}
     </View>

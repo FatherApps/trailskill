@@ -13,7 +13,9 @@
     "code_label": "Código de 6 dígitos",
     "code_mismatch": "Ese código no coincide. Revisa el último mensaje o pide uno nuevo.",
     "verify_failed": "No pudimos revisar el código. Inténtalo de nuevo.",
-    "resend": "Pedir un código nuevo"
+    "resend": "Pedir un código nuevo",
+    "resend_sent": "Te enviamos un código nuevo.",
+    "resend_failed": "No pudimos enviar un código nuevo. Inténtalo de nuevo en un momento."
   },
   "sport": {
     "stroke": {
@@ -51,6 +53,7 @@
     "sending": "Enviando",
     "synced": "Enviado",
     "not_sent": "No enviado",
-    "retry": "Intentar de nuevo"
+    "retry": "Intentar de nuevo",
+    "connect_failed": "No pudimos conectar la sincronización. Tus registros siguen guardados en el teléfono."
   }
 }

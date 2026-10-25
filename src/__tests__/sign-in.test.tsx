@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import SignIn from '../app/(auth)/sign-in';
 import { CodeMismatchError } from '../core/session';
@@ -85,6 +85,55 @@ describe('sign-in screen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Pedir un código nuevo' }));
 
     expect(mockSession.requestCode).toHaveBeenCalledWith(email);
+  });
+
+  it('says a new code was sent', async () => {
+    await openCodeStep();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Pedir un código nuevo' }));
+
+    expect(await screen.findByText('Te enviamos un código nuevo.')).toBeOnTheScreen();
+  });
+
+  it('says a new code could not be sent, not that verification failed', async () => {
+    await openCodeStep();
+    mockSession.requestCode.mockRejectedValueOnce(new Error('offline'));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Pedir un código nuevo' }));
+
+    expect(
+      await screen.findByText('No pudimos enviar un código nuevo. Inténtalo de nuevo en un momento.'),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('No pudimos revisar el código. Inténtalo de nuevo.')).toBeNull();
+  });
+
+  it('ignores a late failure from a verification the person already replaced', async () => {
+    let rejectFirst: (error: Error) => void = () => {};
+    mockSession.verifyCode
+      .mockReset()
+      .mockImplementation((_email: string, code: string) =>
+        code === '111111' ? new Promise((_, reject) => (rejectFirst = reject)) : new Promise(() => {}),
+      );
+    await openCodeStep();
+    const field = screen.getByLabelText('Código de 6 dígitos');
+
+    await fireEvent.changeText(field, '111111');
+    await fireEvent.changeText(field, '11111');
+    await fireEvent.changeText(field, '111112');
+    await act(async () => rejectFirst(new CodeMismatchError()));
+
+    expect(screen.queryByText(/Ese código no coincide/)).toBeNull();
+  });
+
+  it('shows the failure of the latest verification', async () => {
+    let rejectLatest: (error: Error) => void = () => {};
+    mockSession.verifyCode.mockReset().mockImplementation(() => new Promise((_, reject) => (rejectLatest = reject)));
+    await openCodeStep();
+
+    await fireEvent.changeText(screen.getByLabelText('Código de 6 dígitos'), '111111');
+    await act(async () => rejectLatest(new CodeMismatchError()));
+
+    expect(await screen.findByText(/Ese código no coincide/)).toBeOnTheScreen();
   });
 
   it('goes back to the email step', async () => {
