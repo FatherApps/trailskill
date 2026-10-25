@@ -82,4 +82,12 @@ describe.each(factories)('%s history repository', (_name, create) => {
 
     expect(pb).toMatchObject({ id: 'old', hundredths: 3000 });
   });
+
+  it('lists every measurement of the athlete in every event, newest first, as own', async () => {
+    const listed = await (await create()).listByAthlete('athlete-1');
+
+    // The four events captured on 2026-01-01 tie, so they come by id.
+    expect(listed.map((m) => m.id)).toEqual(['missing', 'done', 'total', 'split', 'old', 'other-distance', 'other-pool', 'other-stroke']);
+    expect(listed.every((m) => m.origin === 'own')).toBe(true);
+  });
 });

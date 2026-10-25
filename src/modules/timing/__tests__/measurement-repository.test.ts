@@ -155,6 +155,99 @@ describe.each(factories)('%s measurement repository', (_name, create) => {
     });
   });
 
+  describe('listByAthlete', () => {
+    const one = (id: string, over: Partial<Measurement> = {}) =>
+      ({ ...arrival(id, 'S', 1, 'athlete-1'), ...over }) as Measurement;
+
+    it('lists every measurement of the athlete in every event and kind, and none of another athlete', async () => {
+      const repository = create();
+      await repository.add(one('race', { kind: 'race' }));
+      await repository.add(one('other-stroke', { stroke: 'BK' }));
+      await repository.add(one('other-pool', { pool: 'LCM' }));
+      await repository.add(one('done', { kind: 'completed', hundredths: null }));
+      await repository.add(one('other-athlete', { athleteId: 'athlete-2' }));
+      await repository.add(one('unassigned', { athleteId: null }));
+
+      const listed = await repository.listByAthlete('athlete-1');
+
+      expect(listed.map((m) => m.id).sort()).toEqual(['done', 'other-pool', 'other-stroke', 'race']);
+    });
+
+    it('orders newest first, by id when captured at the same time', async () => {
+      const repository = create();
+      await repository.add(one('old', { capturedAt: '2026-01-01T08:00:00Z' }));
+      await repository.add(one('b', { capturedAt: '2026-03-01T08:00:00Z' }));
+      await repository.add(one('a', { capturedAt: '2026-03-01T08:00:00Z' }));
+      await repository.add(one('mid', { capturedAt: '2026-02-01T08:00:00Z', stroke: 'BK' }));
+
+      const listed = await repository.listByAthlete('athlete-1');
+
+      expect(listed.map((m) => m.id)).toEqual(['a', 'b', 'mid', 'old']);
+    });
+
+    it('reads a missing time back as null and returns an empty list for an athlete without measurements', async () => {
+      const repository = create();
+      await repository.add(one('m1', { hundredths: null }));
+
+      expect((await repository.listByAthlete('athlete-1'))[0]?.hundredths).toBeNull();
+      await expect(repository.listByAthlete('nobody')).resolves.toEqual([]);
+    });
+  });
+
+  describe('countCapturedSince', () => {
+    const at = (id: string, athleteId: string | null, capturedAt: string) =>
+      ({ ...arrival(id, 'S', 1, athleteId), capturedAt }) as Measurement;
+
+    it('counts the measurements of the listed athletes captured at or after the moment', async () => {
+      const repository = create();
+      await repository.add(at('before', 'athlete-1', '2026-10-18T23:59:59Z'));
+      await repository.add(at('exact', 'athlete-1', '2026-10-19T00:00:00Z'));
+      await repository.add(at('later', 'athlete-2', '2026-10-22T10:00:00Z'));
+      await repository.add(at('stranger', 'athlete-3', '2026-10-22T10:00:00Z'));
+      await repository.add(at('unassigned', null, '2026-10-22T10:00:00Z'));
+
+      await expect(repository.countCapturedSince(['athlete-1', 'athlete-2'], '2026-10-19T00:00:00Z')).resolves.toBe(2);
+    });
+
+    it('counts every kind and event of the athletes', async () => {
+      const repository = create();
+      await repository.add({ ...at('a', 'athlete-1', '2026-10-22T10:00:00Z'), kind: 'completed', hundredths: null } as Measurement);
+      await repository.add({ ...at('b', 'athlete-1', '2026-10-22T10:00:00Z'), stroke: 'BK' } as Measurement);
+
+      await expect(repository.countCapturedSince(['athlete-1'], '2026-10-19T00:00:00Z')).resolves.toBe(2);
+    });
+
+    it('compares moments, not text: a space-separated timestamp is read like the T format', async () => {
+      const repository = create();
+      await repository.add(at('after', 'athlete-1', '2026-10-20 10:00:00.000Z'));
+      await repository.add(at('before', 'athlete-1', '2026-10-20 04:00:00.000Z'));
+
+      await expect(repository.countCapturedSince(['athlete-1'], '2026-10-20T05:00:00.000Z')).resolves.toBe(1);
+    });
+
+    it('returns 0 for an empty list of athletes', async () => {
+      const repository = create();
+      await repository.add(at('m', 'athlete-1', '2026-10-22T10:00:00Z'));
+
+      await expect(repository.countCapturedSince([], '2026-10-19T00:00:00Z')).resolves.toBe(0);
+    });
+
+    it('returns 0 when nothing was captured since the moment', async () => {
+      const repository = create();
+      await repository.add(at('m', 'athlete-1', '2026-10-18T10:00:00Z'));
+
+      await expect(repository.countCapturedSince(['athlete-1'], '2026-10-19T00:00:00Z')).resolves.toBe(0);
+    });
+
+    it('handles more athletes than the SQLite parameter limit', async () => {
+      const repository = create();
+      await repository.add(at('m', 'athlete-5', '2026-10-22T10:00:00Z'));
+      const ids = Array.from({ length: 40000 }, (_, i) => `athlete-${i}`);
+
+      await expect(repository.countCapturedSince(ids, '2026-10-19T00:00:00Z')).resolves.toBe(1);
+    });
+  });
+
   describe('edit', () => {
     const meta = { deviceId: 'device-b' };
 
