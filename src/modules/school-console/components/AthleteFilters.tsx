@@ -48,10 +48,8 @@ function SearchField({ query, onQueryChange, stacked }: Pick<AthleteFiltersProps
     <View
       testID="athlete-search"
       style={{
-        flexGrow: 1,
-        // Stacked: the field takes the whole row, so its placeholder is never cut.
-        flexBasis: stacked ? '100%' : 220,
-        ...(stacked && { width: '100%' }),
+        // Stacked: the field is the full-width block above the chips, so its placeholder is never cut.
+        ...(stacked ? { alignSelf: 'stretch' } : { flexGrow: 1, flexBasis: 220 }),
         flexDirection: 'row',
         alignItems: 'center',
         gap: space[2],
@@ -90,33 +88,45 @@ export function AthleteFilters({ query, onQueryChange, filters, onFilterPress }:
   const [width, setWidth] = useState<number | null>(null);
   const stacked = scale >= LARGE_TEXT_SCALE || (width !== null && width < MIN_INLINE_WIDTH);
 
+  const chips = filterIds.map((id) => {
+    const name = t(`schoolConsole.filters.${id}`);
+    const value = filters[id];
+    const active = value !== undefined;
+    return (
+      <Pressable
+        key={id}
+        accessibilityRole="button"
+        accessibilityLabel={active ? t('schoolConsole.filters.active_spoken', { filter: name, value }) : name}
+        accessibilityState={{ selected: active }}
+        onPress={() => onFilterPress(id)}
+        // The chip is 24 dp high; the touch area is the full 48.
+        style={{ minHeight: size['target-min'], justifyContent: 'center' }}
+      >
+        <View {...hidden}>
+          <Tag label={active ? value : name} variant={active ? 'info' : 'outline'} icon={active ? 'close' : undefined} />
+        </View>
+      </Pressable>
+    );
+  });
+  const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
+  const search = <SearchField query={query} onQueryChange={onQueryChange} stacked={stacked} />;
+
+  // Stacked: two blocks in a column, the search above and the wrapping chips below.
+  if (stacked) {
+    return (
+      <View testID="athlete-filters" onLayout={onLayout} style={{ flexDirection: 'column', alignSelf: 'stretch', gap: space[2] }}>
+        {search}
+        <View testID="athlete-chips" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
+          {chips}
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View
-      testID="athlete-filters"
-      onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
-      style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}
-    >
-      <SearchField query={query} onQueryChange={onQueryChange} stacked={stacked} />
-      {filterIds.map((id) => {
-        const name = t(`schoolConsole.filters.${id}`);
-        const value = filters[id];
-        const active = value !== undefined;
-        return (
-          <Pressable
-            key={id}
-            accessibilityRole="button"
-            accessibilityLabel={active ? t('schoolConsole.filters.active_spoken', { filter: name, value }) : name}
-            accessibilityState={{ selected: active }}
-            onPress={() => onFilterPress(id)}
-            // The chip is 24 dp high; the touch area is the full 48.
-            style={{ minHeight: size['target-min'], justifyContent: 'center' }}
-          >
-            <View {...hidden}>
-              <Tag label={active ? value : name} variant={active ? 'info' : 'outline'} icon={active ? 'close' : undefined} />
-            </View>
-          </Pressable>
-        );
-      })}
+    <View testID="athlete-filters" onLayout={onLayout} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
+      {search}
+      {chips}
     </View>
   );
 }

@@ -77,29 +77,41 @@ describe('AthleteFilters', () => {
       await measure(700);
 
       expect(search().flexBasis).toBe(220);
+      expect(StyleSheet.flatten(screen.getByTestId('athlete-filters').props.style)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
+      expect(screen.queryByTestId('athlete-chips')).toBeNull();
     });
 
-    it.each([559, 400])('takes the whole row at %s dp and the chips wrap below it', async (width) => {
+    const expectStacked = () => {
+      const root = screen.getByTestId('athlete-filters');
+      expect(StyleSheet.flatten(root.props.style)).toMatchObject({ flexDirection: 'column', alignSelf: 'stretch' });
+      // Two blocks: the search field first, the wrapping chips row second.
+      expect(root.children).toHaveLength(2);
+      expect((root.children[0] as unknown as { props: { testID: string } }).props.testID).toBe('athlete-search');
+      expect((root.children[1] as unknown as { props: { testID: string } }).props.testID).toBe('athlete-chips');
+      expect(search().alignSelf).toBe('stretch');
+      expect(StyleSheet.flatten(screen.getByTestId('athlete-chips').props.style)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
+      expect(screen.getAllByRole('button')).toHaveLength(3);
+    };
+
+    it.each([559, 400])('stacks the search above the wrapping chips at %s dp', async (width) => {
       await render(<AthleteFilters {...base} />);
       await measure(width);
 
-      expect(search().flexBasis).toBe('100%');
+      expectStacked();
     });
 
-    it('takes the whole row at 200 % text whatever the width', async () => {
+    it('stacks them at 200 % text whatever the width', async () => {
       await render(<ThemeProvider fontScale={2}><AthleteFilters {...base} /></ThemeProvider>);
       await measure(1200);
 
-      expect(search().flexBasis).toBe('100%');
-      expect(search().width).toBe('100%');
+      expectStacked();
     });
 
     it('reads the 200 % from the theme scale, not only from the system font scale', async () => {
       // The system font scale is 1 here; only the theme scales the typography.
       await render(<ThemeProvider fontScale={2}><AthleteFilters {...base} /></ThemeProvider>);
 
-      expect(search().flexBasis).toBe('100%');
-      expect(search().width).toBe('100%');
+      expectStacked();
     });
   });
 
