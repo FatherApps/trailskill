@@ -3,12 +3,12 @@
 -- both schools. Nothing of it is synced: no stream in powersync/sync-config.yaml.
 -- A result is "of A" when measurements.school_id = A (#291). A row reaches the
 -- caller only when:
---   * the caller is staff of a school B other than A, and that same membership
---     of B is the one A approved: B's school_admin, or a coach of B whom
---     app.coach_athlete_ids assigns to the athlete. app.coach_athlete_ids does
---     not filter by school (coach_athlete_assignments has no school), so a coach
---     of B assigned to the athlete through another school still counts as
---     assigned. An admin role in another school never counts;
+--   * the caller has a membership in a school B other than A for which the
+--     next condition holds, as B's school_admin, or as a coach of B with the
+--     athlete in app.coach_athlete_ids. app.coach_athlete_ids does not filter by
+--     school (coach assignments have no school yet, #300), so a coach of B
+--     assigned to the athlete through another school counts as assigned. A
+--     school_admin role in a school other than B never counts;
 --   * app.result_sharing_in_force(A, B, athlete) holds (#268): A's admin approved
 --     B and did not withdraw, the athlete is in both schools and its
 --     'share_results_with_school' authorization is in force now;
