@@ -4,12 +4,12 @@ import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { Icon, StateView, useFocusRing } from '../../../core/ui';
 import '../i18n';
-import type { AthleteFilterId } from './athleteTypes';
+import type { AthleteFilterId, MeasurementFilterId } from './athleteTypes';
 
 export type AthleteFilterOption = { id: string; label: string | null };
 
 export type AthleteFilterOptionsProps = {
-  id: AthleteFilterId;
+  id: AthleteFilterId | MeasurementFilterId;
   // `label: null` is an option whose name is not readable yet (the coaches, until their names are available).
   options: AthleteFilterOption[];
   selectedId?: string;
@@ -26,7 +26,7 @@ export const athleteFilterOptionsColors: { title: ColorToken; text: ColorToken; 
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
 // The label of the sheet that lists the options of a filter.
-export const filterSheetLabel = (id: AthleteFilterId) => t(`schoolConsole.filters.sheet.${id}`);
+export const filterSheetLabel = (id: AthleteFilterId | MeasurementFilterId) => t(`schoolConsole.filters.sheet.${id}`);
 
 export function OptionRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const { colors, space, radius, size, typography } = useTheme();

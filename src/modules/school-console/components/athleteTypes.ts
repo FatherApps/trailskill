@@ -53,3 +53,6 @@ export type AthleteDetailData = {
 };
 
 export type AthleteFilterId = 'category' | 'group' | 'coach';
+
+// The chips of the measurement log: the date range is one of a few presets.
+export type MeasurementFilterId = 'category' | 'event' | 'coach' | 'range';

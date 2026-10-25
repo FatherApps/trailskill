@@ -46,6 +46,8 @@ export interface MeasurementRepository {
   listByAthletesEvent(athleteIds: readonly string[], event: MeasurementEvent): Promise<Measurement[]>;
   /** Every measurement of the athlete, all events and kinds, newest first (by id on a tie). */
   listByAthlete(athleteId: string): Promise<Measurement[]>;
+  /** Every measurement stored for the school that has an athlete, newest first (by id on a tie). Reads the local database only. */
+  listBySchool(schoolId: string): Promise<Measurement[]>;
   /** How many measurements of the athletes were captured at or after `since` (ISO 8601). An empty list counts 0. */
   countCapturedSince(athleteIds: readonly string[], since: string): Promise<number>;
   /**

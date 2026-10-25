@@ -7,7 +7,6 @@ import { authorizationsFixture, longTextAuthorizationFixture, sharingRequestsFix
 import { coachesFixture, longTextCoachFixture } from './__fixtures__/coaches';
 import { longTextMeasurementFixture, measurementsFixture, measurementsUpdatedMinutesAgo } from './__fixtures__/measurements';
 import { longTextRecordFixture, recordCategoryFixture, recordsFixture, recordsUpdatedMinutesAgo } from './__fixtures__/records';
-import type { AthleteFiltersProps } from './components/AthleteFilters';
 import { AuthorizationList, SharingRequestList } from './components/AuthorizationList';
 import { CoachList } from './components/CoachList';
 import { MeasurementLog } from './components/MeasurementLog';
@@ -79,7 +78,7 @@ const recordsContent: RecordsContent = {
 // The query and the filters are the caller's: the preview holds them, so typing and tapping a chip change the screen.
 function MeasurementsPreview({ view, width }: { view: SectionView<MeasurementsContent>; width: number }) {
   const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState<AthleteFiltersProps['filters']>({});
+  const [filters, setFilters] = useState<MeasurementsContent['filters']>({});
   const shown: SectionView<MeasurementsContent> =
     view.kind === 'data' || view.kind === 'offline' ? { ...view, content: { ...view.content, query, filters } } : view;
   return (

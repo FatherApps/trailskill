@@ -12,10 +12,11 @@ import {
   createPowerSyncAuthorizationsRepository,
   createPowerSyncCategoryRecordsRepository,
   createPowerSyncConsoleAthletesRepository,
+  createPowerSyncMeasurementLogRepository,
   createPowerSyncCategoriesRepository,
   createPowerSyncSchoolStructureRepository,
   createPowerSyncStaffSchoolRepository,
-  MeasurementsScreen,
+  MeasurementsSection,
   RecordsSection,
   useAdminSchool,
   type ConsoleScreenProps,
@@ -26,16 +27,14 @@ const consoleAthletes = createPowerSyncConsoleAthletesRepository();
 const categories = createPowerSyncCategoriesRepository();
 const authorizations = createPowerSyncAuthorizationsRepository();
 const categoryRecords = createPowerSyncCategoryRecordsRepository();
+const measurementLog = createPowerSyncMeasurementLogRepository();
 const schoolStructure = createPowerSyncSchoolStructureRepository();
 
 const noop = () => {};
 
-// The sections whose data is not connected yet (tasks 5.3 and 5.5): each shows its empty state and its events do nothing.
+// The section whose data is not connected yet (task 5.3): it shows its empty state and its events do nothing.
 const sections: ConsoleScreenProps['sections'] = {
   coaches: (props) => <CoachesScreen {...props} view={{ kind: 'empty' }} onInvite={noop} onDeactivate={noop} />,
-  measurements: (props) => (
-    <MeasurementsScreen {...props} view={{ kind: 'empty' }} onQueryChange={noop} onFilterPress={noop} />
-  ),
 };
 
 export default function ConsoleRoute() {
@@ -60,6 +59,9 @@ export default function ConsoleRoute() {
         ),
         records: (props) => (
           <RecordsSection {...props} schoolId={schoolId} repository={categoryRecords} categories={categories} structure={schoolStructure} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+        ),
+        measurements: (props) => (
+          <MeasurementsSection {...props} schoolId={schoolId} repository={measurementLog} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         authorizations: (props) => (
           <AuthorizationsSection {...props} schoolId={schoolId} repository={authorizations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
