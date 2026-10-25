@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { processColor, StyleSheet } from 'react-native';
 
 import { colors, contrastRatio, type ThemeName } from '../../theme';
+import { iconPaths } from '../icons';
 import { Tag, tagColors, type TagVariant } from '../Tag';
 
 const themes: ThemeName[] = ['light', 'dark'];
@@ -14,6 +15,20 @@ describe('Tag', () => {
     const tag = screen.getByRole('text', { name: 'Fuente: externa' });
     expect(tag.props.accessibilityState).toEqual({});
     expect(tag.props.onPress).toBeUndefined();
+  });
+
+  it('draws its icon in the variant text color and keeps the label as its name', async () => {
+    await render(<Tag label="Fuente: externa" variant="info" icon="cloud_download" />);
+
+    const paths = screen.container.queryAll((node) => node.type === 'RNSVGPath');
+    expect(paths).toHaveLength(1);
+    expect(paths[0].props.d).toBe(iconPaths.cloud_download);
+    expect(paths[0].props.fill).toEqual({
+      type: 0,
+      payload: processColor(colors.light[tagColors.info.text]),
+    });
+    expect(screen.queryByRole('image')).toBeNull();
+    expect(screen.getByRole('text', { name: 'Fuente: externa' })).toBeOnTheScreen();
   });
 
   it.each(variants)('%s is a pill that grows with its text', async (variant) => {

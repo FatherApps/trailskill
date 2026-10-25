@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
 import { darken, useTheme, type ColorToken } from '../theme';
+import { Icon } from './Icon';
 
 export type ButtonVariant = 'primary' | 'dark' | 'secondary' | 'stop' | 'ghost';
 
@@ -102,8 +103,16 @@ export function Button({
         const textColor = pressed && ghost ? darken(colors[text], 0.08) : colors[text];
         return (
           <>
-            {loading ? <ActivityIndicator size="small" color={textColor} /> : icon}
+            {loading ? (
+              <ActivityIndicator size="small" color={textColor} />
+            ) : unavailable ? (
+              <Icon name="lock" size="icon-sm" color={text} />
+            ) : (
+              icon
+            )}
             <Text
+              // Android drops textDecorationLine when only the color of a mounted Text changes: remount it.
+              key={textColor}
               style={[
                 typography['body-strong'],
                 timing && { fontSize: 18 },
