@@ -51,6 +51,6 @@ export const longTextAuthorizationFixture: AthleteAuthorizations = {
 };
 
 export const sharingRequestsFixture: SharingRequest[] = [
-  { id: 's1', school: 'Escuela Tiburones', requestedOn: '2026-10-22' },
-  { id: 's2', school: 'Club Náutico Olas de la Costa Atlántica', requestedOn: '2026-10-24' },
+  { id: 's1', school: 'Escuela Tiburones', requestedOn: '2026-10-22', status: 'pending' },
+  { id: 's2', school: 'Club Náutico Olas de la Costa Atlántica', requestedOn: '2026-10-24', status: 'approved' },
 ];

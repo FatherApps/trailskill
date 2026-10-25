@@ -18,7 +18,7 @@ const content: AuthorizationsContent = {
 const hidden = { includeHiddenElements: true };
 
 const show = async (view: AuthorizationsView, extra: Partial<AuthorizationsScreenProps> = {}) => {
-  const actions = { onNavigate: jest.fn(), onResend: jest.fn(), onApproveSharing: jest.fn() };
+  const actions = { onNavigate: jest.fn(), onResend: jest.fn(), onApproveSharing: jest.fn(), onWithdrawSharing: jest.fn() };
   await render(<AuthorizationsScreen width={1280} schoolName={schoolNameFixture} view={view} {...actions} {...extra} />);
   return actions;
 };
@@ -93,7 +93,7 @@ describe('AuthorizationsScreen', () => {
       expect(screen.getByText('Escuela Tiburones')).toBeOnTheScreen();
       expect(screen.getByText('Pidió ver los resultados de tu escuela · 22 oct 2026')).toBeOnTheScreen();
 
-      await fireEvent.press(screen.getAllByRole('button', { name: 'Aprobar' })[0]);
+      await fireEvent.press(screen.getByRole('button', { name: 'Aprobar' }));
       expect(screen.getByText('¿Aprobar que Escuela Tiburones vea los resultados de tu escuela?')).toBeOnTheScreen();
       expect(onApproveSharing).not.toHaveBeenCalled();
 
@@ -102,10 +102,33 @@ describe('AuthorizationsScreen', () => {
       expect(onApproveSharing).toHaveBeenCalledWith('s1');
     });
 
+    it('offers Retirar on an approved request, not Aprobar, and withdraws only after the ConfirmSheet is confirmed', async () => {
+      const { onWithdrawSharing, onApproveSharing } = await show({ kind: 'data', content });
+
+      expect(screen.getAllByRole('button', { name: 'Aprobar' })).toHaveLength(1);
+      await fireEvent.press(screen.getByRole('button', { name: 'Retirar' }));
+      expect(screen.getByText('¿Retirar el acceso de Club Náutico Olas de la Costa Atlántica?')).toBeOnTheScreen();
+      expect(onWithdrawSharing).not.toHaveBeenCalled();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Retirar acceso' }));
+      expect(onWithdrawSharing).toHaveBeenCalledTimes(1);
+      expect(onWithdrawSharing).toHaveBeenCalledWith('s2');
+      expect(onApproveSharing).not.toHaveBeenCalled();
+    });
+
+    it('does not withdraw when the ConfirmSheet is cancelled', async () => {
+      const { onWithdrawSharing } = await show({ kind: 'data', content });
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Retirar' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+      expect(onWithdrawSharing).not.toHaveBeenCalled();
+    });
+
     it('does not approve when the ConfirmSheet is cancelled', async () => {
       const { onApproveSharing } = await show({ kind: 'data', content });
 
-      await fireEvent.press(screen.getAllByRole('button', { name: 'Aprobar' })[1]);
+      await fireEvent.press(screen.getByRole('button', { name: 'Aprobar' }));
       await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
 
       expect(onApproveSharing).not.toHaveBeenCalled();
@@ -136,11 +159,11 @@ describe('AuthorizationsScreen', () => {
       expect(screen.queryByRole('button', { name: 'Reenviar solicitud' })).toBeNull();
     });
 
-    it('shows the requests title with a note, and no approval, when approving is not available yet', async () => {
+    it('shows the requests title with the online-only note, and no actions, when the requests are not available', async () => {
       await show({ kind: 'data', content: { ...content, sharingRequests: null } });
 
       expect(screen.getByText('Solicitudes de otras escuelas')).toBeOnTheScreen();
-      expect(screen.getByText('Aprobar que otra escuela vea tus resultados estará disponible más adelante.')).toBeOnTheScreen();
+      expect(screen.getByText('Las solicitudes de otras escuelas se ven solo con conexión.')).toBeOnTheScreen();
       expect(screen.queryByRole('button', { name: 'Aprobar' })).toBeNull();
     });
 
@@ -180,7 +203,8 @@ describe('AuthorizationsScreen', () => {
       expect(screen.getByTestId('console-layout-compact')).toBeOnTheScreen();
       expect(screen.getByTestId('console-nav-top', hidden)).toBeOnTheScreen();
       expect(screen.getAllByRole('button', { name: 'Reenviar solicitud' })).toHaveLength(4);
-      expect(screen.getAllByRole('button', { name: 'Aprobar' })).toHaveLength(2);
+      expect(screen.getAllByRole('button', { name: 'Aprobar' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Retirar' })).toHaveLength(1);
     });
   });
 

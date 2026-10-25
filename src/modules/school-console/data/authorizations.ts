@@ -6,7 +6,15 @@ import {
   type CreatedInvitation,
   type InvitationRepository,
 } from '../../accounts';
-import { authorizationPurposes, type AthleteAuthorizations, type AuthorizationPurpose, type AuthorizationStatus } from '../components/AuthorizationList';
+import { supabase } from '../../../core/sync';
+import {
+  authorizationPurposes,
+  type AthleteAuthorizations,
+  type AuthorizationPurpose,
+  type AuthorizationStatus,
+  type SharingRequest,
+} from '../components/AuthorizationList';
+import { localDate } from '../components/formatDate';
 import { createPowerSyncConsoleAthletesRepository, type ConsoleAthletesRepository } from './consoleAthletes';
 
 // One athlete of the school with the status of each purpose. No guardian: school admins cannot read guardians yet (issue 220).
@@ -20,12 +28,24 @@ export interface AuthorizationsRepository {
   listAthletes(schoolId: string): Promise<ConsoleAuthorizationRow[]>;
   /** Creates a new invitation for the group, for the guardian to answer again. Touches no authorization evidence. Online. */
   resend(schoolId: string, groupId: string): Promise<CreatedInvitation>;
+  /** Requests of other schools to see this school's results, oldest first. Online only: never read from or written to the local database. Rejects on any error. */
+  listSharingRequests(schoolId: string): Promise<SharingRequest[]>;
+  /** Approves a pending request. Online; the server checks that the caller administers the school. */
+  approveSharing(id: string): Promise<void>;
+  /** Withdraws a pending or approved request. Online; the server keeps the evidence. */
+  withdrawSharing(id: string): Promise<void>;
 }
+
+// The part of the Supabase client used here; tests pass a fake.
+type RpcClient = { rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: Error | null }> };
+
+type SharingRow = { id: string; target_school_name: string; requested_at: string; approved_at: string | null };
 
 type Dependencies = {
   athletes: Pick<ConsoleAthletesRepository, 'listAthletes'>;
   statuses: AuthorizationStatusRepository;
   invitations: InvitationRepository;
+  sharing: RpcClient;
 };
 
 const accountsPurpose: Record<AuthorizationPurpose, AccountsPurpose> = {
@@ -34,7 +54,7 @@ const accountsPurpose: Record<AuthorizationPurpose, AccountsPurpose> = {
   share: 'share_results_with_school',
 };
 
-export function createAuthorizationsRepository({ athletes, statuses, invitations }: Dependencies): AuthorizationsRepository {
+export function createAuthorizationsRepository({ athletes, statuses, invitations, sharing }: Dependencies): AuthorizationsRepository {
   return {
     async listAthletes(schoolId) {
       const listed = await athletes.listAthletes(schoolId);
@@ -57,6 +77,24 @@ export function createAuthorizationsRepository({ athletes, statuses, invitations
     resend(schoolId, groupId) {
       return invitations.create({ schoolId, groupId });
     },
+    async listSharingRequests(schoolId) {
+      const { data, error } = await sharing.rpc('result_sharing_requests', { school: schoolId });
+      if (error) throw error;
+      return (data as SharingRow[]).map((row) => ({
+        id: row.id,
+        school: row.target_school_name,
+        requestedOn: localDate(new Date(row.requested_at)),
+        status: row.approved_at === null ? 'pending' : 'approved',
+      }));
+    },
+    async approveSharing(id) {
+      const { error } = await sharing.rpc('approve_result_sharing', { sharing: id });
+      if (error) throw error;
+    },
+    async withdrawSharing(id) {
+      const { error } = await sharing.rpc('withdraw_result_sharing', { sharing: id });
+      if (error) throw error;
+    },
   };
 }
 
@@ -65,5 +103,6 @@ export function createPowerSyncAuthorizationsRepository(): AuthorizationsReposit
     athletes: createPowerSyncConsoleAthletesRepository(),
     statuses: createPowerSyncAuthorizationStatusRepository(),
     invitations: createSupabaseInvitationRepository(),
+    sharing: supabase,
   });
 }

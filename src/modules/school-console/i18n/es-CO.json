@@ -225,12 +225,19 @@
       "detail_dated": "Pidió ver los resultados de tu escuela · {{date}}",
       "approve": "Aprobar",
       "approve_hint": "Aprobar la solicitud de {{school}}",
-      "later": "Aprobar que otra escuela vea tus resultados estará disponible más adelante."
+      "withdraw": "Retirar",
+      "withdraw_hint": "Retirar el acceso de {{school}} a los resultados de tu escuela",
+      "offline": "Las solicitudes de otras escuelas se ven solo con conexión."
     },
     "approve_confirm": {
       "title": "¿Aprobar que {{school}} vea los resultados de tu escuela?",
       "message": "{{school}} podrá ver los resultados de tu escuela, solo con conexión.",
       "confirm": "Aprobar acceso"
+    },
+    "withdraw_confirm": {
+      "title": "¿Retirar el acceso de {{school}}?",
+      "message": "{{school}} dejará de ver los resultados de tu escuela. La aprobación queda registrada.",
+      "confirm": "Retirar acceso"
     },
     "empty": {
       "title": "Aún no hay autorizaciones",
@@ -241,6 +248,7 @@
     },
     "offline_empty": "No hay autorizaciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.",
     "resend_error": "No pudimos crear la invitación. Revisa la conexión e inténtalo de nuevo.",
+    "sharing_error": "No pudimos actualizar la solicitud. Revisa la conexión e inténtalo de nuevo.",
     "share_message": "{{school}} te invita a TrailSkill para responder las autorizaciones de tu deportista. Código de invitación: {{token}}. Vence el {{date}}."
   },
   "date": {
