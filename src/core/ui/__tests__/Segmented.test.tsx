@@ -159,7 +159,7 @@ describe('Segmented', () => {
       }
     });
 
-    // The Jest ScrollView mock has no layout engine: the test feeds the option layouts and watches `scrollTo`.
+    // The Jest ScrollView mock has no layout engine: the test feeds the layouts and watches `scrollTo`.
     describe('keeps the selected option in view', () => {
       const layouts = {
         a: { x: 0, width: 300 },
@@ -175,24 +175,30 @@ describe('Segmented', () => {
       });
       afterEach(() => scrollTo.mockRestore());
 
-      const renderWith = (value: string) => (
+      const renderWith = (value: string, set = longOptions) => (
         <ThemeProvider fontScale={2}>
-          <Segmented accessibilityLabel="Estilo" options={longOptions} value={value} onChange={jest.fn()} />
+          <Segmented accessibilityLabel="Estilo" options={set} value={value} onChange={jest.fn()} />
         </ThemeProvider>
       );
 
-      async function layOut() {
-        for (const option of longOptions) {
+      async function measureScroller(viewport: number, content: number) {
+        await fireEvent(scrollerOf(), 'layout', layoutEvent({ x: 0, width: viewport }));
+        await fireEvent(scrollerOf(), 'contentSizeChange', content, 48);
+      }
+
+      async function layOut(set = longOptions, positions: Record<string, { x: number; width: number }> = layouts) {
+        for (const option of set) {
           await fireEvent(
             screen.getByRole('radio', { name: option.label }),
             'layout',
-            layoutEvent(layouts[option.value as 'a']),
+            layoutEvent(positions[option.value]),
           );
         }
       }
 
       it('scrolls to the option that is selected when it is laid out', async () => {
         await render(renderWith('c'));
+        await measureScroller(300, 820);
         await layOut();
 
         expect(scrollTo).toHaveBeenLastCalledWith({ x: 480, animated: false });
@@ -200,6 +206,7 @@ describe('Segmented', () => {
 
       it('scrolls to the newly selected option when the value changes', async () => {
         const view = await render(renderWith('a'));
+        await measureScroller(300, 820);
         await layOut();
         scrollTo.mockClear();
 
@@ -208,6 +215,44 @@ describe('Segmented', () => {
 
         await view.rerender(renderWith('b'));
         expect(scrollTo).toHaveBeenLastCalledWith({ x: 300, animated: true });
+      });
+
+      it('does not scroll when every option fits in the track', async () => {
+        const view = await render(renderWith('a'));
+        await measureScroller(300, 200);
+        await layOut();
+        await view.rerender(renderWith('c'));
+
+        expect(scrollTo).not.toHaveBeenCalled();
+      });
+
+      it('clamps the target to the scrollable range', async () => {
+        const view = await render(renderWith('a'));
+        await measureScroller(200, 500);
+        await layOut(longOptions, { ...layouts, c: { x: 400, width: 120 } });
+        scrollTo.mockClear();
+
+        await view.rerender(renderWith('c'));
+
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 300, animated: true });
+      });
+
+      it('uses the newly measured position after the options are replaced', async () => {
+        const view = await render(renderWith('a'));
+        await measureScroller(200, 800);
+        await layOut();
+
+        const replaced = [
+          { value: 'x', label: 'Combinado' },
+          { value: 'c', label: '100 m combinado individual' },
+        ];
+        await view.rerender(renderWith('c', replaced));
+        // The old x of `c` (480) is stale and must not be used.
+        expect(scrollTo).not.toHaveBeenCalledWith({ x: 480, animated: true });
+
+        scrollTo.mockClear();
+        await layOut(replaced, { x: { x: 0, width: 200 }, c: { x: 250, width: 340 } });
+        expect(scrollTo).toHaveBeenLastCalledWith({ x: 250, animated: false });
       });
     });
   });

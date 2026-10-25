@@ -28,12 +28,19 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
   const { colors, space, radius, size, typography } = useTheme();
   const scroller = useRef<ScrollViewInstance>(null);
   const layouts = useRef(new Map<T, { x: number }>());
+  const viewport = useRef(0);
+  const content = useRef(0);
+  const optionKey = options.map((option) => option.value).join('|');
 
   // Options keep the width of their label, so a long set scrolls: bring the selected one into view.
+  // Nothing to do when everything fits, and the target never goes past the end of the content.
   const reveal = useCallback((target: T, animated: boolean) => {
     const layout = layouts.current.get(target);
-    if (layout) scroller.current?.scrollTo({ x: layout.x, animated });
+    const max = content.current - viewport.current;
+    if (layout && max > 0) scroller.current?.scrollTo({ x: Math.max(0, Math.min(layout.x, max)), animated });
   }, []);
+  // Declared before the reveal effect so a changed option set never scrolls to a stale position.
+  useEffect(() => layouts.current.clear(), [optionKey]);
   useEffect(() => reveal(value, true), [reveal, value]);
 
   return (
@@ -54,6 +61,14 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
+        onLayout={({ nativeEvent: { layout } }) => {
+          viewport.current = layout.width;
+          reveal(value, false);
+        }}
+        onContentSizeChange={(width) => {
+          content.current = width;
+          reveal(value, false);
+        }}
       >
         {options.map((option) => {
           const selected = option.value === value;
