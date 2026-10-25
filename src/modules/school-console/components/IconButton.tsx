@@ -2,7 +2,7 @@ import type { ComponentRef, Ref } from 'react';
 import { Pressable } from 'react-native';
 
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { Icon, type IconName } from '../../../core/ui';
+import { Icon, type IconName, useFocusRing } from '../../../core/ui';
 
 export type IconButtonProps = {
   icon: IconName;
@@ -20,6 +20,7 @@ export const iconButtonColors: { background: ColorToken; icon: ColorToken } = {
 // A round icon-only button (close, back) with the 48 dp touch target.
 export function IconButton({ icon, label, onPress, ref }: IconButtonProps) {
   const { colors, radius, size } = useTheme();
+  const { focusProps, ring } = useFocusRing();
 
   return (
     <Pressable
@@ -27,14 +28,18 @@ export function IconButton({ icon, label, onPress, ref }: IconButtonProps) {
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={{
-        width: size['target-min'],
-        height: size['target-min'],
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radius.full,
-        backgroundColor: colors[iconButtonColors.background],
-      }}
+      {...focusProps}
+      style={[
+        {
+          width: size['target-min'],
+          height: size['target-min'],
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: radius.full,
+          backgroundColor: colors[iconButtonColors.background],
+        },
+        ring,
+      ]}
     >
       <Icon name={icon} color={iconButtonColors.icon} />
     </Pressable>
