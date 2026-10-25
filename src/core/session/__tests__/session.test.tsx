@@ -321,14 +321,22 @@ describe('local data on a shared phone', () => {
     expect(mockCalls).toEqual(['db.connect']);
   });
 
-  it.each([
-    ['another person', 'coach-0'],
-    ['an unknown person', null],
-  ])('clears the data of %s with nothing unsent before connecting', async (_who, owner) => {
-    mockOwner = owner;
+  it('clears the data of another person with nothing unsent before connecting', async () => {
+    mockOwner = 'coach-0';
     const session = await renderSession();
 
     expect(session.current.session).toBe(mockSignedIn);
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear', 'owner=coach-1', 'db.connect']);
+  });
+
+  it('clears the data of an unknown owner with nothing unsent before connecting a new sign-in', async () => {
+    mockOwner = null;
+    mockInitialSession = null;
+    await renderProbe();
+
+    await act(async () => mockAuthCallback('SIGNED_IN', mockSignedIn));
+
+    expect(await screen.findByText('signed-in')).toBeOnTheScreen();
     expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear', 'owner=coach-1', 'db.connect']);
   });
 
@@ -384,5 +392,27 @@ describe('local data on a shared phone', () => {
 
     expect(await screen.findByText('signed-in')).toBeOnTheScreen();
     expect(screen.queryByRole('header', { name: '¿Descartar los registros de la persona anterior?' })).toBeNull();
+  });
+
+  it('adopts a session restored at launch as the owner of local data stored before owners were recorded', async () => {
+    mockOwner = null;
+    mockUnsent = Promise.resolve(3);
+    const session = await renderSession();
+
+    expect(session.current.session).toBe(mockSignedIn);
+    expect(mockCalls).toEqual(['owner=coach-1', 'db.connect']);
+  });
+
+  it('warns a new sign-in about unsent records of an unknown owner', async () => {
+    mockOwner = null;
+    mockUnsent = Promise.resolve(3);
+    mockInitialSession = null;
+    await renderProbe();
+
+    await act(async () => mockAuthCallback('SIGNED_IN', mockSignedIn));
+
+    expect(await screen.findByRole('header', { name: '¿Descartar los registros de la persona anterior?' })).toBeOnTheScreen();
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(mockCalls).toEqual([]);
   });
 });

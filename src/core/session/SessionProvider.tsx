@@ -1,6 +1,6 @@
 import type { Session } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { t } from '../i18n';
 import { countUnsentRecords, db, supabase, supabaseConfigError, SupabaseConnector } from '../sync';
@@ -45,6 +45,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // The user whose local data may be shown, and the user blocked by another person's unsent records.
   const [readyFor, setReadyFor] = useState<string>();
   const [blockedFor, setBlockedFor] = useState<string>();
+  // The user of the session stored before launch: before owners were recorded, the local data was always theirs.
+  const restoredUserId = useRef<string>(undefined);
   // Bumped to run the local data check again after discarding.
   const [check, setCheck] = useState(0);
   // One connector, so cancelWaits() reaches the upload wait in progress.
@@ -55,7 +57,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // INITIAL_SESSION delivers the stored session, so there is no separate restore call.
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      if (event === 'INITIAL_SESSION') restoredUserId.current = next?.user.id;
       setSession(next);
       setRestored(true);
     });
@@ -69,8 +72,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let current = true;
     (async () => {
       // PowerSync never connects for a user other than the owner of the local data: another owner's data is cleared first.
-      // An unknown owner (first run, or data from before the owner was stored) counts as another person.
-      if ((await SecureStore.getItemAsync(LOCAL_OWNER_KEY)) !== userId) {
+      const owner = await SecureStore.getItemAsync(LOCAL_OWNER_KEY);
+      if (owner === null && userId === restoredUserId.current) {
+        // Data stored before owners were recorded belongs to the session that was already signed in.
+        await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
+      } else if (owner !== userId) {
+        // Any other unknown owner (first run, or a new sign-in over old data) counts as another person.
         if ((await countUnsentRecords()) > 0) {
           if (current) setBlockedFor(userId);
           return;
@@ -94,7 +101,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setBlockedFor(undefined);
       // The session ended or changed without signing out: stop syncing, keep the data for its owner.
       connector.cancelWaits();
-      db.disconnect();
+      db.disconnect().catch(() => {});
     };
   }, [userId, check, connector]);
   const syncConnectFailed = userId !== undefined && syncFailedFor === userId;
