@@ -88,12 +88,11 @@ describe('SignInScreen states', () => {
     for (const name of [
       'Continuar con Google · Necesitas señal',
       'Continuar con Microsoft · Necesitas señal',
-      'Verificar y continuar',
-      'Pedir un código nuevo',
+      'Verificar y continuar · Necesitas señal',
+      'Pedir un código nuevo · Necesitas señal',
     ]) {
       const button = screen.getByRole('button', { name });
       expect(button).toBeDisabled();
-      if (!name.startsWith('Continuar')) expect(button.props.accessibilityHint).toBe('Necesitas señal');
     }
   });
 });
