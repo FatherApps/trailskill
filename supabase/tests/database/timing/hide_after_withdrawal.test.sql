@@ -273,7 +273,7 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select lives_ok(
-  $$ update public.measurements set athlete_id = '58000000-0000-4000-8000-0000000000e1', hidden = false
+  $$ update public.measurements set athlete_id = '58000000-0000-4000-8000-0000000000e1', base_version = 1, hidden = false
      where id = '58000000-0000-4000-8000-0000000000d9' $$,
   'coach C completes an unassigned arrival and claims hidden = false'
 );
@@ -299,8 +299,8 @@ select is(
   true, 'but the measurement stays hidden'
 );
 select throws_ok(
-  $$ update public.measurements set hundredths = 1 where id = '58000000-0000-4000-8000-0000000000d2' $$,
-  '42501', 'only athlete_id can change on a measurement',
+  $$ update public.measurements set stroke = 'BK' where id = '58000000-0000-4000-8000-0000000000d2' $$,
+  '42501', 'only athlete_id and hundredths can change on a measurement',
   'no other column can change'
 );
 select lives_ok(
