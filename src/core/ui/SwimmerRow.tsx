@@ -155,9 +155,13 @@ export function SwimmerRow({
       </View>
     );
 
+  const showTimeColumn = time !== undefined || showBest;
+
   const end = (
     <>
       {time !== undefined && endColumn(<TimeValue value={time} size="time-sm" />)}
+      {/* time and best time are exclusive (showBest needs no time), so the status is drawn once in every case */}
+      {!showTimeColumn && status && <View style={{ alignItems: 'flex-end' }}>{status}</View>}
       {showBest &&
         endColumn(
           <>

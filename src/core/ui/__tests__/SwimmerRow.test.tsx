@@ -331,6 +331,47 @@ describe('SwimmerRow status slot', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it('renders the status once with a time', async () => {
+    await render(<SwimmerRow {...timed} time={3391} status={<Text>Estado</Text>} />);
+
+    expect(screen.getAllByText('Estado')).toHaveLength(1);
+  });
+
+  it('renders the status once, outside the labelled element, without a time or best time', async () => {
+    await render(<SwimmerRow {...timed} status={<Text>Estado</Text>} />);
+
+    expect(screen.getAllByText('Estado')).toHaveLength(1);
+    const row = screen.getByLabelText('Lucía R., Infantil B');
+    expect(within(row).queryByText('Estado')).toBeNull();
+  });
+
+  it('fires onPress on the labelled row while the status button stays outside it', async () => {
+    const onPress = jest.fn();
+    const onRetry = jest.fn();
+    await render(
+      <SwimmerRow
+        {...timed}
+        time={3391}
+        timeLabel="Tiempo"
+        onPress={onPress}
+        status={
+          <Pressable accessibilityRole="button" accessibilityLabel="Reintentar" onPress={onRetry}>
+            <Text>Reintentar</Text>
+          </Pressable>
+        }
+      />,
+    );
+
+    const row = screen.getByRole('button', { name: 'Lucía R., Infantil B, Tiempo 33,91' });
+    expect(within(row).queryByRole('button', { name: 'Reintentar' })).toBeNull();
+    await fireEvent.press(row);
+    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
   it('is exactly as before without a status', async () => {
     await render(<SwimmerRow {...timed} time={3391} timeLabel="Tiempo" />);
 
