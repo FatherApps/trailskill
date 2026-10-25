@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../i18n';
@@ -26,6 +27,8 @@ export type SwimmerRowProps = {
   // Difference against this personal best under the name (only with a `time`); `newPersonalBest` adds the MP tag.
   personalBest?: Hundredths | null;
   newPersonalBest?: boolean;
+  // Shown under the time (or the personal best) in the end column, for example a sync pill. Not part of the row label.
+  status?: ReactNode;
   tag?: TagProps;
   chevron?: boolean;
   selected?: boolean;
@@ -60,6 +63,7 @@ export function SwimmerRow({
   timeLabel,
   personalBest,
   newPersonalBest = false,
+  status,
   tag,
   chevron = false,
   selected = false,
@@ -113,7 +117,7 @@ export function SwimmerRow({
     backgroundColor: colors[selected ? swimmerRowColors.selectedBackground : swimmerRowColors.background],
   } as const;
 
-  const content = (
+  const lead = (
     <>
       <View
         {...hidden}
@@ -133,19 +137,36 @@ export function SwimmerRow({
         <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
         {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
       </View>
-      {time !== undefined && (
+    </>
+  );
+
+  // With a status the end column is not hidden as a whole: only the time is, and the status stays its own element.
+  const endColumn = (timeBlock: ReactNode) =>
+    status ? (
+      <View style={{ alignItems: 'flex-end' }}>
         <View {...hidden} style={{ alignItems: 'flex-end' }}>
-          <TimeValue value={time} size="time-sm" />
+          {timeBlock}
         </View>
-      )}
-      {showBest && (
-        <View {...hidden} style={{ alignItems: 'flex-end' }}>
-          <TimeValue value={bestTime} size="time-sm" />
-          {bestTimeLabel ? (
-            <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{bestTimeLabel}</Text>
-          ) : null}
-        </View>
-      )}
+        <View style={{ marginTop: space[1], alignItems: 'flex-end' }}>{status}</View>
+      </View>
+    ) : (
+      <View {...hidden} style={{ alignItems: 'flex-end' }}>
+        {timeBlock}
+      </View>
+    );
+
+  const end = (
+    <>
+      {time !== undefined && endColumn(<TimeValue value={time} size="time-sm" />)}
+      {showBest &&
+        endColumn(
+          <>
+            <TimeValue value={bestTime} size="time-sm" />
+            {bestTimeLabel ? (
+              <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{bestTimeLabel}</Text>
+            ) : null}
+          </>,
+        )}
       {tag && (
         <View {...hidden}>
           <Tag {...tag} />
@@ -156,6 +177,39 @@ export function SwimmerRow({
           <Icon name="chevron_right" color={swimmerRowColors.detail} />
         </View>
       )}
+    </>
+  );
+
+  // A status may hold a button, and an accessible element hides its children from iOS screen readers. So with a
+  // status the single accessible element (and touch target) is only the avatar and text; the status sits beside it.
+  if (status) {
+    const group = { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space[3] } as const;
+    return (
+      <View style={rowStyle}>
+        {onPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            accessibilityState={{ selected }}
+            onPress={onPress}
+            style={group}
+          >
+            {lead}
+          </Pressable>
+        ) : (
+          <View accessible accessibilityLabel={label} accessibilityState={{ selected }} style={group}>
+            {lead}
+          </View>
+        )}
+        {end}
+      </View>
+    );
+  }
+
+  const content = (
+    <>
+      {lead}
+      {end}
     </>
   );
 

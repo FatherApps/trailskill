@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Dimensions, processColor, StyleSheet } from 'react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { Dimensions, Pressable, processColor, StyleSheet, Text } from 'react-native';
 
 import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../theme';
 import { iconPaths } from '../icons';
@@ -283,5 +283,58 @@ describe('SwimmerRow', () => {
     it.each(athleteColors)('on-color on %s is at least 4.5:1', (color) => {
       expect(contrastRatio(c[swimmerRowColors.initials], c[color])).toBeGreaterThanOrEqual(4.5);
     });
+  });
+});
+
+describe('SwimmerRow status slot', () => {
+  const timed = { name: 'Lucía R.', initials: 'LR', color: 'athlete-1', detail: 'Infantil B' } as const;
+
+  it('draws the status in the end column, right under the time', async () => {
+    await render(<SwimmerRow {...timed} time={3391} timeLabel="Tiempo" status={<Text>Estado</Text>} />);
+
+    const column = screen.getByText('Estado').parent!.parent!;
+    expect(within(column).getByText('33,91', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('draws the status under the personal best too', async () => {
+    await render(<SwimmerRow {...base} status={<Text>Estado</Text>} />);
+
+    const column = screen.getByText('Estado').parent!.parent!;
+    expect(within(column).getByText('MP 50 L', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('keeps the status out of the row label and its own element reachable', async () => {
+    await render(<SwimmerRow {...timed} time={3391} timeLabel="Tiempo" status={<Text>Estado</Text>} />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, Tiempo 33,91')).toBeOnTheScreen();
+    expect(screen.getByText('Estado')).toBeOnTheScreen();
+  });
+
+  it('keeps an interactive status outside the single accessible row element', async () => {
+    const onRetry = jest.fn();
+    await render(
+      <SwimmerRow
+        {...timed}
+        time={3391}
+        timeLabel="Tiempo"
+        status={
+          <Pressable accessibilityRole="button" accessibilityLabel="Reintentar" onPress={onRetry}>
+            <Text>Reintentar</Text>
+          </Pressable>
+        }
+      />,
+    );
+
+    const row = screen.getByLabelText('Lucía R., Infantil B, Tiempo 33,91');
+    expect(within(row).queryByRole('button', { name: 'Reintentar' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('is exactly as before without a status', async () => {
+    await render(<SwimmerRow {...timed} time={3391} timeLabel="Tiempo" />);
+
+    expect(screen.queryByText('Estado')).toBeNull();
+    expect(screen.getByText('33,91', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 });

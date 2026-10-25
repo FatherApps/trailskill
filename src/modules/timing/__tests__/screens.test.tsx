@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { BackHandler, Text } from 'react-native';
 
 import { TimingHeader } from '../components/TimingHeader';
@@ -256,6 +256,14 @@ describe('TimingSummaryScreen', () => {
     }
     expect(screen.getAllByText('—', { includeHiddenElements: true })).toHaveLength(1);
     expect(screen.queryByText(/0,00/, { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('keeps each sync pill and its retry outside the row element, so they stay reachable', async () => {
+    await renderSummary();
+
+    const row = screen.getByLabelText('Lucía R., Tiempo 35,22, 40 centésimas más que la marca personal');
+    expect(within(row).queryByRole('button', { name: 'Intentar de nuevo' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Intentar de nuevo' })).toBeOnTheScreen();
   });
 
   it('retries one record by id', async () => {
