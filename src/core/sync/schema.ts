@@ -90,6 +90,8 @@ export const AppSchema = new Schema({
       athlete_id: column.text,
       group_id: column.text,
       category_id: column.text,
+      withdrawn_at: column.text,
+      withdrawn_by: column.text,
     },
     { indexes: { version: ['version_id'], school: ['school_id'] } },
   ),

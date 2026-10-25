@@ -42,7 +42,7 @@ const TABLES = `
   CREATE TABLE training_plan_versions (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, plan_id TEXT, version INTEGER);
   CREATE TABLE training_plan_assignments (
     id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, school_id TEXT, plan_id TEXT, version_id TEXT,
-    session_date TEXT, target TEXT, athlete_id TEXT, group_id TEXT, category_id TEXT
+    session_date TEXT, target TEXT, athlete_id TEXT, group_id TEXT, category_id TEXT, withdrawn_at TEXT, withdrawn_by TEXT
   );
   INSERT INTO training_plans (id, school_id, name, is_template) VALUES ('p1', 's1', 'Plan p1', 0), ('foreign', 's2', 'Plan foreign', 0), ('bare', 's1', 'Plan bare', 0);
   INSERT INTO training_plan_versions (id, plan_id, version) VALUES ('v1', 'p1', 1), ('v2', 'p1', 2), ('vf', 'foreign', 1);
@@ -89,6 +89,24 @@ describe.each(factories)('%s assignment repository', (_name, create) => {
     expect(await repository.list('s2', '2026-11-02')).toEqual([]);
   });
 
+  it('withdraws an assignment: it is no longer listed, the others stay, and withdrawing again changes nothing', async () => {
+    const repository = await create();
+    const gone = await repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } });
+    const kept = await repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'group', groupId: 'g1' } });
+
+    await repository.withdraw(gone);
+    await repository.withdraw(gone);
+
+    expect((await repository.list('s1', '2026-11-02')).map((a) => a.id)).toEqual([kept]);
+  });
+
+  it('rejects withdrawing an assignment that is not here, without writing', async () => {
+    const repository = await create();
+
+    await expect(repository.withdraw('missing')).rejects.toThrow('Cannot withdraw assignment missing');
+    expect(await repository.list('s1', '2026-11-02')).toEqual([]);
+  });
+
   it('rejects a plan of another school without writing', async () => {
     const repository = await create();
 
@@ -118,6 +136,21 @@ describe('PowerSync assignment repository', () => {
     await expect(repository.create({ schoolId: 's1', planId: 'bare', sessionDate: '2026-11-02', target: { kind: 'school' } })).rejects.toBeInstanceOf(
       PlanNotAssignableError,
     );
+  });
+});
+
+describe('PowerSync withdrawal', () => {
+  it('keeps the row, marks it withdrawn once and queues one upload', async () => {
+    const repository = await powerSync();
+    const id = await repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } });
+
+    await repository.withdraw(id);
+    const [first] = await mockDb.getAll<{ withdrawn_at: string }>('SELECT withdrawn_at FROM training_plan_assignments WHERE id = ?', [id]);
+    await repository.withdraw(id);
+    const rows = await mockDb.getAll<{ withdrawn_at: string; withdrawn_by: string | null }>('SELECT withdrawn_at, withdrawn_by FROM training_plan_assignments');
+
+    expect(rows).toEqual([{ withdrawn_at: first!.withdrawn_at, withdrawn_by: null }]);
+    expect(first!.withdrawn_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });
 
