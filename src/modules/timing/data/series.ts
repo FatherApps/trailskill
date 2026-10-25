@@ -49,9 +49,12 @@ export function createPowerSyncSeriesRepository(): SeriesRepository {
     addArrival: (arrival) => measurements.add(arrival),
     async discardArrival(id, discardedBy) {
       await writeBatch(async (batch) => {
-        // writeRecord would insert a row that is not there: a discard of a missing arrival must change nothing.
-        const [stored] = await batch.getAll('SELECT 1 FROM measurements WHERE id = ?', [id]);
-        if (stored) await batch.write('measurements', { id, discarded_at: new Date().toISOString(), discarded_by: discardedBy });
+        // writeRecord would insert a row that is not there, and the server refuses a second discard with another time:
+        // a missing or already discarded arrival changes nothing.
+        const [stored] = await batch.getAll<{ discarded_at: string | null }>('SELECT discarded_at FROM measurements WHERE id = ?', [id]);
+        if (stored && stored.discarded_at === null) {
+          await batch.write('measurements', { id, discarded_at: new Date().toISOString(), discarded_by: discardedBy });
+        }
       });
     },
     async assign(assignments, meta) {

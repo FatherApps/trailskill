@@ -167,6 +167,19 @@ describe('PowerSync series repository', () => {
     expect(mockDb.getAll("SELECT record_id FROM pending_writes WHERE record_id = 'm2'")).toHaveLength(2);
   });
 
+  it('keeps the first discard when the arrival is discarded again, so the upload never carries two times', async () => {
+    const { series: repository } = factories[1]![1]();
+    await repository.open(series, arrival('m1', 1, null));
+    await repository.discardArrival('m1', 'coach-a');
+    const first = mockDb.getAll("SELECT discarded_at FROM measurements WHERE id = 'm1'");
+    const pending = mockDb.getAll('SELECT id FROM pending_writes').length;
+
+    await repository.discardArrival('m1', 'coach-a');
+
+    expect(mockDb.getAll("SELECT discarded_at FROM measurements WHERE id = 'm1'")).toEqual(first);
+    expect(mockDb.getAll('SELECT id FROM pending_writes')).toHaveLength(pending);
+  });
+
   it('discards nothing, and writes no row, for an arrival that is not on the phone', async () => {
     const { series: repository } = factories[1]![1]();
     await repository.open(series, arrival('m1', 1, null));
