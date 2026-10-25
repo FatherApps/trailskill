@@ -487,6 +487,16 @@ describe('SupabaseConnector.uploadData', () => {
       expect(failureInserts(t.committed)).toHaveLength(0);
     });
 
+    it('sends a revocation of an invitation as an update by id, not as an upsert', async () => {
+      const t = setup();
+      await t.connector.uploadData(t.database([entry('PATCH', 'i1', { revoked_at: '2026-10-25T10:00:00.000Z' }, 'school_invitations')]));
+
+      expect(t.update).toHaveBeenCalledWith({ revoked_at: '2026-10-25T10:00:00.000Z' });
+      expect(t.updateEq).toHaveBeenCalledWith('id', 'i1');
+      expect(t.upsert).not.toHaveBeenCalled();
+      expect(failureInserts(t.committed)).toHaveLength(0);
+    });
+
     it('keeps the plain upsert without options for other tables', async () => {
       const t = setup();
       await t.connector.uploadData(t.database([entry('PUT', 'a', { first_name: 'Ana' })]));
