@@ -408,7 +408,8 @@ select is((select count(*) from public.measurement_conflicts), 2::bigint, 'coach
 set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
 select is_empty('select 1 from public.measurement_conflicts', 'an unrelated coach reads no conflict');
 set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
-select is_empty('select 1 from public.measurement_conflicts', 'the school admin reads no conflict');
+-- Since issue #316 the school admin reads the conflicts of the measurements of their school they can read (2 of the 3: the third is on an arrival with no athlete).
+select is((select count(*) from public.measurement_conflicts), 2::bigint, 'the school admin reads the conflicts of their school');
 set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
 select is_empty('select 1 from public.measurement_conflicts', 'the guardian reads no conflict');
 set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
