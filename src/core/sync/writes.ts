@@ -57,3 +57,42 @@ export async function deleteRecord(table: string, id: string): Promise<void> {
     await markPending(tx, table, id);
   });
 }
+
+/**
+ * Requeues the last rejected write of a record using the values on the device now, never the stored payload,
+ * so an old payload can never overwrite a newer edit. `powersync_crud` is PowerSync's documented manual-queue
+ * API (raw tables); it must be verified on a device (#35).
+ */
+export async function retryFailedRecord(table: string, id: string): Promise<void> {
+  assertIdentifier(table);
+
+  await db.writeTransaction(async (tx) => {
+    const failure = await tx.getOptional<{ op: string; payload: string }>(
+      'SELECT op, payload FROM upload_failures WHERE table_name = ? AND record_id = ? ORDER BY failed_at DESC LIMIT 1',
+      [table, id],
+    );
+    if (!failure) return;
+
+    const row = await tx.getOptional<Record<string, unknown>>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+    if (!row) {
+      await tx.execute('INSERT INTO powersync_crud (op, id, type) VALUES (?, ?, ?)', ['DELETE', id, table]);
+    } else {
+      const { id: _id, ...values } = row;
+      const patch = failure.op === 'PATCH';
+      // Only the columns the failed PATCH carried, taken from the current row.
+      const data = patch
+        ? Object.fromEntries(Object.keys(JSON.parse(failure.payload)).filter((column) => column in values).map((column) => [column, values[column]]))
+        : // A PUT omits null columns so the server applies its defaults, like the original insert; an explicit null breaks not-null defaults (23502).
+          Object.fromEntries(Object.entries(values).filter(([, value]) => value !== null));
+      await tx.execute('INSERT INTO powersync_crud (op, id, type, data) VALUES (?, ?, ?, ?)', [
+        patch ? 'PATCH' : 'PUT',
+        id,
+        table,
+        JSON.stringify(data),
+      ]);
+    }
+
+    await markPending(tx, table, id);
+    await tx.execute('DELETE FROM upload_failures WHERE table_name = ? AND record_id = ?', [table, id]);
+  });
+}

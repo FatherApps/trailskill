@@ -5,4 +5,5 @@ export type { Database } from './schema';
 export { supabase, supabaseConfigError } from './supabase';
 export { countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState } from './syncState';
 export type { RecordSyncState } from './syncState';
-export { deleteRecord, writeRecord } from './writes';
+export { RecordSyncStatus } from './RecordSyncStatus';
+export { deleteRecord, retryFailedRecord, writeRecord } from './writes';
