@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { t } from '../../../core/i18n';
 import { retryFailedRecord, useRecordSyncStates } from '../../../core/sync';
 import type { Hundredths } from '../../../core/time';
+import { StateView } from '../../../core/ui';
 import {
   CompletedMeasurementTimeError,
   InvalidMeasurementTimeError,
@@ -11,17 +12,21 @@ import {
   type MeasurementRepository,
 } from '../data/measurements';
 import { elapsedAt, idleStopwatch, reset, split, splitTimes, start, stop, totalTime, type Stopwatch } from '../domain/stopwatch';
+import type { SessionSetupRepository } from '../data/sessionSetup';
 import '../i18n';
 import { StopwatchScreen } from './StopwatchScreen';
 import { TimeCorrectionScreen } from './TimeCorrectionScreen';
 import { TimingSummaryScreen } from './TimingSummaryScreen';
-import { eventSubtitleOf, initialChoice, kindOf, RosterGate, TimingSetupStep, type Choice, type RosterAthlete } from './timingSession';
+import { eventSubtitleOf, kindOf, RosterGate, TimingSetupStep, type RosterAthlete } from './timingSession';
+import { useSessionSetup } from './useSessionSetup';
 
 export type IndividualTimingFlowProps = {
   // For example the school name.
   subtitle: string;
   loadRoster(): Promise<RosterAthlete[]>;
   measurements: MeasurementRepository;
+  // Remembers the event and the athletes between sessions; without it the setup lives only while the flow is open.
+  setups?: SessionSetupRepository;
   userId: string;
   deviceId: string;
   // Monotonic clock in nanoseconds; the stopwatch only uses differences.
@@ -57,13 +62,14 @@ function IndividualSession({
   subtitle,
   roster,
   measurements,
+  setups,
   userId,
   deviceId,
   now = clock,
   offline,
   onExit,
 }: IndividualTimingFlowProps & { roster: RosterAthlete[] }) {
-  const [choice, setChoice] = useState<Choice>(initialChoice);
+  const { choice, selectedIds, ready, changeChoice, changeSelected } = useSessionSetup(setups, roster);
   const [step, setStep] = useState<Step>({ kind: 'setup' });
   const [stopwatch, setStopwatch] = useState<Stopwatch>(idleStopwatch);
   const [exitConfirm, setExitConfirm] = useState(false);
@@ -82,12 +88,15 @@ function IndividualSession({
   const eventSubtitle = eventSubtitleOf(choice);
 
   if (step.kind === 'setup') {
+    if (!ready) return <StateView kind="loading" />;
     return (
       <TimingSetupStep
         subtitle={subtitle}
         roster={roster}
         choice={choice}
-        onChoiceChange={(change) => setChoice((c) => ({ ...c, ...change }))}
+        onChoiceChange={changeChoice}
+        selectedIds={selectedIds}
+        onSelectedIdsChange={changeSelected}
         sourceLabel={t('timing.source.phone')}
         onStart={(queue) => setStep({ kind: 'timing', queue, position: 0, saved: [] })}
         onBack={onExit}

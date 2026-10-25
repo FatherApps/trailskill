@@ -9,6 +9,7 @@ import { createPowerSyncStaffSchoolRepository, useStaffSchool } from '../../modu
 import {
   createPowerSyncMeasurementRepository,
   createPowerSyncSeriesRepository,
+  createSecureStoreSessionSetupRepository,
   IndividualTimingFlow,
   SeriesTimingFlow,
   type RosterAthlete,
@@ -19,6 +20,7 @@ const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const authorizations = createPowerSyncAuthorizationStatusRepository();
 const measurements = createPowerSyncMeasurementRepository();
 const seriesRepository = createPowerSyncSeriesRepository();
+const sessionSetups = createSecureStoreSessionSetupRepository();
 
 // The athletes on this device (the sync streams already limit them to the ones this person may see) and who allowed recording times.
 // Without a granted record_times the flow skips the athlete: the backend would reject the time for good.
@@ -46,7 +48,7 @@ export default function TimingRoute() {
   // Only a hidden button is not protection: the backend enforces who may record times.
   if (access.status === 'denied' || !session) return <Redirect href="/" />;
   if (!deviceId) return null;
-  const flow = { subtitle: access.school.name, loadRoster, userId: session.user.id, deviceId, onExit: leave };
+  const flow = { subtitle: access.school.name, loadRoster, userId: session.user.id, deviceId, setups: sessionSetups, onExit: leave };
   return mode === 'series' ? (
     <SeriesTimingFlow {...flow} series={seriesRepository} />
   ) : (

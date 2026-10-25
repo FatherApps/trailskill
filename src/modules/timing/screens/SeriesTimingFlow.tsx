@@ -3,20 +3,24 @@ import { useEffect, useState } from 'react';
 
 import { t } from '../../../core/i18n';
 import { hundredthsFromNanos, type Hundredths } from '../../../core/time';
-import { ConfirmSheet } from '../../../core/ui';
+import { ConfirmSheet, StateView } from '../../../core/ui';
 import type { Measurement } from '../data/measurements';
 import type { SeriesRepository } from '../data/series';
+import type { SessionSetupRepository } from '../data/sessionSetup';
 import { arrivals, assignHighlighted, press, readySeries, reopen, undoLastArrival, type Series } from '../domain/series';
 import '../i18n';
 import { SeriesAssignmentScreen } from './SeriesAssignmentScreen';
 import { SeriesTimingScreen } from './SeriesTimingScreen';
-import { eventSubtitleOf, initialChoice, kindOf, RosterGate, TimingSetupStep, type Choice, type RosterAthlete } from './timingSession';
+import { eventSubtitleOf, kindOf, RosterGate, TimingSetupStep, type RosterAthlete } from './timingSession';
+import { useSessionSetup } from './useSessionSetup';
 
 export type SeriesTimingFlowProps = {
   // For example the school name.
   subtitle: string;
   loadRoster(): Promise<RosterAthlete[]>;
   series: SeriesRepository;
+  // Remembers the event and the athletes between sessions; without it the setup lives only while the flow is open.
+  setups?: SessionSetupRepository;
   userId: string;
   deviceId: string;
   // Monotonic clock in nanoseconds; the series only uses differences.
@@ -35,8 +39,8 @@ export function SeriesTimingFlow(props: SeriesTimingFlowProps) {
   return <RosterGate loadRoster={props.loadRoster}>{(roster) => <SeriesSession {...props} roster={roster} />}</RosterGate>;
 }
 
-function SeriesSession({ subtitle, roster, series: repository, userId, deviceId, now = clock, offline, onExit }: SeriesTimingFlowProps & { roster: RosterAthlete[] }) {
-  const [choice, setChoice] = useState<Choice>(initialChoice);
+function SeriesSession({ subtitle, roster, series: repository, setups, userId, deviceId, now = clock, offline, onExit }: SeriesTimingFlowProps & { roster: RosterAthlete[] }) {
+  const { choice, selectedIds, ready, changeChoice, changeSelected } = useSessionSetup(setups, roster);
   const [step, setStep] = useState<Step>({ kind: 'setup' });
   const [series, setSeries] = useState<Series>(readySeries);
   const [exitConfirm, setExitConfirm] = useState(false);
@@ -58,12 +62,15 @@ function SeriesSession({ subtitle, roster, series: repository, userId, deviceId,
   };
 
   if (step.kind === 'setup') {
+    if (!ready) return <StateView kind="loading" />;
     return (
       <TimingSetupStep
         subtitle={subtitle}
         roster={roster}
         choice={choice}
-        onChoiceChange={(change) => setChoice((c) => ({ ...c, ...change }))}
+        onChoiceChange={changeChoice}
+        selectedIds={selectedIds}
+        onSelectedIdsChange={changeSelected}
         sourceLabel={t('timing.source.phone')}
         onStart={(queue) => setStep({ kind: 'timing', queue })}
         onBack={onExit}

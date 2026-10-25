@@ -5,6 +5,7 @@ import { t } from '../../../core/i18n';
 import { distances, pools, strokes } from '../../../core/sport';
 import { StateView } from '../../../core/ui';
 import type { SessionType } from '../data/measurements';
+import type { Choice } from '../data/sessionSetup';
 import { orderedSelection, toggleAthlete } from '../domain/athleteSelection';
 import '../i18n';
 import { AthletePickerScreen } from './AthletePickerScreen';
@@ -12,15 +13,6 @@ import { TimingSetupScreen, type SetupAthlete } from './TimingSetupScreen';
 
 // An athlete of the roster as the flows need it. The container of the app builds it, so this module never reads another module's tables.
 export type RosterAthlete = Pick<SetupAthlete, 'id' | 'shortName' | 'initials' | 'color' | 'authorized'>;
-
-export type Choice = { stroke: string; distance: string; pool: string; sessionType: SessionType };
-
-export const initialChoice: Choice = {
-  stroke: strokes[0].code,
-  distance: distances[1].code,
-  pool: pools[0].code,
-  sessionType: 'training',
-};
 
 const option = ({ code, nameKey }: { code: string; nameKey: string }) => ({ value: code, label: t(nameKey) });
 const nameOf = (catalog: readonly { code: string; nameKey: string }[], code: string) => t(catalog.find((c) => c.code === code)?.nameKey ?? code);
@@ -68,6 +60,9 @@ export type TimingSetupStepProps = {
   roster: RosterAthlete[];
   choice: Choice;
   onChoiceChange: (change: Partial<Choice>) => void;
+  // The athletes chosen to be timed, in timing order.
+  selectedIds: string[];
+  onSelectedIdsChange: (update: (ids: string[]) => string[]) => void;
   // Source of the times: the one the flow uses, shown as the only option.
   sourceLabel: string;
   onStart: (authorized: RosterAthlete[]) => void;
@@ -75,11 +70,9 @@ export type TimingSetupStepProps = {
 };
 
 // The setup screen of both flows: the event, the type of session and the athletes who will be timed.
-export function TimingSetupStep({ subtitle, roster, choice, onChoiceChange, sourceLabel, onStart, onBack }: TimingSetupStepProps) {
+export function TimingSetupStep({ subtitle, roster, choice, onChoiceChange, selectedIds, onSelectedIdsChange, sourceLabel, onStart, onBack }: TimingSetupStepProps) {
   const field = (value: string, options: readonly { code: string; nameKey: string }[]) => ({ value, options: options.map(option) });
   const authorized = roster.filter((a) => a.authorized);
-  // Everyone authorized is timed, in roster order, until the coach chooses otherwise.
-  const [selectedIds, setSelectedIds] = useState(() => authorized.map((a) => a.id));
   const [picking, setPicking] = useState(false);
   // Only an authorized athlete can be chosen; the others stay listed after them, marked as skipped.
   const selected = orderedSelection(authorized, selectedIds);
@@ -91,7 +84,7 @@ export function TimingSetupStep({ subtitle, roster, choice, onChoiceChange, sour
         athletes={authorized}
         selectedIds={selectedIds}
         groupCount={roster.length}
-        onToggle={(id) => setSelectedIds((ids) => toggleAthlete(ids, id))}
+        onToggle={(id) => onSelectedIdsChange((ids) => toggleAthlete(ids, id))}
         onDone={() => setPicking(false)}
         onBack={() => setPicking(false)}
       />

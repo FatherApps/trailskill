@@ -1,7 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../../core/theme';
-import { createInMemoryMeasurementRepository, IndividualTimingFlow, type IndividualTimingFlowProps } from '..';
+import {
+  createInMemoryMeasurementRepository,
+  createInMemorySessionSetupRepository,
+  IndividualTimingFlow,
+  type IndividualTimingFlowProps,
+} from '..';
 
 jest.mock('../../../core/sync', () => ({
   useRecordSyncStates: () => new Map(),
@@ -117,6 +122,24 @@ describe('individual timing flow', () => {
     await timeAthlete(35n);
     expect(await screen.findByText('1 tiempo guardado.')).toBeOnTheScreen();
     expect(await measurements.listByAthleteEvent('a3', { stroke: 'FR', distance: '50m', pool: 'SCM' })).toEqual([]);
+  });
+
+  it('restores the event, the type and the chosen athletes when the flow is opened again', async () => {
+    const setups = createInMemorySessionSetupRepository();
+    await setup({ setups });
+    await screen.findByText('Nadadores (2 de 3)');
+    await fireEvent.press(screen.getByRole('radio', { name: 'Espalda' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Competencia' }));
+    await press('Elegir');
+    await press('2 · Cleo O.');
+    await press('Listo');
+    await screen.unmount();
+
+    await setup({ setups });
+
+    expect(await screen.findByText('Nadadores (1 de 3)')).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Espalda' })).toBeSelected();
+    expect(screen.getByRole('radio', { name: 'Competencia' })).toBeSelected();
   });
 
   it('does not start when every athlete was cleared in the picker', async () => {

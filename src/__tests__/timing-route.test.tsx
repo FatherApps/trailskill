@@ -31,6 +31,7 @@ jest.mock('../modules/timing', () => {
   return {
     createPowerSyncMeasurementRepository: () => ({}),
     createPowerSyncSeriesRepository: () => ({}),
+    createSecureStoreSessionSetupRepository: () => ({}),
     SeriesTimingFlow: ({ subtitle }: { subtitle: string }) => <Text>{`series flow for ${subtitle}`}</Text>,
     IndividualTimingFlow: ({ subtitle, userId, deviceId, loadRoster }: { subtitle: string; userId: string; deviceId: string; loadRoster: typeof mockLoadRoster }) => {
       mockLoadRoster = loadRoster;
