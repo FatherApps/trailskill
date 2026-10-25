@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ThemeProvider, type ThemeName } from '../../theme';
 import { galleryEntries, iconPaths } from '..';
@@ -34,6 +35,16 @@ describe('core/ui gallery entries', () => {
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
     await render(<ThemeProvider name={theme} fontScale={scale}>{entryById(id).states[state]()}</ThemeProvider>);
   });
+
+  it.each(['stepHeader', 'stateView'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
+    '%s / %s fills the width of the preview',
+    async (id, state) => {
+      await render(<ThemeProvider>{entryById(id).states[state]()}</ThemeProvider>);
+
+      const root = screen.toJSON() as unknown as { props: { style: StyleProp<ViewStyle> } };
+      expect(StyleSheet.flatten(root.props.style)?.alignSelf).toBe('stretch');
+    },
+  );
 
   it('renders every icon of the set with its name', async () => {
     await render(<ThemeProvider>{entryById('icon').states['icon-md']()}</ThemeProvider>);

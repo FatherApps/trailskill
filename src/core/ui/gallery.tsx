@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import type { RecordSyncState } from '../sync';
@@ -27,6 +27,9 @@ export type GalleryEntry = {
 };
 
 const noop = () => {};
+
+// The preview box shrinks its children to their content; these components need the full width.
+const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
 
 const iconNames = Object.keys(iconPaths) as IconName[];
 
@@ -127,35 +130,51 @@ export const galleryEntries: GalleryEntry[] = [
     id: 'stepHeader',
     title: 'StepHeader',
     states: {
-      first: () => <StepHeader step={1} total={sh.total} title={sh.first} onBack={noop} />,
-      middle: () => <StepHeader step={2} total={sh.total} title={sh.middle} onBack={noop} />,
-      last: () => <StepHeader step={4} total={sh.total} title={sh.last} onBack={noop} />,
+      first: () => <FullWidth><StepHeader step={1} total={sh.total} title={sh.first} onBack={noop} /></FullWidth>,
+      middle: () => <FullWidth><StepHeader step={2} total={sh.total} title={sh.middle} onBack={noop} /></FullWidth>,
+      last: () => <FullWidth><StepHeader step={4} total={sh.total} title={sh.last} onBack={noop} /></FullWidth>,
     },
   },
   {
     id: 'stateView',
     title: 'StateView',
     states: {
-      loading: () => <StateView kind="loading" />,
-      empty: () => <StateView kind="empty" icon={<Icon name="timer" color="on-color" />} {...sv.empty} />,
-      error: () => (
-        <StateView
-          kind="error"
-          icon={<Icon name="error" color="danger-text" />}
-          title={sv.error.title}
-          message={sv.error.message}
-          action={{ label: sv.error.action, onPress: noop }}
-        />
+      loading: () => (
+        <FullWidth>
+          <StateView kind="loading" />
+        </FullWidth>
       ),
-      offline: () => <StateView kind="offline" icon={<Icon name="wifi_off" color="warning-text" />} {...sv.offline} />,
+      empty: () => (
+        <FullWidth>
+          <StateView kind="empty" icon={<Icon name="timer" color="on-color" />} {...sv.empty} />
+        </FullWidth>
+      ),
+      error: () => (
+        <FullWidth>
+          <StateView
+            kind="error"
+            icon={<Icon name="error" color="danger-text" />}
+            title={sv.error.title}
+            message={sv.error.message}
+            action={{ label: sv.error.action, onPress: noop }}
+          />
+        </FullWidth>
+      ),
+      offline: () => (
+        <FullWidth>
+          <StateView kind="offline" icon={<Icon name="wifi_off" color="warning-text" />} {...sv.offline} />
+        </FullWidth>
+      ),
       denied: () => (
-        <StateView
-          kind="denied"
-          icon={<Icon name="lock" color="on-color" />}
-          title={sv.denied.title}
-          message={sv.denied.message}
-          action={{ label: sv.denied.action, onPress: noop }}
-        />
+        <FullWidth>
+          <StateView
+            kind="denied"
+            icon={<Icon name="lock" color="on-color" />}
+            title={sv.denied.title}
+            message={sv.denied.message}
+            action={{ label: sv.denied.action, onPress: noop }}
+          />
+        </FullWidth>
       ),
     },
   },
