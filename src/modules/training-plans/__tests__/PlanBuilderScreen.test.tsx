@@ -9,11 +9,14 @@ const { blocks, vocabulary } = plansFixture;
 
 function setup(props: Partial<PlanBuilderScreenProps> = {}) {
   const handlers = {
+    onChangeName: jest.fn(),
     onAddBlock: jest.fn(),
     onEditBlock: jest.fn(),
     onMoveBlock: jest.fn(),
     onChangeBlock: jest.fn(),
     onDoneEditing: jest.fn(),
+    onRemoveBlock: jest.fn(),
+    onSave: jest.fn(),
     onSaveTemplate: jest.fn(),
   };
   return {
@@ -23,7 +26,7 @@ function setup(props: Partial<PlanBuilderScreenProps> = {}) {
 }
 
 describe('PlanBuilderScreen', () => {
-  it('shows the empty state and no save button without blocks', async () => {
+  it('shows the empty state and no template button without blocks', async () => {
     await render(setup({ blocks: [] }).ui);
 
     expect(screen.getByText('Aún no hay bloques')).toBeOnTheScreen();
@@ -31,6 +34,7 @@ describe('PlanBuilderScreen', () => {
     expect(screen.getByText('0 bloques')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Guardar como plantilla' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Agregar bloque' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Guardar plan' })).toBeOnTheScreen();
   });
 
   it('nests its ScrollView so it scrolls inside a parent ScrollView on Android', async () => {
@@ -72,8 +76,89 @@ describe('PlanBuilderScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar bloque' }));
     expect(handlers.onAddBlock).toHaveBeenCalledTimes(1);
 
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar plan' }));
+    expect(handlers.onSave).toHaveBeenCalledTimes(1);
+
     await fireEvent.press(screen.getByRole('button', { name: 'Guardar como plantilla' }));
     expect(handlers.onSaveTemplate).toHaveBeenCalledTimes(1);
+  });
+
+  it('has no template button when the caller offers none', async () => {
+    await render(setup({ onSaveTemplate: undefined }).ui);
+
+    expect(screen.queryByRole('button', { name: 'Guardar como plantilla' })).toBeNull();
+  });
+
+  it('shows a loading button while saving and ignores presses', async () => {
+    const { handlers, ui } = setup({ saving: 'plan' });
+    await render(ui);
+
+    const save = screen.getByRole('button', { name: 'Guardar plan' });
+    expect(save).toBeBusy();
+    await fireEvent.press(save);
+    expect(handlers.onSave).not.toHaveBeenCalled();
+  });
+
+  describe('plan name', () => {
+    it('edits the name from its field', async () => {
+      const { handlers, ui } = setup();
+      await render(ui);
+
+      expect(screen.getByLabelText('Nombre del plan').props.value).toBe('Resistencia aeróbica');
+      await fireEvent.changeText(screen.getByLabelText('Nombre del plan'), 'Velocidad');
+      expect(handlers.onChangeName).toHaveBeenCalledWith('Velocidad');
+    });
+
+    it('titles an unnamed plan "Plan nuevo"', async () => {
+      await render(setup({ planName: '  ' }).ui);
+
+      expect(screen.getByRole('header', { name: 'Plan nuevo' })).toBeOnTheScreen();
+    });
+
+    it('shows the name error only when asked to', async () => {
+      await render(setup({ nameError: true }).ui);
+      expect(screen.getByText('Escribe un nombre para el plan.')).toBeOnTheScreen();
+    });
+  });
+
+  it('announces a result message politely', async () => {
+    await render(setup({ message: { kind: 'success', text: 'Plan guardado.' } }).ui);
+
+    expect(screen.getByText('Plan guardado.')).toBeOnTheScreen();
+    expect(screen.getByTestId('banner').parent?.props.accessibilityLiveRegion).toBe('polite');
+  });
+
+  describe('removing a block', () => {
+    it('asks first and removes nothing when the user keeps the block', async () => {
+      const { handlers, ui } = setup();
+      await render(ui);
+      expect(screen.queryByText('¿Quitar este bloque?')).toBeNull();
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Quitar' })[2]);
+      expect(screen.getByText('¿Quitar este bloque?')).toBeOnTheScreen();
+      expect(screen.getByText('El bloque 3 sale del plan cuando lo guardes.')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Conservar bloque' }));
+      expect(handlers.onRemoveBlock).not.toHaveBeenCalled();
+      expect(screen.queryByText('¿Quitar este bloque?')).toBeNull();
+    });
+
+    it('removes the block once confirmed', async () => {
+      const { handlers, ui } = setup();
+      await render(ui);
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Quitar' })[2]);
+      await fireEvent.press(screen.getByRole('button', { name: 'Quitar bloque' }));
+
+      expect(handlers.onRemoveBlock).toHaveBeenCalledWith('b3');
+      expect(screen.queryByText('¿Quitar este bloque?')).toBeNull();
+    });
+
+    it('offers Quitar on every block and hides it for the block being edited', async () => {
+      await render(setup({ editingId: 'b2' }).ui);
+
+      expect(screen.getAllByRole('button', { name: 'Quitar' })).toHaveLength(4);
+    });
   });
 
   it('hides Subir on the first block and Bajar on the last', async () => {
@@ -97,7 +182,7 @@ describe('PlanBuilderScreen', () => {
       .getAllByRole('button')
       .filter((button) => StyleSheet.flatten(button.props.style)?.backgroundColor === colors.light.action);
     expect(primary).toHaveLength(1);
-    expect(within(primary[0]).getByText('Guardar como plantilla')).toBeOnTheScreen();
+    expect(within(primary[0]).getByText('Guardar plan')).toBeOnTheScreen();
   });
 
   describe('editing', () => {
@@ -149,15 +234,55 @@ describe('PlanBuilderScreen', () => {
       expect(handlers.onChangeBlock).toHaveBeenCalledWith({ ...editing, repetitions: 1 });
     });
 
-    it('changes the distance and the activity', async () => {
+    it('changes the distance and the stroke', async () => {
       const { handlers, ui } = setup({ editingId: 'b2' });
       await render(ui);
 
       await fireEvent.press(within(screen.getByLabelText('Distancia')).getByRole('radio', { name: '100 m' }));
       expect(handlers.onChangeBlock).toHaveBeenLastCalledWith({ ...editing, distance: 100 });
 
-      await fireEvent.press(within(screen.getByLabelText('Estilo o ejercicio')).getByRole('radio', { name: 'Patada' }));
-      expect(handlers.onChangeBlock).toHaveBeenLastCalledWith({ ...editing, activity: 'kick' });
+      await fireEvent.press(within(screen.getByLabelText('Estilo o ejercicio')).getByRole('radio', { name: 'Espalda' }));
+      expect(handlers.onChangeBlock).toHaveBeenLastCalledWith({ ...editing, activity: 'BK' });
+    });
+
+    it('selects the stroke and leaves the drill field empty', async () => {
+      await render(setup({ editingId: 'b2' }).ui);
+
+      expect(within(screen.getByLabelText('Estilo o ejercicio')).getByRole('radio', { checked: true })).toHaveAccessibleName('Libre');
+      expect(screen.getByLabelText('Ejercicio técnico').props.value).toBe('');
+    });
+
+    it('shows a drill in its field with no stroke selected, and typing replaces the activity', async () => {
+      const { handlers, ui } = setup({ editingId: 'b3' });
+      await render(ui);
+
+      expect(within(screen.getByLabelText('Estilo o ejercicio')).queryByRole('radio', { checked: true })).toBeNull();
+      expect(screen.getByLabelText('Ejercicio técnico').props.value).toBe('Patada');
+      expect(screen.getByLabelText('Ejercicio técnico').props.maxLength).toBe(120);
+      expect(screen.getByLabelText('Ejercicio técnico').props.accessibilityHint).toBe('Escríbelo si no es un estilo. Máximo 120 caracteres.');
+
+      await fireEvent.changeText(screen.getByLabelText('Ejercicio técnico'), 'Patada con tabla');
+      expect(handlers.onChangeBlock).toHaveBeenCalledWith({ ...blocks[2], activity: 'Patada con tabla' });
+    });
+
+    it('shows the activity errors on the drill field', async () => {
+      await render(setup({ editingId: 'b2', editingErrors: { activity: 'required' } }).ui);
+      expect(screen.getByText('Elige un estilo o escribe un ejercicio técnico.')).toBeOnTheScreen();
+
+      await render(setup({ editingId: 'b2', editingErrors: { activity: 'too_long' } }).ui);
+      expect(screen.getByText('Usa máximo 120 caracteres.')).toBeOnTheScreen();
+    });
+
+    it('starts without a recording selected and shows its error only when asked to', async () => {
+      const draft = { ...editing, recording: null };
+      await render(setup({ blocks: [draft], editingId: 'b2' }).ui);
+
+      expect(within(screen.getByLabelText('Qué se registra')).queryByRole('radio', { checked: true })).toBeNull();
+      expect(screen.queryByText('Elige qué se registra en este bloque.')).toBeNull();
+      expect(screen.queryByText(/^Registro:/)).toBeNull();
+
+      await render(setup({ blocks: [draft], editingId: 'b2', editingErrors: { recording: 'required' } }).ui);
+      expect(screen.getByText('Elige qué se registra en este bloque.')).toBeOnTheScreen();
     });
 
     it('toggles the equipment', async () => {
@@ -168,7 +293,7 @@ describe('PlanBuilderScreen', () => {
       expect(screen.getByRole('checkbox', { name: 'Tabla' })).not.toBeChecked();
 
       await fireEvent.press(screen.getByRole('checkbox', { name: 'Tabla' }));
-      expect(handlers.onChangeBlock).toHaveBeenLastCalledWith({ ...editing, equipment: ['paddles', 'board'] });
+      expect(handlers.onChangeBlock).toHaveBeenLastCalledWith({ ...editing, equipment: ['paddles', 'kickboard'] });
 
       await fireEvent.press(screen.getByRole('checkbox', { name: 'Paletas' }));
       expect(handlers.onChangeBlock).toHaveBeenLastCalledWith({ ...editing, equipment: [] });

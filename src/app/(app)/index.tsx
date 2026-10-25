@@ -1,5 +1,5 @@
-import { Link } from 'expo-router';
-import { useRef, useState } from 'react';
+import { Link, router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../core/i18n';
@@ -7,9 +7,13 @@ import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, ConfirmSheet, SyncStatus } from '../../core/ui';
+import { createPowerSyncStaffSchoolRepository } from '../../modules/school-console';
+
+const staffSchools = createPowerSyncStaffSchoolRepository();
 
 export default function Home() {
-  const { syncConnectFailed, signOut } = useSession();
+  const { syncConnectFailed, signOut, session } = useSession();
+  const userId = session?.user.id;
   const { space } = useTheme();
   const summary = useGlobalSyncSummary();
   const state = recordSyncState({
@@ -17,6 +21,21 @@ export default function Home() {
     failed: summary.failed > 0,
     uploading: summary.uploading,
   });
+  const [isStaff, setIsStaff] = useState(false);
+  const lastSyncedAt = summary.lastSyncedAt?.getTime();
+  // Memberships arrive with a sync, so the lookup runs again when one completes. A failure keeps the button hidden.
+  useEffect(() => {
+    let active = true;
+    if (userId) {
+      staffSchools
+        .listStaffSchools(userId)
+        .then((schools) => active && setIsStaff(schools.length > 0))
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [userId, lastSyncedAt]);
   const [blocked, setBlocked] = useState<{ unsent: number; rejected: number }>();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
@@ -56,6 +75,7 @@ export default function Home() {
       <Text>{t('home.title')}</Text>
       <SyncStatus state={state} />
       {syncConnectFailed && <Text accessibilityLiveRegion="polite">{t('sync.connect_failed')}</Text>}
+      {isStaff && <Button label={t('home.plans')} onPress={() => router.push('/plans')} />}
       <Button variant="secondary" label={t('session.sign_out')} onPress={() => signOutWith(false)} loading={signingOut} />
       {signOutFailed && <Text accessibilityLiveRegion="polite">{t('session.sign_out_failed')}</Text>}
       {__DEV__ && <Link href="/gallery">{t('dev.gallery.open')}</Link>}
