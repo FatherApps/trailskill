@@ -1,7 +1,7 @@
 -- Module training-plans: plans, versions and blocks (issue #69), with their row
 -- level security policies. A plan belongs to a school; a template is a plan
--- marked as a school template. A version keeps its author and date; its blocks
--- are the sets of the training, in order. Only staff of the school (coaches and
+-- marked as a school template. A version keeps its author, its plan, its number
+-- and the server's date; its blocks are the sets of the training, in order. Only staff of the school (coaches and
 -- admins) read and write them; guardians and adult athletes read plans when
 -- assignments arrive in a later issue.
 
@@ -68,24 +68,59 @@ alter publication powersync add table
   public.training_plan_versions,
   public.training_plan_blocks;
 
--- A version keeps its author and date. An update that keeps them passes, as a
--- sync upsert retry does.
-create function public.training_plan_versions_keep_author()
+-- The date of a version is the server's, whatever the device sent.
+create function public.training_plan_versions_set_date()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
-  if new.created_by is distinct from old.created_by or new.created_at is distinct from old.created_at then
-    raise exception 'the author and date of a version cannot change' using errcode = '42501';
+  new.created_at = now();
+  return new;
+end;
+$$;
+
+create trigger training_plan_versions_set_date
+  before insert on public.training_plan_versions
+  for each row execute function public.training_plan_versions_set_date();
+
+-- A version keeps its author, date, plan and number. An update that changes
+-- none of them passes, as a sync upsert retry does.
+create function public.training_plan_versions_frozen()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.created_by is distinct from old.created_by
+    or new.created_at is distinct from old.created_at
+    or new.plan_id is distinct from old.plan_id
+    or new.version is distinct from old.version then
+    raise exception 'the author, date, plan and number of a version cannot change' using errcode = '42501';
   end if;
   return new;
 end;
 $$;
 
-create trigger training_plan_versions_keep_author
+create trigger training_plan_versions_frozen
   before update on public.training_plan_versions
-  for each row execute function public.training_plan_versions_keep_author();
+  for each row execute function public.training_plan_versions_frozen();
+
+-- A device may send no equipment; it is stored as an empty list, never null.
+create function public.training_plan_blocks_default_equipment()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.equipment = coalesce(new.equipment, '{}');
+  return new;
+end;
+$$;
+
+create trigger training_plan_blocks_default_equipment
+  before insert or update on public.training_plan_blocks
+  for each row execute function public.training_plan_blocks_default_equipment();
 
 -- Staff are the members of the plan's school, whatever their role.
 create policy training_plans_select on public.training_plans for select to authenticated
@@ -96,8 +131,11 @@ create policy training_plans_select on public.training_plans for select to authe
 
 create policy training_plans_insert on public.training_plans for insert to authenticated
   with check (
-    (select app.is_platform_admin())
-    or school_id in (select school_id from public.school_memberships where user_id = (select auth.uid()))
+    created_by = (select auth.uid())
+    and (
+      (select app.is_platform_admin())
+      or school_id in (select school_id from public.school_memberships where user_id = (select auth.uid()))
+    )
   );
 
 create policy training_plans_update on public.training_plans for update to authenticated
@@ -110,30 +148,88 @@ create policy training_plans_update on public.training_plans for update to authe
     or school_id in (select school_id from public.school_memberships where user_id = (select auth.uid()))
   );
 
--- The subqueries on training_plans and training_plan_versions run with their
--- own policies, so a version or block is visible only through a visible plan.
+-- Reading goes through the visible parent: the subqueries run with their own
+-- policies, so a version or block is visible only through a visible plan.
+-- Writing checks the staff membership of the school of the parent plan directly,
+-- the way the plan policies do.
 create policy training_plan_versions_select on public.training_plan_versions for select to authenticated
   using (plan_id in (select id from public.training_plans));
 
 create policy training_plan_versions_insert on public.training_plan_versions for insert to authenticated
   with check (
     created_by = (select auth.uid())
-    and plan_id in (select id from public.training_plans)
+    and (
+      (select app.is_platform_admin())
+      or plan_id in (
+        select p.id from public.training_plans p
+        join public.school_memberships m on m.school_id = p.school_id
+        where m.user_id = (select auth.uid())
+      )
+    )
   );
 
 create policy training_plan_versions_update on public.training_plan_versions for update to authenticated
-  using (plan_id in (select id from public.training_plans))
-  with check (plan_id in (select id from public.training_plans));
+  using (
+    (select app.is_platform_admin())
+    or plan_id in (
+      select p.id from public.training_plans p
+      join public.school_memberships m on m.school_id = p.school_id
+      where m.user_id = (select auth.uid())
+    )
+  )
+  with check (
+    (select app.is_platform_admin())
+    or plan_id in (
+      select p.id from public.training_plans p
+      join public.school_memberships m on m.school_id = p.school_id
+      where m.user_id = (select auth.uid())
+    )
+  );
 
 create policy training_plan_blocks_select on public.training_plan_blocks for select to authenticated
   using (version_id in (select id from public.training_plan_versions));
 
 create policy training_plan_blocks_insert on public.training_plan_blocks for insert to authenticated
-  with check (version_id in (select id from public.training_plan_versions));
+  with check (
+    created_by = (select auth.uid())
+    and (
+      (select app.is_platform_admin())
+      or version_id in (
+        select v.id from public.training_plan_versions v
+        join public.training_plans p on p.id = v.plan_id
+        join public.school_memberships m on m.school_id = p.school_id
+        where m.user_id = (select auth.uid())
+      )
+    )
+  );
 
 create policy training_plan_blocks_update on public.training_plan_blocks for update to authenticated
-  using (version_id in (select id from public.training_plan_versions))
-  with check (version_id in (select id from public.training_plan_versions));
+  using (
+    (select app.is_platform_admin())
+    or version_id in (
+      select v.id from public.training_plan_versions v
+      join public.training_plans p on p.id = v.plan_id
+      join public.school_memberships m on m.school_id = p.school_id
+      where m.user_id = (select auth.uid())
+    )
+  )
+  with check (
+    (select app.is_platform_admin())
+    or version_id in (
+      select v.id from public.training_plan_versions v
+      join public.training_plans p on p.id = v.plan_id
+      join public.school_memberships m on m.school_id = p.school_id
+      where m.user_id = (select auth.uid())
+    )
+  );
 
 create policy training_plan_blocks_delete on public.training_plan_blocks for delete to authenticated
-  using (version_id in (select id from public.training_plan_versions));
+  using (
+    (select app.is_platform_admin())
+    or version_id in (
+      select v.id from public.training_plan_versions v
+      join public.training_plans p on p.id = v.plan_id
+      join public.school_memberships m on m.school_id = p.school_id
+      where m.user_id = (select auth.uid())
+    )
+  );

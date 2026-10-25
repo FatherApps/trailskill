@@ -1,11 +1,11 @@
 -- Training plans, versions and blocks (issue #69): the block shape, staff-only
--- writes per school, and versions that keep their author and date. Coaches and
+-- writes per school, and versions that keep their author and date (the server's). Coaches and
 -- admins of a school read and write its plans and templates; staff of another
 -- school, guardians and adult athletes neither read nor write them. All users
 -- and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(57);
 
 -- Users: coaches A1 and A2 and admin S (school 1), coach B (school 2),
 -- guardian G, adult athlete D.
@@ -101,6 +101,25 @@ select isnt(
   'version 1 keeps its date'
 );
 
+select lives_ok(
+  $$ insert into public.training_plan_versions (id, plan_id, version, created_at)
+     values ('69000000-0000-4000-8000-0000000000d3', '69000000-0000-4000-8000-0000000000c2', 7, '2000-01-01 00:00:00+00') $$,
+  'coach A1 creates a version that claims an old date'
+);
+
+select is(
+  (select created_at from public.training_plan_versions where id = '69000000-0000-4000-8000-0000000000d3'),
+  now(),
+  'the date of a version is the time of the server, not the one the device sent'
+);
+
+select throws_ok(
+  $$ insert into public.training_plans (school_id, name, created_by)
+     values ('69000000-0000-4000-8000-0000000000b1', 'Plan Of Someone Else', '69000000-0000-4000-8000-0000000000a2') $$,
+  '42501', null,
+  'a plan cannot name someone else as its author'
+);
+
 select throws_ok(
   $$ insert into public.training_plan_versions (plan_id, version, created_by)
      values ('69000000-0000-4000-8000-0000000000c1', 9, '69000000-0000-4000-8000-0000000000a3') $$,
@@ -166,11 +185,34 @@ select throws_ok(
   'a block accepts only known equipment codes'
 );
 
+select lives_ok(
+  $$ insert into public.training_plan_blocks (id, version_id, position, repetitions, distance, stroke, equipment, phase, recording)
+     values ('69000000-0000-4000-8000-0000000000f5', '69000000-0000-4000-8000-0000000000d1', 6, 1, '50m', 'FR', null, 'main', 'completion') $$,
+  'a block sent with equipment null is accepted'
+);
+
+select is(
+  (select equipment from public.training_plan_blocks where id = '69000000-0000-4000-8000-0000000000f5'),
+  '{}'::text[],
+  'no equipment from a device is stored as an empty list'
+);
+
+select lives_ok(
+  $$ update public.training_plan_blocks set equipment = null where id = '69000000-0000-4000-8000-0000000000f2' $$,
+  'an update that clears equipment with null is accepted'
+);
+
+select is(
+  (select equipment from public.training_plan_blocks where id = '69000000-0000-4000-8000-0000000000f2'),
+  '{}'::text[],
+  'an update to null equipment is stored as an empty list'
+);
+
 select throws_ok(
-  $$ insert into public.training_plan_blocks (version_id, position, repetitions, distance, stroke, equipment, phase, recording)
-     values ('69000000-0000-4000-8000-0000000000d1', 5, 1, '50m', 'FR', null, 'main', 'completion') $$,
-  '23502', null,
-  'no equipment is an empty list, never null'
+  $$ insert into public.training_plan_blocks (version_id, position, repetitions, distance, stroke, phase, recording, created_by)
+     values ('69000000-0000-4000-8000-0000000000d1', 7, 1, '50m', 'FR', 'main', 'completion', '69000000-0000-4000-8000-0000000000a2') $$,
+  '42501', null,
+  'a block cannot name someone else as its author'
 );
 
 select throws_ok(
@@ -216,6 +258,27 @@ select throws_ok(
      where id = '69000000-0000-4000-8000-0000000000d1' $$,
   '42501', null,
   'the date of a version cannot change'
+);
+
+select throws_ok(
+  $$ update public.training_plan_versions set plan_id = '69000000-0000-4000-8000-0000000000c2'
+     where id = '69000000-0000-4000-8000-0000000000d1' $$,
+  '42501', null,
+  'a version cannot move to another plan'
+);
+
+select throws_ok(
+  $$ update public.training_plan_versions set version = 8
+     where id = '69000000-0000-4000-8000-0000000000d1' $$,
+  '42501', null,
+  'a version cannot change its number'
+);
+
+select lives_ok(
+  $$ insert into public.training_plan_versions (id, plan_id, version)
+     values ('69000000-0000-4000-8000-0000000000d1', '69000000-0000-4000-8000-0000000000c1', 1)
+     on conflict (id) do update set plan_id = excluded.plan_id, version = excluded.version $$,
+  'an upsert without the audit columns of an existing version passes'
 );
 
 select lives_ok(
@@ -354,7 +417,8 @@ select results_eq(
   $$ select id, position from public.training_plan_blocks order by position $$,
   $$ values ('69000000-0000-4000-8000-0000000000f2'::uuid, 2),
             ('69000000-0000-4000-8000-0000000000f3'::uuid, 3),
-            ('69000000-0000-4000-8000-0000000000f1'::uuid, 5) $$,
+            ('69000000-0000-4000-8000-0000000000f1'::uuid, 5),
+            ('69000000-0000-4000-8000-0000000000f5'::uuid, 6) $$,
   'the blocks keep the order staff gave them and nobody else removed one'
 );
 
