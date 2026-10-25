@@ -7,7 +7,7 @@ import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, ConfirmSheet, SyncStatus } from '../../core/ui';
-import { createPowerSyncStaffSchoolRepository } from '../../modules/school-console';
+import { createPowerSyncStaffSchoolRepository, useAdminSchool } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
 
@@ -36,6 +36,7 @@ export default function Home() {
       active = false;
     };
   }, [userId, lastSyncedAt]);
+  const isAdmin = useAdminSchool(staffSchools, userId, lastSyncedAt).status === 'admin';
   const [blocked, setBlocked] = useState<{ unsent: number; rejected: number }>();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
@@ -76,6 +77,7 @@ export default function Home() {
       <SyncStatus state={state} />
       {syncConnectFailed && <Text accessibilityLiveRegion="polite">{t('sync.connect_failed')}</Text>}
       {isStaff && <Button label={t('home.plans')} onPress={() => router.push('/plans')} />}
+      {isAdmin && <Button label={t('home.console')} onPress={() => router.push('/console')} />}
       <Button variant="secondary" label={t('session.sign_out')} onPress={() => signOutWith(false)} loading={signingOut} />
       {signOutFailed && <Text accessibilityLiveRegion="polite">{t('session.sign_out_failed')}</Text>}
       {__DEV__ && <Link href="/gallery">{t('dev.gallery.open')}</Link>}

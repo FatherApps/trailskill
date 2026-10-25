@@ -17,8 +17,14 @@ jest.mock('../core/session', () => ({
   useSession: () => ({ syncConnectFailed: mockSyncConnectFailed, signOut: mockSignOut, session: { user: { id: 'user-1' } } }),
 }));
 const mockListStaffSchools = jest.fn();
+const mockListAdminSchools = jest.fn();
 jest.mock('../modules/school-console', () => ({
-  createPowerSyncStaffSchoolRepository: () => ({ listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args) }),
+  // The real hook: only the repository, which needs the native database, is replaced.
+  ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
+  createPowerSyncStaffSchoolRepository: () => ({
+    listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args),
+    listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
+  }),
 }));
 jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), router: { push: jest.fn() } }));
 jest.mock('@powersync/react', () => ({}));
@@ -29,6 +35,7 @@ beforeEach(() => {
   mockSyncConnectFailed = false;
   mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
   mockListStaffSchools.mockReset().mockResolvedValue([]);
+  mockListAdminSchools.mockReset().mockResolvedValue([]);
   (router.push as jest.Mock).mockClear();
 });
 
@@ -111,6 +118,35 @@ describe('training plans button', () => {
     await rerender(<Home />);
 
     expect(await screen.findByRole('button', plans)).toBeOnTheScreen();
+  });
+});
+
+describe('console button', () => {
+  const consoleButton = { name: 'Consola' };
+
+  it('is hidden from school staff who are not school admins', async () => {
+    mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela' }]);
+    await render(<Home />);
+
+    expect(await screen.findByRole('button', { name: 'Planes de entrenamiento' })).toBeOnTheScreen();
+    expect(mockListAdminSchools).toHaveBeenCalledWith('user-1');
+    expect(screen.queryByRole('button', consoleButton)).toBeNull();
+  });
+
+  it('is hidden when the lookup fails', async () => {
+    mockListAdminSchools.mockRejectedValue(new Error('db'));
+    await render(<Home />);
+
+    expect(screen.queryByRole('button', consoleButton)).toBeNull();
+  });
+
+  it('opens the console for a school admin', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela' }]);
+    await render(<Home />);
+
+    await fireEvent.press(await screen.findByRole('button', consoleButton));
+
+    expect(router.push).toHaveBeenCalledWith('/console');
   });
 });
 
