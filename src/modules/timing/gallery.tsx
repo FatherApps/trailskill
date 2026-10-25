@@ -7,6 +7,9 @@ import { seriesFixture } from './__fixtures__/series';
 import { fixture } from './__fixtures__/timing';
 import { ArrivalList } from './components/ArrivalList';
 import { NameCard } from './components/NameCard';
+import { arrivals as arrivalsOf, assignHighlighted, reopen, type Series } from './domain/series';
+import { SeriesAssignmentScreen } from './screens/SeriesAssignmentScreen';
+import { SeriesTimingScreen } from './screens/SeriesTimingScreen';
 import { useFakeClock } from './__fixtures__/fakeClock';
 import { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
 import { TimingSetupScreen, type SetupAthlete } from './screens/TimingSetupScreen';
@@ -126,6 +129,78 @@ function Stack({ children }: { children: ReactNode }) {
   return <View style={{ alignSelf: 'stretch', gap: space[2] }}>{children}</View>;
 }
 
+// The clock advances by itself and the big button adds an arrival at the current time, like the container will.
+function SeriesTimingPreview({
+  initial,
+  disconnected,
+  offline,
+}: {
+  initial: typeof seriesFixture.arrivals;
+  disconnected?: boolean;
+  offline?: boolean;
+}) {
+  const elapsed = useFakeClock(true, 3700);
+  const [arrivals, setArrivals] = useState(initial);
+
+  return (
+    <ScreenFrame>
+      <SeriesTimingScreen
+        athleteCount={seriesFixture.athletes.length}
+        eventSubtitle={seriesFixture.eventSubtitle}
+        elapsedHundredths={elapsed}
+        arrivals={arrivals}
+        externalTimerDisconnected={disconnected}
+        offline={offline}
+        onUseOnScreenStopwatch={noop}
+        onArrival={() => setArrivals((current) => [...current, { id: `arrival-${current.length + 1}`, time: elapsed }])}
+        onUndoLast={() => setArrivals((current) => current.slice(0, -1))}
+        onBack={noop}
+      />
+    </ScreenFrame>
+  );
+}
+
+// Holds the series with the real rules, so tapping a card assigns and tapping a position reopens it.
+function SeriesAssignmentPreview({
+  initial,
+  offline,
+  completionOnly,
+  completed = [],
+}: {
+  initial: Series;
+  offline?: boolean;
+  completionOnly?: boolean;
+  completed?: string[];
+}) {
+  const [series, setSeries] = useState(initial);
+  const [completedIds, setCompletedIds] = useState(completed);
+
+  return (
+    <ScreenFrame>
+      <SeriesAssignmentScreen
+        positions={arrivalsOf(series)}
+        athletes={seriesFixture.athletes}
+        eventSubtitle={seriesFixture.eventSubtitle}
+        offline={offline}
+        completionOnly={completionOnly}
+        completedIds={completedIds}
+        onToggleCompleted={(id) =>
+          setCompletedIds((current) => (current.includes(id) ? current.filter((c) => c !== id) : [...current, id]))
+        }
+        onAssign={(athleteId) =>
+          setSeries((current) => {
+            const result = assignHighlighted(current, athleteId);
+            return result.ok ? result.series : current;
+          })
+        }
+        onReopen={(position) => setSeries((current) => reopen(current, position))}
+        onSave={noop}
+        onBack={noop}
+      />
+    </ScreenFrame>
+  );
+}
+
 const stopped = { state: 'stopped', elapsedHundredths: fixture.times.final } as const;
 
 export const galleryEntries: GalleryEntry[] = [
@@ -201,6 +276,35 @@ export const galleryEntries: GalleryEntry[] = [
           ))}
         </Stack>
       ),
+    },
+  },
+  {
+    id: 'seriesTiming',
+    title: 'SeriesTimingScreen',
+    states: {
+      'no-arrivals': () => <SeriesTimingPreview initial={[]} />,
+      running: () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 3)} />,
+      'external-disconnected': () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 2)} disconnected />,
+      offline: () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 2)} offline />,
+    },
+  },
+  {
+    id: 'seriesAssignment',
+    title: 'SeriesAssignmentScreen',
+    states: {
+      'in-progress': () => <SeriesAssignmentPreview initial={seriesFixture.series.partial} />,
+      'all-assigned': () => <SeriesAssignmentPreview initial={seriesFixture.series.all} />,
+      pending: () => <SeriesAssignmentPreview initial={seriesFixture.series.pending} />,
+      reopened: () => <SeriesAssignmentPreview initial={reopen(seriesFixture.series.partial, 1)} />,
+      'completion-off': () => <SeriesAssignmentPreview initial={seriesFixture.series.none} completionOnly />,
+      'completion-on': () => (
+        <SeriesAssignmentPreview
+          initial={seriesFixture.series.none}
+          completionOnly
+          completed={seriesFixture.athletes.map((a) => a.id)}
+        />
+      ),
+      offline: () => <SeriesAssignmentPreview initial={seriesFixture.series.partial} offline />,
     },
   },
 ] satisfies { id: string; title: string; states: Record<string, () => ReactElement> }[];

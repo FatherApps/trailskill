@@ -73,7 +73,17 @@
       "external_disconnected_message": "Los tiempos ya tomados siguen guardados.",
       "use_screen_stopwatch": "Usar cronómetro en pantalla",
       "empty_title": "Aún no hay llegadas",
-      "empty_message": "Cada vez que un nadador llegue, toca Llegada."
+      "empty_message": "Cada vez que un nadador llegue, toca Llegada.",
+      "title_one": "Serie · {{count}} nadador",
+      "title_other": "Serie · {{count}} nadadores",
+      "assign_title": "Asignar nombres",
+      "position_of": "Posición {{position}} de {{total}}",
+      "position_n": "Posición {{position}}",
+      "all_assigned": "Todas las posiciones tienen nombre.",
+      "whose": "¿De quién es?",
+      "save": "Guardar serie",
+      "not_completed": "Sin completar",
+      "completed_for": "Completado, {{name}}"
     }
   }
 }

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 
 import { ThemeProvider, type ThemeName } from '../../../core/theme';
 import { galleryEntries } from '../gallery';
@@ -18,6 +18,8 @@ describe('timing gallery entries', () => {
       'stopwatch',
       'arrivalList',
       'nameCard',
+      'seriesTiming',
+      'seriesAssignment',
     ]);
     expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-empty']);
     expect(Object.keys(entry('timingSummary').states)).toEqual([
@@ -39,6 +41,21 @@ describe('timing gallery entries', () => {
     ]);
     expect(Object.keys(entry('arrivalList').states)).toEqual(['arrivals', 'many-arrivals']);
     expect(Object.keys(entry('nameCard').states)).toEqual(['unassigned', 'assigned', 'all-colours']);
+    expect(Object.keys(entry('seriesTiming').states)).toEqual([
+      'no-arrivals',
+      'running',
+      'external-disconnected',
+      'offline',
+    ]);
+    expect(Object.keys(entry('seriesAssignment').states)).toEqual([
+      'in-progress',
+      'all-assigned',
+      'pending',
+      'reopened',
+      'completion-off',
+      'completion-on',
+      'offline',
+    ]);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
@@ -80,6 +97,17 @@ describe('timing gallery entries', () => {
     ['nameCard', 'unassigned', 'Mateo C.'],
     ['nameCard', 'assigned', '2.º'],
     ['nameCard', 'all-colours', 'Tomás V.'],
+    ['seriesTiming', 'no-arrivals', 'Aún no hay llegadas'],
+    ['seriesTiming', 'running', 'Deshacer última'],
+    ['seriesTiming', 'external-disconnected', 'Usar cronómetro en pantalla'],
+    ['seriesTiming', 'offline', 'Sin conexión. Se guarda en el teléfono.'],
+    ['seriesAssignment', 'in-progress', 'Posición 3 de 4'],
+    ['seriesAssignment', 'all-assigned', 'Todas las posiciones tienen nombre.'],
+    ['seriesAssignment', 'pending', 'por asignar'],
+    ['seriesAssignment', 'reopened', 'Posición 1 de 4'],
+    ['seriesAssignment', 'completion-off', 'Completado'],
+    ['seriesAssignment', 'completion-on', 'Completado'],
+    ['seriesAssignment', 'offline', 'Sin conexión. Se guarda en el teléfono.'],
   ])('%s / %s shows its content', async (id, state, text) => {
     await render(<ThemeProvider>{entry(id).states[state]()}</ThemeProvider>);
 
@@ -101,6 +129,44 @@ describe('timing gallery entries', () => {
 
     await render(<ThemeProvider>{entry('stopwatch').states['stopped-slower']()}</ThemeProvider>);
     expect(screen.getByText('+0,40 vs MP', hidden)).toBeOnTheScreen();
+  });
+
+  it('adds an arrival and undoes it in the series timing preview', async () => {
+    jest.useFakeTimers();
+    try {
+      await render(<ThemeProvider>{entry('seriesTiming').states['no-arrivals']()}</ThemeProvider>);
+      expect(screen.queryByRole('button', { name: 'Deshacer última' })).toBeNull();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Llegada' }));
+      expect(screen.getAllByLabelText(/^Llegada \d/)).toHaveLength(1);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Deshacer última' }));
+      expect(screen.getByText('Aún no hay llegadas')).toBeOnTheScreen();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('assigns a name and advances the highlight in the assignment preview, then reopens', async () => {
+    await render(<ThemeProvider>{entry('seriesAssignment').states['in-progress']()}</ThemeProvider>);
+    expect(screen.getByText('Posición 3 de 4')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Asignar a Sara P.' }));
+    expect(screen.getByText('Posición 4 de 4')).toBeOnTheScreen();
+
+    await fireEvent.press(within(screen.getByTestId('position-row-3')).getByRole('button'));
+    expect(screen.getByText('Posición 3 de 4')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('position-row-3')).getByText('por asignar', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('toggles Completado in the completion preview', async () => {
+    await render(<ThemeProvider>{entry('seriesAssignment').states['completion-off']()}</ThemeProvider>);
+    const [first] = screen.getAllByRole('switch');
+    expect(first).not.toBeChecked();
+
+    await fireEvent.press(first);
+
+    expect(screen.getAllByRole('switch')[0]).toBeChecked();
   });
 
   it('opens the exit sheet from the back button while running', async () => {

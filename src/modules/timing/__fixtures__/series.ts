@@ -1,18 +1,22 @@
+import { t } from '../../../core/i18n';
 import type { Hundredths } from '../../../core/time';
+import '../i18n';
 import { arrivals, assignHighlighted, press, readySeries, reopen, type Series } from '../domain/series';
 
 // Synthetic data for the development gallery and the tests. Names are fictional.
 export type SeriesAthlete = {
   id: string;
   shortName: string;
+  initials: string;
+  detail: string;
   color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
 };
 
 const athletes: SeriesAthlete[] = [
-  { id: 'a1', shortName: 'Mateo C.', color: 'athlete-1' },
-  { id: 'a2', shortName: 'Lucía R.', color: 'athlete-2' },
-  { id: 'a3', shortName: 'Sara P.', color: 'athlete-3' },
-  { id: 'a4', shortName: 'Tomás V.', color: 'athlete-4' },
+  { id: 'a1', shortName: 'Mateo C.', initials: 'MC', detail: 'Carril 1', color: 'athlete-1' },
+  { id: 'a2', shortName: 'Lucía R.', initials: 'LR', detail: 'Carril 2', color: 'athlete-2' },
+  { id: 'a3', shortName: 'Sara P.', initials: 'SP', detail: 'Carril 3', color: 'athlete-3' },
+  { id: 'a4', shortName: 'Tomás V.', initials: 'TV', detail: 'Carril 4', color: 'athlete-4' },
 ];
 
 const times: Hundredths[] = [3105, 3391, 3522, 3647];
@@ -35,6 +39,7 @@ const all = assignInOrder(timed, 4);
 const pending = reopen(all, 3);
 
 export const seriesFixture = {
+  eventSubtitle: `${t('sport.stroke.FR')} ${t('sport.distance.50m')} · ${t('timing.session_type.training')}`,
   athletes,
   times,
   // The same arrivals, in the shape the list receives them.
