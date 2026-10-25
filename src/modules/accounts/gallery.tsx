@@ -1,5 +1,5 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 
 import type { GalleryEntry } from '../../core/ui';
 import { accountsFixture as fx } from './__fixtures__/accounts';
@@ -11,6 +11,12 @@ const noop = () => {};
 
 // The preview box shrinks its children to their content; screens need the full width.
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
+
+// A screen with a bottom-anchored action needs a real screen height to show it.
+function FullScreen({ children }: { children: ReactNode }) {
+  const { height } = useWindowDimensions();
+  return <View style={{ alignSelf: 'stretch', height }}>{children}</View>;
+}
 
 const person = { name: fx.person.name, email: fx.person.email, phone: fx.person.phone };
 
@@ -57,9 +63,9 @@ function SignInPreview(props: Partial<SignInScreenProps>) {
 }
 
 const whoSwims = (props: Partial<WhoSwimsScreenProps> = {}): ReactElement => (
-  <FullWidth>
+  <FullScreen>
     <WhoSwimsScreen onSelect={noop} onBack={noop} {...props} />
-  </FullWidth>
+  </FullScreen>
 );
 
 export const galleryEntries: GalleryEntry[] = [
