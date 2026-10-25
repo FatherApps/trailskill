@@ -136,4 +136,14 @@ describe('TodayScreen content', () => {
 
     expect(onReportToCoach).toHaveBeenCalledTimes(1);
   });
+
+  it('nests its ScrollView so it scrolls inside a parent ScrollView on Android', async () => {
+    await render(setup({ kind: 'loading' }).ui);
+
+    // Walk up from the title to the ScrollView (the jest mock wraps it, so match its props, not its type).
+    let node = screen.getByText('Hoy').parent;
+    while (node && node.props.contentContainerStyle === undefined) node = node.parent;
+    if (!node) throw new Error('No ScrollView above the title');
+    expect(node.props.nestedScrollEnabled).toBe(true);
+  });
 });

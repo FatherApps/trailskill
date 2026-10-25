@@ -124,7 +124,9 @@ export function TodayScreen({ athleteName, view, onReportToCoach, scrollEnabled 
   const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
 
   return (
+    // Android needs nestedScrollEnabled for this list to scroll when hosted inside another ScrollView (e.g. the dev gallery preview).
     <ScrollView
+      nestedScrollEnabled
       scrollEnabled={scrollEnabled}
       style={{ backgroundColor: colors['surface-0'] }}
       contentContainerStyle={{ padding: space[4], gap: space[4] }}

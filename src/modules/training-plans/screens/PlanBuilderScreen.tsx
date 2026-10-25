@@ -41,7 +41,9 @@ export function PlanBuilderScreen({
   const { colors, space, typography } = useTheme();
 
   return (
+    // Android needs nestedScrollEnabled for this list to scroll when hosted inside another ScrollView (e.g. the dev gallery preview).
     <ScrollView
+      nestedScrollEnabled
       scrollEnabled={scrollEnabled}
       style={{ backgroundColor: colors['surface-0'] }}
       contentContainerStyle={{ padding: space[4], gap: space[4] }}

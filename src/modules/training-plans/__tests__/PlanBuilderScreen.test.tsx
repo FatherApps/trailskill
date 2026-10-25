@@ -33,6 +33,16 @@ describe('PlanBuilderScreen', () => {
     expect(screen.getByRole('button', { name: 'Agregar bloque' })).toBeOnTheScreen();
   });
 
+  it('nests its ScrollView so it scrolls inside a parent ScrollView on Android', async () => {
+    await render(setup({ blocks: [] }).ui);
+
+    // Walk up from a button to the ScrollView (the jest mock wraps it, so match its props, not its type).
+    let node = screen.getByRole('button', { name: 'Agregar bloque' }).parent;
+    while (node && node.props.contentContainerStyle === undefined) node = node.parent;
+    if (!node) throw new Error('No ScrollView above the add button');
+    expect(node.props.nestedScrollEnabled).toBe(true);
+  });
+
   it('shows the title and the block count', async () => {
     await render(setup().ui);
 
