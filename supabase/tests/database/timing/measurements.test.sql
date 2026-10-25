@@ -3,11 +3,11 @@
 -- write their assigned athletes, unassigned arrivals belong to the series
 -- author, guardians read only, school admins read their school. Completing an
 -- arrival changes only its athlete, and a measurement goes only into the
--- author's own series. A coach who loses an assignment can no longer write that athlete's measurements. All
--- users and data here are synthetic.
+-- author's own series. A coach who loses an assignment can no longer write
+-- that athlete's measurements. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(41);
 
 -- Users: coaches A and B, guardian G, school admin S.
 insert into auth.users (id, email) values
@@ -225,6 +225,13 @@ select isnt_empty(
   'coach A completes an unassigned arrival with an assigned athlete'
 );
 
+select lives_ok(
+  $$ insert into public.measurements (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+     values ('20000000-0000-4000-8000-0000000000fc', 'repetition', '20000000-0000-4000-8000-0000000000e1', 3120, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:40:00+00', '20000000-0000-4000-8000-0000000000a1')
+     on conflict (id) do update set kind = excluded.kind, athlete_id = excluded.athlete_id, hundredths = excluded.hundredths, stroke = excluded.stroke, distance = excluded.distance, pool = excluded.pool, session_type = excluded.session_type, source = excluded.source, device_id = excluded.device_id, captured_at = excluded.captured_at, created_by = excluded.created_by $$,
+  'coach A uploads a new measurement with an upsert, as the sync connector does'
+);
+
 -- Coach B
 set local request.jwt.claims = '{"sub": "20000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 select is_empty(
@@ -277,7 +284,8 @@ select set_eq(
   $$ values ('20000000-0000-4000-8000-0000000000f1'::uuid), ('20000000-0000-4000-8000-0000000000f2'::uuid),
             ('20000000-0000-4000-8000-0000000000f3'::uuid), ('20000000-0000-4000-8000-0000000000f4'::uuid),
             ('20000000-0000-4000-8000-0000000000f5'::uuid), ('20000000-0000-4000-8000-0000000000f6'::uuid),
-            ('20000000-0000-4000-8000-0000000000fa'::uuid) $$,
+            ('20000000-0000-4000-8000-0000000000fa'::uuid),
+            ('20000000-0000-4000-8000-0000000000fc'::uuid) $$,
   'guardian G reads only the measurements of G''s athlete'
 );
 select throws_ok(
@@ -289,10 +297,9 @@ select throws_ok(
   '42501', null,
   'guardian G cannot insert a measurement'
 );
-select throws_ok(
-  $$ update public.measurements set hundredths = 1000
-     where id = '20000000-0000-4000-8000-0000000000f1' $$,
-  '42501', null,
+select is_empty(
+  $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1'
+     where id = '20000000-0000-4000-8000-0000000000f7' returning id $$,
   'guardian G cannot edit a measurement'
 );
 select throws_ok(
@@ -358,16 +365,14 @@ select throws_ok(
   '42501', null,
   'after losing the direct assignment, coach A cannot insert a measurement of that athlete'
 );
-select throws_ok(
-  $$ update public.measurements set hundredths = 1000
-     where id = '20000000-0000-4000-8000-0000000000fb' $$,
-  '42501', null,
+select is_empty(
+  $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e4'
+     where id = '20000000-0000-4000-8000-0000000000fb' returning id $$,
   'after losing the group assignment, coach A updates no measurement of that athlete'
 );
-select throws_ok(
-  $$ update public.measurements set hundredths = 1000
-     where id = '20000000-0000-4000-8000-0000000000f1' $$,
-  '42501', null,
+select is_empty(
+  $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1'
+     where id = '20000000-0000-4000-8000-0000000000f1' returning id $$,
   'after losing the direct assignment, coach A updates no measurement of that athlete'
 );
 select throws_ok(
