@@ -6,6 +6,8 @@ import { createStore, openDatabase } from '../testing/fakeDatabase';
 
 type Result = { data: { id: string }[] | null; error: { code?: string; message: string } | null; status?: number };
 
+type RpcResult = { data: string | null; error: { code?: string; message: string } | null; status?: number };
+
 const ok: Result = { data: [{ id: 'row-1' }], error: null };
 const empty: Result = { data: [], error: null };
 
@@ -17,7 +19,7 @@ type Statements = [string, unknown[]][];
 
 function setup(
   // readBack may be a list: the Nth read-back query gets the Nth result, the last one repeats.
-  results: { upsert?: Result; update?: Result; delete?: Result; readBack?: Result | Result[] } = {},
+  results: { upsert?: Result; update?: Result; delete?: Result; readBack?: Result | Result[]; rpc?: RpcResult } = {},
   options: { maxAttempts?: number; sleep?: (ms: number, signal: AbortSignal) => Promise<void> } = {},
 ) {
   // An upsert is awaited directly, or chained with .select('id') when the connector needs the inserted row.
@@ -56,7 +58,9 @@ function setup(
   const deleteEq = jest.fn().mockReturnValue({ select: jest.fn().mockResolvedValue(results.delete ?? ok) });
   const del = jest.fn().mockReturnValue({ eq: deleteEq });
   const from = jest.fn().mockReturnValue({ upsert, update, delete: del, select: readBack });
-  const client = { from, auth: { getSession: jest.fn(), refreshSession: jest.fn() } };
+  // The confirm function of a re-sent insert (issue 206): 'stored', 'changed' or 'absent' when it answers.
+  const rpc = jest.fn().mockResolvedValue(results.rpc ?? { data: 'absent', error: null });
+  const client = { from, rpc, auth: { getSession: jest.fn(), refreshSession: jest.fn() } };
   const complete = jest.fn().mockResolvedValue(undefined);
   // database.execute must never be used for bookkeeping: it would escape the transaction.
   const execute = jest.fn().mockResolvedValue(undefined);
@@ -86,7 +90,7 @@ function setup(
   const connector = new SupabaseConnector(client as unknown as SupabaseClient, 'https://sync.example.test', options);
   return {
     client, connector, database, complete, execute, committed, writeTransaction, from,
-    upsert, upsertSelect, update, updateEq, del, deleteEq, readBack, readBackEq, readQueries,
+    upsert, upsertSelect, update, updateEq, del, deleteEq, readBack, readBackEq, readQueries, rpc,
   };
 }
 
@@ -691,6 +695,97 @@ describe('SupabaseConnector.uploadData', () => {
 
         expect(t.writeTransaction).not.toHaveBeenCalled();
         expect(t.complete).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('a measurement hidden after a withdrawal (issue 206)', () => {
+      // Stored hidden, the author cannot read it back: the insert returns no row and the read-back finds nothing.
+      const hidden = () =>
+        entry('PUT', 'm1', { kind: 'repetition', athlete_id: 'at1', hundredths: 3150, captured_at: '2026-10-06T08:00:00.000Z', series_id: null }, 'measurements');
+      const confirmArgs = { payload: { id: 'm1', kind: 'repetition', athlete_id: 'at1', hundredths: 3150, captured_at: '2026-10-06T08:00:00.000Z' } };
+      const recorded = (code: string) => ['measurements', 'm1', 'PUT', JSON.stringify(hidden().opData), code, expect.any(String), 1];
+      const hiddenRetry = (rpc: RpcResult, upsert: Result = empty) => setup({ upsert, readBack: empty, rpc });
+
+      it('a retry of a hidden measurement already stored is confirmed as sent, not recorded as no_rows_affected', async () => {
+        const t = hiddenRetry({ data: 'stored', error: null });
+        await t.connector.uploadData(t.database([hidden()]));
+
+        expect(failureInserts(t.committed)).toHaveLength(0);
+        expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['measurements', 'm1']]);
+        expect(t.complete).toHaveBeenCalledTimes(1);
+      });
+
+      it('asks the confirm function with the id and the values sent, without the null series_id', async () => {
+        const t = hiddenRetry({ data: 'stored', error: null });
+        await t.connector.uploadData(t.database([hidden()]));
+
+        expect(t.rpc).toHaveBeenCalledWith('confirm_measurement_insert', confirmArgs);
+      });
+
+      it('changed: the same id with other values is insert_only_changed', async () => {
+        const t = hiddenRetry({ data: 'changed', error: null });
+        await t.connector.uploadData(t.database([hidden()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([recorded('insert_only_changed')]);
+        expect(t.complete).toHaveBeenCalledTimes(1);
+      });
+
+      it('absent: no_rows_affected is recorded', async () => {
+        const t = hiddenRetry({ data: 'absent', error: null });
+        await t.connector.uploadData(t.database([hidden()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([recorded('no_rows_affected')]);
+      });
+
+      it('a permanent 42501 on the insert and the confirm function answers stored: success', async () => {
+        const denied: Result = { data: null, error: { code: '42501', message: 'denied' } };
+        const t = hiddenRetry({ data: 'stored', error: null }, denied);
+        await t.connector.uploadData(t.database([hidden()]));
+
+        expect(failureInserts(t.committed)).toHaveLength(0);
+        expect(t.complete).toHaveBeenCalledTimes(1);
+      });
+
+      it('a permanent 42501 on the insert and the confirm function answers absent: the 42501 is recorded', async () => {
+        const denied: Result = { data: null, error: { code: '42501', message: 'denied' } };
+        const t = hiddenRetry({ data: 'absent', error: null }, denied);
+        await t.connector.uploadData(t.database([hidden()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([recorded('42501')]);
+      });
+
+      it('a permanent error from the confirm function keeps the outcome of the insert: no_rows_affected', async () => {
+        const t = hiddenRetry({ data: null, error: { code: '42501', message: 'no execute' } });
+        await t.connector.uploadData(t.database([hidden()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params)).toEqual([recorded('no_rows_affected')]);
+        expect(t.complete).toHaveBeenCalledTimes(1);
+      });
+
+      it('an error without a code from the confirm function is retried, not recorded', async () => {
+        const error = { message: 'Network request failed' };
+        const t = setup({ upsert: empty, readBack: empty, rpc: { data: null, error } }, { sleep: jest.fn().mockResolvedValue(undefined) });
+        await expect(t.connector.uploadData(t.database([hidden()]))).rejects.toBe(error);
+
+        expect(t.writeTransaction).not.toHaveBeenCalled();
+        expect(t.complete).not.toHaveBeenCalled();
+      });
+
+      it('the confirm function is not called when the read-back finds the row, nor for tables without one', async () => {
+        const found = setup({ upsert: empty, readBack: ok, rpc: { data: 'stored', error: null } });
+        await found.connector.uploadData(found.database([hidden()]));
+        expect(found.rpc).not.toHaveBeenCalled();
+
+        for (const op of [
+          entry('PUT', 'au1', { user_id: 'u1', athlete_id: 'at1' }, 'authorizations'),
+          entry('PUT', 's1', { name: 'x' }, 'timing_series'),
+        ]) {
+          const t = setup({ upsert: empty, readBack: empty, rpc: { data: 'stored', error: null } });
+          await t.connector.uploadData(t.database([op]));
+
+          expect(t.rpc).not.toHaveBeenCalled();
+          expect(failureInserts(t.committed).map(([, params]) => params[4])).toEqual(['no_rows_affected']);
+        }
       });
     });
   });
