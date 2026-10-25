@@ -2,7 +2,7 @@ import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../i18n';
 import { useTheme, type ColorToken } from '../theme';
-import { formatTime, type Hundredths } from '../time';
+import { formatTime, personalBestDifference, spokenDifference, type Hundredths } from '../time';
 import { Icon } from './Icon';
 import { Tag, type TagProps } from './Tag';
 import { TimeValue } from './TimeValue';
@@ -19,6 +19,13 @@ export type SwimmerRowProps = {
   // Caption under the personal best, for example "MP 50 L".
   bestTimeLabel?: string;
   // Status such as "se omitirá" or "por asignar".
+  // A time that is not a personal best, for example a saved session time. When given, it wins over `bestTime`.
+  time?: Hundredths | null;
+  // Spoken prefix of `time` for screen readers, for example "Tiempo".
+  timeLabel?: string;
+  // Difference against this personal best under the name (only with a `time`); `newPersonalBest` adds the MP tag.
+  personalBest?: Hundredths | null;
+  newPersonalBest?: boolean;
   tag?: TagProps;
   chevron?: boolean;
   selected?: boolean;
@@ -49,6 +56,10 @@ export function SwimmerRow({
   detail,
   bestTime,
   bestTimeLabel,
+  time,
+  timeLabel,
+  personalBest,
+  newPersonalBest = false,
   tag,
   chevron = false,
   selected = false,
@@ -60,16 +71,32 @@ export function SwimmerRow({
   // 40 is the design-system avatar size at 100 % (not a token).
   const avatarSize = Math.max(40, Math.ceil(typography.label.lineHeight * fontScale) + 2 * space[2]);
 
+  // `time` wins over `bestTime`: the row never shows two times on the right.
+  const showBest = time === undefined && bestTime !== undefined;
+
+  const spokenTime =
+    time === undefined
+      ? null
+      : time === null
+        ? t('swimmer_row.time_missing', { label: timeLabel ?? '' }).trim()
+        : [timeLabel, formatTime(time)].filter(Boolean).join(' ');
+
+  const difference = time === undefined ? null : personalBestDifference(time, personalBest);
+  const showPbRow = time != null && (difference !== null || newPersonalBest);
+
   const label = [
     name,
     detail,
-    bestTime === undefined
+    spokenTime,
+    difference !== null && spokenDifference(difference),
+    showPbRow && newPersonalBest && t('time_value.pb_spoken'),
+    !showBest || bestTime === undefined
       ? null
       : bestTime === null
         ? t('swimmer_row.no_best_time')
         : t('swimmer_row.personal_best', { time: formatTime(bestTime) }),
     // The caption belongs to the best time, so without a best time it is not shown and not announced.
-    bestTime === undefined ? null : bestTimeLabel,
+    showBest ? bestTimeLabel : null,
     tag?.label,
   ]
     .filter(Boolean)
@@ -104,8 +131,14 @@ export function SwimmerRow({
       <View {...hidden} style={{ flex: 1 }}>
         <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
         <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
+        {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
       </View>
-      {bestTime !== undefined && (
+      {time !== undefined && (
+        <View {...hidden} style={{ alignItems: 'flex-end' }}>
+          <TimeValue value={time} size="time-sm" />
+        </View>
+      )}
+      {showBest && (
         <View {...hidden} style={{ alignItems: 'flex-end' }}>
           <TimeValue value={bestTime} size="time-sm" />
           {bestTimeLabel ? (
