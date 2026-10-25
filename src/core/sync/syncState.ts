@@ -1,5 +1,6 @@
 import { useQuery, useStatus } from '@powersync/react';
 
+// 'needs_review' joins with conflict handling (task 3.9a): add it here and a row to syncStatusColors in src/core/ui/SyncStatus.tsx.
 export type RecordSyncState = 'on_device' | 'sending' | 'synced' | 'not_sent';
 
 /** A server rejection wins over everything; otherwise a pending write is on the device or being sent. */
