@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import type { Hundredths } from '../../../core/time';
+import { formatTime, type Hundredths } from '../../../core/time';
 import { Button, Segmented, StateView, SwimmerRow, type SegmentedOption } from '../../../core/ui';
 import { TimingHeader } from '../components/TimingHeader';
 import '../i18n';
@@ -94,10 +94,16 @@ export function TimingSetupScreen({
                 name={t('timing.setup.athlete_name', { order: index + 1, name: athlete.shortName })}
                 initials={athlete.initials}
                 color={athlete.color}
-                detail=""
-                {...(athlete.authorized
-                  ? { bestTime: athlete.bestTime, bestTimeLabel: t('timing.setup.best_time_label') }
-                  : { tag: { variant: 'warn', icon: 'schedule', label: t('timing.setup.skipped') } })}
+                detail={
+                  athlete.authorized
+                    ? t('timing.stopwatch.personal_best', { time: formatTime(athlete.bestTime) })
+                    : ''
+                }
+                tag={
+                  athlete.authorized
+                    ? undefined
+                    : { variant: 'warn', icon: 'schedule', label: t('timing.setup.skipped') }
+                }
               />
             ))}
           </View>

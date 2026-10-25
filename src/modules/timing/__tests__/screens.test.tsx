@@ -179,9 +179,9 @@ describe('TimingSetupScreen', () => {
     await renderSetup();
 
     expect(screen.getByText('Nadadores (3 de 12)')).toBeOnTheScreen();
-    expect(screen.getByLabelText('1 · Mateo C., marca personal 34,82, MP')).toBeOnTheScreen();
-    expect(screen.getByLabelText('2 · Lucía R., marca personal 34,82, MP')).toBeOnTheScreen();
-    expect(screen.getByLabelText('3 · Sara P., sin marca personal, MP')).toBeOnTheScreen();
+    expect(screen.getByLabelText('1 · Mateo C., MP 34,82')).toBeOnTheScreen();
+    expect(screen.getByLabelText('2 · Lucía R., MP 34,82')).toBeOnTheScreen();
+    expect(screen.getByLabelText('3 · Sara P., MP —')).toBeOnTheScreen();
     const tree = JSON.stringify(screen.toJSON());
     const at = (text: string) => tree.indexOf(text);
     expect(at('Cronómetro externo')).toBeLessThan(at('Nadadores (3 de 12)'));
@@ -194,7 +194,7 @@ describe('TimingSetupScreen', () => {
 
     expect(screen.getByLabelText(/3 · Sara P\..*Falta autorización — se omitirá/)).toBeOnTheScreen();
     expect(screen.getAllByText('Falta autorización — se omitirá', { includeHiddenElements: true })).toHaveLength(1);
-    expect(screen.getByLabelText('1 · Mateo C., marca personal 34,82, MP')).toBeOnTheScreen();
+    expect(screen.getByLabelText('1 · Mateo C., MP 34,82')).toBeOnTheScreen();
   });
 
   it('invites to choose athletes when there are none, without a second action', async () => {
@@ -239,8 +239,8 @@ describe('TimingSummaryScreen', () => {
 
     expect(screen.getByRole('header', { name: 'Resumen de la toma' })).toBeOnTheScreen();
     expect(screen.getByText('Grupo B · Libre 50 m')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Mateo C., marca personal 33,91')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Sara P., sin marca personal')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Mateo C., Tiempo 33,91')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Sara P., Tiempo sin registrar')).toBeOnTheScreen();
     for (const label of ['En el teléfono', 'No enviado', 'Enviado', 'Enviando']) {
       expect(screen.getByLabelText(label)).toBeOnTheScreen();
     }
@@ -282,7 +282,7 @@ describe('TimingSummaryScreen', () => {
 
     expect(screen.getByTestId('state-view')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Terminar' })).toBeNull();
-    expect(screen.queryByLabelText('Mateo C., marca personal 33,91')).toBeNull();
+    expect(screen.queryByLabelText('Mateo C., Tiempo 33,91')).toBeNull();
   });
 
   it('shows the error state and retries the load', async () => {

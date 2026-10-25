@@ -13,7 +13,6 @@
       "choose": "Elegir",
       "skipped": "Falta autorización — se omitirá",
       "athlete_name": "{{order}} · {{name}}",
-      "best_time_label": "MP",
       "empty_title": "Aún no hay nadadores",
       "empty_message": "Elige a quienes vas a medir para empezar la toma."
     },
@@ -49,7 +48,8 @@
       "error_message": "Los tiempos siguen guardados en el teléfono. Inténtalo de nuevo.",
       "retry_load": "Intentar de nuevo",
       "correct": "Corregir un tiempo",
-      "finish": "Terminar"
+      "finish": "Terminar",
+      "time_label": "Tiempo"
     }
   }
 }

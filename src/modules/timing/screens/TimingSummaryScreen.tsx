@@ -76,8 +76,10 @@ export function TimingSummaryScreen({
                   name={record.shortName}
                   initials={record.initials}
                   color={record.color}
+                  // The difference against the personal best (TimeValue delta, issue 167) goes in `detail` before merge.
                   detail=""
-                  bestTime={record.time}
+                  time={record.time}
+                  timeLabel={t('timing.summary.time_label')}
                 />
                 <View style={{ paddingHorizontal: space[4], paddingBottom: space[3] }}>
                   <SyncStatus state={record.syncState} onRetry={() => onRetry(record.id)} />
