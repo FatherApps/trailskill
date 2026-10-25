@@ -10,7 +10,7 @@ export function isPermanentUploadError(error: { code?: string }): boolean {
 type Result = { data: unknown[] | null; error: { code?: string } | null; status?: number };
 
 /** A permanent rejection becomes its code, no error is null, any other error is thrown (with the HTTP status attached) so PowerSync retries. */
-function failureCode(result: Result): string | null {
+function failureCode(result: Pick<Result, 'error' | 'status'>): string | null {
   if (!result.error) return null;
   if (isPermanentUploadError(result.error)) return result.error.code ?? '';
   throw Object.assign(result.error, { status: result.status });
@@ -27,6 +27,10 @@ const SERVER_SET_COLUMNS: Record<string, string[]> = {
 };
 // Of a server-set column only whether it is null is compared: a withdrawal sent as a PUT must still be detected.
 const NULLNESS_ONLY_COLUMNS: Record<string, string[]> = { authorizations: ['withdrawn_at'] };
+
+// Tables whose rows their author may no longer read once stored (a measurement hidden after a withdrawal, #54):
+// a server function confirms a re-sent insert and answers only 'stored', 'changed' or 'absent', never the row.
+const CONFIRM_INSERT_FUNCTIONS: Record<string, string> = { measurements: 'confirm_measurement_insert' };
 
 // Columns that are JSON text on the device (PowerSync syncs a Postgres array as JSON text) but arrays on the server: they are parsed before upload.
 const JSON_ARRAY_COLUMNS: Record<string, string[]> = { training_plan_blocks: ['equipment'] };
@@ -241,6 +245,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
    * An insert-only PUT that was not applied is fine only if that same row is already stored (a retry). The columns are compared by PostgREST filters,
    * so Postgres compares them in their own types. The same id with other values is a PUT trying to change the row; no row keeps the original outcome.
    * Server-set columns (SERVER_SET_COLUMNS) are not compared; of them only the null-ness of NULLNESS_ONLY_COLUMNS is.
+   * When nothing is visible and the table has a confirm function (CONFIRM_INSERT_FUNCTIONS), the server confirms the retry without returning the row.
    * shortcut: a PUT that sets a column to null is not detected; compare server-side if it shows up.
    */
   private async confirmInsert(op: CrudEntry, rejection: string | null): Promise<string | null> {
@@ -259,6 +264,14 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       const failure = failureCode(result);
       if (failure !== null) return rejection ?? failure;
       if (result.data?.length) return found;
+    }
+    const confirm = CONFIRM_INSERT_FUNCTIONS[op.table];
+    if (confirm) {
+      const result = await this.client.rpc(confirm, { payload: { id: op.id, ...Object.fromEntries(columns) } });
+      // A permanent error here cannot tell either: the outcome of the insert stands.
+      if (failureCode(result) !== null) return rejection ?? 'no_rows_affected';
+      if (result.data === 'stored') return null;
+      if (result.data === 'changed') return 'insert_only_changed';
     }
     return rejection ?? 'no_rows_affected';
   }
