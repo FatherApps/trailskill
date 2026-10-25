@@ -31,6 +31,18 @@ describe('HistoryList', () => {
     expect(screen.toJSON()).toBeNull();
   });
 
+  it('says a result without a sync state is online only', async () => {
+    const { syncState: _syncState, ...withoutState } = { ...byId('race-pb'), origin: 'other_school' as const };
+    await render(
+      <ThemeProvider>
+        <HistoryList results={[withoutState]} />
+      </ThemeProvider>,
+    );
+
+    expect(hiddenText('Solo en línea')).toHaveLength(1);
+    expect(screen.getByLabelText(/Otra escuela, .*Solo en línea$/)).toBeOnTheScreen();
+  });
+
   it('is virtualized: it renders only the first window of a long history', async () => {
     const many = Array.from({ length: 40 }, (_, index) => ({ ...byId('race-pb'), id: `r-${index}` }));
     await render(<HistoryList results={many} />);

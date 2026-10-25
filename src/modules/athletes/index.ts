@@ -44,3 +44,9 @@ export {
 export { athleteDisplay, type AthleteColor } from './athleteDisplay';
 export { useManagedAthletes, type ManagedAthletesResult } from './data/useManagedAthletes';
 export { AthleteProfileContainer, type AthleteProfileContainerProps } from './screens/AthleteProfileContainer';
+export {
+  createInMemoryOtherSchoolResultsRepository,
+  createSupabaseOtherSchoolResultsRepository,
+  type OtherSchoolResult,
+  type OtherSchoolResultsRepository,
+} from './data/otherSchoolResults';

@@ -4,9 +4,10 @@ import type { AuthorizationStatusRepository } from '../../accounts';
 import { distances, pools, strokes } from '../../../core/sport';
 import { useRecordSyncStates } from '../../../core/sync';
 import type { EventValue } from '../components/EventSelector';
-import type { HistoryResult } from '../components/HistoryList';
+import type { HistoryOrigin, HistoryResult } from '../components/HistoryList';
 import type { AthleteSchoolRepository } from '../data/athleteSchools';
 import type { HistoryMeasurement, HistoryRepository } from '../data/history';
+import type { OtherSchoolResult, OtherSchoolResultsRepository } from '../data/otherSchoolResults';
 import type { SchoolAthlete, SchoolAthleteRepository } from '../data/schoolAthletes';
 import { personalBest } from '../personalBest';
 import { AthleteProfileScreen, type AthleteProfileView } from './AthleteProfileScreen';
@@ -22,6 +23,10 @@ export type AthleteProfileContainerProps = {
   categories: { listCategories(schoolId: string): Promise<{ id: string; name: string }[]> };
   // When the last sync finished; `null` when it never did.
   lastSyncedAt: Date | null;
+  // Results of other schools, asked to the server each time and never stored. Pass it only to viewers that may see them.
+  otherSchoolResults?: OtherSchoolResultsRepository;
+  // Whether the device is connected. Without a connection no result of another school is asked for or shown.
+  online?: boolean;
 };
 
 type ProfileSchool = { id: string; name: string; category: string };
@@ -30,7 +35,7 @@ type Loaded =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'denied' }
-  | { kind: 'ready'; athlete: SchoolAthlete; authorized: boolean; measurements: HistoryMeasurement[]; schools: ProfileSchool[] };
+  | { kind: 'ready'; athlete: SchoolAthlete; authorized: boolean; measurements: HistoryMeasurement[]; schools: ProfileSchool[]; otherSchool: OtherSchoolResult[]; otherSchoolOffline: boolean };
 
 const initialEvent: EventValue = { stroke: strokes[0].code, distance: distances[1].code, pool: pools[0].code };
 const day = (iso: string) => iso.slice(0, 10);
@@ -43,7 +48,7 @@ function monthsBetween(from: string, to: string) {
 }
 
 // The split distance is not stored with the split, so splits stay out of the history instead of showing a guessed distance.
-function toResult(m: HistoryMeasurement, personalBestId: string | undefined, syncState: HistoryResult['syncState']): HistoryResult[] {
+function toResult(m: OtherSchoolResult & { origin: HistoryOrigin }, personalBestId: string | undefined, syncState: HistoryResult['syncState']): HistoryResult[] {
   if (m.kind === 'split') return [];
   const value: HistoryResult['value'] =
     m.kind === 'race' ? { kind: 'race' } : m.kind === 'series_total' ? { kind: 'series_total' } : { kind: 'repetition', index: m.arrivalPosition ?? 1 };
@@ -59,7 +64,7 @@ function toResult(m: HistoryMeasurement, personalBestId: string | undefined, syn
       time: m.hundredths,
       ...(m.kind === 'completed' ? { completed: true } : {}),
       isPersonalBest: m.id === personalBestId,
-      syncState,
+      ...(syncState ? { syncState } : {}),
     },
   ];
 }
@@ -92,12 +97,16 @@ export function AthleteProfileContainer({
   schoolNames,
   categories,
   lastSyncedAt,
+  otherSchoolResults,
+  online = false,
 }: AthleteProfileContainerProps) {
   const [event, setEvent] = useState<EventValue>(initialEvent);
   const [attempt, setAttempt] = useState(0);
   const [chosenSchoolId, setChosenSchoolId] = useState('');
   // The answer is stored with the request it belongs to: any other request shows as loading until its own answer lands.
-  const requestKey = `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${attempt}`;
+  // The connection only matters to viewers that ask for other schools' results; for the rest a connection change is not a new request.
+  const connection = otherSchoolResults ? online : null;
+  const requestKey = `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${attempt}|${connection}`;
   const [answer, setAnswer] = useState<{ key: string; result: Loaded }>();
   const loaded = useMemo<Loaded>(() => (answer?.key === requestKey ? answer.result : { kind: 'loading' }), [answer, requestKey]);
   // The age of the last sync is read once, when the profile opens, so it does not change on every render.
@@ -108,19 +117,36 @@ export function AthleteProfileContainer({
     (async () => {
       const [athlete] = await athletes.listByIds([athleteId]);
       if (!athlete) return { kind: 'denied' } as const;
-      const [granted, measurements, schools] = await Promise.all([
+      // Offline, or when the server fails, none of them show; the rest of the profile does not depend on them.
+      const otherSchool =
+        otherSchoolResults && connection
+          ? otherSchoolResults.listByEvent(athleteId, event).then(
+              (results) => ({ results, offline: false }),
+              () => ({ results: [], offline: true }),
+            )
+          : { results: [], offline: otherSchoolResults !== undefined };
+      const [granted, measurements, schools, other] = await Promise.all([
         authorizations.listGrantedAthleteIds('record_times'),
         history.listByEvent(athleteId, event),
         readSchools(athleteId, schoolLinks, schoolNames, categories),
+        otherSchool,
       ]);
-      return { kind: 'ready', athlete, authorized: granted.includes(athleteId), measurements, schools } as const;
+      return {
+        kind: 'ready',
+        athlete,
+        authorized: granted.includes(athleteId),
+        measurements,
+        schools,
+        otherSchool: other.results,
+        otherSchoolOffline: other.offline,
+      } as const;
     })()
       .catch((): Loaded => ({ kind: 'error' }))
       .then((result) => active && setAnswer({ key: requestKey, result }));
     return () => {
       active = false;
     };
-  }, [athleteId, athletes, authorizations, history, schoolLinks, schoolNames, categories, event, requestKey]);
+  }, [athleteId, athletes, authorizations, history, schoolLinks, schoolNames, categories, event, requestKey, otherSchoolResults, connection]);
 
   const ids = useMemo(() => (loaded.kind === 'ready' ? loaded.measurements.map((m) => m.id) : []), [loaded]);
   const syncStates = useRecordSyncStates('measurements', ids);
@@ -130,10 +156,17 @@ export function AthleteProfileContainer({
   if (loaded.kind === 'denied') return <AthleteProfileScreen name="" view={{ kind: 'denied' }} />;
   if (loaded.kind === 'error') return <AthleteProfileScreen name="" view={{ kind: 'error', onRetry: retry }} />;
 
-  const { athlete, authorized, measurements, schools } = loaded;
+  const { athlete, authorized, measurements, schools, otherSchool, otherSchoolOffline } = loaded;
   // A choice that is no longer among the athlete's schools falls back to the first one.
   const school = schools.find((s) => s.id === chosenSchoolId) ?? schools[0];
+  // The best comes from the device's own measurements only: offline it must not change.
   const best = personalBest(measurements);
+  // Newest first; a measurement the server also lists is shown once, as the other school's.
+  const otherIds = new Set(otherSchool.map((r) => r.id));
+  const rows = [
+    ...measurements.filter((m) => !otherIds.has(m.id)).map((m) => ({ m, syncState: syncStates.get(m.id) ?? ('on_device' as const) })),
+    ...otherSchool.map((m) => ({ m: { ...m, origin: 'other_school' as const }, syncState: undefined })),
+  ].sort((a, b) => (a.m.capturedAt === b.m.capturedAt ? a.m.id.localeCompare(b.m.id) : b.m.capturedAt.localeCompare(a.m.capturedAt)));
   const content = {
     header: {
       name: `${athlete.firstName} ${athlete.lastName}`.trim(),
@@ -159,7 +192,8 @@ export function AthleteProfileContainer({
         : {}),
       ...(best ? { kind: best.kind === 'race' ? ('competition' as const) : ('training' as const), date: day(best.date) } : {}),
     },
-    history: measurements.flatMap((m) => toResult(m, best?.id, syncStates.get(m.id) ?? 'on_device')),
+    history: rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)),
+    ...(otherSchoolOffline ? { otherSchoolOffline } : {}),
   };
   const view: AthleteProfileView = content.history.length === 0 ? { kind: 'empty', content } : { kind: 'data', content };
   return <AthleteProfileScreen name={athlete.firstName} view={view} />;

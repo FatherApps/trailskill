@@ -30,6 +30,7 @@
       "training": "Entrenamiento",
       "competition": "Competencia"
     },
+    "online_only": "Solo en línea",
     "meta": "{{date}} · {{context}}",
     "meta_with_value": "{{date}} · {{context}} · {{value}}",
     "value": {
