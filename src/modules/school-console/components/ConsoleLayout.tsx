@@ -7,6 +7,7 @@ import '../i18n';
 import { ConsoleNav, type ConsoleDestinationId } from './ConsoleNav';
 import { IconButton } from './IconButton';
 import { DETAIL_WIDTH, SideSheet } from './SideSheet';
+import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 
 export type ConsoleLayoutKind = 'expanded' | 'medium' | 'compact';
 
@@ -36,6 +37,7 @@ const hiddenBehind = { importantForAccessibility: 'no-hide-descendants', accessi
 export function ConsoleLayout({ width, schoolName, activeId, onSelect, children, detail, scrollEnabled = true }: ConsoleLayoutProps) {
   const { colors, space, breakpoint } = useTheme();
   const layout = consoleLayoutFor(width, breakpoint);
+  const largeText = useTextScale() >= LARGE_TEXT_SCALE;
 
   const padding = layout === 'compact' ? space[4] : space[6];
   const content = scrollEnabled ? (
@@ -80,9 +82,11 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
     );
   }
 
+  // The 240 dp side panel cannot hold the labels whole at large text: the top navigation, whose pills wrap, takes over.
+  const sideNav = layout === 'expanded' && !largeText;
   const nav = (
     <ConsoleNav
-      variant={layout === 'expanded' ? 'side' : 'top'}
+      variant={sideNav ? 'side' : 'top'}
       activeId={activeId}
       onSelect={onSelect}
       schoolName={schoolName}
@@ -92,25 +96,28 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
 
   return (
     <View style={root}>
-      <View {...(sheetOpen ? hiddenBehind : null)} style={{ flexGrow: 1, flexDirection: layout === 'expanded' ? 'row' : 'column' }}>
+      <View {...(sheetOpen ? hiddenBehind : null)} style={{ flexGrow: 1, flexDirection: sideNav ? 'row' : 'column' }}>
         {nav}
-        {content}
-        {layout === 'expanded' && detail && (
-          <View
-            testID="detail-panel"
-            style={{
-              width: DETAIL_WIDTH,
-              gap: space[4],
-              padding: space[5],
-              backgroundColor: colors['surface-1'],
-            }}
-          >
-            <View style={{ alignItems: 'flex-end' }}>
-              <IconButton icon="close" label={t('schoolConsole.layout.close')} onPress={detail.onClose} />
+        {/* Expanded with the top navigation: the content and the detail panel share the row under it. */}
+        <View style={{ flexGrow: 1, flex: 1, flexDirection: layout === 'expanded' ? 'row' : 'column' }}>
+          {content}
+          {layout === 'expanded' && detail && (
+            <View
+              testID="detail-panel"
+              style={{
+                width: DETAIL_WIDTH,
+                gap: space[4],
+                padding: space[5],
+                backgroundColor: colors['surface-1'],
+              }}
+            >
+              <View style={{ alignItems: 'flex-end' }}>
+                <IconButton icon="close" label={t('schoolConsole.layout.close')} onPress={detail.onClose} />
+              </View>
+              {scrollDetail(detail.content)}
             </View>
-            {scrollDetail(detail.content)}
-          </View>
-        )}
+          )}
+        </View>
       </View>
       {sheetOpen && (
         <SideSheet label={detail.label} onClose={detail.onClose}>

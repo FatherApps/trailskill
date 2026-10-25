@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import fs from 'node:fs';
 import path from 'node:path';
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ThemeProvider, type ThemeName } from '../../../core/theme';
 import { galleryEntries } from '../gallery';
@@ -36,6 +36,13 @@ const layoutShown = () =>
     : screen.queryByTestId('console-nav-top', { includeHiddenElements: true })
       ? 'medium'
       : 'compact';
+
+// The React Native jest setup reports a system font scale of 2: these tests start from 100 %.
+const realGet = Dimensions.get.bind(Dimensions);
+beforeEach(() => {
+  jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 }));
+});
+afterEach(() => jest.restoreAllMocks());
 
 describe('school console gallery entries', () => {
   it('have unique ids and the expected states', () => {

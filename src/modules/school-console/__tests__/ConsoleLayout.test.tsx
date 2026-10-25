@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { BackHandler, Text } from 'react-native';
+import { Dimensions, BackHandler, Text } from 'react-native';
 
-import { breakpoint } from '../../../core/theme';
+import { breakpoint, ThemeProvider } from '../../../core/theme';
 import { ConsoleLayout, consoleLayoutFor, type ConsoleLayoutProps } from '../components/ConsoleLayout';
 
 const hidden = { includeHiddenElements: true };
@@ -19,6 +19,13 @@ const base = (width: number, extra: Partial<ConsoleLayoutProps> = {}): ConsoleLa
 });
 
 const show = (width: number, extra?: Partial<ConsoleLayoutProps>) => render(<ConsoleLayout {...base(width, extra)} />);
+
+// The React Native jest setup reports a system font scale of 2: these tests start from 100 %.
+const realGet = Dimensions.get.bind(Dimensions);
+beforeEach(() => {
+  jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 }));
+});
+afterEach(() => jest.restoreAllMocks());
 
 describe('consoleLayoutFor', () => {
   it.each([
@@ -59,6 +66,29 @@ describe('ConsoleLayout', () => {
     expect(await shown(600)).toEqual(['console-nav-top']);
     expect(await shown(1023)).toEqual(['console-nav-top']);
     expect(await shown(1024)).toEqual(['console-nav-side']);
+  });
+
+  describe('expanded navigation by text scale', () => {
+    // The system font scale stays at 1: the text scale comes from the theme, as in the gallery's 200 % option.
+    const at = (fontScale: number) =>
+      render(<ThemeProvider fontScale={fontScale}><ConsoleLayout {...base(1280, { detail })} /></ThemeProvider>);
+
+    it('keeps the side navigation at 100 % text and below 1.5', async () => {
+      await at(1);
+      expect(screen.getByTestId('console-nav-side')).toBeOnTheScreen();
+      await screen.unmount();
+      await at(1.49);
+      expect(screen.getByTestId('console-nav-side')).toBeOnTheScreen();
+    });
+
+    it.each([1.5, 2])('uses the top navigation from a %s text scale, with the detail panel beside the content', async (scale) => {
+      await at(scale);
+
+      expect(screen.queryByTestId('console-nav-side')).toBeNull();
+      expect(screen.getByTestId('console-nav-top')).toBeOnTheScreen();
+      expect(screen.getByTestId('detail-panel')).toBeOnTheScreen();
+      expect(screen.getByText('Contenido principal')).toBeOnTheScreen();
+    });
   });
 
   it('compact has no console navigation: the phone navigation belongs to the app', async () => {

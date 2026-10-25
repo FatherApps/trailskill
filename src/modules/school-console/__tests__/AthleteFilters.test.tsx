@@ -91,6 +91,15 @@ describe('AthleteFilters', () => {
       await measure(1200);
 
       expect(search().flexBasis).toBe('100%');
+      expect(search().width).toBe('100%');
+    });
+
+    it('reads the 200 % from the theme scale, not only from the system font scale', async () => {
+      // The system font scale is 1 here; only the theme scales the typography.
+      await render(<ThemeProvider fontScale={2}><AthleteFilters {...base} /></ThemeProvider>);
+
+      expect(search().flexBasis).toBe('100%');
+      expect(search().width).toBe('100%');
     });
   });
 

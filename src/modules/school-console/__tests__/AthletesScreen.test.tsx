@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
 import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../../core/theme';
 import {
@@ -50,6 +50,13 @@ const show = async (view: AthletesView, extra: Partial<AthletesScreenProps> = {}
 };
 
 const withDetail: AthletesContent = { ...content, selectedId: 'a1', detail: detailsFixture.a1 };
+
+// The React Native jest setup reports a system font scale of 2: these tests start from 100 %.
+const realGet = Dimensions.get.bind(Dimensions);
+beforeEach(() => {
+  jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 }));
+});
+afterEach(() => jest.restoreAllMocks());
 
 describe('AthletesScreen', () => {
   describe('with data', () => {

@@ -51,6 +51,7 @@ function SearchField({ query, onQueryChange, stacked }: Pick<AthleteFiltersProps
         flexGrow: 1,
         // Stacked: the field takes the whole row, so its placeholder is never cut.
         flexBasis: stacked ? '100%' : 220,
+        ...(stacked && { width: '100%' }),
         flexDirection: 'row',
         alignItems: 'center',
         gap: space[2],
