@@ -51,7 +51,7 @@
   "today": {
     "title": "Hoy",
     "caption": "{{plan}} · {{name}}",
-    "empty_title": "Hoy no hay entrenamiento",
+    "empty_title": "Hoy no hay plan",
     "empty_message": "Cuando tu entrenador asigne un plan para hoy, aparecerá aquí.",
     "error_title": "No pudimos cargar el plan de hoy",
     "error_message": "Revisa tu conexión e inténtalo de nuevo.",

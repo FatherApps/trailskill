@@ -22,7 +22,7 @@ describe('TodayScreen states', () => {
   it('invites to wait for a plan when there is none today', async () => {
     await render(setup({ kind: 'empty' }).ui);
 
-    expect(screen.getByText('Hoy no hay entrenamiento')).toBeOnTheScreen();
+    expect(screen.getByText('Hoy no hay plan')).toBeOnTheScreen();
     expect(screen.getByText('Cuando tu entrenador asigne un plan para hoy, aparecerá aquí.')).toBeOnTheScreen();
     expect(screen.getByText('Lucía R.')).toBeOnTheScreen();
   });

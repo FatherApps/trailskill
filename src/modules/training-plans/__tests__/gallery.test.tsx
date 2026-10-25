@@ -43,7 +43,7 @@ describe('training-plans gallery entries', () => {
     ['planBuilder', 'editing', 'Listo'],
     ['today', 'today', 'Lleva hoy'],
     ['today', 'loading', 'Hoy'],
-    ['today', 'empty', 'Hoy no hay entrenamiento'],
+    ['today', 'empty', 'Hoy no hay plan'],
     ['today', 'error', 'No pudimos cargar el plan de hoy'],
     ['today', 'offline', 'Plan guardado el'],
     ['today', 'offline-empty', 'Estás sin conexión'],
