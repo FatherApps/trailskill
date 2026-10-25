@@ -20,7 +20,8 @@ export type AuthorizationsScreenProps = {
   // The authorizations in force of this adult, by athlete and purpose.
   inForce: Record<string, Partial<Record<AuthorizationPurpose, AuthorizationRecord>>>;
   // The texts the adult checked, one entry per athlete and purpose. May be empty in registration.
-  onSave: (selected: { athleteId: string; text: AuthorizationText }[]) => void;
+  // Resolves true when everything was saved; a false keeps the checked boxes so the person can try again.
+  onSave: (selected: { athleteId: string; text: AuthorizationText }[]) => Promise<boolean>;
   onWithdraw: (authorizationId: string) => void;
   // The last save or withdrawal did not work on this device.
   failed?: boolean;
@@ -35,14 +36,13 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
   const keyOf = (athleteId: string, purpose: AuthorizationPurpose) => `${athleteId}:${purpose}`;
   const registration = mode === 'registration';
 
-  function save() {
+  async function save() {
     const chosen = athletes.flatMap((athlete) =>
       texts.filter((text) => selected[keyOf(athlete.id, text.purpose)]).map((text) => ({ athleteId: athlete.id, text })),
     );
     // Manage with nothing checked has nothing to save; registration continues without authorizing.
     if (chosen.length === 0 && !registration) return;
-    setSelected({});
-    onSave(chosen);
+    if (await onSave(chosen)) setSelected({});
   }
 
   function confirmWithdrawal() {

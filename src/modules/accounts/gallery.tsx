@@ -156,7 +156,7 @@ export const galleryEntries: GalleryEntry[] = [
             texts={authorizationTexts}
             inForce={{ 'gallery-athlete': { record_times: consentAccepted } }}
             failed={false}
-            onSave={noop}
+            onSave={async () => true}
             onWithdraw={noop}
             onBack={noop}
           />

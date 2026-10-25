@@ -31,7 +31,7 @@ async function renderContainer(props: Partial<React.ComponentProps<typeof Author
 
 describe('AuthorizationsScreen', () => {
   it('smoke: lists every purpose unchecked with the provisional notice and the skipped tag', async () => {
-    await render(<AuthorizationsScreen mode="manage" athletes={athletes} texts={texts} inForce={{}} onSave={jest.fn()} onWithdraw={jest.fn()} />);
+    await render(<AuthorizationsScreen mode="manage" athletes={athletes} texts={texts} inForce={{}} onSave={jest.fn().mockResolvedValue(true)} onWithdraw={jest.fn()} />);
 
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     screen.getAllByRole('checkbox').forEach((box) => expect(box).not.toBeChecked());
@@ -41,13 +41,24 @@ describe('AuthorizationsScreen', () => {
   });
 
   it('saving calls onSave with exactly the checked purpose', async () => {
-    const onSave = jest.fn();
+    const onSave = jest.fn().mockResolvedValue(true);
     await render(<AuthorizationsScreen mode="manage" athletes={athletes} texts={texts} inForce={{}} onSave={onSave} onWithdraw={jest.fn()} />);
 
     await fireEvent.press(screen.getByRole('checkbox', { name: IMPORT }));
     await fireEvent.press(screen.getByRole('button', { name: 'Guardar' }));
 
     expect(onSave).toHaveBeenCalledWith([{ athleteId: 'a1', text: texts[1] }]);
+  });
+
+  it('a failed save keeps the checked box checked', async () => {
+    const onSave = jest.fn().mockResolvedValue(false);
+    await render(<AuthorizationsScreen mode="manage" athletes={athletes} texts={texts} inForce={{}} onSave={onSave} onWithdraw={jest.fn()} />);
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: IMPORT }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('checkbox', { name: IMPORT })).toBeChecked();
   });
 
   it('manage with nothing checked saves nothing', async () => {

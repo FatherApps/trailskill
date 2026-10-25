@@ -20,8 +20,7 @@ export type ConsentCardProps = {
 export const consentCardColors = { background: 'surface-1', title: 'ink', text: 'ink-muted' } as const;
 
 const styles = StyleSheet.create({
-  // Gap: the touch target is at least 48 dp (design-system README); size['target-min'] is for buttons, so the row keeps the literal.
-  check: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
+  check: { flexDirection: 'row', alignItems: 'center' },
   title: { flex: 1 },
 });
 
@@ -32,7 +31,7 @@ function dateOf(timestamp: string): string {
 
 // One purpose: the exact text shown, its version, and either an unchecked box or the acceptance with its way out.
 export function ConsentCard({ text, accepted, checked, onToggle, onWithdraw }: ConsentCardProps) {
-  const { colors, space, radius, typography } = useTheme();
+  const { colors, space, radius, size, typography } = useTheme();
   const title = t(`accounts.consent.purpose.${text.purpose}`);
   const titleStyle = [typography.subtitle, styles.title, { color: colors[consentCardColors.title] }];
 
@@ -50,7 +49,7 @@ export function ConsentCard({ text, accepted, checked, onToggle, onWithdraw }: C
           accessibilityLabel={title}
           accessibilityState={{ checked }}
           onPress={onToggle}
-          style={[styles.check, { gap: space[3] }]}
+          style={[styles.check, { gap: space[3], minHeight: size['target-min'] }]}
         >
           <Icon name={checked ? 'check_circle' : 'radio_button_unchecked'} />
           <Text style={titleStyle}>{title}</Text>

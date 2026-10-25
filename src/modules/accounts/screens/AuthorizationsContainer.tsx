@@ -64,23 +64,25 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
     };
   }, [mode, drafts]);
 
-  async function save(selected: { athleteId: string; text: AuthorizationText }[]) {
+  // Resolves false when a local write failed, so the screen keeps the checked boxes.
+  async function save(selected: { athleteId: string; text: AuthorizationText }[]): Promise<boolean> {
     setFailed(false);
     try {
       for (const { athleteId, text } of selected) await repository.accept({ userId, athleteId, text });
     } catch {
-      // A failed local write keeps the screen, so nothing typed or checked is lost and the person can try again.
+      // A failed local write keeps the screen and its checked boxes so the person can try again.
       setFailed(true);
       await load();
-      return;
+      return false;
     }
     if (mode === 'registration') {
       // A failed draft cleanup must not block the flow.
       await drafts?.clear().catch(() => {});
       onDone();
-      return;
+      return true;
     }
     await load();
+    return true;
   }
 
   async function withdraw(id: string) {

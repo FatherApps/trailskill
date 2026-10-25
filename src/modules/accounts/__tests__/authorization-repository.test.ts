@@ -1,5 +1,3 @@
-// DRAFT from the parent session: a starting point for src/modules/accounts/__tests__/authorization-repository.test.ts.
-// Adjust freely (mock shape, helper names); keep every behavior it asserts.
 import { DatabaseSync } from 'node:sqlite';
 
 import { createStore, openDatabase, type FakeDatabase } from '../../../core/sync/testing/fakeDatabase';
