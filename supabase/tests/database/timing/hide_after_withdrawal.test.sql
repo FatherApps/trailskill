@@ -84,8 +84,8 @@ select lives_ok(
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 
 select lives_ok(
-  $$ insert into public.timing_series (id, stroke, distance, pool, session_type, device_id)
-     values ('58000000-0000-4000-8000-0000000000c1', 'FR', '50m', 'SCM', 'training', 'device-c') $$,
+  $$ insert into public.timing_series (school_id, id, stroke, distance, pool, session_type, device_id)
+     values ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000c1', 'FR', '50m', 'SCM', 'training', 'device-c') $$,
   'coach C creates a series'
 );
 
@@ -95,30 +95,30 @@ select lives_ok(
 -- arrives. d8: e2, which never withdrew. d9: an unassigned arrival.
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('58000000-0000-4000-8000-0000000000d1', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000d1', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3150, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-02 08:00:00+00'),
-       ('58000000-0000-4000-8000-0000000000d6', 'repetition', '58000000-0000-4000-8000-0000000000e3',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000d6', 'repetition', '58000000-0000-4000-8000-0000000000e3',
         '58000000-0000-4000-8000-0000000000c1', 3160, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-02 08:00:00+00'),
-       ('58000000-0000-4000-8000-0000000000d7', 'repetition', '58000000-0000-4000-8000-0000000000e3',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000d7', 'repetition', '58000000-0000-4000-8000-0000000000e3',
         '58000000-0000-4000-8000-0000000000c1', 3170, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-06 08:00:00+00'),
-       ('58000000-0000-4000-8000-0000000000d8', 'repetition', '58000000-0000-4000-8000-0000000000e2',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000d8', 'repetition', '58000000-0000-4000-8000-0000000000e2',
         '58000000-0000-4000-8000-0000000000c1', 3180, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-06 08:00:00+00'),
-       ('58000000-0000-4000-8000-0000000000da', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000da', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3215, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-03 08:00:00+00') $$,
   'coach C records before any withdrawal'
 );
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, stroke, distance, pool, session_type, source, device_id, captured_at, hundredths)
+       (school_id, id, kind, athlete_id, series_id, stroke, distance, pool, session_type, source, device_id, captured_at, hundredths)
      values
-       ('58000000-0000-4000-8000-0000000000d9', 'repetition', null,
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000d9', 'repetition', null,
         '58000000-0000-4000-8000-0000000000c1', 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-06 08:30:00+00', 3190) $$,
   'coach C records an unassigned arrival'
@@ -160,21 +160,21 @@ set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", 
 -- d4: claims hidden = false. d7 (above) was stored before the withdrawal arrived.
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('58000000-0000-4000-8000-0000000000d2', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000d2', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3200, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-06 08:00:00+00'),
-       ('58000000-0000-4000-8000-0000000000d3', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000d3', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3210, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-04 08:00:00+00') $$,
   'coach C sends measurements of e1 after the withdrawal arrived'
 );
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, hidden)
+       (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, hidden)
      values
-       ('58000000-0000-4000-8000-0000000000d4', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000d4', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3220, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-07 08:00:00+00', false) $$,
   'coach C inserts a measurement after the withdrawal that claims hidden = false'
@@ -305,9 +305,9 @@ select throws_ok(
 );
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, hidden)
+       (school_id, id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, hidden)
      values
-       ('58000000-0000-4000-8000-0000000000db', 'repetition', '58000000-0000-4000-8000-0000000000e2', 3300,
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000db', 'repetition', '58000000-0000-4000-8000-0000000000e2', 3300,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c', '2026-10-02 08:10:00+00', true) $$,
   'an insert for an athlete who never withdrew that claims hidden = true'
 );
@@ -349,12 +349,14 @@ select is(
 
 -- 9. The coach and school admin streams. This mirrors the timing_measurements
 -- stream in powersync/sync-config.yaml: its queries and the with: subqueries,
--- with auth.user_id() replaced by the user id, plus AND hidden = false (the
--- three source queries are joined with OR here; they are separate queries there).
+-- with auth.user_id() replaced by the user id, plus AND hidden = false and the
+-- user's schools (issue #291; the three source queries are joined with OR
+-- here; they are separate queries there).
 reset role;
 select set_eq(
   $$ select id from public.measurements
      where hidden = false
+       and school_id in (select school_id from public.school_memberships where user_id = '58000000-0000-4000-8000-0000000000a1')
        and (athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '58000000-0000-4000-8000-0000000000a1')
          or athlete_id in (select athlete_id from public.athlete_groups where group_id in (select group_id from public.coach_group_assignments where coach_user_id = '58000000-0000-4000-8000-0000000000a1'))
          or athlete_id in (select athlete_id from public.athlete_schools where school_id in (select school_id from public.school_memberships where user_id = '58000000-0000-4000-8000-0000000000a1' and role = 'school_admin'))) $$,
@@ -366,6 +368,7 @@ select set_eq(
 select set_eq(
   $$ select id from public.measurements
      where hidden = false
+       and school_id in (select school_id from public.school_memberships where user_id = '58000000-0000-4000-8000-0000000000a2')
        and (athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '58000000-0000-4000-8000-0000000000a2')
          or athlete_id in (select athlete_id from public.athlete_groups where group_id in (select group_id from public.coach_group_assignments where coach_user_id = '58000000-0000-4000-8000-0000000000a2'))
          or athlete_id in (select athlete_id from public.athlete_schools where school_id in (select school_id from public.school_memberships where user_id = '58000000-0000-4000-8000-0000000000a2' and role = 'school_admin'))) $$,
@@ -391,12 +394,12 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_at)
+       (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_at)
      values
-       ('58000000-0000-4000-8000-0000000000ea', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000ea', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3430, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-06 09:00:00+00', '2000-01-01 00:00:00+00'),
-       ('58000000-0000-4000-8000-0000000000e6', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000e6', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3410, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-09 09:00:00+00', '2000-01-01 00:00:00+00') $$,
   'coach C sends measurements with an old created_at'
@@ -428,9 +431,9 @@ select lives_ok(
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('58000000-0000-4000-8000-0000000000e5', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000e5', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3400, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-09 08:00:00+00') $$,
   'coach C records after the new authorization'
@@ -464,9 +467,9 @@ select is(
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('58000000-0000-4000-8000-0000000000e7', 'repetition', '58000000-0000-4000-8000-0000000000e3',
+       ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000e7', 'repetition', '58000000-0000-4000-8000-0000000000e3',
         '58000000-0000-4000-8000-0000000000c1', 3500, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-10 08:00:00+00')
      on conflict (id) do nothing returning id $$,
@@ -494,11 +497,11 @@ declare result jsonb;
 begin
   with ins as (
     insert into public.measurements
-      (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id)
+      (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id)
     values
-      (existing, 'repetition', '58000000-0000-4000-8000-0000000000e1', '58000000-0000-4000-8000-0000000000c1',
+      ('58000000-0000-4000-8000-0000000000b1', existing, 'repetition', '58000000-0000-4000-8000-0000000000e1', '58000000-0000-4000-8000-0000000000c1',
        3600, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c', '2026-10-11 08:00:00+00', null),
-      (new_id, 'split', '58000000-0000-4000-8000-0000000000e1', '58000000-0000-4000-8000-0000000000c1',
+      ('58000000-0000-4000-8000-0000000000b1', new_id, 'split', '58000000-0000-4000-8000-0000000000e1', '58000000-0000-4000-8000-0000000000c1',
        1800, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c', '2026-10-07 08:00:00+00', existing)
     on conflict (id) do nothing
     returning id, parent_id
@@ -546,9 +549,9 @@ select ok(
 -- offline, sent as one row; clients cannot insert it, the owner can) hides, by
 -- its withdrawn_at, what was captured after it and nothing captured before it.
 insert into public.measurements
-  (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+  (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
 values
-  ('58000000-0000-4000-8000-0000000000dc', 'repetition', '58000000-0000-4000-8000-0000000000e2',
+  ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000dc', 'repetition', '58000000-0000-4000-8000-0000000000e2',
    '58000000-0000-4000-8000-0000000000c1', 3700, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
    '2026-10-02 08:00:00+00', '58000000-0000-4000-8000-0000000000a1');
 select is(
@@ -575,12 +578,12 @@ select is(
 -- trigger is disabled to simulate that stale row (owner, inside the transaction).
 alter table public.measurements disable trigger measurements_compute_hidden;
 insert into public.measurements
-  (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+  (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
 values
-  ('58000000-0000-4000-8000-0000000000dd', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+  ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000dd', 'repetition', '58000000-0000-4000-8000-0000000000e1',
    '58000000-0000-4000-8000-0000000000c1', 3800, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
    '2026-10-06 10:00:00+00', '58000000-0000-4000-8000-0000000000a1'),
-  ('58000000-0000-4000-8000-0000000000de', 'repetition', '58000000-0000-4000-8000-0000000000e1',
+  ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000de', 'repetition', '58000000-0000-4000-8000-0000000000e1',
    '58000000-0000-4000-8000-0000000000c1', 3810, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
    '2026-10-02 10:00:00+00', '58000000-0000-4000-8000-0000000000a1');
 alter table public.measurements enable trigger measurements_compute_hidden;

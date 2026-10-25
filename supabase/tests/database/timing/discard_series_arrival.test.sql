@@ -35,16 +35,16 @@ insert into public.coach_athlete_assignments (coach_user_id, athlete_id) values
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('50000000-0000-4000-8000-0000000000a3', '50000000-0000-4000-8000-0000000000e1', 'guardian');
 
-insert into public.timing_series (id, created_by, stroke, distance, pool, session_type, device_id) values
-  ('50000000-0000-4000-8000-0000000000c1', '50000000-0000-4000-8000-0000000000a1', 'FR', '50m', 'SCM', 'training', 'dev-1');
+insert into public.timing_series (school_id, id, created_by, stroke, distance, pool, session_type, device_id) values
+  ('50000000-0000-4000-8000-0000000000b1', '50000000-0000-4000-8000-0000000000c1', '50000000-0000-4000-8000-0000000000a1', 'FR', '50m', 'SCM', 'training', 'dev-1');
 
 -- All by coach A. f1, f2, f5: unassigned arrivals of A's series. f3: an
 -- assigned arrival. f4: an individual time (no series; an unassigned row
 -- outside a series is refused by the insert policy).
 insert into public.measurements
-  (id, kind, athlete_id, series_id, arrival_position, hundredths,
+  (school_id, id, kind, athlete_id, series_id, arrival_position, hundredths,
    stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
-select id, 'repetition', athlete, series, pos, h, 'FR', '50m', 'SCM', 'training',
+select '50000000-0000-4000-8000-0000000000b1'::uuid, id, 'repetition', athlete, series, pos, h, 'FR', '50m', 'SCM', 'training',
        'screen_button', 'dev-1', '2026-10-24 08:00:00+00', '50000000-0000-4000-8000-0000000000a1'
 from (values
   ('50000000-0000-4000-8000-0000000000f1'::uuid, null::uuid, '50000000-0000-4000-8000-0000000000c1'::uuid, 1, 3100),
@@ -249,20 +249,20 @@ select is(
 -- A failed insert is requeued as the whole current row: it may carry a discard.
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, arrival_position, hundredths, discarded_at, discarded_by,
+       (school_id, id, kind, athlete_id, series_id, arrival_position, hundredths, discarded_at, discarded_by,
         stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('50000000-0000-4000-8000-0000000000f6', 'repetition', null, '50000000-0000-4000-8000-0000000000c1', 6, 3600,
+       ('50000000-0000-4000-8000-0000000000b1', '50000000-0000-4000-8000-0000000000f6', 'repetition', null, '50000000-0000-4000-8000-0000000000c1', 6, 3600,
         '2026-10-25 10:10:00+00', '50000000-0000-4000-8000-0000000000a1',
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1', '2026-10-24 08:00:00+00') $$,
   'the author inserts an unassigned arrival already discarded on the device'
 );
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, discarded_at, discarded_by,
+       (school_id, kind, athlete_id, hundredths, discarded_at, discarded_by,
         stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', '50000000-0000-4000-8000-0000000000e1', 3700,
+       ('50000000-0000-4000-8000-0000000000b1', 'repetition', '50000000-0000-4000-8000-0000000000e1', 3700,
         '2026-10-25 10:10:00+00', '50000000-0000-4000-8000-0000000000a1',
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1', '2026-10-24 08:00:00+00') $$,
   '42501', 'only the author can discard an unassigned arrival of a series',
@@ -270,10 +270,10 @@ select throws_ok(
 );
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, series_id, arrival_position, hundredths, discarded_at, discarded_by,
+       (school_id, kind, athlete_id, series_id, arrival_position, hundredths, discarded_at, discarded_by,
         stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', null, '50000000-0000-4000-8000-0000000000c1', 7, 3700,
+       ('50000000-0000-4000-8000-0000000000b1', 'repetition', null, '50000000-0000-4000-8000-0000000000c1', 7, 3700,
         '2026-10-25 10:10:00+00', '50000000-0000-4000-8000-0000000000a2',
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1', '2026-10-24 08:00:00+00') $$,
   '42501', 'only the author can discard an unassigned arrival of a series',

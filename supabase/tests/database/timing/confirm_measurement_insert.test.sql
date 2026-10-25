@@ -76,9 +76,9 @@ select is(
 create function pg_temp.upload() returns bigint language sql as $$
   with stored as (
     insert into public.measurements
-      (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+      (school_id, id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
     values
-      ('59000000-0000-4000-8000-0000000000d1', 'repetition', '59000000-0000-4000-8000-0000000000e1', 3150,
+      ('59000000-0000-4000-8000-0000000000b1', '59000000-0000-4000-8000-0000000000d1', 'repetition', '59000000-0000-4000-8000-0000000000e1', 3150,
        'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c', '2026-10-06 08:00:00+00')
     on conflict (id) do nothing
     returning id)

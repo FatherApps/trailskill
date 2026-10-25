@@ -155,12 +155,13 @@ on conflict do nothing;
 -- week) plus a deterministic wobble, so some weeks are slower and each athlete
 -- has a personal best. The ids are deterministic, so a second run inserts nothing.
 insert into public.measurements (
-  id, created_by, device_id, kind, athlete_id, hundredths, stroke, distance, pool,
+  id, created_by, school_id, device_id, kind, athlete_id, hundredths, stroke, distance, pool,
   session_type, source, captured_at
 )
 select
   md5('demo-measurement:' || a.id || ':' || e.stroke || e.distance || ':' || w.week)::uuid,
   '00000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-0000000000a1',
   'demo-device',
   'repetition',
   a.id,

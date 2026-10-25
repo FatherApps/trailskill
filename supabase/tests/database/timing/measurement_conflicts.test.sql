@@ -52,14 +52,14 @@ insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('59000000-0000-4000-8000-0000000000a5', '59000000-0000-4000-8000-0000000000e1', 'guardian'),
   ('59000000-0000-4000-8000-0000000000a5', '59000000-0000-4000-8000-0000000000e2', 'guardian');
 
-insert into public.timing_series (id, created_by, stroke, distance, pool, session_type, device_id) values
-  ('59000000-0000-4000-8000-0000000000c1', '59000000-0000-4000-8000-0000000000a1', 'FR', '50m', 'SCM', 'training', 'dev-1');
+insert into public.timing_series (school_id, id, created_by, stroke, distance, pool, session_type, device_id) values
+  ('59000000-0000-4000-8000-0000000000b1', '59000000-0000-4000-8000-0000000000c1', '59000000-0000-4000-8000-0000000000a1', 'FR', '50m', 'SCM', 'training', 'dev-1');
 
 -- d1: the record both coaches edit. d3 and d4: edited by the school admin.
 -- d5: a hidden row. u1 to u3: unassigned arrivals of the series of C1.
 insert into public.measurements
-  (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
-select id, 'repetition', athlete, '59000000-0000-4000-8000-0000000000c1', h, 'FR', '50m', 'SCM', 'training',
+  (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+select '59000000-0000-4000-8000-0000000000b1'::uuid, id, 'repetition', athlete, '59000000-0000-4000-8000-0000000000c1', h, 'FR', '50m', 'SCM', 'training',
        'screen_button', 'dev-1', '2026-10-02 08:00:00+00', '59000000-0000-4000-8000-0000000000a1'
 from (values
   ('59000000-0000-4000-8000-0000000000d1'::uuid, '59000000-0000-4000-8000-0000000000e1'::uuid, 3500),
@@ -82,9 +82,9 @@ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at
   ('59000000-0000-4000-8000-000000000101', '59000000-0000-4000-8000-0000000000e2', 'record_times',
    '59000000-0000-4000-8000-0000000000aa', '2026-10-01 08:00:00+00', '59000000-0000-4000-8000-0000000000a5');
 insert into public.measurements
-  (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+  (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
 values
-  ('59000000-0000-4000-8000-0000000000d5', 'repetition', '59000000-0000-4000-8000-0000000000e2',
+  ('59000000-0000-4000-8000-0000000000b1', '59000000-0000-4000-8000-0000000000d5', 'repetition', '59000000-0000-4000-8000-0000000000e2',
    '59000000-0000-4000-8000-0000000000c1', 3540, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1',
    '2026-10-06 08:00:00+00', '59000000-0000-4000-8000-0000000000a1');
 update public.authorizations set withdrawn_at = '2026-10-05 09:00:00+00', withdrawn_by = '59000000-0000-4000-8000-0000000000a5'
@@ -239,20 +239,20 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select lives_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', '59000000-0000-4000-8000-0000000000e1', '59000000-0000-4000-8000-0000000000c1', 3300,
+       ('59000000-0000-4000-8000-0000000000b1', 'repetition', '59000000-0000-4000-8000-0000000000e1', '59000000-0000-4000-8000-0000000000c1', 3300,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1', '2026-10-03 08:00:00+00'),
-       ('repetition', '59000000-0000-4000-8000-0000000000e1', '59000000-0000-4000-8000-0000000000c1', 3310,
+       ('59000000-0000-4000-8000-0000000000b1', 'repetition', '59000000-0000-4000-8000-0000000000e1', '59000000-0000-4000-8000-0000000000c1', 3310,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-3', '2026-10-03 08:00:00+00') $$,
   'the same series records new measurements from two devices'
 );
 set local request.jwt.claims = '{"sub": "59000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 select lives_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, version, edited_by)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, version, edited_by)
      values
-       ('repetition', '59000000-0000-4000-8000-0000000000e1', 3320,
+       ('59000000-0000-4000-8000-0000000000b1', 'repetition', '59000000-0000-4000-8000-0000000000e1', 3320,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-2', '2026-10-03 08:00:00+00', 9, '59000000-0000-4000-8000-0000000000a1') $$,
   'another coach records a new measurement of the same athlete, sending version and edited_by'
 );
@@ -534,8 +534,8 @@ reset role;
 -- syncs, then D1 edits twice offline from version 1. Both edits conflict and D2's
 -- value is never overwritten, which an omitted edited_device_id would allow.
 insert into public.measurements
-  (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
-values ('59000000-0000-4000-8000-0000000000d9', 'repetition', '59000000-0000-4000-8000-0000000000e1', '59000000-0000-4000-8000-0000000000c1', 3600,
+  (school_id, id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+values ('59000000-0000-4000-8000-0000000000b1', '59000000-0000-4000-8000-0000000000d9', 'repetition', '59000000-0000-4000-8000-0000000000e1', '59000000-0000-4000-8000-0000000000c1', 3600,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1', '2026-10-01 10:00:00+00', '59000000-0000-4000-8000-0000000000a1');
 -- Captured before the withdrawal above, so it stays visible.
 set local role authenticated;

@@ -39,15 +39,15 @@ insert into public.coach_athlete_assignments (coach_user_id, athlete_id) values
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('52000000-0000-4000-8000-0000000000a3', '52000000-0000-4000-8000-0000000000e1', 'guardian');
 
-insert into public.timing_series (id, created_by, stroke, distance, pool, session_type, device_id) values
-  ('52000000-0000-4000-8000-0000000000c1', '52000000-0000-4000-8000-0000000000a1', 'FR', '50m', 'SCM', 'training', 'dev-1');
+insert into public.timing_series (school_id, id, created_by, stroke, distance, pool, session_type, device_id) values
+  ('52000000-0000-4000-8000-0000000000b1', '52000000-0000-4000-8000-0000000000c1', '52000000-0000-4000-8000-0000000000a1', 'FR', '50m', 'SCM', 'training', 'dev-1');
 
 -- All by coach A, for e1. g1, g2: completed, individual. g4: a repetition (an
 -- assigned time). g5: a completed measurement of a series.
 insert into public.measurements
-  (id, kind, athlete_id, series_id, hundredths,
+  (school_id, id, kind, athlete_id, series_id, hundredths,
    stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
-select id, kind, '52000000-0000-4000-8000-0000000000e1', series, h, 'FR', '50m', 'SCM', 'training',
+select '52000000-0000-4000-8000-0000000000b1'::uuid, id, kind, '52000000-0000-4000-8000-0000000000e1', series, h, 'FR', '50m', 'SCM', 'training',
        'screen_button', 'dev-1', '2026-10-24 08:00:00+00', '52000000-0000-4000-8000-0000000000a1'
 from (values
   ('52000000-0000-4000-8000-0000000000f1'::uuid, 'completed', null::uuid, null::int),
@@ -152,10 +152,10 @@ select isnt_empty(
 -- A failed insert is requeued as the whole current row: it may carry a discard.
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, hundredths, discarded_at, discarded_by,
+       (school_id, id, kind, athlete_id, hundredths, discarded_at, discarded_by,
         stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
      values
-       ('52000000-0000-4000-8000-0000000000f6', 'completed', '52000000-0000-4000-8000-0000000000e1', null,
+       ('52000000-0000-4000-8000-0000000000b1', '52000000-0000-4000-8000-0000000000f6', 'completed', '52000000-0000-4000-8000-0000000000e1', null,
         '2026-10-25 10:10:00+00', '52000000-0000-4000-8000-0000000000a1',
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1', '2026-10-24 08:00:00+00',
         '52000000-0000-4000-8000-0000000000a1') $$,
@@ -163,10 +163,10 @@ select lives_ok(
 );
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, discarded_at, discarded_by,
+       (school_id, kind, athlete_id, hundredths, discarded_at, discarded_by,
         stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
      values
-       ('completed', '52000000-0000-4000-8000-0000000000e1', null,
+       ('52000000-0000-4000-8000-0000000000b1', 'completed', '52000000-0000-4000-8000-0000000000e1', null,
         '2026-10-25 10:10:00+00', '52000000-0000-4000-8000-0000000000a2',
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1', '2026-10-24 08:00:00+00',
         '52000000-0000-4000-8000-0000000000a1') $$,

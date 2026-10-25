@@ -23,10 +23,11 @@ insert into public.schools (id, name) values
 insert into public.school_memberships (school_id, user_id, role) values
   ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000a1', 'coach'),
   ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000a2', 'coach'),
+  ('20000000-0000-4000-8000-0000000000b2', '20000000-0000-4000-8000-0000000000a2', 'coach'),
   ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000a4', 'school_admin');
 
 -- e1 is A's athlete (guardian G), e2 is B's athlete, both in school 1;
--- e3 is B's athlete in school 2.
+-- e3 is B's athlete in school 2, where B also coaches.
 insert into public.athletes (id, first_name, last_name) values
   ('20000000-0000-4000-8000-0000000000e1', 'Athlete', 'E1'),
   ('20000000-0000-4000-8000-0000000000e2', 'Athlete', 'E2'),
@@ -67,17 +68,17 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub": "20000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 
 select lives_ok(
-  $$ insert into public.timing_series (id, stroke, distance, pool, session_type, device_id)
-     values ('20000000-0000-4000-8000-0000000000c1', 'FR', '50m', 'SCM', 'training', 'device-a') $$,
+  $$ insert into public.timing_series (school_id, id, stroke, distance, pool, session_type, device_id)
+     values ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000c1', 'FR', '50m', 'SCM', 'training', 'device-a') $$,
   'coach A creates a series'
 );
 
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, arrival_position, hundredths,
+       (school_id, id, kind, athlete_id, series_id, arrival_position, hundredths,
         stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('20000000-0000-4000-8000-0000000000f1', 'repetition', '20000000-0000-4000-8000-0000000000e1',
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000f1', 'repetition', '20000000-0000-4000-8000-0000000000e1',
         '20000000-0000-4000-8000-0000000000c1', 1, 3150,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   'coach A inserts a measurement of an assigned athlete'
@@ -85,9 +86,9 @@ select lives_ok(
 
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', '20000000-0000-4000-8000-0000000000e2', 3150,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', '20000000-0000-4000-8000-0000000000e2', 3150,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   '42501', null,
   'coach A cannot insert a measurement of an athlete that is not assigned to A'
@@ -95,34 +96,34 @@ select throws_ok(
 
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id)
+       (school_id, id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id)
      values
-       ('20000000-0000-4000-8000-0000000000f2', 'series_total', '20000000-0000-4000-8000-0000000000e1', 60000,
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000f2', 'series_total', '20000000-0000-4000-8000-0000000000e1', 60000,
         'FR', '50m', 'SCM', 'training', 'screen_stopwatch', 'device-a', '2026-10-24 08:10:00+00', null),
-       ('20000000-0000-4000-8000-0000000000f3', 'race', '20000000-0000-4000-8000-0000000000e1', 6400,
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000f3', 'race', '20000000-0000-4000-8000-0000000000e1', 6400,
         'FR', '100m', 'LCM', 'competition', 'external_button', 'device-a', '2026-10-24 09:00:00+00', null),
-       ('20000000-0000-4000-8000-0000000000f4', 'split', '20000000-0000-4000-8000-0000000000e1', 3100,
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000f4', 'split', '20000000-0000-4000-8000-0000000000e1', 3100,
         'FR', '100m', 'LCM', 'competition', 'external_button', 'device-a', '2026-10-24 09:00:00+00',
         '20000000-0000-4000-8000-0000000000f3'),
-       ('20000000-0000-4000-8000-0000000000f5', 'completed', '20000000-0000-4000-8000-0000000000e1', null,
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000f5', 'completed', '20000000-0000-4000-8000-0000000000e1', null,
         'BK', '200m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:20:00+00', null) $$,
   'series_total, race, split linked to its race, and completed without a time are accepted'
 );
 
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('20000000-0000-4000-8000-0000000000fa', 'repetition', '20000000-0000-4000-8000-0000000000e1', null,
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000fa', 'repetition', '20000000-0000-4000-8000-0000000000e1', null,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:30:00+00') $$,
   'a repetition without a recorded time is stored with null hundredths'
 );
 
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('completed', '20000000-0000-4000-8000-0000000000e1', 3150,
+       ('20000000-0000-4000-8000-0000000000b1', 'completed', '20000000-0000-4000-8000-0000000000e1', 3150,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   '23514', null,
   'a completed measurement with hundredths is rejected'
@@ -130,9 +131,9 @@ select throws_ok(
 
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', '20000000-0000-4000-8000-0000000000e1', 0,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', '20000000-0000-4000-8000-0000000000e1', 0,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   '23514', null,
   'a time of 0 is rejected, so 0 never stands in for a missing time'
@@ -140,9 +141,9 @@ select throws_ok(
 
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('lap', '20000000-0000-4000-8000-0000000000e1', 3150,
+       ('20000000-0000-4000-8000-0000000000b1', 'lap', '20000000-0000-4000-8000-0000000000e1', 3150,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   '23514', null,
   'an unknown kind is rejected'
@@ -150,9 +151,9 @@ select throws_ok(
 
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id)
      values
-       ('repetition', '20000000-0000-4000-8000-0000000000e1', 3150,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', '20000000-0000-4000-8000-0000000000e1', 3150,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00',
         '20000000-0000-4000-8000-0000000000f3') $$,
   '23514', null,
@@ -161,9 +162,9 @@ select throws_ok(
 
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, captured_at)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, captured_at)
      values
-       ('repetition', '20000000-0000-4000-8000-0000000000e1', 3150,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', '20000000-0000-4000-8000-0000000000e1', 3150,
         'FR', '50m', 'SCM', 'training', 'screen_button', '2026-10-24 08:00:00+00') $$,
   '23502', null,
   'a measurement without a device is rejected'
@@ -171,9 +172,9 @@ select throws_ok(
 
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
      values
-       ('repetition', '20000000-0000-4000-8000-0000000000e1', 3150,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', '20000000-0000-4000-8000-0000000000e1', 3150,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00',
         '20000000-0000-4000-8000-0000000000a2') $$,
   '42501', null,
@@ -183,13 +184,13 @@ select throws_ok(
 -- Unassigned arrivals ("por asignar") of A's series.
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, series_id, arrival_position, hundredths,
+       (school_id, id, kind, athlete_id, series_id, arrival_position, hundredths,
         stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('20000000-0000-4000-8000-0000000000f6', 'repetition', null,
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000f6', 'repetition', null,
         '20000000-0000-4000-8000-0000000000c1', 2, 3290,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00'),
-       ('20000000-0000-4000-8000-0000000000f7', 'repetition', null,
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000f7', 'repetition', null,
         '20000000-0000-4000-8000-0000000000c1', 3, 3410,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   'coach A inserts unassigned arrivals in A''s series'
@@ -201,9 +202,9 @@ select set_eq(
 );
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', null, 3150, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', null, 3150, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   '42501', null,
   'an unassigned arrival outside a series is rejected'
 );
@@ -226,8 +227,8 @@ select isnt_empty(
 );
 
 select lives_ok(
-  $$ insert into public.measurements (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
-     values ('20000000-0000-4000-8000-0000000000fc', 'repetition', '20000000-0000-4000-8000-0000000000e1', 3120, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:40:00+00', '20000000-0000-4000-8000-0000000000a1')
+  $$ insert into public.measurements (school_id, id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+     values ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000fc', 'repetition', '20000000-0000-4000-8000-0000000000e1', 3120, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:40:00+00', '20000000-0000-4000-8000-0000000000a1')
      on conflict (id) do update set kind = excluded.kind, athlete_id = excluded.athlete_id, hundredths = excluded.hundredths, stroke = excluded.stroke, distance = excluded.distance, pool = excluded.pool, session_type = excluded.session_type, source = excluded.source, device_id = excluded.device_id, captured_at = excluded.captured_at, created_by = excluded.created_by $$,
   'coach A uploads a new measurement with an upsert, as the sync connector does'
 );
@@ -244,19 +245,19 @@ select is_empty(
 );
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, series_id, arrival_position, hundredths,
+       (school_id, kind, athlete_id, series_id, arrival_position, hundredths,
         stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', null, '20000000-0000-4000-8000-0000000000c1', 4, 3500,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', null, '20000000-0000-4000-8000-0000000000c1', 4, 3500,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-b', '2026-10-24 08:00:00+00') $$,
   '42501', null,
   'coach B cannot add an unassigned arrival to A''s series'
 );
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', '20000000-0000-4000-8000-0000000000e2', '20000000-0000-4000-8000-0000000000c1', 3500,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', '20000000-0000-4000-8000-0000000000e2', '20000000-0000-4000-8000-0000000000c1', 3500,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-b', '2026-10-24 08:00:00+00') $$,
   '42501', null,
   'coach B cannot add a measurement to A''s series'
@@ -268,11 +269,11 @@ select is_empty(
 );
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('20000000-0000-4000-8000-0000000000f8', 'repetition', '20000000-0000-4000-8000-0000000000e2', 3300,
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000f8', 'repetition', '20000000-0000-4000-8000-0000000000e2', 3300,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-b', '2026-10-24 08:00:00+00'),
-       ('20000000-0000-4000-8000-0000000000f9', 'repetition', '20000000-0000-4000-8000-0000000000e3', 3300,
+       ('20000000-0000-4000-8000-0000000000b2', '20000000-0000-4000-8000-0000000000f9', 'repetition', '20000000-0000-4000-8000-0000000000e3', 3300,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-b', '2026-10-24 08:00:00+00') $$,
   'coach B inserts measurements of B''s athletes in both schools'
 );
@@ -290,9 +291,9 @@ select set_eq(
 );
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', '20000000-0000-4000-8000-0000000000e1', 3150,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', '20000000-0000-4000-8000-0000000000e1', 3150,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-g', '2026-10-24 08:00:00+00') $$,
   '42501', null,
   'guardian G cannot insert a measurement'
@@ -303,8 +304,8 @@ select is_empty(
   'guardian G cannot edit a measurement'
 );
 select throws_ok(
-  $$ insert into public.timing_series (stroke, distance, pool, session_type, device_id)
-     values ('FR', '50m', 'SCM', 'training', 'device-g') $$,
+  $$ insert into public.timing_series (school_id, stroke, distance, pool, session_type, device_id)
+     values ('20000000-0000-4000-8000-0000000000b1', 'FR', '50m', 'SCM', 'training', 'device-g') $$,
   '42501', null,
   'guardian G cannot create a series'
 );
@@ -335,9 +336,9 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub": "20000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select lives_ok(
   $$ insert into public.measurements
-       (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('20000000-0000-4000-8000-0000000000fb', 'repetition', '20000000-0000-4000-8000-0000000000e4', 3200,
+       ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000fb', 'repetition', '20000000-0000-4000-8000-0000000000e4', 3200,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   'coach A inserts a measurement of an athlete of A''s group'
 );
@@ -349,18 +350,18 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub": "20000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', '20000000-0000-4000-8000-0000000000e4', 3200,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', '20000000-0000-4000-8000-0000000000e4', 3200,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   '42501', null,
   'after losing the group assignment, coach A cannot insert a measurement of that athlete'
 );
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
      values
-       ('repetition', '20000000-0000-4000-8000-0000000000e1', 3200,
+       ('20000000-0000-4000-8000-0000000000b1', 'repetition', '20000000-0000-4000-8000-0000000000e1', 3200,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'device-a', '2026-10-24 08:00:00+00') $$,
   '42501', null,
   'after losing the direct assignment, coach A cannot insert a measurement of that athlete'
