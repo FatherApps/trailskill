@@ -93,9 +93,16 @@ describe('SupabaseConnector.uploadData', () => {
 
     const inserts = failureInserts(t.committed);
     expect(inserts).toHaveLength(1);
-    expect(inserts[0][1]).toEqual(['athletes', 'a', 'PUT', JSON.stringify({ first_name: 'Ana' }), '42501', expect.any(String)]);
+    expect(inserts[0][1]).toEqual(['athletes', 'a', 'PUT', JSON.stringify({ first_name: 'Ana' }), '42501', expect.any(String), 1]);
     expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['athletes', 'a']]);
     expect(t.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('records the op clientId with the failure, so retry can order failures by queue order', async () => {
+    const t = setup({ upsert: { data: null, error: { code: '42501', message: 'denied' } } });
+    await t.connector.uploadData(t.database([entry('PUT', 'a', { first_name: 'Ana' }, 'athletes', 7)]));
+
+    expect(failureInserts(t.committed)[0][1].at(-1)).toBe(7);
   });
 
   it('records no_rows_affected when a PATCH matched no row', async () => {
@@ -104,7 +111,7 @@ describe('SupabaseConnector.uploadData', () => {
 
     const inserts = failureInserts(t.committed);
     expect(inserts).toHaveLength(1);
-    expect(inserts[0][1]).toEqual(['athletes', 'b', 'PATCH', JSON.stringify({ first_name: 'Bea' }), 'no_rows_affected', expect.any(String)]);
+    expect(inserts[0][1]).toEqual(['athletes', 'b', 'PATCH', JSON.stringify({ first_name: 'Bea' }), 'no_rows_affected', expect.any(String), 1]);
     expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['athletes', 'b']]);
     expect(t.complete).toHaveBeenCalledTimes(1);
   });
@@ -115,7 +122,7 @@ describe('SupabaseConnector.uploadData', () => {
 
     const inserts = failureInserts(t.committed);
     expect(inserts).toHaveLength(1);
-    expect(inserts[0][1]).toEqual(['athletes', 'c', 'DELETE', '{}', 'no_rows_affected', expect.any(String)]);
+    expect(inserts[0][1]).toEqual(['athletes', 'c', 'DELETE', '{}', 'no_rows_affected', expect.any(String), 1]);
     expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['athletes', 'c']]);
     expect(t.complete).toHaveBeenCalledTimes(1);
   });
@@ -149,7 +156,7 @@ describe('SupabaseConnector.uploadData', () => {
       expect(sleep).toHaveBeenCalledTimes(4);
       const inserts = failureInserts(t.committed);
       expect(inserts).toHaveLength(1);
-      expect(inserts[0][1]).toEqual(['athletes', 'a', 'PUT', JSON.stringify({ first_name: 'Ana' }), '42P01', expect.any(String)]);
+      expect(inserts[0][1]).toEqual(['athletes', 'a', 'PUT', JSON.stringify({ first_name: 'Ana' }), '42P01', expect.any(String), 1]);
       expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['athletes', 'a']]);
       expect(t.complete).toHaveBeenCalledTimes(1);
     });
@@ -452,7 +459,7 @@ describe('SupabaseConnector.uploadData', () => {
 
       const inserts = failureInserts(t.committed);
       expect(inserts).toHaveLength(1);
-      expect(inserts[0][1]).toEqual(['measurements', 'm1', 'PUT', JSON.stringify({ value: 1 }), 'no_rows_affected', expect.any(String)]);
+      expect(inserts[0][1]).toEqual(['measurements', 'm1', 'PUT', JSON.stringify({ value: 1 }), 'no_rows_affected', expect.any(String), 1]);
       expect(t.complete).toHaveBeenCalledTimes(1);
     });
 
@@ -495,7 +502,7 @@ describe('SupabaseConnector.uploadData', () => {
       const t = setup({ delete: empty, readBack: ok });
       await t.connector.uploadData(t.database([entry('DELETE', 'c')]));
 
-      expect(failureInserts(t.committed)[0][1]).toEqual(['athletes', 'c', 'DELETE', '{}', 'no_rows_affected', expect.any(String)]);
+      expect(failureInserts(t.committed)[0][1]).toEqual(['athletes', 'c', 'DELETE', '{}', 'no_rows_affected', expect.any(String), 1]);
     });
   });
 
@@ -543,6 +550,7 @@ describe('SupabaseConnector.uploadData', () => {
             // The shared fake store does not know this table yet.
             await db.writeTransaction(async (tx) => {
               await tx.execute('CREATE TABLE uploaded_ops (id TEXT PRIMARY KEY, client_id INTEGER)');
+              await tx.execute('ALTER TABLE upload_failures ADD COLUMN client_id INTEGER');
             });
             const uploaded = (t: ReturnType<typeof setup>, crud: CrudEntry[]) => {
               const base = t.database(crud) as unknown as Record<string, unknown>;

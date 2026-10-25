@@ -1,6 +1,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
+import { t } from '../i18n';
 import type { RecordSyncState } from '../sync';
 import { space, useTheme } from '../theme';
 import { buttonFixture as b } from './__fixtures__/button';
@@ -181,9 +182,14 @@ export const galleryEntries: GalleryEntry[] = [
   {
     id: 'syncStatus',
     title: 'SyncStatus',
-    states: Object.fromEntries(
-      syncStates.map((state) => [state, () => <SyncStatus state={state} onRetry={noop} />]),
-    ),
+    states: {
+      ...Object.fromEntries(
+        syncStates.map((state) => [state, () => <SyncStatus state={state} onRetry={noop} />]),
+      ),
+      'not_sent con mensaje': () => (
+        <SyncStatus state="not_sent" onRetry={noop} message={t('sync.retry_row_missing')} />
+      ),
+    },
   },
   {
     id: 'confirmSheet',
