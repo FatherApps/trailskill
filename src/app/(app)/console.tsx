@@ -4,10 +4,12 @@ import { useWindowDimensions } from 'react-native';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import {
+  AthletesSection,
   AuthorizationsScreen,
   CategoriesSection,
   CoachesScreen,
   ConsoleScreen,
+  createPowerSyncConsoleAthletesRepository,
   createPowerSyncCategoriesRepository,
   createPowerSyncStaffSchoolRepository,
   MeasurementsScreen,
@@ -17,6 +19,7 @@ import {
 } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
+const consoleAthletes = createPowerSyncConsoleAthletesRepository();
 const categories = createPowerSyncCategoriesRepository();
 
 const noop = () => {};
@@ -37,20 +40,24 @@ export default function ConsoleRoute() {
   const { session } = useSession();
   const { width } = useWindowDimensions();
   // Memberships arrive with a sync, so the lookup runs again when one completes.
-  const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();
-  const access = useAdminSchool(staffSchools, session?.user.id, lastSyncedAt);
+  const { lastSyncedAt, connected } = useGlobalSyncSummary();
+  const access = useAdminSchool(staffSchools, session?.user.id, lastSyncedAt?.getTime());
 
   if (access.status === 'loading') return null;
   // Only a hidden screen is not protection: the backend enforces the role on every query.
   if (access.status === 'denied') return <Redirect href="/" />;
+  const schoolId = access.school.id;
   return (
     <ConsoleScreen
       width={width}
       schoolName={access.school.name}
       sections={{
         ...sections,
+        athletes: (props) => (
+          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connected={connected} />
+        ),
         settings: (props) => (
-          <CategoriesSection {...props} repository={categories} schoolId={access.school.id} refreshKey={lastSyncedAt} />
+          <CategoriesSection {...props} repository={categories} schoolId={schoolId} refreshKey={lastSyncedAt?.getTime()} />
         ),
       }}
     />

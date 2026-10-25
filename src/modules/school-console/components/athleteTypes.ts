@@ -12,7 +12,8 @@ export type AthleteRow = {
   color: SwimmerRowProps['color'];
   category: string;
   group: string;
-  coach: string;
+  // `null` when the coach's name is not known: the console shows "Sin dato", never a guess.
+  coach: string | null;
   authorization: AthleteAuthorization;
   // The personal best of the event the list shows, `null` when there is none (never zero).
   bestTime: Hundredths | null;
@@ -32,7 +33,8 @@ export type AthleteDetailData = {
   name: string;
   category: string;
   authorization: AthleteAuthorization;
-  guardian: { name: string; contact: string };
+  // `null` for each part that is not known: the console shows "Sin dato".
+  guardian: { name: string | null; contact: string | null };
   bests: AthleteBest[];
 };
 

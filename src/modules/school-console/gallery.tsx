@@ -18,6 +18,8 @@ import { AthleteDetail } from './components/AthleteDetail';
 import { AthleteFilters, type AthleteFiltersProps } from './components/AthleteFilters';
 import { AthleteIndicators } from './components/AthleteIndicators';
 import { AthleteTable } from './components/AthleteTable';
+import type { AthleteFilterOption } from './components/AthleteFilterOptions';
+import type { AthleteFilterId } from './components/athleteTypes';
 import { ConsoleNav, type ConsoleDestinationId } from './components/ConsoleNav';
 import { personalBestLabel } from './components/eventLabel';
 import { Logo } from './components/Logo';
@@ -32,6 +34,22 @@ import { ConsoleScreen } from './screens/ConsoleScreen';
 import { EmptySectionScreen } from './screens/EmptySectionScreen';
 
 const bestLabel = personalBestLabel('FR', '50m');
+
+// The options a filter sheet lists. The coaches have no name yet (issue 220).
+const sheetOptions: Record<AthleteFilterId, AthleteFilterOption[]> = {
+  category: [
+    { id: 'c1', label: 'Categoría B' },
+    { id: 'c2', label: 'Categoría C' },
+  ],
+  group: [
+    { id: 'g1', label: 'Grupo B' },
+    { id: 'g2', label: 'Grupo C' },
+  ],
+  coach: [
+    { id: 'k1', label: null },
+    { id: 'k2', label: null },
+  ],
+};
 
 const baseContent: AthletesContent = {
   updatedMinutesAgo: 2,
@@ -50,13 +68,19 @@ function AthletesScreenPreview({
   view,
   fixedWidth,
   initialSelected = null,
+  initialQuery = '',
+  initialSheet = null,
 }: {
   view: (content: AthletesContent) => AthletesView;
   fixedWidth?: number;
   initialSelected?: string | null;
+  initialQuery?: string;
+  // The filter whose sheet starts open; choosing an option applies it and closes the sheet.
+  initialSheet?: AthleteFilterId | null;
 }) {
   const [selectedId, setSelectedId] = useState(initialSelected);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
+  const [sheetId, setSheetId] = useState(initialSheet);
   const [filters, setFilters] = useState<AthleteFiltersProps['filters']>({});
 
   const athlete = athletesFixture.find((row) => row.id === selectedId);
@@ -83,13 +107,35 @@ function AthletesScreenPreview({
           onSelect={setSelectedId}
           onCloseDetail={() => setSelectedId(null)}
           onViewProfile={noop}
+          onClearFilters={() => {
+            setQuery('');
+            setFilters({});
+          }}
+          filterSheet={
+            sheetId
+              ? {
+                  id: sheetId,
+                  options: sheetOptions[sheetId],
+                  selectedId: undefined,
+                  onChoose: (optionId) => {
+                    const label = sheetOptions[sheetId].find((option) => option.id === optionId)?.label;
+                    if (label) setFilters((current) => ({ ...current, [sheetId]: label }));
+                    setSheetId(null);
+                  },
+                  onClose: () => setSheetId(null),
+                }
+              : undefined
+          }
         />
       )}
     </ConsolePreview>
   );
 }
 
-const screenPreview = (view: (content: AthletesContent) => AthletesView, options?: { fixedWidth?: number; initialSelected?: string }) =>
+const screenPreview = (
+  view: (content: AthletesContent) => AthletesView,
+  options?: { fixedWidth?: number; initialSelected?: string; initialQuery?: string; initialSheet?: AthleteFilterId },
+) =>
   function ScreenPreview() {
     return <AthletesScreenPreview view={view} {...options} />;
   };
@@ -274,6 +320,28 @@ export const galleryEntries: GalleryEntry[] = [
     'expanded-1280': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 1280, initialSelected: 'a1' }),
     'medium-800': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 800 }),
     'compact-360': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 360 }),
+    // A filter chip opens a sheet with the options of that filter.
+    'filter-sheet': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 800, initialSheet: 'category' }),
+    // The coach names arrive with issue 220: until then the sheet says so.
+    'filter-sheet-coach': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 800, initialSheet: 'coach' }),
+    // The search leaves no row: the state offers to clear the search and the filters.
+    'no-match': screenPreview(
+      (content) => ({ kind: 'data', content: { ...content, athletes: content.query === 'zzz' ? [] : content.athletes } }),
+      { fixedWidth: 800, initialQuery: 'zzz' },
+    ),
+    // What is not known is "Sin dato", never invented and never 0: "Por revisar", the coach, the guardian and the contact.
+    'sin-dato': screenPreview(
+      (content) => ({
+        kind: 'data',
+        content: {
+          ...content,
+          indicators: { ...content.indicators, toReview: null },
+          athletes: content.athletes.map((athlete) => ({ ...athlete, coach: null })),
+          detail: content.detail && { ...content.detail, guardian: { name: null, contact: null } },
+        },
+      }),
+      { fixedWidth: 1280, initialSelected: 'a1' },
+    ),
   }),
   entry('categoriesScreen', 'CategoriesScreen', {
     // Backed by an in-memory repository: everything can be tapped. Follows the width of the preview.

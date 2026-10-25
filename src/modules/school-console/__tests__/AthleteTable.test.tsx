@@ -193,3 +193,20 @@ describe('AthleteTable', () => {
     expect(contrastRatio(c[athleteTableColors.header], c[athleteTableColors.selected])).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+describe('AthleteTable with a coach that is not known', () => {
+  const unknown = athletesFixture.map((athlete) => ({ ...athlete, coach: null }));
+
+  it('says Sin dato in the table, in the row name and never leaves it blank', async () => {
+    await render(<AthleteTable {...base} athletes={unknown} />);
+
+    expect(screen.getAllByText('Grupo B · Sin dato', hidden)).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /^Lucía Ramírez, Categoría B, Grupo B, Sin dato, Vigente/ })).toBeOnTheScreen();
+  });
+
+  it('says Sin dato in the list form too', async () => {
+    await render(<AthleteTable {...base} athletes={unknown} compact />);
+
+    expect(screen.getByRole('button', { name: /^Lucía Ramírez, Categoría B · Grupo B · Sin dato/ })).toBeOnTheScreen();
+  });
+});

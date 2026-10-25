@@ -2,6 +2,9 @@
   "logo": {
     "label": "TrailSkill"
   },
+  "common": {
+    "no_data": "Sin dato"
+  },
   "nav": {
     "label": "Secciones de la consola",
     "athletes": "Deportistas",
@@ -31,7 +34,17 @@
     "category": "Categoría",
     "group": "Grupo",
     "coach": "Entrenador",
-    "active_spoken": "{{filter}}: {{value}}"
+    "active_spoken": "{{filter}}: {{value}}",
+    "sheet": {
+      "category": "Filtrar por categoría",
+      "group": "Filtrar por grupo",
+      "coach": "Filtrar por entrenador",
+      "coach_unavailable": "Los nombres de los entrenadores aún no están disponibles.",
+      "empty": {
+        "title": "No hay opciones para elegir",
+        "message": "Aparecerán cuando haya deportistas con este dato."
+      }
+    }
   },
   "table": {
     "athlete": "Deportista",
@@ -42,7 +55,8 @@
     "personal_best": "MP {{event}}",
     "best_spoken": "{{label}}: {{time}}",
     "no_best": "sin marca",
-    "group_coach": "Grupo · Entrenador"
+    "group_coach": "Grupo · Entrenador",
+    "personal_best_pool": "MP {{event}} · {{pool}}"
   },
   "detail": {
     "guardian": "Acudiente",
@@ -78,6 +92,11 @@
     },
     "denied": {
       "title": "Esta información es privada"
+    },
+    "no_match": {
+      "title": "Ningún deportista coincide con la búsqueda",
+      "message": "Cambia la búsqueda o quita algún filtro para ver más deportistas.",
+      "clear": "Limpiar búsqueda y filtros"
     }
   },
   "coaches": {

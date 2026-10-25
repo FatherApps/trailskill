@@ -5,7 +5,7 @@ import { createStore, openDatabase, type FakeDatabase } from '../testing/fakeDat
 import { writeRecord } from '../writes';
 
 let mockDb: FakeDatabase;
-let mockStatus: { dataFlowStatus: { uploading: boolean }; lastSyncedAt?: Date };
+let mockStatus: { connected: boolean; dataFlowStatus: { uploading: boolean }; lastSyncedAt?: Date };
 jest.mock('../db', () => ({
   get db() {
     return mockDb;
@@ -21,7 +21,7 @@ let store: ReturnType<typeof createStore>;
 beforeEach(() => {
   store = createStore();
   mockDb = openDatabase(store.path);
-  mockStatus = { dataFlowStatus: { uploading: false } };
+  mockStatus = { connected: true, dataFlowStatus: { uploading: false } };
 });
 afterEach(() => store.remove());
 
@@ -97,7 +97,7 @@ describe('useRecordSyncState', () => {
 
   it('reports sending while the pending write uploads', async () => {
     const id = await writeRecord('athletes', { first_name: 'Ana' });
-    mockStatus = { dataFlowStatus: { uploading: true } };
+    mockStatus = { connected: true, dataFlowStatus: { uploading: true } };
 
     expect(await stateOf(id)).toBe('sending');
   });
@@ -166,13 +166,13 @@ describe('useGlobalSyncSummary', () => {
       await tx.execute("INSERT INTO upload_failures (id, table_name, record_id) VALUES (uuid(), 'athletes', 'x')");
       await tx.execute("INSERT INTO upload_failures (id, table_name, record_id) VALUES (uuid(), 'athletes', 'x')");
     });
-    mockStatus = { dataFlowStatus: { uploading: true }, lastSyncedAt };
+    mockStatus = { connected: false, dataFlowStatus: { uploading: true }, lastSyncedAt };
 
-    expect(await summary()).toEqual({ pending: 2, failed: 1, uploading: true, lastSyncedAt });
+    expect(await summary()).toEqual({ pending: 2, failed: 1, uploading: true, lastSyncedAt, connected: false });
   });
 
   it('reports nothing pending and no last sync on a fresh database', async () => {
-    expect(await summary()).toEqual({ pending: 0, failed: 0, uploading: false, lastSyncedAt: null });
+    expect(await summary()).toEqual({ pending: 0, failed: 0, uploading: false, lastSyncedAt: null, connected: true });
   });
 });
 

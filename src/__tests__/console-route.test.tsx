@@ -8,13 +8,24 @@ jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
 jest.mock('../core/sync', () => ({
-  useGlobalSyncSummary: () => ({ lastSyncedAt: null }),
+  useGlobalSyncSummary: () => ({ lastSyncedAt: null, connected: true }),
 }));
 const mockListAdminSchools = jest.fn();
+const mockConsoleAthletes = {
+  listAthletes: jest.fn(),
+  countMeasurementsSince: jest.fn(),
+  listBests: jest.fn(),
+};
 const mockListCategories = jest.fn();
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   ...jest.requireActual('../modules/school-console/screens/ConsoleScreen'),
+  ...jest.requireActual('../modules/school-console/screens/AthletesSection'),
+  createPowerSyncConsoleAthletesRepository: () => ({
+    listAthletes: (...args: unknown[]) => mockConsoleAthletes.listAthletes(...args),
+    countMeasurementsSince: (...args: unknown[]) => mockConsoleAthletes.countMeasurementsSince(...args),
+    listBests: (...args: unknown[]) => mockConsoleAthletes.listBests(...args),
+  }),
   ...jest.requireActual('../modules/school-console/screens/CategoriesSection'),
   createPowerSyncCategoriesRepository: () => ({
     list: (...args: unknown[]) => mockListCategories(...args),
@@ -35,6 +46,9 @@ jest.mock('expo-router', () => {
 beforeEach(() => {
   mockUserId = 'user-1';
   mockListAdminSchools.mockReset().mockResolvedValue([]);
+  mockConsoleAthletes.listAthletes.mockReset().mockResolvedValue([]);
+  mockConsoleAthletes.countMeasurementsSince.mockReset().mockResolvedValue(0);
+  mockConsoleAthletes.listBests.mockReset().mockResolvedValue([]);
   mockListCategories.mockReset().mockResolvedValue([]);
 });
 
@@ -66,6 +80,30 @@ describe('console route', () => {
 
     expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
     expect(screen.queryByText(/redirected/)).toBeNull();
+  });
+
+  it('loads the athletes of the admin school from the local database', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockConsoleAthletes.listAthletes.mockResolvedValue([
+      {
+        id: 'a1',
+        name: 'Lucía Ramírez',
+        initials: 'LR',
+        color: 'athlete-1',
+        categoryId: null,
+        category: null,
+        categorySortOrder: null,
+        groupIds: [],
+        groups: [],
+        coachIds: [],
+        authorization: 'pending',
+        bestTime: null,
+      },
+    ]);
+    await show();
+
+    expect(await screen.findByRole('button', { name: /^Lucía Ramírez/ })).toBeOnTheScreen();
+    expect(mockConsoleAthletes.listAthletes).toHaveBeenCalledWith('s1');
   });
 
   it('shows the categories of the school of the admin under Ajustes', async () => {
