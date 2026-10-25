@@ -5,6 +5,7 @@ import type { SyncConnection } from '../../../core/sync';
 import '../i18n';
 import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
+import { localDate } from '../components/formatDate';
 import type { CategoriesRepository, Category } from '../data/categories';
 import { athleteIndicators, filterAthletes, filterOptions, startOfWeek } from '../data/athletesList';
 import { CONSOLE_BEST_EVENT, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
@@ -54,10 +55,6 @@ function categoryOptions(list: Category[], current: string | null): CategoryChoi
     { id: null, label: t('schoolConsole.detail.no_category') },
   ];
 }
-
-// Local date as YYYY-MM-DD, the form the screen formats.
-const localDate = (date: Date) =>
-  [date.getFullYear(), date.getMonth() + 1, date.getDate()].map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0')).join('-');
 
 function toRow(athlete: ConsoleAthlete): AthleteRow {
   const noData = t('schoolConsole.common.no_data');

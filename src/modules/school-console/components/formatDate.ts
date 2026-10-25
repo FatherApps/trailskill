@@ -28,3 +28,7 @@ export function formatDateTime(iso: string): { date: string; time: string } | nu
   if (date === null || Number(match[2]) > 23 || Number(match[3]) > 59) return null;
   return { date, time: `${match[2]}:${match[3]}` };
 }
+
+// Local date as YYYY-MM-DD, the form formatDate reads.
+export const localDate = (date: Date) =>
+  [date.getFullYear(), date.getMonth() + 1, date.getDate()].map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0')).join('-');

@@ -9,6 +9,7 @@ export const authorizationsFixture: AthleteAuthorizations[] = [
     color: 'athlete-1',
     guardian: 'Paula Gómez',
     purposes: { record: 'valid', import: 'valid', share: 'pending' },
+    canResend: true,
   },
   {
     id: 'a2',
@@ -17,6 +18,7 @@ export const authorizationsFixture: AthleteAuthorizations[] = [
     color: 'athlete-2',
     guardian: 'Camila Torres',
     purposes: { record: 'valid', import: 'withdrawn', share: 'valid' },
+    canResend: true,
   },
   {
     id: 'a3',
@@ -25,6 +27,7 @@ export const authorizationsFixture: AthleteAuthorizations[] = [
     color: 'athlete-3',
     guardian: 'Camilo Peña',
     purposes: { record: 'pending', import: 'pending', share: 'pending' },
+    canResend: true,
   },
   {
     id: 'a4',
@@ -33,6 +36,7 @@ export const authorizationsFixture: AthleteAuthorizations[] = [
     color: 'athlete-4',
     guardian: 'Luz Marina Ortiz',
     purposes: { record: 'valid', import: 'valid', share: 'valid' },
+    canResend: true,
   },
 ];
 
@@ -43,6 +47,7 @@ export const longTextAuthorizationFixture: AthleteAuthorizations = {
   color: 'athlete-2',
   guardian: 'Luz Marina Villegas de Restrepo',
   purposes: { record: 'pending', import: 'withdrawn', share: 'pending' },
+  canResend: true,
 };
 
 export const sharingRequestsFixture: SharingRequest[] = [
