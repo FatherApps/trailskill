@@ -5,7 +5,10 @@ import path from 'node:path';
 // AGENTS.md: "Never write an organization, federation, league or country name in code."
 // Federation category names come from data too. Deny-lists: this test must name the words to find them.
 const organizations = ['fecna', 'liga', 'fina', 'world aquatics', 'world swimming', 'la academia', 'atlántico', 'colombia'];
-const categories = ['preinfantil', 'pre-infantil', 'infantil', 'prejuvenil', 'juvenil', 'mayores', 'master', 'máster', 'senior'];
+const categories = ['preinfantil', 'pre-infantil', 'infantil', 'prejuvenil', 'juvenil', 'mayor', 'mayores', 'master', 'máster', 'senior'];
+
+// Legitimate phrases that contain a category word (UI copy, comparisons); removed before matching.
+const allowedPhrases = ['mayor de edad', 'mayor que'];
 
 const root = path.join(__dirname, '..', '..');
 
@@ -15,12 +18,14 @@ function normalize(text: string): string {
 
 // Whole-word match, case- and accent-insensitive; any whitespace run separates the words of an entry.
 // With plural, the entry also matches its Spanish or English plural (s or es).
+// Allowed phrases are ignored.
 function containsWord(text: string, entry: string, plural = false): boolean {
   const pattern = normalize(entry)
     .split(/\s+/)
     .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('\\s+');
-  return new RegExp(`(?<![\\p{L}\\p{N}])${pattern}${plural ? '(?:e?s)?' : ''}(?![\\p{L}\\p{N}])`, 'u').test(normalize(text));
+  const scrubbed = allowedPhrases.reduce((rest, phrase) => rest.replaceAll(phrase, ' '), normalize(text));
+  return new RegExp(`(?<![\\p{L}\\p{N}])${pattern}${plural ? '(?:e?s)?' : ''}(?![\\p{L}\\p{N}])`, 'u').test(scrubbed);
 }
 
 function walk(dir: string, skipTests: boolean): string[] {
@@ -49,6 +54,12 @@ const offenders = (list: string[], plural = false) =>
   });
 
 describe('containsWord', () => {
+  it('detects the singular "mayor" but not the legitimate phrases that contain it', () => {
+    expect(['Mayor', 'MAYOR', 'categoría mayor'].filter((text) => !containsWord(text, 'mayor'))).toEqual([]);
+    expect(['Soy mayor de edad y nado', 'El tiempo debe ser mayor que cero.'].filter((text) => containsWord(text, 'mayor'))).toEqual([]);
+    expect(containsWord('Mayor de edad, categoría Mayor', 'mayor')).toBe(true);
+  });
+
   it('matches the plurals of a category but not other words that start with it', () => {
     const found = ['Juveniles', 'MASTERS', 'Prejuveniles', 'másters', 'infantiles', 'seniors'];
     expect(found.filter((text) => !categories.some((entry) => containsWord(text, entry, true)))).toEqual([]);

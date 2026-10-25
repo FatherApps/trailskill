@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 
 import { CodeMismatchError } from '../../../core/session';
 import { accountsFixture as fx } from '../__fixtures__/accounts';
-import { createInMemoryRegistrationDraftRepository } from '../data/registrationDraft';
+import { createInMemoryRegistrationDraftRepository, type RegistrationDraft } from '../data/registrationDraft';
 import { AccountDetailsContainer } from '../screens/AccountDetailsContainer';
 import { WhoSwimsContainer } from '../screens/WhoSwimsContainer';
 
@@ -45,6 +45,26 @@ describe('AccountDetailsContainer', () => {
     expect(screen.getByDisplayValue(typed.email)).toBeOnTheScreen();
   });
 
+  it('writes the draft in the order it was typed, even when an older write is slower', async () => {
+    const stored = createInMemoryRegistrationDraftRepository();
+    const finish: (() => void)[] = [];
+    // Each write ends only when the test lets it.
+    const drafts = {
+      ...stored,
+      save: (draft: RegistrationDraft) => new Promise<void>((resolve) => finish.push(() => void stored.save(draft).then(resolve))),
+    };
+    await renderDetails(drafts);
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Cam');
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Camila');
+
+    // The newest pending write ends first, which is how an old one ends up last.
+    await waitFor(async () => {
+      while (finish.length > 0) finish.pop()?.();
+      expect((await stored.load())?.firstName).toBe('Camila');
+    });
+  });
+
   it('shows the required errors on the fields and asks for no code', async () => {
     const { requestCode } = await renderDetails();
 
@@ -84,6 +104,20 @@ describe('AccountDetailsContainer', () => {
     expect(screen.queryByRole('button', { name: 'Continuar con Google' })).toBeNull();
   });
 
+  it('marks the draft once the code was asked for, until the email changes', async () => {
+    const { drafts } = await renderDetails();
+    await fillIn();
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviarme un código' }));
+    await screen.findByLabelText('Código de 6 dígitos');
+    await waitFor(async () => expect((await drafts.load())?.codeRequested).toBe(true));
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Camilo');
+    await waitFor(async () => expect(await drafts.load()).toMatchObject({ firstName: 'Camilo', codeRequested: true }));
+
+    await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'otra@example.test');
+    await waitFor(async () => expect(await drafts.load()).toMatchObject({ email: 'otra@example.test', codeRequested: false }));
+  });
+
   it('offline while asking for the code: explains it, keeps the draft and retries', async () => {
     const requestCode = jest
       .fn()
@@ -115,7 +149,7 @@ describe('AccountDetailsContainer', () => {
     expect(await screen.findByText('No pudimos enviar el código')).toBeOnTheScreen();
   });
 
-  it('wrong code: shows the mismatch message and keeps the draft unchanged', async () => {
+  it('wrong code: shows the mismatch message and keeps what was typed in the draft', async () => {
     const verifyCode = jest.fn().mockRejectedValue(new CodeMismatchError());
     const { drafts } = await renderDetails(undefined, { verifyCode });
     await fillIn();
@@ -129,7 +163,8 @@ describe('AccountDetailsContainer', () => {
     expect(
       await screen.findAllByText('Ese código no coincide. Revisa el último mensaje o pide uno nuevo.'),
     ).not.toHaveLength(0);
-    expect(await drafts.load()).toEqual(before);
+    // Asking for the code only marks the draft; the typed values stay.
+    expect(await drafts.load()).toEqual({ ...before, codeRequested: true });
   });
 
   it('offline while verifying: explains it and retries the verification', async () => {

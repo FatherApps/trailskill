@@ -45,6 +45,7 @@ export function AccountDetailsContainer({ drafts, requestCode, verifyCode, onBac
   const [busy, setBusy] = useState<CodeBusy>();
   const [failure, setFailure] = useState<Failure>();
   const lastAction = useRef<'request' | 'verify'>('request');
+  const writes = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let current = true;
@@ -61,14 +62,19 @@ export function AccountDetailsContainer({ drafts, requestCode, verifyCode, onBac
     };
   }, [drafts]);
 
+  // One write at a time, in typing order: an older write that finishes late must not end up last.
+  function saveDraft(typed: Values, codeRequested: boolean) {
+    const draft = { swimmer: loaded?.swimmer, firstName: typed.firstName, lastName: typed.lastName, email: typed.email, codeRequested };
+    writes.current = writes.current.then(() => drafts.save(draft)).catch(() => {});
+  }
+
   function change(field: AccountDetailsField, value: string) {
     const next = { ...values, [field]: value };
     setErrors((current) => ({ ...current, [field]: undefined }));
-    if (field !== 'code') {
-      drafts.save({ swimmer: loaded?.swimmer, firstName: next.firstName, lastName: next.lastName, email: next.email }).catch(() => {});
-    }
     // A code belongs to the email it was sent to.
-    if (field === 'email' && codeSent) {
+    const emailChanged = field === 'email' && codeSent;
+    if (field !== 'code') saveDraft(next, codeSent && !emailChanged);
+    if (emailChanged) {
       setCodeSent(false);
       next.code = '';
     }
@@ -90,6 +96,8 @@ export function AccountDetailsContainer({ drafts, requestCode, verifyCode, onBac
       // Registration is the only place that creates accounts.
       await requestCode(values.email.trim(), { createUser: true });
       setCodeSent(true);
+      // Verifying this code completes the registration, so the sign-in that follows does not ask to resume it.
+      saveDraft(values, true);
     } catch (error) {
       setFailure(failureOf(error, 'request_failed'));
     } finally {

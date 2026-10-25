@@ -8,6 +8,7 @@ import { AddAthletesScreen, type AddAthletesScreenProps } from './screens/AddAth
 import { SignInScreen, type SignInScreenProps } from './screens/SignInScreen';
 import { AuthorizationsScreen } from './screens/AuthorizationsScreen';
 import { ConsentCard } from './components/ConsentCard';
+import { ResumeRegistration } from './components/ResumeRegistration';
 import type { AuthorizationRecord, AuthorizationText } from './data/authorizations';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';
 
@@ -212,6 +213,17 @@ export const galleryEntries: GalleryEntry[] = [
           athletes={[...fx.addedAthletes]}
           renderStatus={() => <SyncStatus state="on_device" />}
         />
+      ),
+    },
+  },
+  {
+    id: 'resumeRegistration',
+    title: 'ResumeRegistration',
+    states: {
+      initial: () => (
+        <FullWidth>
+          <ResumeRegistration email={fx.person.email} onResume={noop} onRestart={noop} />
+        </FullWidth>
       ),
     },
   },

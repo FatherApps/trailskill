@@ -152,6 +152,12 @@
     "no_mark": "sin marca",
     "category": "Categoría",
     "category_spoken": "Categoría: {{value}}",
+    "group_spoken": "Grupo: {{value}}",
+    "all_groups": "Todos los grupos",
+    "sheet": {
+      "category": "Categoría",
+      "group": "Grupo de entrenamiento"
+    },
     "pool_filter": "Piscina",
     "pool": {
       "SCM": "25 m",
@@ -227,7 +233,15 @@
       "approve_hint": "Aprobar la solicitud de {{school}}",
       "withdraw": "Retirar",
       "withdraw_hint": "Retirar el acceso de {{school}} a los resultados de tu escuela",
-      "offline": "Las solicitudes de otras escuelas se ven solo con conexión."
+      "reject": "Rechazar",
+      "reject_hint": "Rechazar la solicitud de {{school}}",
+      "offline": "Las solicitudes de otras escuelas se ven solo con conexión.",
+      "error": "No pudimos cargar las solicitudes de otras escuelas."
+    },
+    "reject_confirm": {
+      "title": "¿Rechazar la solicitud de {{school}}?",
+      "message": "{{school}} no podrá ver los resultados de tu escuela. El rechazo queda registrado.",
+      "confirm": "Rechazar solicitud"
     },
     "approve_confirm": {
       "title": "¿Aprobar que {{school}} vea los resultados de tu escuela?",

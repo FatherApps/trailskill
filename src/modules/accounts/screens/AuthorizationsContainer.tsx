@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { AuthorizationRecord, AuthorizationRepository, AuthorizationText } from '../data/authorizations';
 import type { RegistrationDraftRepository } from '../data/registrationDraft';
@@ -34,7 +34,8 @@ function inForceOf(rows: AuthorizationRecord[], gate: Set<string>): Authorizatio
 export function AuthorizationsContainer({ repository, userId, athletes, mode, drafts, onDone, onBack, refreshKey }: AuthorizationsContainerProps) {
   const [loaded, setLoaded] = useState<Loaded>();
   // 4 steps unless the draft says an adult swims, who skips the athlete details.
-  const [total, setTotal] = useState(4);
+  // Registration waits for the draft before showing a count, so an adult never sees "4 of 4" first.
+  const [total, setTotal] = useState<number>();
   const [failed, setFailed] = useState(false);
   const athleteKey = athletes.map((athlete) => athlete.id).join(',');
 
@@ -52,15 +53,21 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
       return { texts: [], rows: [], gate: new Set(), error: true };
     }
   }, [repository, userId, athleteKey]);
-  const load = async () => setLoaded(await fetchAll());
+  // Each read takes a ticket and only the newest one may land: an older reload (for example from a sync) can finish after an accept or a withdrawal.
+  const latest = useRef(0);
+  const load = useCallback(async () => {
+    const ticket = ++latest.current;
+    const result = await fetchAll();
+    if (ticket === latest.current) setLoaded(result);
+  }, [fetchAll]);
 
   useEffect(() => {
-    let current = true;
-    fetchAll().then((result) => current && setLoaded(result));
+    void load();
+    const ticket = latest;
     return () => {
-      current = false;
+      ticket.current++;
     };
-  }, [fetchAll, refreshKey]);
+  }, [load, refreshKey]);
 
   useEffect(() => {
     if (mode !== 'registration' || !drafts) return;
@@ -101,11 +108,13 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
     await load();
   }
 
-  if (!loaded) return null;
+  const stepsKnown = mode !== 'registration' || !drafts || total !== undefined;
+  if (!loaded || !stepsKnown) return null;
+  const steps = total ?? 4;
   return (
     <AuthorizationsScreen
       mode={mode}
-      step={mode === 'registration' ? { current: total, total } : undefined}
+      step={mode === 'registration' ? { current: steps, total: steps } : undefined}
       athletes={athletes}
       texts={loaded.texts}
       inForce={inForceOf(loaded.rows, loaded.gate)}
