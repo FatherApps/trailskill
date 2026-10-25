@@ -16,6 +16,7 @@ const mockConsoleAthletes = {
   countMeasurementsSince: jest.fn(),
   listBests: jest.fn(),
 };
+const mockListCategories = jest.fn();
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   ...jest.requireActual('../modules/school-console/screens/ConsoleScreen'),
@@ -24,6 +25,10 @@ jest.mock('../modules/school-console', () => ({
     listAthletes: (...args: unknown[]) => mockConsoleAthletes.listAthletes(...args),
     countMeasurementsSince: (...args: unknown[]) => mockConsoleAthletes.countMeasurementsSince(...args),
     listBests: (...args: unknown[]) => mockConsoleAthletes.listBests(...args),
+  }),
+  ...jest.requireActual('../modules/school-console/screens/CategoriesSection'),
+  createPowerSyncCategoriesRepository: () => ({
+    list: (...args: unknown[]) => mockListCategories(...args),
   }),
   ...jest.requireActual('../modules/school-console/screens/CoachesScreen'),
   ...jest.requireActual('../modules/school-console/screens/RecordsScreen'),
@@ -44,6 +49,7 @@ beforeEach(() => {
   mockConsoleAthletes.listAthletes.mockReset().mockResolvedValue([]);
   mockConsoleAthletes.countMeasurementsSince.mockReset().mockResolvedValue(0);
   mockConsoleAthletes.listBests.mockReset().mockResolvedValue([]);
+  mockListCategories.mockReset().mockResolvedValue([]);
 });
 
 const show = () =>
@@ -100,6 +106,18 @@ describe('console route', () => {
     expect(mockConsoleAthletes.listAthletes).toHaveBeenCalledWith('s1');
   });
 
+  it('shows the categories of the school of the admin under Ajustes', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockListCategories.mockResolvedValue([{ id: 'c1', schoolId: 's1', name: 'Categoría A', sortOrder: 0, active: true }]);
+    await show();
+
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Ajustes' }));
+
+    expect(await screen.findByRole('header', { name: 'Categorías' })).toBeOnTheScreen();
+    expect(await screen.findByText('Categoría A')).toBeOnTheScreen();
+    expect(mockListCategories).toHaveBeenCalledWith('s1');
+  });
+
   it.each([
     ['Entrenadores', 'Aún no hay entrenadores'],
     ['Récords', 'Aún no hay récords'],
@@ -113,14 +131,6 @@ describe('console route', () => {
     expect(screen.getByRole('header', { name: tab })).toBeOnTheScreen();
     expect(screen.getByText(emptyTitle)).toBeOnTheScreen();
     expect(screen.getByRole('tab', { name: tab })).toBeSelected();
-  });
-
-  it('keeps the settings section as its title only', async () => {
-    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
-    await show();
-    await fireEvent.press(await screen.findByRole('tab', { name: 'Ajustes' }));
-
-    expect(screen.queryByTestId('state-view')).toBeNull();
   });
 
   it('shows nothing while the lookup is pending', async () => {

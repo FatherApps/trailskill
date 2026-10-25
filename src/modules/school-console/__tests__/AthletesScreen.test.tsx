@@ -148,7 +148,7 @@ describe('AthletesScreen', () => {
       expect(screen.queryByTestId('console-nav-side')).toBeNull();
       expect(screen.getByTestId('console-nav-top')).toBeOnTheScreen();
       expect(screen.queryByText('Categoría')).toBeNull();
-      expect(screen.getByRole('button', { name: /^Lucía Ramírez, Infantil B · Grupo B · Paula G\./ })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: /^Lucía Ramírez, Categoría B · Grupo B · Paula G\./ })).toBeOnTheScreen();
 
       await screen.rerender(
         <AthletesScreen width={599} schoolName={schoolNameFixture} view={{ kind: 'data', content: withDetail }} {...actions} />,
@@ -309,7 +309,7 @@ describe('AthletesScreen: optional actions', () => {
     await show({ kind: 'data', content: unknown });
 
     expect(screen.getByLabelText('Por revisar: Sin dato')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: /^Lucía Ramírez, Infantil B, Grupo B, Sin dato, Vigente/ })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: /^Lucía Ramírez, Categoría B, Grupo B, Sin dato, Vigente/ })).toBeOnTheScreen();
   });
 });
 
@@ -317,8 +317,8 @@ describe('AthletesScreen: filter sheet', () => {
   const sheet = (over: Partial<NonNullable<AthletesScreenProps['filterSheet']>> = {}): NonNullable<AthletesScreenProps['filterSheet']> => ({
     id: 'category',
     options: [
-      { id: 'c1', label: 'Infantil B' },
-      { id: 'c2', label: 'Juvenil' },
+      { id: 'c1', label: 'Categoría B' },
+      { id: 'c2', label: 'Categoría C' },
     ],
     selectedId: 'c1',
     onChoose: jest.fn(),
@@ -341,13 +341,13 @@ describe('AthletesScreen: filter sheet', () => {
     const filterSheet = sheet();
     await show({ kind: 'data', content }, { filterSheet });
 
-    expect(screen.getByRole('button', { name: 'Infantil B' })).toBeSelected();
-    expect(screen.getByRole('button', { name: 'Juvenil' })).not.toBeSelected();
-    for (const option of ['Infantil B', 'Juvenil']) {
+    expect(screen.getByRole('button', { name: 'Categoría B' })).toBeSelected();
+    expect(screen.getByRole('button', { name: 'Categoría C' })).not.toBeSelected();
+    for (const option of ['Categoría B', 'Categoría C']) {
       expect(StyleSheet.flatten(screen.getByRole('button', { name: option }).props.style).minHeight).toBeGreaterThanOrEqual(48);
     }
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Juvenil' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Categoría C' }));
     expect(filterSheet.onChoose).toHaveBeenCalledWith('c2');
   });
 

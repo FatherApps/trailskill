@@ -12,11 +12,11 @@ export const indicatorsFixture = {
 
 // Times are in hundredths of a second: the personal best of the event the table shows (Libre 50).
 export const athletesFixture: AthleteRow[] = [
-  { id: 'a1', name: 'Lucía Ramírez', initials: 'LR', color: 'athlete-1', category: 'Infantil B', group: 'Grupo B', coach: 'Paula G.', authorization: 'valid', bestTime: 3482 },
-  { id: 'a2', name: 'Mateo Castro', initials: 'MC', color: 'athlete-2', category: 'Infantil B', group: 'Grupo B', coach: 'Paula G.', authorization: 'valid', bestTime: 3391 },
-  { id: 'a3', name: 'Sara Peña', initials: 'SP', color: 'athlete-3', category: 'Infantil B', group: 'Grupo B', coach: 'Paula G.', authorization: 'pending', bestTime: null },
-  { id: 'a4', name: 'Julián Ortiz', initials: 'JO', color: 'athlete-4', category: 'Infantil B', group: 'Grupo C', coach: 'Andrés M.', authorization: 'valid', bestTime: 3647 },
-  { id: 'a5', name: 'Valentina Rojas', initials: 'VR', color: 'athlete-1', category: 'Infantil B', group: 'Grupo C', coach: 'Andrés M.', authorization: 'valid', bestTime: 3510 },
+  { id: 'a1', name: 'Lucía Ramírez', initials: 'LR', color: 'athlete-1', category: 'Categoría B', group: 'Grupo B', coach: 'Paula G.', authorization: 'valid', bestTime: 3482 },
+  { id: 'a2', name: 'Mateo Castro', initials: 'MC', color: 'athlete-2', category: 'Categoría B', group: 'Grupo B', coach: 'Paula G.', authorization: 'valid', bestTime: 3391 },
+  { id: 'a3', name: 'Sara Peña', initials: 'SP', color: 'athlete-3', category: 'Categoría B', group: 'Grupo B', coach: 'Paula G.', authorization: 'pending', bestTime: null },
+  { id: 'a4', name: 'Julián Ortiz', initials: 'JO', color: 'athlete-4', category: 'Categoría B', group: 'Grupo C', coach: 'Andrés M.', authorization: 'valid', bestTime: 3647 },
+  { id: 'a5', name: 'Valentina Rojas', initials: 'VR', color: 'athlete-1', category: 'Categoría B', group: 'Grupo C', coach: 'Andrés M.', authorization: 'valid', bestTime: 3510 },
 ];
 
 export const longTextAthleteFixture: AthleteRow = {
@@ -24,7 +24,7 @@ export const longTextAthleteFixture: AthleteRow = {
   name: 'María Fernanda de los Ángeles Restrepo Villegas',
   initials: 'MR',
   color: 'athlete-2',
-  category: 'Infantil B, grupo de desarrollo',
+  category: 'Categoría B, grupo de desarrollo',
   group: 'Grupo de iniciación avanzada',
   coach: 'Andrés Felipe Martínez',
   authorization: 'pending',
@@ -36,7 +36,7 @@ export const sourceFixture = 'FEDNAT';
 export const detailFixture: AthleteDetailData = {
   id: 'a1',
   name: 'Lucía Ramírez',
-  category: 'Infantil B',
+  category: 'Categoría B',
   authorization: 'valid',
   guardian: { name: 'Paula Gómez', contact: 'paula.gomez@example.com' },
   bests: [
@@ -51,7 +51,7 @@ export const detailsFixture: Record<string, AthleteDetailData> = {
   a3: {
     id: 'a3',
     name: 'Sara Peña',
-    category: 'Infantil B',
+    category: 'Categoría B',
     authorization: 'pending',
     guardian: { name: 'Camilo Peña', contact: 'camilo.pena@example.com' },
     bests: [],
@@ -72,7 +72,7 @@ export const detailFor = (athlete: AthleteRow): AthleteDetailData =>
 export const longTextDetailFixture: AthleteDetailData = {
   ...detailFixture,
   name: 'María Fernanda de los Ángeles Restrepo Villegas',
-  category: 'Infantil B, grupo de desarrollo',
+  category: 'Categoría B, grupo de desarrollo',
   guardian: { name: 'Luz Marina Villegas de Restrepo', contact: 'luz.marina.villegas.restrepo@example.com' },
   bests: [{ id: 'l1', event: 'Combinado individual 200', time: 12966, source: 'Asociación Departamental de Natación' }],
 };

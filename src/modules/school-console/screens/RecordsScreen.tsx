@@ -12,7 +12,7 @@ import type { ConsoleSectionProps } from './ConsoleScreen';
 export type RecordsContent = {
   // Minutes since the data was updated; `null` when it is not known.
   updatedMinutesAgo: number | null;
-  // The category the records are of, for example "Infantil B".
+  // The category the records are of, for example "Categoría B".
   category: string;
   // The best marks of the category in every pool; the table shows the ones of `pool`.
   rows: RecordRow[];

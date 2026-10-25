@@ -6,9 +6,11 @@ import { useGlobalSyncSummary } from '../../core/sync';
 import {
   AthletesSection,
   AuthorizationsScreen,
+  CategoriesSection,
   CoachesScreen,
   ConsoleScreen,
   createPowerSyncConsoleAthletesRepository,
+  createPowerSyncCategoriesRepository,
   createPowerSyncStaffSchoolRepository,
   MeasurementsScreen,
   RecordsScreen,
@@ -18,10 +20,11 @@ import {
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
 const consoleAthletes = createPowerSyncConsoleAthletesRepository();
+const categories = createPowerSyncCategoriesRepository();
 
 const noop = () => {};
 
-// The sections whose data is not connected yet (tasks 5.3 to 5.7): each shows its empty state and its events do nothing.
+// The sections whose data is not connected yet (tasks 5.3 to 5.6): each shows its empty state and its events do nothing.
 const sections: ConsoleScreenProps['sections'] = {
   coaches: (props) => <CoachesScreen {...props} view={{ kind: 'empty' }} onInvite={noop} onDeactivate={noop} />,
   records: (props) => <RecordsScreen {...props} view={{ kind: 'empty' }} onCategoryPress={noop} onPoolChange={noop} />,
@@ -52,6 +55,9 @@ export default function ConsoleRoute() {
         ...sections,
         athletes: (props) => (
           <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connected={connected} />
+        ),
+        settings: (props) => (
+          <CategoriesSection {...props} repository={categories} schoolId={schoolId} refreshKey={lastSyncedAt} />
         ),
       }}
     />
