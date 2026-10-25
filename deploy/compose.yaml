@@ -61,7 +61,7 @@ services:
       PS_DATA_SOURCE_URI: postgresql://powersync_role:${POWERSYNC_DB_PASSWORD}@${SUPABASE_DB_HOST}:${SUPABASE_DB_PORT:-5432}/${SUPABASE_DB_NAME:-postgres}
       PS_STORAGE_URI: postgresql://powersync_storage:${POWERSYNC_STORAGE_PASSWORD}@powersync-storage:5432/powersync_storage
       PS_SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:?Set SUPABASE_JWT_SECRET to the JWT secret of the Supabase stack}
-      PS_SYNC_CONFIG_PATH: ${PS_SYNC_CONFIG_PATH:-/config/empty-sync-config.yaml}
+      PS_SYNC_CONFIG_PATH: ${PS_SYNC_CONFIG_PATH:-/sync/sync-config.yaml}
       NODE_OPTIONS: --max-old-space-size=1000
     # No published ports: public traffic comes through the Cloudflare Tunnel to Traefik, which routes to container port 8080 (HTTPS ends at Cloudflare).
     networks:

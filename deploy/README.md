@@ -9,7 +9,6 @@ What Dokploy deploys from this repository on every push to `main`: migrations pl
 | `compose.yaml` | The Compose service Dokploy deploys: `migrate`, `powersync-storage`, `powersync`. |
 | `scripts/migrate.sh` | Creates `powersync_role`, applies `supabase/migrations/*.sql`, optional seed. |
 | `powersync/powersync.yaml` | PowerSync service config. |
-| `powersync/empty-sync-config.yaml` | Sync config that syncs nothing, used until `powersync/sync-config.yaml` exists. |
 | `scripts/*.test.sh` | Local tests, see [Tests](#tests). |
 
 Not here: the **Supabase** stack (including Mailpit and the email template). It is set up once in Dokploy and is not versioned in this repository. Changes to it are made in Dokploy and deployed by hand; continuous deployment covers only this compose.
@@ -67,7 +66,7 @@ Set them in the environment of this Compose service in Dokploy.
 | `POWERSYNC_DB_PASSWORD` | required | Password given to `powersync_role` (sent only when the role is created or the password changes) | Generate; only used here |
 | `POWERSYNC_STORAGE_PASSWORD` | required | Password of the PowerSync bucket storage Postgres | Generate; only used here |
 | `SUPABASE_JWT_SECRET` | required | HS256 secret PowerSync uses to verify Supabase tokens | Supabase service (`JWT_SECRET`) |
-| `PS_SYNC_CONFIG_PATH` | `/config/empty-sync-config.yaml` | Sync config file inside the container | See [Sync config](#sync-config) |
+| `PS_SYNC_CONFIG_PATH` | `/sync/sync-config.yaml` | Sync config file inside the container | See [Sync config](#sync-config) |
 | `APPLY_SEED` | `false` | `true` applies `supabase/seed.sql` once (development only) | Set by hand |
 | `DOKPLOY_NETWORK` | `dokploy-network` | Traefik network, used only so `powersync` can be routed | Change only for tests |
 
@@ -119,7 +118,7 @@ PowerSync logs replication errors (`Publication 'powersync' does not exist`) unt
 
 ## Sync config
 
-PowerSync starts with an empty sync config. When `powersync/sync-config.yaml` exists on `main`, set `PS_SYNC_CONFIG_PATH=/sync/sync-config.yaml` and redeploy.
+PowerSync loads the Sync Streams in [`powersync/sync-config.yaml`](../powersync/sync-config.yaml), mounted read-only at `/sync`. Every deploy picks up the version on `main`; on start the `powersync` logs show `Loaded sync config`. Leave `PS_SYNC_CONFIG_PATH` unset in Dokploy unless you need another file inside the container.
 
 ## Tests
 
@@ -127,5 +126,5 @@ Both need Docker and are safe to run locally (random names, synthetic data, clea
 
 ```sh
 sh deploy/scripts/migrate.test.sh   # migrate.sh against a temporary Postgres
-sh deploy/scripts/smoke.test.sh     # compose up with a stand-in database; PowerSync liveness
+sh deploy/scripts/smoke.test.sh     # compose up with a stand-in database; PowerSync liveness and Sync Streams load
 ```

@@ -1,4 +1,0 @@
-# Syncs nothing. Used until powersync/sync-config.yaml exists on main.
-config:
-  edition: 3
-streams: {}
