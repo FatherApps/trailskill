@@ -19,6 +19,12 @@
     "resend_sent": "Te enviamos un código nuevo.",
     "resend_failed": "No pudimos enviar un código nuevo. Inténtalo de nuevo en un momento."
   },
+  "session": {
+    "previous_user_title": "¿Descartar los registros de la persona anterior?",
+    "previous_user_message": "Este teléfono tiene registros que otra persona no ha enviado. Si los descartas, se pierden para siempre. Para enviarlos, esa persona debe volver a ingresar.",
+    "previous_user_discard": "Descartar registros",
+    "previous_user_return": "Ingresar como la persona anterior"
+  },
   "sport": {
     "stroke": {
       "FR": "Libre",
