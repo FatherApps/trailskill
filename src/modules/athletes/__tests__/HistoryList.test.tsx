@@ -160,6 +160,20 @@ describe('HistoryList', () => {
           .at(-1)?.props?.style as never,
       );
 
+    it('lets the text block shrink, bounds the tag to it and keeps the time width at normal size', async () => {
+      await render(<HistoryList results={[byId('import')]} />);
+
+      const [text, trailing] = screen.getAllByLabelText(/^Mariposa 100 m/)[0].children as unknown as {
+        props: { style: unknown };
+        children: { props: { style: unknown } }[];
+      }[];
+      const flat = (style: unknown) => StyleSheet.flatten(style as never);
+      expect(flat(text.props.style).flexShrink).toBe(1);
+      expect(flat(text.props.style).minWidth).toBe(0);
+      expect(flat(text.children.at(-1)!.props.style).maxWidth).toBe('100%');
+      expect(flat(trailing.props.style).flexShrink).toBe(0);
+    });
+
     it('keeps the time beside the text at normal size', async () => {
       await render(<HistoryList results={[byId('race-pb')]} />);
 

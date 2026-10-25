@@ -55,8 +55,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   // Large text: the time goes below the text, each at the full row width, so no word is split.
   rowLarge: { flexDirection: 'column', alignItems: 'stretch' },
-  text: { flex: 1 },
-  trailing: { alignItems: 'flex-end', flexShrink: 1 },
+  // The text block shrinks (minWidth 0) and the time keeps its own width, so the two never overlap.
+  text: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+  tag: { alignSelf: 'flex-start', maxWidth: '100%' },
+  trailing: { alignItems: 'flex-end', flexShrink: 0 },
   trailingLarge: { alignItems: 'flex-start' },
 });
 
@@ -153,7 +155,11 @@ function HistoryRow({ result }: { result: HistoryResult }) {
       <View {...hidden} style={[large ? undefined : styles.text, { gap: space[1] }]}>
         <Text style={[typography['body-strong'], { color: colors[historyListColors.title] }]}>{title}</Text>
         <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{meta}</Text>
-        {origin && <Tag variant="outline" icon={origin.icon} label={origin.label} />}
+        {origin && (
+          <View style={styles.tag}>
+            <Tag variant="outline" icon={origin.icon} label={origin.label} />
+          </View>
+        )}
       </View>
       <View {...hidden} style={[styles.trailing, large && styles.trailingLarge, { gap: space[1] }]}>
         <TimeValue
