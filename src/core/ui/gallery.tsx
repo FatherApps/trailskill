@@ -1,9 +1,23 @@
-import type { ReactElement } from 'react';
-import { View } from 'react-native';
+import { useState, type ReactElement } from 'react';
+import { Text, View } from 'react-native';
 
-import { space } from '../theme';
+import type { RecordSyncState } from '../sync';
+import { space, useTheme } from '../theme';
 import { buttonFixture as b } from './__fixtures__/button';
+import { confirmSheetFixture as cs } from './__fixtures__/confirmSheet';
+import { stateViewFixture as sv } from './__fixtures__/stateView';
+import { stepHeaderFixture as sh } from './__fixtures__/stepHeader';
+import { tagFixture as tg } from './__fixtures__/tag';
+import { textFieldFixture as tf } from './__fixtures__/textField';
 import { Button } from './Button';
+import { ConfirmSheet } from './ConfirmSheet';
+import { Icon } from './Icon';
+import { iconPaths, type IconName } from './icons';
+import { StateView } from './StateView';
+import { StepHeader } from './StepHeader';
+import { SyncStatus } from './SyncStatus';
+import { Tag } from './Tag';
+import { TextField } from './TextField';
 
 // One component or screen in the development gallery: each state renders it with synthetic props.
 export type GalleryEntry = {
@@ -13,6 +27,48 @@ export type GalleryEntry = {
 };
 
 const noop = () => {};
+
+const iconNames = Object.keys(iconPaths) as IconName[];
+
+// Every icon of the set at one size, each with its name below.
+function IconSet({ size }: { size: 'icon-md' | 'icon-sm' }) {
+  const { colors, space: gap, typography } = useTheme();
+
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: gap[4] }}>
+      {iconNames.map((name) => (
+        <View key={name} style={{ alignItems: 'center', gap: gap[1] }}>
+          <Icon name={name} size={size} />
+          <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{name}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// The sheet is a modal that covers the gallery, so each state opens it on demand.
+function ConfirmSheetPreview({ copy, destructive }: { copy: typeof cs.stop; destructive: boolean }) {
+  const [visible, setVisible] = useState(false);
+  const close = () => setVisible(false);
+
+  return (
+    <>
+      <Button variant="secondary" label={cs.show} onPress={() => setVisible(true)} />
+      <ConfirmSheet
+        visible={visible}
+        title={copy.title}
+        message={copy.message}
+        confirmLabel={copy.confirm}
+        cancelLabel={copy.cancel}
+        destructive={destructive}
+        onConfirm={close}
+        onCancel={close}
+      />
+    </>
+  );
+}
+
+const syncStates: RecordSyncState[] = ['on_device', 'sending', 'synced', 'not_sent'];
 
 export const galleryEntries: GalleryEntry[] = [
   {
@@ -36,6 +92,86 @@ export const galleryEntries: GalleryEntry[] = [
           </View>
         </View>
       ),
+    },
+  },
+  {
+    id: 'textField',
+    title: 'TextField',
+    states: {
+      rest: () => <TextField {...tf.rest} onChangeText={noop} />,
+      help: () => <TextField {...tf.help} value="" onChangeText={noop} />,
+      error: () => <TextField {...tf.error} onChangeText={noop} />,
+      protected: () => <TextField protected {...tf.protected} />,
+    },
+  },
+  {
+    id: 'tag',
+    title: 'Tag',
+    states: {
+      neutral: () => <Tag label={tg.neutral} />,
+      outline: () => <Tag variant="outline" label={tg.outline} />,
+      info: () => <Tag variant="info" icon="emoji_events" label={tg.info} />,
+      ok: () => <Tag variant="ok" icon="verified_user" label={tg.ok} />,
+      warn: () => <Tag variant="warn" icon="schedule" label={tg.warn} />,
+    },
+  },
+  {
+    id: 'icon',
+    title: 'Icon',
+    states: {
+      'icon-md': () => <IconSet size="icon-md" />,
+      'icon-sm': () => <IconSet size="icon-sm" />,
+    },
+  },
+  {
+    id: 'stepHeader',
+    title: 'StepHeader',
+    states: {
+      first: () => <StepHeader step={1} total={sh.total} title={sh.first} onBack={noop} />,
+      middle: () => <StepHeader step={2} total={sh.total} title={sh.middle} onBack={noop} />,
+      last: () => <StepHeader step={4} total={sh.total} title={sh.last} onBack={noop} />,
+    },
+  },
+  {
+    id: 'stateView',
+    title: 'StateView',
+    states: {
+      loading: () => <StateView kind="loading" />,
+      empty: () => <StateView kind="empty" icon={<Icon name="timer" color="on-color" />} {...sv.empty} />,
+      error: () => (
+        <StateView
+          kind="error"
+          icon={<Icon name="error" color="danger-text" />}
+          title={sv.error.title}
+          message={sv.error.message}
+          action={{ label: sv.error.action, onPress: noop }}
+        />
+      ),
+      offline: () => <StateView kind="offline" icon={<Icon name="wifi_off" color="warning-text" />} {...sv.offline} />,
+      denied: () => (
+        <StateView
+          kind="denied"
+          icon={<Icon name="lock" color="on-color" />}
+          title={sv.denied.title}
+          message={sv.denied.message}
+          action={{ label: sv.denied.action, onPress: noop }}
+        />
+      ),
+    },
+  },
+  {
+    id: 'syncStatus',
+    title: 'SyncStatus',
+    states: Object.fromEntries(
+      syncStates.map((state) => [state, () => <SyncStatus state={state} onRetry={noop} />]),
+    ),
+  },
+  {
+    id: 'confirmSheet',
+    title: 'ConfirmSheet',
+    states: {
+      stop: () => <ConfirmSheetPreview copy={cs.stop} destructive />,
+      primary: () => <ConfirmSheetPreview copy={cs.primary} destructive={false} />,
     },
   },
 ];
