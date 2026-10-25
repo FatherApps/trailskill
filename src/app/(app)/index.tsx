@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../core/i18n';
@@ -20,9 +20,13 @@ export default function Home() {
   const [blocked, setBlocked] = useState<{ unsent: number; rejected: number }>();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
+  // State updates land after the render: a ref blocks a second press made before the loading state shows.
+  const signOutInFlight = useRef(false);
 
   // A successful sign-out needs no navigation: the session gate moves to sign-in on its own.
   async function signOutWith(force: boolean) {
+    if (signOutInFlight.current) return;
+    signOutInFlight.current = true;
     setBlocked(undefined);
     setSignOutFailed(false);
     setSigningOut(true);
@@ -32,6 +36,7 @@ export default function Home() {
     } catch {
       setSignOutFailed(true);
     } finally {
+      signOutInFlight.current = false;
       setSigningOut(false);
     }
   }
@@ -41,6 +46,8 @@ export default function Home() {
         t('session.sign_out_pending_message', { count: blocked.unsent }),
         // Rejected records are not retried on their own: "Seguir y enviar" must not promise to send them.
         ...(blocked.rejected > 0 ? [t('session.sign_out_rejected', { count: blocked.rejected })] : []),
+        // Without a connection nothing is being sent: the records wait for it.
+        ...(syncConnectFailed ? [t('session.sign_out_offline')] : []),
       ].join(' ')
     : '';
 
