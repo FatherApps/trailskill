@@ -5,8 +5,10 @@ import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import {
   AuthorizationsScreen,
+  CategoriesSection,
   CoachesScreen,
   ConsoleScreen,
+  createPowerSyncCategoriesRepository,
   createPowerSyncStaffSchoolRepository,
   MeasurementsScreen,
   RecordsScreen,
@@ -15,10 +17,11 @@ import {
 } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
+const categories = createPowerSyncCategoriesRepository();
 
 const noop = () => {};
 
-// The sections whose data is not connected yet (tasks 5.3 to 5.7): each shows its empty state and its events do nothing.
+// The sections whose data is not connected yet (tasks 5.3 to 5.6): each shows its empty state and its events do nothing.
 const sections: ConsoleScreenProps['sections'] = {
   coaches: (props) => <CoachesScreen {...props} view={{ kind: 'empty' }} onInvite={noop} onDeactivate={noop} />,
   records: (props) => <RecordsScreen {...props} view={{ kind: 'empty' }} onCategoryPress={noop} onPoolChange={noop} />,
@@ -40,5 +43,16 @@ export default function ConsoleRoute() {
   if (access.status === 'loading') return null;
   // Only a hidden screen is not protection: the backend enforces the role on every query.
   if (access.status === 'denied') return <Redirect href="/" />;
-  return <ConsoleScreen width={width} schoolName={access.school.name} sections={sections} />;
+  return (
+    <ConsoleScreen
+      width={width}
+      schoolName={access.school.name}
+      sections={{
+        ...sections,
+        settings: (props) => (
+          <CategoriesSection {...props} repository={categories} schoolId={access.school.id} refreshKey={lastSyncedAt} />
+        ),
+      }}
+    />
+  );
 }

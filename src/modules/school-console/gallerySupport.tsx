@@ -35,7 +35,7 @@ export function ConsolePreview({ fixedWidth, children }: { fixedWidth?: number; 
 }
 
 // The filter values a chip shows once it is active.
-export const filterValues: Record<AthleteFilterId, string> = { category: 'Infantil B', group: 'Grupo B', coach: 'Paula G.' };
+export const filterValues: Record<AthleteFilterId, string> = { category: 'Categoría B', group: 'Grupo B', coach: 'Paula G.' };
 
 // A chip press turns its filter on with a sample value, or off when it is already on.
 export function toggleFilter(current: AthleteFiltersProps['filters'], id: AthleteFilterId): AthleteFiltersProps['filters'] {

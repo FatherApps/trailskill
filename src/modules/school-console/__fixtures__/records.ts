@@ -1,7 +1,7 @@
 import type { RecordRow } from '../components/RecordTable';
 
 // Synthetic data for the development gallery and the tests: fictional people, no real organizations.
-export const recordCategoryFixture = 'Infantil B';
+export const recordCategoryFixture = 'Categoría B';
 
 // One best mark per event and pool, as the caller would supply them. Pecho 50 has no mark yet.
 export const recordsFixture: RecordRow[] = [

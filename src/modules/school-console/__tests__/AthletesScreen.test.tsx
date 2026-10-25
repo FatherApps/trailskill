@@ -148,7 +148,7 @@ describe('AthletesScreen', () => {
       expect(screen.queryByTestId('console-nav-side')).toBeNull();
       expect(screen.getByTestId('console-nav-top')).toBeOnTheScreen();
       expect(screen.queryByText('Categoría')).toBeNull();
-      expect(screen.getByRole('button', { name: /^Lucía Ramírez, Infantil B · Grupo B · Paula G\./ })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: /^Lucía Ramírez, Categoría B · Grupo B · Paula G\./ })).toBeOnTheScreen();
 
       await screen.rerender(
         <AthletesScreen width={599} schoolName={schoolNameFixture} view={{ kind: 'data', content: withDetail }} {...actions} />,

@@ -13,6 +13,7 @@ import {
   schoolNameFixture,
   storedOnFixture,
 } from './__fixtures__/athletes';
+import { categoriesFixture, longNameCategoriesFixture } from './__fixtures__/categories';
 import { AthleteDetail } from './components/AthleteDetail';
 import { AthleteFilters, type AthleteFiltersProps } from './components/AthleteFilters';
 import { AthleteIndicators } from './components/AthleteIndicators';
@@ -20,10 +21,13 @@ import { AthleteTable } from './components/AthleteTable';
 import { ConsoleNav, type ConsoleDestinationId } from './components/ConsoleNav';
 import { personalBestLabel } from './components/eventLabel';
 import { Logo } from './components/Logo';
+import { createInMemoryCategoriesRepository } from './data/categories';
 import { SideSheet } from './components/SideSheet';
 import { ConsolePreview, filterValues, FullWidth, noop, toggleFilter } from './gallerySupport';
 import { gallerySectionEntries } from './gallerySections';
 import { AthletesScreen, type AthletesContent, type AthletesView } from './screens/AthletesScreen';
+import { CategoriesScreen, type CategoriesContent } from './screens/CategoriesScreen';
+import { CategoriesSection } from './screens/CategoriesSection';
 import { ConsoleScreen } from './screens/ConsoleScreen';
 import { EmptySectionScreen } from './screens/EmptySectionScreen';
 
@@ -107,6 +111,61 @@ function EmptySectionPreview({ fixedWidth }: { fixedWidth: number }) {
     </ConsolePreview>
   );
 }
+
+// The categories screen with fixed content: its own rename and confirmation state still works, the changes do not persist.
+function CategoriesPreview({
+  content,
+  fixedWidth,
+  initialRenamingId,
+  initialConfirmId,
+}: {
+  content: CategoriesContent;
+  fixedWidth?: number;
+  initialRenamingId?: string;
+  initialConfirmId?: string;
+}) {
+  return (
+    <ConsolePreview fixedWidth={fixedWidth}>
+      {(width) => (
+        <CategoriesScreen
+          width={width}
+          schoolName={schoolNameFixture}
+          content={content}
+          scrollEnabled={false}
+          initialRenamingId={initialRenamingId}
+          initialConfirmId={initialConfirmId}
+          onNavigate={noop}
+          onCreate={noop}
+          onRename={noop}
+          onMove={noop}
+          onSetActive={noop}
+          onRetry={noop}
+        />
+      )}
+    </ConsolePreview>
+  );
+}
+
+// The whole section over an in-memory repository, so adding, renaming, moving and deactivating work in the gallery.
+function InteractiveCategoriesPreview({ fixedWidth }: { fixedWidth?: number }) {
+  const [repository] = useState(() => createInMemoryCategoriesRepository({ categories: categoriesFixture, athleteSchools: [] }));
+  return (
+    <ConsolePreview fixedWidth={fixedWidth}>
+      {(width) => (
+        <CategoriesSection
+          width={width}
+          schoolName={schoolNameFixture}
+          repository={repository}
+          schoolId={categoriesFixture[0].schoolId}
+          scrollEnabled={false}
+          onNavigate={noop}
+        />
+      )}
+    </ConsolePreview>
+  );
+}
+
+const ready = (categories: CategoriesContent['categories']): CategoriesContent => ({ status: 'ready', categories });
 
 // Holds the query and the filters, so typing and tapping a chip change the component in the gallery.
 function FiltersPreview({ initial }: { initial: AthleteFiltersProps['filters'] }) {
@@ -215,6 +274,21 @@ export const galleryEntries: GalleryEntry[] = [
     'expanded-1280': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 1280, initialSelected: 'a1' }),
     'medium-800': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 800 }),
     'compact-360': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 360 }),
+  }),
+  entry('categoriesScreen', 'CategoriesScreen', {
+    // Backed by an in-memory repository: everything can be tapped. Follows the width of the preview.
+    interactive: () => <InteractiveCategoriesPreview />,
+    'with-inactive': () => <CategoriesPreview content={ready(categoriesFixture)} />,
+    empty: () => <CategoriesPreview content={ready([])} />,
+    loading: () => <CategoriesPreview content={{ status: 'loading', categories: [] }} />,
+    error: () => <CategoriesPreview content={{ status: 'error', categories: [] }} />,
+    renaming: () => <CategoriesPreview content={ready(categoriesFixture)} initialRenamingId="c2" />,
+    'confirm-open': () => <CategoriesPreview content={ready(categoriesFixture)} initialConfirmId="c1" />,
+    // Long names wrap; nothing is cut.
+    'long-names': () => <CategoriesPreview content={ready(longNameCategoriesFixture)} />,
+    'expanded-1280': () => <InteractiveCategoriesPreview fixedWidth={1280} />,
+    'medium-800': () => <InteractiveCategoriesPreview fixedWidth={800} />,
+    'compact-360': () => <InteractiveCategoriesPreview fixedWidth={360} />,
   }),
   entry('consoleScreen', 'ConsoleScreen', {
     // The shell that holds the active section; follows the width of the preview.

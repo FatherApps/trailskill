@@ -5,7 +5,7 @@ const audit = { created_at: column.text, created_by: column.text };
 
 export const AppSchema = new Schema({
   schools: new Table({ ...audit, name: column.text }),
-  categories: new Table({ ...audit, school_id: column.text, name: column.text, sort_order: column.integer }),
+  categories: new Table({ ...audit, school_id: column.text, name: column.text, sort_order: column.integer, active: column.integer }),
   training_groups: new Table({ ...audit, school_id: column.text, name: column.text }),
   school_memberships: new Table({ ...audit, school_id: column.text, user_id: column.text, role: column.text }),
   coach_group_assignments: new Table({ ...audit, coach_user_id: column.text, group_id: column.text }),

@@ -1,10 +1,14 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ThemeProvider, type ThemeName } from '../../../core/theme';
 import { galleryEntries } from '../gallery';
+
+// The in-memory repository lives next to the PowerSync one, which loads the native database module.
+jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 const themes: ThemeName[] = ['light', 'dark'];
 const scales = [1, 2];
@@ -68,6 +72,7 @@ describe('school console gallery entries', () => {
       'athleteTable',
       'athleteDetail',
       'athletesScreen',
+      'categoriesScreen',
       'consoleScreen',
       'coachList',
       'coachesScreen',
@@ -119,6 +124,76 @@ describe('school console gallery entries', () => {
 
     const root = screen.toJSON() as unknown as { props: { style: StyleProp<ViewStyle> } };
     expect(StyleSheet.flatten(root.props.style)?.alignSelf).toBe('stretch');
+  });
+
+  describe('categoriesScreen', () => {
+    it('lists its states', () => {
+      expect(stateKeys('categoriesScreen')).toEqual([
+        'interactive',
+        'with-inactive',
+        'empty',
+        'loading',
+        'error',
+        'renaming',
+        'confirm-open',
+        'long-names',
+        'expanded-1280',
+        'medium-800',
+        'compact-360',
+      ]);
+    });
+
+    it('interactive adds, renames, moves, deactivates and reactivates in place', async () => {
+      await render(<ThemeProvider>{state('categoriesScreen', 'interactive')}</ThemeProvider>);
+      expect(await screen.findByText('Categoría A')).toBeOnTheScreen();
+
+      await fireEvent.changeText(screen.getByLabelText('Nueva categoría'), 'Categoría D');
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar' }));
+      expect(await screen.findByText('Categoría D')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Subir Categoría D' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Bajar Categoría D' })).toBeEnabled());
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Renombrar' })[0]);
+      await fireEvent.changeText(screen.getByLabelText('Nombre de la categoría'), 'Categoría Z');
+      await fireEvent.press(screen.getByRole('button', { name: 'Guardar' }));
+      expect(await screen.findByText('Categoría Z')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Reactivar' }));
+      await waitFor(() => expect(screen.queryByLabelText('Inactiva')).toBeNull());
+    });
+
+    it('with-inactive shows the tag, renaming the field and confirm-open the question', async () => {
+      await render(<ThemeProvider>{state('categoriesScreen', 'with-inactive')}</ThemeProvider>);
+      expect(screen.getByLabelText('Inactiva')).toBeOnTheScreen();
+
+      await render(<ThemeProvider>{state('categoriesScreen', 'renaming')}</ThemeProvider>);
+      expect(screen.getByLabelText('Nombre de la categoría').props.value).toBe('Categoría B');
+
+      await render(<ThemeProvider>{state('categoriesScreen', 'confirm-open')}</ThemeProvider>);
+      expect(screen.getByText('¿Desactivar Categoría A?')).toBeOnTheScreen();
+    });
+
+    it.each([
+      ['empty', 'Aún no hay categorías'],
+      ['error', 'No pudimos cargar las categorías'],
+    ])('%s shows its message', async (key, message) => {
+      await render(<ThemeProvider>{state('categoriesScreen', key)}</ThemeProvider>);
+
+      expect(screen.getByText(message)).toBeOnTheScreen();
+    });
+
+    it('loading shows the loading state', async () => {
+      await render(<ThemeProvider>{state('categoriesScreen', 'loading')}</ThemeProvider>);
+
+      expect(screen.getByTestId('state-view')).toBeOnTheScreen();
+    });
+
+    it('long-names keeps the whole name', async () => {
+      await render(<ThemeProvider>{state('categoriesScreen', 'long-names')}</ThemeProvider>);
+
+      expect(screen.getByText(/perfeccionamiento técnico para nadadores de iniciación avanzada$/)).toBeOnTheScreen();
+    });
   });
 
   describe('consoleScreen', () => {
@@ -217,8 +292,8 @@ describe('school console gallery entries', () => {
       await render(<ThemeProvider>{state('athletesScreen', 'expanded-1280')}</ThemeProvider>);
 
       await fireEvent.press(screen.getByRole('button', { name: 'Categoría' }));
-      expect(screen.getByRole('button', { name: 'Categoría: Infantil B' })).toBeSelected();
-      await fireEvent.press(screen.getByRole('button', { name: 'Categoría: Infantil B' }));
+      expect(screen.getByRole('button', { name: 'Categoría: Categoría B' })).toBeSelected();
+      await fireEvent.press(screen.getByRole('button', { name: 'Categoría: Categoría B' }));
       expect(screen.getByRole('button', { name: 'Categoría' })).not.toBeSelected();
       await fireEvent.changeText(screen.getByLabelText('Buscar por nombre'), 'Lu');
       expect(screen.getByLabelText('Buscar por nombre').props.value).toBe('Lu');
@@ -303,7 +378,7 @@ describe('school console gallery entries', () => {
 
   it('athleteFilters / with-filter turns a chip on and off in place', async () => {
     await render(<ThemeProvider>{state('athleteFilters', 'with-filter')}</ThemeProvider>);
-    expect(screen.getByRole('button', { name: 'Categoría: Infantil B' })).toBeSelected();
+    expect(screen.getByRole('button', { name: 'Categoría: Categoría B' })).toBeSelected();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Grupo' }));
     expect(screen.getByRole('button', { name: 'Grupo: Grupo B' })).toBeSelected();

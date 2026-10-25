@@ -29,7 +29,7 @@ describe('RecordsScreen', () => {
       expect(screen.getByRole('header', { name: 'Récords' })).toBeOnTheScreen();
       expect(screen.getByText('4 pruebas · Actualizado hace 2 min')).toBeOnTheScreen();
       expect(screen.getByRole('tab', { name: 'Récords' })).toBeSelected();
-      expect(screen.getByRole('button', { name: 'Categoría: Infantil B' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Categoría: Categoría B' })).toBeOnTheScreen();
       expect(screen.getByRole('radio', { name: '25 m' })).toBeChecked();
       expect(screen.getAllByTestId('record-row')).toHaveLength(4);
     });
@@ -52,7 +52,7 @@ describe('RecordsScreen', () => {
       const { onPoolChange, onCategoryPress, onNavigate } = await show({ kind: 'data', content });
 
       await fireEvent.press(screen.getByRole('radio', { name: '50 m' }));
-      await fireEvent.press(screen.getByRole('button', { name: 'Categoría: Infantil B' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Categoría: Categoría B' }));
       await fireEvent.press(screen.getByRole('tab', { name: 'Mediciones' }));
 
       expect(onPoolChange).toHaveBeenCalledWith('LCM');
