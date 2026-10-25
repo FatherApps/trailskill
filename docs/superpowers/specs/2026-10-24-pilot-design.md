@@ -102,11 +102,11 @@ The permission table in the design system (section "States, permissions and sync
 ### 6.1 Registration and authorization (Decided, from the design system)
 
 1. "¿Quién va a nadar?": a child (guardian flow) or "Yo" (adult flow).
-2. Account details with phone or email verification by code.
+2. Account details, with sign-in by Google or Microsoft, or by a 6-digit code sent by email as fallback. No passwords ([ADR 0004](../../decisions/0004-sign-in-with-google-microsoft-and-email-code.md)).
 3. Guardian flow: one or more athlete profiles (name, surname, category, training group).
 4. Authorization per athlete and per purpose, never pre-checked: recording times and results; FECNA import; sharing results with another school. One acceptance never implies another.
 5. Evidence kept for each authorization: accepted full text and version, adult identity and validated representation, athlete, purposes, time and acceptance event. Authorizations can be withdrawn.
-6. A draft is saved on the device at each step, so a lost signal never loses typed data. Verifying the code and creating the account need signal.
+6. A draft is saved on the device at each step, so a lost signal never loses typed data. Signing in and creating the account need signal.
 7. A school invitation link pre-fills school and group.
 8. Registration never depends on FECNA.
 
@@ -225,7 +225,7 @@ Do not implement a guess for any of these.
 | --- | --- | --- |
 | UI language | Spanish (es-CO) only, or Spanish and English | Maintainer, before final pilot copy |
 | Decimal separator in times | Comma (33,91) or point (33.91) | Maintainer with La Academia coaches; one configurable formatter in the meantime |
-| Backend, hosting, sync technology | Product and architecture, including whether data may be stored outside Colombia, the hosting budget, and the SMS or email provider for verification codes | Builder proposes an ADR with these questions; maintainer approves |
+| Backend, hosting, sync technology | Product and architecture, including whether data may be stored outside Colombia, the hosting budget, and the email provider for the fallback sign-in code and invitations (sign-in methods decided in [ADR 0004](../../decisions/0004-sign-in-with-google-microsoft-and-email-code.md)) | Builder proposes an ADR with these questions; maintainer approves |
 | External button | Hardware for iOS, protocol, precision | Research track; results count as official only after validation |
 | Stopwatch precision | Validation against a reference timer | Before showing hundredths as reliable |
 | FECNA | Data access and identity-matching rule | During development |
@@ -241,7 +241,7 @@ Each criterion is checked on a release build from the Google Play closed track, 
 2. **Swimmers of a school.** A school administrator lists all athletes of the school, filters by category, group and coach, and opens an athlete's detail.
 3. **History and trends.** An athlete's profile shows history per event, the personal best with its improvement, and a progress chart with an empty, labelled projection zone.
 4. **Periodic training measurements.** A coach runs a series with the single on-screen button in airplane mode: arrivals are recorded in order, names are assigned with cards after the series, and all results reach the server, with author and device, when the connection returns. A force-quit during the session loses nothing.
-5. **Google Play and registration.** The app installs from the closed track. A guardian registers a minor with per-purpose authorization; an adult registers themselves. Losing the signal mid-registration keeps the draft, and registration completes once code verification succeeds.
+5. **Google Play and registration.** The app installs from the closed track. A guardian registers a minor with per-purpose authorization; an adult registers themselves. Losing the signal mid-registration keeps the draft, and registration completes once sign-in with Google, Microsoft or the email code succeeds ([ADR 0004](../../decisions/0004-sign-in-with-google-microsoft-and-email-code.md)).
 6. **School console.** On a tablet, the administrator invites a coach, sees records by category, and sees authorization status per athlete.
 7. **External button.** Presses of the physical button are recorded as arrivals with the same flow as the on-screen button, and assigned to swimmers by stroke and distance. Until its precision is validated, its results are labelled with their source. (Checked once the button is validated; see section 6.2, Release path.)
 8. **Planned trainings.** A coach builds a plan from blocks, assigns it to a group, marks fulfillment in the grid, and edits the plan afterwards: a new version is created and earlier records keep their version.

@@ -1,6 +1,6 @@
 # 0001. App and backend stack: Expo with Supabase and PowerSync
 
-- Status: Accepted; hosting and region amended by [0002](0002-backend-hosting-on-dokploy.md)
+- Status: Accepted; hosting and region amended by [0002](0002-backend-hosting-on-dokploy.md); sign-in amended by [0004](0004-sign-in-with-google-microsoft-and-email-code.md)
 - Date: 2026-10-24
 - Decider: maintainer
 - Issue: #11
@@ -21,7 +21,7 @@ Building offline sync by hand is the riskiest part of the pilot, so the backend 
 
 ### Backend and sync
 
-- **Supabase** as the backend: Postgres as the source of truth, Supabase Auth with verification codes, Row Level Security for server-side permissions, and Edge Functions for server logic (conflict resolution, FECNA import).
+- **Supabase** as the backend: Postgres as the source of truth, Supabase Auth with verification codes (sign-in amended by [ADR 0004](0004-sign-in-with-google-microsoft-and-email-code.md): Google and Microsoft, with an email code as fallback), Row Level Security for server-side permissions, and Edge Functions for server logic (conflict resolution, FECNA import).
 - **PowerSync** for sync: an SQLite database on each device, kept in sync with Postgres, with an upload queue that is processed when the device reconnects ([PowerSync + Supabase](https://docs.powersync.com/integration-guides/supabase-+-powersync)). Sync rules decide which rows each user's device receives.
 - Database migrations, policies and functions are versioned in the repository under `supabase/`.
 
@@ -55,5 +55,5 @@ Building offline sync by hand is the riskiest part of the pilot, so the backend 
 
 - Legal validation under Colombian Law 1581 of 2012 for storing minors' data in Brazil (international transfer).
 - PowerSync plan, cost and hosting option.
-- SMS or email provider for verification codes, and its cost.
+- SMS or email provider for verification codes, and its cost. Narrowed by [ADR 0004](0004-sign-in-with-google-microsoft-and-email-code.md) to the email provider for the fallback code and invitations.
 - Hosting budget for the pilot.
