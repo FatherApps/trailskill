@@ -318,13 +318,33 @@ describe('TimingSummaryScreen', () => {
     expect(onRetry).toHaveBeenCalledWith('r2');
   });
 
-  it('offers correct and finish', async () => {
+  it('asks which time to correct, then reports the chosen record', async () => {
     const { onCorrect, onFinish } = await renderSummary();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Corregir un tiempo' }));
+    expect(onCorrect).not.toHaveBeenCalled();
+    expect(screen.getByText('Elige el tiempo que quieres corregir.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Tomás V., Tiempo 31,05' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Terminar' }));
-    expect(onCorrect).toHaveBeenCalledTimes(1);
+
+    expect(onCorrect).toHaveBeenCalledWith('r3');
     expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not make the rows pressable before correcting is chosen', async () => {
+    await renderSummary();
+
+    expect(screen.queryByRole('button', { name: 'Tomás V., Tiempo 31,05' })).toBeNull();
+  });
+
+  it('corrects the only record without asking', async () => {
+    const { onCorrect } = await renderSummary({
+      records: [{ id: 'r1', shortName: 'Mateo C.', initials: 'MC', color: 'athlete-1', time: 3391, syncState: 'synced' }],
+    });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Corregir un tiempo' }));
+
+    expect(onCorrect).toHaveBeenCalledWith('r1');
   });
 
   const record = (id: string, syncState: 'on_device' | 'synced' | 'sending', time: number | null = 3391) => ({
@@ -369,15 +389,13 @@ describe('TimingSummaryScreen', () => {
   });
 
   it('shows the offline banner above the success banner and blocks nothing', async () => {
-    const { onCorrect, onFinish, onRetry } = await renderSummary({ offline: true });
+    const { onFinish, onRetry } = await renderSummary({ offline: true });
 
     const [first, second] = screen.getAllByTestId('banner');
     expect(first).toHaveTextContent('Sin conexión. Se guarda en el teléfono.');
     expect(second).toHaveTextContent(/^3 tiempos guardados/);
-    await fireEvent.press(screen.getByRole('button', { name: 'Corregir un tiempo' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Terminar' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
-    expect(onCorrect).toHaveBeenCalledTimes(1);
     expect(onFinish).toHaveBeenCalledTimes(1);
     expect(onRetry).toHaveBeenCalledWith('r2');
   });

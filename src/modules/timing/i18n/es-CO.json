@@ -50,12 +50,24 @@
       "error_message": "Los tiempos siguen guardados en el teléfono. Inténtalo de nuevo.",
       "retry_load": "Intentar de nuevo",
       "correct": "Corregir un tiempo",
+      "correct_choose": "Elige el tiempo que quieres corregir.",
       "finish": "Terminar",
       "time_label": "Tiempo",
       "saved_one": "{{count}} tiempo guardado.",
       "saved_other": "{{count}} tiempos guardados.",
       "on_device_one": "{{count}} en el teléfono, se enviará con señal.",
       "on_device_other": "{{count}} en el teléfono, se enviarán con señal."
+    },
+    "correct": {
+      "title": "Corregir un tiempo",
+      "current": "Tiempo guardado",
+      "field_label": "Nuevo tiempo",
+      "field_help": "Déjalo vacío si no hay tiempo.",
+      "save": "Guardar corrección",
+      "error_format": "Escribe el tiempo como 35,20 o 1:05,30.",
+      "error_invalid": "El tiempo debe ser mayor que cero.",
+      "error_completed": "Esta medición se completó sin tiempo y no admite uno.",
+      "error_failed": "No pudimos guardar la corrección. Inténtalo de nuevo."
     },
     "offline": {
       "title": "Sin conexión.",
