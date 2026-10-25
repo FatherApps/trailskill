@@ -1,10 +1,23 @@
+import { createInstance } from 'i18next';
+import { initReactI18next } from 'react-i18next';
+
 import esCO from './es-CO.json';
 
-// shortcut: no i18next yet, Task 2 replaces the internals and keeps t() and the JSON keys
+const i18n = createInstance();
+
+// UI language is an open product decision: es-CO only until it is confirmed.
+i18n.use(initReactI18next).init({
+  lng: 'es-CO',
+  fallbackLng: 'es-CO',
+  resources: { 'es-CO': { translation: esCO } },
+  interpolation: { escapeValue: false },
+  // Synchronous init: the bundled resources are available on first render.
+  initAsync: false,
+});
+
+export { i18n };
+
+// A missing translation stays visible as its key (i18next returns the key).
 export function t(key: string): string {
-  const value = key
-    .split('.')
-    .reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], esCO);
-  // A missing translation stays visible as its key instead of rendering nothing.
-  return typeof value === 'string' ? value : key;
+  return i18n.t(key);
 }
