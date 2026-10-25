@@ -75,12 +75,15 @@ describe('FulfillmentContainer', () => {
   });
 
   it('shows the times recorded of a timed block and opens the timing from it', async () => {
-    const fulfillment = createInMemoryFulfillmentRepository();
+    const assignmentSchools: Record<string, string> = {};
+    const fulfillment = createInMemoryFulfillmentRepository({ recordings: { b2: 'per_repetition' }, assignmentSchools, seriesSchools: { 'series-1': 's1' } });
     const arrivals = Array.from({ length: 8 }, () => ({ athleteId: 'a1' }));
-    const seed = (repository: FulfillmentRepository, assignmentId: string) =>
-      repository
+    const seed = (repository: FulfillmentRepository, assignmentId: string) => {
+      assignmentSchools[assignmentId] = 's1';
+      return repository
         .mark({ assignmentId, versionId: 'v', blockId: 'b2', athleteId: 'a1', status: 'done', seriesId: 'series-1', authorId: 'k1', deviceId: 'tablet-1' })
         .then(() => undefined);
+    };
     const { onOpenTiming } = await setup({ blocks: [timedBlock], fulfillment, arrivals, seed });
 
     expect(await screen.findByRole('button', { name: /^A1 S\. · Bloque 1, .*, 8\/8 tiempos/ })).toBeOnTheScreen();

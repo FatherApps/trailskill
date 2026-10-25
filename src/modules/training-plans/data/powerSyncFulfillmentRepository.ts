@@ -1,6 +1,6 @@
 import { db, writeRecord } from '../../../core/sync';
-import type { BlockStatus } from '../types';
-import { currentMarks, validatedCount, type FulfillmentMark, type FulfillmentRepository } from './fulfillment';
+import type { BlockRecording, BlockStatus } from '../types';
+import { checkSeriesLink, currentMarks, validatedCount, type FulfillmentMark, type FulfillmentRepository } from './fulfillment';
 
 type MarkRow = {
   id: string;
@@ -46,6 +46,15 @@ export function createPowerSyncFulfillmentRepository(): FulfillmentRepository {
     },
     async mark(mark) {
       const completedRepetitions = validatedCount(mark);
+      if (mark.seriesId) {
+        const [link] = await db.getAll<{ recording: BlockRecording | null; assignment_school: string | null; series_school: string | null }>(
+          `SELECT (SELECT recording FROM training_plan_blocks WHERE id = ?) AS recording,
+                  (SELECT school_id FROM training_plan_assignments WHERE id = ?) AS assignment_school,
+                  (SELECT school_id FROM timing_series WHERE id = ?) AS series_school`,
+          [mark.blockId, mark.assignmentId, mark.seriesId],
+        );
+        checkSeriesLink({ recording: link?.recording, assignmentSchoolId: link?.assignment_school, seriesSchoolId: link?.series_school });
+      }
       // One row per mark, with its author and device. The server sets created_at and hidden.
       return writeRecord('training_plan_fulfillments', {
         created_by: mark.authorId,
