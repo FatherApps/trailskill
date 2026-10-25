@@ -14,5 +14,40 @@
   "layout": {
     "close": "Cerrar",
     "detail_dialog": "Detalle de {{name}}"
+  },
+  "indicators": {
+    "active": "Activos",
+    "pending_authorization": "Autorización pendiente",
+    "measurements_week": "Mediciones esta semana",
+    "to_review": "Por revisar",
+    "spoken": "{{label}}: {{value}}"
+  },
+  "filters": {
+    "search": "Buscar por nombre",
+    "category": "Categoría",
+    "group": "Grupo",
+    "coach": "Entrenador",
+    "active_spoken": "{{filter}}: {{value}}"
+  },
+  "table": {
+    "athlete": "Deportista",
+    "category": "Categoría",
+    "group": "Grupo",
+    "coach": "Entrenador",
+    "authorization": "Autorización",
+    "valid": "Vigente",
+    "pending": "Pendiente",
+    "personal_best": "MP {{event}}",
+    "best_spoken": "{{label}}: {{time}}",
+    "no_best": "sin marca"
+  },
+  "detail": {
+    "guardian": "Acudiente",
+    "bests": "Mejores marcas",
+    "no_bests": "Aún no hay marcas",
+    "no_time": "sin tiempo",
+    "authorized": "Autorizado",
+    "pending": "Pendiente",
+    "view_profile": "Ver perfil completo"
   }
 }
