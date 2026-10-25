@@ -100,6 +100,15 @@ describe('TodayScreen content', () => {
     expect(screen.getByLabelText('Sin marcar')).toBeOnTheScreen();
   });
 
+  it.each([3, 2])('takes the partial count (%i) from completedRepetitions, not from the recorded times', async (completedRepetitions) => {
+    const [, main] = content.blocks;
+    const partial = { ...content, blocks: [{ ...main, completedRepetitions, times: [3105, null, 3162] }] };
+    await render(setup({ kind: 'data', content: partial }).ui);
+
+    expect(screen.getByLabelText(`Parcial · ${completedRepetitions} de 8`)).toBeOnTheScreen();
+    expect(screen.getByText('—')).toBeOnTheScreen();
+  });
+
   it('never shows a time for a completion-only block, not even a zero', async () => {
     const [first] = content.blocks;
     await render(setup({ kind: 'data', content: { ...content, blocks: [{ ...first, status: 'done', times: [0] }] } }).ui);

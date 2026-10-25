@@ -14,7 +14,8 @@ export type BlockStatus = 'done' | 'partial' | 'absent' | 'not_marked';
 export type TodayBlock = {
   block: PlanBlock;
   status: BlockStatus;
-  // For 'partial': "Parcial · 3 de 4".
+  // For 'partial': "Parcial · 3 de 4". Number of repetitions marked done in the fulfillment record, whether or not their time was recorded
+  // (a missing time shows as "—", never zero, and does not change the count). The count never comes from `times`.
   completedRepetitions?: number;
   // Recorded times: one entry per repetition for per_repetition (null = not recorded), at most one for series_total. Ignored for completion blocks.
   times?: (Hundredths | null)[];
