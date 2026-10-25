@@ -4,10 +4,16 @@ import { useEffect, useState } from 'react';
 import { t } from '../../../core/i18n';
 import { retryFailedRecord, useRecordSyncStates } from '../../../core/sync';
 import type { Hundredths } from '../../../core/time';
-import type { Measurement, MeasurementRepository } from '../data/measurements';
+import {
+  CompletedMeasurementTimeError,
+  InvalidMeasurementTimeError,
+  type Measurement,
+  type MeasurementRepository,
+} from '../data/measurements';
 import { elapsedAt, idleStopwatch, reset, split, splitTimes, start, stop, totalTime, type Stopwatch } from '../domain/stopwatch';
 import '../i18n';
 import { StopwatchScreen } from './StopwatchScreen';
+import { TimeCorrectionScreen } from './TimeCorrectionScreen';
 import { TimingSummaryScreen } from './TimingSummaryScreen';
 import { eventSubtitleOf, initialChoice, kindOf, RosterGate, TimingSetupStep, type Choice, type RosterAthlete } from './timingSession';
 
@@ -24,11 +30,20 @@ export type IndividualTimingFlowProps = {
   onExit: () => void;
 };
 
-type Saved = { id: string; athlete: RosterAthlete; time: Hundredths };
+// `null` is a time that was corrected to missing, never 0.
+type Saved = { id: string; athlete: RosterAthlete; time: Hundredths | null };
 type Step =
   | { kind: 'setup' }
   | { kind: 'timing'; queue: RosterAthlete[]; position: number; saved: Saved[] }
-  | { kind: 'summary'; saved: Saved[] };
+  | { kind: 'summary'; saved: Saved[] }
+  | { kind: 'correct'; saved: Saved[]; id: string; error?: string };
+
+// The repository's own refusals, worded for the person; the validation itself stays in the repository.
+function correctionError(error: unknown): string {
+  if (error instanceof InvalidMeasurementTimeError) return t('timing.correct.error_invalid');
+  if (error instanceof CompletedMeasurementTimeError) return t('timing.correct.error_completed');
+  return t('timing.correct.error_failed');
+}
 
 const TICK_MS = 50;
 const clock = () => BigInt(Math.round(performance.now() * 1e6));
@@ -155,6 +170,33 @@ function IndividualSession({
     );
   }
 
+  if (step.kind === 'correct') {
+    const { saved, id } = step;
+    const target = saved.find((s) => s.id === id)!;
+    const toSummary = () => setStep({ kind: 'summary', saved });
+
+    async function correct(time: Hundredths | null) {
+      try {
+        await measurements.edit(id, { hundredths: time }, { deviceId });
+      } catch (error) {
+        setStep({ kind: 'correct', saved, id, error: correctionError(error) });
+        return;
+      }
+      setStep({ kind: 'summary', saved: saved.map((s) => (s.id === id ? { ...s, time } : s)) });
+    }
+
+    return (
+      <TimeCorrectionScreen
+        subtitle={eventSubtitle}
+        athleteName={target.athlete.shortName}
+        initialTime={target.time}
+        error={step.error}
+        onSave={correct}
+        onBack={toSummary}
+      />
+    );
+  }
+
   return (
     <TimingSummaryScreen
       subtitle={eventSubtitle}
@@ -172,8 +214,7 @@ function IndividualSession({
         retryFailedRecord('measurements', id).catch(() => {});
       }}
       onRetryLoad={() => {}}
-      // shortcut: correcting a saved time needs a screen that does not exist yet; the button does nothing until it does.
-      onCorrect={() => {}}
+      onCorrect={(id) => setStep({ kind: 'correct', saved: step.saved, id })}
       onFinish={onExit}
       onBack={onExit}
     />

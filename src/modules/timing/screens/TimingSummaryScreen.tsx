@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,7 +31,8 @@ export type TimingSummaryScreenProps = {
   offline?: boolean;
   onRetry: (recordId: string) => void;
   onRetryLoad: () => void;
-  onCorrect: () => void;
+  // The record whose time the person chose to correct.
+  onCorrect: (recordId: string) => void;
   onFinish: () => void;
   onBack: () => void;
 };
@@ -47,6 +49,8 @@ export function TimingSummaryScreen({
   onBack,
 }: TimingSummaryScreenProps) {
   const { colors, space, radius, typography } = useTheme();
+  // After "Corregir un tiempo" with several records, the rows become the choice.
+  const [choosing, setChoosing] = useState(false);
   // A record without a time was not saved, so it is not counted.
   const saved = records.filter((record) => record.time !== null).length;
   const onDevice = records.filter((record) => record.syncState === 'on_device').length;
@@ -60,6 +64,11 @@ export function TimingSummaryScreen({
           <Banner variant="success" icon="check_circle">
             <Text style={typography['body-strong']}>{t('timing.summary.saved', { count: saved })}</Text>
             {onDevice > 0 && ` ${t('timing.summary.on_device', { count: onDevice })}`}
+          </Banner>
+        )}
+        {choosing && (
+          <Banner variant="info" icon="edit">
+            {t('timing.summary.correct_choose')}
           </Banner>
         )}
         {status === 'loading' && <StateView kind="loading" />}
@@ -95,6 +104,8 @@ export function TimingSummaryScreen({
                   }
                   timeLabel={t('timing.summary.time_label')}
                   status={<SyncStatus state={record.syncState} onRetry={() => onRetry(record.id)} />}
+                  chevron={choosing}
+                  onPress={choosing ? () => onCorrect(record.id) : undefined}
                 />
               </View>
             ))}
@@ -107,7 +118,7 @@ export function TimingSummaryScreen({
                 variant="secondary"
                 label={t('timing.summary.correct')}
                 icon={<Icon name="edit" size="icon-sm" />}
-                onPress={onCorrect}
+                onPress={() => (records.length === 1 ? onCorrect(records[0]!.id) : setChoosing(true))}
               />
             )}
             <Button label={t('timing.summary.finish')} onPress={onFinish} />

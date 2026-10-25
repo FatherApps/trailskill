@@ -228,6 +228,73 @@ describe('individual timing flow', () => {
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
+  describe('correcting a saved time', () => {
+    const event = { stroke: 'FR', distance: '50m', pool: 'SCM' } as const;
+
+    // Times both athletes (35 s and 40 s) and opens the correction of Cleo's time from the summary.
+    async function openCorrection() {
+      const view = await setup();
+      await screen.findByText('Nadadores (2 de 3)');
+      await press('Empezar toma');
+      await screen.findByText('Ana M. · 1 de 2');
+      await timeAthlete(35n);
+      await screen.findByText('Cleo O. · 2 de 2');
+      await timeAthlete(40n);
+      await screen.findByText('Resumen de la toma');
+      await press('Corregir un tiempo');
+      await press('Cleo O., Tiempo 40,00');
+      return view;
+    }
+
+    it('saves the corrected time with edit and shows it in the summary', async () => {
+      const { measurements } = await openCorrection();
+      const edit = jest.spyOn(measurements, 'edit');
+
+      expect(await screen.findByLabelText('Nuevo tiempo')).toHaveDisplayValue('40,00');
+      await fireEvent.changeText(screen.getByLabelText('Nuevo tiempo'), '39,50');
+      await press('Guardar corrección');
+
+      expect(await screen.findByText('Resumen de la toma')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Cleo O., Tiempo 39,50')).toBeOnTheScreen();
+      expect(edit).toHaveBeenCalledWith(expect.any(String), { hundredths: 3950 }, { deviceId: 'device-1' });
+      const [cleo] = await measurements.listByAthleteEvent('a3', event);
+      expect(cleo).toMatchObject({ hundredths: 3950 });
+    });
+
+    it('turns an emptied field into a missing time, not zero', async () => {
+      const { measurements } = await openCorrection();
+
+      await fireEvent.changeText(await screen.findByLabelText('Nuevo tiempo'), '');
+      await press('Guardar corrección');
+
+      expect(await screen.findByText('Resumen de la toma')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Cleo O., Tiempo sin registrar')).toBeOnTheScreen();
+      const [cleo] = await measurements.listByAthleteEvent('a3', event);
+      expect(cleo).toMatchObject({ hundredths: null });
+    });
+
+    it('shows the repository refusal of a zero time and keeps the saved time', async () => {
+      const { measurements } = await openCorrection();
+
+      await fireEvent.changeText(await screen.findByLabelText('Nuevo tiempo'), '0,00');
+      await press('Guardar corrección');
+
+      expect(await screen.findByText('El tiempo debe ser mayor que cero.')).toBeOnTheScreen();
+      const [cleo] = await measurements.listByAthleteEvent('a3', event);
+      expect(cleo).toMatchObject({ hundredths: 4000 });
+    });
+
+    it('goes back to the summary without saving', async () => {
+      const { measurements } = await openCorrection();
+      const edit = jest.spyOn(measurements, 'edit');
+
+      await press('Volver');
+
+      expect(await screen.findByText('Resumen de la toma')).toBeOnTheScreen();
+      expect(edit).not.toHaveBeenCalled();
+    });
+  });
+
   it('does not start when nobody is authorized', async () => {
     await setup({ loadRoster: async () => [roster[1]!] });
     await screen.findByText('Nadadores (0 de 1)');
