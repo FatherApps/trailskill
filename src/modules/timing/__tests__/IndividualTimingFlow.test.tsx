@@ -1,0 +1,193 @@
+import { fireEvent, render, screen } from '@testing-library/react-native';
+
+import { ThemeProvider } from '../../../core/theme';
+import { createInMemoryMeasurementRepository, IndividualTimingFlow, type IndividualTimingFlowProps } from '..';
+
+jest.mock('../../../core/sync', () => ({
+  useRecordSyncStates: () => new Map(),
+  retryFailedRecord: jest.fn(),
+}));
+jest.mock('../../../core/sync/db', () => ({ db: {} }));
+let mockId = 0;
+jest.mock('expo-crypto', () => ({ randomUUID: () => `id-${++mockId}` }));
+
+// Synthetic data only.
+const roster = [
+  { id: 'a1', shortName: 'Ana M.', initials: 'AM', color: 'athlete-1' as const, authorized: true },
+  { id: 'a2', shortName: 'Ben A.', initials: 'BA', color: 'athlete-2' as const, authorized: false },
+  { id: 'a3', shortName: 'Cleo O.', initials: 'CO', color: 'athlete-3' as const, authorized: true },
+];
+
+let clock: bigint;
+const second = 1_000_000_000n;
+
+const setup = async (over: Partial<IndividualTimingFlowProps> = {}) => {
+  const measurements = createInMemoryMeasurementRepository();
+  const onExit = jest.fn();
+  clock = 10n * second;
+  const view = await render(
+    <ThemeProvider>
+      <IndividualTimingFlow
+        subtitle="Escuela Delfines"
+        loadRoster={async () => roster}
+        measurements={measurements}
+        userId="coach-1"
+        deviceId="device-1"
+        now={() => clock}
+        onExit={onExit}
+        {...over}
+      />
+    </ThemeProvider>,
+  );
+  return { measurements, onExit, view };
+};
+
+const press = (name: string) => fireEvent.press(screen.getByRole('button', { name }));
+
+// Times one athlete: starts the clock, lets `seconds` pass, stops and saves.
+async function timeAthlete(seconds: bigint) {
+  await press('Iniciar');
+  clock += seconds * second;
+  await press('Detener');
+  await press('Guardar');
+}
+
+describe('individual timing flow', () => {
+  it('lists the roster and says who will be skipped for lack of authorization', async () => {
+    await setup();
+
+    expect(await screen.findByText('Nadadores (2 de 3)')).toBeOnTheScreen();
+    expect(screen.getByText('Falta autorización — se omitirá', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('leaves the flow from the setup back button', async () => {
+    const { onExit } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+
+    await press('Volver');
+
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it('times the authorized athletes one after another and skips the one without authorization', async () => {
+    const { measurements } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    await press('Empezar toma');
+
+    expect(await screen.findByText('Ana M. · 1 de 2')).toBeOnTheScreen();
+    await timeAthlete(35n);
+
+    expect(await screen.findByText('Cleo O. · 2 de 2')).toBeOnTheScreen();
+    await timeAthlete(40n);
+
+    expect(await screen.findByText('Resumen de la toma')).toBeOnTheScreen();
+    expect(screen.getByText('2 tiempos guardados.')).toBeOnTheScreen();
+    expect(await measurements.listByAthleteEvent('a2', { stroke: 'FR', distance: '50m', pool: 'SCM' })).toEqual([]);
+  });
+
+  it('saves a training time as a repetition with the event, the author and the device', async () => {
+    const { measurements } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    await press('Empezar toma');
+    await screen.findByText('Ana M. · 1 de 2');
+    await timeAthlete(35n);
+
+    const [saved] = await measurements.listByAthleteEvent('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' });
+
+    expect(saved).toMatchObject({
+      kind: 'repetition',
+      hundredths: 3500,
+      athleteId: 'a1',
+      sessionType: 'training',
+      source: 'screen_stopwatch',
+      createdBy: 'coach-1',
+      deviceId: 'device-1',
+      seriesId: null,
+      parentId: null,
+    });
+  });
+
+  it('saves a competition time as a race', async () => {
+    const { measurements } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    await fireEvent.press(screen.getByRole('radio', { name: 'Competencia' }));
+    await press('Empezar toma');
+    await screen.findByText('Ana M. · 1 de 2');
+    await timeAthlete(35n);
+
+    const [saved] = await measurements.listByAthleteEvent('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' });
+
+    expect(saved).toMatchObject({ kind: 'race', sessionType: 'competition' });
+  });
+
+  it('saves the splits under the final time', async () => {
+    const { measurements } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    await press('Empezar toma');
+    await screen.findByText('Ana M. · 1 de 2');
+    await press('Iniciar');
+    clock += 17n * second;
+    await press('Parcial');
+    clock += 18n * second;
+    await press('Detener');
+    await press('Guardar');
+
+    const saved = await measurements.listByAthleteEvent('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' });
+    const final = saved.find((m) => m.kind === 'repetition');
+    const split = saved.find((m) => m.kind === 'split');
+
+    expect(split).toMatchObject({ hundredths: 1700, parentId: final?.id });
+  });
+
+  it('saves nothing when the stopped time is discarded', async () => {
+    const { measurements } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    await press('Empezar toma');
+    await screen.findByText('Ana M. · 1 de 2');
+    await press('Iniciar');
+    clock += 35n * second;
+    await press('Detener');
+    await press('Descartar');
+
+    expect(await measurements.listByAthleteEvent('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' })).toEqual([]);
+    expect(screen.getByText('Ana M. · 1 de 2')).toBeOnTheScreen();
+  });
+
+  it('asks before leaving while a time is running, and goes back to the setup when confirmed', async () => {
+    await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    await press('Empezar toma');
+    await screen.findByText('Ana M. · 1 de 2');
+    await press('Iniciar');
+
+    await press('Volver');
+    expect(await screen.findByText('¿Descartar este tiempo?')).toBeOnTheScreen();
+    await press('Descartar tiempo');
+
+    expect(await screen.findByText('Nadadores (2 de 3)')).toBeOnTheScreen();
+  });
+
+  it('leaves the flow when the summary is finished', async () => {
+    const { onExit } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    await press('Empezar toma');
+    await screen.findByText('Ana M. · 1 de 2');
+    await timeAthlete(35n);
+    await screen.findByText('Cleo O. · 2 de 2');
+    await timeAthlete(40n);
+
+    await press('Terminar');
+
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start when nobody is authorized', async () => {
+    await setup({ loadRoster: async () => [roster[1]!] });
+    await screen.findByText('Nadadores (0 de 1)');
+
+    await press('Empezar toma');
+
+    expect(screen.queryByText(/de 0$/)).toBeNull();
+    expect(screen.getByText('Nadadores (0 de 1)')).toBeOnTheScreen();
+  });
+});
