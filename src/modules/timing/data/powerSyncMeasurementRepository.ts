@@ -69,5 +69,12 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
       );
       return rows.map(toMeasurement);
     },
+    async listByAthleteEvent(athleteId, { stroke, distance, pool }) {
+      const rows = await db.getAll<MeasurementRow>(
+        'SELECT * FROM measurements WHERE athlete_id = ? AND stroke = ? AND distance = ? AND pool = ? ORDER BY captured_at DESC, id',
+        [athleteId, stroke, distance, pool],
+      );
+      return rows.map(toMeasurement);
+    },
   };
 }

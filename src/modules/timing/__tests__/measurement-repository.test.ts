@@ -91,6 +91,58 @@ describe.each(factories)('%s measurement repository', (_name, create) => {
     expect(listed?.hundredths).toBeNull();
   });
 
+  describe('listByAthleteEvent', () => {
+    const event = { stroke: 'FR', distance: '50m', pool: 'SCM' } as const;
+    const one = (id: string, over: Partial<Measurement> = {}) =>
+      ({ ...arrival(id, 'S', 1, 'athlete-1'), ...over }) as Measurement;
+
+    it('lists only that athlete in that stroke, distance and pool', async () => {
+      const repository = create();
+      await repository.add(one('mine'));
+      await repository.add(one('other-athlete', { athleteId: 'athlete-2' }));
+      await repository.add(one('other-stroke', { stroke: 'BK' }));
+      await repository.add(one('other-distance', { distance: '100m' }));
+      await repository.add(one('other-pool', { pool: 'LCM' }));
+
+      const listed = await repository.listByAthleteEvent('athlete-1', event);
+
+      expect(listed.map((m) => m.id)).toEqual(['mine']);
+    });
+
+    it('returns every kind, splits, series totals and completed ones included', async () => {
+      const repository = create();
+      await repository.add(one('race', { kind: 'race' }));
+      await repository.add(one('split', { kind: 'split' }));
+      await repository.add(one('total', { kind: 'series_total' }));
+      await repository.add(one('done', { kind: 'completed', hundredths: null }));
+
+      const listed = await repository.listByAthleteEvent('athlete-1', event);
+
+      expect(listed.map((m) => m.kind).sort()).toEqual(['completed', 'race', 'series_total', 'split']);
+    });
+
+    it('orders newest first, by id when captured at the same time', async () => {
+      const repository = create();
+      await repository.add(one('old', { capturedAt: '2026-01-01T08:00:00Z' }));
+      await repository.add(one('b', { capturedAt: '2026-03-01T08:00:00Z' }));
+      await repository.add(one('a', { capturedAt: '2026-03-01T08:00:00Z' }));
+      await repository.add(one('mid', { capturedAt: '2026-02-01T08:00:00Z' }));
+
+      const listed = await repository.listByAthleteEvent('athlete-1', event);
+
+      expect(listed.map((m) => m.id)).toEqual(['a', 'b', 'mid', 'old']);
+    });
+
+    it('reads a missing time back as null', async () => {
+      const repository = create();
+      await repository.add(one('m1', { hundredths: null }));
+
+      const [listed] = await repository.listByAthleteEvent('athlete-1', event);
+
+      expect(listed?.hundredths).toBeNull();
+    });
+  });
+
   it('reads back exactly what was added', async () => {
     const repository = create();
     const measurement = arrival('m1', 'S', 1, 'athlete-1');
