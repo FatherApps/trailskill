@@ -164,6 +164,59 @@ describe('AuthorizationsSection', () => {
     expect(screen.queryByRole('button', { name: 'Reenviar solicitud' })).toBeNull();
   });
 
+  it('creates one invitation when "Reenviar al acudiente" is pressed twice while the first is still running', async () => {
+    const { invitations, share } = await setup();
+    const create = invitations.create.bind(invitations);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slowCreate = jest.fn(async (input: Parameters<typeof create>[0]) => {
+      await gate;
+      return create(input);
+    });
+    invitations.create = slowCreate;
+
+    // The sheet closes on confirm, so a second confirmation means opening it again while the first send is running.
+    for (let press = 0; press < 2; press += 1) {
+      await fireEvent.press((await screen.findAllByRole('button', { name: 'Reenviar solicitud' }))[0]);
+      await fireEvent.press(screen.getByRole('button', { name: 'Reenviar al acudiente' }));
+    }
+    release();
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(slowCreate).toHaveBeenCalledTimes(1);
+    expect(invitations.created).toHaveLength(1);
+  });
+
+  it('shares the invitation without the expiry sentence when the expiry date cannot be read', async () => {
+    const { invitations, share } = await setup();
+    const create = invitations.create.bind(invitations);
+    invitations.create = async (input) => ({ ...(await create(input)), expiresAt: 'not-a-date' });
+
+    await fireEvent.press((await screen.findAllByRole('button', { name: 'Reenviar solicitud' }))[0]);
+    await fireEvent.press(screen.getByRole('button', { name: 'Reenviar al acudiente' }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    const message = share.mock.calls[0][0] as string;
+    expect(message).toContain(`Código de invitación: ${'1'.padStart(32, '0')}`);
+    expect(message).not.toContain('Vence');
+    expect(message).not.toMatch(/\s{2,}|\.\./);
+  });
+
+  it('keeps the screen working, with no error and no second invitation, when the share sheet fails', async () => {
+    const { invitations, share } = await setup();
+    share.mockRejectedValue(new Error('share sheet failed'));
+
+    await fireEvent.press((await screen.findAllByRole('button', { name: 'Reenviar solicitud' }))[0]);
+    await fireEvent.press(screen.getByRole('button', { name: 'Reenviar al acudiente' }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(invitations.created).toHaveLength(1);
+    expect(screen.queryByText('No pudimos crear la invitación. Revisa la conexión e inténtalo de nuevo.')).toBeNull();
+    expect(screen.getByLabelText('Importar resultados oficiales: Pendiente')).toBeOnTheScreen();
+  });
+
   it('says so when the invitation cannot be created, and shares nothing', async () => {
     const { share } = await setup({ failing: true });
 
