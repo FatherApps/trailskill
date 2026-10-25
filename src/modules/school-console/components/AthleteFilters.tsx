@@ -42,7 +42,10 @@ const MIN_INLINE_WIDTH = 560;
 function SearchField({ query, onQueryChange, stacked }: Pick<AthleteFiltersProps, 'query' | 'onQueryChange'> & { stacked: boolean }) {
   const { colors, space, radius, size, typography } = useTheme();
   const [focused, setFocused] = useState(false);
+  const scale = useTextScale();
   const label = t('schoolConsole.filters.search');
+  // Large text: the full placeholder would be cut with an ellipsis, so the visible hint is the short one.
+  const placeholder = scale >= LARGE_TEXT_SCALE ? t('schoolConsole.filters.searchShort') : label;
 
   return (
     <View
@@ -66,7 +69,7 @@ function SearchField({ query, onQueryChange, stacked }: Pick<AthleteFiltersProps
         value={query}
         onChangeText={onQueryChange}
         accessibilityLabel={label}
-        placeholder={label}
+        placeholder={placeholder}
         placeholderTextColor={colors[athleteFiltersColors.placeholder]}
         autoCorrect={false}
         returnKeyType="search"

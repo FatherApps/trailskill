@@ -30,6 +30,13 @@ describe('AthleteFilters', () => {
     expect(JSON.stringify(screen.toJSON())).toContain('RNSVGSvgView');
   });
 
+  it('shortens the placeholder at large text but keeps the full accessible label', async () => {
+    await render(<ThemeProvider fontScale={2}><AthleteFilters {...base} /></ThemeProvider>);
+
+    const field = screen.getByLabelText('Buscar por nombre');
+    expect(field.props.placeholder).toBe('Buscar');
+  });
+
   it('reports what is typed and shows the query it is given', async () => {
     const onQueryChange = jest.fn();
     await render(<AthleteFilters {...base} query="Lu" onQueryChange={onQueryChange} />);

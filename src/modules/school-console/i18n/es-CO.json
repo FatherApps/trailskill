@@ -24,6 +24,7 @@
   },
   "filters": {
     "search": "Buscar por nombre",
+    "searchShort": "Buscar",
     "category": "Categoría",
     "group": "Grupo",
     "coach": "Entrenador",
