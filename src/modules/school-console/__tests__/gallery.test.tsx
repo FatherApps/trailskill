@@ -13,6 +13,21 @@ jest.mock('../../../core/sync/db', () => ({ db: {} }));
 const themes: ThemeName[] = ['light', 'dark'];
 const scales = [1, 2];
 
+// The four section screens show the same ten states as the athletes screen, minus the detail-only ones.
+const sectionScreens = ['coachesScreen', 'recordsScreen', 'measurementsScreen', 'authorizationsScreen'];
+const sectionScreenStates = [
+  'with-data',
+  'loading',
+  'empty',
+  'error',
+  'offline-with-data',
+  'offline-no-data',
+  'denied',
+  'expanded-1280',
+  'medium-800',
+  'compact-360',
+];
+
 const entryById = (id: string) => galleryEntries.find((entry) => entry.id === id)!;
 const stateKeys = (id: string) => Object.keys(entryById(id).states);
 const state = (id: string, key: string) => entryById(id).states[key]();
@@ -59,6 +74,14 @@ describe('school console gallery entries', () => {
       'athletesScreen',
       'categoriesScreen',
       'consoleScreen',
+      'coachList',
+      'coachesScreen',
+      'recordTable',
+      'recordsScreen',
+      'measurementLog',
+      'measurementsScreen',
+      'authorizationList',
+      'authorizationsScreen',
     ]);
     expect(stateKeys('logo')).toEqual(['default', 'large']);
     expect(stateKeys('consoleNav')).toEqual(['side', 'top']);
@@ -79,6 +102,11 @@ describe('school console gallery entries', () => {
       'medium-800',
       'compact-360',
     ]);
+    expect(stateKeys('coachList')).toEqual(['default', 'long-text']);
+    expect(stateKeys('recordTable')).toEqual(['default', 'other-pool', 'long-text', 'compact', 'pool-empty']);
+    expect(stateKeys('measurementLog')).toEqual(['default', 'long-text', 'no-results']);
+    expect(stateKeys('authorizationList')).toEqual(['default', 'long-text', 'sharing-requests']);
+    for (const id of sectionScreens) expect(stateKeys(id)).toEqual(sectionScreenStates);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, key, theme, scale) => {
@@ -283,6 +311,69 @@ describe('school console gallery entries', () => {
 
       expect(screen.getByTestId(testID)).toBeOnTheScreen();
     });
+  });
+
+  describe.each(sectionScreens)('%s', (id) => {
+    it('with-data follows the measured width of the preview', async () => {
+      await render(<ThemeProvider>{state(id, 'with-data')}</ThemeProvider>);
+
+      await measure(1280);
+      expect(layoutShown()).toBe('expanded');
+      await measure(800);
+      expect(layoutShown()).toBe('medium');
+      await measure(360);
+      expect(layoutShown()).toBe('compact');
+    });
+
+    it.each([
+      ['expanded-1280', 'expanded'],
+      ['medium-800', 'medium'],
+      ['compact-360', 'compact'],
+    ])('%s shows the %s layout whatever the device', async (key, layout) => {
+      await render(<ThemeProvider>{state(id, key)}</ThemeProvider>);
+
+      expect(layoutShown()).toBe(layout);
+    });
+
+    it.each([
+      ['loading', 'state-view'],
+      ['empty', 'state-view'],
+      ['error', 'state-view'],
+      ['offline-with-data', 'banner'],
+      ['offline-no-data', 'state-view'],
+      ['denied', 'state-view'],
+    ])('%s shows its view state', async (key, testID) => {
+      await render(<ThemeProvider>{state(id, key)}</ThemeProvider>);
+
+      expect(screen.getByTestId(testID)).toBeOnTheScreen();
+    });
+  });
+
+  it('recordsScreen / expanded-1280 changes the table when the pool is pressed', async () => {
+    await render(<ThemeProvider>{state('recordsScreen', 'expanded-1280')}</ThemeProvider>);
+    expect(screen.getAllByTestId('record-row')).toHaveLength(4);
+
+    await fireEvent.press(screen.getByRole('radio', { name: '50 m' }));
+
+    expect(screen.getAllByTestId('record-row')).toHaveLength(2);
+    expect(screen.getByRole('radio', { name: '50 m' })).toBeChecked();
+  });
+
+  it('measurementsScreen / expanded-1280 turns a filter chip on and off in place', async () => {
+    await render(<ThemeProvider>{state('measurementsScreen', 'expanded-1280')}</ThemeProvider>);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Entrenador' }));
+    expect(screen.getByRole('button', { name: 'Entrenador: Paula G.' })).toBeSelected();
+    await fireEvent.press(screen.getByRole('button', { name: 'Entrenador: Paula G.' }));
+    expect(screen.getByRole('button', { name: 'Entrenador' })).not.toBeSelected();
+  });
+
+  it('coachesScreen / expanded-1280 asks for confirmation before deactivating', async () => {
+    await render(<ThemeProvider>{state('coachesScreen', 'expanded-1280')}</ThemeProvider>);
+
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Desactivar' })[0]);
+
+    expect(screen.getByText('¿Desactivar a Paula Gutiérrez?')).toBeOnTheScreen();
   });
 
   it('athleteFilters / with-filter turns a chip on and off in place', async () => {

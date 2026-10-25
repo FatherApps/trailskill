@@ -11,6 +11,8 @@
       "start": "Empezar toma",
       "athletes_count": "Nadadores ({{selected}} de {{group}})",
       "choose": "Elegir",
+      "error_title": "No pudimos cargar los nadadores",
+      "error_message": "Revisa que el teléfono ya sincronizó e inténtalo de nuevo.",
       "skipped": "Falta autorización — se omitirá",
       "athlete_name": "{{order}} · {{name}}",
       "empty_title": "Aún no hay nadadores",
@@ -67,6 +69,7 @@
       "arrival": "Llegada",
       "undo_last": "Deshacer última",
       "assign_names": "Asignar nombres",
+      "assign_names_disabled": "Registra una llegada primero",
       "unassigned": "por asignar",
       "completed": "Completado",
       "external_disconnected_title": "Cronómetro externo desconectado.",
@@ -82,6 +85,10 @@
       "all_assigned": "Todas las posiciones tienen nombre.",
       "whose": "¿De quién es?",
       "save": "Guardar serie",
+      "exit_title": "¿Descartar la serie?",
+      "exit_message": "Las llegadas de esta serie no se guardarán. No se puede recuperar.",
+      "exit_confirm": "Descartar serie",
+      "exit_cancel": "Seguir midiendo",
       "not_completed": "Sin completar",
       "completed_for": "Completado, {{name}}"
     }

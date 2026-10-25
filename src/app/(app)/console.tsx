@@ -4,15 +4,34 @@ import { useWindowDimensions } from 'react-native';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import {
+  AuthorizationsScreen,
   CategoriesSection,
+  CoachesScreen,
   ConsoleScreen,
   createPowerSyncCategoriesRepository,
   createPowerSyncStaffSchoolRepository,
+  MeasurementsScreen,
+  RecordsScreen,
   useAdminSchool,
+  type ConsoleScreenProps,
 } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
 const categories = createPowerSyncCategoriesRepository();
+
+const noop = () => {};
+
+// The sections whose data is not connected yet (tasks 5.3 to 5.6): each shows its empty state and its events do nothing.
+const sections: ConsoleScreenProps['sections'] = {
+  coaches: (props) => <CoachesScreen {...props} view={{ kind: 'empty' }} onInvite={noop} onDeactivate={noop} />,
+  records: (props) => <RecordsScreen {...props} view={{ kind: 'empty' }} onCategoryPress={noop} onPoolChange={noop} />,
+  measurements: (props) => (
+    <MeasurementsScreen {...props} view={{ kind: 'empty' }} onQueryChange={noop} onFilterPress={noop} />
+  ),
+  authorizations: (props) => (
+    <AuthorizationsScreen {...props} view={{ kind: 'empty' }} onResend={noop} onApproveSharing={noop} />
+  ),
+};
 
 export default function ConsoleRoute() {
   const { session } = useSession();
@@ -29,6 +48,7 @@ export default function ConsoleRoute() {
       width={width}
       schoolName={access.school.name}
       sections={{
+        ...sections,
         settings: (props) => (
           <CategoriesSection {...props} repository={categories} schoolId={access.school.id} refreshKey={lastSyncedAt} />
         ),
