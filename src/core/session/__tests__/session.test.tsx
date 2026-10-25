@@ -12,6 +12,8 @@ let mockInitialSession: unknown;
 let mockAuthCallback: (event: string, session: unknown) => void = () => {};
 // The user whose data the local database holds, as stored on the device.
 let mockOwner: string | null;
+let mockOwnerError: Error | undefined;
+let mockClearError: Error | undefined;
 const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
 const mockSignInWithOtp = jest.fn();
 const mockVerifyOtp = jest.fn();
@@ -19,7 +21,10 @@ const mockSignOut = jest.fn();
 const mockGetSession = jest.fn();
 
 jest.mock('expo-secure-store', () => ({
-  getItemAsync: async () => mockOwner,
+  getItemAsync: async () => {
+    if (mockOwnerError) throw mockOwnerError;
+    return mockOwner;
+  },
   setItemAsync: async (_key: string, value: string) => {
     mockCalls.push(`owner=${value}`);
     mockOwner = value;
@@ -36,6 +41,7 @@ jest.mock('../../sync', () => ({
     connect: jest.fn(() => mockConnect()),
     disconnect: jest.fn(async () => mockCalls.push('db.disconnect')),
     disconnectAndClear: jest.fn(async () => {
+      if (mockClearError) throw mockClearError;
       mockCalls.push('db.disconnectAndClear');
       mockUnsent = Promise.resolve(0);
     }),
@@ -60,6 +66,8 @@ beforeEach(() => {
   mockConfigError = null;
   mockInitialSession = mockSignedIn;
   mockOwner = 'coach-1';
+  mockOwnerError = undefined;
+  mockClearError = undefined;
   mockUnsent = Promise.resolve(0);
   mockConnect = async () => mockCalls.push('db.connect');
   mockSignInWithOtp.mockReset().mockResolvedValue({ error: null });
@@ -414,5 +422,34 @@ describe('local data on a shared phone', () => {
     expect(await screen.findByRole('header', { name: '¿Descartar los registros de la persona anterior?' })).toBeOnTheScreen();
     expect(screen.getByText('signed-out')).toBeOnTheScreen();
     expect(mockCalls).toEqual([]);
+  });
+
+  it('shows an error with a retry when the owner of the local data cannot be read', async () => {
+    mockOwnerError = new Error('keystore unavailable');
+    await renderProbe();
+
+    expect(await screen.findByText('No pudimos abrir los datos del teléfono')).toBeOnTheScreen();
+    expect(screen.queryByText('signed-in')).toBeNull();
+    expect(mockCalls).toEqual([]);
+
+    mockOwnerError = undefined;
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(await screen.findByText('signed-in')).toBeOnTheScreen();
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnect', 'db.connect']);
+  });
+
+  it('says in the sheet that discarding failed and keeps both choices', async () => {
+    mockOwner = 'coach-0';
+    mockUnsent = Promise.resolve(3);
+    mockClearError = new Error('disk full');
+    await renderProbe();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Descartar registros' }));
+
+    expect(await screen.findByText(/No pudimos descartar los registros/)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Ingresar como la persona anterior' })).toBeOnTheScreen();
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(mockOwner).toBe('coach-0');
   });
 });
