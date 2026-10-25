@@ -1,29 +1,14 @@
-import { t } from '../../../core/i18n';
-import { distances, strokes } from '../../../core/sport';
 import type { TodayBlock } from '../screens/TodayScreen';
 import type { PlanBlock, PlanVocabulary } from '../types';
+import { planVocabulary } from '../vocabulary';
 
-// Strokes and distances come from the sport catalog; drills and equipment are fixture vocabulary until a catalog exists.
-const vocabulary: PlanVocabulary = {
-  activities: [
-    ...strokes.map((stroke) => ({ value: stroke.code, label: t(stroke.nameKey) })),
-    { value: 'kick', label: 'Patada' },
-  ],
-  equipment: [
-    { value: 'fins', label: 'Aletas' },
-    { value: 'paddles', label: 'Paletas' },
-    { value: 'snorkel', label: 'Snorkel' },
-    { value: 'board', label: 'Tabla' },
-    { value: 'pull_buoy', label: 'Pull buoy' },
-  ],
-  distances: distances.map((distance) => distance.meters),
-};
+const vocabulary: PlanVocabulary = planVocabulary();
 
-// One block of every phase and every recording type.
+// One block of every phase and every recording type; the technique block is a free-text drill.
 const blocks: PlanBlock[] = [
   { id: 'b1', phase: 'warm_up', repetitions: 1, distance: 200, activity: 'FR', equipment: [], sendOffSeconds: null, recording: 'completion' },
   { id: 'b2', phase: 'main', repetitions: 8, distance: 50, activity: 'FR', equipment: ['paddles'], sendOffSeconds: 60, recording: 'per_repetition' },
-  { id: 'b3', phase: 'technique', repetitions: 4, distance: 25, activity: 'kick', equipment: ['fins', 'board'], sendOffSeconds: 45, recording: 'completion' },
+  { id: 'b3', phase: 'technique', repetitions: 4, distance: 25, activity: 'Patada', equipment: ['fins', 'kickboard'], sendOffSeconds: 45, recording: 'completion' },
   { id: 'b4', phase: 'technique', repetitions: 6, distance: 25, activity: 'FL', equipment: ['fins'], sendOffSeconds: 90, recording: 'completion' },
   { id: 'b5', phase: 'cool_down', repetitions: 1, distance: 100, activity: 'BK', equipment: [], sendOffSeconds: null, recording: 'series_total' },
 ];

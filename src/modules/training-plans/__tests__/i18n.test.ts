@@ -13,6 +13,7 @@ describe('training-plans i18n', () => {
       '4 × 100 m Libre',
     );
     expect(t('training_plans.today.status.partial', { done: 3, total: 4 })).toBe('Parcial · 3 de 4');
+    expect(t('training_plans.builder.remove_message', { position: 2 })).toBe('El bloque 2 sale del plan cuando lo guardes.');
   });
 
   it('pluralizes the block count', () => {

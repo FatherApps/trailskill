@@ -3,21 +3,28 @@ import { Pressable, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Button, Icon, Segmented } from '../../../core/ui';
+import { Button, Icon, Segmented, TextField } from '../../../core/ui';
+import { isOption, MAX_DRILL_LENGTH, type BlockErrors, type DraftBlock } from '../draft';
 import '../i18n';
-import type { BlockPhase, BlockRecording, PlanBlock, PlanVocabulary } from '../types';
+import type { BlockPhase, BlockRecording, PlanVocabulary } from '../types';
 import { formatSendOff } from './formatSendOff';
 
 export type BlockEditorProps = {
-  block: PlanBlock;
+  block: DraftBlock;
   vocabulary: PlanVocabulary;
-  onChange: (block: PlanBlock) => void;
+  // Field errors to show; the caller decides when (for example after a failed save).
+  errors?: BlockErrors;
+  onChange: (block: DraftBlock) => void;
   onDone: () => void;
 };
 
 const phases: BlockPhase[] = ['warm_up', 'main', 'technique', 'cool_down'];
 const recordings: BlockRecording[] = ['completion', 'per_repetition', 'series_total'];
 const SEND_OFF_STEP = 5;
+const activityErrors = {
+  required: 'training_plans.editor.activity_required',
+  too_long: 'training_plans.editor.drill_too_long',
+} as const;
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   const { colors, space, typography } = useTheme();
@@ -25,6 +32,18 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     <View style={{ gap: space[2] }}>
       <Text style={[typography.label, { color: colors.ink }]}>{label}</Text>
       {children}
+    </View>
+  );
+}
+
+function FieldError({ message }: { message: string }) {
+  const { colors, space, typography } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space[1] }}>
+      <Icon name="error" size="icon-sm" color="danger-text" />
+      <Text accessibilityLiveRegion="polite" style={[typography.caption, { flexShrink: 1, color: colors['danger-text'] }]}>
+        {message}
+      </Text>
     </View>
   );
 }
@@ -70,10 +89,12 @@ function Stepper({ value, lessLabel, moreLabel, onLess, onMore }: {
 }
 
 // Controlled: every change goes out through onChange with the whole updated block.
-export function BlockEditor({ block, vocabulary, onChange, onDone }: BlockEditorProps) {
+export function BlockEditor({ block, vocabulary, errors = {}, onChange, onDone }: BlockEditorProps) {
   const { colors, space, radius, size, typography } = useTheme();
-  const change = (patch: Partial<PlanBlock>) => onChange({ ...block, ...patch });
+  const change = (patch: Partial<DraftBlock>) => onChange({ ...block, ...patch });
   const sendOff = block.sendOffSeconds ?? 0;
+  // An activity that is not a stroke is the free-text drill; the stroke selector then shows nothing selected.
+  const stroke = isOption(vocabulary, block.activity);
   const stepSendOff = (delta: number) => {
     const next = Math.max(0, sendOff + delta);
     change({ sendOffSeconds: next === 0 ? null : next });
@@ -119,10 +140,19 @@ export function BlockEditor({ block, vocabulary, onChange, onDone }: BlockEditor
         <Segmented
           accessibilityLabel={t('training_plans.editor.activity')}
           options={vocabulary.activities}
-          value={block.activity}
+          value={stroke ? block.activity : ''}
           onChange={(activity) => change({ activity })}
         />
       </Field>
+      <TextField
+        label={t('training_plans.editor.drill')}
+        placeholder={t('training_plans.editor.drill_placeholder')}
+        help={t('training_plans.editor.drill_help')}
+        error={errors.activity ? t(activityErrors[errors.activity]) : undefined}
+        maxLength={MAX_DRILL_LENGTH}
+        value={stroke ? '' : block.activity}
+        onChangeText={(activity) => change({ activity })}
+      />
       <Field label={t('training_plans.editor.equipment')}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
           {vocabulary.equipment.map((option) => {
@@ -164,12 +194,13 @@ export function BlockEditor({ block, vocabulary, onChange, onDone }: BlockEditor
         />
       </Field>
       <Field label={t('training_plans.editor.recording')}>
-        <Segmented
+        <Segmented<BlockRecording | ''>
           accessibilityLabel={t('training_plans.editor.recording')}
           options={recordings.map((value) => ({ value, label: t(`training_plans.recording_short.${value}`) }))}
-          value={block.recording}
-          onChange={(recording) => change({ recording })}
+          value={block.recording ?? ''}
+          onChange={(recording) => change({ recording: recording || null })}
         />
+        {errors.recording && <FieldError message={t('training_plans.editor.recording_required')} />}
       </Field>
       <Button variant="dark" label={t('training_plans.editor.done')} onPress={onDone} />
     </View>

@@ -38,6 +38,13 @@ describe('BlockCard', () => {
     expect(screen.queryByText(/^Salida cada/)).toBeNull();
   });
 
+  it('shows no recording line while the recording is not chosen yet', async () => {
+    await render(<BlockCard block={{ ...blocks[0], recording: null }} vocabulary={vocabulary} />);
+
+    expect(screen.getByText('1 × 200 m Libre')).toBeOnTheScreen();
+    expect(screen.queryByText(/^Registro:/)).toBeNull();
+  });
+
   it.each<[BlockRecording, string]>([
     ['completion', 'Registro: solo cumplimiento'],
     ['per_repetition', 'Registro: un tiempo por repetición'],

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { StyleSheet } from 'react-native';
 
 import { BlockCard } from '../components/BlockCard';
+import { newDraftBlock } from '../draft';
 import { PlanBuilderScreen } from '../screens/PlanBuilderScreen';
 import { TodayScreen } from '../screens/TodayScreen';
 import { plansFixture } from '../__fixtures__/plans';
@@ -55,14 +56,20 @@ describe('src/modules/training-plans rules', () => {
         <BlockCard block={blocks[1]} vocabulary={vocabulary} />
         <PlanBuilderScreen
           planName="Resistencia aeróbica"
-          blocks={blocks}
+          blocks={[...blocks, { ...newDraftBlock('new', vocabulary), id: 'new' }]}
           vocabulary={vocabulary}
-          editingId="b2"
+          editingId="new"
+          editingErrors={{ activity: 'required', recording: 'required' }}
+          nameError
+          message={{ kind: 'success', text: 'Plan guardado.' }}
+          onChangeName={noop}
           onAddBlock={noop}
           onEditBlock={noop}
           onMoveBlock={noop}
           onChangeBlock={noop}
           onDoneEditing={noop}
+          onRemoveBlock={noop}
+          onSave={noop}
           onSaveTemplate={noop}
         />
         <TodayScreen athleteName="Lucía R." view={{ kind: 'data', content: today }} onReportToCoach={noop} />

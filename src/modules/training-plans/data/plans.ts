@@ -16,7 +16,7 @@ export interface TrainingPlanRepository {
 }
 
 // Same limit as the database check on `drill`.
-const MAX_DRILL_LENGTH = 120;
+export const MAX_DRILL_LENGTH = 120;
 const RECORDINGS: readonly string[] = ['completion', 'per_repetition', 'series_total'];
 
 /** Throws on the first invalid block; both repositories call it before writing anything. */

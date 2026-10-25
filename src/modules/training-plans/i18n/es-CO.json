@@ -34,7 +34,13 @@
     "more_repetitions": "Sumar una repetición",
     "less_send_off": "Quitar {{seconds}} segundos",
     "more_send_off": "Sumar {{seconds}} segundos",
-    "done": "Listo"
+    "done": "Listo",
+    "drill": "Ejercicio técnico",
+    "drill_placeholder": "Ej.: patada con tabla",
+    "drill_help": "Escríbelo si no es un estilo. Máximo 120 caracteres.",
+    "activity_required": "Elige un estilo o escribe un ejercicio técnico.",
+    "drill_too_long": "Usa máximo 120 caracteres.",
+    "recording_required": "Elige qué se registra en este bloque."
   },
   "builder": {
     "count_one": "{{count}} bloque",
@@ -46,7 +52,31 @@
     "move_up": "Subir",
     "move_down": "Bajar",
     "add": "Agregar bloque",
-    "save_template": "Guardar como plantilla"
+    "save_template": "Guardar como plantilla",
+    "name": "Nombre del plan",
+    "name_placeholder": "Ej.: Resistencia aeróbica",
+    "name_required": "Escribe un nombre para el plan.",
+    "untitled": "Plan nuevo",
+    "remove": "Quitar",
+    "remove_title": "¿Quitar este bloque?",
+    "remove_message": "El bloque {{position}} sale del plan cuando lo guardes.",
+    "remove_confirm": "Quitar bloque",
+    "remove_cancel": "Conservar bloque",
+    "save": "Guardar plan",
+    "saved": "Plan guardado.",
+    "save_failed": "No pudimos guardar el plan. Inténtalo de nuevo.",
+    "template_saved": "Plantilla guardada.",
+    "template_failed": "No pudimos guardar la plantilla. Inténtalo de nuevo.",
+    "fix_errors": "Revisa los campos marcados antes de guardar."
+  },
+  "load": {
+    "not_found_title": "No encontramos este plan",
+    "not_found_message": "Puede que se haya quitado. Vuelve a la lista de planes.",
+    "error_title": "No pudimos cargar el plan",
+    "error_message": "Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Intentar de nuevo",
+    "no_school_title": "Aún no tienes una escuela",
+    "no_school_message": "Para crear planes necesitas pertenecer a una escuela. Pídele al administrador que te agregue."
   },
   "today": {
     "title": "Hoy",

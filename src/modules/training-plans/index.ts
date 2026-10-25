@@ -17,6 +17,8 @@ export type {
   PlanVocabulary,
   VocabularyOption,
 } from './types';
+export { PlanEditorScreen, type PlanEditorScreenProps } from './screens/PlanEditorScreen';
+export { planVocabulary } from './vocabulary';
 export { galleryEntries } from './gallery';
 export { createInMemoryTrainingPlanRepository } from './data/inMemoryTrainingPlanRepository';
 export { createPowerSyncTrainingPlanRepository } from './data/powerSyncTrainingPlanRepository';
