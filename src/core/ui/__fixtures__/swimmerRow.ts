@@ -1,0 +1,47 @@
+// Synthetic swimmers for the development gallery: fictional short names, no real people.
+export const swimmerRowFixture = {
+  normal: {
+    name: 'Lucía R.',
+    initials: 'LR',
+    color: 'athlete-1',
+    detail: 'Infantil B · 3 tiempos este mes',
+    bestTime: 3482,
+    bestTimeLabel: 'MP 50 L',
+  },
+  selected: {
+    name: 'Mateo C.',
+    initials: 'MC',
+    color: 'athlete-2',
+    detail: 'Infantil B · 5 tiempos este mes',
+    bestTime: 3391,
+    bestTimeLabel: 'MP 50 L',
+  },
+  missingAuthorization: {
+    name: 'Sara P.',
+    initials: 'SP',
+    color: 'athlete-3',
+    detail: 'Juvenil A',
+    tag: { label: 'Consentimiento', variant: 'warn', icon: 'schedule' },
+  },
+  chevron: {
+    name: 'Tomás V.',
+    initials: 'TV',
+    color: 'athlete-4',
+    detail: 'Máster · Se registró él mismo',
+  },
+  missingTime: {
+    name: 'Lucía R.',
+    initials: 'LR',
+    color: 'athlete-1',
+    detail: 'Infantil B · 3 tiempos este mes',
+    bestTimeLabel: 'MP 100 E',
+  },
+  longText: {
+    name: 'Mateo C.',
+    initials: 'MC',
+    color: 'athlete-2',
+    detail: 'Infantil B, grupo de resistencia de la tarde · 12 tiempos registrados este mes',
+    bestTime: 12534,
+    bestTimeLabel: 'MP 200 L',
+  },
+} as const;
