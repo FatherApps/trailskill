@@ -19,6 +19,10 @@ export type SwimmerRowProps = {
   // Caption under the personal best, for example "MP 50 L".
   bestTimeLabel?: string;
   // Status such as "se omitirá" or "por asignar".
+  // A time that is not a personal best, for example a saved session time. When given, it wins over `bestTime`.
+  time?: Hundredths | null;
+  // Spoken prefix of `time` for screen readers, for example "Tiempo".
+  timeLabel?: string;
   tag?: TagProps;
   chevron?: boolean;
   selected?: boolean;
@@ -49,6 +53,8 @@ export function SwimmerRow({
   detail,
   bestTime,
   bestTimeLabel,
+  time,
+  timeLabel,
   tag,
   chevron = false,
   selected = false,
@@ -56,16 +62,27 @@ export function SwimmerRow({
 }: SwimmerRowProps) {
   const { colors, space, radius, typography } = useTheme();
 
+  // `time` wins over `bestTime`: the row never shows two times on the right.
+  const showBest = time === undefined && bestTime !== undefined;
+
+  const spokenTime =
+    time === undefined
+      ? null
+      : time === null
+        ? t('swimmer_row.time_missing', { label: timeLabel ?? '' }).trim()
+        : [timeLabel, formatTime(time)].filter(Boolean).join(' ');
+
   const label = [
     name,
     detail,
-    bestTime === undefined
+    spokenTime,
+    !showBest || bestTime === undefined
       ? null
       : bestTime === null
         ? t('swimmer_row.no_best_time')
         : t('swimmer_row.personal_best', { time: formatTime(bestTime) }),
     // The caption belongs to the best time, so without a best time it is not shown and not announced.
-    bestTime === undefined ? null : bestTimeLabel,
+    showBest ? bestTimeLabel : null,
     tag?.label,
   ]
     .filter(Boolean)
@@ -101,7 +118,12 @@ export function SwimmerRow({
         <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
         <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
       </View>
-      {bestTime !== undefined && (
+      {time !== undefined && (
+        <View {...hidden} style={{ alignItems: 'flex-end' }}>
+          <TimeValue value={time} size="time-sm" />
+        </View>
+      )}
+      {showBest && (
         <View {...hidden} style={{ alignItems: 'flex-end' }}>
           <TimeValue value={bestTime} size="time-sm" />
           {bestTimeLabel ? (

@@ -88,7 +88,8 @@
   },
   "swimmer_row": {
     "personal_best": "marca personal {{time}}",
-    "no_best_time": "sin marca personal"
+    "no_best_time": "sin marca personal",
+    "time_missing": "{{label}} sin registrar"
   },
   "sync": {
     "on_device": "En el teléfono",

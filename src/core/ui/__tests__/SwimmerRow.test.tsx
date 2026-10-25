@@ -20,6 +20,45 @@ const base: SwimmerRowProps = {
 const rowStyle = (row: { props: { style?: unknown } }) => StyleSheet.flatten(row.props.style as never);
 const hiddenTexts = () => screen.queryAllByText(/./, { includeHiddenElements: true });
 
+describe('SwimmerRow time', () => {
+  const timed = { name: 'Lucía R.', initials: 'LR', color: 'athlete-1', detail: 'Infantil B' } as const;
+
+  it('draws the time on the right and announces it with its spoken prefix', async () => {
+    await render(<SwimmerRow {...timed} time={3391} timeLabel="Tiempo" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, Tiempo 33,91')).toBeOnTheScreen();
+    expect(screen.getByText('33,91', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('announces the time alone when there is no prefix', async () => {
+    await render(<SwimmerRow {...timed} time={3391} />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, 33,91')).toBeOnTheScreen();
+  });
+
+  it('shows a missing time as a dash and says it is missing, never 0,00', async () => {
+    await render(<SwimmerRow {...timed} time={null} timeLabel="Tiempo" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, Tiempo sin registrar')).toBeOnTheScreen();
+    expect(screen.getByText('—', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByText(/0,00/, { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('keeps announcing a best time as marca personal when no time is given', async () => {
+    await render(<SwimmerRow {...timed} bestTime={3482} timeLabel="Tiempo" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, marca personal 34,82')).toBeOnTheScreen();
+  });
+
+  it('lets the time win when both are given', async () => {
+    await render(<SwimmerRow {...timed} bestTime={3482} bestTimeLabel="MP 50 L" time={3391} timeLabel="Tiempo" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, Tiempo 33,91')).toBeOnTheScreen();
+    expect(screen.queryByText('34,82', { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByText('MP 50 L', { includeHiddenElements: true })).toBeNull();
+  });
+});
+
 describe('SwimmerRow', () => {
   it('is one accessible element with a composed label', async () => {
     await render(<SwimmerRow {...base} onPress={jest.fn()} />);
