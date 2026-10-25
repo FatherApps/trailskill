@@ -17,7 +17,7 @@ function failureCode(result: Result): string | null {
 }
 
 // Spec "New measurements are append-only" (2026-10-24-pilot-design.md): these tables are only ever inserted, never updated by the app.
-// authorizations are evidence: a withdrawal goes up as a PATCH, never as a re-sent PUT.
+// authorizations are evidence: a withdrawal goes up as a PATCH. A PUT that would change an existing row is recorded as insert_only_changed, never ignored.
 const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series', 'authorizations', 'school_invitations']);
 
 /** Refresh a session that expires within this window, so a skewed device clock does not send an expired token. */
@@ -184,9 +184,11 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     switch (op.op) {
       case 'PUT':
         if (INSERT_ONLY_TABLES.has(op.table)) {
-          // ON CONFLICT DO NOTHING: a retry of a saved row must not hit the update policy. No row back means a conflict, so confirm it exists.
+          // ON CONFLICT DO NOTHING: a retry of a saved row must not hit the update policy. No row back means a conflict, and Postgres checks the insert policy
+          // before the conflict, so a permanent rejection may also be a retry of a row already saved: either way, look at what is stored.
           result = await table.upsert({ id: op.id, ...op.opData }, { onConflict: 'id', ignoreDuplicates: true }).select('id');
-          return failureCode(result) ?? (result.data?.length ? null : this.confirm(op, true));
+          const rejection = failureCode(result);
+          return rejection === null && result.data?.length ? null : this.confirmInsert(op, rejection);
         }
         result = await table.upsert({ id: op.id, ...op.opData });
         return failureCode(result);
@@ -196,15 +198,35 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         return failureCode(result) ?? (result.data?.length ? null : 'no_rows_affected');
       default:
         result = await table.delete().eq('id', op.id).select('id');
-        return failureCode(result) ?? (result.data?.length ? null : this.confirm(op, false));
+        return failureCode(result) ?? (result.data?.length ? null : this.confirmGone(op));
     }
   }
 
-  /** An op that changed no row is fine only if the row is where it should be: present after an insert, absent after a delete. */
-  private async confirm(op: CrudEntry, expectedPresent: boolean): Promise<string | null> {
+  /** A delete that changed no row is fine only if the row is already gone. */
+  private async confirmGone(op: CrudEntry): Promise<string | null> {
     const result: Result = await this.client.from(op.table).select('id').eq('id', op.id);
     const failure = failureCode(result);
     if (failure !== null) return failure;
-    return !!result.data?.length === expectedPresent ? null : 'no_rows_affected';
+    return result.data?.length ? 'no_rows_affected' : null;
+  }
+
+  /**
+   * An insert-only PUT that was not applied is fine only if that same row is already stored (a retry). The columns are compared by PostgREST filters,
+   * so Postgres compares them in their own types. The same id with other values is a PUT trying to change the row; no row keeps the original outcome.
+   * shortcut: a column the server rewrites (authorizations.accepted_at is clamped to received_at) makes a retry from a device with a fast clock report
+   * insert_only_changed although the row is saved (a false "No enviado", no data loss), and a PUT that sets a column to null is not detected; compare server-side if either shows up.
+   */
+  private async confirmInsert(op: CrudEntry, rejection: string | null): Promise<string | null> {
+    const columns = Object.entries(op.opData ?? {}).filter(([column, value]) => column !== 'id' && value != null);
+    const find = (filters: [string, unknown][]) =>
+      filters.reduce((query, [column, value]) => query.eq(column, value as never), this.client.from(op.table).select('id').eq('id', op.id)) as PromiseLike<Result>;
+    for (const [filters, found] of [[columns, null], [[], 'insert_only_changed']] as const) {
+      const result = await find([...filters]);
+      // A read that is permanently rejected cannot tell, so the original outcome stands.
+      const failure = failureCode(result);
+      if (failure !== null) return rejection ?? failure;
+      if (result.data?.length) return found;
+    }
+    return rejection ?? 'no_rows_affected';
   }
 }

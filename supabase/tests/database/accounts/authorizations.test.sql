@@ -5,7 +5,7 @@
 -- token without a session. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(96);
+select plan(105);
 
 -- Users: guardians G and H, coaches C and D, school admins S and T, platform admin P.
 -- G and H both manage athlete e1; H also manages e2. Coach C is assigned to e1.
@@ -467,6 +467,40 @@ select is(
   true, 'it grants the purpose again'
 );
 
+-- The status row is written only when the status changes (updated_at is
+-- clock_timestamp(), which advances inside a transaction, so equality proves
+-- that nothing was written).
+select set_config('test.status_at', (select updated_at::text from public.authorization_status
+   where athlete_id = '40000000-0000-4000-8000-0000000000e2' and purpose = 'record_times'), true);
+select lives_ok(
+  $$ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at)
+     values ('40000000-0000-4000-8000-000000000108', '40000000-0000-4000-8000-0000000000e2',
+             'record_times', '40000000-0000-4000-8000-0000000000f1', '2026-10-12 12:00:00+00') $$,
+  'a second acceptance while the purpose is already granted'
+);
+select is((select updated_at::text from public.authorization_status
+   where athlete_id = '40000000-0000-4000-8000-0000000000e2' and purpose = 'record_times'), current_setting('test.status_at'), 'it leaves the updated_at of the status unchanged');
+select lives_ok(
+  $$ update public.authorizations set withdrawn_at = '2026-10-12 06:00:00+00'
+     where id = '40000000-0000-4000-8000-000000000106' $$,
+  'guardian H withdraws the latest acceptance'
+);
+select isnt((select updated_at::text from public.authorization_status
+   where athlete_id = '40000000-0000-4000-8000-0000000000e2' and purpose = 'record_times'), current_setting('test.status_at'), 'the status flip moves the updated_at of the status');
+select set_config('test.status_at', (select updated_at::text from public.authorization_status
+   where athlete_id = '40000000-0000-4000-8000-0000000000e2' and purpose = 'record_times'), true);
+select lives_ok(
+  $$ update public.authorizations set withdrawn_at = '2026-10-12 06:00:00+00'
+     where id = '40000000-0000-4000-8000-000000000106' $$,
+  'the same withdrawal sent again is a no-op'
+);
+select is((select updated_at::text from public.authorization_status
+   where athlete_id = '40000000-0000-4000-8000-0000000000e2' and purpose = 'record_times'), current_setting('test.status_at'), 'it leaves the updated_at of the status unchanged');
+select is(
+  (select is_granted from public.authorization_status where athlete_id = '40000000-0000-4000-8000-0000000000e2'),
+  false, 'the status stays not granted'
+);
+
 -- The device cannot push its times forward.
 select lives_ok(
   $$ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at)
@@ -515,6 +549,27 @@ select throws_ok(
              '40000000-0000-4000-8000-0000000000f1', null) $$,
   '23502', null,
   'an acceptance without a device time is rejected, not filled in'
+);
+
+-- A retry of an insert already saved, after the guardian stopped managing the athlete.
+reset role;
+delete from public.athlete_managers
+  where user_id = '40000000-0000-4000-8000-0000000000a2' and athlete_id = '40000000-0000-4000-8000-0000000000e2';
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "40000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+
+select throws_ok(
+  $$ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at)
+     values ('40000000-0000-4000-8000-000000000104', '40000000-0000-4000-8000-0000000000e2',
+             'record_times', '40000000-0000-4000-8000-0000000000f1', '2026-10-01 12:00:00+00')
+     on conflict (id) do nothing $$,
+  '42501', null,
+  'the insert policy rejects a retry of a saved acceptance once the guardian lost the athlete, before the conflict is checked'
+);
+select is(
+  (select count(*) from public.authorizations where id = '40000000-0000-4000-8000-000000000104'),
+  1::bigint,
+  'the guardian still reads the own saved authorization by id'
 );
 
 -- anon reads no table and resolves a token without a session.
