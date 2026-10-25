@@ -23,7 +23,10 @@
     "previous_user_title": "¿Descartar los registros de la persona anterior?",
     "previous_user_message": "Este teléfono tiene registros que otra persona no ha enviado. Si los descartas, se pierden para siempre. Para enviarlos, esa persona debe volver a ingresar.",
     "previous_user_discard": "Descartar registros",
-    "previous_user_return": "Ingresar como la persona anterior"
+    "previous_user_return": "Ingresar como la persona anterior",
+    "discard_failed": "No pudimos descartar los registros. Siguen en el teléfono: inténtalo de nuevo o ingresa como la persona anterior.",
+    "check_failed_title": "No pudimos abrir los datos del teléfono",
+    "check_failed_message": "Los registros siguen guardados en el teléfono. Inténtalo de nuevo."
   },
   "sport": {
     "stroke": {
@@ -77,6 +80,8 @@
     "synced": "Enviado",
     "not_sent": "No enviado",
     "retry": "Intentar de nuevo",
+    "retry_row_missing": "No se puede reenviar: este registro ya no está en el teléfono.",
+    "retry_nothing_to_send": "No hay cambios para reenviar.",
     "connect_failed": "No pudimos conectar la sincronización. Tus registros siguen guardados en el teléfono."
   }
 }

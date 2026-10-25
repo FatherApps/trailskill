@@ -68,7 +68,10 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     this.sleep = options.sleep ?? sleepUnlessAborted;
   }
 
-  /** Ends any wait in progress at once: that uploadData call rejects without bookkeeping or complete(). The caller (sign-out, app going to background; task 1.7) is expected to call it. */
+  /**
+   * Ends the upload in progress at once: its wait stops, no further op is sent, and that uploadData call rejects without bookkeeping or complete(),
+   * so a batch cut by the end of a session is sent again on the next connection. The caller (sign-out, session end, app going to background) is expected to call it.
+   */
   cancelWaits(): void {
     this.waitController.abort();
     this.waitController = new AbortController();
@@ -90,12 +93,19 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   }
 
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
+    // Captured first: a cancelWaits() during this call must reach it.
+    const signal = this.waitController.signal;
     const transaction = await database.getNextCrudTransaction();
     if (!transaction) return;
 
     // Every op is sent before any bookkeeping: a thrown network error must leave local state untouched for the retry.
     const codes: (string | null)[] = [];
-    for (const op of transaction.crud) codes.push(await this.sendLimited(op));
+    for (const op of transaction.crud) {
+      if (signal.aborted) throw new Error('Upload canceled');
+      codes.push(await this.sendLimited(op));
+    }
+    // An answer that arrived after the session ended was sent without the user's token: recording it would mark valid records "No enviado".
+    if (signal.aborted) throw new Error('Upload canceled');
 
     // One transaction: either every mark and failure of this batch is recorded, or none.
     // Successes clear the record's old failures first, then this batch's failures are inserted, so a failure recorded here is never cleared by it.
@@ -124,8 +134,8 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         const code = codes[i];
         if (!code || done.has(op.clientId)) continue;
         await tx.execute(
-          'INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at) VALUES (uuid(), ?, ?, ?, ?, ?, ?)',
-          [op.table, op.id, op.op, JSON.stringify(op.opData ?? {}), code, new Date().toISOString()],
+          'INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at, client_id) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?)',
+          [op.table, op.id, op.op, JSON.stringify(op.opData ?? {}), code, new Date().toISOString(), op.clientId],
         );
       }
       for (const clientId of new Set(transaction.crud.map((op) => op.clientId))) {
