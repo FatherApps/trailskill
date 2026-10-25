@@ -12,12 +12,19 @@
     "test": "jest"
   },
   "dependencies": {
+    "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
+    "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
+    "@expo-google-fonts/ibm-plex-sans": "^0.4.1",
     "expo": "~58.0.19",
     "expo-constants": "~58.0.13",
+    "expo-font": "~58.0.10",
     "expo-linking": "~58.0.14",
     "expo-router": "~58.0.26",
+    "expo-splash-screen": "~58.0.11",
+    "i18next": "^26.5.10",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-i18next": "^17.1.8",
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1",
     "react-native-screens": "~4.30.0"
