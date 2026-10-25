@@ -1,4 +1,4 @@
-import type { BlockStatus } from '../types';
+import type { BlockRecording, BlockStatus } from '../types';
 
 export type FulfillmentMark = {
   id: string;
@@ -29,7 +29,8 @@ export interface FulfillmentRepository {
   /**
    * Saves a mark on the device and queues it for upload; it never waits for the network. Marks are append-only: a new mark of a cell
    * replaces the previous one as the current one, and marks of different cells never touch each other. Returns the mark id.
-   * Rejects with InvalidFulfillmentError, writing nothing, when a 'partial' mark has no count of at least 1.
+   * Rejects with InvalidFulfillmentError, writing nothing, when a 'partial' mark has no count of at least 1, or when a given series
+   * is not valid for the mark: the block is not timed, or the series is unknown or of another school than the assignment's.
    */
   mark(mark: NewFulfillmentMark): Promise<string>;
 }
@@ -47,6 +48,15 @@ export function validatedCount({ status, completedRepetitions }: NewFulfillmentM
   if (status !== 'partial') return null;
   if (!Number.isInteger(completedRepetitions) || completedRepetitions! < 1) throw new InvalidFulfillmentError('a partial mark needs a count of at least 1');
   return completedRepetitions!;
+}
+
+/**
+ * The server refuses for good a series on a mark whose block only records completion, or whose series is unknown or of another
+ * school than the assignment's. Both repositories call it, only when the mark has a series, with the values read for that mark.
+ */
+export function checkSeriesLink(link: { recording: BlockRecording | null | undefined; assignmentSchoolId: string | null | undefined; seriesSchoolId: string | null | undefined }): void {
+  if (link.recording !== 'per_repetition' && link.recording !== 'series_total') throw new InvalidFulfillmentError('a series needs a timed block');
+  if (!link.seriesSchoolId || link.seriesSchoolId !== link.assignmentSchoolId) throw new InvalidFulfillmentError('the series is unknown or of another school');
 }
 
 /** The latest mark of each cell, from marks listed oldest first. */

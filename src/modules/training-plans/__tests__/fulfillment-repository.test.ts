@@ -27,7 +27,18 @@ const TABLES = `
     id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, device_id TEXT, assignment_id TEXT, version_id TEXT, block_id TEXT,
     athlete_id TEXT, status TEXT, completed_repetitions INTEGER, series_id TEXT, captured_at TEXT, hidden INTEGER
   );
+  CREATE TABLE training_plan_blocks (id TEXT PRIMARY KEY, recording TEXT);
+  CREATE TABLE training_plan_assignments (id TEXT PRIMARY KEY, school_id TEXT);
+  CREATE TABLE timing_series (id TEXT PRIMARY KEY, school_id TEXT);
 `;
+
+// b1 completion, b2 per_repetition, b3 series_total; the assignment and series-1 belong to school-1, series-2 to school-2.
+const lookups = {
+  recordings: { b1: 'completion', b2: 'per_repetition', b3: 'series_total' },
+  assignmentSchools: { as1: 'school-1' },
+  seriesSchools: { 'series-1': 'school-1', 'series-2': 'school-2' },
+} as const;
+
 
 let removeStore: (() => void) | undefined;
 afterEach(() => {
@@ -42,13 +53,16 @@ async function powerSync(): Promise<FulfillmentRepository> {
   storePath = store.path;
   const seed = new DatabaseSync(store.path);
   seed.exec(TABLES);
+  for (const [id, recording] of Object.entries(lookups.recordings)) seed.prepare('INSERT INTO training_plan_blocks VALUES (?, ?)').run(id, recording);
+  for (const [id, school] of Object.entries(lookups.assignmentSchools)) seed.prepare('INSERT INTO training_plan_assignments VALUES (?, ?)').run(id, school);
+  for (const [id, school] of Object.entries(lookups.seriesSchools)) seed.prepare('INSERT INTO timing_series VALUES (?, ?)').run(id, school);
   seed.close();
   mockDb = openDatabase(store.path);
   return createPowerSyncFulfillmentRepository();
 }
 
 const factories: [string, () => Promise<FulfillmentRepository>][] = [
-  ['in-memory', async () => createInMemoryFulfillmentRepository()],
+  ['in-memory', async () => createInMemoryFulfillmentRepository(lookups)],
   ['PowerSync', powerSync],
 ];
 
@@ -130,6 +144,29 @@ describe.each(factories)('%s fulfillment repository', (_name, create) => {
 
     const stored = (await repository.list('as1')).sort((x, y) => x.blockId.localeCompare(y.blockId));
     expect(stored.map((m) => m.seriesId)).toEqual([null, 'series-1']);
+  });
+
+  it.each([
+    ['a completion block', { blockId: 'b1', seriesId: 'series-1' }],
+    ['a series of another school', { blockId: 'b2', seriesId: 'series-2' }],
+    ['an unknown series', { blockId: 'b2', seriesId: 'nope' }],
+  ])('rejects a series on %s, writing nothing', async (_label, overrides) => {
+    const repository = await create();
+
+    await expect(repository.mark(mark(overrides))).rejects.toThrow(InvalidFulfillmentError);
+
+    expect(await repository.list('as1')).toEqual([]);
+  });
+
+  it('saves a series of the assignment school on a per-repetition and on a series-total block, and no series on a completion block', async () => {
+    const repository = await create();
+
+    await repository.mark(mark({ blockId: 'b1' }));
+    await repository.mark(mark({ blockId: 'b2', seriesId: 'series-1' }));
+    await repository.mark(mark({ blockId: 'b3', seriesId: 'series-1' }));
+
+    const stored = (await repository.list('as1')).sort((x, y) => x.blockId.localeCompare(y.blockId));
+    expect(stored.map((m) => m.seriesId)).toEqual([null, 'series-1', 'series-1']);
   });
 });
 
