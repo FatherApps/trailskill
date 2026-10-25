@@ -34,7 +34,7 @@ const cells: Record<string, FulfillmentCell> = {
 
 const grid: FulfillmentContent = { athletes, blocks, vocabulary, cells };
 
-// Ten blocks, to scroll sideways: the five above twice, the second copy with its own ids and statuses shifted.
+// Ten blocks, to scroll sideways: the five above twice, the second copy with its own ids, the same statuses and no author line.
 const manyBlocks = [...blocks, ...blocks.map((block) => ({ ...block, id: `${block.id}-2` }))];
 const manyCells: Record<string, FulfillmentCell> = { ...cells };
 for (const athlete of athletes) {

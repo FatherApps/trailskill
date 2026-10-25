@@ -146,16 +146,20 @@ describe('FulfillmentGrid', () => {
     expect(sideways.length).toBeGreaterThan(0);
   });
 
-  it('keeps both sides of a row as tall as the taller one', async () => {
+  it('keeps both sides of a row as tall as the taller one, and shrinks again when the content does', async () => {
     await render(setup().ui);
 
-    await fireEvent(screen.getByTestId('fulfillment-left-row-1'), 'layout', { nativeEvent: { layout: { height: 60 } } });
-    await fireEvent(screen.getByTestId('fulfillment-right-row-1'), 'layout', { nativeEvent: { layout: { height: 140 } } });
+    const layout = (height: number) => ({ nativeEvent: { layout: { height, width: 100, x: 0, y: 0 } } });
+    const minHeights = () =>
+      ['left', 'right'].map((side) => StyleSheet.flatten(screen.getByTestId(`fulfillment-${side}-row-1`).props.style).minHeight);
 
-    for (const side of ['left', 'right']) {
-      const style = StyleSheet.flatten(screen.getByTestId(`fulfillment-${side}-row-1`).props.style);
-      expect(style.minHeight).toBe(140);
-    }
+    await fireEvent(screen.getByTestId('fulfillment-left-content-1'), 'layout', layout(60));
+    await fireEvent(screen.getByTestId('fulfillment-right-content-1'), 'layout', layout(140));
+    expect(minHeights()).toEqual([140, 140]);
+
+    // The measured nodes never receive the synced minHeight, so a shorter content brings the row down.
+    await fireEvent(screen.getByTestId('fulfillment-right-content-1'), 'layout', layout(90));
+    expect(minHeights()).toEqual([90, 90]);
   });
 
   it('keeps every cell a control of at least 48 without a fixed size', async () => {
