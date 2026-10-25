@@ -1,5 +1,5 @@
 # Deployed by Dokploy from GitHub on every push to main (compose path: deploy/compose.yaml).
-# Supabase and Mailpit are NOT here: they come from Dokploy templates (see deploy/README.md).
+# The Supabase stack (with Mailpit and the email templates inside it) is NOT here: it comes from Dokploy (see deploy/README.md).
 # Dokploy clones the repo and writes the service environment to deploy/.env, so each service
 # mounts only the folders it needs, never the whole repository. Every secret comes from the
 # service environment in Dokploy; nothing sensitive is stored in this repository.
@@ -63,7 +63,7 @@ services:
       PS_SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:?Set SUPABASE_JWT_SECRET to the JWT secret of the Supabase stack}
       PS_SYNC_CONFIG_PATH: ${PS_SYNC_CONFIG_PATH:-/config/empty-sync-config.yaml}
       NODE_OPTIONS: --max-old-space-size=1000
-    # No published ports: Traefik routes the public domain to container port 8080.
+    # No published ports: public traffic comes through the Cloudflare Tunnel to Traefik, which routes to container port 8080 (HTTPS ends at Cloudflare).
     networks:
       - default
       - supabase
