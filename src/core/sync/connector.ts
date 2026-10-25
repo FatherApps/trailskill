@@ -17,7 +17,8 @@ function failureCode(result: Result): string | null {
 }
 
 // Spec "New measurements are append-only" (2026-10-24-pilot-design.md): these tables are only ever inserted, never updated by the app.
-const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series']);
+// authorizations are evidence: a withdrawal goes up as a PATCH, never as a re-sent PUT.
+const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series', 'authorizations', 'school_invitations']);
 
 /** Refresh a session that expires within this window, so a skewed device clock does not send an expired token. */
 const TOKEN_REFRESH_MARGIN_SECONDS = 60;

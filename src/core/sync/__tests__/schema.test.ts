@@ -28,11 +28,15 @@ describe('AppSchema', () => {
         'athlete_managers',
         'athlete_schools',
         'athletes',
+        'authorization_status',
+        'authorization_texts',
+        'authorizations',
         'categories',
         'coach_athlete_assignments',
         'coach_group_assignments',
         'measurements',
         'school_memberships',
+        'school_invitations',
         'schools',
         'timing_series',
         'training_groups',
@@ -45,6 +49,6 @@ describe('AppSchema', () => {
     expect(byName.get('pending_writes')?.localOnly).toBe(true);
     expect(byName.get('upload_failures')?.localOnly).toBe(true);
     expect(byName.get('uploaded_ops')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(15);
+    expect(AppSchema.tables).toHaveLength(19);
   });
 });

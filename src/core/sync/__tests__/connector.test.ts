@@ -479,6 +479,14 @@ describe('SupabaseConnector.uploadData', () => {
       expect(failureInserts(t.committed)).toHaveLength(0);
     });
 
+    it.each(['authorizations', 'school_invitations'])('applies to %s too, so a retry never hits the update policy', async (table) => {
+      const t = setup({ upsert: { data: [], error: null }, readBack: ok });
+      await t.connector.uploadData(t.database([entry('PUT', 'x1', { name: 'x' }, table)]));
+
+      expect(t.upsert).toHaveBeenCalledWith({ id: 'x1', name: 'x' }, { onConflict: 'id', ignoreDuplicates: true });
+      expect(failureInserts(t.committed)).toHaveLength(0);
+    });
+
     it('keeps the plain upsert without options for other tables', async () => {
       const t = setup();
       await t.connector.uploadData(t.database([entry('PUT', 'a', { first_name: 'Ana' })]));
