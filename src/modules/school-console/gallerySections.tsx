@@ -62,6 +62,7 @@ function RecordsPreview({ view, width }: { view: SectionView<RecordsContent>; wi
       scrollEnabled={false}
       onNavigate={noop}
       onCategoryPress={noop}
+      onGroupPress={noop}
       onPoolChange={setPool}
     />
   );
@@ -70,6 +71,7 @@ function RecordsPreview({ view, width }: { view: SectionView<RecordsContent>; wi
 const recordsContent: RecordsContent = {
   updatedMinutesAgo: recordsUpdatedMinutesAgo,
   category: recordCategoryFixture,
+  group: 'Todos los grupos',
   rows: recordsFixture,
   pool: 'SCM',
 };
