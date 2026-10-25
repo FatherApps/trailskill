@@ -36,7 +36,11 @@ export function createInMemorySessionSetupRepository(initial: SessionSetup | nul
 }
 
 // Local, encrypted and never synced, so it works without network and survives closing the app.
-// shortcut: SecureStore suits a few dozen ids; upgrade to a local table if a roster grows past that.
+// SecureStore warns or fails above about 2048 bytes (roughly 50 ids). Past that only the event is kept, and restoreSetup then
+// chooses everyone authorized. The text is ASCII (catalog codes and ids), so its length is its size in bytes.
+// shortcut: a big roster loses its saved selection; upgrade to a local table if coaches need it kept.
+const MAX_STORED_LENGTH = 2048;
+
 export function createSecureStoreSessionSetupRepository(): SessionSetupRepository {
   return {
     async load() {
@@ -49,7 +53,11 @@ export function createSecureStoreSessionSetupRepository(): SessionSetupRepositor
         return null;
       }
     },
-    save: (setup) => SecureStore.setItemAsync(SETUP_KEY, JSON.stringify(setup)),
+    async save(setup) {
+      let raw = JSON.stringify(setup);
+      if (raw.length > MAX_STORED_LENGTH) raw = JSON.stringify({ choice: setup.choice, selectedIds: [] });
+      await SecureStore.setItemAsync(SETUP_KEY, raw);
+    },
   };
 }
 

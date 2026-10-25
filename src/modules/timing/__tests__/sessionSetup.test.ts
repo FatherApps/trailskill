@@ -41,6 +41,21 @@ describe('SecureStore session setup', () => {
   });
 });
 
+describe('SecureStore session setup with a big roster', () => {
+  const ids = Array.from({ length: 128 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+
+  it('saves only the event when the ids would pass what SecureStore accepts, and restores everyone authorized', async () => {
+    const setups = createSecureStoreSessionSetupRepository();
+
+    await setups.save({ ...setup, selectedIds: ids });
+
+    const saved = await setups.load();
+    expect(saved).toEqual({ choice: setup.choice, selectedIds: [] });
+    expect(restoreSetup(saved, ids)).toEqual({ choice: setup.choice, selectedIds: ids });
+    expect([...mockStore.values()].every((value) => value.length <= 2048)).toBe(true);
+  });
+});
+
 describe('restoreSetup', () => {
   it('keeps a valid saved setup, with the athletes in the order they were chosen', () => {
     expect(restoreSetup(setup, ['a1', 'a2', 'a3'])).toEqual(setup);

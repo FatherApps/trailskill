@@ -142,6 +142,19 @@ describe('individual timing flow', () => {
     expect(screen.getByRole('radio', { name: 'Competencia' })).toBeSelected();
   });
 
+  it('keeps going when the setup cannot be read or saved, even with 128 athletes', async () => {
+    const big = Array.from({ length: 128 }, (_, i) => ({ id: `a${i}`, shortName: `Nadador ${i}`, initials: 'N', color: 'athlete-1' as const, authorized: true }));
+    const setups = { load: jest.fn().mockRejectedValue(new Error('unreadable')), save: jest.fn().mockRejectedValue(new Error('too big')) };
+    await setup({ setups, loadRoster: async () => big });
+
+    expect(await screen.findByText('Nadadores (128 de 128)')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Espalda' }));
+    await press('Empezar toma');
+
+    expect(setups.save).toHaveBeenCalled();
+    expect(await screen.findByText('Nadador 0 · 1 de 128')).toBeOnTheScreen();
+  });
+
   it('does not start when every athlete was cleared in the picker', async () => {
     await setup();
     await screen.findByText('Nadadores (2 de 3)');
