@@ -3,7 +3,7 @@ function catalog<const T extends readonly object[]>(entries: T): T {
   return Object.freeze(entries.map((entry) => Object.freeze(entry))) as unknown as T;
 }
 
-// Codes are the World Aquatics result abbreviations: stable and language-neutral.
+// Codes are the standard international result abbreviations: stable and language-neutral.
 export const strokes = catalog([
   { code: 'FR', nameKey: 'sport.stroke.FR' },
   { code: 'BK', nameKey: 'sport.stroke.BK' },
