@@ -368,6 +368,12 @@ describe('StopwatchScreen extras', () => {
     expect(screen.getByLabelText('En el teléfono')).toBeOnTheScreen();
   });
 
+  it('shows how many records of the session are still on the phone', async () => {
+    await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391, syncState: 'on_device', pendingCount: 3 });
+
+    expect(screen.getByLabelText('En el teléfono · 3')).toBeOnTheScreen();
+  });
+
   it('shows the offline banner and keeps every action working', async () => {
     const { onStop, onSplit } = await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391, offline: true });
 

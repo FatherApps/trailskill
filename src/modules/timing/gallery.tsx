@@ -154,6 +154,7 @@ export const galleryEntries: GalleryEntry[] = [
       'stopped-no-pb': () => <StopwatchPreview {...stopped} bestTime={null} />,
       'exit-confirm': () => <ExitConfirmPreview />,
       offline: () => <RunningPreview withSplits={false} offline />,
+      'pending-count': () => <StopwatchPreview syncState="on_device" pendingCount={3} />,
     },
   },
 ] satisfies { id: string; title: string; states: Record<string, () => ReactElement> }[];

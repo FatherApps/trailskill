@@ -30,6 +30,7 @@ describe('timing gallery entries', () => {
       'stopped-no-pb',
       'exit-confirm',
       'offline',
+      'pending-count',
     ]);
   });
 

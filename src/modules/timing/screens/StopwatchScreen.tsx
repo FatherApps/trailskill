@@ -22,8 +22,10 @@ export type StopwatchScreenProps = StopwatchProps & {
   // Header back button and, while running, the Android back button. The container decides what to do (open the sheet).
   // Shows the offline notice. Nothing is disabled: times are saved on the phone.
   offline?: boolean;
-  // Sync state of the record being timed, drawn as a pill in the header. SyncStatus cannot show a pending count.
+  // Sync state of the record being timed, drawn as a pill in the header.
   syncState?: RecordSyncState;
+  // Records of the session still on the phone, shown next to the pill ("En el teléfono · 3").
+  pendingCount?: number;
   onBack: () => void;
   // Controlled: the container shows the sheet when leaving would lose a running time.
   exitConfirmVisible: boolean;
@@ -38,6 +40,7 @@ export function StopwatchScreen({
   eventSubtitle,
   offline = false,
   syncState,
+  pendingCount,
   onBack,
   exitConfirmVisible,
   onConfirmExit,
@@ -61,7 +64,7 @@ export function StopwatchScreen({
       <TimingHeader
         title={t('timing.stopwatch.title', { name: athleteName, current: position, total })}
         subtitle={eventSubtitle}
-        trailing={syncState && <SyncStatus state={syncState} />}
+        trailing={syncState && <SyncStatus state={syncState} count={pendingCount} />}
         onBack={onBack}
       />
       {offline && (
