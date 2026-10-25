@@ -1,11 +1,11 @@
 import { renderHook } from '@testing-library/react-native';
 
-import { countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState, useRecordSyncStates } from '../syncState';
+import { connectionState, countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState, useRecordSyncStates } from '../syncState';
 import { createStore, openDatabase, type FakeDatabase } from '../testing/fakeDatabase';
 import { writeRecord } from '../writes';
 
 let mockDb: FakeDatabase;
-let mockStatus: { connected: boolean; dataFlowStatus: { uploading: boolean }; lastSyncedAt?: Date };
+let mockStatus: { connected: boolean; dataFlowStatus: { uploading: boolean; downloadError?: Error }; lastSyncedAt?: Date };
 jest.mock('../db', () => ({
   get db() {
     return mockDb;
@@ -55,6 +55,18 @@ describe('recordSyncState', () => {
     [{ pending: true, failed: true, uploading: true }, 'not_sent'],
   ] as const)('a conflict shows review unless the upload was rejected: %p is %s', (input, state) => {
     expect(recordSyncState({ ...input, conflict: true })).toBe(state);
+  });
+});
+
+describe('connectionState', () => {
+  it.each([
+    [{ connected: true, dataFlowStatus: {} }, 'connected'],
+    // A sync attempt that failed leaves its error until a sync completes.
+    [{ connected: true, dataFlowStatus: { downloadError: new Error('x') } }, 'connected'],
+    [{ connected: false, dataFlowStatus: { downloadError: new Error('x') } }, 'offline'],
+    [{ connected: false, dataFlowStatus: {} }, 'connecting'],
+  ] as const)('maps %p to %s', (status, state) => {
+    expect(connectionState(status)).toBe(state);
   });
 });
 
@@ -166,13 +178,19 @@ describe('useGlobalSyncSummary', () => {
       await tx.execute("INSERT INTO upload_failures (id, table_name, record_id) VALUES (uuid(), 'athletes', 'x')");
       await tx.execute("INSERT INTO upload_failures (id, table_name, record_id) VALUES (uuid(), 'athletes', 'x')");
     });
-    mockStatus = { connected: false, dataFlowStatus: { uploading: true }, lastSyncedAt };
+    mockStatus = { connected: false, dataFlowStatus: { uploading: true, downloadError: new Error('unreachable') }, lastSyncedAt };
 
-    expect(await summary()).toEqual({ pending: 2, failed: 1, uploading: true, lastSyncedAt, connected: false });
+    expect(await summary()).toEqual({ pending: 2, failed: 1, uploading: true, lastSyncedAt, connected: false, connection: 'offline' });
   });
 
   it('reports nothing pending and no last sync on a fresh database', async () => {
-    expect(await summary()).toEqual({ pending: 0, failed: 0, uploading: false, lastSyncedAt: null, connected: true });
+    expect(await summary()).toEqual({ pending: 0, failed: 0, uploading: false, lastSyncedAt: null, connected: true, connection: 'connected' });
+  });
+
+  it('reports connecting, not offline, while the first connection has not failed or finished', async () => {
+    mockStatus = { connected: false, dataFlowStatus: { uploading: false } };
+
+    expect(await summary()).toMatchObject({ connected: false, connection: 'connecting' });
   });
 });
 

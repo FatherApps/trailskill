@@ -105,6 +105,15 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
       );
       return rows.map(toMeasurement);
     },
+    async listByAthletesEvent(athleteIds, { stroke, distance, pool }) {
+      if (athleteIds.length === 0) return [];
+      // The ids travel as one JSON parameter, so a big school never hits SQLite's parameter limit.
+      const rows = await db.getAll<MeasurementRow>(
+        'SELECT * FROM measurements WHERE athlete_id IN (SELECT value FROM json_each(?)) AND stroke = ? AND distance = ? AND pool = ? ORDER BY captured_at DESC, id',
+        [JSON.stringify(athleteIds), stroke, distance, pool],
+      );
+      return rows.map(toMeasurement);
+    },
     async listByAthlete(athleteId) {
       const rows = await db.getAll<MeasurementRow>('SELECT * FROM measurements WHERE athlete_id = ? ORDER BY captured_at DESC, id', [athleteId]);
       return rows.map(toMeasurement);

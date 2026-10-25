@@ -88,6 +88,7 @@ describe('athlete profile container', () => {
     const history: HistoryRepository = {
       listByEvent: jest.fn().mockRejectedValueOnce(new Error('db')).mockResolvedValue([measurement({ id: 'm1' })]),
       listByAthlete: jest.fn(),
+      listByAthletesEvent: jest.fn(),
     };
     await show({ history });
 

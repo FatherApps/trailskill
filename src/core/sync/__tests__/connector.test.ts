@@ -835,6 +835,103 @@ describe('SupabaseConnector.uploadData', () => {
     });
   });
 
+  describe('a managed athlete created offline (issue 42)', () => {
+    const athlete = (clientId = 1) => entry('PUT', 'a1', { first_name: 'Ana', last_name: 'Lopez' }, 'athletes', clientId);
+    const link = (clientId = 2, athleteId = 'a1') =>
+      entry('PUT', 'm1', { user_id: 'u1', athlete_id: athleteId, relation: 'guardian' }, 'athlete_managers', clientId);
+    const payload = {
+      athlete: { id: 'a1', first_name: 'Ana', last_name: 'Lopez' },
+      manager: { id: 'm1', user_id: 'u1', athlete_id: 'a1', relation: 'guardian' },
+    };
+
+    it('sends the athlete and its link as one call, without writing either table', async () => {
+      const t = setup({ rpc: { data: 'stored', error: null } });
+      await t.connector.uploadData(t.database([athlete(), link()]));
+
+      expect(t.rpc).toHaveBeenCalledTimes(1);
+      expect(t.rpc).toHaveBeenCalledWith('create_managed_athlete', { payload });
+      expect(t.from).not.toHaveBeenCalled();
+      expect(t.complete).toHaveBeenCalledTimes(1);
+      expect(failureInserts(t.committed)).toHaveLength(0);
+      expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([
+        ['athletes', 'a1'],
+        ['athlete_managers', 'm1'],
+      ]);
+    });
+
+    it('pairs the link with its athlete even when the link comes first', async () => {
+      const t = setup({ rpc: { data: 'stored', error: null } });
+      await t.connector.uploadData(t.database([link(1), athlete(2)]));
+
+      expect(t.rpc).toHaveBeenCalledTimes(1);
+      expect(t.rpc).toHaveBeenCalledWith('create_managed_athlete', { payload });
+      expect(t.from).not.toHaveBeenCalled();
+    });
+
+    it('records insert_only_changed for both ops when the server answers changed', async () => {
+      const t = setup({ rpc: { data: 'changed', error: null } });
+      await t.connector.uploadData(t.database([athlete(), link()]));
+
+      const inserts = failureInserts(t.committed);
+      expect(inserts.map(([, params]) => [params[0], params[1], params[4]])).toEqual([
+        ['athletes', 'a1', 'insert_only_changed'],
+        ['athlete_managers', 'm1', 'insert_only_changed'],
+      ]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('records a permanent rejection for both ops and advances the queue', async () => {
+      const t = setup({ rpc: { data: null, error: { code: '23505', message: 'one self profile' } } });
+      await t.connector.uploadData(t.database([athlete(), link()]));
+
+      expect(t.rpc).toHaveBeenCalledTimes(1);
+      expect(failureInserts(t.committed).map(([, params]) => [params[0], params[1], params[4]])).toEqual([
+        ['athletes', 'a1', '23505'],
+        ['athlete_managers', 'm1', '23505'],
+      ]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries a transient error with the usual wait and leaves local state untouched', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code: '40001', message: 'serialization failure' };
+      const t = setup({ rpc: { data: null, error } }, { sleep });
+
+      await expect(t.connector.uploadData(t.database([athlete(), link()]))).rejects.toBe(error);
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000]);
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
+    it('counts the pair as one attempt chain before giving up', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code: '42P01', message: 'relation does not exist' };
+      const t = setup({ rpc: { data: null, error } }, { sleep, maxAttempts: 2 });
+
+      await expect(t.connector.uploadData(t.database([athlete(), link()]))).rejects.toBe(error);
+      await expect(t.connector.uploadData(t.database([athlete(), link()]))).resolves.toBeUndefined();
+
+      expect(t.rpc).toHaveBeenCalledTimes(2);
+      expect(failureInserts(t.committed).map(([, params]) => [params[0], params[4]])).toEqual([
+        ['athletes', '42P01'],
+        ['athlete_managers', '42P01'],
+      ]);
+    });
+
+    it.each([
+      ['an athlete without its link', [athlete()], ['athletes']],
+      ['a link without its athlete', [link()], ['athlete_managers']],
+      ['a link of another athlete', [athlete(), link(2, 'other')], ['athletes', 'athlete_managers']],
+      ['a PATCH of the athlete', [entry('PATCH', 'a1', { first_name: 'Ana' }, 'athletes', 1), link()], ['athletes', 'athlete_managers']],
+    ])('keeps the table upload for %s', async (_name, crud, tables) => {
+      const t = setup();
+      await t.connector.uploadData(t.database(crud));
+
+      expect(t.rpc).not.toHaveBeenCalled();
+      expect(t.from.mock.calls.map(([table]) => table)).toEqual(tables);
+    });
+  });
+
   describe('DELETE already applied (case 5)', () => {
     it('succeeds when the delete affected no row and the row is gone', async () => {
       const t = setup({ delete: empty, readBack: empty });

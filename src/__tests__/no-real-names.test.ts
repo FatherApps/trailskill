@@ -14,12 +14,13 @@ function normalize(text: string): string {
 }
 
 // Whole-word match, case- and accent-insensitive; any whitespace run separates the words of an entry.
-function containsWord(text: string, entry: string): boolean {
+// With plural, the entry also matches its Spanish or English plural (s or es).
+function containsWord(text: string, entry: string, plural = false): boolean {
   const pattern = normalize(entry)
     .split(/\s+/)
     .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('\\s+');
-  return new RegExp(`(?<![\\p{L}\\p{N}])${pattern}(?![\\p{L}\\p{N}])`, 'u').test(normalize(text));
+  return new RegExp(`(?<![\\p{L}\\p{N}])${pattern}${plural ? '(?:e?s)?' : ''}(?![\\p{L}\\p{N}])`, 'u').test(normalize(text));
 }
 
 function walk(dir: string, skipTests: boolean): string[] {
@@ -41,11 +42,20 @@ const scanned = [
   ...walk(path.join(root, 'powersync'), false),
 ];
 
-const offenders = (list: string[]) =>
+const offenders = (list: string[], plural = false) =>
   scanned.flatMap((file) => {
     const text = fs.readFileSync(file, 'utf8');
-    return list.filter((word) => containsWord(text, word)).map((word) => `${path.relative(root, file)}: ${word}`);
+    return list.filter((word) => containsWord(text, word, plural)).map((word) => `${path.relative(root, file)}: ${word}`);
   });
+
+describe('containsWord', () => {
+  it('matches the plurals of a category but not other words that start with it', () => {
+    const found = ['Juveniles', 'MASTERS', 'Prejuveniles', 'másters', 'infantiles', 'seniors'];
+    expect(found.filter((text) => !categories.some((entry) => containsWord(text, entry, true)))).toEqual([]);
+    expect(['juvenilia', 'masterful'].filter((text) => categories.some((entry) => containsWord(text, entry, true)))).toEqual([]);
+    expect(containsWord('finas', 'fina')).toBe(false);
+  });
+});
 
 describe('source code', () => {
   it('names no real organization, federation, league or country', () => {
@@ -55,6 +65,6 @@ describe('source code', () => {
 
   it('names no federation category', () => {
     expect(scanned.length).toBeGreaterThan(50);
-    expect(offenders(categories)).toEqual([]);
+    expect(offenders(categories, true)).toEqual([]);
   });
 });

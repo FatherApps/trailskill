@@ -62,6 +62,7 @@
     "guardian": "Acudiente",
     "bests": "Mejores marcas",
     "no_bests": "Aún no hay marcas",
+    "bests_error": "No se pudieron cargar las marcas",
     "no_time": "sin tiempo",
     "authorized": "Autorizado",
     "pending": "Pendiente",

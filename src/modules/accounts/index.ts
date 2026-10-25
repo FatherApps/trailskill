@@ -12,6 +12,8 @@ export {
 export { AuthorizationsScreen, type AuthorizationsScreenProps } from './screens/AuthorizationsScreen';
 export { ConsentCard, type ConsentCardProps } from './components/ConsentCard';
 export { LEGAL_REVIEW_PENDING } from './legalReview';
+export { AddAthletesScreen, type AddAthleteField, type AddAthletesScreenProps, type AddedAthlete } from './screens/AddAthletesScreen';
+export { AddAthletesContainer, type AddAthletesContainerProps, } from './screens/AddAthletesContainer';
 export { galleryEntries } from './gallery';
 export {
   createInMemoryAuthorizationStatusRepository,
@@ -34,6 +36,13 @@ export {
   type ManagedAthleteRow,
 } from './data/managedAthletes';
 export {
+  createInMemoryManagedAthleteProfileRepository,
+  createPowerSyncManagedAthleteProfileRepository,
+  type ManagedAthleteInput,
+  type ManagedAthleteProfileRepository,
+  type ManagedAthleteRelation,
+} from './data/managedAthleteProfiles';
+export {
   createInMemoryAdultProfileRepository,
   createSupabaseAdultProfileRepository,
   type AdultProfile,
@@ -46,4 +55,5 @@ export {
   useFinishRegistration,
   type RegistrationDraft,
   type RegistrationDraftRepository,
+  type RegistrationStep,
 } from './data/registrationDraft';

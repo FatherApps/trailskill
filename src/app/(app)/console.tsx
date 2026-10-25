@@ -40,7 +40,7 @@ export default function ConsoleRoute() {
   const { session } = useSession();
   const { width } = useWindowDimensions();
   // Memberships arrive with a sync, so the lookup runs again when one completes.
-  const { lastSyncedAt, connected } = useGlobalSyncSummary();
+  const { lastSyncedAt, connection } = useGlobalSyncSummary();
   const access = useAdminSchool(staffSchools, session?.user.id, lastSyncedAt?.getTime());
 
   if (access.status === 'loading') return null;
@@ -54,7 +54,7 @@ export default function ConsoleRoute() {
       sections={{
         ...sections,
         athletes: (props) => (
-          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connected={connected} />
+          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         settings: (props) => (
           <CategoriesSection {...props} repository={categories} schoolId={schoolId} refreshKey={lastSyncedAt?.getTime()} />

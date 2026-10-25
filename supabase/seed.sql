@@ -60,8 +60,8 @@ on conflict do nothing;
 
 -- School, groups and staff. Inserting the school copies the league's templates
 -- into its categories (random ids), so they are looked up by name below. The
--- organization is given, not left to the trigger: the trigger would create a
--- new one on every run, even when the school already exists.
+-- organization is given so the school hangs from the league, whose category
+-- templates it copies.
 insert into public.schools (id, name, organization_id)
 values ('00000000-0000-4000-8000-0000000000a1', 'Demo Swim School',
         '00000000-0000-4000-8000-000000000102')
