@@ -98,8 +98,8 @@ export function AthletesScreen({
   const header = (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[3] }}>
       <View style={{ flexShrink: 1 }}>
-        {/* A single word that cannot fit shrinks instead of breaking mid-word; it never clips. */}
-        <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit style={[typography['title-lg'], { color: colors[athletesScreenColors.title] }]}>
+        {/* Last resort: one word that cannot fit at large text ("Deportistas" in title-lg at 200 % in 360 dp) would break mid-word, so it shrinks, never below 70 %. */}
+        <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[typography['title-lg'], { color: colors[athletesScreenColors.title] }]}>
           {t('schoolConsole.screen.title')}
         </Text>
         {caption ? <Text style={[typography.caption, { color: colors[athletesScreenColors.caption] }]}>{caption}</Text> : null}
