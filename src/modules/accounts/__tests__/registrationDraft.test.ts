@@ -6,6 +6,7 @@ import {
   createInMemoryRegistrationDraftRepository,
   createSecureStoreRegistrationDraftRepository,
   finishRegistration,
+  discardStaleDraft,
   type RegistrationDraft,
 } from '../data/registrationDraft';
 
@@ -18,7 +19,8 @@ jest.mock('expo-secure-store', () => ({
 // The Supabase repository sits next to the in-memory one; the sync layer is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ supabase: {} }));
 
-const draft: RegistrationDraft = { swimmer: 'adult', firstName: ' Camila ', lastName: ' Rojas ', email: 'Camila@Example.test' };
+// codeRequested: the sign-up code was asked for from the registration screen, so verifying it completes that registration.
+const draft: RegistrationDraft = { swimmer: 'adult', firstName: ' Camila ', lastName: ' Rojas ', email: 'Camila@Example.test', codeRequested: true };
 
 beforeEach(() => mockStore.clear());
 
@@ -31,7 +33,7 @@ describe.each([
     expect(await drafts.load()).toBeNull();
 
     await drafts.save(draft);
-    expect(await drafts.load()).toEqual(draft);
+    expect(await drafts.load()).toMatchObject(draft);
 
     await drafts.clear();
     expect(await drafts.load()).toBeNull();
@@ -43,14 +45,53 @@ describe('SecureStore draft', () => {
     mockStore.set('trailskill-registration-draft', '{not json');
     expect(await createSecureStoreRegistrationDraftRepository().load()).toBeNull();
   });
+
+  it('stamps when the draft was last saved', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(5_000);
+    const drafts = createSecureStoreRegistrationDraftRepository();
+    await drafts.save(draft);
+    now.mockReturnValue(9_000);
+    await drafts.save(draft);
+    now.mockRestore();
+
+    expect((await drafts.load())?.savedAt).toBe(9_000);
+  });
+});
+
+describe('discardStaleDraft', () => {
+  const NOW = 1_000_000_000;
+  const HOUR = 60 * 60 * 1000;
+  const fresh: RegistrationDraft = { swimmer: 'adult', firstName: 'Camila', lastName: 'Rojas', email: 'camila@example.test', savedAt: NOW - HOUR };
+
+  it('leaves a draft saved less than 24 hours ago', async () => {
+    const drafts = createInMemoryRegistrationDraftRepository(fresh);
+    await discardStaleDraft(drafts, NOW);
+
+    expect(await drafts.load()).toEqual(fresh);
+  });
+
+  it.each([
+    ['older than 24 hours', { ...fresh, savedAt: NOW - 25 * HOUR }],
+    ['saved before drafts were stamped', { ...fresh, savedAt: undefined }],
+    ['kept to resume a step', { ...fresh, firstName: '', lastName: '', step: 'authorizations', savedAt: NOW - 25 * HOUR }],
+  ] as [string, RegistrationDraft][])('discards a draft %s', async (_name, stale) => {
+    const drafts = createInMemoryRegistrationDraftRepository(stale);
+    await discardStaleDraft(drafts, NOW);
+
+    expect(await drafts.load()).toBeNull();
+  });
+
+  it('does nothing when there is no draft', async () => {
+    await expect(discardStaleDraft(createInMemoryRegistrationDraftRepository(), NOW)).resolves.toBeUndefined();
+  });
 });
 
 describe('finishRegistration', () => {
-  const run = (drafts = createInMemoryRegistrationDraftRepository(draft), profiles = createInMemoryAdultProfileRepository()) => {
+  const run = (drafts = createInMemoryRegistrationDraftRepository(draft), profiles = createInMemoryAdultProfileRepository(), confirmed?: boolean) => {
     const links: ManagedAthleteRow[] = [];
     const athletes = createInMemoryAthleteRepository(createInMemoryManagedAthleteRepository(links));
     const managedProfiles = createInMemoryManagedAthleteProfileRepository(athletes, links);
-    return finishRegistration({ userId: 'user-1', email: ' camila@example.test ', drafts, profiles, managedProfiles }).then((next) => ({
+    return finishRegistration({ userId: 'user-1', email: ' camila@example.test ', drafts, profiles, managedProfiles, confirmed }).then((next) => ({
       drafts,
       profiles,
       athletes,
@@ -71,21 +112,31 @@ describe('finishRegistration', () => {
   it('child: keeps only the swimmer choice, creates no athlete and asks to open the add screen', async () => {
     const { drafts, athletes, next } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer: 'child' }));
 
-    expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: '' });
+    expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: 'Camila@Example.test' });
     await expect(athletes.listManaged('user-1')).resolves.toEqual([]);
     expect(next).toBe('add_athletes');
   });
 
   it('child: asks again to open the add screen on a later launch, when the names are already blank', async () => {
-    const { next } = await run(createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: '' }));
+    const { next } = await run(createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: 'Camila@Example.test' }));
 
     expect(next).toBe('add_athletes');
   });
 
   it('child: resumes to the authorizations once the add-athletes step was finished', async () => {
-    const { next } = await run(createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: '', step: 'authorizations' }));
+    const { next } = await run(
+      createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: 'Camila@Example.test', step: 'authorizations' }),
+    );
 
     expect(next).toBe('authorizations');
+  });
+
+  it.each([undefined, 'authorizations' as const])('child: leaves a draft kept for another email alone and does not route (step %s)', async (step) => {
+    const kept: RegistrationDraft = { swimmer: 'child', firstName: '', lastName: '', email: 'other@example.test', ...(step && { step }) };
+    const { drafts, next } = await run(createInMemoryRegistrationDraftRepository(kept));
+
+    expect(next).toBeUndefined();
+    expect(await drafts.load()).toEqual(kept);
   });
 
   it('adult: resumes to the authorizations on a later launch for the same email', async () => {
@@ -135,6 +186,54 @@ describe('finishRegistration', () => {
     const { profiles } = await run(blank);
 
     expect(profiles.saved).toEqual([]);
+  });
+
+  describe('a draft typed here whose code was never asked for', () => {
+    const typed: RegistrationDraft = { ...draft, codeRequested: undefined };
+
+    it('offers to resume it and stores nothing until the person chooses', async () => {
+      const { drafts, profiles, next } = await run(createInMemoryRegistrationDraftRepository(typed));
+
+      expect(next).toBe('offer');
+      expect(profiles.saved).toEqual([]);
+      expect(await drafts.load()).toEqual(typed);
+    });
+
+    it('resumes once the person confirms', async () => {
+      const { profiles, next } = await run(createInMemoryRegistrationDraftRepository(typed), undefined, true);
+
+      expect(profiles.saved).toEqual([{ userId: 'user-1', firstName: 'Camila', lastName: 'Rojas' }]);
+      expect(next).toBe('authorizations');
+    });
+
+    it('shows nothing of a draft typed for another email', async () => {
+      const other = { ...typed, email: 'other@example.test' };
+      const { drafts, next } = await run(createInMemoryRegistrationDraftRepository(other));
+
+      expect(next).toBeUndefined();
+      expect(await drafts.load()).toEqual(other);
+    });
+  });
+
+  describe.each(['adult', 'child'] as const)('%s: an account that already has a profile', (swimmer) => {
+    const existing = { userId: 'user-1', firstName: 'Lucía', lastName: 'Pardo' };
+
+    it('keeps the stored name, drops the draft and routes nowhere', async () => {
+      const profiles = createInMemoryAdultProfileRepository({ existing });
+      const { drafts, athletes, next } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer }), profiles);
+
+      expect(profiles.saved).toEqual([existing]);
+      expect(await drafts.load()).toBeNull();
+      await expect(athletes.listManaged('user-1')).resolves.toEqual([]);
+      expect(next).toBeUndefined();
+    });
+
+    it('goes on when the stored name is the one typed, as in a retry after a failed step', async () => {
+      const profiles = createInMemoryAdultProfileRepository({ existing: { ...existing, firstName: 'camila', lastName: 'ROJAS' } });
+      const { next } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer }), profiles);
+
+      expect(next).toBe(swimmer === 'adult' ? 'authorizations' : 'add_athletes');
+    });
   });
 
   it('keeps the draft when the profile cannot be saved', async () => {

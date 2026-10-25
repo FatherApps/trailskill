@@ -43,6 +43,7 @@ const setup = async (over: Partial<SeriesTimingFlowProps> = {}, seed?: (series: 
     <ThemeProvider>
       <SeriesTimingFlow
         subtitle="Escuela Delfines"
+        schoolId="school-1"
         loadRoster={async () => roster}
         series={series}
         userId="coach-1"
@@ -142,12 +143,13 @@ describe('series timing flow', () => {
     const [series] = openSpy.mock.calls[0]!;
     const [saved] = await measurements.listBySeries(series.id);
 
-    expect(series).toMatchObject({ createdBy: 'coach-1', deviceId: 'device-1', ...event, sessionType: 'training' });
+    expect(series).toMatchObject({ createdBy: 'coach-1', schoolId: 'school-1', deviceId: 'device-1', ...event, sessionType: 'training' });
     expect(saved).toMatchObject({
       kind: 'repetition',
       seriesId: series.id,
       source: 'screen_button',
       createdBy: 'coach-1',
+      schoolId: 'school-1',
       deviceId: 'device-1',
       ...event,
       sessionType: 'training',
@@ -254,7 +256,7 @@ describe('series timing flow', () => {
       await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
       const id = seriesOf(openSpy);
       expect(await measurements.listBySeries(id)).toMatchObject([
-        { arrivalPosition: 1, hundredths: 3100, athleteId: null, source: 'screen_button', createdBy: 'coach-1', deviceId: 'device-1', kind: 'repetition' },
+        { arrivalPosition: 1, hundredths: 3100, athleteId: null, source: 'screen_button', createdBy: 'coach-1', schoolId: 'school-1', deviceId: 'device-1', kind: 'repetition' },
       ]);
 
       await arrive(3n);
@@ -444,9 +446,9 @@ describe('series timing flow', () => {
     });
 
     it('takes the arrivals up again in another session and names them', async () => {
-      const pendingSeries = { id: 'S-old', createdBy: 'coach-1', deviceId: 'device-1', ...event, sessionType: 'training' } as const;
+      const pendingSeries = { id: 'S-old', createdBy: 'coach-1', schoolId: 'school-1', deviceId: 'device-1', ...event, sessionType: 'training' } as const;
       const arrival = (id: string, position: number, hundredths: number | null) =>
-        ({ id, kind: 'repetition', athleteId: null, seriesId: 'S-old', arrivalPosition: position, hundredths, ...event, sessionType: 'training', source: 'screen_button', createdBy: 'coach-1', deviceId: 'device-1', capturedAt: '2026-10-25T08:00:00Z', parentId: null, version: 1, editedBy: null, editedAt: null, editReason: null }) as Measurement;
+        ({ id, kind: 'repetition', athleteId: null, seriesId: 'S-old', arrivalPosition: position, hundredths, ...event, sessionType: 'training', source: 'screen_button', createdBy: 'coach-1', schoolId: 'school-1', deviceId: 'device-1', capturedAt: '2026-10-25T08:00:00Z', parentId: null, version: 1, editedBy: null, editedAt: null, editReason: null }) as Measurement;
       const { measurements } = await setup({}, async (series) => {
         await series.open(pendingSeries, arrival('old-1', 1, 3100));
         await series.addArrival(arrival('old-2', 2, null));
@@ -463,6 +465,24 @@ describe('series timing flow', () => {
 
       await waitFor(async () => expect(await positionsOf(measurements, 'S-old')).toEqual([[1, 'a3'], [2, null]]));
       // Back at the setup, what is still unnamed is still offered.
+      expect(await screen.findByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+    });
+
+    it('offers no arrival of another school for naming, and still offers the ones of the active school', async () => {
+      const arrival = (id: string, seriesId: string, schoolId: string) =>
+        ({ id, kind: 'repetition', athleteId: null, seriesId, arrivalPosition: 1, hundredths: 3100, ...event, sessionType: 'training', source: 'screen_button', createdBy: 'coach-1', schoolId, deviceId: 'device-1', capturedAt: '2026-10-25T08:00:00Z', parentId: null, version: 1, editedBy: null, editedAt: null, editReason: null }) as Measurement;
+      const seriesOf = (id: string, schoolId: string) => ({ id, createdBy: 'coach-1', schoolId, deviceId: 'device-1', ...event, sessionType: 'training' }) as const;
+      await setup({}, async (series) => {
+        await series.open(seriesOf('S-other', 'school-2'), arrival('other-1', 'S-other', 'school-2'));
+      });
+      await screen.findByText('Nadadores (2 de 3)');
+      expect(screen.queryByText(/sin nombre de/)).toBeNull();
+
+      await screen.unmount();
+      await setup({}, async (series) => {
+        await series.open(seriesOf('S-other', 'school-2'), arrival('other-1', 'S-other', 'school-2'));
+        await series.open(seriesOf('S-own', 'school-1'), arrival('own-1', 'S-own', 'school-1'));
+      });
       expect(await screen.findByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
     });
 

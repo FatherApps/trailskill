@@ -33,7 +33,7 @@ export function AddAthletesContainer({
   const [values, setValues] = useState(empty);
   const [added, setAdded] = useState<AddedAthlete[]>([]);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<false | 'add' | 'continue'>(false);
 
   const refresh = useCallback(
     () =>
@@ -51,12 +51,20 @@ export function AddAthletesContainer({
 
   // Draft writes run one after another, so a slow keystroke save can never land after a later add or clear.
   const queue = useRef<Promise<void>>(Promise.resolve());
-  const enqueue = (write: () => Promise<void>) => (queue.current = queue.current.then(write).catch(() => {}));
-  // Never throws: losing a draft must not block typing.
+  // Resolves whether the write landed; it never rejects.
+  const enqueue = (write: () => Promise<void>): Promise<boolean> => {
+    const run = queue.current.then(write).then(
+      () => true,
+      () => false,
+    );
+    queue.current = run.then(() => {});
+    return run;
+  };
+  // Losing a draft must not block typing. A missing draft stays missing: this screen only continues one the registration started.
   const persist = (athlete: typeof empty | undefined, step?: 'authorizations') =>
     enqueue(async () => {
       const current = await drafts.load();
-      await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: '', ...current, athlete, ...(step && { step }) });
+      if (current) await drafts.save({ ...current, athlete, ...(step && { step }) });
     });
 
   function change(field: AddAthleteField, value: string) {
@@ -72,7 +80,7 @@ export function AddAthletesContainer({
       await profiles.createManagedAthlete({ userId, relation: 'guardian', ...values });
     } catch {
       // Nothing was saved: the names stay in the form and the person can try again.
-      setFailed(true);
+      setFailed('add');
       setBusy(false);
       return;
     }
@@ -84,8 +92,10 @@ export function AddAthletesContainer({
   }
 
   // The profiles are saved, so the typed names have nothing left to keep; the swimmer choice and the reached step stay until the authorizations step ends.
+  // If the step cannot be kept the person stays here: going on would bring them back to this screen on the next launch.
   async function finish() {
-    await persist(undefined, 'authorizations');
+    setFailed(false);
+    if (!(await persist(undefined, 'authorizations'))) return setFailed('continue');
     onContinue();
   }
 

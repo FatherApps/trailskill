@@ -33,6 +33,7 @@ function dateOf(timestamp: string): string {
 export function ConsentCard({ text, accepted, checked, onToggle, onWithdraw }: ConsentCardProps) {
   const { colors, space, radius, size, typography } = useTheme();
   const title = t(`accounts.consent.purpose.${text.purpose}`);
+  const version = accepted ? accepted.textVersion : text.version;
   const titleStyle = [typography.subtitle, styles.title, { color: colors[consentCardColors.title] }];
 
   return (
@@ -55,10 +56,12 @@ export function ConsentCard({ text, accepted, checked, onToggle, onWithdraw }: C
           <Text style={titleStyle}>{title}</Text>
         </Pressable>
       )}
-      <Text style={[typography.body, { color: colors[consentCardColors.text] }]}>{accepted ? accepted.textBody : text.body}</Text>
-      <Text style={[typography.caption, { color: colors[consentCardColors.text] }]}>
-        {t('accounts.consent.version', { version: accepted ? accepted.textVersion : text.version })}
+      <Text style={[typography.body, { color: colors[consentCardColors.text] }]}>
+        {accepted ? (accepted.textBody ?? t('accounts.consent.text_loading')) : text.body}
       </Text>
+      {version !== null && (
+        <Text style={[typography.caption, { color: colors[consentCardColors.text] }]}>{t('accounts.consent.version', { version })}</Text>
+      )}
       {accepted && (
         <>
           <Text style={[typography.body, { color: colors[consentCardColors.title] }]}>

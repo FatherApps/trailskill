@@ -34,6 +34,7 @@ const setup = async (over: Partial<IndividualTimingFlowProps> = {}) => {
     <ThemeProvider>
       <IndividualTimingFlow
         subtitle="Escuela Delfines"
+        schoolId="school-1"
         loadRoster={async () => roster}
         measurements={measurements}
         userId="coach-1"
@@ -184,6 +185,7 @@ describe('individual timing flow', () => {
       sessionType: 'training',
       source: 'screen_stopwatch',
       createdBy: 'coach-1',
+      schoolId: 'school-1',
       deviceId: 'device-1',
       seriesId: null,
       parentId: null,
@@ -395,6 +397,53 @@ describe('individual timing flow', () => {
       expect(await screen.findByText('Resumen de la toma')).toBeOnTheScreen();
       expect(edit).not.toHaveBeenCalled();
     });
+  });
+
+  it('marks an athlete as skipped when a withdrawal reaches the device with the setup open', async () => {
+    const { view } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+
+    const withdrawn = roster.map((a) => (a.id === 'a1' ? { ...a, authorized: false } : a));
+    await view.rerender(
+      <ThemeProvider>
+        <IndividualTimingFlow
+          schoolId="school-1"
+          subtitle="Escuela Delfines"
+          loadRoster={async () => withdrawn}
+          measurements={createInMemoryMeasurementRepository()}
+          userId="coach-1"
+          deviceId="device-1"
+          now={() => clock}
+          onExit={jest.fn()}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(await screen.findByText('Nadadores (1 de 3)')).toBeOnTheScreen();
+  });
+
+  it('keeps the roster in use when the reload after a sync fails', async () => {
+    const { view } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+
+    await view.rerender(
+      <ThemeProvider>
+        <IndividualTimingFlow
+          schoolId="school-1"
+          subtitle="Escuela Delfines"
+          loadRoster={async () => {
+            throw new Error('offline');
+          }}
+          measurements={createInMemoryMeasurementRepository()}
+          userId="coach-1"
+          deviceId="device-1"
+          now={() => clock}
+          onExit={jest.fn()}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(await screen.findByText('Nadadores (2 de 3)')).toBeOnTheScreen();
   });
 
   it('does not start when nobody is authorized', async () => {

@@ -10,7 +10,7 @@ export { AthleteTable, type AthleteTableProps } from './components/AthleteTable'
 export { AthleteDetail, type AthleteDetailProps } from './components/AthleteDetail';
 export { AthleteFilterOptions, type AthleteFilterOption, type AthleteFilterOptionsProps } from './components/AthleteFilterOptions';
 export { CoachList, type CoachListProps, type CoachRow } from './components/CoachList';
-export { AuthorizationList, SharingRequestList, type AthleteAuthorizations, type AuthorizationListProps, type AuthorizationPurpose, type AuthorizationStatus, type SharingRequest, type SharingRequestListProps } from './components/AuthorizationList';
+export { AuthorizationList, SharingRequestList, type AthleteAuthorizations, type AuthorizationListProps, type AuthorizationPurpose, type AuthorizationStatus, type SharingRequest, type SharingRequestListProps, type SharingRequestsState } from './components/AuthorizationList';
 export { MeasurementLog, type MeasurementEntry, type MeasurementLogProps, type MeasurementVersion } from './components/MeasurementLog';
 export { RecordTable, type RecordRow, type RecordTableProps } from './components/RecordTable';
 export type { SectionView } from './components/SectionFrame';
@@ -34,7 +34,17 @@ export { ConsoleScreen, type ConsoleScreenProps, type ConsoleSectionProps } from
 export { EmptySectionScreen, type EmptySectionScreenProps } from './screens/EmptySectionScreen';
 export { useAdminSchool, useStaffSchool, type AdminSchoolResult, type StaffSchoolResult } from './data/useAdminSchool';
 export { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from './screens/CoachesScreen';
-export { RecordsScreen, type RecordsContent, type RecordsScreenProps, type RecordsView } from './screens/RecordsScreen';
+export { RecordsScreen, type RecordsContent, type RecordsScreenProps, type RecordsSheet, type RecordsView } from './screens/RecordsScreen';
+export { RecordsSection, type RecordsSectionProps } from './screens/RecordsSection';
+export {
+  createCategoryRecordsRepository,
+  createInMemoryCategoryRecordsRepository,
+  createPowerSyncCategoryRecordsRepository,
+  selectCategoryRecords,
+  type CategoryRecord,
+  type CategoryRecordsQuery,
+  type CategoryRecordsRepository,
+} from './data/categoryRecords';
 export {
   MeasurementsScreen,
   type MeasurementsContent,

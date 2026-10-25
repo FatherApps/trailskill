@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Share } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
 import '../i18n';
-import type { SharingRequest } from '../components/AuthorizationList';
+import type { SharingRequest, SharingRequestsState } from '../components/AuthorizationList';
 import { formatDate, localDate } from '../components/formatDate';
 import type { AuthorizationsRepository, ConsoleAuthorizationRow } from '../data/authorizations';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -57,6 +57,8 @@ export function AuthorizationsSection({
   const [requestsAnswer, setRequestsAnswer] = useState<RequestsAnswer>();
   // Bumped after an approval or a withdrawal to read the requests again.
   const [requestsReload, setRequestsReload] = useState(0);
+  // A ref, not state: a second confirmation can arrive before a re-render shows the first is running.
+  const resending = useRef(false);
   const offline = connection === 'offline';
 
   useEffect(() => {
@@ -78,8 +80,9 @@ export function AuthorizationsSection({
     };
   }, [repository, schoolId, refreshKey, requestsReload, offline]);
 
-  // Offline, still unread, another school's answer or a failed read: not available, never an empty list.
-  const sharingRequests = !offline && requestsAnswer?.schoolId === schoolId && requestsAnswer.result !== 'error' ? requestsAnswer.result : null;
+  // Never an empty list when the requests are not known: offline, another school's answer or still unread (loading), or a failed read.
+  const answered = requestsAnswer?.schoolId === schoolId ? requestsAnswer.result : 'loading';
+  const sharingRequests: SharingRequestsState = offline ? 'offline' : answered;
 
   const loaded = answer?.schoolId === schoolId && answer.attempt === attempt ? answer.result : undefined;
   const rows = loaded === undefined || loaded === 'error' ? undefined : loaded;
@@ -115,21 +118,28 @@ export function AuthorizationsSection({
 
   const resend = async (athleteId: string) => {
     const groupId = rows?.find((row) => row.id === athleteId)?.groupId;
-    if (!groupId) return;
+    if (!groupId || resending.current) return;
+    resending.current = true;
     setResendError(null);
-    let message: string;
     try {
-      const invitation = await repository.resend(schoolId, groupId);
-      message = t('schoolConsole.authorizations.share_message', {
-        school: schoolName,
-        token: invitation.token,
-        date: formatDate(localDate(new Date(invitation.expiresAt)), 'long') ?? '',
-      });
-    } catch {
-      return setResendError(t('schoolConsole.authorizations.resend_error'));
+      let message: string;
+      try {
+        const invitation = await repository.resend(schoolId, groupId);
+        // A date that cannot be read drops the expiry sentence instead of leaving it blank.
+        const date = formatDate(localDate(new Date(invitation.expiresAt)), 'long');
+        message = t(date === null ? 'schoolConsole.authorizations.share_message_no_date' : 'schoolConsole.authorizations.share_message', {
+          school: schoolName,
+          token: invitation.token,
+          date: date ?? '',
+        });
+      } catch {
+        return setResendError(t('schoolConsole.authorizations.resend_error'));
+      }
+      // Closing the share sheet without sending is the admin's choice, not a failure: the invitation stays valid.
+      await share(message).catch(() => undefined);
+    } finally {
+      resending.current = false;
     }
-    // Closing the share sheet without sending is the admin's choice, not a failure: the invitation stays valid.
-    await share(message).catch(() => undefined);
   };
 
   const changeSharing = async (action: 'approveSharing' | 'withdrawSharing', id: string) => {
@@ -152,6 +162,10 @@ export function AuthorizationsSection({
       onResend={(athleteId) => void resend(athleteId)}
       onApproveSharing={(id) => void changeSharing('approveSharing', id)}
       onWithdrawSharing={(id) => void changeSharing('withdrawSharing', id)}
+      onRetrySharingRequests={() => {
+        setRequestsAnswer(undefined);
+        setRequestsReload((n) => n + 1);
+      }}
       resendError={resendError}
     />
   );

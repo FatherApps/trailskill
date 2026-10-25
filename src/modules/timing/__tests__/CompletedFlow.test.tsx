@@ -32,6 +32,7 @@ const setup = async (over: Partial<CompletedFlowProps> = {}) => {
     <ThemeProvider>
       <CompletedFlow
         subtitle="Escuela Delfines"
+        schoolId="school-1"
         loadRoster={async () => roster}
         measurements={measurements}
         userId="coach-1"
@@ -77,6 +78,7 @@ describe('completed flow', () => {
         sessionType: 'training',
         source: 'screen_button',
         createdBy: 'coach-1',
+        schoolId: 'school-1',
         deviceId: 'device-1',
       }),
     ]);

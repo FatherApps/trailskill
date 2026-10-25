@@ -48,3 +48,4 @@ export {
 } from './data/sessionSetup';
 export { CompletedFlow, type CompletedFlowProps } from './screens/CompletedFlow';
 export { CompletedScreen, type CompletedAthlete, type CompletedScreenProps } from './screens/CompletedScreen';
+export { SchoolChoiceScreen, type SchoolChoiceScreenProps } from './screens/SchoolChoiceScreen';

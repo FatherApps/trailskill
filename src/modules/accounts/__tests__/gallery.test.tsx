@@ -17,6 +17,7 @@ describe('accounts gallery entries', () => {
       'authorizations',
       'consentCard',
       'addAthletes',
+      'resumeRegistration',
     ]);
     expect(statesOf('whoSwims')).toEqual(['initial', 'child', 'adult', 'invitation']);
     expect(statesOf('accountDetails')).toEqual([
@@ -34,6 +35,7 @@ describe('accounts gallery entries', () => {
     expect(statesOf('authorizations')).toEqual(['initial']);
     expect(statesOf('consentCard')).toEqual(['unchecked', 'accepted']);
     expect(statesOf('addAthletes')).toEqual(['withData']);
+    expect(statesOf('resumeRegistration')).toEqual(['initial']);
   });
 
   it.each(galleryEntries.flatMap((entry) => Object.keys(entry.states).map((state) => [entry.id, state] as const)))(

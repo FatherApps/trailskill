@@ -20,12 +20,12 @@ describe('useStaffSchool', () => {
   });
 
   it.each([
-    ['a coach', 'coach-1'],
-    ['a school admin', 'admin-1'],
-  ])('gives the first school by name to %s', async (_label, userId) => {
+    ['a coach', 'coach-1', [{ id: 'school-a', name: 'Aqua Club' }, { id: 'school-b', name: 'Blue Dolphins' }]],
+    ['a school admin', 'admin-1', [{ id: 'school-a', name: 'Aqua Club' }]],
+  ])('gives the first school by name, and every school, to %s', async (_label, userId, schools) => {
     const { result } = await renderHook(() => useStaffSchool(repository, userId));
 
-    await waitFor(() => expect(result.current).toEqual({ status: 'staff', school: { id: 'school-a', name: 'Aqua Club' } }));
+    await waitFor(() => expect(result.current).toEqual({ status: 'staff', school: { id: 'school-a', name: 'Aqua Club' }, schools }));
   });
 
   it.each([

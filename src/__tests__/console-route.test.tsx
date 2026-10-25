@@ -17,6 +17,7 @@ const mockConsoleAthletes = {
   listBests: jest.fn(),
 };
 const mockListCategories = jest.fn();
+const mockListRecords = jest.fn();
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   ...jest.requireActual('../modules/school-console/screens/ConsoleScreen'),
@@ -31,7 +32,9 @@ jest.mock('../modules/school-console', () => ({
     list: (...args: unknown[]) => mockListCategories(...args),
   }),
   ...jest.requireActual('../modules/school-console/screens/CoachesScreen'),
-  ...jest.requireActual('../modules/school-console/screens/RecordsScreen'),
+  ...jest.requireActual('../modules/school-console/screens/RecordsSection'),
+  createPowerSyncCategoryRecordsRepository: () => ({ list: (...args: unknown[]) => mockListRecords(...args) }),
+  createPowerSyncSchoolStructureRepository: () => ({ listGroups: () => Promise.resolve([]) }),
   ...jest.requireActual('../modules/school-console/screens/MeasurementsScreen'),
   ...jest.requireActual('../modules/school-console/screens/AuthorizationsSection'),
   createPowerSyncAuthorizationsRepository: () => ({
@@ -57,6 +60,7 @@ beforeEach(() => {
   mockConsoleAthletes.countMeasurementsSince.mockReset().mockResolvedValue(0);
   mockConsoleAthletes.listBests.mockReset().mockResolvedValue([]);
   mockListCategories.mockReset().mockResolvedValue([]);
+  mockListRecords.mockReset().mockResolvedValue([]);
 });
 
 const show = () =>
@@ -127,7 +131,6 @@ describe('console route', () => {
 
   it.each([
     ['Entrenadores', 'Aún no hay entrenadores'],
-    ['Récords', 'Aún no hay récords'],
     ['Mediciones', 'Aún no hay mediciones'],
     ['Autorizaciones', 'Aún no hay autorizaciones'],
   ])('shows the %s screen, not the empty section, until its data is connected', async (tab, emptyTitle) => {
@@ -138,6 +141,27 @@ describe('console route', () => {
     expect(screen.getByRole('header', { name: tab })).toBeOnTheScreen();
     expect(screen.getByText(emptyTitle)).toBeOnTheScreen();
     expect(screen.getByRole('tab', { name: tab })).toBeSelected();
+  });
+
+  it('shows the best marks of the first category of the school of the admin under Récords', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockListCategories.mockResolvedValue([{ id: 'c1', schoolId: 's1', name: 'Categoría A', sortOrder: 0, active: true }]);
+    mockListRecords.mockResolvedValue([{ stroke: 'FR', distance: '50m', time: 3391, athlete: 'Mateo Castro', date: '2026-02-12' }]);
+    await show();
+
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Récords' }));
+
+    expect(await screen.findByText('Libre 50', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Categoría: Categoría A' })).toBeOnTheScreen();
+    expect(mockListRecords).toHaveBeenCalledWith({ schoolId: 's1', categoryId: 'c1', pool: 'SCM', groupId: null });
+  });
+
+  it('shows the empty Récords state when the school has no category', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    await show();
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Récords' }));
+
+    expect(await screen.findByText('Aún no hay récords')).toBeOnTheScreen();
   });
 
   it('shows nothing while the lookup is pending', async () => {

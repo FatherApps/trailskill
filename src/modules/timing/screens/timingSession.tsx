@@ -24,7 +24,7 @@ export const eventSubtitleOf = (choice: Choice) =>
 // A training time is a repetition and a competition time is a race: the two kinds a personal best can come from.
 export const kindOf = (choice: Choice) => (choice.sessionType === 'competition' ? ('race' as const) : ('repetition' as const));
 
-// Loads the roster once and shows the loading and error states; the session below starts only with a roster.
+// Loads the roster, again whenever `loadRoster` changes, and shows the loading and error states; the session below starts only with a roster.
 export function RosterGate({ loadRoster, children }: { loadRoster(): Promise<RosterAthlete[]>; children: (roster: RosterAthlete[]) => ReactNode }) {
   const [roster, setRoster] = useState<RosterAthlete[] | 'error'>();
   const [attempt, setAttempt] = useState(0);
@@ -32,8 +32,9 @@ export function RosterGate({ loadRoster, children }: { loadRoster(): Promise<Ros
   useEffect(() => {
     let active = true;
     loadRoster()
-      .then((athletes) => active && setRoster(athletes))
-      .catch(() => active && setRoster('error'));
+      // A reload after a sync keeps the roster the session is using when nothing changed or the read fails.
+      .then((athletes) => active && setRoster((current) => (JSON.stringify(current) === JSON.stringify(athletes) ? current : athletes)))
+      .catch(() => active && setRoster((current) => current ?? 'error'));
     return () => {
       active = false;
     };

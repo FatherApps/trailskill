@@ -20,6 +20,7 @@ jest.mock('../core/session', () => ({
   useSession: () => mockSession,
 }));
 
+// A draft waits on this phone: the sign-in must neither read it nor show anything about it before a session exists.
 const mockLoadDraft = jest.fn();
 jest.mock('../modules/accounts', () => ({
   createSecureStoreRegistrationDraftRepository: () => ({ load: () => mockLoadDraft() }),
@@ -52,33 +53,13 @@ describe('sign-in screen', () => {
     expect(router.push).toHaveBeenCalledWith('/register');
   });
 
-  it('continues a registration left half done', async () => {
-    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: 'ana@example.com' });
+  it('never redirects to the registration nor mentions the draft left on the phone', async () => {
+    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: 'Ana', lastName: 'Mora', email: email });
     await render(<SignIn />);
 
-    await waitFor(() => expect(router.push).toHaveBeenLastCalledWith('/register/details'));
-  });
-
-  it('does not reopen registration for a draft left with only the swimmer choice', async () => {
-    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
-    await render(<SignIn />);
-
-    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
-    expect(router.push).not.toHaveBeenCalled();
-  });
-
-  it('does not reopen registration for a draft kept to resume the authorizations, even with its email', async () => {
-    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: 'ana@example.com', step: 'authorizations' });
-    await render(<SignIn />);
-
-    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
-    expect(router.push).not.toHaveBeenCalled();
-  });
-
-  it('stays on sign-in when no registration was started', async () => {
-    await render(<SignIn />);
-
-    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+    expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
+    expect(screen.queryByText(/Retomar|Empezar de nuevo|ana@example/)).not.toBeOnTheScreen();
+    expect(mockLoadDraft).not.toHaveBeenCalled();
     expect(router.push).not.toHaveBeenCalled();
   });
 

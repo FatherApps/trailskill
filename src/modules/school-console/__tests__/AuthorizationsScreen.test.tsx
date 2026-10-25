@@ -18,7 +18,7 @@ const content: AuthorizationsContent = {
 const hidden = { includeHiddenElements: true };
 
 const show = async (view: AuthorizationsView, extra: Partial<AuthorizationsScreenProps> = {}) => {
-  const actions = { onNavigate: jest.fn(), onResend: jest.fn(), onApproveSharing: jest.fn(), onWithdrawSharing: jest.fn() };
+  const actions = { onNavigate: jest.fn(), onResend: jest.fn(), onApproveSharing: jest.fn(), onWithdrawSharing: jest.fn(), onRetrySharingRequests: jest.fn() };
   await render(<AuthorizationsScreen width={1280} schoolName={schoolNameFixture} view={view} {...actions} {...extra} />);
   return actions;
 };
@@ -159,12 +159,54 @@ describe('AuthorizationsScreen', () => {
       expect(screen.queryByRole('button', { name: 'Reenviar solicitud' })).toBeNull();
     });
 
-    it('shows the requests title with the online-only note, and no actions, when the requests are not available', async () => {
-      await show({ kind: 'data', content: { ...content, sharingRequests: null } });
+    it('shows the requests title with the online-only note, and no actions, when offline', async () => {
+      await show({ kind: 'data', content: { ...content, sharingRequests: 'offline' } });
 
       expect(screen.getByText('Solicitudes de otras escuelas')).toBeOnTheScreen();
       expect(screen.getByText('Las solicitudes de otras escuelas se ven solo con conexión.')).toBeOnTheScreen();
       expect(screen.queryByRole('button', { name: 'Aprobar' })).toBeNull();
+    });
+
+    it('shows a read error with a retry, not the online-only note, when the requests could not be read', async () => {
+      const { onRetrySharingRequests } = await show({ kind: 'data', content: { ...content, sharingRequests: 'error' } });
+
+      expect(screen.getByText('No pudimos cargar las solicitudes de otras escuelas.')).toBeOnTheScreen();
+      expect(screen.queryByText('Las solicitudes de otras escuelas se ven solo con conexión.')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Aprobar' })).toBeNull();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+      expect(onRetrySharingRequests).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows neither the requests nor the online-only note while the first online read is loading', async () => {
+      await show({ kind: 'data', content: { ...content, sharingRequests: 'loading' } });
+
+      expect(screen.queryByText('Solicitudes de otras escuelas')).toBeNull();
+      expect(screen.queryByText('Las solicitudes de otras escuelas se ven solo con conexión.')).toBeNull();
+      expect(screen.getByTestId('authorization-list')).toBeOnTheScreen();
+    });
+
+    it('offers Rechazar next to Aprobar on a pending request and rejects only after the ConfirmSheet is confirmed', async () => {
+      const { onWithdrawSharing, onApproveSharing } = await show({ kind: 'data', content });
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Rechazar' }));
+      expect(screen.getByText('¿Rechazar la solicitud de Escuela Tiburones?')).toBeOnTheScreen();
+      expect(onWithdrawSharing).not.toHaveBeenCalled();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Rechazar solicitud' }));
+      expect(onWithdrawSharing).toHaveBeenCalledTimes(1);
+      expect(onWithdrawSharing).toHaveBeenCalledWith('s1');
+      expect(onApproveSharing).not.toHaveBeenCalled();
+    });
+
+    it('does not reject when the ConfirmSheet is cancelled, and offers no Rechazar on an approved request', async () => {
+      const { onWithdrawSharing } = await show({ kind: 'data', content });
+
+      expect(screen.getAllByRole('button', { name: 'Rechazar' })).toHaveLength(1);
+      await fireEvent.press(screen.getByRole('button', { name: 'Rechazar' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+      expect(onWithdrawSharing).not.toHaveBeenCalled();
     });
 
     it('passes the navigation to the caller', async () => {

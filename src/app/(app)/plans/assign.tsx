@@ -1,3 +1,5 @@
+import { router } from 'expo-router';
+
 import { useSession } from '../../../core/session';
 import { createPowerSyncSchoolAthleteRepository } from '../../../modules/athletes';
 import { createPowerSyncSchoolStructureRepository, createPowerSyncStaffSchoolRepository } from '../../../modules/school-console';
@@ -24,6 +26,7 @@ export default function AssignPlanRoute() {
       structure={structure}
       schools={schools}
       userId={session.user.id}
+      onOpenFulfillment={(id, day) => router.push({ pathname: '/plans/fulfillment', params: { assignment: id, day } })}
     />
   );
 }
