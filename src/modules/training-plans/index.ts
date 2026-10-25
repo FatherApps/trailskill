@@ -18,3 +18,6 @@ export type {
   VocabularyOption,
 } from './types';
 export { galleryEntries } from './gallery';
+export { createInMemoryTrainingPlanRepository } from './data/inMemoryTrainingPlanRepository';
+export { createPowerSyncTrainingPlanRepository } from './data/powerSyncTrainingPlanRepository';
+export type { Plan, PlanSummary, TrainingPlanRepository } from './data/plans';
