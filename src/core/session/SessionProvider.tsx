@@ -20,7 +20,7 @@ type SessionValue = {
   syncConnectFailed: boolean;
   /** The server settings are missing from the build; no request can succeed. For diagnostics, never for display. */
   configError: string | null;
-  requestCode(email: string): Promise<void>;
+  requestCode(email: string, options?: { createUser?: boolean }): Promise<void>;
   verifyCode(email: string, code: string): Promise<void>;
   signOut(options?: { force?: boolean }): Promise<SignOutResult>;
 };
@@ -155,10 +155,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     supabase.auth.signOut({ scope: 'local' }).catch(() => {});
   }, []);
 
-  const requestCode = useCallback(async (email: string) => {
+  const requestCode = useCallback(async (email: string, options?: { createUser?: boolean }) => {
     if (supabaseConfigError) throw new Error(supabaseConfigError);
-    // Accounts are created by registration, never by asking for a code.
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+    // Only registration creates accounts; signing in with a code never does.
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: options?.createUser ?? false },
+    });
     if (error) throw error;
   }, []);
 

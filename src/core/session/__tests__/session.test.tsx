@@ -147,6 +147,17 @@ describe('useSession', () => {
     });
   });
 
+  it('creates the account only when registration asks for it', async () => {
+    const session = await renderSession();
+
+    await session.current.requestCode('ana@example.com', { createUser: true });
+
+    expect(mockSignInWithOtp).toHaveBeenCalledWith({
+      email: 'ana@example.com',
+      options: { shouldCreateUser: true },
+    });
+  });
+
   it('rejects requestCode with the Supabase error', async () => {
     const failure = { code: 'over_email_send_rate_limit', message: 'slow down' };
     mockSignInWithOtp.mockResolvedValue({ error: failure });

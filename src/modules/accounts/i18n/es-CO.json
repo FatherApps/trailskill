@@ -13,8 +13,12 @@
     },
     "details": {
       "title": "Tus datos",
-      "name_label": "Nombre",
-      "phone_label": "Celular",
+      "first_name_label": "Nombre",
+      "last_name_label": "Apellido",
+      "first_name_required": "Escribe tu nombre.",
+      "last_name_required": "Escribe tu apellido.",
+      "email_required": "Escribe tu correo.",
+      "email_invalid": "Revisa el correo: debe verse como nombre@dominio.com.",
       "request_code": "Enviarme un código",
       "email_in_use": "Ya hay una cuenta con este correo. Inicia sesión",
       "sign_in": "Iniciar sesión"
@@ -28,6 +32,11 @@
       "verify": "Verificar y continuar",
       "sending": "Enviando código…",
       "verifying": "Verificando…"
+    },
+    "failure": {
+      "offline_title": "Sin señal",
+      "offline_message": "Guardamos lo que escribiste. Pedir y verificar el código necesita señal.",
+      "kept": "Lo que escribiste sigue guardado."
     },
     "offline": {
       "notice": "Estás sin conexión. Guardamos lo que escribiste; verificar el código necesita señal.",

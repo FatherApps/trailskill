@@ -18,6 +18,8 @@ describe('accounts gallery entries', () => {
       'codeMismatch',
       'emailInUse',
       'offline',
+      'required',
+      'noSignal',
       'sending',
       'invitation',
     ]);

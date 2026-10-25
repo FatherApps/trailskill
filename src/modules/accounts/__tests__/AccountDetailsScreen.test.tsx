@@ -5,8 +5,8 @@ import { colors } from '../../../core/theme';
 import { accountsFixture as fx } from '../__fixtures__/accounts';
 import { AccountDetailsScreen, type AccountDetailsScreenProps } from '../screens/AccountDetailsScreen';
 
-const empty = { name: '', email: '', phone: '', code: '' };
-const filled = { name: fx.person.name, email: fx.person.email, phone: fx.person.phone, code: '' };
+const empty = { firstName: '', lastName: '', email: '', code: '' };
+const filled = { firstName: fx.person.firstName, lastName: fx.person.lastName, email: fx.person.email, code: '' };
 
 const CODE_MISMATCH = 'Ese código no coincide. Revisa el último mensaje o pide uno nuevo.';
 const EMAIL_IN_USE = 'Ya hay una cuenta con este correo. Inicia sesión';
@@ -34,14 +34,15 @@ const backgroundOf = (name: string) =>
   StyleSheet.flatten(screen.getByRole('button', { name }).props.style).backgroundColor;
 
 describe('AccountDetailsScreen states', () => {
-  it('initial: providers first, then the code option with name, email and phone', async () => {
+  it('initial: providers first, then the code option with first name, last name and email', async () => {
     await renderScreen();
 
     expect(screen.getByRole('header', { name: 'Crear cuenta' })).toBeOnTheScreen();
     expect(screen.getByText('Paso 2 de 4')).toBeOnTheScreen();
     expect(screen.getByLabelText('Nombre')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Apellido')).toBeOnTheScreen();
     expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Celular')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Celular')).toBeNull();
     expect(screen.getByText('o con un código por correo')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Continuar con Microsoft' })).toBeOnTheScreen();
@@ -100,9 +101,9 @@ describe('AccountDetailsScreen states', () => {
     expect(screen.getByTestId('banner')).toHaveTextContent(
       'Estás sin conexión. Guardamos lo que escribiste; verificar el código necesita señal.',
     );
-    expect(screen.getByDisplayValue(fx.person.name)).toBeOnTheScreen();
+    expect(screen.getByDisplayValue(fx.person.firstName)).toBeOnTheScreen();
+    expect(screen.getByDisplayValue(fx.person.lastName)).toBeOnTheScreen();
     expect(screen.getByDisplayValue(fx.person.email)).toBeOnTheScreen();
-    expect(screen.getByDisplayValue(fx.person.phone)).toBeOnTheScreen();
     for (const name of [
       'Continuar con Google · Necesitas señal',
       'Continuar con Microsoft · Necesitas señal',
@@ -146,6 +147,65 @@ describe('AccountDetailsScreen states', () => {
     expect(screen.getByTestId('banner')).toHaveTextContent(
       'Te invitó Escuela Delfines al grupo Infantil B. Revisa tus datos y confirma.',
     );
+  });
+});
+
+describe('AccountDetailsScreen registration states', () => {
+  it('required and invalid: each field shows its message through the error hint', async () => {
+    await renderScreen({ errors: { firstName: 'required', lastName: 'required', email: 'invalid' } });
+
+    expect(screen.getByLabelText('Nombre').props.accessibilityHint).toBe('Escribe tu nombre.');
+    expect(screen.getByLabelText('Apellido').props.accessibilityHint).toBe('Escribe tu apellido.');
+    expect(screen.getByLabelText('Correo electrónico').props.accessibilityHint).toBe(
+      'Revisa el correo: debe verse como nombre@dominio.com.',
+    );
+    await renderScreen({ errors: { email: 'required' } });
+    expect(screen.getAllByText('Escribe tu correo.').length).toBeGreaterThan(0);
+  });
+
+  it('providers off: no Google, Microsoft or divider, and the callbacks may be omitted', async () => {
+    await render(
+      <AccountDetailsScreen
+        step={2}
+        total={3}
+        values={empty}
+        providers={false}
+        onChange={jest.fn()}
+        onRequestCode={jest.fn()}
+        onSubmitCode={jest.fn()}
+        onSignIn={jest.fn()}
+        onBack={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Continuar con Google' })).toBeNull();
+    expect(screen.queryByText('o con un código por correo')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Enviarme un código' })).toBeOnTheScreen();
+  });
+
+  it('offline failure: explains the missing signal and retries', async () => {
+    const onRetry = jest.fn();
+    await renderScreen({ values: filled, failure: 'offline', onRetry });
+
+    expect(screen.getByText('Sin señal')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Guardamos lo que escribiste. Pedir y verificar el código necesita señal.'),
+    ).toBeOnTheScreen();
+    expect(screen.getByDisplayValue(fx.person.firstName)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['request_failed', 'No pudimos enviar el código'],
+    ['verify_failed', 'No pudimos revisar el código. Inténtalo de nuevo.'],
+  ] as const)('%s failure: shows its message and a retry action', async (failure, title) => {
+    const onRetry = jest.fn();
+    await renderScreen({ values: filled, failure, onRetry });
+
+    expect(screen.getByText(title)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -215,12 +275,12 @@ describe('AccountDetailsScreen callbacks', () => {
 
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Camila');
     await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'c@example.test');
-    await fireEvent.changeText(screen.getByLabelText('Celular'), '300');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
     await fireEvent.changeText(screen.getByLabelText('Código de 6 dígitos'), '12a3 4567');
 
-    expect(onChange).toHaveBeenNthCalledWith(1, 'name', 'Camila');
+    expect(onChange).toHaveBeenNthCalledWith(1, 'firstName', 'Camila');
     expect(onChange).toHaveBeenNthCalledWith(2, 'email', 'c@example.test');
-    expect(onChange).toHaveBeenNthCalledWith(3, 'phone', '300');
+    expect(onChange).toHaveBeenNthCalledWith(3, 'lastName', 'Rojas');
     expect(onChange).toHaveBeenNthCalledWith(4, 'code', '123456');
   });
 });
