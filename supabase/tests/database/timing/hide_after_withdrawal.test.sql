@@ -6,7 +6,7 @@
 -- hides anything. Measurements from before the withdrawal do not change. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(67);
+select plan(69);
 
 -- Users: coach C, school admin S, guardian G, platform admin P, and X, a coach
 -- of another school who has nothing to do with these athletes.
@@ -609,6 +609,35 @@ select is(
   array['58000000-0000-4000-8000-0000000000de'], 'and coach C no longer sees the hidden one'
 );
 reset role;
+
+-- Issue #291: e9 also joins school 1, so it is shared by both schools; coach C
+-- records a mark of e9 in school 1 (df). Coach X of school 2 coaches e9, but
+-- the copy of the stream queries (section 9) does not carry school 1's mark.
+insert into public.athlete_schools (athlete_id, school_id)
+values ('58000000-0000-4000-8000-0000000000e9', '58000000-0000-4000-8000-0000000000b1');
+insert into public.measurements
+  (school_id, id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+values
+  ('58000000-0000-4000-8000-0000000000b1', '58000000-0000-4000-8000-0000000000df', 'repetition',
+   '58000000-0000-4000-8000-0000000000e9', 3900, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
+   '2026-10-12 08:00:00+00', '58000000-0000-4000-8000-0000000000a1');
+select is_empty(
+  $$ select id from public.measurements
+     where id = '58000000-0000-4000-8000-0000000000df'
+       and hidden = false
+       and school_id in (select school_id from public.school_memberships where user_id = '58000000-0000-4000-8000-0000000000a5')
+       and (athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '58000000-0000-4000-8000-0000000000a5')
+         or athlete_id in (select athlete_id from public.athlete_groups where group_id in (select group_id from public.coach_group_assignments where coach_user_id = '58000000-0000-4000-8000-0000000000a5'))
+         or athlete_id in (select athlete_id from public.athlete_schools where school_id in (select school_id from public.school_memberships where user_id = '58000000-0000-4000-8000-0000000000a5' and role = 'school_admin'))) $$,
+  'the coach stream of another school does not carry school 1''s mark of a shared athlete'
+);
+select isnt_empty(
+  $$ select id from public.measurements
+     where id = '58000000-0000-4000-8000-0000000000df'
+       and hidden = false
+       and athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '58000000-0000-4000-8000-0000000000a5') $$,
+  'without the school condition the same stream query would carry it: the school is what keeps it out'
+);
 
 select * from finish();
 rollback;

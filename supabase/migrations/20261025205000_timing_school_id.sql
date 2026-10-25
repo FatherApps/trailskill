@@ -16,69 +16,97 @@ create index measurements_school_id_idx on public.measurements (school_id);
 
 -- Existing rows get the only possible school, never a guess: the schools where
 -- the author is staff, intersected with the schools of the athletes involved.
--- No candidate or more than one fails the migration; the data is fixed first.
+-- Every row is checked first; if any has no candidate or more than one, the
+-- migration fails once, with the count and the first 10 ids of each table (ids
+-- and counts only), so the migrate log is enough to fix the data. Only when
+-- nothing fails are the schools written. Kept as a function, not a DO block, so
+-- the pgTAP tests and the deploy runbook can run the same check.
+create function app.timing_backfill_school_ids()
+returns void
+language plpgsql
+-- Security definer like every app function; only the owner may execute it.
+security definer
+set search_path = ''
+as $$
+declare
+  bad_series bigint;
+  bad_measurements bigint;
+  series_ids text;
+  measurement_ids text;
+begin
+  drop table if exists pg_temp.timing_backfill;
+  create temporary table timing_backfill (tbl text, id uuid, school uuid) on commit drop;
+
+  -- A series: every athlete with an assigned measurement in it must be in the
+  -- school. school stays null unless there is exactly one candidate.
+  insert into pg_temp.timing_backfill (tbl, id, school)
+  select 'timing_series', s.id,
+         case when count(distinct sm.school_id) = 1 then (array_agg(sm.school_id))[1] end
+  from public.timing_series s
+  left join public.school_memberships sm
+    on sm.user_id = s.created_by
+   and sm.role in ('coach', 'school_admin')
+   and not exists (
+     select 1 from public.measurements m
+     where m.series_id = s.id and m.athlete_id is not null
+       and not app.athlete_in_school(m.athlete_id, sm.school_id)
+   )
+  group by s.id;
+
+  -- A measurement of a series takes the series' school, if it has one and the
+  -- author and the athlete belong to it; one without a series takes the
+  -- author's staff schools that hold its athlete.
+  insert into pg_temp.timing_backfill (tbl, id, school)
+  select 'measurements', m.id,
+         case
+           when m.series_id is not null then (
+             select b.school from pg_temp.timing_backfill b
+             where b.tbl = 'timing_series' and b.id = m.series_id
+               and exists (
+                 select 1 from public.school_memberships sm
+                 where sm.user_id = m.created_by and sm.school_id = b.school and sm.role in ('coach', 'school_admin')
+               )
+               and (m.athlete_id is null or app.athlete_in_school(m.athlete_id, b.school))
+           )
+           else (
+             select case when count(distinct sm.school_id) = 1 then (array_agg(sm.school_id))[1] end
+             from public.school_memberships sm
+             where sm.user_id = m.created_by
+               and sm.role in ('coach', 'school_admin')
+               and app.athlete_in_school(m.athlete_id, sm.school_id)
+           )
+         end
+  from public.measurements m;
+
+  select count(*) filter (where tbl = 'timing_series'),
+         count(*) filter (where tbl = 'measurements')
+  into bad_series, bad_measurements
+  from pg_temp.timing_backfill where school is null;
+
+  if bad_series > 0 or bad_measurements > 0 then
+    select coalesce(string_agg(id::text, ', ' order by id), 'none') into series_ids
+    from (select id from pg_temp.timing_backfill where tbl = 'timing_series' and school is null order by id limit 10) f;
+    select coalesce(string_agg(id::text, ', ' order by id), 'none') into measurement_ids
+    from (select id from pg_temp.timing_backfill where tbl = 'measurements' and school is null order by id limit 10) f;
+    raise exception 'timing_school_id backfill: % timing_series without exactly one school (first 10: %); % measurements without exactly one school (first 10: %)',
+      bad_series, series_ids, bad_measurements, measurement_ids;
+  end if;
+
+  update public.timing_series s set school_id = b.school
+  from pg_temp.timing_backfill b where b.tbl = 'timing_series' and b.id = s.id;
+  update public.measurements m set school_id = b.school
+  from pg_temp.timing_backfill b where b.tbl = 'measurements' and b.id = m.id;
+end;
+$$;
+
+-- New functions are executable by PUBLIC by default; this one rewrites every row.
+revoke execute on function app.timing_backfill_school_ids() from public, anon, authenticated;
+
 -- The measurement triggers are off for the backfill: the column rule of
 -- measurements_check_update would refuse it, and the others would recompute
 -- hidden or the version, which must stay exactly as they were.
 alter table public.measurements disable trigger user;
-
-do $$
-declare
-  r record;
-  schools uuid[];
-begin
-  -- A series: every athlete with an assigned measurement in it must be in the school.
-  for r in select s.id, s.created_by from public.timing_series s loop
-    select array_agg(distinct sm.school_id) into schools
-    from public.school_memberships sm
-    where sm.user_id = r.created_by
-      and sm.role in ('coach', 'school_admin')
-      and not exists (
-        select 1 from public.measurements m
-        where m.series_id = r.id and m.athlete_id is not null
-          and not app.athlete_in_school(m.athlete_id, sm.school_id)
-      );
-    if coalesce(cardinality(schools), 0) <> 1 then
-      raise exception 'timing series % has % possible schools, not one: fix the data before this migration',
-        r.id, coalesce(cardinality(schools), 0);
-    end if;
-    update public.timing_series set school_id = schools[1] where id = r.id;
-  end loop;
-
-  -- A measurement of a series takes the series' school.
-  update public.measurements m set school_id = s.school_id
-  from public.timing_series s
-  where s.id = m.series_id;
-
-  -- A measurement without a series: the author's staff schools that hold its athlete.
-  for r in select m.id, m.created_by, m.athlete_id from public.measurements m where m.series_id is null loop
-    select array_agg(distinct sm.school_id) into schools
-    from public.school_memberships sm
-    where sm.user_id = r.created_by
-      and sm.role in ('coach', 'school_admin')
-      and app.athlete_in_school(r.athlete_id, sm.school_id);
-    if coalesce(cardinality(schools), 0) <> 1 then
-      raise exception 'measurement % has % possible schools, not one: fix the data before this migration',
-        r.id, coalesce(cardinality(schools), 0);
-    end if;
-    update public.measurements set school_id = schools[1] where id = r.id;
-  end loop;
-
-  -- Every measurement now has a school its author and its athlete belong to.
-  select m.id into r
-  from public.measurements m
-  where not exists (
-      select 1 from public.school_memberships sm
-      where sm.user_id = m.created_by and sm.school_id = m.school_id and sm.role in ('coach', 'school_admin')
-    )
-    or (m.athlete_id is not null and not app.athlete_in_school(m.athlete_id, m.school_id))
-  limit 1;
-  if found then
-    raise exception 'measurement % has an author or athlete outside the school of its series: fix the data before this migration', r.id;
-  end if;
-end;
-$$;
-
+select app.timing_backfill_school_ids();
 alter table public.measurements enable trigger user;
 
 alter table public.timing_series alter column school_id set not null;

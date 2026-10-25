@@ -6,7 +6,57 @@
 -- X and adult athlete Y are in schools A and B. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(33);
+
+-- The backfill of the migration (app.timing_backfill_school_ids) checks every
+-- row first and then fails once, naming how many rows have no single possible
+-- school and the first ids of each table. Run here, as the owner, before the
+-- fixtures below exist: rows stored without a school by an author who is staff
+-- of no school. Then the rows are removed and the columns are not null again.
+alter table public.timing_series alter column school_id drop not null;
+alter table public.measurements alter column school_id drop not null;
+insert into public.measurements
+  (id, created_by, kind, stroke, distance, pool, session_type, source, device_id, captured_at)
+values
+  ('29100000-0000-4000-8000-0000000009f1', '29100000-0000-4000-8000-0000000009a9', 'repetition',
+   'FR', '50m', 'SCM', 'training', 'screen_button', 'dev', '2026-10-20 08:00:00+00');
+select throws_ok(
+  'select app.timing_backfill_school_ids()',
+  'P0001',
+  'timing_school_id backfill: 0 timing_series without exactly one school (first 10: none); '
+    || '1 measurements without exactly one school (first 10: 29100000-0000-4000-8000-0000000009f1)',
+  'a measurement with no possible school fails the backfill, naming the count and its id'
+);
+insert into public.timing_series (id, created_by, stroke, distance, pool, session_type, device_id) values
+  ('29100000-0000-4000-8000-0000000009c1', '29100000-0000-4000-8000-0000000009a9', 'FR', '50m', 'SCM', 'training', 'dev');
+insert into public.measurements
+  (id, created_by, kind, series_id, arrival_position, stroke, distance, pool, session_type, source, device_id, captured_at)
+values
+  ('29100000-0000-4000-8000-0000000009f2', '29100000-0000-4000-8000-0000000009a9', 'repetition',
+   '29100000-0000-4000-8000-0000000009c1', 1, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev', '2026-10-20 08:00:00+00');
+select throws_ok(
+  'select app.timing_backfill_school_ids()',
+  'P0001',
+  'timing_school_id backfill: 1 timing_series without exactly one school (first 10: 29100000-0000-4000-8000-0000000009c1); '
+    || '2 measurements without exactly one school (first 10: 29100000-0000-4000-8000-0000000009f1, 29100000-0000-4000-8000-0000000009f2)',
+  'with a bad series and two bad measurements the backfill reports both counts and every id'
+);
+select ok(
+  not has_function_privilege('anon', 'app.timing_backfill_school_ids()', 'execute')
+    and not has_function_privilege('public', 'app.timing_backfill_school_ids()', 'execute'),
+  'anon and public cannot execute the backfill'
+);
+set local role authenticated;
+select throws_ok(
+  'select app.timing_backfill_school_ids()',
+  '42501', null,
+  'a signed-in client cannot execute the backfill'
+);
+reset role;
+delete from public.measurements where id::text like '29100000-0000-4000-8000-0000000009%';
+delete from public.timing_series where id = '29100000-0000-4000-8000-0000000009c1';
+alter table public.timing_series alter column school_id set not null;
+alter table public.measurements alter column school_id set not null;
 
 -- Users: coach and admin of A, coach and admin of B, guardian G of X, adult
 -- athlete Y, and coach W of both schools.
