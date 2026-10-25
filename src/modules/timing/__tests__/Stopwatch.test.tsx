@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { AccessibilityInfo, PixelRatio, StyleSheet, TextStyle, ViewStyle } from 'react-native';
+import { AccessibilityInfo, PixelRatio, StyleSheet } from 'react-native';
 
 import { colors, ThemeProvider } from '../../../core/theme';
 import { Stopwatch } from '../components/Stopwatch';
@@ -19,7 +19,7 @@ async function renderWatch(props: Partial<Props> = {}) {
 }
 
 const hidden = { includeHiddenElements: true };
-const styleOf = (element: Parameters<typeof StyleSheet.flatten>[0]): ViewStyle & TextStyle => StyleSheet.flatten(element) ?? {};
+const styleOf = (element: Parameters<typeof StyleSheet.flatten>[0]) => StyleSheet.flatten(element);
 
 // Jest reports a system font scale of 2: pin 1 so the layout only depends on the theme scale under test.
 beforeEach(() => jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1));
@@ -195,7 +195,7 @@ describe('Stopwatch stopped', () => {
       justifyContent: 'center',
       gap: 8,
     });
-    expect(styleOf(caption.props.style).flexShrink).toBe(1);
+    expect(styleOf(caption.props.style)?.flexShrink).toBe(1);
   });
 
   it('slower than the personal best: shows the difference without the tag', async () => {
@@ -246,7 +246,7 @@ describe('Stopwatch stopped actions layout', () => {
       </ThemeProvider>,
     );
 
-    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style).flexDirection).toBe('column');
+    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style)?.flexDirection).toBe('column');
     expect(order()).toBe('save-first');
   });
 
@@ -254,13 +254,13 @@ describe('Stopwatch stopped actions layout', () => {
     jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1.5);
     await renderWatch(props);
 
-    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style).flexDirection).toBe('column');
+    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style)?.flexDirection).toBe('column');
   });
 
   it('keeps the row just below the threshold', async () => {
     jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1.4);
     await renderWatch(props);
 
-    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style).flexDirection).toBe('row');
+    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style)?.flexDirection).toBe('row');
   });
 });
