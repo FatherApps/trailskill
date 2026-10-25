@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import { fontFamily, useTheme } from '../theme';
-import { formatTime, spokenTime, type Hundredths } from '../time';
+import { formatTime, personalBestDifference, spokenDifference, spokenTime, type Hundredths } from '../time';
 import { Icon } from './Icon';
 import { Tag } from './Tag';
 
@@ -18,6 +18,8 @@ export type TimeValueProps = {
   personalBest?: Hundredths | null;
   // Marks `value` as a new personal best with the "MP" tag.
   newPersonalBest?: boolean;
+  // Draws only the tag and the difference, for a layout that prints the time elsewhere (for example a large clock).
+  deltaOnly?: boolean;
 };
 
 // The row's label already says everything its children show.
@@ -38,21 +40,22 @@ export function TimeValue({
   completed = false,
   personalBest,
   newPersonalBest = false,
+  deltaOnly = false,
 }: TimeValueProps) {
   const { colors, space, typography } = useTheme();
 
   const isCompleted = value === null && completed;
   const showPb = value !== null && newPersonalBest;
-  const difference =
-    value !== null && typeof personalBest === 'number' && value !== personalBest ? value - personalBest : null;
+  const difference = personalBestDifference(value, personalBest);
   const faster = difference !== null && difference < 0;
 
   const spoken = [
-    value === null ? t(isCompleted ? 'time_value.completed_spoken' : 'time_value.not_recorded') : spokenTime(value),
-    difference !== null &&
-      t(faster ? 'time_value.delta_faster' : 'time_value.delta_slower', {
-        time: spokenTime(Math.abs(difference)),
-      }),
+    deltaOnly
+      ? null
+      : value === null
+        ? t(isCompleted ? 'time_value.completed_spoken' : 'time_value.not_recorded')
+        : spokenTime(value),
+    difference !== null && spokenDifference(difference),
     showPb && t('time_value.pb_spoken'),
   ]
     .filter(Boolean)
@@ -66,7 +69,9 @@ export function TimeValue({
     },
   ];
 
-  if (!isCompleted && difference === null && !showPb) {
+  if (deltaOnly && difference === null && !showPb) return null;
+
+  if (!deltaOnly && !isCompleted && difference === null && !showPb) {
     return (
       <Text accessibilityLabel={spoken} style={timeStyle}>
         {formatTime(value, { decimalSeparator })}
@@ -78,7 +83,7 @@ export function TimeValue({
 
   return (
     <View accessible accessibilityRole="text" accessibilityLabel={spoken} style={[styles.row, { gap: space[3] }]}>
-      {isCompleted ? (
+      {deltaOnly ? null : isCompleted ? (
         // The README text says ink-muted for "Completado"; its preview draws the outline tag, which is what is used.
         <View {...hiddenFromReaders}>
           <Tag variant="outline" icon="check" label={t('time_value.completed')} />

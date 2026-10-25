@@ -20,6 +20,82 @@ const base: SwimmerRowProps = {
 const rowStyle = (row: { props: { style?: unknown } }) => StyleSheet.flatten(row.props.style as never);
 const hiddenTexts = () => screen.queryAllByText(/./, { includeHiddenElements: true });
 
+describe('SwimmerRow time', () => {
+  const timed = { name: 'Lucía R.', initials: 'LR', color: 'athlete-1', detail: 'Infantil B' } as const;
+
+  it('draws the time on the right and announces it with its spoken prefix', async () => {
+    await render(<SwimmerRow {...timed} time={3391} timeLabel="Tiempo" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, Tiempo 33,91')).toBeOnTheScreen();
+    expect(screen.getByText('33,91', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('announces the time alone when there is no prefix', async () => {
+    await render(<SwimmerRow {...timed} time={3391} />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, 33,91')).toBeOnTheScreen();
+  });
+
+  it('shows a missing time as a dash and says it is missing, never 0,00', async () => {
+    await render(<SwimmerRow {...timed} time={null} timeLabel="Tiempo" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, Tiempo sin registrar')).toBeOnTheScreen();
+    expect(screen.getByText('—', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByText(/0,00/, { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('keeps announcing a best time as marca personal when no time is given', async () => {
+    await render(<SwimmerRow {...timed} bestTime={3482} timeLabel="Tiempo" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, marca personal 34,82')).toBeOnTheScreen();
+  });
+
+  it('lets the time win when both are given', async () => {
+    await render(<SwimmerRow {...timed} bestTime={3482} bestTimeLabel="MP 50 L" time={3391} timeLabel="Tiempo" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, Tiempo 33,91')).toBeOnTheScreen();
+    expect(screen.queryByText('34,82', { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByText('MP 50 L', { includeHiddenElements: true })).toBeNull();
+  });
+});
+
+describe('SwimmerRow difference against the personal best', () => {
+  const timed = { name: 'Lucía R.', initials: 'LR', color: 'athlete-1', detail: '', time: 3391, timeLabel: 'Tiempo' } as const;
+
+  it('shows the difference under the name and announces it, with the new personal best', async () => {
+    await render(<SwimmerRow {...timed} personalBest={3482} newPersonalBest />);
+
+    expect(
+      screen.getByLabelText(
+        'Lucía R., Tiempo 33,91, 91 centésimas menos que la marca personal, Marca personal',
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('−0,91 vs MP', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('33,91', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('shows and announces a slower time', async () => {
+    await render(<SwimmerRow {...timed} time={3522} personalBest={3482} />);
+
+    expect(
+      screen.getByLabelText('Lucía R., Tiempo 35,22, 40 centésimas más que la marca personal'),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('+0,40 vs MP', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('adds nothing without a personal best, with an equal one or without a time', async () => {
+    await render(<SwimmerRow {...timed} personalBest={null} />);
+    expect(screen.getByLabelText('Lucía R., Tiempo 33,91')).toBeOnTheScreen();
+    expect(screen.queryByText(/vs MP/, { includeHiddenElements: true })).toBeNull();
+
+    await render(<SwimmerRow {...timed} personalBest={3391} />);
+    expect(screen.queryAllByText(/vs MP/, { includeHiddenElements: true })).toHaveLength(0);
+
+    await render(<SwimmerRow {...timed} time={null} personalBest={3482} newPersonalBest />);
+    expect(screen.queryAllByText(/vs MP/, { includeHiddenElements: true })).toHaveLength(0);
+  });
+});
+
 describe('SwimmerRow', () => {
   it('is one accessible element with a composed label', async () => {
     await render(<SwimmerRow {...base} onPress={jest.fn()} />);
