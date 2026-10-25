@@ -57,7 +57,7 @@ export default function ConsoleRoute() {
           <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connected={connected} />
         ),
         settings: (props) => (
-          <CategoriesSection {...props} repository={categories} schoolId={schoolId} refreshKey={lastSyncedAt} />
+          <CategoriesSection {...props} repository={categories} schoolId={schoolId} refreshKey={lastSyncedAt?.getTime()} />
         ),
       }}
     />
