@@ -1,7 +1,7 @@
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
-import { SupabaseConnector } from '../../sync';
+import { db, SupabaseConnector } from '../../sync';
 import { CodeMismatchError, SessionProvider, signOutDecision, useSession } from '../SessionProvider';
 
 const mockCalls: string[] = [];
@@ -478,6 +478,53 @@ describe('local data on a shared phone', () => {
 
     expect(await screen.findByText(/ya se descartaron/)).toBeOnTheScreen();
     expect(screen.queryByText(/Siguen en el teléfono/)).toBeNull();
+  });
+
+  // The sheet after a discard that cleared the database but could not save the new owner.
+  async function renderIncompleteDiscard() {
+    mockOwner = 'coach-0';
+    mockUnsent = Promise.resolve(3);
+    mockOwnerWriteError = new Error('keystore unavailable');
+    await renderProbe();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Descartar registros' }));
+    await screen.findByText(/ya se descartaron/);
+  }
+
+  it('keeps saying the records were discarded when a later attempt fails before clearing', async () => {
+    await renderIncompleteDiscard();
+    jest.mocked(db.disconnectAndClear).mockClear();
+    mockOwnerWriteError = undefined;
+    mockClearError = new Error('disk full');
+
+    // The button label changes once the discard is incomplete: either label retries.
+    await fireEvent.press(screen.getByRole('button', { name: /Descartar registros|Intentar de nuevo/ }));
+
+    await waitFor(() => expect(db.disconnectAndClear).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/ya se descartaron/)).toBeOnTheScreen();
+    expect(screen.queryByText(/Siguen en el teléfono/)).toBeNull();
+  });
+
+  it('offers to finish discarding or sign out, not the previous person, once the records are gone', async () => {
+    await renderIncompleteDiscard();
+
+    expect(screen.getByRole('header', { name: '¿Terminar de descartar?' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Intentar de nuevo' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Ingresar como la persona anterior' })).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
+
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('finishes discarding from the incomplete sheet', async () => {
+    await renderIncompleteDiscard();
+    mockOwnerWriteError = undefined;
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(await screen.findByText('signed-in')).toBeOnTheScreen();
+    expect(mockOwner).toBe('coach-1');
   });
 });
 

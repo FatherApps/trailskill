@@ -29,7 +29,7 @@ describe('core/ui gallery entries', () => {
     expect(stateKeys('stepHeader')).toEqual(['first', 'middle', 'last']);
     expect(stateKeys('stateView')).toEqual(['loading', 'empty', 'empty-group', 'error', 'offline', 'denied']);
     expect(stateKeys('syncStatus')).toEqual(['on_device', 'sending', 'synced', 'not_sent', 'not_sent con mensaje']);
-    expect(stateKeys('confirmSheet')).toEqual(['stop', 'primary', 'signOut']);
+    expect(stateKeys('confirmSheet')).toEqual(['stop', 'primary', 'signOut', 'discardIncomplete', 'signOutOffline']);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
@@ -56,6 +56,8 @@ describe('core/ui gallery entries', () => {
     ['stop', '¿Descartar este tiempo?', 'Seguir revisando'],
     ['primary', '¿Confirmar la importación?', 'Revisar de nuevo'],
     ['signOut', '¿Cerrar sesión con registros sin enviar?', 'Seguir y enviar'],
+    ['discardIncomplete', '¿Terminar de descartar?', 'Cerrar sesión'],
+    ['signOutOffline', '¿Cerrar sesión con registros sin enviar?', 'Seguir y enviar'],
   ])('shows the %s confirm sheet only after pressing the button', async (state, title, cancel) => {
     await render(<ThemeProvider>{entryById('confirmSheet').states[state]()}</ThemeProvider>);
     expect(screen.queryByText(title)).toBeNull();

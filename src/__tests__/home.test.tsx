@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import Home from '../app/(app)/index';
 import { t } from '../core/i18n';
@@ -121,6 +121,37 @@ describe('sign out from home', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Cerrar sesión igual' }));
 
     expect(mockSignOut).toHaveBeenLastCalledWith({ force: true });
+  });
+
+  it('ignores a second press while signing out is in progress', async () => {
+    let finish: (result: { status: 'signed_out' }) => void = () => {};
+    mockSignOut.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    await render(<Home />);
+    const button = screen.getByRole('button', { name: 'Cerrar sesión' });
+
+    // Both presses land before React re-renders the button as loading, so only the handler itself can ignore the second (Pressable's onClick is the keyboard and accessibility press).
+    const click = () => button.props.onClick({ stopPropagation() {}, nativeEvent: {} });
+    await act(async () => {
+      click();
+      click();
+      finish({ status: 'signed_out' });
+    });
+
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [true, true],
+    [false, false],
+  ])('with sync connect failed %p the warning says records go out on reconnect: %p', async (connectFailed, shown) => {
+    mockSyncConnectFailed = connectFailed;
+    mockSignOut.mockResolvedValue({ status: 'blocked_pending', unsent: 3, rejected: 0 });
+    await render(<Home />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
+
+    await screen.findByRole('header', { name: pendingTitle });
+    expect(screen.queryByText(/los registros se envían cuando vuelva la conexión/) !== null).toBe(shown);
   });
 
   it('tells the person when signing out failed', async () => {
