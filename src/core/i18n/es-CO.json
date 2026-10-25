@@ -2,6 +2,19 @@
   "home": {
     "title": "TrailSkill"
   },
+  "auth": {
+    "email_title": "Ingresa a TrailSkill",
+    "email_label": "Correo electrónico",
+    "send_code": "Enviar código",
+    "request_failed_title": "No pudimos enviar el código",
+    "request_failed_message": "Revisa el correo y tu conexión, e inténtalo de nuevo.",
+    "code_title": "Escribe tu código",
+    "code_help": "Te enviamos un código de 6 dígitos a {{email}}.",
+    "code_label": "Código de 6 dígitos",
+    "code_mismatch": "Ese código no coincide. Revisa el último mensaje o pide uno nuevo.",
+    "verify_failed": "No pudimos revisar el código. Inténtalo de nuevo.",
+    "resend": "Pedir un código nuevo"
+  },
   "sport": {
     "stroke": {
       "FR": "Libre",

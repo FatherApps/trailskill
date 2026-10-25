@@ -1,0 +1,168 @@
+import { act, renderHook } from '@testing-library/react-native';
+
+import { SupabaseConnector } from '../../sync';
+import { CodeMismatchError, SessionProvider, signOutDecision, useSession } from '../SessionProvider';
+
+const mockCalls: string[] = [];
+let mockUnsent: Promise<number>;
+const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
+const mockSignInWithOtp = jest.fn();
+const mockVerifyOtp = jest.fn();
+
+jest.mock('../../sync', () => ({
+  countUnsentRecords: () => mockUnsent,
+  SupabaseConnector: jest.fn(),
+  db: {
+    connect: jest.fn(async () => mockCalls.push('db.connect')),
+    disconnectAndClear: jest.fn(async () => mockCalls.push('db.disconnectAndClear')),
+  },
+  supabase: {
+    auth: {
+      onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
+        callback('INITIAL_SESSION', mockSignedIn);
+        return { data: { subscription: { unsubscribe: jest.fn() } } };
+      },
+      signInWithOtp: (...args: unknown[]) => mockSignInWithOtp(...args),
+      verifyOtp: (...args: unknown[]) => mockVerifyOtp(...args),
+      signOut: jest.fn(async () => {
+        mockCalls.push('auth.signOut');
+        return { error: null };
+      }),
+    },
+  },
+}));
+
+beforeEach(() => {
+  mockCalls.length = 0;
+  mockUnsent = Promise.resolve(0);
+  mockSignInWithOtp.mockReset().mockResolvedValue({ error: null });
+  mockVerifyOtp.mockReset().mockResolvedValue({ error: null });
+});
+
+async function renderSession() {
+  const { result } = await renderHook(() => useSession(), { wrapper: SessionProvider });
+  return result;
+}
+
+describe('signOutDecision', () => {
+  it.each([
+    [0, false, 'proceed'],
+    [3, false, 'blocked_pending'],
+    [3, true, 'proceed'],
+  ] as const)('with %i unsent records and force %p decides %s', (pending, force, decision) => {
+    expect(signOutDecision(pending, force)).toBe(decision);
+  });
+});
+
+describe('useSession', () => {
+  it('connects the local database once a session exists', async () => {
+    const session = await renderSession();
+
+    expect(session.current.session).toBe(mockSignedIn);
+    expect(mockCalls).toEqual(['db.connect']);
+    expect(SupabaseConnector).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests a code without creating accounts', async () => {
+    const session = await renderSession();
+
+    await session.current.requestCode('ana@example.com');
+
+    expect(mockSignInWithOtp).toHaveBeenCalledWith({
+      email: 'ana@example.com',
+      options: { shouldCreateUser: false },
+    });
+  });
+
+  it('rejects requestCode with the Supabase error', async () => {
+    const failure = { code: 'over_email_send_rate_limit', message: 'slow down' };
+    mockSignInWithOtp.mockResolvedValue({ error: failure });
+    const session = await renderSession();
+
+    await expect(session.current.requestCode('ana@example.com')).rejects.toBe(failure);
+  });
+
+  it('verifies the emailed code', async () => {
+    const session = await renderSession();
+
+    await session.current.verifyCode('ana@example.com', '123456');
+
+    expect(mockVerifyOtp).toHaveBeenCalledWith({ email: 'ana@example.com', token: '123456', type: 'email' });
+  });
+
+  it('turns a wrong or expired code into CodeMismatchError', async () => {
+    mockVerifyOtp.mockResolvedValue({ error: { code: 'otp_expired', message: 'Token has expired or is invalid' } });
+    const session = await renderSession();
+
+    await expect(session.current.verifyCode('ana@example.com', '000000')).rejects.toBeInstanceOf(CodeMismatchError);
+  });
+
+  it('rethrows any other verification error as is', async () => {
+    const failure = { code: 'unexpected_failure', message: 'boom' };
+    mockVerifyOtp.mockResolvedValue({ error: failure });
+    const session = await renderSession();
+
+    await expect(session.current.verifyCode('ana@example.com', '123456')).rejects.toBe(failure);
+  });
+});
+
+describe('signOut', () => {
+  it('with force clears the local database before ending the session', async () => {
+    mockUnsent = Promise.resolve(3);
+    const session = await renderSession();
+    mockCalls.length = 0;
+
+    let outcome: string | undefined;
+    await act(async () => {
+      outcome = await session.current.signOut({ force: true });
+    });
+
+    expect(outcome).toBe('signed_out');
+    expect(mockCalls).toEqual(['db.disconnectAndClear', 'auth.signOut']);
+  });
+
+  it('without force and with unsent records keeps the session and the local data', async () => {
+    mockUnsent = Promise.resolve(3);
+    const session = await renderSession();
+    mockCalls.length = 0;
+
+    let outcome: string | undefined;
+    await act(async () => {
+      outcome = await session.current.signOut();
+    });
+
+    expect(outcome).toBe('blocked_pending');
+    expect(mockCalls).toEqual([]);
+  });
+
+  it('without unsent records signs out', async () => {
+    const session = await renderSession();
+    mockCalls.length = 0;
+
+    let outcome: string | undefined;
+    await act(async () => {
+      outcome = await session.current.signOut();
+    });
+
+    expect(outcome).toBe('signed_out');
+    expect(mockCalls).toEqual(['db.disconnectAndClear', 'auth.signOut']);
+  });
+
+  it('waits for the unsent count to load instead of deciding on a placeholder', async () => {
+    let resolveCount: (count: number) => void = () => {};
+    mockUnsent = new Promise((resolve) => (resolveCount = resolve));
+    const session = await renderSession();
+    mockCalls.length = 0;
+
+    let outcome: Promise<string> | undefined;
+    await act(async () => {
+      outcome = session.current.signOut();
+    });
+    expect(mockCalls).toEqual([]);
+
+    await act(async () => resolveCount(3));
+
+    expect(await outcome).toBe('blocked_pending');
+    expect(mockCalls).toEqual([]);
+  });
+});
