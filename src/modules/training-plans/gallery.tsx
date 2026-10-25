@@ -8,11 +8,12 @@ import { BlockCard } from './components/BlockCard';
 import { blockErrors, newDraftBlock, type BlockErrors, type DraftBlock } from './draft';
 import { plansFixture } from './__fixtures__/plans';
 import { PlanBuilderScreen } from './screens/PlanBuilderScreen';
+import { PlanListScreen, type PlanListView } from './screens/PlanListScreen';
 import { TodayScreen, type TodayView } from './screens/TodayScreen';
 import type { BlockPhase, BlockRecording } from './types';
 
 const noop = () => {};
-const { vocabulary, blocks, today, athleteName, storedOnLabel } = plansFixture;
+const { vocabulary, blocks, today, athleteName, storedOnLabel, planList } = plansFixture;
 
 // The preview box shrinks its children; a screen fills a phone-like area instead, and its own ScrollView scrolls.
 function ScreenFrame({ children }: { children: ReactNode }) {
@@ -101,6 +102,14 @@ function TodayPreview({ view }: { view: TodayView }) {
   );
 }
 
+function PlanListPreview({ view }: { view: PlanListView }) {
+  return (
+    <ScreenFrame>
+      <PlanListScreen view={view} onNewPlan={noop} onUseTemplate={noop} onOpenPlan={noop} />
+    </ScreenFrame>
+  );
+}
+
 export const galleryEntries: GalleryEntry[] = [
   {
     id: 'blockCard',
@@ -142,6 +151,17 @@ export const galleryEntries: GalleryEntry[] = [
       drill: () => <BuilderPreview initial={blocks} initialEditingId={blocks[2].id} />,
       removing: () => <BuilderPreview initial={blocks} initialRemovingId={blocks[1].id} />,
       saved: () => <BuilderPreview initial={blocks} savedMessage />,
+    },
+  },
+  {
+    id: 'planList',
+    title: 'PlanListScreen',
+    states: {
+      data: () => <PlanListPreview view={{ kind: 'data', ...planList }} />,
+      empty: () => <PlanListPreview view={{ kind: 'data', templates: [], plans: [] }} />,
+      loading: () => <PlanListPreview view={{ kind: 'loading' }} />,
+      error: () => <PlanListPreview view={{ kind: 'error', onRetry: noop }} />,
+      'no-school': () => <PlanListPreview view={{ kind: 'no_school' }} />,
     },
   },
   {

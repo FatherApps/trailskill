@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -56,6 +56,7 @@ export default function Home() {
       <Text>{t('home.title')}</Text>
       <SyncStatus state={state} />
       {syncConnectFailed && <Text accessibilityLiveRegion="polite">{t('sync.connect_failed')}</Text>}
+      <Button label={t('home.plans')} onPress={() => router.push('/plans')} />
       <Button variant="secondary" label={t('session.sign_out')} onPress={() => signOutWith(false)} loading={signingOut} />
       {signOutFailed && <Text accessibilityLiveRegion="polite">{t('session.sign_out_failed')}</Text>}
       {__DEV__ && <Link href="/gallery">{t('dev.gallery.open')}</Link>}

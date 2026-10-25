@@ -11,10 +11,11 @@ const cases = galleryEntries.flatMap((e) =>
 );
 
 describe('training-plans gallery entries', () => {
-  it('cover the block card, the plan builder and the today view', () => {
-    expect(galleryEntries.map((e) => e.id)).toEqual(['blockCard', 'planBuilder', 'today']);
+  it('cover the block card, the plan builder, the plan list and the today view', () => {
+    expect(galleryEntries.map((e) => e.id)).toEqual(['blockCard', 'planBuilder', 'planList', 'today']);
     expect(Object.keys(entry('blockCard').states)).toEqual(['phases', 'recordings']);
     expect(Object.keys(entry('planBuilder').states)).toEqual(['empty', 'blocks', 'editing', 'errors', 'drill', 'removing', 'saved']);
+    expect(Object.keys(entry('planList').states)).toEqual(['data', 'empty', 'loading', 'error', 'no-school']);
     expect(Object.keys(entry('today').states)).toEqual([
       'today',
       'loading',
@@ -46,6 +47,12 @@ describe('training-plans gallery entries', () => {
     ['planBuilder', 'drill', 'Ejercicio técnico'],
     ['planBuilder', 'removing', '¿Quitar este bloque?'],
     ['planBuilder', 'saved', 'Plan guardado.'],
+    ['planList', 'data', 'Sesión de velocidad'],
+    ['planList', 'data', 'Semana de afinación'],
+    ['planList', 'empty', 'Crea el primer plan o usa una plantilla.'],
+    ['planList', 'loading', 'Planes de entrenamiento'],
+    ['planList', 'error', 'No pudimos cargar los planes'],
+    ['planList', 'no-school', 'Aún no tienes una escuela'],
     ['today', 'today', 'Lleva hoy'],
     ['today', 'loading', 'Hoy'],
     ['today', 'empty', 'Hoy no hay plan'],

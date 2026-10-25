@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 
 import { BlockCard } from '../components/BlockCard';
 import { newDraftBlock } from '../draft';
+import { PlanListScreen } from '../screens/PlanListScreen';
 import { PlanBuilderScreen } from '../screens/PlanBuilderScreen';
 import { TodayScreen } from '../screens/TodayScreen';
 import { plansFixture } from '../__fixtures__/plans';
@@ -71,6 +72,12 @@ describe('src/modules/training-plans rules', () => {
           onRemoveBlock={noop}
           onSave={noop}
           onSaveTemplate={noop}
+        />
+        <PlanListScreen
+          view={{ kind: 'data', ...plansFixture.planList, copyFailed: true }}
+          onNewPlan={noop}
+          onUseTemplate={noop}
+          onOpenPlan={noop}
         />
         <TodayScreen athleteName="Lucía R." view={{ kind: 'data', content: today }} onReportToCoach={noop} />
       </>,

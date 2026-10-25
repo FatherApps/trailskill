@@ -18,6 +18,8 @@ export type {
   VocabularyOption,
 } from './types';
 export { PlanEditorScreen, type PlanEditorScreenProps } from './screens/PlanEditorScreen';
+export { PlansScreen, type PlansScreenProps } from './screens/PlansScreen';
+export { PlanListScreen, type PlanListScreenProps, type PlanListView } from './screens/PlanListScreen';
 export { planVocabulary } from './vocabulary';
 export { galleryEntries } from './gallery';
 export { createInMemoryTrainingPlanRepository } from './data/inMemoryTrainingPlanRepository';

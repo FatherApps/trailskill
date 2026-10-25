@@ -1,3 +1,4 @@
+import type { PlanSummary } from '../data/plans';
 import type { TodayBlock } from '../screens/TodayScreen';
 import type { PlanBlock, PlanVocabulary } from '../types';
 import { planVocabulary } from '../vocabulary';
@@ -22,7 +23,20 @@ const todayBlocks: TodayBlock[] = [
   { block: blocks[4], status: 'done', times: [9840] },
 ];
 
+const planList: { templates: PlanSummary[]; plans: PlanSummary[] } = {
+  templates: [
+    { id: 't1', name: 'Sesión de velocidad', isTemplate: true },
+    { id: 't2', name: 'Técnica de espalda', isTemplate: true },
+  ],
+  plans: [
+    { id: 'p1', name: 'Resistencia aeróbica', isTemplate: false },
+    { id: 'p2', name: 'Semana de afinación', isTemplate: false },
+    { id: 'p3', name: 'Técnica de pecho', isTemplate: false },
+  ],
+};
+
 export const plansFixture = {
+  planList,
   vocabulary,
   blocks,
   today: { planName: 'Resistencia aeróbica', blocks: todayBlocks, vocabulary },

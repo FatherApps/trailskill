@@ -76,7 +76,8 @@
     "error_message": "Revisa tu conexión e inténtalo de nuevo.",
     "retry": "Intentar de nuevo",
     "no_school_title": "Aún no tienes una escuela",
-    "no_school_message": "Para crear planes necesitas pertenecer a una escuela. Pídele al administrador que te agregue."
+    "no_school_message": "Para crear planes necesitas pertenecer a una escuela. Pídele al administrador que te agregue.",
+    "list_error_title": "No pudimos cargar los planes"
   },
   "today": {
     "title": "Hoy",
@@ -103,5 +104,16 @@
     "rep": "Rep. {{n}}",
     "series_total": "Total serie",
     "report": "Avisar algo al entrenador"
+  },
+  "list": {
+    "title": "Planes de entrenamiento",
+    "new": "Plan nuevo",
+    "templates": "Plantillas",
+    "plans": "Planes",
+    "use_template": "Crear plan",
+    "edit": "Editar",
+    "empty_title": "Aún no hay planes",
+    "empty_message": "Crea el primer plan o usa una plantilla.",
+    "copy_failed": "No pudimos crear el plan. Inténtalo de nuevo."
   }
 }
