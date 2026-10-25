@@ -36,7 +36,7 @@ Organization `fatherApps`, project `TrailSkill`.
 
 On. Dokploy's GitHub App sends push events to `https://trailskill-deploy.tuls.app/api/deploy/github`, and Dokploy verifies the GitHub signature. The `deploy` compose has auto deploy on for branch `main` with watch paths `deploy/**`, `supabase/**` and `powersync/**`, so app-only changes do not redeploy it.
 
-What a deploy does: it re-clones `main` and recreates the services. `migrate` runs first (pending migrations, grants, optional seed). `powersync` starts only if `migrate` exits 0, so a failing migration leaves PowerSync stopped until a fix is merged.
+What a deploy does: it re-clones `main` and recreates the services. `migrate` runs first (pending migrations, grants, optional seed). `powersync` starts only if `migrate` exits 0, so a failing migration leaves PowerSync stopped until a fix is merged. `powersync` is built from the pinned image with `powersync/sync-config.yaml` copied in, so a deploy that changes only that file recreates `powersync`, which logs `Sync config updated` and applies the new Sync Streams without a manual restart. An unchanged file reuses the cached image and leaves `powersync` running.
 
 Accepted risk (maintainer, 2026-10-25): `main` has no GitHub ruleset (Free plan), only the pre-push hook and the PR flow. Any push to `main` runs on the server. When the organization moves to GitHub Team, add the ruleset and CODEOWNERS for `deploy/**` and `supabase/**`.
 
@@ -70,7 +70,7 @@ Set them in the environment of this Compose service in Dokploy.
 | `APPLY_SEED` | `false` | `true` applies `supabase/seed.sql` once (development only) | Set by hand |
 | `DOKPLOY_NETWORK` | `dokploy-network` | Traefik network, used only so `powersync` can be routed | Change only for tests |
 
-Dokploy writes these variables to `deploy/.env` in the clone, so each service mounts only what it needs: `powersync` gets `deploy/powersync` and `powersync/`, `migrate` gets `deploy/scripts` and `supabase/`. Never mount the repository root.
+Dokploy writes these variables to `deploy/.env` in the clone, so each service mounts only what it needs: `powersync` mounts `deploy/powersync` (`powersync/sync-config.yaml` is copied into its image; the build context is `powersync/` only), `migrate` gets `deploy/scripts` and `supabase/`. Never mount the repository root.
 
 Passwords go inside connection URIs, so they must be URL-safe: letters and digits only (for example `openssl rand -hex 24`).
 
@@ -118,7 +118,7 @@ PowerSync logs replication errors (`Publication 'powersync' does not exist`) unt
 
 ## Sync config
 
-PowerSync loads the Sync Streams in [`powersync/sync-config.yaml`](../powersync/sync-config.yaml), mounted read-only at `/sync`. Every deploy picks up the version on `main`; on start the `powersync` logs show `Loaded sync config`. Leave `PS_SYNC_CONFIG_PATH` unset in Dokploy unless you need another file inside the container.
+PowerSync loads the Sync Streams in [`powersync/sync-config.yaml`](../powersync/sync-config.yaml), copied into the `powersync` image at `/sync`. Every deploy picks up the version on `main`; on start the `powersync` logs show `Loaded sync config`, plus `Sync config updated` when the file changed or `Sync config unchanged` when it did not. Leave `PS_SYNC_CONFIG_PATH` unset in Dokploy unless you need another file inside the container.
 
 ## Tests
 
@@ -126,5 +126,5 @@ Both need Docker and are safe to run locally (random names, synthetic data, clea
 
 ```sh
 sh deploy/scripts/migrate.test.sh   # migrate.sh against a temporary Postgres
-sh deploy/scripts/smoke.test.sh     # compose up with a stand-in database; PowerSync liveness and Sync Streams load
+sh deploy/scripts/smoke.test.sh     # compose up with a stand-in database; PowerSync liveness and Sync Streams load; a sync config change restarts PowerSync
 ```
