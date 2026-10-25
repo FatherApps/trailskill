@@ -6,6 +6,7 @@ import { fontFamily, useTheme, type ColorToken } from '../../../core/theme';
 import { formatTime, spokenTime, type Hundredths } from '../../../core/time';
 import { Icon, TimeValue } from '../../../core/ui';
 import '../i18n';
+import { formatDate } from './formatDate';
 import { distanceLabel, poolLabel, strokeLabel } from './sportLabel';
 
 export type PersonalBestProps = {
@@ -22,19 +23,6 @@ export type PersonalBestProps = {
 
 export const personalBestColors: { background: ColorToken; caption: ColorToken; time: ColorToken; delta: ColorToken } =
   { background: 'surface-1', caption: 'ink-muted', time: 'ink', delta: 'success' };
-
-// Hermes' Intl support for es-CO is not guaranteed, so months come from translations; returns null for a malformed date.
-function formatDate(iso: string, style: 'short' | 'long'): string | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!match) return null;
-  const month = Number(match[2]);
-  if (month < 1 || month > 12) return null;
-  return t(`athletes.date.${style}`, {
-    day: Number(match[3]),
-    month: t(`athletes.date.month_${style}.${month}`),
-    year: match[1],
-  });
-}
 
 // The label already says everything its children show.
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
