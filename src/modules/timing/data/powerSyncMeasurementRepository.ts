@@ -1,5 +1,5 @@
 import { db, editRecord, writeRecord } from '../../../core/sync';
-import { assertEditableTime, type Measurement, type MeasurementRepository } from './measurements';
+import { assertEditableTime, DiscardedMeasurementError, type Measurement, type MeasurementRepository } from './measurements';
 
 type MeasurementRow = {
   id: string;
@@ -21,6 +21,8 @@ type MeasurementRow = {
   edited_by: string | null;
   edited_at: string | null;
   edit_reason: string | null;
+  discarded_at: string | null;
+  discarded_by: string | null;
 };
 
 // Rows are trusted: the server enforces the kind/hundredths rule, so the union is restored by cast.
@@ -77,7 +79,12 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
     },
     async edit(id, { hundredths, athleteId }, { deviceId, editReason }) {
       // kind is not editable, so reading it before the edit cannot race; a missing row is left to editRecord to reject.
-      const [stored] = await db.getAll<{ kind: Measurement['kind'] }>('SELECT kind FROM measurements WHERE id = ?', [id]);
+      const [stored] = await db.getAll<{ kind: Measurement['kind']; discarded_at: string | null }>(
+        'SELECT kind, discarded_at FROM measurements WHERE id = ?',
+        [id],
+      );
+      // The server would refuse it for good (a permanent upload failure), so nothing is written.
+      if (stored?.discarded_at) throw new DiscardedMeasurementError('A discarded arrival cannot change');
       if (stored) assertEditableTime(stored.kind, hundredths);
       await editRecord(
         'measurements',
@@ -93,14 +100,14 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
     async listBySeries(seriesId) {
       // `IS NULL` sorts first in SQLite; the flag puts unplaced arrivals last, like the in-memory repository.
       const rows = await db.getAll<MeasurementRow>(
-        'SELECT * FROM measurements WHERE series_id = ? ORDER BY arrival_position IS NULL, arrival_position',
+        'SELECT * FROM measurements WHERE series_id = ? AND discarded_at IS NULL ORDER BY arrival_position IS NULL, arrival_position',
         [seriesId],
       );
       return rows.map(toMeasurement);
     },
     async listByAthleteEvent(athleteId, { stroke, distance, pool }) {
       const rows = await db.getAll<MeasurementRow>(
-        'SELECT * FROM measurements WHERE athlete_id = ? AND stroke = ? AND distance = ? AND pool = ? ORDER BY captured_at DESC, id',
+        'SELECT * FROM measurements WHERE athlete_id = ? AND discarded_at IS NULL AND stroke = ? AND distance = ? AND pool = ? ORDER BY captured_at DESC, id',
         [athleteId, stroke, distance, pool],
       );
       return rows.map(toMeasurement);
@@ -109,13 +116,13 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
       if (athleteIds.length === 0) return [];
       // The ids travel as one JSON parameter, so a big school never hits SQLite's parameter limit.
       const rows = await db.getAll<MeasurementRow>(
-        'SELECT * FROM measurements WHERE athlete_id IN (SELECT value FROM json_each(?)) AND stroke = ? AND distance = ? AND pool = ? ORDER BY captured_at DESC, id',
+        'SELECT * FROM measurements WHERE athlete_id IN (SELECT value FROM json_each(?)) AND discarded_at IS NULL AND stroke = ? AND distance = ? AND pool = ? ORDER BY captured_at DESC, id',
         [JSON.stringify(athleteIds), stroke, distance, pool],
       );
       return rows.map(toMeasurement);
     },
     async listByAthlete(athleteId) {
-      const rows = await db.getAll<MeasurementRow>('SELECT * FROM measurements WHERE athlete_id = ? ORDER BY captured_at DESC, id', [athleteId]);
+      const rows = await db.getAll<MeasurementRow>('SELECT * FROM measurements WHERE athlete_id = ? AND discarded_at IS NULL ORDER BY captured_at DESC, id', [athleteId]);
       return rows.map(toMeasurement);
     },
     async countCapturedSince(athleteIds, since) {
@@ -123,7 +130,7 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
       // julianday compares moments: synced rows may use a space instead of 'T' between date and time.
       // The ids travel as one JSON parameter, so a big school never hits SQLite's parameter limit.
       const [row] = await db.getAll<{ total: number }>(
-        'SELECT COUNT(*) AS total FROM measurements WHERE athlete_id IN (SELECT value FROM json_each(?)) AND julianday(captured_at) >= julianday(?)',
+        'SELECT COUNT(*) AS total FROM measurements WHERE athlete_id IN (SELECT value FROM json_each(?)) AND discarded_at IS NULL AND julianday(captured_at) >= julianday(?)',
         [JSON.stringify(athleteIds), since],
       );
       return row?.total ?? 0;

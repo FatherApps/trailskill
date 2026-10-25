@@ -102,9 +102,9 @@
       "all_assigned": "Todas las posiciones tienen nombre.",
       "whose": "¿De quién es?",
       "save": "Guardar serie",
-      "exit_title": "¿Descartar la serie?",
-      "exit_message": "Las llegadas de esta serie no se guardarán. No se puede recuperar.",
-      "exit_confirm": "Descartar serie",
+      "exit_title": "¿Salir de la serie?",
+      "exit_message": "Las llegadas ya están guardadas en este teléfono y quedan \"por asignar\".",
+      "exit_confirm": "Salir de la serie",
       "exit_cancel": "Seguir midiendo",
       "not_completed": "Sin completar",
       "completed_for": "Completado, {{name}}"

@@ -1,11 +1,12 @@
 import { randomUUID } from 'expo-crypto';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { t } from '../../../core/i18n';
+import { useRecordSyncStates } from '../../../core/sync';
 import { hundredthsFromNanos, type Hundredths } from '../../../core/time';
 import { ConfirmSheet, StateView } from '../../../core/ui';
 import type { Measurement } from '../data/measurements';
-import type { SeriesRepository } from '../data/series';
+import type { SeriesRecord, SeriesRepository } from '../data/series';
 import type { SessionSetupRepository } from '../data/sessionSetup';
 import { arrivals, assignHighlighted, press, readySeries, reopen, undoLastArrival, type Series } from '../domain/series';
 import '../i18n';
@@ -31,6 +32,24 @@ export type SeriesTimingFlowProps = {
 
 type Step = { kind: 'setup' } | { kind: 'timing'; queue: RosterAthlete[] } | { kind: 'assign'; queue: RosterAthlete[] };
 
+// The series being timed. It lives in a ref so each touch reads and writes the latest value at once; `commit` redraws the screen.
+type Session = {
+  series: Series;
+  // The measurement id of each arrival of `series`, in order.
+  ids: string[];
+  seriesId: string | null;
+  // Whether the series row is on the phone already; the first arrival that gets written opens it.
+  opened: boolean;
+  // Arrivals not written yet, or whose write failed: they are written again when the series is saved.
+  unsaved: Map<string, Measurement>;
+  // Undone arrivals whose discard has not gone through yet: tried again on save and on exit.
+  discards: Set<string>;
+  // Writes run one after another, so the series row always goes first and an undo comes after its arrival.
+  writes: Promise<void>;
+};
+
+const newSession = (): Session => ({ series: readySeries, ids: [], seriesId: null, opened: false, unsaved: new Map(), discards: new Set(), writes: Promise.resolve() });
+
 const TICK_MS = 50;
 const clock = () => BigInt(Math.round(performance.now() * 1e6));
 
@@ -42,9 +61,20 @@ export function SeriesTimingFlow(props: SeriesTimingFlowProps) {
 function SeriesSession({ subtitle, roster, series: repository, setups, userId, deviceId, now = clock, offline, onExit }: SeriesTimingFlowProps & { roster: RosterAthlete[] }) {
   const { choice, selectedIds, ready, changeChoice, changeSelected } = useSessionSetup(setups, roster);
   const [step, setStep] = useState<Step>({ kind: 'setup' });
+  const session = useRef<Session>(newSession());
   const [series, setSeries] = useState<Series>(readySeries);
+  const [ids, setIds] = useState<string[]>([]);
   const [exitConfirm, setExitConfirm] = useState(false);
   const [, setTick] = useState(0);
+
+  const commit = () => {
+    setSeries(session.current.series);
+    setIds(session.current.ids);
+  };
+  const reset = () => {
+    session.current = newSession();
+    commit();
+  };
 
   const running = series.status === 'running' && step.kind === 'timing';
   useEffect(() => {
@@ -53,12 +83,99 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
     return () => clearInterval(timer);
   }, [running]);
 
+  const syncStates = useRecordSyncStates('measurements', ids);
   const eventSubtitle = eventSubtitleOf(choice);
   const positions = arrivals(series);
   const toSetup = () => {
-    setSeries(readySeries);
+    reset();
     setExitConfirm(false);
     setStep({ kind: 'setup' });
+  };
+
+  // Writes one arrival on the phone. A failed write stays in `unsaved` (nothing is logged with the times: personal data) and is tried again on save.
+  async function write(s: Session, arrival: Measurement) {
+    if (!s.unsaved.has(arrival.id)) return;
+    try {
+      if (s.opened) await repository.addArrival(arrival);
+      else await repository.open({ id: s.seriesId, createdBy: userId, deviceId, ...choice } as SeriesRecord, arrival);
+      s.opened = true;
+      s.unsaved.delete(arrival.id);
+    } catch {
+      // Kept in `unsaved`.
+    }
+  }
+
+  async function discard(s: Session, id: string) {
+    if (!s.discards.has(id)) return;
+    try {
+      await repository.discardArrival(id, userId);
+      s.discards.delete(id);
+    } catch {
+      // Kept in `discards`.
+    }
+  }
+
+  // Everything still pending: arrivals whose write failed and discards that failed. Each is tried once more.
+  async function flush(s: Session) {
+    await s.writes;
+    for (const arrival of [...s.unsaved.values()]) await write(s, arrival);
+    for (const id of [...s.discards]) await discard(s, id);
+  }
+
+  // The arrival at the instant `at`, the monotonic mark of the touch. The on-screen button calls it with the clock; an external button can call it with its own mark.
+  const arriveAt = (at: bigint) => {
+    const s = session.current;
+    const next = press(s.series, at);
+    // A mark earlier than the last one is ignored.
+    if (next === s.series) return;
+    const before = arrivals(s.series).length;
+    s.series = next;
+    const list = arrivals(next);
+    // The first press only starts the shared clock; every later one is an arrival and goes to the phone right now.
+    if (list.length > before) {
+      const { position, time } = list[list.length - 1]!;
+      s.seriesId ??= randomUUID();
+      const id = randomUUID();
+      s.ids = [...s.ids, id];
+      const arrival = {
+        id,
+        kind: kindOf(choice),
+        athleteId: null,
+        seriesId: s.seriesId,
+        arrivalPosition: position,
+        // An arrival at the very instant of the start has no usable time: it is saved without one, never as zero.
+        hundredths: time > 0 ? time : null,
+        stroke: choice.stroke,
+        distance: choice.distance,
+        pool: choice.pool,
+        sessionType: choice.sessionType,
+        source: 'screen_button',
+        createdBy: userId,
+        deviceId,
+        capturedAt: new Date().toISOString(),
+        parentId: null,
+        version: 1,
+        editedBy: null,
+        editedAt: null,
+        editReason: null,
+      } as Measurement;
+      s.unsaved.set(id, arrival);
+      s.writes = s.writes.then(() => write(s, arrival));
+    }
+    commit();
+  };
+
+  // Takes the last arrival off the screen and marks it discarded on the phone. If its write never succeeded there is nothing to discard.
+  const undoLast = () => {
+    const s = session.current;
+    const id = s.ids[s.ids.length - 1];
+    if (!id) return;
+    s.series = undoLastArrival(s.series);
+    s.ids = s.ids.slice(0, -1);
+    s.unsaved.delete(id);
+    s.discards.add(id);
+    s.writes = s.writes.then(() => discard(s, id));
+    commit();
   };
 
   if (step.kind === 'setup') {
@@ -86,13 +203,16 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
           athleteCount={step.queue.length}
           eventSubtitle={eventSubtitle}
           elapsedHundredths={elapsed}
-          arrivals={positions.map(({ position, time }) => ({ id: `arrival-${position}`, time }))}
+          arrivals={positions.map(({ position, time }) => {
+            const id = ids[position - 1]!;
+            return { id, time, syncState: syncStates.get(id) ?? 'on_device' };
+          })}
+          running={running}
           offline={offline}
-          // The first press starts the shared clock; every later one is an arrival.
-          onArrival={() => setSeries((current) => press(current, now()))}
-          onUndoLast={() => setSeries(undoLastArrival)}
+          onArrival={() => arriveAt(now())}
+          onUndoLast={undoLast}
           onAssignNames={() => setStep({ kind: 'assign', queue: step.queue })}
-          // Leaving with arrivals would lose them: the container asks first.
+          // Leaving with arrivals keeps them on the phone as "por asignar"; the container asks first.
           onBack={() => (positions.length === 0 ? toSetup() : setExitConfirm(true))}
         />
         <ConfirmSheet
@@ -101,46 +221,31 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
           message={t('timing.series.exit_message')}
           confirmLabel={t('timing.series.exit_confirm')}
           cancelLabel={t('timing.series.exit_cancel')}
-          destructive
-          onConfirm={toSetup}
+          onConfirm={async () => {
+            // Leaving must not drop an arrival whose write failed: one more try, then out.
+            await flush(session.current).catch(() => {});
+            toSetup();
+          }}
           onCancel={() => setExitConfirm(false)}
         />
       </>
     );
   }
 
+  // The arrivals are on the phone already: saving writes the names and any arrival whose write had failed, then the next series is ready.
   async function save() {
-    const seriesId = randomUUID();
-    const base = {
-      seriesId,
-      stroke: choice.stroke,
-      distance: choice.distance,
-      pool: choice.pool,
-      sessionType: choice.sessionType,
-      source: 'screen_button',
-      createdBy: userId,
-      deviceId,
-      capturedAt: new Date().toISOString(),
-      parentId: null,
-      version: 1,
-      editedBy: null,
-      editedAt: null,
-      editReason: null,
-    } as const;
+    const s = session.current;
     try {
-      await repository.save(
-        { id: seriesId, createdBy: userId, deviceId, ...choice } as Parameters<SeriesRepository['save']>[0],
-        // An arrival at the very instant of the start has no usable time: it is saved without one, never as zero.
-        positions.map(
-          ({ position, time, athleteId }) =>
-            ({ ...base, id: randomUUID(), kind: kindOf(choice), athleteId, arrivalPosition: position, hundredths: time > 0 ? time : null }) as Measurement,
-        ),
-      );
+      await flush(s);
+      if (s.unsaved.size > 0 || s.discards.size > 0) return;
+      const assignments = arrivals(s.series).flatMap(({ position, athleteId }) => (athleteId ? [{ id: s.ids[position - 1]!, athleteId }] : []));
+      await repository.assign(assignments, { deviceId });
     } catch {
-      // Nothing is logged with the times (personal data); the series stays on screen so it can be saved again.
+      // The assignment stays on screen so it can be saved again.
       return;
     }
-    toSetup();
+    reset();
+    setStep({ kind: 'timing', queue: step.kind === 'assign' ? step.queue : [] });
   }
 
   return (
@@ -149,14 +254,17 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
       athletes={step.queue}
       eventSubtitle={eventSubtitle}
       offline={offline}
-      onAssign={(athleteId) =>
+      onAssign={(athleteId) => {
         // A duplicate or a full list changes nothing: the cards already show who has a position.
-        setSeries((current) => {
-          const result = assignHighlighted(current, athleteId);
-          return result.ok ? result.series : current;
-        })
-      }
-      onReopen={(position) => setSeries((current) => reopen(current, position))}
+        const result = assignHighlighted(session.current.series, athleteId);
+        if (!result.ok) return;
+        session.current.series = result.series;
+        commit();
+      }}
+      onReopen={(position) => {
+        session.current.series = reopen(session.current.series, position);
+        commit();
+      }}
       onSave={save}
       onBack={() => setStep({ kind: 'timing', queue: step.queue })}
     />
