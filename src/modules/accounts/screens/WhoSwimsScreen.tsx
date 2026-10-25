@@ -47,7 +47,11 @@ export function WhoSwimsScreen({ initialChoice, invitation, onSelect, onBack }: 
   }
 
   return (
-    <ScreenFrame title={t('accounts.create_title')} subtitle={invitation?.school}>
+    <ScreenFrame
+      title={t('accounts.create_title')}
+      subtitle={invitation?.school}
+      footer={<Button label={t('accounts.who.continue')} onPress={next} />}
+    >
       <StepHeader step={1} total={choice === 'adult' ? 3 : 4} title={t('accounts.who.title')} onBack={onBack} />
       {invitation && <InvitationBanner {...invitation} />}
       <View
@@ -92,7 +96,6 @@ export function WhoSwimsScreen({ initialChoice, invitation, onSelect, onBack }: 
           {t('accounts.who.child_notice')}
         </Banner>
       )}
-      <Button label={t('accounts.who.continue')} onPress={next} />
     </ScreenFrame>
   );
 }
