@@ -1,15 +1,13 @@
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../core/i18n';
 import { CodeMismatchError, useSession } from '../../core/session';
 import { useTheme } from '../../core/theme';
 import { Button, StateView, StepHeader, TextField } from '../../core/ui';
-import { createSecureStoreRegistrationDraftRepository } from '../../modules/accounts';
 
 const CODE_LENGTH = 6;
-const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 
 export default function SignIn() {
   const { requestCode, verifyCode, configError } = useSession();
@@ -23,24 +21,6 @@ export default function SignIn() {
   const [resending, setResending] = useState(false);
   const [notice, setNotice] = useState<string>();
   const attempt = useRef(0);
-
-  // A registration left half done continues where it stopped; the stack is rebuilt so Back still works.
-  useEffect(() => {
-    let current = true;
-    registrationDrafts
-      .load()
-      .then((draft) => {
-        if (!current || !draft?.swimmer) return;
-        // A draft left with only the swimmer choice, or kept to resume a later step, means the account already exists.
-        if (draft.step || ![draft.email, draft.firstName, draft.lastName].some((value) => value?.trim())) return;
-        router.push('/register');
-        router.push('/register/details');
-      })
-      .catch(() => {});
-    return () => {
-      current = false;
-    };
-  }, []);
 
   async function sendCode() {
     setSending(true);

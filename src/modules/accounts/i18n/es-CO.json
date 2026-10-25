@@ -23,6 +23,16 @@
       "email_in_use": "Ya hay una cuenta con este correo. Inicia sesión",
       "sign_in": "Iniciar sesión"
     },
+    "resume": {
+      "title": "Tienes un registro sin terminar",
+      "message": "Quedó guardado en este teléfono. Puedes seguir donde lo dejaste o empezar de nuevo.",
+      "resume": "Retomar el registro de {{email}}",
+      "restart": "Empezar de nuevo",
+      "confirm_title": "¿Borrar el registro sin terminar?",
+      "confirm_message": "Se borran el nombre, el apellido y el correo que escribiste en este teléfono. No se puede deshacer.",
+      "confirm": "Borrar y empezar de nuevo",
+      "keep": "Mantener el registro"
+    },
     "providers": {
       "google": "Continuar con Google",
       "microsoft": "Continuar con Microsoft",
