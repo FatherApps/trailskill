@@ -56,6 +56,8 @@ export const AppSchema = new Schema({
     },
     { localOnly: true },
   ),
+  // Ops whose bookkeeping is already done, so a re-sent transaction (crash before complete()) does not repeat it.
+  uploaded_ops: new Table({ client_id: column.integer }, { localOnly: true }),
 });
 
 export type Database = (typeof AppSchema)['types'];
