@@ -112,6 +112,16 @@ describe('development gallery', () => {
     expect(screen.getByLabelText('Infantil B')).toBeOnTheScreen();
   });
 
+  it('mounts each state fresh, so a preview that holds its own state does not keep the previous one', async () => {
+    await renderRouter(routes, { initialUrl: '/gallery/segmented' });
+    await fireEvent.press(screen.getByRole('radio', { name: 'Espalda' }));
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'distances' }));
+
+    expect(screen.getByRole('radio', { name: '25 m' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: '50 m' })).not.toBeChecked();
+  });
+
   it('goes home from the gallery when there is no history to go back to', async () => {
     const view = await renderRouter(routes, { initialUrl: '/gallery' });
 

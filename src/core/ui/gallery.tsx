@@ -6,19 +6,23 @@ import type { RecordSyncState } from '../sync';
 import { space, useTheme } from '../theme';
 import { buttonFixture as b } from './__fixtures__/button';
 import { confirmSheetFixture as cs } from './__fixtures__/confirmSheet';
+import { segmentedFixture as sg } from './__fixtures__/segmented';
 import { stateViewFixture as sv } from './__fixtures__/stateView';
 import { stepHeaderFixture as sh } from './__fixtures__/stepHeader';
 import { tagFixture as tg } from './__fixtures__/tag';
 import { textFieldFixture as tf } from './__fixtures__/textField';
+import { timeValueFixture as tv } from './__fixtures__/timeValue';
 import { Button } from './Button';
 import { ConfirmSheet } from './ConfirmSheet';
 import { Icon } from './Icon';
 import { iconPaths, type IconName } from './icons';
+import { Segmented, type SegmentedOption } from './Segmented';
 import { StateView } from './StateView';
 import { StepHeader } from './StepHeader';
 import { SyncStatus } from './SyncStatus';
 import { Tag } from './Tag';
 import { TextField } from './TextField';
+import { TimeValue } from './TimeValue';
 
 // One component or screen in the development gallery: each state renders it with synthetic props.
 export type GalleryEntry = {
@@ -69,6 +73,23 @@ function ConfirmSheetPreview({ copy, destructive }: { copy: typeof cs.stop; dest
         onCancel={close}
       />
     </>
+  );
+}
+
+// Holds the selection, so tapping an option changes it in the gallery.
+function SegmentedPreview<T extends string>({
+  label,
+  options,
+}: {
+  label: string;
+  options: SegmentedOption<T>[];
+}) {
+  const [value, setValue] = useState(options[0].value);
+
+  return (
+    <FullWidth>
+      <Segmented accessibilityLabel={label} options={options} value={value} onChange={setValue} />
+    </FullWidth>
   );
 }
 
@@ -203,6 +224,26 @@ export const galleryEntries: GalleryEntry[] = [
       signOut: () => <ConfirmSheetPreview copy={cs.signOut} destructive />,
       discardIncomplete: () => <ConfirmSheetPreview copy={cs.discardIncomplete} destructive={false} />,
       signOutOffline: () => <ConfirmSheetPreview copy={cs.signOutOffline} destructive />,
+    },
+  },
+  {
+    id: 'segmented',
+    title: 'Segmented',
+    states: {
+      strokes: () => <SegmentedPreview label={sg.strokes.label} options={sg.strokes.options} />,
+      distances: () => <SegmentedPreview label={sg.distances.label} options={sg.distances.options} />,
+      'long-text': () => <SegmentedPreview label={sg.longText.label} options={sg.longText.options} />,
+    },
+  },
+  {
+    id: 'timeValue',
+    title: 'TimeValue',
+    states: {
+      'time-lg': () => <TimeValue size="time-lg" value={tv.large} />,
+      'time-md': () => <TimeValue size="time-md" value={tv.medium} />,
+      'time-sm': () => <TimeValue size="time-sm" value={tv.small} />,
+      missing: () => <TimeValue value={null} />,
+      'decimal-point': () => <TimeValue value={tv.large} decimalSeparator="." />,
     },
   },
 ];

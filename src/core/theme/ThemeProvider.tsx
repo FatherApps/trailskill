@@ -1,7 +1,18 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
-import { colors, radius, size, space, typography, type ColorToken, type ThemeName } from './tokens';
+import {
+  colors,
+  elevation,
+  radius,
+  size,
+  space,
+  typography,
+  type ColorToken,
+  type Elevation,
+  type ElevationToken,
+  type ThemeName,
+} from './tokens';
 
 export type Theme = {
   name: ThemeName;
@@ -9,6 +20,7 @@ export type Theme = {
   space: typeof space;
   radius: typeof radius;
   size: typeof size;
+  elevation: Record<ElevationToken, Elevation>;
   typography: typeof typography;
 };
 
@@ -27,7 +39,15 @@ function scaleText(scale: number): typeof typography {
 }
 
 function buildTheme(name: ThemeName, fontScale = 1): Theme {
-  return { name, colors: colors[name], space, radius, size, typography: scaleText(fontScale) };
+  return {
+    name,
+    colors: colors[name],
+    space,
+    radius,
+    size,
+    elevation: elevation[name],
+    typography: scaleText(fontScale),
+  };
 }
 
 // Light is the default when the system gives no scheme, and for code rendered outside a provider.

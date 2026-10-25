@@ -7,4 +7,6 @@ export { SyncStatus, syncStatusColors, type SyncStatusProps } from './SyncStatus
 export { ConfirmSheet, confirmSheetColors, type ConfirmSheetProps } from './ConfirmSheet';
 export { Icon, type IconProps } from './Icon';
 export { iconPaths, type IconName } from './icons';
+export { Segmented, segmentedColors, type SegmentedOption, type SegmentedProps } from './Segmented';
+export { TimeValue, type TimeValueProps } from './TimeValue';
 export { galleryEntries, type GalleryEntry } from './gallery';

@@ -35,6 +35,9 @@ describe('Icon', () => {
         'emoji_events',
         'verified_user',
         'schedule',
+        'home',
+        'person',
+        'chevron_right',
       ].sort(),
     );
   });
