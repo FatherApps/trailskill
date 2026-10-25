@@ -115,12 +115,10 @@ describe('Stopwatch running', () => {
     expect(announce.mock.calls.every(([message]) => message === 'Cronómetro en marcha')).toBe(true);
   });
 
-  it('offers split and stop, split narrower than stop (1 : 1.4)', async () => {
+  it('offers split and stop', async () => {
     const { onSplit, onStop } = await renderWatch({ state: 'running', elapsedHundredths: 3391 });
 
     expect(screen.queryByRole('button', { name: 'Iniciar' })).toBeNull();
-    expect(styleOf(screen.getByTestId('stopwatch-split-slot').props.style)?.flex).toBe(1);
-    expect(styleOf(screen.getByTestId('stopwatch-stop-slot').props.style)?.flex).toBe(1.4);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Parcial' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Detener' }));
@@ -223,44 +221,97 @@ describe('Stopwatch stopped', () => {
   });
 });
 
-describe('Stopwatch stopped actions layout', () => {
-  const props = { state: 'stopped', elapsedHundredths: 3391, bestTime: 3482 } as const;
+describe.each([
+  { state: 'stopped', secondary: 'Descartar', primary: 'Guardar' },
+  { state: 'running', secondary: 'Parcial', primary: 'Detener' },
+] as const)('Stopwatch $state action row', ({ state, secondary, primary }) => {
+  const props = { state, elapsedHundredths: 3391, bestTime: 3482 } as const;
   const noop = jest.fn();
   const handlers = { onStart: noop, onSplit: noop, onStop: noop, onSave: noop, onDiscard: noop };
-  const order = () => {
-    const tree = JSON.stringify(screen.toJSON());
-    return tree.indexOf('"Guardar"') < tree.indexOf('"Descartar"') ? 'save-first' : 'discard-first';
-  };
 
-  it('keeps the 1 : 1.4 row at normal text size, Descartar first', async () => {
+  const layoutOf = (testID: string, width: number) =>
+    fireEvent(screen.getByTestId(testID, hidden), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width, height: 72 } } });
+  const measure = async (container: number, secondaryWidth: number, primaryWidth: number) => {
+    await layoutOf('stopwatch-actions', container);
+    await layoutOf('stopwatch-secondary-measure', secondaryWidth);
+    await layoutOf('stopwatch-primary-measure', primaryWidth);
+  };
+  const direction = () => styleOf(screen.getByTestId('stopwatch-actions-layout').props.style)?.flexDirection;
+  const order = () =>
+    screen.getByTestId('stopwatch-actions-layout').children.map((child) => (child as { props: { testID: string } }).props.testID);
+
+  it('is a row by default, before anything is measured: secondary at its content width, primary takes the rest', async () => {
     await renderWatch(props);
 
-    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style)).toMatchObject({ flexDirection: 'row' });
-    expect(order()).toBe('discard-first');
+    expect(direction()).toBe('row');
+    expect(order()).toEqual(['stopwatch-secondary-slot', 'stopwatch-primary-slot']);
+    expect(styleOf(screen.getByTestId('stopwatch-secondary-slot').props.style)).toMatchObject({ flexShrink: 0 });
+    expect(styleOf(screen.getByTestId('stopwatch-secondary-slot').props.style)?.flex).toBeUndefined();
+    expect(styleOf(screen.getByTestId('stopwatch-primary-slot').props.style)?.flex).toBe(1);
+    expect(styleOf(screen.getByTestId('stopwatch-actions-layout').props.style)?.gap).toBe(8);
   });
 
-  it('stacks the buttons full width with Guardar on top at a combined scale of 1.5 or more', async () => {
+  it('stays a row when both buttons fit side by side', async () => {
+    await renderWatch(props);
+    await measure(300, 138, 140);
+
+    expect(direction()).toBe('row');
+    expect(order()).toEqual(['stopwatch-secondary-slot', 'stopwatch-primary-slot']);
+  });
+
+  it('stacks full width with the primary on top when they do not fit', async () => {
+    await renderWatch(props);
+    await measure(260, 138, 140);
+
+    expect(direction()).toBe('column');
+    expect(order()).toEqual(['stopwatch-primary-slot', 'stopwatch-secondary-slot']);
+    expect(styleOf(screen.getByTestId('stopwatch-primary-slot').props.style)?.flex).toBeUndefined();
+  });
+
+  it('does not oscillate: the decision only changes when a measurement does', async () => {
+    await renderWatch(props);
+    await measure(260, 138, 140);
+    await layoutOf('stopwatch-actions', 260);
+    await layoutOf('stopwatch-actions', 260);
+    expect(direction()).toBe('column');
+
+    await layoutOf('stopwatch-actions', 300);
+    expect(direction()).toBe('row');
+  });
+
+  it('keeps the measuring copy out of reach of screen readers and touches', async () => {
+    await renderWatch(props);
+
+    expect(screen.getAllByRole('button').map((button) => button.props.accessibilityLabel)).toEqual(
+      expect.arrayContaining([secondary, primary]),
+    );
+    expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityLabel === primary)).toHaveLength(1);
+    expect(screen.getByTestId('stopwatch-measure', hidden).props.pointerEvents).toBe('none');
+  });
+
+  it('stacks right away at a combined text scale of 1.5 or more, without measuring', async () => {
     await render(
       <ThemeProvider fontScale={2}>
-        <Stopwatch elapsedHundredths={3391} state="stopped" bestTime={3482} {...handlers} />
+        <Stopwatch elapsedHundredths={3391} state={state} bestTime={3482} {...handlers} />
       </ThemeProvider>,
     );
 
-    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style)?.flexDirection).toBe('column');
-    expect(order()).toBe('save-first');
+    expect(direction()).toBe('column');
+    expect(order()).toEqual(['stopwatch-primary-slot', 'stopwatch-secondary-slot']);
   });
 
   it('also stacks when only the system font scale is large', async () => {
     jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1.5);
     await renderWatch(props);
 
-    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style)?.flexDirection).toBe('column');
+    expect(direction()).toBe('column');
   });
 
-  it('keeps the row just below the threshold', async () => {
+  it('keeps the row just below the text scale threshold when it fits', async () => {
     jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1.4);
     await renderWatch(props);
+    await measure(300, 138, 140);
 
-    expect(styleOf(screen.getByTestId('stopwatch-stopped-actions').props.style)?.flexDirection).toBe('row');
+    expect(direction()).toBe('row');
   });
 });

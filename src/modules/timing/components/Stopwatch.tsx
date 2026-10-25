@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
-import { AccessibilityInfo, PixelRatio, ScrollView, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo, PixelRatio, ScrollView, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { typography as baseTypography, useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
-import { Button, TimeValue } from '../../../core/ui';
+import { Button, TimeValue, type ButtonProps } from '../../../core/ui';
 import '../i18n';
 
 export type StopwatchState = 'ready' | 'running' | 'stopped';
@@ -28,6 +28,65 @@ const largeTextScale = 1.5;
 
 // The clock always shows minutes, in every state, so it keeps one shape from 0:00,00 on.
 const clockFormat = { alwaysShowMinutes: true };
+
+const noop = () => {};
+
+// The secondary button (left) takes its content width and the primary one the rest. If that does not fit, or
+// the text is large, they stack full width with the primary on top.
+// The natural widths come from a hidden, absolutely positioned copy of the buttons: they do not depend on the
+// layout chosen below, so the decision cannot oscillate; it only changes when a measurement does.
+function ActionRow({ secondary, primary, large }: { secondary: ButtonProps; primary: ButtonProps; large: boolean }) {
+  const { space } = useTheme();
+  const [widths, setWidths] = useState<{ container?: number; secondary?: number; primary?: number }>({});
+  const measured = (key: 'container' | 'secondary' | 'primary') => (event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    setWidths((current) => (current[key] === width ? current : { ...current, [key]: width }));
+  };
+
+  const { container, secondary: secondaryWidth, primary: primaryWidth } = widths;
+  const stacked =
+    large ||
+    (container !== undefined &&
+      secondaryWidth !== undefined &&
+      primaryWidth !== undefined &&
+      secondaryWidth + space[2] + primaryWidth > container);
+
+  const secondarySlot = (
+    <View key="secondary" testID="stopwatch-secondary-slot" style={stacked ? undefined : { flexShrink: 0 }}>
+      <Button {...secondary} />
+    </View>
+  );
+  const primarySlot = (
+    <View key="primary" testID="stopwatch-primary-slot" style={stacked ? undefined : { flex: 1 }}>
+      <Button {...primary} />
+    </View>
+  );
+
+  return (
+    <View testID="stopwatch-actions" onLayout={measured('container')}>
+      <View
+        testID="stopwatch-measure"
+        pointerEvents="none"
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        style={{ position: 'absolute', flexDirection: 'row', opacity: 0 }}
+      >
+        <View testID="stopwatch-secondary-measure" onLayout={measured('secondary')} style={{ flexShrink: 0 }}>
+          <Button {...secondary} onPress={noop} />
+        </View>
+        <View testID="stopwatch-primary-measure" onLayout={measured('primary')} style={{ flexShrink: 0 }}>
+          <Button {...primary} onPress={noop} />
+        </View>
+      </View>
+      <View
+        testID="stopwatch-actions-layout"
+        style={{ flexDirection: stacked ? 'column' : 'row', gap: space[2] }}
+      >
+        {stacked ? [primarySlot, secondarySlot] : [secondarySlot, primarySlot]}
+      </View>
+    </View>
+  );
+}
 
 export function Stopwatch({
   elapsedHundredths,
@@ -59,17 +118,6 @@ export function Stopwatch({
 
   const large =
     (typography.caption.fontSize / baseTypography.caption.fontSize) * PixelRatio.getFontScale() >= largeTextScale;
-  const discard = (
-    <View key="discard" style={{ flex: large ? undefined : 1 }}>
-      <Button variant="secondary" size="timing" label={t('timing.stopwatch.discard')} onPress={onDiscard} />
-    </View>
-  );
-  const save = (
-    <View key="save" style={{ flex: large ? undefined : 1.4 }}>
-      <Button size="timing" label={t('timing.stopwatch.save')} onPress={onSave} />
-    </View>
-  );
-
   return (
     <View style={{ flex: 1, gap: space[4], padding: space[4], backgroundColor: colors['surface-0'] }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', gap: space[4] }}>
@@ -139,20 +187,18 @@ export function Stopwatch({
         <Button size="timing" label={t('timing.stopwatch.start')} onPress={onStart} />
       )}
       {running && (
-        <View style={{ flexDirection: 'row', gap: space[2] }}>
-          <View testID="stopwatch-split-slot" style={{ flex: 1 }}>
-            <Button variant="secondary" size="timing" label={t('timing.stopwatch.split')} onPress={onSplit} />
-          </View>
-          <View testID="stopwatch-stop-slot" style={{ flex: 1.4 }}>
-            <Button variant="stop" size="timing" label={t('timing.stopwatch.stop')} onPress={onStop} />
-          </View>
-        </View>
+        <ActionRow
+          large={large}
+          secondary={{ variant: 'secondary', size: 'timing', label: t('timing.stopwatch.split'), onPress: onSplit }}
+          primary={{ variant: 'stop', size: 'timing', label: t('timing.stopwatch.stop'), onPress: onStop }}
+        />
       )}
       {stopped && (
-        <View testID="stopwatch-stopped-actions" style={{ flexDirection: large ? 'column' : 'row', gap: space[2] }}>
-          {/* Stacked, the main action goes on top; in the row, Descartar stays on the left. */}
-          {large ? [save, discard] : [discard, save]}
-        </View>
+        <ActionRow
+          large={large}
+          secondary={{ variant: 'secondary', size: 'timing', label: t('timing.stopwatch.discard'), onPress: onDiscard }}
+          primary={{ size: 'timing', label: t('timing.stopwatch.save'), onPress: onSave }}
+        />
       )}
     </View>
   );
