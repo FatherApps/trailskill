@@ -16,7 +16,10 @@
       "skipped": "Falta autorización — se omitirá",
       "athlete_name": "{{order}} · {{name}}",
       "empty_title": "Aún no hay nadadores",
-      "empty_message": "Elige a quienes vas a medir para empezar la toma."
+      "empty_message": "Elige a quienes vas a medir para empezar la toma.",
+      "pending_message_one": "{{count}} llegada sin nombre de {{event}}.",
+      "pending_message_other": "{{count}} llegadas sin nombre de {{event}}.",
+      "pending_open": "Asignar nombres"
     },
     "picker": {
       "title": "Elegir nadadores",
@@ -101,7 +104,7 @@
       "position_n": "Posición {{position}}",
       "all_assigned": "Todas las posiciones tienen nombre.",
       "whose": "¿De quién es?",
-      "save": "Guardar serie",
+      "save": "Listo",
       "exit_title": "¿Salir de la serie?",
       "exit_message": "Las llegadas ya están guardadas en este teléfono y quedan \"por asignar\".",
       "exit_confirm": "Salir de la serie",

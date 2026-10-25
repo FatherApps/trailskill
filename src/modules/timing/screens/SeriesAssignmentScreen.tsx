@@ -2,9 +2,10 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
+import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
-import { Button, SwimmerRow, TimeValue, type SwimmerRowProps } from '../../../core/ui';
+import { Button, SwimmerRow, SyncStatus, TimeValue, type SwimmerRowProps } from '../../../core/ui';
 import { useLargeText } from '../components/ActionRow';
 import { NameCard } from '../components/NameCard';
 import { OfflineBanner } from '../components/OfflineBanner';
@@ -20,13 +21,16 @@ export type AssignmentAthlete = {
   detail?: string;
 };
 
-export type AssignmentPosition = { position: number; time: Hundredths; athleteId: string | null };
+// `time` is null for an arrival saved without one (never 0). `syncState` is the arrival's own state; without it no pill is drawn.
+export type AssignmentPosition = { position: number; time: Hundredths | null; athleteId: string | null; syncState?: RecordSyncState };
 
 export type SeriesAssignmentScreenProps = {
   // In arrival order. A position without an athlete stays in the list as "por asignar".
   positions: AssignmentPosition[];
   athletes: AssignmentAthlete[];
   eventSubtitle: string;
+  // The position the next card goes to, when it is not the first one without an athlete (for example a reopened one).
+  highlightedPosition?: number | null;
   // Assigns the athlete to the highlighted position (the first one without an athlete).
   onAssign: (athleteId: string) => void;
   // Opens an assigned position again.
@@ -83,6 +87,7 @@ export function SeriesAssignmentScreen({
   positions,
   athletes,
   eventSubtitle,
+  highlightedPosition,
   onAssign,
   onReopen,
   onSave,
@@ -96,7 +101,8 @@ export function SeriesAssignmentScreen({
   const large = useLargeText();
 
   // Always the first position without an athlete, as in the series rules.
-  const highlighted = positions.find((p) => p.athleteId === null) ?? null;
+  const highlighted =
+    (highlightedPosition === undefined ? positions.find((p) => p.athleteId === null) : positions.find((p) => p.position === highlightedPosition)) ?? null;
   const athleteById = (id: string | null) => athletes.find((a) => a.id === id);
   const listStyle = { backgroundColor: colors['surface-1'], borderRadius: radius.md, overflow: 'hidden' } as const;
   const separator = { borderBottomWidth: 1, borderBottomColor: colors.border } as const;
@@ -158,6 +164,7 @@ export function SeriesAssignmentScreen({
                         color={athlete.color}
                         detail={t('timing.series.position_n', { position: p.position })}
                         time={p.time}
+                        status={p.syncState && <SyncStatus state={p.syncState} />}
                         selected={highlighted?.position === p.position}
                         onPress={() => onReopen(p.position)}
                       />
@@ -169,6 +176,7 @@ export function SeriesAssignmentScreen({
                         detail=""
                         time={p.time}
                         tag={{ label: t('timing.series.unassigned'), variant: 'warn' }}
+                        status={p.syncState && <SyncStatus state={p.syncState} />}
                         selected={highlighted?.position === p.position}
                       />
                     )}
