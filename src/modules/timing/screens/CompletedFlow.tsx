@@ -14,6 +14,8 @@ import { useSessionSetup } from './useSessionSetup';
 export type CompletedFlowProps = {
   // For example the school name.
   subtitle: string;
+  // The school the times are written for.
+  schoolId: string;
   loadRoster(): Promise<RosterAthlete[]>;
   measurements: MeasurementRepository;
   // Remembers the event and the athletes between sessions; without it the setup lives only while the flow is open.
@@ -29,7 +31,7 @@ export function CompletedFlow(props: CompletedFlowProps) {
   return <RosterGate loadRoster={props.loadRoster}>{(roster) => <CompletedSession {...props} roster={roster} />}</RosterGate>;
 }
 
-function CompletedSession({ subtitle, roster, measurements, setups, userId, deviceId, offline, onExit }: CompletedFlowProps & { roster: RosterAthlete[] }) {
+function CompletedSession({ subtitle, schoolId, roster, measurements, setups, userId, deviceId, offline, onExit }: CompletedFlowProps & { roster: RosterAthlete[] }) {
   const { choice, selectedIds, ready, changeChoice, changeSelected } = useSessionSetup(setups, roster);
   const [athletes, setAthletes] = useState<RosterAthlete[]>();
   // Athlete id to the id of their live completed measurement, for the event being recorded. Unticking discards that measurement and
@@ -89,6 +91,7 @@ function CompletedSession({ subtitle, roster, measurements, setups, userId, devi
           sessionType: choice.sessionType,
           source: 'screen_button',
           createdBy: userId,
+          schoolId,
           deviceId,
           capturedAt: new Date().toISOString(),
           parentId: null,

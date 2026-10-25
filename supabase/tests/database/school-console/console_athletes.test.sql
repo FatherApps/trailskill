@@ -94,13 +94,16 @@ insert into public.authorization_status (athlete_id, purpose, is_granted) values
   ('62000000-0000-4000-8000-0000000000e3', 'record_times', true),
   ('62000000-0000-4000-8000-0000000000e4', 'record_times', true);
 
--- One measurement per athlete (m1..m4), created by admin S: a neutral creator
--- (not coach A), so coach reads cannot come from a creator-visibility rule.
+-- One measurement per athlete (m1..m4), created by the admin of the athlete's
+-- school (S for m1..m3, T for m4 in school 2): a neutral creator (not coach A),
+-- so coach reads cannot come from a creator-visibility rule.
 insert into public.measurements
-  (id, created_by, device_id, kind, athlete_id, hundredths, stroke, distance, pool,
+  (school_id, id, created_by, device_id, kind, athlete_id, hundredths, stroke, distance, pool,
    session_type, source, captured_at)
-select ('62000000-0000-4000-8000-0000000000f' || n)::uuid,
-       '62000000-0000-4000-8000-0000000000a1', 'device-a', 'repetition',
+select case when n = 4 then '62000000-0000-4000-8000-0000000000b2' else '62000000-0000-4000-8000-0000000000b1' end::uuid,
+       ('62000000-0000-4000-8000-0000000000f' || n)::uuid,
+       case when n = 4 then '62000000-0000-4000-8000-0000000000a3' else '62000000-0000-4000-8000-0000000000a1' end::uuid,
+       'device-a', 'repetition',
        ('62000000-0000-4000-8000-0000000000e' || n)::uuid, 3150, 'FR', '50m', 'SCM',
        'training', 'screen_button', '2026-10-24 08:00:00+00'
 from generate_series(1, 4) n;

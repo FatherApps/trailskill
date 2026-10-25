@@ -18,6 +18,8 @@ type MeasurementBase = {
   sessionType: SessionType;
   source: MeasurementSource;
   createdBy: string;
+  // The school the time is for: the server accepts it only from a coach or admin of that school, for an athlete of that school.
+  schoolId: string;
   deviceId: string;
   capturedAt: string; // ISO 8601
   parentId: string | null;

@@ -16,6 +16,7 @@ export const AppSchema = new Schema({
   athlete_managers: new Table({ ...audit, user_id: column.text, athlete_id: column.text, relation: column.text }),
   timing_series: new Table({
     ...audit,
+    school_id: column.text,
     device_id: column.text,
     stroke: column.text,
     distance: column.text,
@@ -25,6 +26,7 @@ export const AppSchema = new Schema({
   measurements: new Table(
     {
       ...audit,
+      school_id: column.text,
       device_id: column.text,
       kind: column.text,
       athlete_id: column.text,

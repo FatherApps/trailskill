@@ -303,8 +303,8 @@ select is(
 -- Fulfillment writes. C1 is assigned to e1, e3, e4, e5 (group) and e2 (direct).
 set local request.jwt.claims = '{"sub": "70000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 select lives_ok(
-  $$ insert into public.timing_series (id, stroke, distance, pool, session_type, device_id)
-     values ('70000000-0000-4000-8000-000000000051', 'FR', '50m', 'SCM', 'training', 'device-1') $$,
+  $$ insert into public.timing_series (school_id, id, stroke, distance, pool, session_type, device_id)
+     values ('70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-000000000051', 'FR', '50m', 'SCM', 'training', 'device-1') $$,
   'coach C1 has a series'
 );
 select lives_ok(
@@ -388,8 +388,8 @@ select throws_ok(
 reset role;
 select throws_ok(
   $$ insert into public.measurements
-       (kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
-     values ('repetition', '70000000-0000-4000-8000-0000000000e1', '70000000-0000-4000-8000-000000000051', 0, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-1',
+       (school_id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+     values ('70000000-0000-4000-8000-0000000000b1', 'repetition', '70000000-0000-4000-8000-0000000000e1', '70000000-0000-4000-8000-000000000051', 0, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-1',
              '2026-10-26 08:10:00+00', '70000000-0000-4000-8000-0000000000a2') $$,
   '23514', null, 'a time of zero hundredths is rejected: a time is never stored as zero'
 );
