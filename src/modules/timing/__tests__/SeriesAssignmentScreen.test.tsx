@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
+import { colors } from '../../../core/theme';
 import { SeriesAssignmentScreen } from '../screens/SeriesAssignmentScreen';
 import { seriesFixture } from '../__fixtures__/series';
 
@@ -71,6 +72,20 @@ describe('SeriesAssignmentScreen', () => {
     expect(screen.getAllByText('por asignar', hidden)).toHaveLength(1);
     expect(isSelected(3)).toBe(true);
     expect(within(screen.getByTestId('position-row-3')).getByText('por asignar', hidden)).toBeOnTheScreen();
+  });
+
+  it('draws an unassigned position without an athlete colour and an assigned one with its own', async () => {
+    await renderScreen({ positions: snapshots.pending });
+
+    const avatarBackground = (position: number, initials: string) =>
+      StyleSheet.flatten(
+        within(screen.getByTestId(`position-row-${position}`)).getByText(initials, hidden).parent?.props.style,
+      )?.backgroundColor;
+    const athleteValues = [colors.light['athlete-1'], colors.light['athlete-2'], colors.light['athlete-3'], colors.light['athlete-4']];
+
+    expect(avatarBackground(3, '3')).toBe(colors.light['surface-2']);
+    expect(athleteValues).not.toContain(avatarBackground(3, '3'));
+    expect(avatarBackground(2, 'LR')).toBe(colors.light['athlete-2']);
   });
 
   it('never drops a position without an athlete', async () => {

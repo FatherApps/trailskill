@@ -15,7 +15,7 @@ export type AssignmentAthlete = {
   id: string;
   shortName: string;
   initials: string;
-  color: SwimmerRowProps['color'];
+  color: NonNullable<SwimmerRowProps['color']>;
   // For example the lane.
   detail?: string;
 };
@@ -161,11 +161,9 @@ export function SeriesAssignmentScreen({
                         onPress={() => onReopen(p.position)}
                       />
                     ) : (
-                      // No neutral avatar colour exists in SwimmerRow: athlete-1 is a placeholder for a position nobody owns yet.
                       <SwimmerRow
                         name={t('timing.series.position_n', { position: p.position })}
                         initials={String(p.position)}
-                        color="athlete-1"
                         detail=""
                         time={p.time}
                         tag={{ label: t('timing.series.unassigned'), variant: 'warn' }}

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { processColor, StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, type ThemeName } from '../../theme';
+import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../theme';
 import { iconPaths } from '../icons';
 import { SwimmerRow, swimmerRowColors, type SwimmerRowProps } from '../SwimmerRow';
 
@@ -230,6 +230,47 @@ describe('SwimmerRow', () => {
     );
     expect(avatar.length).toBeGreaterThan(0);
     expect(processColor(rowStyle(avatar[0]).backgroundColor as string)).toBe(processColor(colors.light[color]));
+  });
+
+  describe.each(themes)('without a colour in the %s theme', (theme) => {
+    it('draws the avatar on surface-2 with ink text and no athlete colour anywhere', async () => {
+      const { color: _color, ...withoutColor } = base;
+      await render(
+        <ThemeProvider name={theme}>
+          <SwimmerRow {...withoutColor} />
+        </ThemeProvider>,
+      );
+
+      const avatars = screen.container.queryAll((node) => rowStyle(node)?.borderRadius === 999 && rowStyle(node)?.minWidth === 40);
+      expect(avatars.length).toBeGreaterThan(0);
+      expect(rowStyle(avatars[0]).backgroundColor).toBe(colors[theme]['surface-2']);
+      expect(StyleSheet.flatten(screen.getByText('LR', { includeHiddenElements: true }).props.style).color).toBe(
+        colors[theme].ink,
+      );
+      const athleteValues = athleteColors.map((color) => colors[theme][color]);
+      const used = screen.container.queryAll((node) => athleteValues.includes(rowStyle(node)?.backgroundColor));
+      expect(used).toEqual([]);
+    });
+
+    it('keeps surface-2 and ink at least 4.5:1', () => {
+      expect(contrastRatio(colors[theme].ink, colors[theme]['surface-2'])).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
+  it('keeps the coloured avatar unchanged in both themes', async () => {
+    for (const theme of themes) {
+      await render(
+        <ThemeProvider name={theme}>
+          <SwimmerRow {...base} color="athlete-2" />
+        </ThemeProvider>,
+      );
+
+      const avatars = screen.container.queryAll((node) => rowStyle(node)?.backgroundColor === colors[theme]['athlete-2']);
+      expect(avatars.length).toBeGreaterThan(0);
+      expect(StyleSheet.flatten(screen.getByText('LR', { includeHiddenElements: true }).props.style).color).toBe(
+        colors[theme]['on-color'],
+      );
+    }
   });
 
   describe.each(themes)('%s theme contrast', (theme) => {
