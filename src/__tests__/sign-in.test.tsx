@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
+import { router } from 'expo-router';
+
 import SignIn from '../app/(auth)/sign-in';
 import { CodeMismatchError } from '../core/session';
 
@@ -18,10 +20,18 @@ jest.mock('../core/session', () => ({
   useSession: () => mockSession,
 }));
 
+const mockLoadDraft = jest.fn();
+jest.mock('../modules/accounts', () => ({
+  createSecureStoreRegistrationDraftRepository: () => ({ load: () => mockLoadDraft() }),
+}));
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+
 const email = 'ana@example.com';
 
 beforeEach(() => {
   mockSession.configError = null;
+  mockLoadDraft.mockReset().mockResolvedValue(null);
+  jest.mocked(router.push).mockClear();
   mockSession.requestCode.mockReset().mockResolvedValue(undefined);
   mockSession.verifyCode.mockReset().mockResolvedValue(undefined);
 });
@@ -34,6 +44,36 @@ async function openCodeStep() {
 }
 
 describe('sign-in screen', () => {
+  it('offers to create an account', async () => {
+    await render(<SignIn />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(router.push).toHaveBeenCalledWith('/register');
+  });
+
+  it('continues a registration left half done', async () => {
+    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: 'ana@example.com' });
+    await render(<SignIn />);
+
+    await waitFor(() => expect(router.push).toHaveBeenLastCalledWith('/register/details'));
+  });
+
+  it('does not reopen registration for a draft left with only the swimmer choice', async () => {
+    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+    await render(<SignIn />);
+
+    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('stays on sign-in when no registration was started', async () => {
+    await render(<SignIn />);
+
+    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it('replaces the form with a not-ready notice when the server is not configured', async () => {
     mockSession.configError = 'Missing EXPO_PUBLIC_SUPABASE_URL';
     await render(<SignIn />);

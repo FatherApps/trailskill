@@ -1,14 +1,14 @@
 import { View } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
-import { Button, StepHeader, TextField } from '../../../core/ui';
+import { Button, StateView, StepHeader, TextField } from '../../../core/ui';
 import { CodeStep, type CodeBusy } from '../components/CodeStep';
 import { InvitationBanner, OfflineBanner, type Invitation } from '../components/notices';
 import { ProviderOptions } from '../components/ProviderOptions';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { t } from '../i18n';
 
-export type AccountDetailsField = 'name' | 'email' | 'phone' | 'code';
+export type AccountDetailsField = 'firstName' | 'lastName' | 'email' | 'code';
 
 export type AccountDetailsScreenProps = {
   // 1-based position in the flow: depends on whether the person registers a child or themself.
@@ -17,20 +17,54 @@ export type AccountDetailsScreenProps = {
   values: Record<AccountDetailsField, string>;
   // The code was sent: the screen asks for it.
   codeSent?: boolean;
-  errors?: { email?: 'in_use'; code?: 'mismatch' };
+  errors?: {
+    firstName?: 'required';
+    lastName?: 'required';
+    email?: 'required' | 'invalid' | 'in_use';
+    code?: 'mismatch';
+  };
   busy?: CodeBusy;
   // No signal: the draft stays as typed and what needs the network says so.
   offline?: boolean;
+  // A request that failed: explained with a retry, the draft untouched.
+  failure?: 'offline' | 'request_failed' | 'verify_failed';
+  onRetry?: () => void;
+  // Google and Microsoft sign-in; registration hides them until they can create accounts.
+  providers?: boolean;
   invitation?: Invitation;
   onChange: (field: AccountDetailsField, value: string) => void;
-  onGoogle: () => void;
-  onMicrosoft: () => void;
+  onGoogle?: () => void;
+  onMicrosoft?: () => void;
   onRequestCode: () => void;
   onSubmitCode: () => void;
   // Goes to the sign-in screen: the email already has an account.
   onSignIn: () => void;
   onBack: () => void;
 };
+
+const noop = () => {};
+
+const emailErrorKeys = {
+  required: 'accounts.details.email_required',
+  invalid: 'accounts.details.email_invalid',
+  in_use: 'accounts.details.email_in_use',
+} as const;
+
+function FailureNotice({ failure, onRetry }: { failure: NonNullable<AccountDetailsScreenProps['failure']>; onRetry?: () => void }) {
+  const action = onRetry ? { label: t('sync.retry'), onPress: onRetry } : undefined;
+  if (failure === 'offline') {
+    return <StateView kind="offline" title={t('accounts.failure.offline_title')} message={t('accounts.failure.offline_message')} action={action} />;
+  }
+  const request = failure === 'request_failed';
+  return (
+    <StateView
+      kind="error"
+      title={t(request ? 'auth.request_failed_title' : 'auth.verify_failed')}
+      message={t(request ? 'auth.request_failed_message' : 'accounts.failure.kept')}
+      action={action}
+    />
+  );
+}
 
 // Registration data: Google and Microsoft first, the six-digit code by email as the lighter alternative. No passwords.
 export function AccountDetailsScreen({
@@ -41,6 +75,9 @@ export function AccountDetailsScreen({
   errors,
   busy,
   offline = false,
+  failure,
+  onRetry,
+  providers = true,
   invitation,
   onChange,
   onGoogle,
@@ -57,19 +94,30 @@ export function AccountDetailsScreen({
       <StepHeader step={step} total={total} title={t('accounts.details.title')} onBack={onBack} />
       {invitation && <InvitationBanner {...invitation} />}
       {offline && <OfflineBanner />}
-      <ProviderOptions offline={offline} onGoogle={onGoogle} onMicrosoft={onMicrosoft} />
+      {providers && <ProviderOptions offline={offline} onGoogle={onGoogle ?? noop} onMicrosoft={onMicrosoft ?? noop} />}
+      {failure && <FailureNotice failure={failure} onRetry={onRetry} />}
       <TextField
-        label={t('accounts.details.name_label')}
-        value={values.name}
-        onChangeText={(text) => onChange('name', text)}
+        label={t('accounts.details.first_name_label')}
+        error={errors?.firstName ? t('accounts.details.first_name_required') : undefined}
+        value={values.firstName}
+        onChangeText={(text) => onChange('firstName', text)}
         autoCapitalize="words"
-        autoComplete="name"
-        textContentType="name"
+        autoComplete="given-name"
+        textContentType="givenName"
+      />
+      <TextField
+        label={t('accounts.details.last_name_label')}
+        error={errors?.lastName ? t('accounts.details.last_name_required') : undefined}
+        value={values.lastName}
+        onChangeText={(text) => onChange('lastName', text)}
+        autoCapitalize="words"
+        autoComplete="family-name"
+        textContentType="familyName"
       />
       <View style={{ gap: space[2] }}>
         <TextField
           label={t('auth.email_label')}
-          error={errors?.email === 'in_use' ? t('accounts.details.email_in_use') : undefined}
+          error={errors?.email ? t(emailErrorKeys[errors.email]) : undefined}
           value={values.email}
           onChangeText={(text) => onChange('email', text)}
           keyboardType="email-address"
@@ -83,14 +131,6 @@ export function AccountDetailsScreen({
           </View>
         )}
       </View>
-      <TextField
-        label={t('accounts.details.phone_label')}
-        value={values.phone}
-        onChangeText={(text) => onChange('phone', text)}
-        keyboardType="phone-pad"
-        autoComplete="tel"
-        textContentType="telephoneNumber"
-      />
       {codeSent ? (
         <CodeStep
           email={values.email.trim()}

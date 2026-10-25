@@ -7,13 +7,14 @@ import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, ConfirmSheet, SwimmerRow, SyncStatus } from '../../core/ui';
-import { createPowerSyncManagedAthleteRepository } from '../../modules/accounts';
+import { createPowerSyncManagedAthleteRepository, createSecureStoreRegistrationDraftRepository } from '../../modules/accounts';
 import { athleteDisplay, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useAdminSchool, useStaffSchool } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const schoolAthletes = createPowerSyncSchoolAthleteRepository();
+const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 
 export default function Home() {
   const { syncConnectFailed, signOut, session } = useSession();
@@ -46,6 +47,8 @@ export default function Home() {
     try {
       const result = await (force ? signOut({ force }) : signOut());
       if (result.status === 'blocked_pending') setBlocked(result);
+      // The next person on this phone must not find a registration someone left half done.
+      else await registrationDrafts.clear().catch(() => {});
     } catch {
       setSignOutFailed(true);
     } finally {
