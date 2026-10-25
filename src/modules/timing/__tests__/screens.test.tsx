@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { impactAsync } from 'expo-haptics';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { BackHandler, Text } from 'react-native';
 
 import { TimingHeader } from '../components/TimingHeader';
@@ -135,6 +137,49 @@ describe('StopwatchScreen', () => {
     const { onBack } = await renderStopwatchScreen({ state, elapsedHundredths: 3391 });
     expect(pressHardwareBack()).toBe(false);
     expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('gives a light haptic tap on Start, Split and Stop and still calls the container', async () => {
+    (impactAsync as jest.Mock).mockClear();
+    const ready = await renderStopwatchScreen({ state: 'ready' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Iniciar' }));
+    expect(ready.onStart).toHaveBeenCalledTimes(1);
+
+    const running = await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391 });
+    await fireEvent.press(screen.getByRole('button', { name: 'Parcial' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Detener' }));
+    expect(running.onSplit).toHaveBeenCalledTimes(1);
+    expect(running.onStop).toHaveBeenCalledTimes(1);
+    expect(impactAsync).toHaveBeenCalledTimes(3);
+    expect(impactAsync).toHaveBeenCalledWith('light');
+  });
+
+  describe('screen awake', () => {
+    const props = { ...fixture.stopwatchScreen, onBack: jest.fn(), onConfirmExit: jest.fn(), onCancelExit: jest.fn(), onStart: jest.fn(), onSplit: jest.fn(), onStop: jest.fn(), onSave: jest.fn(), onDiscard: jest.fn(), exitConfirmVisible: false };
+    beforeEach(() => {
+      (activateKeepAwakeAsync as jest.Mock).mockClear();
+      (deactivateKeepAwake as jest.Mock).mockClear();
+    });
+
+    it('stays off while ready, turns on when the clock starts and off when it stops', async () => {
+      const view = await render(<StopwatchScreen {...props} state="ready" />);
+      expect(activateKeepAwakeAsync).not.toHaveBeenCalled();
+
+      await view.rerender(<StopwatchScreen {...props} state="running" elapsedHundredths={100} />);
+      expect(activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
+      expect(deactivateKeepAwake).not.toHaveBeenCalled();
+
+      await view.rerender(<StopwatchScreen {...props} state="stopped" elapsedHundredths={3391} />);
+      expect(deactivateKeepAwake).toHaveBeenCalledTimes(1);
+    });
+
+    it('turns off when the screen is left while running', async () => {
+      const view = await render(<StopwatchScreen {...props} state="running" elapsedHundredths={100} />);
+      await view.unmount();
+
+      expect(activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
+      expect(deactivateKeepAwake).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('shows no exit sheet unless the container asks for it', async () => {

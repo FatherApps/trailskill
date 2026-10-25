@@ -16,6 +16,7 @@ jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   createPowerSyncStaffSchoolRepository: () => ({ listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args) }),
 }));
+const mockPersonalBestTime = jest.fn();
 const mockListAll = jest.fn();
 const mockListGranted = jest.fn();
 jest.mock('../modules/accounts', () => ({
@@ -23,9 +24,12 @@ jest.mock('../modules/accounts', () => ({
 }));
 jest.mock('../modules/athletes', () => ({
   ...jest.requireActual('../modules/athletes/athleteDisplay'),
+  createPowerSyncHistoryRepository: () => ({}),
+  personalBestTime: (...args: unknown[]) => mockPersonalBestTime(...args),
   createPowerSyncSchoolAthleteRepository: () => ({ listAll: (...args: unknown[]) => mockListAll(...args) }),
 }));
 let mockLoadRoster: () => Promise<{ id: string; shortName: string; authorized: boolean }[]>;
+let mockLoadBestTime: (athleteId: string, event: unknown) => Promise<number | null>;
 jest.mock('../modules/timing', () => {
   const { Text } = jest.requireActual('react-native');
   return {
@@ -33,8 +37,9 @@ jest.mock('../modules/timing', () => {
     createPowerSyncSeriesRepository: () => ({}),
     createSecureStoreSessionSetupRepository: () => ({}),
     SeriesTimingFlow: ({ subtitle }: { subtitle: string }) => <Text>{`series flow for ${subtitle}`}</Text>,
-    IndividualTimingFlow: ({ subtitle, userId, deviceId, loadRoster }: { subtitle: string; userId: string; deviceId: string; loadRoster: typeof mockLoadRoster }) => {
+    IndividualTimingFlow: ({ subtitle, userId, deviceId, loadRoster, loadBestTime }: { subtitle: string; userId: string; deviceId: string; loadRoster: typeof mockLoadRoster; loadBestTime: typeof mockLoadBestTime }) => {
       mockLoadRoster = loadRoster;
+      mockLoadBestTime = loadBestTime;
       return <Text>{`timing flow for ${subtitle} by ${userId} on ${deviceId}`}</Text>;
     },
   };
@@ -50,6 +55,7 @@ beforeEach(() => {
   mockListStaffSchools.mockReset().mockResolvedValue([]);
   mockListAll.mockReset().mockResolvedValue([]);
   mockListGranted.mockReset().mockResolvedValue([]);
+  mockPersonalBestTime.mockReset();
 });
 
 describe('timing route', () => {
@@ -89,6 +95,17 @@ describe('timing route', () => {
 
     expect(roster.map((a) => [a.id, a.authorized])).toEqual([['a1', true], ['a2', false]]);
     expect(mockListGranted).toHaveBeenCalledWith('record_times');
+  });
+
+  it('gives the flow the best time of the athlete in the event, read from the history on the device', async () => {
+    mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockPersonalBestTime.mockResolvedValue(3482);
+    await render(<TimingRoute />);
+    await screen.findByText(/timing flow/);
+
+    const event = { stroke: 'FR', distance: '50m', pool: 'SCM' };
+    expect(await mockLoadBestTime('a1', event)).toBe(3482);
+    expect(mockPersonalBestTime).toHaveBeenCalledWith(expect.anything(), 'a1', event);
   });
 
   it('opens the series flow with mode=series, and only for school staff', async () => {

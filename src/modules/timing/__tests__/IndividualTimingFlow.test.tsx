@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../../core/theme';
 import {
@@ -234,6 +234,72 @@ describe('individual timing flow', () => {
 
     expect(await measurements.listByAthleteEvent('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' })).toEqual([]);
     expect(screen.getByText('Ana M. · 1 de 2')).toBeOnTheScreen();
+  });
+
+  describe('personal best', () => {
+    const event = { stroke: 'FR', distance: '50m', pool: 'SCM' };
+    const hidden = { includeHiddenElements: true };
+    const startTiming = async (over: Partial<IndividualTimingFlowProps>) => {
+      await setup(over);
+      await screen.findByText('Nadadores (2 de 3)');
+      await press('Empezar toma');
+      await screen.findByText('Ana M. · 1 de 2');
+    };
+
+    it('shows the best of the athlete in the event and the difference once the time is stopped', async () => {
+      const loadBestTime = jest.fn(async (id: string) => (id === 'a1' ? 3482 : null));
+      await startTiming({ loadBestTime });
+      await press('Iniciar');
+      clock += 3391n * (second / 100n);
+      await press('Detener');
+
+      expect(await screen.findByText('MP 34,82')).toBeOnTheScreen();
+      expect(screen.getByText('−0,91 vs MP', hidden)).toBeOnTheScreen();
+      expect(loadBestTime).toHaveBeenCalledWith('a1', event);
+    });
+
+    it('reads the best of the next athlete too, and omits the difference when there is none', async () => {
+      const loadBestTime = jest.fn(async (id: string) => (id === 'a1' ? 3482 : null));
+      await startTiming({ loadBestTime });
+      await timeAthlete(35n);
+      await screen.findByText('Cleo O. · 2 de 2');
+      await press('Iniciar');
+      clock += 35n * second;
+      await press('Detener');
+
+      expect(loadBestTime).toHaveBeenCalledWith('a3', event);
+      expect(await screen.findByText('MP —')).toBeOnTheScreen();
+      expect(screen.queryByText(/vs MP/, hidden)).toBeNull();
+    });
+
+    it('keeps timing with no difference when the best cannot be read', async () => {
+      await startTiming({ loadBestTime: jest.fn().mockRejectedValue(new Error('unreadable')) });
+      await timeAthlete(35n);
+
+      expect(await screen.findByText('Cleo O. · 2 de 2')).toBeOnTheScreen();
+    });
+  });
+
+  it('takes the mark at the touch, however late the screen renders', async () => {
+    const { measurements } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    await press('Empezar toma');
+    await screen.findByText('Ana M. · 1 de 2');
+    await press('Iniciar');
+    clock += 17n * second;
+    // Both touches happen before React renders: the clock moves on while the updates wait.
+    const split = screen.getByRole('button', { name: 'Parcial' });
+    const stop = screen.getByRole('button', { name: 'Detener' });
+    await act(async () => {
+      fireEvent.press(split);
+      clock += 18n * second;
+      fireEvent.press(stop);
+      clock += 5n * second;
+    });
+    await press('Guardar');
+
+    const saved = await measurements.listByAthleteEvent('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' });
+    expect(saved.map((m) => [m.kind, m.hundredths]).sort()).toEqual([['repetition', 3500], ['split', 1700]]);
   });
 
   it('asks before leaving while a time is running, and goes back to the setup when confirmed', async () => {

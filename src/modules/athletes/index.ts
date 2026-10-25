@@ -27,7 +27,7 @@ export {
 } from './data/schoolAthletes';
 export { createInMemoryHistoryRepository } from './data/inMemoryHistoryRepository';
 export { createHistoryRepository, createPowerSyncHistoryRepository } from './data/measurementHistoryRepository';
-export { personalBest, personalBestKinds, type PersonalBestResult } from './personalBest';
+export { personalBest, personalBestKinds, personalBestTime, type PersonalBestResult } from './personalBest';
 export { formatShortName } from './formatShortName';
 export {
   createInMemoryAthleteRepository,
