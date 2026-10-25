@@ -23,6 +23,7 @@ export default function PlansRoute() {
       refreshKey={refreshKey}
       onOpenPlan={(id) => router.push(`/plans/${id}`)}
       onNewPlan={() => router.push('/plans/new')}
+      onAssign={() => router.push('/plans/assign')}
     />
   );
 }

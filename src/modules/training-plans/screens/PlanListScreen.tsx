@@ -19,6 +19,8 @@ export type PlanListScreenProps = {
   onNewPlan: () => void;
   onUseTemplate: (id: string) => void;
   onOpenPlan: (id: string) => void;
+  // Shows the "Asignar plan" button when given.
+  onAssign?: () => void;
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -34,7 +36,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 // Presentational: no repository; the caller supplies the state and handles the events.
-export function PlanListScreen({ view, onNewPlan, onUseTemplate, onOpenPlan }: PlanListScreenProps) {
+export function PlanListScreen({ view, onNewPlan, onUseTemplate, onOpenPlan, onAssign }: PlanListScreenProps) {
   const { colors, space, radius, typography } = useTheme();
   const row = { gap: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'] };
 
@@ -66,6 +68,7 @@ export function PlanListScreen({ view, onNewPlan, onUseTemplate, onOpenPlan }: P
       {view.kind === 'data' && (
         <>
           <Button label={t('training_plans.list.new')} onPress={onNewPlan} />
+          {onAssign && <Button variant="secondary" label={t('training_plans.list.assign')} onPress={onAssign} />}
           {view.copyFailed && <Banner variant="warn" icon="error">{t('training_plans.list.copy_failed')}</Banner>}
           {view.templates.length === 0 && view.plans.length === 0 && (
             <StateView
