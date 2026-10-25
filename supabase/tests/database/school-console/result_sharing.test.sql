@@ -4,7 +4,7 @@
 -- and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(98);
+select plan(99);
 
 -- Users: admin A, admin B, coach A, coach B, guardian G (of e1), adult D (self
 -- of e2), N with no relations and admin C (of school C).
@@ -246,6 +246,11 @@ select is((select count(*)::int from public.school_result_sharing), 0, 'admin B 
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select is((select count(*)::int from public.school_result_sharing), 1, 'admin A reads only the request to A');
+select results_eq(
+  $$ select requested_by, athlete_id from public.school_result_sharing $$,
+  $$ values ('26800000-0000-4000-8000-0000000000a2'::uuid, '26800000-0000-4000-8000-0000000000e1'::uuid) $$,
+  'admin A still sees who asked and for which athlete, under RLS'
+);
 
 set local request.jwt.claims = '{"sub": "26800000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
 select is((select count(*)::int from public.school_result_sharing), 0, 'coach A reads no request');
