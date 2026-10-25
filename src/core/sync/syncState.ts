@@ -68,7 +68,26 @@ export async function countUnsentRecords(): Promise<{ unsent: number; rejected: 
   return { unsent: rows[0]?.unsent ?? 0, rejected: rows[0]?.rejected ?? 0 };
 }
 
-export function useGlobalSyncSummary(): { pending: number; failed: number; uploading: boolean; lastSyncedAt: Date | null; connected: boolean } {
+export type SyncConnection = 'connected' | 'connecting' | 'offline';
+
+/**
+ * PowerSync reports `connected: false` both while it is connecting and when it cannot connect. A failed sync attempt leaves
+ * `downloadError` until a sync completes, so: connected, or not connected with an error (offline), or not connected yet (connecting).
+ * Limit: without a network-state dependency, an unreachable backend is also reported as offline.
+ */
+export function connectionState(status: { connected: boolean; dataFlowStatus: { downloadError?: Error } }): SyncConnection {
+  if (status.connected) return 'connected';
+  return status.dataFlowStatus.downloadError ? 'offline' : 'connecting';
+}
+
+export function useGlobalSyncSummary(): {
+  pending: number;
+  failed: number;
+  uploading: boolean;
+  lastSyncedAt: Date | null;
+  connected: boolean;
+  connection: SyncConnection;
+} {
   const { data } = useQuery<{ pending: number; failed: number }>(
     `SELECT (SELECT COUNT(*) FROM (${pendingRecords})) AS pending, (SELECT COUNT(*) FROM (${failedRecords})) AS failed`,
   );
@@ -80,5 +99,6 @@ export function useGlobalSyncSummary(): { pending: number; failed: number; uploa
     uploading: status.dataFlowStatus.uploading,
     lastSyncedAt: status.lastSyncedAt ?? null,
     connected: status.connected,
+    connection: connectionState(status),
   };
 }
