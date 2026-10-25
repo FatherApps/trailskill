@@ -103,6 +103,7 @@ describe('src/modules/timing rules', () => {
           onUseOnScreenStopwatch={noop}
           onArrival={noop}
           onUndoLast={noop}
+          onAssignNames={noop}
           onBack={noop}
         />
         <SeriesAssignmentScreen

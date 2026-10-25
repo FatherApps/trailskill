@@ -10,6 +10,7 @@ async function renderScreen(props: Partial<Parameters<typeof SeriesTimingScreen>
   const callbacks = {
     onArrival: jest.fn(),
     onUndoLast: jest.fn(),
+    onAssignNames: jest.fn(),
     onBack: jest.fn(),
     onUseOnScreenStopwatch: jest.fn(),
   };
@@ -106,5 +107,24 @@ describe('SeriesTimingScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
 
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers "Asignar nombres" once there are arrivals', async () => {
+    const { onAssignNames } = await renderScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Asignar nombres' }));
+
+    expect(onAssignNames).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables "Asignar nombres" and says why while there are no arrivals', async () => {
+    const { onAssignNames } = await renderScreen({ arrivals: [] });
+
+    const button = screen.getByRole('button', { name: /Asignar nombres/ });
+    await fireEvent.press(button);
+
+    expect(button).toBeDisabled();
+    expect(screen.getByText('Asignar nombres · Registra una llegada primero', hidden)).toBeOnTheScreen();
+    expect(onAssignNames).not.toHaveBeenCalled();
   });
 });

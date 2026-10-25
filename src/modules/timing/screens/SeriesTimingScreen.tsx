@@ -22,6 +22,8 @@ export type SeriesTimingScreenProps = {
   arrivals: ArrivalListProps['arrivals'];
   onArrival: () => void;
   onUndoLast: () => void;
+  // Ends the capture and opens the assignment of names; the series needs at least one arrival.
+  onAssignNames: () => void;
   onBack: () => void;
   // Shows the offline notice. Nothing is disabled: times are saved on the phone.
   offline?: boolean;
@@ -36,6 +38,7 @@ export function SeriesTimingScreen({
   arrivals,
   onArrival,
   onUndoLast,
+  onAssignNames,
   onBack,
   offline = false,
   externalTimerDisconnected = false,
@@ -80,6 +83,13 @@ export function SeriesTimingScreen({
         ) : (
           <ArrivalButton onArrival={onArrival} />
         )}
+        <View style={{ paddingTop: space[3] }}>
+          <Button
+            label={t('timing.series.assign_names')}
+            onPress={onAssignNames}
+            disabledReason={hasArrivals ? undefined : t('timing.series.assign_names_disabled')}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );

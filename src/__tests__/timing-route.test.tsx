@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react-native';
 import TimingRoute from '../app/(app)/timing';
 
 let mockUserId: string | undefined;
+let mockParams: { mode?: string } = {};
 jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
@@ -29,6 +30,8 @@ jest.mock('../modules/timing', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     createPowerSyncMeasurementRepository: () => ({}),
+    createPowerSyncSeriesRepository: () => ({}),
+    SeriesTimingFlow: ({ subtitle }: { subtitle: string }) => <Text>{`series flow for ${subtitle}`}</Text>,
     IndividualTimingFlow: ({ subtitle, userId, deviceId, loadRoster }: { subtitle: string; userId: string; deviceId: string; loadRoster: typeof mockLoadRoster }) => {
       mockLoadRoster = loadRoster;
       return <Text>{`timing flow for ${subtitle} by ${userId} on ${deviceId}`}</Text>;
@@ -37,11 +40,12 @@ jest.mock('../modules/timing', () => {
 });
 jest.mock('expo-router', () => {
   const { Text: RNText } = jest.requireActual('react-native');
-  return { Redirect: ({ href }: { href: string }) => <RNText>{`redirected to ${href}`}</RNText>, router: { back: jest.fn(), replace: jest.fn(), canGoBack: () => false } };
+  return { useLocalSearchParams: () => mockParams, Redirect: ({ href }: { href: string }) => <RNText>{`redirected to ${href}`}</RNText>, router: { back: jest.fn(), replace: jest.fn(), canGoBack: () => false } };
 });
 
 beforeEach(() => {
   mockUserId = 'user-1';
+  mockParams = {};
   mockListStaffSchools.mockReset().mockResolvedValue([]);
   mockListAll.mockReset().mockResolvedValue([]);
   mockListGranted.mockReset().mockResolvedValue([]);
@@ -84,5 +88,22 @@ describe('timing route', () => {
 
     expect(roster.map((a) => [a.id, a.authorized])).toEqual([['a1', true], ['a2', false]]);
     expect(mockListGranted).toHaveBeenCalledWith('record_times');
+  });
+
+  it('opens the series flow with mode=series, and only for school staff', async () => {
+    mockParams = { mode: 'series' };
+    mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    await render(<TimingRoute />);
+
+    expect(await screen.findByText('series flow for Escuela Delfines')).toBeOnTheScreen();
+    expect(screen.queryByText(/timing flow/)).toBeNull();
+  });
+
+  it('sends a user who belongs to no school back to the home also for the series flow', async () => {
+    mockParams = { mode: 'series' };
+    await render(<TimingRoute />);
+
+    expect(await screen.findByText('redirected to /')).toBeOnTheScreen();
+    expect(screen.queryByText(/series flow/)).toBeNull();
   });
 });
