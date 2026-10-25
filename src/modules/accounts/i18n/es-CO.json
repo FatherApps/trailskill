@@ -1,0 +1,42 @@
+{
+  "accounts": {
+    "create_title": "Crear cuenta",
+    "who": {
+      "title": "¿Quién va a nadar?",
+      "child_title": "Mi hijo o hija",
+      "child_detail": "Soy el acudiente de un menor de 18 años",
+      "adult_title": "Yo",
+      "adult_detail": "Soy mayor de edad y nado",
+      "child_notice": "Los menores no crean su propia cuenta. Tú registras y autorizas por ellos.",
+      "choose": "Elige quién va a nadar.",
+      "continue": "Continuar"
+    },
+    "details": {
+      "title": "Tus datos",
+      "name_label": "Nombre",
+      "phone_label": "Celular",
+      "request_code": "Enviarme un código",
+      "email_in_use": "Ya hay una cuenta con este correo. Inicia sesión",
+      "sign_in": "Iniciar sesión"
+    },
+    "providers": {
+      "google": "Continuar con Google",
+      "microsoft": "Continuar con Microsoft",
+      "divider": "o con un código por correo"
+    },
+    "code": {
+      "verify": "Verificar y continuar",
+      "sending": "Enviando código…",
+      "verifying": "Verificando…"
+    },
+    "offline": {
+      "notice": "Estás sin conexión. Guardamos lo que escribiste; verificar el código necesita señal.",
+      "reason": "Necesitas señal"
+    },
+    "invitation": {
+      "before": "Te invitó ",
+      "middle": " al grupo ",
+      "after": ". Revisa tus datos y confirma."
+    }
+  }
+}
