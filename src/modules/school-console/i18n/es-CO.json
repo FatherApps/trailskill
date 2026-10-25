@@ -111,5 +111,35 @@
       "11": "noviembre",
       "12": "diciembre"
     }
+  },
+  "categories": {
+    "list_label": "Categorías de la escuela",
+    "new_label": "Nueva categoría",
+    "add": "Agregar",
+    "name_required": "escribe un nombre",
+    "inactive": "Inactiva",
+    "move_up": "Subir {{name}}",
+    "move_down": "Bajar {{name}}",
+    "rename": "Renombrar",
+    "rename_label": "Nombre de la categoría",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "deactivate": "Desactivar",
+    "reactivate": "Reactivar",
+    "confirm": {
+      "title": "¿Desactivar {{name}}?",
+      "message": "Los deportistas que ya la tienen la conservan. No se podrá asignar a nuevos.",
+      "confirm": "Desactivar",
+      "cancel": "Cancelar"
+    },
+    "empty": {
+      "title": "Aún no hay categorías",
+      "message": "Agrega la primera para asignarla a tus deportistas."
+    },
+    "error": {
+      "title": "No pudimos cargar las categorías",
+      "message": "Revisa tu conexión e inténtalo de nuevo.",
+      "retry": "Intentar de nuevo"
+    }
   }
 }

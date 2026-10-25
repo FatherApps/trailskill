@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import ConsoleRoute from '../app/(app)/console';
 import { ThemeProvider } from '../core/theme';
@@ -11,9 +11,14 @@ jest.mock('../core/sync', () => ({
   useGlobalSyncSummary: () => ({ lastSyncedAt: null }),
 }));
 const mockListAdminSchools = jest.fn();
+const mockListCategories = jest.fn();
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   ...jest.requireActual('../modules/school-console/screens/ConsoleScreen'),
+  ...jest.requireActual('../modules/school-console/screens/CategoriesSection'),
+  createPowerSyncCategoriesRepository: () => ({
+    list: (...args: unknown[]) => mockListCategories(...args),
+  }),
   createPowerSyncStaffSchoolRepository: () => ({
     listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
   }),
@@ -26,6 +31,7 @@ jest.mock('expo-router', () => {
 beforeEach(() => {
   mockUserId = 'user-1';
   mockListAdminSchools.mockReset().mockResolvedValue([]);
+  mockListCategories.mockReset().mockResolvedValue([]);
 });
 
 const show = () =>
@@ -56,6 +62,18 @@ describe('console route', () => {
 
     expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
     expect(screen.queryByText(/redirected/)).toBeNull();
+  });
+
+  it('shows the categories of the school of the admin under Ajustes', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockListCategories.mockResolvedValue([{ id: 'c1', schoolId: 's1', name: 'Categoría A', sortOrder: 0, active: true }]);
+    await show();
+
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Ajustes' }));
+
+    expect(await screen.findByRole('header', { name: 'Categorías' })).toBeOnTheScreen();
+    expect(await screen.findByText('Categoría A')).toBeOnTheScreen();
+    expect(mockListCategories).toHaveBeenCalledWith('s1');
   });
 
   it('shows nothing while the lookup is pending', async () => {

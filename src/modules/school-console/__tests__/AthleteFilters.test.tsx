@@ -59,18 +59,18 @@ describe('AthleteFilters', () => {
   });
 
   it('shows an active filter with its value and a close icon, and the others as outlines', async () => {
-    await render(<AthleteFilters {...base} filters={{ category: 'Infantil B' }} />);
+    await render(<AthleteFilters {...base} filters={{ category: 'Categoría B' }} />);
 
-    expect(screen.getByRole('button', { name: 'Categoría: Infantil B' })).toBeSelected();
+    expect(screen.getByRole('button', { name: 'Categoría: Categoría B' })).toBeSelected();
     expect(screen.getByRole('button', { name: 'Grupo' })).not.toBeSelected();
-    const active = StyleSheet.flatten(screen.getByLabelText('Infantil B', hidden).props.style);
+    const active = StyleSheet.flatten(screen.getByLabelText('Categoría B', hidden).props.style);
     // The chip and the tag inside it share the label: the tag is the second.
     const inactiveTag = screen.getAllByLabelText('Grupo', hidden)[1];
     const inactive = StyleSheet.flatten(inactiveTag.props.style);
     expect(active.backgroundColor).toBe(colors.light['primary-tint']);
     expect(inactive).toMatchObject({ backgroundColor: 'transparent', borderColor: colors.light['border-strong'] });
     // The active chip carries the close icon, the inactive ones none.
-    expect(screen.getByLabelText('Infantil B', hidden).queryAll((node) => String(node.type) === 'RNSVGSvgView').length).toBe(1);
+    expect(screen.getByLabelText('Categoría B', hidden).queryAll((node) => String(node.type) === 'RNSVGSvgView').length).toBe(1);
     expect(inactiveTag.queryAll((node) => String(node.type) === 'RNSVGSvgView').length).toBe(0);
   });
 
