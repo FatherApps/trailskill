@@ -11,8 +11,8 @@ import {
   type AuthorizationPurpose,
   type SharingRequest,
 } from '../components/AuthorizationList';
-import type { ConsoleDestinationId } from '../components/ConsoleNav';
 import { SectionFrame, type SectionView } from '../components/SectionFrame';
+import type { ConsoleSectionProps } from './ConsoleScreen';
 
 export type AuthorizationsContent = {
   // Minutes since the data was updated; `null` when it is not known.
@@ -24,12 +24,8 @@ export type AuthorizationsContent = {
 
 export type AuthorizationsView = SectionView<AuthorizationsContent>;
 
-export type AuthorizationsScreenProps = {
-  // The width available to the console in dp: the caller measures it (window or preview).
-  width: number;
-  schoolName: string;
+export type AuthorizationsScreenProps = ConsoleSectionProps & {
   view: AuthorizationsView;
-  onNavigate: (id: ConsoleDestinationId) => void;
   // Both fire only after the ConfirmSheet is confirmed; the real sending and approval belong to the caller.
   onResend: (athleteId: string, purpose: AuthorizationPurpose) => void;
   onApproveSharing: (requestId: string) => void;

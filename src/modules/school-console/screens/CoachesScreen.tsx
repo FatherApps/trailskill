@@ -4,8 +4,8 @@ import { t } from '../../../core/i18n';
 import { ConfirmSheet } from '../../../core/ui';
 import '../i18n';
 import { CoachList, type CoachRow } from '../components/CoachList';
-import type { ConsoleDestinationId } from '../components/ConsoleNav';
 import { SectionFrame, type SectionView } from '../components/SectionFrame';
+import type { ConsoleSectionProps } from './ConsoleScreen';
 
 export type CoachesContent = {
   // Minutes since the data was updated; `null` when it is not known.
@@ -15,12 +15,8 @@ export type CoachesContent = {
 
 export type CoachesView = SectionView<CoachesContent>;
 
-export type CoachesScreenProps = {
-  // The width available to the console in dp: the caller measures it (window or preview).
-  width: number;
-  schoolName: string;
+export type CoachesScreenProps = ConsoleSectionProps & {
   view: CoachesView;
-  onNavigate: (id: ConsoleDestinationId) => void;
   // Both fire only after the ConfirmSheet is confirmed; the real invitation and deactivation belong to the caller.
   onInvite: () => void;
   onDeactivate: (id: string) => void;

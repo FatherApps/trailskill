@@ -2,9 +2,9 @@ import { t } from '../../../core/i18n';
 import '../i18n';
 import { AthleteFilters, type AthleteFiltersProps } from '../components/AthleteFilters';
 import type { AthleteFilterId } from '../components/athleteTypes';
-import type { ConsoleDestinationId } from '../components/ConsoleNav';
 import { MeasurementLog, type MeasurementEntry } from '../components/MeasurementLog';
 import { SectionFrame, type SectionView } from '../components/SectionFrame';
+import type { ConsoleSectionProps } from './ConsoleScreen';
 
 export type MeasurementsContent = {
   // Minutes since the data was updated; `null` when it is not known.
@@ -17,12 +17,8 @@ export type MeasurementsContent = {
 
 export type MeasurementsView = SectionView<MeasurementsContent>;
 
-export type MeasurementsScreenProps = {
-  // The width available to the console in dp: the caller measures it (window or preview).
-  width: number;
-  schoolName: string;
+export type MeasurementsScreenProps = ConsoleSectionProps & {
   view: MeasurementsView;
-  onNavigate: (id: ConsoleDestinationId) => void;
   onQueryChange: (query: string) => void;
   onFilterPress: (id: AthleteFilterId) => void;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).

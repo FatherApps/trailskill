@@ -5,9 +5,9 @@ import { pools, type PoolCode } from '../../../core/sport';
 import { useTheme } from '../../../core/theme';
 import { Segmented, Tag } from '../../../core/ui';
 import '../i18n';
-import type { ConsoleDestinationId } from '../components/ConsoleNav';
 import { RecordTable, type RecordRow } from '../components/RecordTable';
 import { SectionFrame, type SectionView } from '../components/SectionFrame';
+import type { ConsoleSectionProps } from './ConsoleScreen';
 
 export type RecordsContent = {
   // Minutes since the data was updated; `null` when it is not known.
@@ -21,12 +21,8 @@ export type RecordsContent = {
 
 export type RecordsView = SectionView<RecordsContent>;
 
-export type RecordsScreenProps = {
-  // The width available to the console in dp: the caller measures it (window or preview).
-  width: number;
-  schoolName: string;
+export type RecordsScreenProps = ConsoleSectionProps & {
   view: RecordsView;
-  onNavigate: (id: ConsoleDestinationId) => void;
   // Only report the press: the category selector a chip would open is not part of this screen.
   onCategoryPress: () => void;
   onPoolChange: (pool: PoolCode) => void;
