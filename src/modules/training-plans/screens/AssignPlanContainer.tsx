@@ -19,6 +19,8 @@ export type AssignPlanContainerProps = {
   userId: string;
   // The day shown first (YYYY-MM-DD); today when omitted.
   initialDay?: string;
+  // Opens the fulfillment grid of an assignment of the day shown.
+  onOpenFulfillment?: (assignmentId: string, day: string) => void;
 };
 
 type Loaded = { schoolId: string; scope: AssignScope; plans: PlanSummary[] };
@@ -49,7 +51,7 @@ function targetLabel(scope: AssignScope, target: AssignmentTarget): string {
 }
 
 // Container: finds the school and what the user may assign, and saves the assignments through the local repository.
-export function AssignPlanContainer({ plans, assignments, athletes, structure, schools, userId, initialDay }: AssignPlanContainerProps) {
+export function AssignPlanContainer({ plans, assignments, athletes, structure, schools, userId, initialDay, onOpenFulfillment }: AssignPlanContainerProps) {
   const [loaded, setLoaded] = useState<Loaded | 'loading' | 'error' | 'no_school'>('loading');
   const [attempt, setAttempt] = useState(0);
   const [day, setDay] = useState(initialDay ?? todayText());
@@ -185,6 +187,7 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
       onSelectOption={setOptionId}
       onAssign={save}
       onWithdraw={withdraw}
+      onOpenFulfillment={onOpenFulfillment && ((id) => onOpenFulfillment(id, day))}
     />
   );
 }

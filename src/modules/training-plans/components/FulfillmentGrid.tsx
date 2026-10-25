@@ -10,7 +10,7 @@ import {
 
 import { t } from "../../../core/i18n";
 import { useTheme } from "../../../core/theme";
-import { Tag } from "../../../core/ui";
+import { Icon, Tag } from "../../../core/ui";
 import "../i18n";
 import type { BlockStatus, PlanBlock } from "../types";
 import { blockSummary } from "./blockSummary";
@@ -20,6 +20,8 @@ import { cellKey } from "./fulfillment";
 
 export type FulfillmentGridProps = FulfillmentContent & {
   onCycle: (athleteId: string, blockId: string, next: BlockStatus) => void;
+  // Opens the series timing for a block that records times; without it the block headers are plain text.
+  onOpenTiming?: (blockId: string) => void;
 };
 
 const NOT_MARKED: FulfillmentCell = { status: "not_marked" };
@@ -62,6 +64,7 @@ export function FulfillmentGrid({
   vocabulary,
   cells,
   onCycle,
+  onOpenTiming,
 }: FulfillmentGridProps) {
   const { colors, space, radius, typography } = useTheme();
   const unit = typography.caption.fontSize * PixelRatio.getFontScale();
@@ -122,6 +125,13 @@ export function FulfillmentGrid({
               <Text style={[typography["body-strong"], { color: colors.ink }]}>
                 {athlete.shortName}
               </Text>
+              {athlete.skipped && (
+                <Text
+                  style={[typography.caption, { color: colors["ink-muted"] }]}
+                >
+                  {t("training_plans.fulfillment.skipped")}
+                </Text>
+              )}
             </View>
           </View>
         ))}
@@ -141,32 +151,50 @@ export function FulfillmentGrid({
               {...content("right", 0)}
               style={{ flexDirection: "row", alignSelf: "flex-start" }}
             >
-              {blocks.map((block) => (
-                <View
-                  key={block.id}
-                  style={{
-                    width: columnWidth,
-                    gap: space[1],
-                    paddingHorizontal: space[1],
-                  }}
-                >
-                  <Text
-                    style={[typography.caption, { color: colors["ink-muted"] }]}
+              {blocks.map((block) => {
+                const header = (
+                  <View
+                    style={{
+                      width: columnWidth,
+                      gap: space[1],
+                      paddingHorizontal: space[1],
+                    }}
                   >
-                    {t(`training_plans.phase.${block.phase}`)}
-                  </Text>
-                  <Text
-                    style={[typography["body-strong"], { color: colors.ink }]}
+                    <Text
+                      style={[typography.caption, { color: colors["ink-muted"] }]}
+                    >
+                      {t(`training_plans.phase.${block.phase}`)}
+                    </Text>
+                    <Text
+                      style={[typography["body-strong"], { color: colors.ink }]}
+                    >
+                      {blockSummary(block, vocabulary)}
+                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: space[1] }}>
+                      {onOpenTiming && block.recording !== "completion" && <Icon name="timer" size="icon-sm" />}
+                      <Text
+                        style={[typography.caption, { color: colors["ink-muted"] }]}
+                      >
+                        {t(`training_plans.recording_short.${block.recording}`)}
+                      </Text>
+                    </View>
+                  </View>
+                );
+                return onOpenTiming && block.recording !== "completion" ? (
+                  <Pressable
+                    key={block.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("training_plans.fulfillment.open_timing", {
+                      summary: blockSummary(block, vocabulary),
+                    })}
+                    onPress={() => onOpenTiming(block.id)}
                   >
-                    {blockSummary(block, vocabulary)}
-                  </Text>
-                  <Text
-                    style={[typography.caption, { color: colors["ink-muted"] }]}
-                  >
-                    {t(`training_plans.recording_short.${block.recording}`)}
-                  </Text>
-                </View>
-              ))}
+                    {header}
+                  </Pressable>
+                ) : (
+                  <View key={block.id}>{header}</View>
+                );
+              })}
             </View>
           </View>
           {athletes.map((athlete, row) => (
@@ -226,6 +254,8 @@ export function FulfillmentGrid({
                             }),
                           },
                         )}
+                        disabled={athlete.skipped}
+                        accessibilityState={{ disabled: athlete.skipped === true }}
                         onPress={() => onCycle(athlete.id, block.id, next)}
                         style={{
                           flexGrow: 1,

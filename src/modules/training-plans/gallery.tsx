@@ -132,6 +132,7 @@ function FulfillmentPreview({ view }: { view: FulfillmentView }) {
         dateLabel={fulfillmentFixture.dateLabel}
         view={live}
         onCycle={cycle}
+        onOpenTiming={noop}
       />
     </ScreenFrame>
   );
@@ -253,6 +254,7 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       grid: () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.grid }} />,
       'many-blocks': () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.manyBlocks }} />,
+      skipped: () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.skipped }} />,
       loading: () => <FulfillmentPreview view={{ kind: 'loading' }} />,
       'empty-athletes': () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.noAthletes }} />,
       'empty-blocks': () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.noBlocks }} />,
