@@ -1,8 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ScrollView, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 
-import type { AthleteFiltersProps } from './components/AthleteFilters';
-import type { AthleteFilterId } from './components/athleteTypes';
+import type { AthleteFilterId, MeasurementFilterId } from './components/athleteTypes';
 
 // The preview box shrinks its children to their content; these components need the full width.
 export const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
@@ -35,10 +34,18 @@ export function ConsolePreview({ fixedWidth, children }: { fixedWidth?: number; 
 }
 
 // The filter values a chip shows once it is active.
-export const filterValues: Record<AthleteFilterId, string> = { category: 'Categoría B', group: 'Grupo B', coach: 'Paula G.' };
+export const filterValues: Record<AthleteFilterId | MeasurementFilterId, string> = {
+  category: 'Categoría B',
+  group: 'Grupo B',
+  coach: 'Paula G.',
+  event: 'Libre 50',
+  range: 'Últimos 7 días',
+};
 
 // A chip press turns its filter on with a sample value, or off when it is already on.
-export function toggleFilter(current: AthleteFiltersProps['filters'], id: AthleteFilterId): AthleteFiltersProps['filters'] {
-  const { [id]: removed, ...rest } = current;
-  return removed === undefined ? { ...current, [id]: filterValues[id] } : rest;
+export function toggleFilter<Id extends AthleteFilterId | MeasurementFilterId>(current: Partial<Record<Id, string>>, id: Id): Partial<Record<Id, string>> {
+  if (current[id] === undefined) return { ...current, [id]: filterValues[id] };
+  const rest = { ...current };
+  delete rest[id];
+  return rest;
 }

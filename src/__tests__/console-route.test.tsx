@@ -9,6 +9,7 @@ jest.mock('../core/session', () => ({
 }));
 jest.mock('../core/sync', () => ({
   useGlobalSyncSummary: () => ({ lastSyncedAt: null, connected: true, connection: 'connected' }),
+  useRecordSyncStates: () => new Map(),
 }));
 const mockListAdminSchools = jest.fn();
 const mockConsoleAthletes = {
@@ -35,7 +36,8 @@ jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/screens/RecordsSection'),
   createPowerSyncCategoryRecordsRepository: () => ({ list: (...args: unknown[]) => mockListRecords(...args) }),
   createPowerSyncSchoolStructureRepository: () => ({ listGroups: () => Promise.resolve([]) }),
-  ...jest.requireActual('../modules/school-console/screens/MeasurementsScreen'),
+  ...jest.requireActual('../modules/school-console/screens/MeasurementsSection'),
+  createPowerSyncMeasurementLogRepository: () => ({ list: () => Promise.resolve([]) }),
   ...jest.requireActual('../modules/school-console/screens/AuthorizationsSection'),
   createPowerSyncAuthorizationsRepository: () => ({
     listAthletes: () => Promise.resolve([]),

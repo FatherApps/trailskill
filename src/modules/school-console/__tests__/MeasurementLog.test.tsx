@@ -44,7 +44,7 @@ describe('MeasurementLog', () => {
     it('is flagged and shows both versions with author, device, hour and time', async () => {
       await render(<MeasurementLog entries={measurementsFixture} />);
 
-      expect(screen.getAllByText('Conflicto', hidden)).toHaveLength(1);
+      expect(screen.getAllByText('Revisar', hidden)).toHaveLength(1);
       expect(screen.getByLabelText('Primera versión: 33 segundos con 91 centésimas, Paula G., Tablet 2, 08:12')).toBeOnTheScreen();
       expect(screen.getByLabelText('Segunda versión: 34 segundos con 19 centésimas, Andrés M., Teléfono 5, 08:15')).toBeOnTheScreen();
       expect(screen.getByText('Un administrador de la plataforma decide cuál se conserva.', hidden)).toBeOnTheScreen();
@@ -59,8 +59,17 @@ describe('MeasurementLog', () => {
     it('does not flag a measurement with a single version', async () => {
       await render(<MeasurementLog entries={[measurementsFixture[0]]} />);
 
-      expect(screen.queryByText('Conflicto', hidden)).toBeNull();
+      expect(screen.queryByText('Revisar', hidden)).toBeNull();
       expect(screen.queryByLabelText(/versión/i)).toBeNull();
+    });
+
+    it('flags a conflict whose other version this device does not hold, with no box of versions and no action', async () => {
+      await render(<MeasurementLog entries={[{ ...measurementsFixture[0], sync: 'needs_review' }]} />);
+
+      expect(screen.getAllByText('Revisar', hidden)).toHaveLength(1);
+      expect(screen.getByText('34,82', hidden)).toBeOnTheScreen();
+      expect(screen.queryByLabelText(/versión/i)).toBeNull();
+      expect(screen.queryAllByRole('button')).toHaveLength(0);
     });
 
     it('shows a dash for a version without time', async () => {
@@ -70,6 +79,13 @@ describe('MeasurementLog', () => {
       expect(screen.getByLabelText('Primera versión: sin tiempo, Paula G., Tablet 2, 08:12')).toBeOnTheScreen();
       expect(screen.queryByText('0,00', hidden)).toBeNull();
     });
+  });
+
+  it('shows the type and the sync state of each record', async () => {
+    await render(<MeasurementLog entries={[{ ...measurementsFixture[0], kind: 'Carrera', sync: 'on_device' }]} />);
+
+    expect(screen.getByLabelText(/^Lucía Ramírez, Libre 50 · Carrera · Paula G\. · Tablet 2 · 24 oct 2026 · 08:30/)).toBeOnTheScreen();
+    expect(screen.getByText('En el teléfono', hidden)).toBeOnTheScreen();
   });
 
   it('shows a message inside the frame when no measurement matches', async () => {

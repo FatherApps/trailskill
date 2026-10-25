@@ -65,6 +65,9 @@ export function createInMemoryMeasurementRepository(): InMemoryMeasurementReposi
     async listByAthlete(athleteId) {
       return live().filter((m) => m.athleteId === athleteId).sort(newestFirst);
     },
+    async listBySchool(schoolId) {
+      return live().filter((m) => m.schoolId === schoolId && m.athleteId !== null).sort(newestFirst);
+    },
     async countCapturedSince(athleteIds, since) {
       const wanted = new Set(athleteIds);
       return live().filter((m) => m.athleteId !== null && wanted.has(m.athleteId) && Date.parse(m.capturedAt) >= Date.parse(since)).length;
