@@ -57,3 +57,57 @@ export async function deleteRecord(table: string, id: string): Promise<void> {
     await markPending(tx, table, id);
   });
 }
+
+// Columns the server fills with a default; sending an explicit null breaks `not null default` (23502).
+const SERVER_ASSIGNED_COLUMNS = ['created_at', 'created_by'];
+
+/**
+ * Requeues the rejected writes of a record using the values on the device now, never the stored payloads,
+ * so an old payload can never overwrite a newer edit. The user's intent decides what is queued:
+ * a latest failed DELETE is retried as a DELETE even if the row came back; a missing row otherwise queues
+ * nothing (sync-down may have dropped it, and the failure keeps its payload); any failed PUT requeues the
+ * whole current row as a PUT (null audit columns omitted, other nulls sent), which covers later PATCHes;
+ * only failed PATCHes requeue the current values of their still-existing columns.
+ * `powersync_crud` is PowerSync's documented manual-queue API (raw tables); it must be verified on a device (#35).
+ */
+export async function retryFailedRecord(table: string, id: string): Promise<void> {
+  assertIdentifier(table);
+
+  await db.writeTransaction(async (tx) => {
+    // One aggregate row (a plain `get`, which every transaction supports); sorted here so the order never depends on SQLite.
+    const { failures: json } = await tx.get<{ failures: string }>(
+      "SELECT json_group_array(json_object('op', op, 'payload', payload, 'failed_at', failed_at)) AS failures FROM upload_failures WHERE table_name = ? AND record_id = ?",
+      [table, id],
+    );
+    const failures = (JSON.parse(json) as { op: string; payload: string; failed_at: string }[]).sort((a, b) => a.failed_at.localeCompare(b.failed_at));
+    if (failures.length === 0) return;
+
+    const row = await tx.getOptional<Record<string, unknown>>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+    let op: 'DELETE' | 'PUT' | 'PATCH';
+    let data: Record<string, unknown> | undefined;
+
+    if (failures[failures.length - 1].op === 'DELETE') {
+      op = 'DELETE';
+    } else if (!row) {
+      return;
+    } else {
+      const { id: _id, ...values } = row;
+      if (failures.some((failure) => failure.op === 'PUT')) {
+        op = 'PUT';
+        data = Object.fromEntries(Object.entries(values).filter(([column, value]) => value !== null || !SERVER_ASSIGNED_COLUMNS.includes(column)));
+      } else {
+        op = 'PATCH';
+        const columns = new Set(failures.flatMap((failure) => Object.keys(JSON.parse(failure.payload))));
+        data = Object.fromEntries([...columns].filter((column) => column in values).map((column) => [column, values[column]]));
+        if (Object.keys(data).length === 0) return;
+      }
+    }
+
+    await tx.execute(
+      data ? 'INSERT INTO powersync_crud (op, id, type, data) VALUES (?, ?, ?, ?)' : 'INSERT INTO powersync_crud (op, id, type) VALUES (?, ?, ?)',
+      data ? [op, id, table, JSON.stringify(data)] : [op, id, table],
+    );
+    await markPending(tx, table, id);
+    await tx.execute('DELETE FROM upload_failures WHERE table_name = ? AND record_id = ?', [table, id]);
+  });
+}
