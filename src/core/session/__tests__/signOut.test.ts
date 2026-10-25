@@ -9,6 +9,8 @@ let mockConnect: () => Promise<unknown>;
 const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
 const mockSignInWithOtp = jest.fn();
 const mockVerifyOtp = jest.fn();
+const mockSignOut = jest.fn();
+const mockGetSession = jest.fn();
 
 jest.mock('../../sync', () => ({
   countUnsentRecords: () => mockUnsent,
@@ -25,10 +27,8 @@ jest.mock('../../sync', () => ({
       },
       signInWithOtp: (...args: unknown[]) => mockSignInWithOtp(...args),
       verifyOtp: (...args: unknown[]) => mockVerifyOtp(...args),
-      signOut: jest.fn(async () => {
-        mockCalls.push('auth.signOut');
-        return { error: null };
-      }),
+      signOut: (...args: unknown[]) => mockSignOut(...args),
+      getSession: () => mockGetSession(),
     },
   },
 }));
@@ -39,6 +39,11 @@ beforeEach(() => {
   mockConnect = async () => mockCalls.push('db.connect');
   mockSignInWithOtp.mockReset().mockResolvedValue({ error: null });
   mockVerifyOtp.mockReset().mockResolvedValue({ error: null });
+  mockSignOut.mockReset().mockImplementation(async () => {
+    mockCalls.push('auth.signOut');
+    return { error: null };
+  });
+  mockGetSession.mockReset().mockResolvedValue({ data: { session: null } });
 });
 
 async function renderSession() {
@@ -179,5 +184,31 @@ describe('signOut', () => {
 
     expect(await outcome).toBe('blocked_pending');
     expect(mockCalls).toEqual([]);
+  });
+
+  it('reports a failed sign-out when the session is still stored', async () => {
+    const failure = new Error('storage');
+    mockSignOut.mockResolvedValue({ error: failure });
+    mockGetSession.mockResolvedValue({ data: { session: mockSignedIn } });
+    const session = await renderSession();
+    mockCalls.length = 0;
+
+    await act(async () => {
+      await expect(session.current.signOut({ force: true })).rejects.toBe(failure);
+    });
+
+    expect(mockCalls).toEqual(['db.disconnectAndClear']);
+  });
+
+  it('still signs out offline once supabase-js dropped the stored session', async () => {
+    mockSignOut.mockResolvedValue({ error: new Error('offline') });
+    const session = await renderSession();
+
+    let outcome: string | undefined;
+    await act(async () => {
+      outcome = await session.current.signOut({ force: true });
+    });
+
+    expect(outcome).toBe('signed_out');
   });
 });

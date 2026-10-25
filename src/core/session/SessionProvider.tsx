@@ -78,8 +78,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     // Clear first, so the next person on a shared phone starts with an empty local database.
     await db.disconnectAndClear();
-    // 'local' ends only this device's session; supabase-js drops the stored session even if the server call fails, so offline is not fatal.
-    await supabase.auth.signOut({ scope: 'local' });
+    // 'local' ends only this device's session. Offline, supabase-js still drops the stored session and returns an error:
+    // only a session that is still stored means the sign-out failed.
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error && (await supabase.auth.getSession()).data.session) throw error;
     return 'signed_out';
   }, []);
 
