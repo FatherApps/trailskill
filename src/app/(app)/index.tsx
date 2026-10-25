@@ -87,6 +87,9 @@ export default function Home() {
             />
           );
         })}
+      {managed.status === 'ready' && managed.athletes.length > 0 && (
+        <Button variant="secondary" label={t('accounts.authorizations.title')} onPress={() => router.push('/authorizations')} />
+      )}
       {isStaff && <Button label={t('home.timing')} onPress={() => router.push('/timing')} />}
       {isStaff && <Button label={t('home.timing_series')} onPress={() => router.push('/timing?mode=series')} />}
       {isStaff && <Button label={t('home.plans')} onPress={() => router.push('/plans')} />}

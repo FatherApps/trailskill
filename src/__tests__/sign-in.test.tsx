@@ -67,6 +67,14 @@ describe('sign-in screen', () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
+  it('does not reopen registration for a draft kept to resume the authorizations, even with its email', async () => {
+    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: 'ana@example.com', step: 'authorizations' });
+    await render(<SignIn />);
+
+    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it('stays on sign-in when no registration was started', async () => {
     await render(<SignIn />);
 

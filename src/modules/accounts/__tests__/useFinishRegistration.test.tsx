@@ -17,24 +17,24 @@ async function mount(draft: RegistrationDraft) {
   const links: ManagedAthleteRow[] = [];
   const managed = createInMemoryManagedAthleteProfileRepository(createInMemoryAthleteRepository(createInMemoryManagedAthleteRepository(links)), links);
   const drafts = createInMemoryRegistrationDraftRepository(draft);
-  const onAddAthletes = jest.fn();
+  const onNext = jest.fn();
   function Probe() {
-    useFinishRegistration('user-1', 'camila@example.test', drafts, createInMemoryAdultProfileRepository(), managed, onAddAthletes);
+    useFinishRegistration('user-1', 'camila@example.test', drafts, createInMemoryAdultProfileRepository(), managed, onNext);
     return null;
   }
   await render(<Probe />);
   await waitFor(async () => expect(await drafts.load()).not.toEqual(draft));
-  return onAddAthletes;
+  return onNext;
 }
 
 describe('useFinishRegistration routing', () => {
   it('opens the add screen for a guardian', async () => {
-    const onAddAthletes = await mount({ ...base, swimmer: 'child' });
-    await waitFor(() => expect(onAddAthletes).toHaveBeenCalledTimes(1));
+    const onNext = await mount({ ...base, swimmer: 'child' });
+    await waitFor(() => expect(onNext).toHaveBeenCalledWith('add_athletes'));
   });
 
-  it('does not open it for an adult', async () => {
-    const onAddAthletes = await mount({ ...base, swimmer: 'adult' });
-    expect(onAddAthletes).not.toHaveBeenCalled();
+  it('opens the authorizations for an adult', async () => {
+    const onNext = await mount({ ...base, swimmer: 'adult' });
+    await waitFor(() => expect(onNext).toHaveBeenCalledWith('authorizations'));
   });
 });

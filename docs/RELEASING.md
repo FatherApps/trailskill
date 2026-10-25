@@ -133,6 +133,7 @@ A build without the three variables still opens, but sign-in and sync report a m
 - [ ] Data safety form still matches what the app collects and shares.
 - [ ] Target API level meets the current Play requirement.
 - [ ] No debug flags, test accounts, or synthetic seed data in the production build.
+- [ ] `LEGAL_REVIEW_PENDING` in `src/modules/accounts/legalReview.ts` is `false` and issue #106 (legal review of the authorization texts) is closed: never publish to production while it is `true`.
 
 ## Open decisions
 

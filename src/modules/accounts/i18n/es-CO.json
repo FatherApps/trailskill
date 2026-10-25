@@ -47,6 +47,31 @@
       "middle": " al grupo ",
       "after": ". Revisa tus datos y confirma."
     },
+    "authorizations": {
+      "title": "Autorizaciones",
+      "intro": "Cada autorización es independiente. Puedes continuar sin autorizar y hacerlo después.",
+      "provisional": "Textos provisionales: no uses esta app con datos reales hasta la revisión legal.",
+      "skipped": "Se omitirá",
+      "continue": "Continuar",
+      "save": "Guardar",
+      "empty": "No tienes deportistas para autorizar.",
+      "load_failed": "No pudimos cargar las autorizaciones. Inténtalo de nuevo.",
+      "save_failed": "No pudimos guardar en el teléfono. Inténtalo de nuevo.",
+      "withdraw_title": "¿Retirar esta autorización?",
+      "withdraw_message": "Queda retirada desde ahora. Lo que aceptaste antes se conserva como evidencia.",
+      "withdraw_confirm": "Retirar",
+      "withdraw_cancel": "Cancelar"
+    },
+    "consent": {
+      "purpose": {
+        "record_times": "Registrar tiempos y resultados",
+        "import_official_results": "Importar resultados oficiales",
+        "share_results_with_school": "Compartir resultados con otra escuela"
+      },
+      "version": "Versión {{version}}",
+      "accepted": "Autorizado el {{date}}",
+      "withdraw": "Retirar"
+    },
     "athletes": {
       "title": "Agregar deportista",
       "first_name_label": "Nombre",

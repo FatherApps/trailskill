@@ -5,6 +5,13 @@ export { SignInScreen, type SignInField, type SignInScreenProps } from './screen
 export { AccountDetailsContainer, type AccountDetailsContainerProps } from './screens/AccountDetailsContainer';
 export { WhoSwimsContainer, type WhoSwimsContainerProps } from './screens/WhoSwimsContainer';
 export { WhoSwimsScreen, type SwimmerChoice, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';
+export {
+  AuthorizationsContainer,
+  type AuthorizationsContainerProps,
+} from './screens/AuthorizationsContainer';
+export { AuthorizationsScreen, type AuthorizationsScreenProps } from './screens/AuthorizationsScreen';
+export { ConsentCard, type ConsentCardProps } from './components/ConsentCard';
+export { LEGAL_REVIEW_PENDING } from './legalReview';
 export { AddAthletesScreen, type AddAthleteField, type AddAthletesScreenProps, type AddedAthlete } from './screens/AddAthletesScreen';
 export { AddAthletesContainer, type AddAthletesContainerProps, } from './screens/AddAthletesContainer';
 export { galleryEntries } from './gallery';
@@ -14,6 +21,14 @@ export {
   type AuthorizationPurpose,
   type AuthorizationStatusRepository,
 } from './data/authorizationStatus';
+export {
+  createInMemoryAuthorizationRepository,
+  createPowerSyncAuthorizationRepository,
+  useHasValidAuthorization,
+  type AuthorizationRecord,
+  type AuthorizationRepository,
+  type AuthorizationText,
+} from './data/authorizations';
 export {
   createInMemoryManagedAthleteRepository,
   createPowerSyncManagedAthleteRepository,
@@ -40,4 +55,5 @@ export {
   useFinishRegistration,
   type RegistrationDraft,
   type RegistrationDraftRepository,
+  type RegistrationStep,
 } from './data/registrationDraft';

@@ -3,14 +3,21 @@ import { render, screen } from '@testing-library/react-native';
 import { galleryEntries } from '..';
 
 // The accounts index reaches the PowerSync repository; the sync layer is ESM-only for Jest.
-jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync', () => ({ db: {}, RecordSyncStatus: () => null }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 const statesOf = (id: string) => Object.keys(galleryEntries.find((entry) => entry.id === id)!.states);
 
 describe('accounts gallery entries', () => {
   it('has one entry per screen with every listed state', () => {
-    expect(galleryEntries.map((entry) => entry.id)).toEqual(['whoSwims', 'accountDetails', 'signIn', 'addAthletes']);
+    expect(galleryEntries.map((entry) => entry.id)).toEqual([
+      'whoSwims',
+      'accountDetails',
+      'signIn',
+      'authorizations',
+      'consentCard',
+      'addAthletes',
+    ]);
     expect(statesOf('whoSwims')).toEqual(['initial', 'child', 'adult', 'invitation']);
     expect(statesOf('accountDetails')).toEqual([
       'initial',
@@ -24,6 +31,8 @@ describe('accounts gallery entries', () => {
       'invitation',
     ]);
     expect(statesOf('signIn')).toEqual(['initial', 'codeSent', 'codeMismatch', 'sending', 'offline']);
+    expect(statesOf('authorizations')).toEqual(['initial']);
+    expect(statesOf('consentCard')).toEqual(['unchecked', 'accepted']);
     expect(statesOf('addAthletes')).toEqual(['withData']);
   });
 
@@ -33,7 +42,8 @@ describe('accounts gallery entries', () => {
       const entry = galleryEntries.find((candidate) => candidate.id === id)!;
       await render(entry.states[state]());
 
-      expect(screen.getAllByRole('button').length).toBeGreaterThan(0);
+      // The consent card has a checkbox (unchecked) or a withdraw button (accepted).
+      expect(screen.queryAllByRole('button').length + screen.queryAllByRole('checkbox').length).toBeGreaterThan(0);
     },
   );
 });
