@@ -33,4 +33,5 @@ export { planVocabulary } from './vocabulary';
 export { galleryEntries } from './gallery';
 export { createInMemoryTrainingPlanRepository } from './data/inMemoryTrainingPlanRepository';
 export { createPowerSyncTrainingPlanRepository } from './data/powerSyncTrainingPlanRepository';
+export { BlockHasFulfillmentError } from './data/plans';
 export type { Plan, PlanSummary, TrainingPlanRepository } from './data/plans';
