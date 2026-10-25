@@ -48,8 +48,8 @@ describe('AthleteTable', () => {
       await render(<AthleteTable {...base} />);
 
       expect(screen.getAllByRole('button')).toHaveLength(athletesFixture.length);
-      expect(screen.getByRole('button', { name: `Lucía Ramírez, Infantil B, Grupo B, Paula G., Vigente, MP Libre 50: ${spokenTime(3482)}` })).toBeOnTheScreen();
-      expect(screen.getByRole('button', { name: 'Sara Peña, Infantil B, Grupo B, Paula G., Pendiente, MP Libre 50: sin marca' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: `Lucía Ramírez, Categoría B, Grupo B, Paula G., Vigente, MP Libre 50: ${spokenTime(3482)}` })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Sara Peña, Categoría B, Grupo B, Paula G., Pendiente, MP Libre 50: sin marca' })).toBeOnTheScreen();
     });
 
     it('shows the authorization as a tag, ok when valid and warn when pending', async () => {
@@ -161,7 +161,7 @@ describe('AthleteTable', () => {
 
       expect(screen.queryByText('Deportista')).toBeNull();
       expect(screen.getAllByRole('button')).toHaveLength(athletesFixture.length);
-      expect(screen.getByRole('button', { name: /^Lucía Ramírez, Infantil B · Grupo B · Paula G\./ })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: /^Lucía Ramírez, Categoría B · Grupo B · Paula G\./ })).toBeOnTheScreen();
       expect(screen.getAllByText('MP Libre 50', hidden)).toHaveLength(athletesFixture.length);
     });
 

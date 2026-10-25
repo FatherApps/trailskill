@@ -40,6 +40,10 @@ export interface MeasurementRepository {
   listBySeries(seriesId: string): Promise<Measurement[]>;
   /** Every kind of measurement of the athlete in the event, newest first (by id on a tie). */
   listByAthleteEvent(athleteId: string, event: MeasurementEvent): Promise<Measurement[]>;
+  /** Every measurement of the athlete, all events and kinds, newest first (by id on a tie). */
+  listByAthlete(athleteId: string): Promise<Measurement[]>;
+  /** How many measurements of the athletes were captured at or after `since` (ISO 8601). An empty list counts 0. */
+  countCapturedSince(athleteIds: readonly string[], since: string): Promise<number>;
   /**
    * Edits an existing measurement: only the time and the athlete can change. The edit is sent with the version it was based on
    * and the editing device, so another device's different edit becomes a conflict ("Revisar") instead of overwriting. Rejects a missing id.

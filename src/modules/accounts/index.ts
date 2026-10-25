@@ -4,3 +4,15 @@ export { AccountDetailsScreen, type AccountDetailsField, type AccountDetailsScre
 export { SignInScreen, type SignInField, type SignInScreenProps } from './screens/SignInScreen';
 export { WhoSwimsScreen, type SwimmerChoice, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';
 export { galleryEntries } from './gallery';
+export {
+  createInMemoryAuthorizationStatusRepository,
+  createPowerSyncAuthorizationStatusRepository,
+  type AuthorizationPurpose,
+  type AuthorizationStatusRepository,
+} from './data/authorizationStatus';
+export {
+  createInMemoryManagedAthleteRepository,
+  createPowerSyncManagedAthleteRepository,
+  type ManagedAthleteRepository,
+  type ManagedAthleteRow,
+} from './data/managedAthletes';

@@ -19,8 +19,12 @@ Organization `fatherApps`, project `TrailSkill`.
 
 1. **Supabase**, from the Dokploy Supabase template. The template's default public `sslip.io` domain was removed: the stack has no public domain of its own (see [Public and internal](#public-and-internal)).
    - The database is only on the stack's default network (`<supabase app name>_default`). `migrate` and `powersync` join that network; put its name in `SUPABASE_NETWORK` and use `db` as `SUPABASE_DB_HOST`.
-   - Two internal services were added to the stack's compose in Dokploy:
-     - `mailpit` (`axllent/mailpit:v1.22.3`): development SMTP on port 1025.
+   - Two services were added to the stack's compose in Dokploy:
+     - `mailpit` (`axllent/mailpit:v1.22.3`): test SMTP on port 1025, for the test environment only. Until production email exists (#105), it is how demo accounts get their sign-in code. Its environment is set by the maintainer on the `mailpit` service of that compose in Dokploy; values never go in the repository:
+       - `MP_SMTP_ALLOWED_RECIPIENTS` = `^demo-[a-z]+@example\.test$`: Mailpit accepts email only for `demo-*@example.test` and rejects every other recipient (`550`), so only demo accounts can get a code. Any other account gets `Error sending magic link email`.
+       - `MP_UI_AUTH`: the basic authentication credential for the web UI and API.
+       - Domain `trailskill-mail.tuls.app` on port `8025`, HTTPS off (see [Public and internal](#public-and-internal)). To sign in to a demo account, for example from a test APK, request the code in the app and read it there.
+       - Alternative without publishing it: leave out `MP_UI_AUTH` and the domain. The maintainer reads the code in the internal Mailpit and passes it on, so every demo sign-in depends on the maintainer.
      - `mail-templates` (`busybox:1.37` running `httpd -f -p 8080 -h /www`): serves `../files/mail-templates` read-only. The email template is a Dokploy file mount, `mail-templates/otp.html`, and it contains `{{ .Token }}`.
    - Environment added to the Auth service in that compose:
      - `GOTRUE_MAILER_TEMPLATES_MAGIC_LINK` and `GOTRUE_MAILER_TEMPLATES_CONFIRMATION` = `http://mail-templates:8080/otp.html`
@@ -90,9 +94,10 @@ Public hostnames (zone `tuls.app`):
 | --- | --- | --- |
 | `trailskill-api.tuls.app` | Supabase `api-gw`, port 8000 | The tunnel rule only allows paths matching `^/(auth\|rest\|storage\|functions\|realtime)/v1/`. Studio (the gateway root) is not reachable (404). |
 | `trailskill-sync.tuls.app` | `powersync`, port 8080 | |
+| `trailskill-mail.tuls.app` | Supabase stack `mailpit`, port 8025 | Test environment only. Mailpit basic authentication (`MP_UI_AUTH`). Holds only `demo-*@example.test` emails (see `MP_SMTP_ALLOWED_RECIPIENTS`). |
 | `trailskill-deploy.tuls.app` | Dokploy panel | Only paths matching `^/api/deploy/` (the GitHub webhook). Everything else is 404. |
 
-Internal only: Dokploy panel, Studio, Postgres, Mailpit, PowerSync storage. Details in ADR 0002.
+Internal only: Dokploy panel, Studio, Postgres, PowerSync storage. Mailpit is public only behind its basic authentication. Details in ADR 0002.
 
 To add or change a public hostname: add a Dokploy domain (HTTPS off), then add a tunnel rule and a proxied CNAME to the tunnel. Insert the rule before the tunnel's final 404 rule. The same tunnel serves other sites, so never replace or reorder its existing rules. Use single-level names (`name.tuls.app`): Cloudflare's free certificate does not cover `a.b.tuls.app`.
 

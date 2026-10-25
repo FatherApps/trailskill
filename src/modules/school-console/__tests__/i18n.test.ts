@@ -11,6 +11,12 @@ describe('school console i18n', () => {
     expect(t('schoolConsole.layout.close')).toBe('Cerrar');
   });
 
+  it('has the categories vocabulary', () => {
+    expect(t('schoolConsole.categories.new_label')).toBe('Nueva categoría');
+    expect(t('schoolConsole.categories.move_up', { name: 'Categoría A' })).toBe('Subir Categoría A');
+    expect(t('schoolConsole.categories.confirm.title', { name: 'Categoría A' })).toBe('¿Desactivar Categoría A?');
+  });
+
   it('keeps the shared vocabulary', () => {
     expect(t('common.back')).toBe('Volver');
     expect(t('sport.stroke.FR')).toBe('Libre');

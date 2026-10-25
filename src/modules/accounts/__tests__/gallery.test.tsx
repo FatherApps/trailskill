@@ -2,6 +2,10 @@ import { render, screen } from '@testing-library/react-native';
 
 import { galleryEntries } from '..';
 
+// The accounts index reaches the PowerSync repository; the sync layer is ESM-only for Jest.
+jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync/db', () => ({ db: {} }));
+
 const statesOf = (id: string) => Object.keys(galleryEntries.find((entry) => entry.id === id)!.states);
 
 describe('accounts gallery entries', () => {

@@ -20,7 +20,7 @@ describe('AthleteDetail', () => {
     await render(<AthleteDetail athlete={detailFixture} onViewProfile={() => {}} />);
 
     expect(screen.getByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
-    expect(screen.getByLabelText('Infantil B', hidden)).toBeOnTheScreen();
+    expect(screen.getByLabelText('Categoría B', hidden)).toBeOnTheScreen();
     expect(StyleSheet.flatten(screen.getByLabelText('Autorizado', hidden).props.style).backgroundColor).toBe(colors.light['success-bg']);
   });
 

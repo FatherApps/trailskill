@@ -1,12 +1,16 @@
-import { createPowerSyncMeasurementRepository, type MeasurementRepository } from '../../timing';
-import type { HistoryRepository } from './history';
+import { createPowerSyncMeasurementRepository, type Measurement, type MeasurementRepository } from '../../timing';
+import type { HistoryMeasurement, HistoryRepository } from './history';
+
+// Measurements captured in the app are the athlete's own; imported and other-school results arrive with later issues.
+const asOwn = (listed: Measurement[]): HistoryMeasurement[] => listed.map((m) => ({ ...m, origin: 'own' as const }));
 
 export function createHistoryRepository(measurements: MeasurementRepository): HistoryRepository {
   return {
     async listByEvent(athleteId, event) {
-      const listed = await measurements.listByAthleteEvent(athleteId, event);
-      // Measurements captured in the app are the athlete's own; imported and other-school results arrive with later issues.
-      return listed.map((m) => ({ ...m, origin: 'own' as const }));
+      return asOwn(await measurements.listByAthleteEvent(athleteId, event));
+    },
+    async listByAthlete(athleteId) {
+      return asOwn(await measurements.listByAthlete(athleteId));
     },
   };
 }

@@ -1,4 +1,4 @@
-import { formatDate } from '../components/formatDate';
+import { formatDate, formatDateTime } from '../components/formatDate';
 
 describe('formatDate', () => {
   it('formats a long date with the month from the translations', () => {
@@ -14,6 +14,20 @@ describe('formatDate', () => {
     'returns null for %p instead of showing a wrong date',
     (value) => {
       expect(formatDate(value, 'long')).toBeNull();
+    },
+  );
+});
+
+describe('formatDateTime', () => {
+  it('formats the short date and the 24-hour time of a local date-time', () => {
+    expect(formatDateTime('2026-10-24T08:30')).toEqual({ date: '24 oct 2026', time: '08:30' });
+    expect(formatDateTime('2026-10-24T23:59')).toEqual({ date: '24 oct 2026', time: '23:59' });
+  });
+
+  it.each(['2026-10-24', '2026-10-24T8:30', '2026-10-24T24:00', '2026-10-24T08:60', '2026-02-30T08:30', 'ayer', ''])(
+    'returns null for %p instead of showing a wrong date or time',
+    (value) => {
+      expect(formatDateTime(value)).toBeNull();
     },
   );
 });
