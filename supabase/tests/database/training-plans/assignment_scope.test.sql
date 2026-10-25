@@ -75,10 +75,16 @@ insert into public.athlete_groups (athlete_id, group_id) values
 insert into public.coach_group_assignments (coach_user_id, group_id) values
   ('74000000-0000-4000-8000-0000000000a2', '74000000-0000-4000-8000-0000000000c1'),
   ('74000000-0000-4000-8000-0000000000ab', '74000000-0000-4000-8000-0000000000c3');
-insert into public.coach_athlete_assignments (coach_user_id, athlete_id) values
-  ('74000000-0000-4000-8000-0000000000a2', '74000000-0000-4000-8000-0000000000e2'),
-  ('74000000-0000-4000-8000-0000000000a2', '74000000-0000-4000-8000-0000000000e9'),
-  ('74000000-0000-4000-8000-0000000000a3', '74000000-0000-4000-8000-0000000000e1');
+insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
+  ('74000000-0000-4000-8000-0000000000a2', '74000000-0000-4000-8000-0000000000e2', '74000000-0000-4000-8000-0000000000b1'),
+  ('74000000-0000-4000-8000-0000000000a3', '74000000-0000-4000-8000-0000000000e1', '74000000-0000-4000-8000-0000000000b1');
+-- C1 is also assigned to e9 of school 2, where C1 does not coach. The assignment
+-- trigger (#257) forbids that state, so this one row is stored with the trigger
+-- off to keep the scenario of the scope test below.
+alter table public.coach_athlete_assignments disable trigger user;
+insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id)
+values ('74000000-0000-4000-8000-0000000000a2', '74000000-0000-4000-8000-0000000000e9', '74000000-0000-4000-8000-0000000000b2');
+alter table public.coach_athlete_assignments enable trigger user;
 
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('74000000-0000-4000-8000-0000000000a6', '74000000-0000-4000-8000-0000000000e1', 'guardian'),
