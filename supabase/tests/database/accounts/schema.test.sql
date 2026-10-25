@@ -1,9 +1,10 @@
--- Foundations schema: the 11 tables exist, every one has row level security,
--- the powersync publication includes them, and without policies an
--- authenticated user reads zero rows. All data here is synthetic.
+-- Foundations schema: the 11 tables exist, every one has row level security
+-- and the policies its role needs, the powersync publication includes them,
+-- every app function is security definer with an empty search_path, and anon
+-- reads and writes nothing. All data here is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(27);
 
 create temp table expected_tables (name text primary key) on commit drop;
 insert into expected_tables (name) values
@@ -65,21 +66,45 @@ values ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000
 insert into public.platform_admins (user_id)
 values ('00000000-0000-4000-8000-0000000000a1');
 
--- Even the user linked to every row sees nothing: there are no policies yet.
-set local role authenticated;
-set local request.jwt.claims = '{"sub": "00000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select is_empty(
+  $$ select e.name, c.cmd from expected_tables e
+     cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) c(cmd)
+     where not exists (
+       select 1 from pg_policies p
+       where p.schemaname = 'public' and p.tablename = e.name
+         and 'authenticated' = any (p.roles)
+         and p.cmd in (c.cmd, 'ALL')
+     ) $$,
+  'every table has a policy for each command authenticated uses'
+);
 
-select is_empty('select 1 from public.schools', 'authenticated reads no schools');
-select is_empty('select 1 from public.categories', 'authenticated reads no categories');
-select is_empty('select 1 from public.training_groups', 'authenticated reads no training_groups');
-select is_empty('select 1 from public.school_memberships', 'authenticated reads no school_memberships');
-select is_empty('select 1 from public.coach_group_assignments', 'authenticated reads no coach_group_assignments');
-select is_empty('select 1 from public.coach_athlete_assignments', 'authenticated reads no coach_athlete_assignments');
-select is_empty('select 1 from public.athletes', 'authenticated reads no athletes');
-select is_empty('select 1 from public.athlete_schools', 'authenticated reads no athlete_schools');
-select is_empty('select 1 from public.athlete_groups', 'authenticated reads no athlete_groups');
-select is_empty('select 1 from public.athlete_managers', 'authenticated reads no athlete_managers');
-select is_empty('select 1 from public.platform_admins', 'authenticated reads no platform_admins');
+select is_empty(
+  $$ select proname from pg_proc
+     where pronamespace = 'app'::regnamespace
+       and not (prosecdef and coalesce(proconfig, '{}') @> array['search_path=""']) $$,
+  'every app function is security definer with an empty search_path'
+);
+
+-- anon has no policies: it reads nothing and cannot write.
+set local role anon;
+set local request.jwt.claims = '{"role": "anon"}';
+
+select is_empty('select 1 from public.schools', 'anon reads no schools');
+select is_empty('select 1 from public.categories', 'anon reads no categories');
+select is_empty('select 1 from public.training_groups', 'anon reads no training_groups');
+select is_empty('select 1 from public.school_memberships', 'anon reads no school_memberships');
+select is_empty('select 1 from public.coach_group_assignments', 'anon reads no coach_group_assignments');
+select is_empty('select 1 from public.coach_athlete_assignments', 'anon reads no coach_athlete_assignments');
+select is_empty('select 1 from public.athletes', 'anon reads no athletes');
+select is_empty('select 1 from public.athlete_schools', 'anon reads no athlete_schools');
+select is_empty('select 1 from public.athlete_groups', 'anon reads no athlete_groups');
+select is_empty('select 1 from public.athlete_managers', 'anon reads no athlete_managers');
+select is_empty('select 1 from public.platform_admins', 'anon reads no platform_admins');
+select throws_ok(
+  $$ insert into public.athletes (first_name, last_name) values ('Anon', 'Writer') $$,
+  '42501', null,
+  'anon cannot insert into athletes'
+);
 
 select * from finish();
 rollback;
