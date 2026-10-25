@@ -67,12 +67,12 @@ const position = (catalog: readonly { code: string }[], code: string) => catalog
 export function createConsoleAthletesRepository({ athletes, authorizations, history, measurements, structure }: Dependencies): ConsoleAthletesRepository {
   return {
     async listAthletes(schoolId) {
-      const [listed, granted, categories, groups, assignments] = await Promise.all([
-        athletes.listBySchool(schoolId),
+      const listed = await athletes.listBySchool(schoolId);
+      const [granted, categories, groups, assignments] = await Promise.all([
         authorizations.listGrantedAthleteIds('record_times'),
         structure.listCategories(schoolId),
         structure.listGroups(schoolId),
-        structure.listCoachAssignments(schoolId),
+        structure.listCoachAssignments(schoolId, listed.map((a) => a.id)),
       ]);
       const grantedIds = new Set(granted);
       const categoryById = new Map(categories.map((c) => [c.id, c]));

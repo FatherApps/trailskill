@@ -10,8 +10,8 @@ export interface SchoolStructureRepository {
   listCategories(schoolId: string): Promise<SchoolCategory[]>;
   /** Training groups of the school by name, id. Local database only. */
   listGroups(schoolId: string): Promise<SchoolGroup[]>;
-  /** Coach assignments to the groups of the school and to the athletes linked to it. Local database only. */
-  listCoachAssignments(schoolId: string): Promise<CoachAssignment[]>;
+  /** Coach assignments to the groups of the school and to the given athletes (the caller supplies the school's athletes). Local database only. */
+  listCoachAssignments(schoolId: string, athleteIds: readonly string[]): Promise<CoachAssignment[]>;
 }
 
 export function createPowerSyncSchoolStructureRepository(): SchoolStructureRepository {
@@ -25,15 +25,14 @@ export function createPowerSyncSchoolStructureRepository(): SchoolStructureRepos
     async listGroups(schoolId) {
       return db.getAll<SchoolGroup>('SELECT id AS id, name AS name FROM training_groups WHERE school_id = ? ORDER BY name, id', [schoolId]);
     },
-    async listCoachAssignments(schoolId) {
-      // athlete_schools only scopes the direct assignments; it is not returned.
+    async listCoachAssignments(schoolId, athleteIds) {
       return db.getAll<CoachAssignment>(
         `SELECT DISTINCT a.coach_user_id AS coachId, a.group_id AS groupId, NULL AS athleteId
          FROM coach_group_assignments a JOIN training_groups g ON g.id = a.group_id WHERE g.school_id = ?
          UNION
          SELECT DISTINCT d.coach_user_id AS coachId, NULL AS groupId, d.athlete_id AS athleteId
-         FROM coach_athlete_assignments d WHERE d.athlete_id IN (SELECT athlete_id FROM athlete_schools WHERE school_id = ?)`,
-        [schoolId, schoolId],
+         FROM coach_athlete_assignments d WHERE d.athlete_id IN (SELECT value FROM json_each(?))`,
+        [schoolId, JSON.stringify(athleteIds)],
       );
     },
   };
@@ -44,7 +43,6 @@ export type SchoolStructureRows = {
   groups: (SchoolGroup & { schoolId: string })[];
   groupAssignments: { coachId: string; groupId: string }[];
   athleteAssignments: { coachId: string; athleteId: string }[];
-  athleteSchools: { athleteId: string; schoolId: string }[];
 };
 
 export function createInMemorySchoolStructureRepository(rows: SchoolStructureRows): SchoolStructureRepository {
@@ -61,12 +59,13 @@ export function createInMemorySchoolStructureRepository(rows: SchoolStructureRow
         .map(({ id, name }) => ({ id, name }))
         .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     },
-    async listCoachAssignments(schoolId) {
+    async listCoachAssignments(schoolId, athleteIds) {
       const groupIds = new Set(rows.groups.filter((g) => g.schoolId === schoolId).map((g) => g.id));
-      const athleteIds = new Set(rows.athleteSchools.filter((l) => l.schoolId === schoolId).map((l) => l.athleteId));
+      const wanted = new Set(athleteIds);
+      const unique = <T extends { coachId: string }>(list: T[], key: (a: T) => string) => [...new Map(list.map((a) => [`${a.coachId}|${key(a)}`, a])).values()];
       return [
-        ...rows.groupAssignments.filter((a) => groupIds.has(a.groupId)).map((a) => ({ coachId: a.coachId, groupId: a.groupId, athleteId: null })),
-        ...rows.athleteAssignments.filter((a) => athleteIds.has(a.athleteId)).map((a) => ({ coachId: a.coachId, groupId: null, athleteId: a.athleteId })),
+        ...unique(rows.groupAssignments.filter((a) => groupIds.has(a.groupId)), (a) => a.groupId).map((a) => ({ coachId: a.coachId, groupId: a.groupId, athleteId: null })),
+        ...unique(rows.athleteAssignments.filter((a) => wanted.has(a.athleteId)), (a) => a.athleteId).map((a) => ({ coachId: a.coachId, groupId: null, athleteId: a.athleteId })),
       ];
     },
   };

@@ -42,10 +42,7 @@ const rows: SchoolStructureRows = {
   athleteAssignments: [
     { coachId: 'coach-3', athleteId: 'a1' },
     { coachId: 'coach-9', athleteId: 'a9' },
-  ],
-  athleteSchools: [
-    { athleteId: 'a1', schoolId: 'school-a' },
-    { athleteId: 'a9', schoolId: 'school-b' },
+    { coachId: 'coach-4', athleteId: 'a2' },
   ],
 };
 
@@ -64,13 +61,11 @@ function createPowerSync(): SchoolStructureRepository {
     CREATE TABLE training_groups (id TEXT PRIMARY KEY, school_id TEXT, name TEXT);
     CREATE TABLE coach_group_assignments (id TEXT PRIMARY KEY, coach_user_id TEXT, group_id TEXT);
     CREATE TABLE coach_athlete_assignments (id TEXT PRIMARY KEY, coach_user_id TEXT, athlete_id TEXT);
-    CREATE TABLE athlete_schools (id TEXT PRIMARY KEY, athlete_id TEXT, school_id TEXT, category_id TEXT);
   `);
   for (const c of rows.categories) seed.prepare('INSERT INTO categories VALUES (?, ?, ?, ?)').run(c.id, c.schoolId, c.name, c.sortOrder);
   for (const g of rows.groups) seed.prepare('INSERT INTO training_groups VALUES (?, ?, ?)').run(g.id, g.schoolId, g.name);
   rows.groupAssignments.forEach((r, i) => seed.prepare('INSERT INTO coach_group_assignments VALUES (?, ?, ?)').run(`ga${i}`, r.coachId, r.groupId));
   rows.athleteAssignments.forEach((r, i) => seed.prepare('INSERT INTO coach_athlete_assignments VALUES (?, ?, ?)').run(`aa${i}`, r.coachId, r.athleteId));
-  rows.athleteSchools.forEach((r, i) => seed.prepare('INSERT INTO athlete_schools VALUES (?, ?, ?, NULL)').run(`as${i}`, r.athleteId, r.schoolId));
   seed.close();
   mockDb = openDatabase(store.path);
   return createPowerSyncSchoolStructureRepository();
@@ -98,8 +93,8 @@ describe.each(factories)('%s school structure repository', (_name, create) => {
     ]);
   });
 
-  it('lists the coach assignments of the groups and of the athletes of the school only', async () => {
-    const assignments = await create().listCoachAssignments('school-a');
+  it('lists the coach assignments of the groups of the school and of the given athletes only', async () => {
+    const assignments = await create().listCoachAssignments('school-a', ['a1']);
 
     expect(assignments).toHaveLength(3);
     expect(assignments).toEqual(
@@ -111,10 +106,24 @@ describe.each(factories)('%s school structure repository', (_name, create) => {
     );
   });
 
+  it('excludes the direct assignment of an athlete that is not in the given ids', async () => {
+    const assignments = await create().listCoachAssignments('school-a', ['a1', 'a2']);
+
+    expect(assignments.filter((a) => a.athleteId !== null)).toHaveLength(2);
+    expect(assignments).toContainEqual({ coachId: 'coach-4', groupId: null, athleteId: 'a2' });
+    expect(assignments).not.toContainEqual(expect.objectContaining({ athleteId: 'a9' }));
+  });
+
+  it('collapses duplicated athlete ids into one assignment', async () => {
+    const assignments = await create().listCoachAssignments('school-a', ['a1', 'a1']);
+
+    expect(assignments.filter((a) => a.athleteId === 'a1')).toHaveLength(1);
+  });
+
   it('returns empty lists for a school without data', async () => {
     const repository = create();
     await expect(repository.listCategories('nowhere')).resolves.toEqual([]);
     await expect(repository.listGroups('nowhere')).resolves.toEqual([]);
-    await expect(repository.listCoachAssignments('nowhere')).resolves.toEqual([]);
+    await expect(repository.listCoachAssignments('nowhere', [])).resolves.toEqual([]);
   });
 });

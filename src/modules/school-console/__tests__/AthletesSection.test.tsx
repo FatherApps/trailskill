@@ -94,12 +94,6 @@ const setup = () => {
         { coachId: 'k9', groupId: 'g9' },
       ],
       athleteAssignments: [],
-      athleteSchools: [
-        { athleteId: 'a1', schoolId: 'school-a' },
-        { athleteId: 'a2', schoolId: 'school-a' },
-        { athleteId: 'a3', schoolId: 'school-a' },
-        { athleteId: 'a4', schoolId: 'school-b' },
-      ],
     }),
   });
   return { repository, countCapturedSince };
