@@ -1,10 +1,12 @@
 import type { Session } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, View } from 'react-native';
 
 import { t } from '../i18n';
 import { countUnsentRecords, db, supabase, supabaseConfigError, SupabaseConnector } from '../sync';
-import { ConfirmSheet } from '../ui';
+import { useTheme } from '../theme';
+import { ConfirmSheet, StateView } from '../ui';
 
 // The id of the user whose data the local database holds. SecureStore keys allow only letters, digits, ".", "-" and "_".
 const LOCAL_OWNER_KEY = 'trailskill-local-owner';
@@ -45,9 +47,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // The user whose local data may be shown, and the user blocked by another person's unsent records.
   const [readyFor, setReadyFor] = useState<string>();
   const [blockedFor, setBlockedFor] = useState<string>();
+  // The user whose owner check failed, and the user whose discard failed: each shows its error until a retry.
+  const [checkFailedFor, setCheckFailedFor] = useState<string>();
+  const [discardFailedFor, setDiscardFailedFor] = useState<string>();
+  const { colors, space } = useTheme();
   // The user of the session stored before launch: before owners were recorded, the local data was always theirs.
   const restoredUserId = useRef<string>(undefined);
-  // Bumped to run the local data check again after discarding.
+  // Bumped to run the local data check again after discarding or after a failed check.
   const [check, setCheck] = useState(0);
   // One connector, so cancelWaits() reaches the upload wait in progress.
   const [connector] = useState(
@@ -89,16 +95,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Ignore a result that arrives after the user changed.
       if (!current) return;
       setReadyFor(userId);
-      if (!supabaseConfigError) await db.connect(connector);
+      if (supabaseConfigError) return;
+      await db.connect(connector).catch(() => {
+        if (current) setSyncFailedFor(userId);
+      });
     })().catch(() => {
-      // shortcut: a failed owner check keeps the person on sign-in with no message; show one if it is ever seen on a device.
-      if (current) setSyncFailedFor(userId);
+      // SecureStore or the local database failed before the data could be shown: nothing is shown or connected until a retry.
+      if (current) setCheckFailedFor(userId);
     });
     return () => {
       current = false;
       // The next check starts from scratch, so an earlier result never shows a screen for this run.
       setReadyFor(undefined);
       setBlockedFor(undefined);
+      setCheckFailedFor(undefined);
+      setDiscardFailedFor(undefined);
       // The session ended or changed without signing out: stop syncing, keep the data for its owner.
       connector.cancelWaits();
       db.disconnect().catch(() => {});
@@ -107,15 +118,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const syncConnectFailed = userId !== undefined && syncFailedFor === userId;
   const ready = userId !== undefined && readyFor === userId;
   const previousUserPending = userId !== undefined && blockedFor === userId;
-  const checking = userId !== undefined && !ready && !previousUserPending && !syncConnectFailed;
+  const checkFailed = userId !== undefined && checkFailedFor === userId;
+  const discardFailed = userId !== undefined && discardFailedFor === userId;
+  const checking = userId !== undefined && !ready && !previousUserPending && !checkFailed;
+
+  const retryCheck = useCallback(() => setCheck((value) => value + 1), []);
 
   const discardPreviousUserData = useCallback(async () => {
     if (!userId) return;
-    connector.cancelWaits();
-    await db.disconnectAndClear();
-    await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
-    setCheck((value) => value + 1);
-  }, [userId, connector]);
+    try {
+      connector.cancelWaits();
+      await db.disconnectAndClear();
+      await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
+    } catch {
+      // The sheet stays open with the failure, so the person can try again or go back to the previous person.
+      setDiscardFailedFor(userId);
+      AccessibilityInfo.announceForAccessibility(t('session.discard_failed'));
+      return;
+    }
+    retryCheck();
+  }, [userId, connector, retryCheck]);
 
   // The safe choice: the new session ends, the previous person's records stay on the phone until they sign in again.
   const returnToPreviousUser = useCallback(() => {
@@ -161,18 +183,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Render nothing until the stored session and the owner of the local data are known,
   // so a signed-in person never sees the sign-in screen flash.
   if (!restored || checking) return null;
+  if (checkFailed) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', padding: space[4], backgroundColor: colors['surface-0'] }}>
+        <StateView
+          kind="error"
+          title={t('session.check_failed_title')}
+          message={t('session.check_failed_message')}
+          action={{ label: t('sync.retry'), onPress: retryCheck }}
+        />
+      </View>
+    );
+  }
   return (
     <SessionContext.Provider value={value}>
       {children}
       <ConfirmSheet
         visible={previousUserPending}
         title={t('session.previous_user_title')}
-        message={t('session.previous_user_message')}
+        message={discardFailed ? t('session.discard_failed') : t('session.previous_user_message')}
         confirmLabel={t('session.previous_user_discard')}
         cancelLabel={t('session.previous_user_return')}
         destructive
-        // On a failure the sheet stays open, so the person can try again.
-        onConfirm={() => discardPreviousUserData().catch(() => {})}
+        onConfirm={discardPreviousUserData}
         onCancel={returnToPreviousUser}
       />
     </SessionContext.Provider>
