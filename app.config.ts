@@ -21,9 +21,9 @@ const config: ExpoConfig = {
     [
       'expo-splash-screen',
       {
-        // Stacked lockup in the light theme and the reversed lockup in the dark theme, as exported from the official SVGs.
+        // Stacked lockup (light) and reversed lockup (dark) exported from the official SVGs on a square transparent canvas: Android 12+ crops the splash image to a circle two thirds of its frame.
         image: './assets/splash-light.png',
-        imageWidth: 220,
+        imageWidth: 288,
         // Canvas of each theme; app-config.test.ts checks them against the theme tokens (Expo does not transpile imports here).
         backgroundColor: '#F4F2EC',
         dark: { image: './assets/splash-dark.png', backgroundColor: '#121210' },

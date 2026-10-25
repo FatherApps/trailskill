@@ -40,4 +40,13 @@ describe('app icon and splash configuration', () => {
     }
     expect(splash!.dark.image).not.toBe(splash!.image);
   });
+
+  // Android 12+ crops the splash image to a circle two thirds of its frame: the logo needs transparent margin to survive it.
+  it('exports square splash images so the Android 12 circle crop keeps the whole logo', () => {
+    const splash = splashOptions();
+    for (const image of [splash!.image, splash!.dark.image]) {
+      const { width, height } = pngSize(image);
+      expect(width).toBe(height);
+    }
+  });
 });
