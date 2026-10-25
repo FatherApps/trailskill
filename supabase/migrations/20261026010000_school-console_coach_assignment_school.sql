@@ -14,10 +14,10 @@ alter table public.coach_athlete_assignments add column school_id uuid reference
 
 -- Existing rows get the only possible school, never a guess: the schools where
 -- the coach is a coach and the athlete is enrolled. Every row is checked
--- first; if any has no candidate or more than one, the migration fails once,
--- with the count and the first 10 ids (ids and counts only), and writes
--- nothing. Kept as a function, not a DO block, so the pgTAP tests and the
--- deploy runbook can run the same check (same pattern as #291).
+-- first; if any has no possible school or more than one, the migration fails
+-- once, with the count and the first 10 ids of each type (ids and counts only),
+-- and writes nothing. Kept as a function, not a DO block, so the pgTAP tests and
+-- the deploy runbook can run the same check (same pattern as #291).
 create function app.coach_assignment_backfill_school_ids()
 returns void
 language plpgsql
@@ -26,15 +26,18 @@ security definer
 set search_path = ''
 as $$
 declare
-  bad bigint;
-  bad_ids text;
+  none_count bigint;
+  many_count bigint;
+  none_ids text;
+  many_ids text;
 begin
   drop table if exists pg_temp.coach_assignment_backfill;
-  create temporary table coach_assignment_backfill (id uuid, school uuid) on commit drop;
+  create temporary table coach_assignment_backfill (id uuid, school uuid, candidates int) on commit drop;
 
-  insert into pg_temp.coach_assignment_backfill (id, school)
+  insert into pg_temp.coach_assignment_backfill (id, school, candidates)
   select ca.id,
-         case when count(distinct sm.school_id) = 1 then (array_agg(sm.school_id))[1] end
+         case when count(distinct sm.school_id) = 1 then (array_agg(sm.school_id))[1] end,
+         count(distinct sm.school_id)
   from public.coach_athlete_assignments ca
   left join public.school_memberships sm
     on sm.user_id = ca.coach_user_id
@@ -43,13 +46,17 @@ begin
   where ca.school_id is null
   group by ca.id;
 
-  select count(*) into bad from pg_temp.coach_assignment_backfill where school is null;
+  select count(*) filter (where candidates = 0), count(*) filter (where candidates > 1)
+  into none_count, many_count
+  from pg_temp.coach_assignment_backfill;
 
-  if bad > 0 then
-    select string_agg(id::text, ', ' order by id) into bad_ids
-    from (select id from pg_temp.coach_assignment_backfill where school is null order by id limit 10) f;
-    raise exception 'coach_assignment_school_id backfill: % coach_athlete_assignments without exactly one school (first 10: %)',
-      bad, bad_ids;
+  if none_count > 0 or many_count > 0 then
+    select coalesce(string_agg(id::text, ', ' order by id), 'none') into none_ids
+    from (select id from pg_temp.coach_assignment_backfill where candidates = 0 order by id limit 10) f;
+    select coalesce(string_agg(id::text, ', ' order by id), 'none') into many_ids
+    from (select id from pg_temp.coach_assignment_backfill where candidates > 1 order by id limit 10) f;
+    raise exception 'coach_assignment_school_id backfill: % coach_athlete_assignments without a possible school (first 10: %); % with more than one possible school (first 10: %)',
+      none_count, none_ids, many_count, many_ids;
   end if;
 
   update public.coach_athlete_assignments ca set school_id = b.school
@@ -98,6 +105,13 @@ begin
   end if;
   if new.school_id is null then
     return new;
+  end if;
+  -- This trigger runs before RLS: a client outside the school gets RLS's own error, so the
+  -- detailed messages below do not reveal who coaches or is enrolled there.
+  if (select auth.uid()) is not null
+     and not (select app.is_platform_admin())
+     and new.school_id not in (select app.admin_school_ids()) then
+    raise exception 'new row violates row-level security policy for table "coach_athlete_assignments"' using errcode = '42501';
   end if;
   if not exists (
     select 1 from public.school_memberships

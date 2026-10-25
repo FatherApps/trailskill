@@ -7,7 +7,7 @@
 -- here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(45);
 
 -- Users: coach CA of A, coach CB of B, coach W of A and B, admin AA of A, admin
 -- AB of B, and N with no relations.
@@ -35,14 +35,16 @@ insert into public.school_memberships (school_id, user_id, role) values
 insert into public.athletes (id, first_name, last_name) values
   ('25700000-0000-4000-8000-0000000000e1', 'Athlete', 'X'),
   ('25700000-0000-4000-8000-0000000000e2', 'Athlete', 'Y'),
-  ('25700000-0000-4000-8000-0000000000e3', 'Athlete', 'Z');
+  ('25700000-0000-4000-8000-0000000000e3', 'Athlete', 'Z'),
+  ('25700000-0000-4000-8000-0000000000e4', 'Athlete', 'V');
 
 insert into public.athlete_schools (athlete_id, school_id) values
   ('25700000-0000-4000-8000-0000000000e1', '25700000-0000-4000-8000-0000000000b1'),
   ('25700000-0000-4000-8000-0000000000e1', '25700000-0000-4000-8000-0000000000b2'),
   ('25700000-0000-4000-8000-0000000000e2', '25700000-0000-4000-8000-0000000000b1'),
   ('25700000-0000-4000-8000-0000000000e2', '25700000-0000-4000-8000-0000000000b2'),
-  ('25700000-0000-4000-8000-0000000000e3', '25700000-0000-4000-8000-0000000000b2');
+  ('25700000-0000-4000-8000-0000000000e3', '25700000-0000-4000-8000-0000000000b2'),
+  ('25700000-0000-4000-8000-0000000000e4', '25700000-0000-4000-8000-0000000000b1');
 
 -- The backfill of the migration (app.coach_assignment_backfill_school_ids)
 -- checks every row first and then fails once, naming how many rows have no
@@ -59,17 +61,25 @@ insert into public.coach_athlete_assignments (id, coach_user_id, athlete_id) val
 select throws_ok(
   'select app.coach_assignment_backfill_school_ids()',
   'P0001',
-  'coach_assignment_school_id backfill: 2 coach_athlete_assignments without exactly one school '
-    || '(first 10: 25700000-0000-4000-8000-000000000901, 25700000-0000-4000-8000-000000000902)',
-  'an assignment with no possible school and one with two fail the backfill, naming the count and both ids'
+  'coach_assignment_school_id backfill: 1 coach_athlete_assignments without a possible school '
+    || '(first 10: 25700000-0000-4000-8000-000000000901); 1 with more than one possible school '
+    || '(first 10: 25700000-0000-4000-8000-000000000902)',
+  'one assignment with no possible school and one with two fail the backfill, reported by type with its id'
 );
 select is(
   (select school_id from public.coach_athlete_assignments where id = '25700000-0000-4000-8000-000000000903'),
   null,
   'the failed backfill wrote nothing: the assignment with one possible school is still null'
 );
-delete from public.coach_athlete_assignments
-where id in ('25700000-0000-4000-8000-000000000901', '25700000-0000-4000-8000-000000000902');
+delete from public.coach_athlete_assignments where id = '25700000-0000-4000-8000-000000000901';
+select throws_ok(
+  'select app.coach_assignment_backfill_school_ids()',
+  'P0001',
+  'coach_assignment_school_id backfill: 0 coach_athlete_assignments without a possible school (first 10: none); '
+    || '1 with more than one possible school (first 10: 25700000-0000-4000-8000-000000000902)',
+  'with only an ambiguous assignment the backfill reports none for the other type'
+);
+delete from public.coach_athlete_assignments where id = '25700000-0000-4000-8000-000000000902';
 select lives_ok(
   'select app.coach_assignment_backfill_school_ids()',
   'with only assignments that have exactly one possible school the backfill succeeds'
@@ -229,6 +239,43 @@ select throws_ok(
      values ('25700000-0000-4000-8000-0000000000a1', '25700000-0000-4000-8000-0000000000e1', '25700000-0000-4000-8000-0000000000b1') $$,
   '42501', null,
   'a coach cannot assign anyone, not even themselves'
+);
+set local request.jwt.claims = '{"sub": "25700000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
+select throws_ok(
+  $$ update public.coach_athlete_assignments set coach_user_id = '25700000-0000-4000-8000-0000000000a2'
+     where id = '25700000-0000-4000-8000-0000000000c3' $$,
+  '42501', 'the coach of an assignment must be a coach of its school',
+  'admin A cannot move an assignment of A to a user who is not a coach of A'
+);
+
+-- A signed-in user who does not administer the school learns nothing about it:
+-- both rejections carry the same generic RLS message. V is only in A.
+set local request.jwt.claims = '{"sub": "25700000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select throws_ok(
+  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id)
+     values ('25700000-0000-4000-8000-0000000000a1', '25700000-0000-4000-8000-0000000000e1', '25700000-0000-4000-8000-0000000000b2') $$,
+  '42501', 'new row violates row-level security policy for table "coach_athlete_assignments"',
+  'a coach of A, not admin of B, gets the generic RLS error when the coach is not a coach of B'
+);
+select throws_ok(
+  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id)
+     values ('25700000-0000-4000-8000-0000000000a2', '25700000-0000-4000-8000-0000000000e4', '25700000-0000-4000-8000-0000000000b2') $$,
+  '42501', 'new row violates row-level security policy for table "coach_athlete_assignments"',
+  'a coach of A, not admin of B, gets the same generic RLS error when the athlete is not in B'
+);
+-- An admin of the school still gets the detailed messages.
+set local request.jwt.claims = '{"sub": "25700000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
+select throws_ok(
+  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id)
+     values ('25700000-0000-4000-8000-0000000000a1', '25700000-0000-4000-8000-0000000000e1', '25700000-0000-4000-8000-0000000000b2') $$,
+  '42501', 'the coach of an assignment must be a coach of its school',
+  'admin B still gets the detailed error when the coach is not a coach of B'
+);
+select throws_ok(
+  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id)
+     values ('25700000-0000-4000-8000-0000000000a2', '25700000-0000-4000-8000-0000000000e4', '25700000-0000-4000-8000-0000000000b2') $$,
+  '42501', 'the athlete of a coach assignment must be in its school',
+  'admin B still gets the detailed error when the athlete is not in B'
 );
 set local request.jwt.claims = '{"sub": "25700000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
 select isnt_empty(
