@@ -414,7 +414,7 @@ select results_eq(
 );
 
 select results_eq(
-  $$ select id, position from public.training_plan_blocks order by position $$,
+  $$ select id, position from public.training_plan_blocks where id::text like '69000000-%' order by position $$,
   $$ values ('69000000-0000-4000-8000-0000000000f2'::uuid, 2),
             ('69000000-0000-4000-8000-0000000000f3'::uuid, 3),
             ('69000000-0000-4000-8000-0000000000f1'::uuid, 5),
