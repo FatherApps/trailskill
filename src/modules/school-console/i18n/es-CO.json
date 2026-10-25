@@ -140,6 +140,32 @@
     },
     "offline_empty": "No hay récords guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
   },
+  "measurements": {
+    "title": "Mediciones",
+    "count_one": "{{count}} medición",
+    "count_other": "{{count}} mediciones",
+    "conflicts": "{{count}} en conflicto",
+    "time": "Tiempo",
+    "no_time": "sin tiempo",
+    "conflict": "Conflicto",
+    "conflict_title": "Versiones en conflicto",
+    "conflict_note": "Un administrador de la plataforma decide cuál se conserva.",
+    "version_first": "Primera versión",
+    "version_second": "Segunda versión",
+    "version_n": "Versión {{n}}",
+    "no_results": {
+      "title": "No hay mediciones con estos filtros",
+      "message": "Cambia o quita un filtro para ver más mediciones."
+    },
+    "empty": {
+      "title": "Aún no hay mediciones",
+      "message": "Aparecen cuando los entrenadores registran tiempos de los deportistas."
+    },
+    "error": {
+      "title": "No pudimos cargar las mediciones"
+    },
+    "offline_empty": "No hay mediciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión."
+  },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",
