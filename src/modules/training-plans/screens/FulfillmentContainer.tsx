@@ -88,8 +88,8 @@ export function FulfillmentContainer(props: FulfillmentContainerProps) {
         const scope = await loadAssignScope({ schools, athletes, structure }, userId, school.id);
         // An administrator reads the marks but only a coach marks them: the server refuses an administrator's marks for good.
         if (scope.school) return !cancelled && setLoaded('denied');
-        // shortcut: the plan as it is now, because a plan has one version until versioning (6.5) arrives; load the assignment's own version then.
-        const [plan, granted, marks] = await Promise.all([plans.get(assignment.planId), authorizations.listGrantedAthleteIds('record_times'), fulfillment.list(assignmentId)]);
+        // The assignment's own version, so a session with records never shows the blocks of a later edit.
+        const [plan, granted, marks] = await Promise.all([plans.get(assignment.planId, assignment.versionId), authorizations.listGrantedAthleteIds('record_times'), fulfillment.list(assignmentId)]);
         if (!plan) return !cancelled && setLoaded('error');
         const reached = new Set(athletesOfTarget(assignment.target, scope.athletes));
         const next: Loaded = {

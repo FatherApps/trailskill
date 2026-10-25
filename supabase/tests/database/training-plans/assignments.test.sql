@@ -364,7 +364,7 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.training_plan_fulfillments (device_id, assignment_id, version_id, block_id, athlete_id, captured_at)
      values ('device-1', '70000000-0000-4000-8000-000000000031', '70000000-0000-4000-8000-000000000012', '70000000-0000-4000-8000-000000000023', '70000000-0000-4000-8000-0000000000e1', '2026-10-26 09:00:00+00') $$,
-  '23503', null, 'a version other than the one of the assignment fails'
+  '42501', null, 'a version other than the one of the assignment fails (the session already has marks, issue #74)'
 );
 select throws_ok(
   $$ insert into public.training_plan_fulfillments (device_id, assignment_id, version_id, block_id, athlete_id, captured_at)
@@ -717,9 +717,9 @@ select throws_ok(
   $$ update public.training_plan_assignments set created_by = '70000000-0000-4000-8000-0000000000a1' where id = '70000000-0000-4000-8000-000000000031' $$,
   '42501', null, 'the author of an assignment cannot change'
 );
-select throws_ok(
+select lives_ok(
   $$ update public.training_plan_assignments set created_at = '2000-01-01 00:00:00+00' where id = '70000000-0000-4000-8000-000000000031' $$,
-  '42501', null, 'the date of an assignment cannot change'
+  'a change of the date of an assignment is ignored: the server keeps it (issue #74, replayed upserts)'
 );
 select lives_ok(
   $$ update public.training_plan_assignments set session_date = session_date where id = '70000000-0000-4000-8000-000000000031' $$,
@@ -729,9 +729,9 @@ select lives_ok(
   $$ update public.training_plan_assignments set session_date = '2026-10-30' where id = '70000000-0000-4000-8000-000000000031' $$,
   'staff reschedule an assignment'
 );
-select throws_ok(
+select lives_ok(
   $$ update public.training_plan_assignments set version_id = '70000000-0000-4000-8000-000000000012' where id = '70000000-0000-4000-8000-000000000031' $$,
-  '23503', null, 'an assignment with marks cannot switch to another version'
+  'an assignment with marks keeps its version when a PATCH asks for another one (issue #74)'
 );
 select lives_ok(
   $$ update public.training_plan_assignments set version_id = '70000000-0000-4000-8000-000000000012' where id = '70000000-0000-4000-8000-000000000037' $$,
@@ -744,7 +744,7 @@ select throws_ok(
 set local request.jwt.claims = '{"sub": "70000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 select throws_ok(
   $$ delete from public.training_plan_blocks where id = '70000000-0000-4000-8000-000000000021' $$,
-  '23503', null, 'a block with marks cannot be deleted'
+  '42501', null, 'a block with marks cannot be deleted (the version guard of issue #74 answers before the foreign key)'
 );
 
 -- The Sync Streams. This mirrors training_plans_assignments_staff,

@@ -39,7 +39,7 @@ async function inMemory(): Promise<AssignmentRepository> {
 
 const TABLES = `
   CREATE TABLE training_plans (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, school_id TEXT, name TEXT, is_template INTEGER);
-  CREATE TABLE training_plan_versions (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, plan_id TEXT, version INTEGER);
+  CREATE TABLE training_plan_versions (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, plan_id TEXT, version INTEGER, complete INTEGER, assigned INTEGER);
   CREATE TABLE training_plan_assignments (
     id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, school_id TEXT, plan_id TEXT, version_id TEXT,
     session_date TEXT, target TEXT, athlete_id TEXT, group_id TEXT, category_id TEXT, withdrawn_at TEXT, withdrawn_by TEXT
@@ -49,6 +49,7 @@ const TABLES = `
 `;
 
 let removeStore: (() => void) | undefined;
+let storePath = '';
 afterEach(() => {
   removeStore?.();
   removeStore = undefined;
@@ -57,6 +58,7 @@ afterEach(() => {
 async function powerSync(): Promise<AssignmentRepository> {
   const store = createStore();
   removeStore = store.remove;
+  storePath = store.path;
   const seed = new DatabaseSync(store.path);
   seed.exec(TABLES);
   seed.close();
@@ -123,6 +125,44 @@ describe.each(factories)('%s assignment repository', (_name, create) => {
     const repository = await create();
 
     await expect(repository.create({ schoolId: 's1', planId: 'p1', sessionDate: date, target: { kind: 'school' } })).rejects.toThrow('Invalid session date');
+  });
+});
+
+describe('versionChanged', () => {
+  it.each(factories)('is false right after assigning (%s)', async (_name, create) => {
+    const repository = await create();
+
+    await repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } });
+
+    expect((await repository.list('s1', '2026-11-02'))[0]!.versionChanged).toBe(false);
+  });
+
+  it('is true in memory once the assigned plan is edited and the session moved to the new version', async () => {
+    const plans = createInMemoryTrainingPlanRepository();
+    await plans.save(plan('p1'));
+    const repository = createInMemoryAssignmentRepository(plans);
+    await repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } });
+
+    await plans.save({ ...plan('p1'), name: 'Edited' });
+
+    expect((await repository.list('s1', '2026-11-02'))[0]!.versionChanged).toBe(true);
+  });
+
+  // Server timestamps: one with a space instead of 'T'; a timestamp the server has not set yet is NULL.
+  it.each([
+    ['the version was created after the session', '2026-11-01T10:00:00.000Z', '2026-11-01 12:00:00', true],
+    ['the version was created before the session', '2026-11-01T12:00:00.000Z', '2026-11-01 10:00:00', false],
+    ['the session has no timestamp yet', null, '2026-11-01 12:00:00', false],
+    ['the version has no timestamp yet', '2026-11-01T10:00:00.000Z', null, false],
+  ])('in PowerSync is decided by the timestamps: %s', async (_label, assignedAt, versionAt, expected) => {
+    const repository = await powerSync();
+    await repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } });
+    const seed = new DatabaseSync(storePath);
+    seed.prepare('UPDATE training_plan_assignments SET created_at = ?').run(assignedAt);
+    seed.prepare("UPDATE training_plan_versions SET created_at = ? WHERE id = 'v2'").run(versionAt);
+    seed.close();
+
+    expect((await repository.list('s1', '2026-11-02'))[0]!.versionChanged).toBe(expected);
   });
 });
 

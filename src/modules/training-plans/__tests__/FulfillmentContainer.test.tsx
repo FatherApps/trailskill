@@ -20,7 +20,7 @@ const timedBlock: PlanBlock = { id: 'b2', phase: 'main', repetitions: 8, distanc
 const granted = createInMemoryAuthorizationStatusRepository([{ athleteId: 'a1', purpose: 'record_times', isGranted: true }]);
 const noArrivals = { listArrivals: async () => [] };
 
-async function setup(options: { userId?: string; blocks?: PlanBlock[]; fulfillment?: FulfillmentRepository; arrivals?: { athleteId: string }[]; seed?: (fulfillment: FulfillmentRepository, assignmentId: string) => Promise<void> } = {}) {
+async function setup(options: { userId?: string; blocks?: PlanBlock[]; fulfillment?: FulfillmentRepository; arrivals?: { athleteId: string }[]; seed?: (fulfillment: FulfillmentRepository, assignmentId: string, plans: ReturnType<typeof createInMemoryTrainingPlanRepository>) => Promise<void> } = {}) {
   const { userId = 'k1', blocks, arrivals } = options;
   const plans = createInMemoryTrainingPlanRepository();
   const base = plan('p1');
@@ -28,8 +28,8 @@ async function setup(options: { userId?: string; blocks?: PlanBlock[]; fulfillme
   const assignments = createInMemoryAssignmentRepository(plans);
   // Coach k1 has group g1 (a1, a2) and the athlete a4 directly; the plan goes to the group.
   const id = await assignments.create({ planId: 'p1', schoolId: 's1', sessionDate: DAY, target: { kind: 'group', groupId: 'g1' } });
-  const fulfillment = options.fulfillment ?? createInMemoryFulfillmentRepository();
-  await options.seed?.(fulfillment, id);
+  const fulfillment = options.fulfillment ?? createInMemoryFulfillmentRepository({}, plans);
+  await options.seed?.(fulfillment, id, plans);
   const onOpenTiming = jest.fn();
   await render(
     <FulfillmentContainer
@@ -52,6 +52,18 @@ async function setup(options: { userId?: string; blocks?: PlanBlock[]; fulfillme
 }
 
 describe('FulfillmentContainer', () => {
+  it('shows the blocks of the version of the session, not those of a later edit of the plan', async () => {
+    await setup({
+      seed: async (fulfillment, assignmentId, plans) => {
+        await fulfillment.mark({ assignmentId, versionId: 'p1-v1', blockId: 'b1', athleteId: 'a1', status: 'done', authorId: 'k1', deviceId: 'tablet-1' });
+        await plans.save({ ...plan('p1'), blocks: [...plan('p1').blocks, { ...timedBlock, id: 'b9' }] });
+      },
+    });
+
+    expect(await screen.findByRole('button', { name: /^A1 S\. · Bloque 1,/ })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /^A1 S\. · Bloque 2,/ })).toBeNull();
+  });
+
   it('lists only the athletes of the assignment that the coach has, and omits the one without an authorization', async () => {
     await setup();
 

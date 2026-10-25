@@ -64,7 +64,9 @@ export const AppSchema = new Schema({
     { indexes: { school: ['school_id'] } },
   ),
   training_plan_versions: new Table(
-    { ...audit, plan_id: column.text, version: column.integer },
+    // SQLite has no boolean. complete is 0 while the version is being written and 1 once its blocks are all there (NULL on an old row means 1);
+    // assigned is set by the server once an assignment references the version (NULL means 0) and is never written by the app.
+    { ...audit, plan_id: column.text, version: column.integer, complete: column.integer, assigned: column.integer },
     { indexes: { plan: ['plan_id'] } },
   ),
   training_plan_blocks: new Table(
