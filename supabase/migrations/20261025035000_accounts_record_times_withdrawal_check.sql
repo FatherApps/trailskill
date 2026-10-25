@@ -1,19 +1,26 @@
 -- Module: accounts. Issue #54.
 -- Answers "was this purpose authorized at that instant?" so other modules can
 -- hide what was recorded after a withdrawal without reading accounts tables.
--- The rule is the one that already keeps authorization_status: the most recent
--- event wins, judged by the device clock and the server clock together; it is
--- provisional pending legal review (#106). The status trigger now calls the
--- same function, so the two cannot drift apart.
+-- The status rule is the one that already keeps authorization_status: the most
+-- recent event wins, judged by the device clock and the server clock together.
+-- A measurement counts as "after a withdrawal" by its device capture time only
+-- (what was captured before the withdrawal stays visible even if it is uploaded
+-- later); whether a later authorization re-grants keeps the two-clock rule. A
+-- device clock set back on purpose can move that boundary: the open doubt of
+-- the issue. Provisional pending legal review (#106). The status trigger calls
+-- the same function, so the two cannot drift apart.
 
 -- True when some authorization of the athlete and purpose was in force at the
 -- instant, given as a device time and a server time:
 --   - given before the instant by both clocks;
 --   - not withdrawn before the instant (by either clock);
 --   - later, by both clocks, than the latest withdrawal before the instant.
--- With both instants at 'infinity' every event is "before", which is exactly
--- the current status: a withdrawn authorization never counts, and a counted one
--- is later than the latest withdrawal of any adult.
+-- A null server_at means the instant is known only by the device clock: every
+-- comparison against the server clock is skipped (the "later than the latest
+-- withdrawal" test keeps both clocks). With both instants at 'infinity' every
+-- event is "before", which is exactly the current status: a withdrawn
+-- authorization never counts, and a counted one is later than the latest
+-- withdrawal of any adult.
 create function app.authorization_in_force_at(
   athlete uuid, purpose text, device_at timestamptz, server_at timestamptz
 )
@@ -34,15 +41,18 @@ as $$
         and w.purpose = authorization_in_force_at.purpose
         and w.withdrawn_at is not null
         and (w.withdrawn_at < authorization_in_force_at.device_at
-             or w.withdrawal_received_at < authorization_in_force_at.server_at)
+             or (authorization_in_force_at.server_at is not null
+                 and w.withdrawal_received_at < authorization_in_force_at.server_at))
     ) latest
     where a.athlete_id = authorization_in_force_at.athlete
       and a.purpose = authorization_in_force_at.purpose
       and a.accepted_at <= authorization_in_force_at.device_at
-      and a.received_at <= authorization_in_force_at.server_at
+      and (authorization_in_force_at.server_at is null
+           or a.received_at <= authorization_in_force_at.server_at)
       and (a.withdrawn_at is null
            or not (a.withdrawn_at < authorization_in_force_at.device_at
-                   or a.withdrawal_received_at < authorization_in_force_at.server_at))
+                   or (authorization_in_force_at.server_at is not null
+                       and a.withdrawal_received_at < authorization_in_force_at.server_at)))
       and a.accepted_at > latest.device_at
       and a.received_at > latest.server_at
   );
@@ -74,13 +84,11 @@ $$;
 
 revoke execute on function public.authorizations_refresh_status() from public;
 
--- True when the athlete withdrew record_times before this capture (by either
--- clock) and no authorization given after that withdrawal covered it. A
--- capture that no withdrawal ever preceded is never "after a withdrawal", even
--- if the athlete had no authorization yet. Null athlete: false.
-create function app.recorded_after_withdrawal(
-  athlete uuid, captured_at timestamptz, received_at timestamptz
-)
+-- True when the athlete withdrew record_times before this capture (device
+-- time) and no authorization given after that withdrawal covered it. A capture
+-- that no withdrawal ever preceded is never "after a withdrawal", even if the
+-- athlete had no authorization yet. Null athlete: false.
+create function app.recorded_after_withdrawal(athlete uuid, captured_at timestamptz)
 returns boolean
 language sql
 stable
@@ -94,12 +102,10 @@ as $$
       where w.athlete_id = recorded_after_withdrawal.athlete
         and w.purpose = 'record_times'
         and w.withdrawn_at is not null
-        and (w.withdrawn_at < recorded_after_withdrawal.captured_at
-             or w.withdrawal_received_at < recorded_after_withdrawal.received_at)
+        and w.withdrawn_at < recorded_after_withdrawal.captured_at
     )
     and not app.authorization_in_force_at(
-      recorded_after_withdrawal.athlete, 'record_times',
-      recorded_after_withdrawal.captured_at, recorded_after_withdrawal.received_at
+      recorded_after_withdrawal.athlete, 'record_times', recorded_after_withdrawal.captured_at, null
     ),
     false
   );
@@ -109,5 +115,5 @@ $$;
 -- owner, and a client could otherwise probe withdrawals of any athlete.
 revoke execute on function
   app.authorization_in_force_at(uuid, text, timestamptz, timestamptz),
-  app.recorded_after_withdrawal(uuid, timestamptz, timestamptz)
+  app.recorded_after_withdrawal(uuid, timestamptz)
 from public;

@@ -3,10 +3,12 @@
 -- after it are kept but hidden from everyone except the guardian (or adult
 -- athlete) and the platform admin. Nothing is deleted; the row keeps its author
 -- and device. Measurements from before the withdrawal do not change. "After" is
--- judged by either clock (see app.recorded_after_withdrawal in accounts): the
--- device capture time, and the server reception time, which the server now sets
--- itself on insert (created_at, like accounts sets received_at); provisional
--- pending legal review (#106).
+-- judged by the device capture time only (app.recorded_after_withdrawal in
+-- accounts): what was captured before the withdrawal stays visible even when it
+-- is uploaded later. A re-grant counts by accounts' two-clock rule. A device
+-- clock set back on purpose can move the boundary: the open doubt of the issue,
+-- provisional pending legal review (#106). created_at is the server reception
+-- time, set by the server on insert like accounts sets received_at, for audit.
 
 -- Computed by the server, never by the client.
 alter table public.measurements add column hidden boolean not null default false;
@@ -18,7 +20,13 @@ alter table public.measurements add column hidden boolean not null default false
 -- The setting below lets an author write a row that ends hidden: Postgres checks the
 -- select policy on the new row of INSERT ... RETURNING and UPDATE ... WHERE (the sync
 -- connector's writes), so without it that write is refused and the row never arrives.
+-- Only ids this statement really writes go in: an insert that hits an existing id
+-- (ON CONFLICT DO NOTHING) writes nothing, so it must not unlock that row for reading.
 -- measurements_forget_hidden clears it when the statement ends.
+--
+-- The advisory lock is the one the authorization status trigger takes, so a withdrawal
+-- and an upload of the same athlete cannot miss each other: without it each side could
+-- not see the other's uncommitted row and a measurement after the withdrawal stayed visible.
 create function public.measurements_compute_hidden()
 returns trigger
 language plpgsql
@@ -26,14 +34,20 @@ security definer
 set search_path = ''
 as $$
 begin
+  if new.athlete_id is not null then
+    -- Same key as public.authorizations_refresh_status. Taken before hidden is computed,
+    -- so the lookup below sees any withdrawal committed while this waited.
+    perform pg_advisory_xact_lock(hashtextextended(new.athlete_id::text || ':' || 'record_times', 0));
+  end if;
   if tg_op = 'INSERT' then
     new.created_at := clock_timestamp();
   end if;
   new.hidden := coalesce(
-    app.recorded_after_withdrawal(new.athlete_id, new.captured_at, new.created_at),
+    app.recorded_after_withdrawal(new.athlete_id, new.captured_at),
     false
   );
-  if new.hidden then
+  if new.hidden
+     and (tg_op = 'UPDATE' or not exists (select 1 from public.measurements where id = new.id)) then
     perform set_config(
       'app.hidden_measurements',
       coalesce(current_setting('app.hidden_measurements', true), '') || new.id::text || ',',
@@ -81,7 +95,9 @@ end;
 $$;
 
 -- A withdrawal can arrive after the measurements it covers were uploaded (the
--- device was offline): hide them retroactively. Rewriting through athlete_id
+-- device was offline), also inside an authorization that is uploaded already
+-- withdrawn (accept and withdraw offline in one row), and a new authorization
+-- can re-grant: recompute them retroactively. Rewriting through athlete_id
 -- makes the compute trigger recalculate hidden; only rows whose value changes
 -- are written, so the others are not synced again.
 create function public.measurements_refresh_hidden_after_withdrawal()
@@ -91,11 +107,13 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Same lock as the compute trigger: see there.
+  perform pg_advisory_xact_lock(hashtextextended(new.athlete_id::text || ':' || 'record_times', 0));
   update public.measurements m
     set athlete_id = m.athlete_id
     where m.athlete_id = new.athlete_id
       and m.hidden is distinct from coalesce(
-        app.recorded_after_withdrawal(m.athlete_id, m.captured_at, m.created_at), false);
+        app.recorded_after_withdrawal(m.athlete_id, m.captured_at), false);
   return null;
 end;
 $$;
@@ -106,7 +124,7 @@ revoke execute on function public.measurements_refresh_hidden_after_withdrawal()
 -- (accepted coupling, issue #54): accounts must not call timing, so the trigger
 -- lives here. Everything else goes through accounts functions.
 create trigger measurements_refresh_hidden_after_withdrawal
-  after update of withdrawn_at on public.authorizations
+  after insert or update of withdrawn_at on public.authorizations
   for each row
   when (new.purpose = 'record_times')
   execute function public.measurements_refresh_hidden_after_withdrawal();

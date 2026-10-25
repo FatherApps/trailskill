@@ -1,13 +1,12 @@
 -- Measurements captured after an authorization withdrawal reached the server
 -- (issue #54): they stay on the server, keep their author and device, and are
 -- hidden from everyone except the guardian (or adult athlete) and the platform
--- admin. "After" is judged by either clock: the device capture time against the
--- device withdrawal time, or the server reception time against the server
--- withdrawal reception time. Measurements from before the withdrawal do not
--- change. All users and data here are synthetic.
+-- admin. "After" is judged by the device capture time against the device
+-- withdrawal time only; the server reception time (set by the server) never
+-- hides anything. Measurements from before the withdrawal do not change. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(58);
+select plan(63);
 
 -- Users: coach C, school admin S, guardian G, platform admin P, and X, a coach
 -- of another school who has nothing to do with these athletes.
@@ -62,7 +61,7 @@ select has_column('public', 'measurements', 'hidden', 'measurements has the hidd
 select col_not_null('public', 'measurements', 'hidden', 'hidden is not null');
 select col_default_is('public', 'measurements', 'hidden', 'false', 'hidden defaults to false');
 select ok(
-  not has_function_privilege('authenticated', 'app.recorded_after_withdrawal(uuid, timestamptz, timestamptz)', 'execute')
+  not has_function_privilege('authenticated', 'app.recorded_after_withdrawal(uuid, timestamptz)', 'execute')
     and not has_function_privilege('anon', 'app.authorization_in_force_at(uuid, text, timestamptz, timestamptz)', 'execute'),
   'clients cannot execute the withdrawal functions'
 );
@@ -157,8 +156,8 @@ select lives_ok(
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 
 -- d2: captured and received after the withdrawal. d3: captured before it on the
--- device but received after it, so only the server clock says after.
--- d4: claims hidden = false. d7 (above) is the device clock alone, retroactively.
+-- device but received after it (uploaded late): it stays visible.
+-- d4: claims hidden = false. d7 (above) was stored before the withdrawal arrived.
 select lives_ok(
   $$ insert into public.measurements
        (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
@@ -209,16 +208,16 @@ select is(
 );
 
 -- 2. Captured before the withdrawal on the device but received after it on the
--- server: either clock is enough to hide it.
+-- server: the capture time decides, so it stays visible.
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select is(
   (select count(*) from public.measurements where id = '58000000-0000-4000-8000-0000000000d3'),
-  0::bigint, 'coach C does not see a measurement received after the withdrawal, whatever its device time'
+  1::bigint, 'coach C still sees a measurement captured before the withdrawal and received after it'
 );
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 select is(
   (select count(*) from public.measurements where id = '58000000-0000-4000-8000-0000000000d3'),
-  0::bigint, 'the school admin does not see it either'
+  1::bigint, 'the school admin sees it too'
 );
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
 select is(
@@ -262,9 +261,8 @@ select is(
 select is(
   (select array_agg(id::text order by id) from public.measurements
    where athlete_id = '58000000-0000-4000-8000-0000000000e1' and hidden),
-  array['58000000-0000-4000-8000-0000000000d2', '58000000-0000-4000-8000-0000000000d3',
-        '58000000-0000-4000-8000-0000000000d4'],
-  'exactly the three measurements recorded after the withdrawal are hidden'
+  array['58000000-0000-4000-8000-0000000000d2', '58000000-0000-4000-8000-0000000000d4'],
+  'exactly the measurements captured after the withdrawal are hidden'
 );
 
 -- 8. The client cannot force visibility.
@@ -361,7 +359,8 @@ select set_eq(
          or athlete_id in (select athlete_id from public.athlete_groups where group_id in (select group_id from public.coach_group_assignments where coach_user_id = '58000000-0000-4000-8000-0000000000a1'))
          or athlete_id in (select athlete_id from public.athlete_schools where school_id in (select school_id from public.school_memberships where user_id = '58000000-0000-4000-8000-0000000000a1' and role = 'school_admin'))) $$,
   $$ values ('58000000-0000-4000-8000-0000000000d1'::uuid), ('58000000-0000-4000-8000-0000000000d6'),
-            ('58000000-0000-4000-8000-0000000000d8'), ('58000000-0000-4000-8000-0000000000da') $$,
+            ('58000000-0000-4000-8000-0000000000d3'), ('58000000-0000-4000-8000-0000000000d8'),
+            ('58000000-0000-4000-8000-0000000000da') $$,
   'the coach stream returns the visible measurements and none of the hidden ones'
 );
 select set_eq(
@@ -371,7 +370,8 @@ select set_eq(
          or athlete_id in (select athlete_id from public.athlete_groups where group_id in (select group_id from public.coach_group_assignments where coach_user_id = '58000000-0000-4000-8000-0000000000a2'))
          or athlete_id in (select athlete_id from public.athlete_schools where school_id in (select school_id from public.school_memberships where user_id = '58000000-0000-4000-8000-0000000000a2' and role = 'school_admin'))) $$,
   $$ values ('58000000-0000-4000-8000-0000000000d1'::uuid), ('58000000-0000-4000-8000-0000000000d6'),
-            ('58000000-0000-4000-8000-0000000000d8'), ('58000000-0000-4000-8000-0000000000da') $$,
+            ('58000000-0000-4000-8000-0000000000d3'), ('58000000-0000-4000-8000-0000000000d8'),
+            ('58000000-0000-4000-8000-0000000000da') $$,
   'the school admin stream returns the visible measurements and none of the hidden ones'
 );
 select is(
@@ -381,10 +381,10 @@ select is(
   6::bigint, 'the guardian stream has no hidden filter, so it carries the hidden rows'
 );
 
--- The server clock: a client that sends an old created_at is ignored. The
--- device time is before the withdrawal, so only the server time can hide it.
--- e6: captured after the coming new authorization on the device, but received
--- before it reaches the server, so the server clock does not authorize it.
+-- The server sets created_at: a client that sends an old one is ignored (audit).
+-- ea is captured after the withdrawal, so it is hidden whatever created_at says.
+-- e6 is captured after the coming new authorization, but uploaded before that
+-- authorization reaches the server: hidden for now.
 reset role;
 select set_config('test.before_insert', clock_timestamp()::text, true);
 set local role authenticated;
@@ -395,7 +395,7 @@ select lives_ok(
      values
        ('58000000-0000-4000-8000-0000000000ea', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3430, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
-        '2026-10-04 09:00:00+00', '2000-01-01 00:00:00+00'),
+        '2026-10-06 09:00:00+00', '2000-01-01 00:00:00+00'),
        ('58000000-0000-4000-8000-0000000000e6', 'repetition', '58000000-0000-4000-8000-0000000000e1',
         '58000000-0000-4000-8000-0000000000c1', 3410, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
         '2026-10-09 09:00:00+00', '2000-01-01 00:00:00+00') $$,
@@ -411,7 +411,7 @@ select is(
   (select array_agg(hidden order by id) from public.measurements
    where id in ('58000000-0000-4000-8000-0000000000ea', '58000000-0000-4000-8000-0000000000e6')),
   array[true, true],
-  'so they end hidden by the server clock, however old the created_at sent'
+  'and both are hidden for now: ea by its capture time, e6 until its authorization arrives'
 );
 
 -- 5. The guardian authorizes again after the withdrawal. What was recorded in
@@ -441,12 +441,11 @@ select is(
 );
 select is(
   (select count(*) from public.measurements where id = '58000000-0000-4000-8000-0000000000e6'),
-  0::bigint, 'one received before the new authorization reached the server stays hidden'
+  1::bigint, 'one uploaded before the new authorization, captured after it, becomes visible when it arrives'
 );
 select is(
   (select count(*) from public.measurements
-   where id in ('58000000-0000-4000-8000-0000000000d2', '58000000-0000-4000-8000-0000000000d3',
-                '58000000-0000-4000-8000-0000000000d4')),
+   where id in ('58000000-0000-4000-8000-0000000000d2', '58000000-0000-4000-8000-0000000000d4')),
   0::bigint, 'the measurements hidden in between stay hidden'
 );
 set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
@@ -481,6 +480,94 @@ reset role;
 select is(
   (select hidden from public.measurements where id = '58000000-0000-4000-8000-0000000000e7'),
   true, 'and it is stored hidden'
+);
+
+-- A write must unlock only the rows it really writes. PostgREST runs an upload
+-- with an embed as ONE statement; emulate it: the upload proposes an id that is
+-- already stored (ON CONFLICT DO NOTHING writes nothing) plus a new split whose
+-- parent is that id, and the same statement reads the parent back.
+create function pg_temp.probe_parent(existing uuid, new_id uuid)
+returns jsonb
+language plpgsql
+as $$
+declare result jsonb;
+begin
+  with ins as (
+    insert into public.measurements
+      (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id)
+    values
+      (existing, 'repetition', '58000000-0000-4000-8000-0000000000e1', '58000000-0000-4000-8000-0000000000c1',
+       3600, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c', '2026-10-11 08:00:00+00', null),
+      (new_id, 'split', '58000000-0000-4000-8000-0000000000e1', '58000000-0000-4000-8000-0000000000c1',
+       1800, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c', '2026-10-07 08:00:00+00', existing)
+    on conflict (id) do nothing
+    returning id, parent_id
+  )
+  select jsonb_build_object('written', count(ins.id), 'parent_read', count(p.id))
+  into result
+  from ins left join public.measurements p on p.id = ins.parent_id;
+  return result;
+end;
+$$;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select is(
+  pg_temp.probe_parent('58000000-0000-4000-8000-0000000000d2', '58000000-0000-4000-8000-0000000000e8'),
+  '{"written": 1, "parent_read": 0}'::jsonb,
+  'the new hidden row comes back from RETURNING, but an existing hidden row proposed in the same statement is not readable'
+);
+reset role;
+delete from public.coach_athlete_assignments
+  where coach_user_id = '58000000-0000-4000-8000-0000000000a1' and athlete_id = '58000000-0000-4000-8000-0000000000e3';
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select is(
+  pg_temp.probe_parent('58000000-0000-4000-8000-0000000000d7', '58000000-0000-4000-8000-0000000000e9'),
+  '{"written": 1, "parent_read": 0}'::jsonb,
+  'a coach cannot read an own row of an athlete no longer assigned by proposing its id'
+);
+reset role;
+
+-- A withdrawal and an upload of the same athlete must not miss each other, so
+-- the compute trigger takes the lock of the status trigger. e2 never had an
+-- authorization event, so only the measurement insert (d8) can have taken it.
+select ok(
+  exists (
+    select 1 from pg_locks
+    where locktype = 'advisory' and pid = pg_backend_pid() and granted
+      and ((classid::bigint << 32) | objid::bigint)
+          = hashtextextended('58000000-0000-4000-8000-0000000000e2:record_times', 0)
+  ),
+  'inserting a measurement takes the advisory lock of its athlete and record_times'
+);
+
+-- C2. An authorization uploaded already withdrawn (accepted and withdrawn
+-- offline, sent as one row; clients cannot insert it, the owner can) hides, by
+-- its withdrawn_at, what was captured after it and nothing captured before it.
+insert into public.measurements
+  (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+values
+  ('58000000-0000-4000-8000-0000000000dc', 'repetition', '58000000-0000-4000-8000-0000000000e2',
+   '58000000-0000-4000-8000-0000000000c1', 3700, 'FR', '50m', 'SCM', 'training', 'screen_button', 'device-c',
+   '2026-10-02 08:00:00+00', '58000000-0000-4000-8000-0000000000a1');
+select is(
+  (select array_agg(hidden order by id) from public.measurements
+   where id in ('58000000-0000-4000-8000-0000000000d8', '58000000-0000-4000-8000-0000000000dc')),
+  array[false, false],
+  'e2 has two visible measurements while no authorization is withdrawn'
+);
+insert into public.authorizations
+  (id, athlete_id, purpose, text_id, accepted_at, user_id, withdrawn_at, withdrawn_by, withdrawal_received_at)
+values
+  ('58000000-0000-4000-8000-000000000104', '58000000-0000-4000-8000-0000000000e2', 'record_times',
+   '58000000-0000-4000-8000-0000000000f1', '2026-10-01 08:00:00+00', '58000000-0000-4000-8000-0000000000a3',
+   '2026-10-05 12:00:00+00', '58000000-0000-4000-8000-0000000000a3', clock_timestamp());
+select is(
+  (select array_agg(hidden order by id) from public.measurements
+   where id in ('58000000-0000-4000-8000-0000000000d8', '58000000-0000-4000-8000-0000000000dc')),
+  array[true, false],
+  'an authorization inserted already withdrawn hides what was captured after it, not before'
 );
 
 select * from finish();
