@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.118.0",
     "expo": "~58.0.19",
     "expo-constants": "~58.0.13",
+    "expo-crypto": "~58.0.7",
     "expo-dev-client": "~58.0.15",
     "expo-font": "~58.0.10",
     "expo-linking": "~58.0.14",
@@ -35,6 +36,9 @@
     "react-native-safe-area-context": "~5.10.1",
     "react-native-screens": "~4.30.0",
     "react-native-svg": "15.16.0"
+  },
+  "op-sqlite": {
+    "sqlcipher": true
   },
   "devDependencies": {
     "@testing-library/react-native": "^14.1.0",

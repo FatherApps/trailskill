@@ -33,10 +33,15 @@ export function useRecordSyncState(table: string, id: string): RecordSyncState {
 const pendingRecords = 'SELECT DISTINCT table_name, record_id FROM pending_writes';
 const failedRecords = 'SELECT DISTINCT table_name, record_id FROM upload_failures';
 
-/** Records that exist only on this device or were rejected by the server: signing out would lose them. */
-export async function countUnsentRecords(): Promise<number> {
-  const rows = await db.getAll<{ unsent: number }>(`SELECT COUNT(*) AS unsent FROM (${pendingRecords} UNION ${failedRecords})`);
-  return rows[0]?.unsent ?? 0;
+/**
+ * Records that exist only on this device or were rejected by the server: signing out would lose them.
+ * `rejected` counts the ones among them the server rejected: they are not sent again on their own.
+ */
+export async function countUnsentRecords(): Promise<{ unsent: number; rejected: number }> {
+  const rows = await db.getAll<{ unsent: number; rejected: number }>(
+    `SELECT (SELECT COUNT(*) FROM (${pendingRecords} UNION ${failedRecords})) AS unsent, (SELECT COUNT(*) FROM (${failedRecords})) AS rejected`,
+  );
+  return { unsent: rows[0]?.unsent ?? 0, rejected: rows[0]?.rejected ?? 0 };
 }
 
 export function useGlobalSyncSummary(): { pending: number; failed: number; uploading: boolean; lastSyncedAt: Date | null } {

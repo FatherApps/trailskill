@@ -6,6 +6,8 @@ import { CodeMismatchError, SessionProvider, signOutDecision, useSession } from 
 
 const mockCalls: string[] = [];
 let mockUnsent: Promise<number>;
+let mockRejected = 0;
+let mockOwnerWriteError: Error | undefined;
 let mockConnect: () => Promise<unknown>;
 let mockConfigError: string | null = null;
 let mockInitialSession: unknown;
@@ -26,13 +28,14 @@ jest.mock('expo-secure-store', () => ({
     return mockOwner;
   },
   setItemAsync: async (_key: string, value: string) => {
+    if (mockOwnerWriteError) throw mockOwnerWriteError;
     mockCalls.push(`owner=${value}`);
     mockOwner = value;
   },
 }));
 
 jest.mock('../../sync', () => ({
-  countUnsentRecords: () => mockUnsent,
+  countUnsentRecords: async () => ({ unsent: await mockUnsent, rejected: mockRejected }),
   get supabaseConfigError() {
     return mockConfigError;
   },
@@ -69,6 +72,8 @@ beforeEach(() => {
   mockOwnerError = undefined;
   mockClearError = undefined;
   mockUnsent = Promise.resolve(0);
+  mockRejected = 0;
+  mockOwnerWriteError = undefined;
   mockConnect = async () => mockCalls.push('db.connect');
   mockSignInWithOtp.mockReset().mockResolvedValue({ error: null });
   mockVerifyOtp.mockReset().mockResolvedValue({ error: null });
@@ -221,12 +226,12 @@ describe('signOut', () => {
     const session = await renderSession();
     mockCalls.length = 0;
 
-    let outcome: string | undefined;
+    let outcome: unknown;
     await act(async () => {
       outcome = await session.current.signOut({ force: true });
     });
 
-    expect(outcome).toBe('signed_out');
+    expect(outcome).toEqual({ status: 'signed_out' });
     expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear', 'auth.signOut']);
   });
 
@@ -235,12 +240,12 @@ describe('signOut', () => {
     const session = await renderSession();
     mockCalls.length = 0;
 
-    let outcome: string | undefined;
+    let outcome: unknown;
     await act(async () => {
       outcome = await session.current.signOut();
     });
 
-    expect(outcome).toBe('blocked_pending');
+    expect(outcome).toEqual({ status: 'blocked_pending', unsent: 3, rejected: 0 });
     expect(mockCalls).toEqual([]);
   });
 
@@ -248,12 +253,12 @@ describe('signOut', () => {
     const session = await renderSession();
     mockCalls.length = 0;
 
-    let outcome: string | undefined;
+    let outcome: unknown;
     await act(async () => {
       outcome = await session.current.signOut();
     });
 
-    expect(outcome).toBe('signed_out');
+    expect(outcome).toEqual({ status: 'signed_out' });
     expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear', 'auth.signOut']);
   });
 
@@ -263,7 +268,7 @@ describe('signOut', () => {
     const session = await renderSession();
     mockCalls.length = 0;
 
-    let outcome: Promise<string> | undefined;
+    let outcome: Promise<unknown> | undefined;
     await act(async () => {
       outcome = session.current.signOut();
     });
@@ -271,7 +276,7 @@ describe('signOut', () => {
 
     await act(async () => resolveCount(3));
 
-    expect(await outcome).toBe('blocked_pending');
+    expect(await outcome).toEqual({ status: 'blocked_pending', unsent: 3, rejected: 0 });
     expect(mockCalls).toEqual([]);
   });
 
@@ -293,12 +298,12 @@ describe('signOut', () => {
     mockSignOut.mockResolvedValue({ error: new Error('offline') });
     const session = await renderSession();
 
-    let outcome: string | undefined;
+    let outcome: unknown;
     await act(async () => {
       outcome = await session.current.signOut({ force: true });
     });
 
-    expect(outcome).toBe('signed_out');
+    expect(outcome).toEqual({ status: 'signed_out' });
   });
 });
 
@@ -451,5 +456,37 @@ describe('local data on a shared phone', () => {
     expect(screen.getByRole('button', { name: 'Ingresar como la persona anterior' })).toBeOnTheScreen();
     expect(screen.getByText('signed-out')).toBeOnTheScreen();
     expect(mockOwner).toBe('coach-0');
+  });
+
+  it('lets the person sign out from the error, keeping the local data', async () => {
+    mockOwnerError = new Error('keystore unavailable');
+    await renderProbe();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Cerrar sesión' }));
+
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mockCalls).toEqual(['auth.signOut']);
+  });
+
+  it('does not say the records are still there when they were cleared but the new owner was not saved', async () => {
+    mockOwner = 'coach-0';
+    mockUnsent = Promise.resolve(3);
+    mockOwnerWriteError = new Error('keystore unavailable');
+    await renderProbe();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Descartar registros' }));
+
+    expect(await screen.findByText(/ya se descartaron/)).toBeOnTheScreen();
+    expect(screen.queryByText(/Siguen en el teléfono/)).toBeNull();
+  });
+});
+
+describe('signOut result', () => {
+  it('reports how many unsent records block it and how many of them the server rejected', async () => {
+    mockUnsent = Promise.resolve(3);
+    mockRejected = 1;
+    const session = await renderSession();
+
+    await expect(session.current.signOut()).resolves.toEqual({ status: 'blocked_pending', unsent: 3, rejected: 1 });
   });
 });

@@ -200,6 +200,7 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       stop: () => <ConfirmSheetPreview copy={cs.stop} destructive />,
       primary: () => <ConfirmSheetPreview copy={cs.primary} destructive={false} />,
+      signOut: () => <ConfirmSheetPreview copy={cs.signOut} destructive />,
     },
   },
 ];
