@@ -121,7 +121,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const previousUserPending = userId !== undefined && blockedFor === userId;
   const checkFailed = userId !== undefined && checkFailedFor === userId;
   const discardFailed = userId !== undefined && discardFailure?.userId === userId;
-  const discardFailedMessage = t(discardFailure?.cleared ? 'session.discard_incomplete' : 'session.discard_failed');
+  // Once the database was cleared, the previous person's records are gone: the sheet only offers to finish or leave.
+  const discardCleared = discardFailed && discardFailure.cleared;
+  const discardFailedMessage = t(discardCleared ? 'session.discard_incomplete' : 'session.discard_failed');
   const checking = userId !== undefined && !ready && !previousUserPending && !checkFailed;
 
   const retryCheck = useCallback(() => setCheck((value) => value + 1), []);
@@ -136,12 +138,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
     } catch {
       // The sheet stays open with the failure, so the person can try again or go back to the previous person.
-      setDiscardFailure({ userId, cleared });
-      AccessibilityInfo.announceForAccessibility(t(cleared ? 'session.discard_incomplete' : 'session.discard_failed'));
+      // An earlier attempt may have cleared already: a later failure before clearing does not bring the records back.
+      const alreadyCleared = discardFailure?.userId === userId && discardFailure.cleared;
+      const nowCleared = cleared || alreadyCleared;
+      setDiscardFailure({ userId, cleared: nowCleared });
+      AccessibilityInfo.announceForAccessibility(t(nowCleared ? 'session.discard_incomplete' : 'session.discard_failed'));
       return;
     }
     retryCheck();
-  }, [userId, connector, retryCheck]);
+  }, [userId, connector, retryCheck, discardFailure]);
 
   // Ends this device's session and keeps the local data for its owner: the safe choice in the previous-person sheet,
   // and the way out of a failed owner check.
@@ -208,11 +213,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       {children}
       <ConfirmSheet
         visible={previousUserPending}
-        title={t('session.previous_user_title')}
+        title={t(discardCleared ? 'session.discard_incomplete_title' : 'session.previous_user_title')}
         message={discardFailed ? discardFailedMessage : t('session.previous_user_message')}
-        confirmLabel={t('session.previous_user_discard')}
-        cancelLabel={t('session.previous_user_return')}
-        destructive
+        confirmLabel={t(discardCleared ? 'sync.retry' : 'session.previous_user_discard')}
+        cancelLabel={t(discardCleared ? 'session.sign_out' : 'session.previous_user_return')}
+        destructive={!discardCleared}
         onConfirm={discardPreviousUserData}
         onCancel={endSessionKeepingData}
       />

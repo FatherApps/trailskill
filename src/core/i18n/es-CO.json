@@ -27,6 +27,7 @@
     "discard_failed": "No pudimos descartar los registros. Siguen en el teléfono: inténtalo de nuevo o ingresa como la persona anterior.",
     "check_failed_title": "No pudimos abrir los datos del teléfono",
     "check_failed_message": "Los registros siguen guardados en el teléfono. Inténtalo de nuevo.",
+    "discard_incomplete_title": "¿Terminar de descartar?",
     "discard_incomplete": "Los registros ya se descartaron, pero no pudimos terminar. Inténtalo de nuevo.",
     "sign_out": "Cerrar sesión",
     "sign_out_pending_title": "¿Cerrar sesión con registros sin enviar?",
@@ -36,6 +37,7 @@
     "sign_out_rejected_other": "{{count}} de ellos no se pudieron enviar: hay que reintentarlos o revisarlos uno por uno, no se enviarán solos.",
     "sign_out_anyway": "Cerrar sesión igual",
     "sign_out_keep": "Seguir y enviar",
+    "sign_out_offline": "La sincronización no está conectada: si sigues en la sesión, se envían cuando vuelva la conexión.",
     "sign_out_failed": "No pudimos cerrar la sesión. Inténtalo de nuevo."
   },
   "sport": {

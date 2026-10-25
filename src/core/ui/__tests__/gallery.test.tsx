@@ -29,7 +29,7 @@ describe('core/ui gallery entries', () => {
     expect(stateKeys('stepHeader')).toEqual(['first', 'middle', 'last']);
     expect(stateKeys('stateView')).toEqual(['loading', 'empty', 'empty-group', 'error', 'offline', 'denied']);
     expect(stateKeys('syncStatus')).toEqual(['on_device', 'sending', 'synced', 'not_sent', 'not_sent con mensaje']);
-    expect(stateKeys('confirmSheet')).toEqual(['stop', 'primary', 'signOut']);
+    expect(stateKeys('confirmSheet')).toEqual(['stop', 'primary', 'signOut', 'discardIncomplete', 'signOutOffline']);
     expect(stateKeys('segmented')).toEqual(['strokes', 'distances', 'long-text']);
     expect(stateKeys('timeValue')).toEqual(['time-lg', 'time-md', 'time-sm', 'missing', 'decimal-point']);
     expect(stateKeys('swimmerRow')).toEqual([
@@ -47,16 +47,15 @@ describe('core/ui gallery entries', () => {
     await render(<ThemeProvider name={theme} fontScale={scale}>{entryById(id).states[state]()}</ThemeProvider>);
   });
 
-  it.each(
-    ['stepHeader', 'stateView', 'segmented', 'swimmerRow', 'navBar'].flatMap((id) =>
-      stateKeys(id).map((state) => [id, state]),
-    ),
-  )('%s / %s fills the width of the preview', async (id, state) => {
-    await render(<ThemeProvider>{entryById(id).states[state]()}</ThemeProvider>);
+  it.each(['stepHeader', 'stateView', 'segmented', 'swimmerRow', 'navBar'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
+    '%s / %s fills the width of the preview',
+    async (id, state) => {
+      await render(<ThemeProvider>{entryById(id).states[state]()}</ThemeProvider>);
 
-    const root = screen.toJSON() as unknown as { props: { style: StyleProp<ViewStyle> } };
-    expect(StyleSheet.flatten(root.props.style)?.alignSelf).toBe('stretch');
-  });
+      const root = screen.toJSON() as unknown as { props: { style: StyleProp<ViewStyle> } };
+      expect(StyleSheet.flatten(root.props.style)?.alignSelf).toBe('stretch');
+    },
+  );
 
   it('renders every icon of the set with its name', async () => {
     await render(<ThemeProvider>{entryById('icon').states['icon-md']()}</ThemeProvider>);
@@ -68,6 +67,8 @@ describe('core/ui gallery entries', () => {
     ['stop', '¿Descartar este tiempo?', 'Seguir revisando'],
     ['primary', '¿Confirmar la importación?', 'Revisar de nuevo'],
     ['signOut', '¿Cerrar sesión con registros sin enviar?', 'Seguir y enviar'],
+    ['discardIncomplete', '¿Terminar de descartar?', 'Cerrar sesión'],
+    ['signOutOffline', '¿Cerrar sesión con registros sin enviar?', 'Seguir y enviar'],
   ])('shows the %s confirm sheet only after pressing the button', async (state, title, cancel) => {
     await render(<ThemeProvider>{entryById('confirmSheet').states[state]()}</ThemeProvider>);
     expect(screen.queryByText(title)).toBeNull();
