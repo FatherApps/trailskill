@@ -29,7 +29,7 @@ export {
 } from './screens/AthletesScreen';
 export { ConsoleScreen, type ConsoleScreenProps, type ConsoleSectionProps } from './screens/ConsoleScreen';
 export { EmptySectionScreen, type EmptySectionScreenProps } from './screens/EmptySectionScreen';
-export { useAdminSchool, type AdminSchoolResult } from './data/useAdminSchool';
+export { useAdminSchool, useStaffSchool, type AdminSchoolResult, type StaffSchoolResult } from './data/useAdminSchool';
 export { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from './screens/CoachesScreen';
 export { RecordsScreen, type RecordsContent, type RecordsScreenProps, type RecordsView } from './screens/RecordsScreen';
 export {

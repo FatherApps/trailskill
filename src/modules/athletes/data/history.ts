@@ -8,4 +8,6 @@ export type HistoryMeasurement = Measurement & { origin: HistoryOrigin };
 export interface HistoryRepository {
   /** Every kind of measurement of the athlete in the event, newest first. Reads the local database only. */
   listByEvent(athleteId: string, event: EventValue): Promise<HistoryMeasurement[]>;
+  /** Every measurement of the athlete in every event, newest first (by id on a tie). Reads the local database only. */
+  listByAthlete(athleteId: string): Promise<HistoryMeasurement[]>;
 }

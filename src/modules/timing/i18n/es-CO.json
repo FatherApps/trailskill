@@ -11,6 +11,8 @@
       "start": "Empezar toma",
       "athletes_count": "Nadadores ({{selected}} de {{group}})",
       "choose": "Elegir",
+      "error_title": "No pudimos cargar los nadadores",
+      "error_message": "Revisa que el teléfono ya sincronizó e inténtalo de nuevo.",
       "skipped": "Falta autorización — se omitirá",
       "athlete_name": "{{order}} · {{name}}",
       "empty_title": "Aún no hay nadadores",

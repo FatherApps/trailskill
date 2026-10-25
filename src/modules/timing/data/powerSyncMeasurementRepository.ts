@@ -100,5 +100,19 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
       );
       return rows.map(toMeasurement);
     },
+    async listByAthlete(athleteId) {
+      const rows = await db.getAll<MeasurementRow>('SELECT * FROM measurements WHERE athlete_id = ? ORDER BY captured_at DESC, id', [athleteId]);
+      return rows.map(toMeasurement);
+    },
+    async countCapturedSince(athleteIds, since) {
+      if (athleteIds.length === 0) return 0;
+      // julianday compares moments: synced rows may use a space instead of 'T' between date and time.
+      // The ids travel as one JSON parameter, so a big school never hits SQLite's parameter limit.
+      const [row] = await db.getAll<{ total: number }>(
+        'SELECT COUNT(*) AS total FROM measurements WHERE athlete_id IN (SELECT value FROM json_each(?)) AND julianday(captured_at) >= julianday(?)',
+        [JSON.stringify(athleteIds), since],
+      );
+      return row?.total ?? 0;
+    },
   };
 }
