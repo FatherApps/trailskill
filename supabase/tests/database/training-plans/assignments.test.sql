@@ -202,7 +202,7 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.training_plan_assignments (school_id, plan_id, version_id, session_date, target, athlete_id)
      values ('70000000-0000-4000-8000-0000000000b1', '70000000-0000-4000-8000-0000000000f1', '70000000-0000-4000-8000-000000000011', '2026-10-26', 'athlete', '70000000-0000-4000-8000-0000000000e9') $$,
-  '23503', null, 'an athlete of another school fails'
+  '42501', 'new row violates row-level security policy for table "training_plan_assignments"', 'an athlete of another school fails with the error of row level security'
 );
 select throws_ok(
   $$ insert into public.training_plan_assignments (school_id, plan_id, version_id, session_date, target)
@@ -374,7 +374,7 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.training_plan_fulfillments (device_id, assignment_id, version_id, block_id, athlete_id, captured_at)
      values ('device-1', '70000000-0000-4000-8000-000000000031', '70000000-0000-4000-8000-000000000011', '70000000-0000-4000-8000-000000000021', '70000000-0000-4000-8000-0000000000e9', '2026-10-26 09:00:00+00') $$,
-  '23503', null, 'an assigned, authorized athlete of school 2 cannot be marked against an assignment of school 1'
+  '42501', 'new row violates row-level security policy for table "training_plan_fulfillments"', 'an assigned, authorized athlete of school 2 cannot be marked against an assignment of school 1'
 );
 select throws_ok(
   $$ insert into public.training_plan_fulfillments (device_id, assignment_id, version_id, block_id, athlete_id, captured_at, created_by)
@@ -754,13 +754,14 @@ select throws_ok(
 -- separate queries there). A stream may give less than RLS, never more.
 reset role;
 
--- Assignments, coach C1: its group, its athletes (direct and by group), their
+-- Assignments, coach C1: its groups and the groups of its direct athletes, its athletes (direct and by group), their
 -- categories and the school-wide ones, all within its schools.
 create temp table stream_c1 as
 select id from public.training_plan_assignments
 where school_id in (select school_id from public.school_memberships where user_id = '70000000-0000-4000-8000-0000000000a2')
   and (
     group_id in (select group_id from public.coach_group_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a2')
+    or group_id in (select group_id from public.athlete_groups where athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a2'))
     or athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a2')
     or athlete_id in (select athlete_id from public.athlete_groups where group_id in (select group_id from public.coach_group_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a2'))
     or category_id in (select category_id from public.athlete_schools where category_id is not null and athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a2'))
@@ -777,6 +778,7 @@ select id from public.training_plan_assignments
 where school_id in (select school_id from public.school_memberships where user_id = '70000000-0000-4000-8000-0000000000a3')
   and (
     group_id in (select group_id from public.coach_group_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a3')
+    or group_id in (select group_id from public.athlete_groups where athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a3'))
     or athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a3')
     or athlete_id in (select athlete_id from public.athlete_groups where group_id in (select group_id from public.coach_group_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a3'))
     or category_id in (select category_id from public.athlete_schools where category_id is not null and athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '70000000-0000-4000-8000-0000000000a3'))
@@ -785,8 +787,8 @@ where school_id in (select school_id from public.school_memberships where user_i
   );
 select set_eq(
   $$ select id from stream_c2 $$,
-  $$ values ('70000000-0000-4000-8000-000000000031'::uuid), ('70000000-0000-4000-8000-000000000033'), ('70000000-0000-4000-8000-000000000034') $$,
-  'the stream of a coach assigned to one athlete carries that athlete''s assignment, its category and the school-wide one'
+  $$ values ('70000000-0000-4000-8000-000000000031'::uuid), ('70000000-0000-4000-8000-000000000032'), ('70000000-0000-4000-8000-000000000033'), ('70000000-0000-4000-8000-000000000034') $$,
+  'the stream of a coach assigned to one athlete carries that athlete''s assignment, the assignment of its group, its category and the school-wide one'
 );
 create temp table stream_admin as
 select id from public.training_plan_assignments
