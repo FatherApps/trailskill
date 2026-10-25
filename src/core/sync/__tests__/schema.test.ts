@@ -40,6 +40,9 @@ describe('AppSchema', () => {
         'schools',
         'timing_series',
         'training_groups',
+        'training_plan_blocks',
+        'training_plan_versions',
+        'training_plans',
       ].sort(),
     );
     expect(byName.has('platform_admins')).toBe(false);
@@ -49,6 +52,6 @@ describe('AppSchema', () => {
     expect(byName.get('pending_writes')?.localOnly).toBe(true);
     expect(byName.get('upload_failures')?.localOnly).toBe(true);
     expect(byName.get('uploaded_ops')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(19);
+    expect(AppSchema.tables).toHaveLength(22);
   });
 });
