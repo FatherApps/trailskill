@@ -44,4 +44,13 @@ export const swimmerRowFixture = {
     bestTime: 12534,
     bestTimeLabel: 'MP 200 L',
   },
+  timeAndTag: {
+    name: 'Sara P.',
+    initials: 'SP',
+    color: 'athlete-3',
+    detail: 'Juvenil A, grupo de resistencia de la tarde',
+    time: 3391,
+    timeLabel: 'Tiempo',
+    tag: { label: 'Consentimiento', variant: 'warn', icon: 'schedule' },
+  },
 } as const;

@@ -5,4 +5,5 @@ export const tagFixture = {
   info: 'Competencia',
   ok: 'Consentimiento vigente',
   warn: 'Consentimiento pendiente',
+  longText: 'Otra escuela: Club Acuático Norte del Litoral Occidental',
 };

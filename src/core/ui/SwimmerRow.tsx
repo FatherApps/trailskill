@@ -1,7 +1,7 @@
 import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../i18n';
-import { useTheme, type ColorToken } from '../theme';
+import { typography as baseTypography, useTheme, type ColorToken } from '../theme';
 import { formatTime, personalBestDifference, spokenDifference, type Hundredths } from '../time';
 import { Icon } from './Icon';
 import { Tag, type TagProps } from './Tag';
@@ -47,6 +47,9 @@ export const swimmerRowColors: {
   initials: 'on-color',
 };
 
+// From this text scale up the name and the trailing element no longer fit side by side (as in HistoryList).
+const largeTextScale = 1.5;
+
 // The row is one accessible element: its parts are hidden from screen readers and the label says them all.
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
@@ -71,6 +74,8 @@ export function SwimmerRow({
   const { fontScale } = useWindowDimensions();
   // 40 is the design-system avatar size at 100 % (not a token).
   const avatarSize = Math.max(40, Math.ceil(typography.label.lineHeight * fontScale) + 2 * space[2]);
+  // The gallery preview scale (theme) and the system scale both apply.
+  const large = (typography.caption.fontSize / baseTypography.caption.fontSize) * fontScale >= largeTextScale;
 
   // `time` wins over `bestTime`: the row never shows two times on the right.
   const showBest = time === undefined && bestTime !== undefined;
@@ -103,6 +108,11 @@ export function SwimmerRow({
     .filter(Boolean)
     .join(', ');
 
+  // The trailing element keeps its own width; at large scale it starts at the name's edge.
+  const trailingStyle = large
+    ? ({ alignItems: 'flex-start', flexShrink: 0, maxWidth: '100%' } as const)
+    : ({ alignItems: 'flex-end', flexShrink: 0 } as const);
+
   const rowStyle = {
     flexDirection: 'row',
     alignItems: 'center',
@@ -113,6 +123,34 @@ export function SwimmerRow({
     minHeight: 64,
     backgroundColor: colors[selected ? swimmerRowColors.selectedBackground : swimmerRowColors.background],
   } as const;
+
+  const trailing = (
+    <>
+      {time !== undefined && (
+        <View {...hidden} style={trailingStyle}>
+          <TimeValue value={time} size="time-sm" />
+        </View>
+      )}
+      {showBest && (
+        <View {...hidden} style={trailingStyle}>
+          <TimeValue value={bestTime} size="time-sm" />
+          {bestTimeLabel ? (
+            <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{bestTimeLabel}</Text>
+          ) : null}
+        </View>
+      )}
+      {tag && (
+        <View {...hidden} style={trailingStyle}>
+          <Tag {...tag} />
+        </View>
+      )}
+      {chevron && (
+        <View {...hidden} style={trailingStyle}>
+          <Icon name="chevron_right" color={swimmerRowColors.detail} />
+        </View>
+      )}
+    </>
+  );
 
   const content = (
     <>
@@ -129,33 +167,26 @@ export function SwimmerRow({
       >
         <Text style={[typography.label, { color: colors[color ? swimmerRowColors.initials : 'ink'] }]}>{initials}</Text>
       </View>
-      <View {...hidden} style={{ flex: 1 }}>
-        <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
-        <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
-        {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
-      </View>
-      {time !== undefined && (
-        <View {...hidden} style={{ alignItems: 'flex-end' }}>
-          <TimeValue value={time} size="time-sm" />
+      {large ? (
+        // Large text: the trailing element goes below the name, aligned with it, so the name keeps the full width.
+        <View style={{ flex: 1, minWidth: 0, flexDirection: 'column', gap: space[2] }}>
+          <View {...hidden} style={{ minWidth: 0 }}>
+            <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
+            <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
+            {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
+          </View>
+          {/* Wraps so a part that does not fit goes to the next line instead of running past the row. */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3] }}>{trailing}</View>
         </View>
-      )}
-      {showBest && (
-        <View {...hidden} style={{ alignItems: 'flex-end' }}>
-          <TimeValue value={bestTime} size="time-sm" />
-          {bestTimeLabel ? (
-            <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{bestTimeLabel}</Text>
-          ) : null}
-        </View>
-      )}
-      {tag && (
-        <View {...hidden}>
-          <Tag {...tag} />
-        </View>
-      )}
-      {chevron && (
-        <View {...hidden}>
-          <Icon name="chevron_right" color={swimmerRowColors.detail} />
-        </View>
+      ) : (
+        <>
+          <View {...hidden} style={{ flex: 1, flexShrink: 1, minWidth: 0 }}>
+            <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
+            <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
+            {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
+          </View>
+          {trailing}
+        </>
       )}
     </>
   );

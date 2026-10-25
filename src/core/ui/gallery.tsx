@@ -161,6 +161,7 @@ export const galleryEntries: GalleryEntry[] = [
       info: () => <Tag variant="info" icon="emoji_events" label={tg.info} />,
       ok: () => <Tag variant="ok" icon="verified_user" label={tg.ok} />,
       warn: () => <Tag variant="warn" icon="schedule" label={tg.warn} />,
+      'long-text': () => <Tag variant="outline" label={tg.longText} />,
     },
   },
   {
@@ -316,6 +317,7 @@ export const galleryEntries: GalleryEntry[] = [
       chevron: () => <SwimmerRowPreview {...sr.chevron} chevron />,
       'missing-time': () => <SwimmerRowPreview {...sr.missingTime} bestTime={null} />,
       'long-text': () => <SwimmerRowPreview {...sr.longText} chevron />,
+      'time-and-tag': () => <SwimmerRowPreview {...sr.timeAndTag} />,
     },
   },
   {
