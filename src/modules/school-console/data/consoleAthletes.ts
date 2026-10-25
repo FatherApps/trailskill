@@ -59,9 +59,9 @@ type Dependencies = {
 
 const colors = ['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4'] as const;
 // The same athlete keeps the same color on every launch.
-const colorOf = (id: string) => colors[[...id].reduce((sum, char) => sum + char.charCodeAt(0), 0) % colors.length]!;
+export const colorOf = (id: string) => colors[[...id].reduce((sum, char) => sum + char.charCodeAt(0), 0) % colors.length]!;
 
-const initialsOf = (firstName: string, lastName: string) => `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+export const initialsOf =(firstName: string, lastName: string) => `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 const position = (catalog: readonly { code: string }[], code: string) => catalog.findIndex((entry) => entry.code === code);
 
 export function createConsoleAthletesRepository({ athletes, authorizations, history, measurements, structure }: Dependencies): ConsoleAthletesRepository {

@@ -50,7 +50,7 @@ describe('MeasurementsScreen', () => {
     it('flags the conflict with both versions and offers no way to resolve it', async () => {
       await show({ kind: 'data', content });
 
-      expect(screen.getByText('Conflicto', { includeHiddenElements: true })).toBeOnTheScreen();
+      expect(screen.getByText('Revisar', { includeHiddenElements: true })).toBeOnTheScreen();
       expect(screen.getByLabelText('Primera versión: 33 segundos con 91 centésimas, Paula G., Tablet 2, 08:12')).toBeOnTheScreen();
       expect(screen.getByLabelText('Segunda versión: 34 segundos con 19 centésimas, Andrés M., Teléfono 5, 08:15')).toBeOnTheScreen();
       expect(screen.queryByRole('button', { name: /resolver|conservar|elegir|aceptar/i })).toBeNull();

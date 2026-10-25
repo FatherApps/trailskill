@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useTheme } from '../../../core/theme';
 import { Button, StateView, StepHeader, TextField } from '../../../core/ui';
 import { CodeStep, type CodeBusy } from '../components/CodeStep';
-import { InvitationBanner, OfflineBanner, type Invitation } from '../components/notices';
+import { InvalidInvitationBanner, InvitationBanner, OfflineBanner, type Invitation } from '../components/notices';
 import { ProviderOptions } from '../components/ProviderOptions';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { t } from '../i18n';
@@ -32,6 +32,8 @@ export type AccountDetailsScreenProps = {
   // Google and Microsoft sign-in; registration hides them until they can create accounts.
   providers?: boolean;
   invitation?: Invitation;
+  // The link was unknown, expired or revoked.
+  invalidInvitation?: boolean;
   onChange: (field: AccountDetailsField, value: string) => void;
   onGoogle?: () => void;
   onMicrosoft?: () => void;
@@ -79,6 +81,7 @@ export function AccountDetailsScreen({
   onRetry,
   providers = true,
   invitation,
+  invalidInvitation,
   onChange,
   onGoogle,
   onMicrosoft,
@@ -93,6 +96,7 @@ export function AccountDetailsScreen({
     <ScreenFrame title={t('accounts.create_title')} subtitle={invitation?.school}>
       <StepHeader step={step} total={total} title={t('accounts.details.title')} onBack={onBack} />
       {invitation && <InvitationBanner {...invitation} />}
+      {invalidInvitation && <InvalidInvitationBanner />}
       {offline && <OfflineBanner />}
       {providers && <ProviderOptions offline={offline} onGoogle={onGoogle ?? noop} onMicrosoft={onMicrosoft ?? noop} />}
       {failure && <FailureNotice failure={failure} onRetry={onRetry} />}

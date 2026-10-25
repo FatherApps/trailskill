@@ -138,6 +138,14 @@ export function createPowerSyncMeasurementRepository(): MeasurementRepository {
       const rows = await db.getAll<MeasurementRow>('SELECT * FROM measurements WHERE athlete_id = ? AND discarded_at IS NULL ORDER BY captured_at DESC, id', [athleteId]);
       return rows.map(toMeasurement);
     },
+    async listBySchool(schoolId) {
+      // julianday orders moments: synced rows may use a space instead of 'T' between date and time.
+      const rows = await db.getAll<MeasurementRow>(
+        'SELECT * FROM measurements WHERE school_id = ? AND athlete_id IS NOT NULL AND discarded_at IS NULL ORDER BY julianday(captured_at) DESC, id',
+        [schoolId],
+      );
+      return rows.map(toMeasurement);
+    },
     async countCapturedSince(athleteIds, since) {
       if (athleteIds.length === 0) return 0;
       // julianday compares moments: synced rows may use a space instead of 'T' between date and time.

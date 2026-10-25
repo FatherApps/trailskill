@@ -3,15 +3,18 @@ import { useEffect, useRef, useState } from 'react';
 
 import { CodeMismatchError } from '../../../core/session';
 import type { CodeBusy } from '../components/CodeStep';
+import type { InvitationRepository } from '../data/invitations';
 import type { RegistrationDraft, RegistrationDraftRepository } from '../data/registrationDraft';
 import {
   AccountDetailsScreen,
   type AccountDetailsField,
   type AccountDetailsScreenProps,
 } from './AccountDetailsScreen';
+import { useInvitation } from './useInvitation';
 
 export type AccountDetailsContainerProps = {
   drafts: RegistrationDraftRepository;
+  invitations: InvitationRepository;
   requestCode: (email: string, options?: { createUser?: boolean }) => Promise<void>;
   verifyCode: (email: string, code: string) => Promise<void>;
   onBack: () => void;
@@ -37,13 +40,14 @@ function validate({ firstName, lastName, email }: Values): Errors {
 
 // Step 2: what is typed is saved to the draft at once (never the code), so a lost signal or a closed app loses nothing.
 // Once the code checks out the session gate moves to the app, which stores the profile and clears the draft.
-export function AccountDetailsContainer({ drafts, requestCode, verifyCode, onBack, onSignIn }: AccountDetailsContainerProps) {
+export function AccountDetailsContainer({ drafts, invitations, requestCode, verifyCode, onBack, onSignIn }: AccountDetailsContainerProps) {
   const [loaded, setLoaded] = useState<RegistrationDraft | null>();
   const [values, setValues] = useState<Values>({ firstName: '', lastName: '', email: '', code: '' });
   const [errors, setErrors] = useState<Errors>({});
   const [codeSent, setCodeSent] = useState(false);
   const [busy, setBusy] = useState<CodeBusy>();
   const [failure, setFailure] = useState<Failure>();
+  const { invitation, invalid } = useInvitation(drafts, invitations);
   const lastAction = useRef<'request' | 'verify'>('request');
   const writes = useRef<Promise<void>>(Promise.resolve());
 
@@ -65,7 +69,10 @@ export function AccountDetailsContainer({ drafts, requestCode, verifyCode, onBac
   // One write at a time, in typing order: an older write that finishes late must not end up last.
   function saveDraft(typed: Values, codeRequested: boolean) {
     const draft = { swimmer: loaded?.swimmer, firstName: typed.firstName, lastName: typed.lastName, email: typed.email, codeRequested };
-    writes.current = writes.current.then(() => drafts.save(draft)).catch(() => {});
+    // The token is read from the store, not from `loaded`: the invitation check may have just cleared it.
+    writes.current = writes.current
+      .then(async () => drafts.save({ ...draft, invitationToken: (await drafts.load().catch(() => null))?.invitationToken }))
+      .catch(() => {});
   }
 
   function change(field: AccountDetailsField, value: string) {
@@ -129,6 +136,8 @@ export function AccountDetailsContainer({ drafts, requestCode, verifyCode, onBac
       errors={errors}
       busy={busy}
       failure={failure}
+      invitation={invitation}
+      invalidInvitation={invalid}
       providers={SHOW_PROVIDERS}
       onChange={change}
       onRetry={() => (lastAction.current === 'verify' ? verify() : request())}

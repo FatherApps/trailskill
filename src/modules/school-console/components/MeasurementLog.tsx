@@ -1,9 +1,10 @@
 import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
+import type { RecordSyncState } from '../../../core/sync';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime, type Hundredths } from '../../../core/time';
-import { StateView, SwimmerRow, TimeValue, type SwimmerRowProps } from '../../../core/ui';
+import { StateView, SwimmerRow, SyncStatus, TimeValue, type SwimmerRowProps } from '../../../core/ui';
 import '../i18n';
 import { formatDateTime } from './formatDate';
 
@@ -25,9 +26,16 @@ export type MeasurementEntry = {
   color: SwimmerRowProps['color'];
   // Already built, for example "Libre 50" (see eventLabel).
   event: string;
+  // Already translated, for example "Carrera"; absent when it is not known.
+  kind?: string;
   // One version, or two or more when coaches wrote conflicting corrections: then the log only flags it.
   versions: [MeasurementVersion, ...MeasurementVersion[]];
+  // The record's sync state; `needs_review` is an open conflict whose other version this device does not hold.
+  sync?: RecordSyncState;
 };
+
+// A conflict: both versions are known, or the device only knows that one is open.
+export const isConflict = (entry: MeasurementEntry) => entry.versions.length > 1 || entry.sync === 'needs_review';
 
 export type MeasurementLogProps = {
   // Newest first: the order is the caller's.
@@ -84,15 +92,16 @@ export function MeasurementLog({ entries }: MeasurementLogProps) {
     <View testID="measurement-log" style={{ borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors[measurementLogColors.background] }}>
       {entries.map((entry, index) => {
         const [first, ...others] = entry.versions;
-        const conflict = others.length > 0;
+        const conflict = isConflict(entry);
+        const detail = [entry.event, entry.kind, first.author, first.device, ...dateAndHour(first.at)].filter(Boolean).join(' · ');
         return (
           <View key={entry.id} testID="measurement-entry" style={index < entries.length - 1 ? divider : undefined}>
-            {conflict ? (
+            {others.length > 0 ? (
               <SwimmerRow
                 name={entry.athlete}
                 initials={entry.initials}
                 color={entry.color}
-                detail={[entry.event, ...dateAndHour(first.at).slice(0, 1)].join(' · ')}
+                detail={[entry.event, entry.kind, ...dateAndHour(first.at).slice(0, 1)].filter(Boolean).join(' · ')}
                 tag={{ label: t('schoolConsole.measurements.conflict'), variant: 'warn', icon: 'rule' }}
               />
             ) : (
@@ -100,12 +109,15 @@ export function MeasurementLog({ entries }: MeasurementLogProps) {
                 name={entry.athlete}
                 initials={entry.initials}
                 color={entry.color}
-                detail={[entry.event, first.author, first.device, ...dateAndHour(first.at)].join(' · ')}
+                detail={detail}
                 time={first.time}
                 timeLabel={t('schoolConsole.measurements.time')}
+                // An open conflict is flagged by the tag; any other state by its pill.
+                tag={conflict ? { label: t('schoolConsole.measurements.conflict'), variant: 'warn', icon: 'rule' } : undefined}
+                status={entry.sync && !conflict ? <SyncStatus state={entry.sync} /> : undefined}
               />
             )}
-            {conflict && (
+            {others.length > 0 && (
               <View
                 style={{
                   gap: space[2],

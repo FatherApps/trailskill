@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
 
+import type { InvitationRepository } from '../data/invitations';
 import type { RegistrationDraftRepository } from '../data/registrationDraft';
+import { useInvitation } from './useInvitation';
 import { WhoSwimsScreen, type SwimmerChoice } from './WhoSwimsScreen';
 
 export type WhoSwimsContainerProps = {
   drafts: RegistrationDraftRepository;
+  invitations: InvitationRepository;
   onContinue: (choice: SwimmerChoice) => void;
   onBack: () => void;
 };
 
 // Step 1: remembers who swims in the draft, so reopening the app continues from here.
-export function WhoSwimsContainer({ drafts, onContinue, onBack }: WhoSwimsContainerProps) {
+export function WhoSwimsContainer({ drafts, invitations, onContinue, onBack }: WhoSwimsContainerProps) {
   // undefined while the draft loads: the screen opens already showing the saved choice.
   const [initial, setInitial] = useState<SwimmerChoice | null>();
+
+  const { invitation, invalid } = useInvitation(drafts, invitations);
 
   useEffect(() => {
     let current = true;
@@ -34,5 +39,5 @@ export function WhoSwimsContainer({ drafts, onContinue, onBack }: WhoSwimsContai
   }
 
   if (initial === undefined) return null;
-  return <WhoSwimsScreen initialChoice={initial ?? undefined} onSelect={select} onBack={onBack} />;
+  return <WhoSwimsScreen initialChoice={initial ?? undefined} invitation={invitation} invalidInvitation={invalid} onSelect={select} onBack={onBack} />;
 }

@@ -109,6 +109,12 @@ describe('finishRegistration', () => {
     expect(next).toBe('authorizations');
   });
 
+  it.each(['adult', 'child'] as const)('%s: keeps the invitation token so the invitation can be accepted after the athletes sync', async (swimmer) => {
+    const { drafts } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer, invitationToken: 'tok-1' }));
+
+    expect((await drafts.load())?.invitationToken).toBe('tok-1');
+  });
+
   it('child: keeps only the swimmer choice, creates no athlete and asks to open the add screen', async () => {
     const { drafts, athletes, next } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer: 'child' }));
 

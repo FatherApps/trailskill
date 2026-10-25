@@ -17,6 +17,10 @@ function splashOptions() {
 }
 
 describe('app icon and splash configuration', () => {
+  it('registers the trailskill:// scheme so school invitation links open the app', () => {
+    expect(config.scheme).toBe('trailskill');
+  });
+
   it('uses a 1024 px square app icon', () => {
     expect(config.icon).toBeDefined();
     expect(existsSync(resolve(root, config.icon!))).toBe(true);

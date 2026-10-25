@@ -32,3 +32,6 @@ export function formatDateTime(iso: string): { date: string; time: string } | nu
 // Local date as YYYY-MM-DD, the form formatDate reads.
 export const localDate = (date: Date) =>
   [date.getFullYear(), date.getMonth() + 1, date.getDate()].map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0')).join('-');
+
+// Local date-time as YYYY-MM-DDTHH:mm, the form formatDateTime reads.
+export const localDateTime = (date: Date) => `${localDate(date)}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;

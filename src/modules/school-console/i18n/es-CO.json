@@ -43,8 +43,12 @@
       "empty": {
         "title": "No hay opciones para elegir",
         "message": "Aparecerán cuando haya deportistas con este dato."
-      }
-    }
+      },
+      "event": "Filtrar por prueba",
+      "range": "Filtrar por fechas"
+    },
+    "event": "Prueba",
+    "range": "Fechas"
   },
   "table": {
     "athlete": "Deportista",
@@ -183,7 +187,7 @@
     "conflicts": "{{count}} en conflicto",
     "time": "Tiempo",
     "no_time": "sin tiempo",
-    "conflict": "Conflicto",
+    "conflict": "Revisar",
     "conflict_title": "Versiones en conflicto",
     "conflict_note": "Un administrador de la plataforma decide cuál se conserva.",
     "version_first": "Primera versión",
@@ -200,7 +204,20 @@
     "error": {
       "title": "No pudimos cargar las mediciones"
     },
-    "offline_empty": "No hay mediciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión."
+    "offline_empty": "No hay mediciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.",
+    "more": "Mostrar más",
+    "kind": {
+      "repetition": "Repetición",
+      "series_total": "Total de serie",
+      "race": "Carrera",
+      "split": "Parcial",
+      "completed": "Completado"
+    },
+    "range": {
+      "today": "Hoy",
+      "7d": "Últimos 7 días",
+      "30d": "Últimos 30 días"
+    }
   },
   "authorizations": {
     "title": "Autorizaciones",

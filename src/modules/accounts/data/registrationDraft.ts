@@ -17,6 +17,8 @@ export type RegistrationDraft = {
   // The sign-up code was asked for from the registration screen for this email: verifying it completes this registration.
   // Without it the draft was only typed, and a later sign-in with that email is asked before the draft is resumed.
   codeRequested?: boolean;
+  // From a school invitation link (trailskill://invite/<token>); kept in every rewrite until a later step accepts it.
+  invitationToken?: string;
   // Stamped by the SecureStore repository on every save; never set by callers.
   savedAt?: number;
 };
@@ -120,12 +122,12 @@ export async function finishRegistration({
     return;
   }
   if (draft.swimmer === 'child') {
-    await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: draft.email });
+    await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: draft.email, invitationToken: draft.invitationToken });
     return 'add_athletes';
   }
   if (draft.swimmer === 'adult') {
     await managedProfiles.createManagedAthlete({ userId, firstName, lastName, relation: 'self' });
-    await drafts.save({ swimmer: 'adult', firstName: '', lastName: '', email: draft.email, step: 'authorizations' });
+    await drafts.save({ swimmer: 'adult', firstName: '', lastName: '', email: draft.email, step: 'authorizations', invitationToken: draft.invitationToken });
     return 'authorizations';
   }
   await drafts.clear();

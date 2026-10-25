@@ -21,6 +21,7 @@ export type {
   AthleteDetailData,
   AthleteFilterId,
   AthleteRow,
+  MeasurementFilterId,
 } from './components/athleteTypes';
 export {
   AthletesScreen,
@@ -48,9 +49,20 @@ export {
 export {
   MeasurementsScreen,
   type MeasurementsContent,
+  type MeasurementsFilterSheet,
   type MeasurementsScreenProps,
   type MeasurementsView,
 } from './screens/MeasurementsScreen';
+export { MeasurementsSection, type MeasurementsSectionProps } from './screens/MeasurementsSection';
+export {
+  createMeasurementLogRepository,
+  createPowerSyncMeasurementLogRepository,
+  filterMeasurements,
+  measurementFilterOptions,
+  type LogMeasurement,
+  type MeasurementFilters,
+  type MeasurementLogRepository,
+} from './data/measurementLog';
 export {
   AuthorizationsScreen,
   type AuthorizationsContent,
