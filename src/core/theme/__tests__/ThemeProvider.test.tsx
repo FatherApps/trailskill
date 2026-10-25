@@ -3,7 +3,7 @@ import { useColorScheme } from 'react-native';
 import type { ReactNode } from 'react';
 
 import { ThemeProvider, useTheme } from '../ThemeProvider';
-import { typography } from '../tokens';
+import { elevation, typography } from '../tokens';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ default: jest.fn() }));
 
@@ -57,5 +57,25 @@ describe('ThemeProvider overrides', () => {
 
     expect(result.current.typography.body).toMatchObject({ fontSize: 32, lineHeight: 48 });
     expect(result.current.typography['display-xl'].letterSpacing).toBe(-2.64);
+  });
+});
+
+describe('elevation', () => {
+  it.each(['light', 'dark'] as const)('elevation-1 follows the %s theme', async (name) => {
+    const { result } = await renderHook(() => useTheme(), {
+      wrapper: ({ children }: { children: ReactNode }) => <ThemeProvider name={name}>{children}</ThemeProvider>,
+    });
+
+    expect(result.current.elevation['elevation-1']).toEqual(elevation[name]['elevation-1']);
+    expect(result.current.elevation['elevation-1']).toMatchObject({
+      elevation: 2,
+      shadowOffset: { width: 0, height: 8 },
+      shadowRadius: 24,
+      shadowOpacity: name === 'light' ? 0.16 : 0.6,
+    });
+  });
+
+  it('differs between themes', () => {
+    expect(elevation.light['elevation-1'].shadowColor).not.toBe(elevation.dark['elevation-1'].shadowColor);
   });
 });

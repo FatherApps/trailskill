@@ -173,6 +173,39 @@ export const size = {
   'field-h': 52,
 } as const;
 
+export type Elevation = {
+  elevation: number;
+  shadowColor: string;
+  shadowOffset: { width: number; height: number };
+  shadowOpacity: number;
+  shadowRadius: number;
+};
+
+export type ElevationToken = 'elevation-1';
+
+// elevation-1 is `0 8px 24px rgba(20, 20, 20, 0.16)` (light) and `0 8px 24px rgba(0, 0, 0, 0.6)` (dark);
+// the RN handoff maps it to Android `elevation: 2`. The alpha lives in shadowOpacity, so shadowColor is opaque.
+export const elevation: Record<ThemeName, Record<ElevationToken, Elevation>> = {
+  light: {
+    'elevation-1': {
+      elevation: 2,
+      shadowColor: 'rgb(20, 20, 20)',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.16,
+      shadowRadius: 24,
+    },
+  },
+  dark: {
+    'elevation-1': {
+      elevation: 2,
+      shadowColor: 'rgb(0, 0, 0)',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.6,
+      shadowRadius: 24,
+    },
+  },
+};
+
 export const fontFamily = {
   display: 'BricolageGrotesque_800ExtraBold',
   sansRegular: 'IBMPlexSans_400Regular',
