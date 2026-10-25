@@ -1,7 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { ThemeProvider, useTheme, type ThemeName } from '../../../core/theme';
@@ -93,7 +92,6 @@ function Body({
   onFontScale: (value: '1' | '2') => void;
 }) {
   const { colors, space, typography } = useTheme();
-  const insets = useSafeAreaInsets();
   const [stateKey, setStateKey] = useState(() => Object.keys(entry?.states ?? {})[0]);
 
   const back = (
@@ -110,7 +108,6 @@ function Body({
       style={{ backgroundColor: colors['surface-0'] }}
       contentContainerStyle={{
         padding: space[5],
-        paddingTop: insets.top + space[5],
         gap: space[4],
       }}
     >
