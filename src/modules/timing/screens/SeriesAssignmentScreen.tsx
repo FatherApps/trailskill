@@ -165,10 +165,9 @@ export function SeriesAssignmentScreen({
                         // The short ordinal keeps the name column wide enough not to break mid-word next to the time and tag.
                         name={t('timing.series.position', { position: p.position })}
                         initials={String(p.position)}
-                        // At large text the tag would take the whole row and collapse the name column: say it under the name.
-                        detail={large ? t('timing.series.unassigned') : ''}
+                        detail=""
                         time={p.time}
-                        tag={large ? undefined : { label: t('timing.series.unassigned'), variant: 'warn' }}
+                        tag={{ label: t('timing.series.unassigned'), variant: 'warn' }}
                         selected={highlighted?.position === p.position}
                       />
                     )}

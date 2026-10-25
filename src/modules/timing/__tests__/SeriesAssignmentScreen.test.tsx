@@ -106,14 +106,15 @@ describe('SeriesAssignmentScreen', () => {
     beforeEach(() => jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(2));
     afterEach(() => jest.restoreAllMocks());
 
-    it('moves por asignar under the ordinal so the name column never collapses, and still lists the time', async () => {
+    // The row stacks its time and tag below the name (core SwimmerRow), so the same props work at every scale.
+    it('still shows the ordinal, the time and the por asignar tag of an unassigned position', async () => {
       await renderScreen({ positions: snapshots.pending });
 
       const row = within(screen.getByTestId('position-row-3'));
       expect(row.getByText('3.º', hidden)).toBeOnTheScreen();
-      expect(row.getByText('por asignar', hidden)).toBeOnTheScreen();
       expect(row.getByText('35,22', hidden)).toBeOnTheScreen();
-      expect(row.getAllByLabelText(/./, hidden)[0].props.accessibilityLabel).toBe('3.º, por asignar, 35,22');
+      expect(row.getByText('por asignar', hidden)).toBeOnTheScreen();
+      expect(row.getAllByLabelText(/./, hidden)[0].props.accessibilityLabel).toBe('3.º, 35,22, por asignar');
       expect(isSelected(3)).toBe(true);
     });
 
