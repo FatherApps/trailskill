@@ -1,6 +1,10 @@
 import { t } from '../../../core/i18n';
 import '..';
 
+// The athletes index reaches the PowerSync repository through the timing index; the sync layer is ESM-only for Jest.
+jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync/db', () => ({ db: {} }));
+
 describe('athletes i18n', () => {
   it('makes the module keys available once the module is loaded', () => {
     expect(t('athletes.profile.authorization_valid')).toBe('Autorización vigente');

@@ -28,6 +28,25 @@ const SERVER_SET_COLUMNS: Record<string, string[]> = {
 // Of a server-set column only whether it is null is compared: a withdrawal sent as a PUT must still be detected.
 const NULLNESS_ONLY_COLUMNS: Record<string, string[]> = { authorizations: ['withdrawn_at'] };
 
+// Columns that are JSON text on the device (PowerSync syncs a Postgres array as JSON text) but arrays on the server: they are parsed before upload.
+const JSON_ARRAY_COLUMNS: Record<string, string[]> = { training_plan_blocks: ['equipment'] };
+
+/** The values to send: JSON array text becomes a real array. Text that is not a JSON array is sent unchanged, so the server rejects it and the failure is recorded. */
+function toServerValues(table: string, values: Record<string, unknown> | undefined): Record<string, unknown> {
+  const sent = { ...values };
+  for (const column of JSON_ARRAY_COLUMNS[table] ?? []) {
+    const value = sent[column];
+    if (typeof value !== 'string') continue;
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (Array.isArray(parsed)) sent[column] = parsed;
+    } catch {
+      // Not JSON: left as is.
+    }
+  }
+  return sent;
+}
+
 /** Refresh a session that expires within this window, so a skewed device clock does not send an expired token. */
 const TOKEN_REFRESH_MARGIN_SECONDS = 60;
 const DEFAULT_MAX_ATTEMPTS = 5;
@@ -194,14 +213,14 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         if (INSERT_ONLY_TABLES.has(op.table)) {
           // ON CONFLICT DO NOTHING: a retry of a saved row must not hit the update policy. No row back means a conflict, and Postgres checks the insert policy
           // before the conflict, so a permanent rejection may also be a retry of a row already saved: either way, look at what is stored.
-          result = await table.upsert({ id: op.id, ...op.opData }, { onConflict: 'id', ignoreDuplicates: true }).select('id');
+          result = await table.upsert({ id: op.id, ...toServerValues(op.table, op.opData) }, { onConflict: 'id', ignoreDuplicates: true }).select('id');
           const rejection = failureCode(result);
           return rejection === null && result.data?.length ? null : this.confirmInsert(op, rejection);
         }
-        result = await table.upsert({ id: op.id, ...op.opData });
+        result = await table.upsert({ id: op.id, ...toServerValues(op.table, op.opData) });
         return failureCode(result);
       case 'PATCH':
-        result = await table.update(op.opData ?? {}).eq('id', op.id).select('id');
+        result = await table.update(toServerValues(op.table, op.opData)).eq('id', op.id).select('id');
         // RLS filters rows silently: an empty result means the write changed nothing.
         return failureCode(result) ?? (result.data?.length ? null : 'no_rows_affected');
       default:

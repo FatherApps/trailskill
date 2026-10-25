@@ -58,6 +58,32 @@
     "offline": {
       "title": "Sin conexión.",
       "message": "Se guarda en el teléfono."
+    },
+    "series": {
+      "position": "{{position}}.º",
+      "arrival_label": "Llegada {{position}}, {{time}}",
+      "name_card_assign": "Asignar a {{name}}",
+      "name_card_assigned": "{{name}}, en la posición {{position}}",
+      "arrival": "Llegada",
+      "undo_last": "Deshacer última",
+      "assign_names": "Asignar nombres",
+      "unassigned": "por asignar",
+      "completed": "Completado",
+      "external_disconnected_title": "Cronómetro externo desconectado.",
+      "external_disconnected_message": "Los tiempos ya tomados siguen guardados.",
+      "use_screen_stopwatch": "Usar cronómetro en pantalla",
+      "empty_title": "Aún no hay llegadas",
+      "empty_message": "Cada vez que un nadador llegue, toca Llegada.",
+      "title_one": "Serie · {{count}} nadador",
+      "title_other": "Serie · {{count}} nadadores",
+      "assign_title": "Asignar nombres",
+      "position_of": "Posición {{position}} de {{total}}",
+      "position_n": "Posición {{position}}",
+      "all_assigned": "Todas las posiciones tienen nombre.",
+      "whose": "¿De quién es?",
+      "save": "Guardar serie",
+      "not_completed": "Sin completar",
+      "completed_for": "Completado, {{name}}"
     }
   }
 }

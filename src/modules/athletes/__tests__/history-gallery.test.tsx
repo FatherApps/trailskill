@@ -5,6 +5,10 @@ import { ThemeProvider, type ThemeName } from '../../../core/theme';
 import { galleryEntries } from '..';
 import { historyFixture } from '../__fixtures__/history';
 
+// The athletes index reaches the PowerSync repository through the timing index; the sync layer is ESM-only for Jest.
+jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync/db', () => ({ db: {} }));
+
 const themes: ThemeName[] = ['light', 'dark'];
 const scales = [1, 2];
 

@@ -45,6 +45,20 @@ describe('SyncStatus', () => {
     expect(screen.getByRole('text', { name: 'No enviado' })).toBeOnTheScreen();
   });
 
+  it('appends the pending count to the visible and the accessible label', async () => {
+    await render(<SyncStatus state="on_device" count={3} />);
+
+    expect(screen.getByRole('text', { name: 'En el teléfono · 3' })).toBeOnTheScreen();
+    expect(screen.getByText('En el teléfono · 3', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('keeps the plain label without a count', async () => {
+    await render(<SyncStatus state="on_device" />);
+
+    expect(screen.getByRole('text', { name: 'En el teléfono' })).toBeOnTheScreen();
+    expect(screen.getByText('En el teléfono', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
   it('announces state changes politely', async () => {
     await render(<SyncStatus state="on_device" />);
     expect(screen.getByTestId('sync-status').props.accessibilityLiveRegion).toBe('polite');

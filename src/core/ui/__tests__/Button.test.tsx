@@ -3,7 +3,7 @@ import { StyleSheet, useColorScheme } from 'react-native';
 
 import { colors, contrastRatio, darken, size, type ThemeName } from '../../theme';
 import { ThemeProvider } from '../../theme/ThemeProvider';
-import { Button, buttonColors, unavailableColors, type ButtonVariant } from '../Button';
+import { Button, buttonColors, onClockStopColors, unavailableColors, type ButtonVariant } from '../Button';
 import { iconPaths } from '../icons';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ default: jest.fn() }));
@@ -143,8 +143,29 @@ describe('Button', () => {
     );
   });
 
+  it('draws Stop coral on the clock only when asked, near-black otherwise', async () => {
+    await render(
+      <>
+        <Button label="Detener" variant="stop" onClock onPress={jest.fn()} />
+        <Button label="Parar" variant="stop" onPress={jest.fn()} />
+      </>,
+    );
+
+    const background = (name: string) =>
+      StyleSheet.flatten(screen.getByRole('button', { name }).props.style).backgroundColor;
+    expect(background('Detener')).toBe(colors.light[onClockStopColors.background]);
+    expect(background('Parar')).toBe(colors.light[buttonColors.stop.background!]);
+    expect(onClockStopColors).toEqual({ background: 'coral', text: 'on-color' });
+  });
+
   describe.each(themes)('%s theme contrast', (theme) => {
     const c = colors[theme];
+
+    it('on-clock Stop text is at least 4.5:1 on coral at rest and pressed', () => {
+      const { background, text } = onClockStopColors;
+      expect(contrastRatio(c[text], c[background])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(c[text], darken(c[background], 0.08))).toBeGreaterThanOrEqual(4.5);
+    });
     // A transparent button sits on the canvas or on a card.
     const surfaces = (bg: (typeof buttonColors)[ButtonVariant]['background']) =>
       bg ? [c[bg]] : [c['surface-0'], c['surface-1']];

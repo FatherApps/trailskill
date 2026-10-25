@@ -1,0 +1,77 @@
+{
+  "phase": {
+    "warm_up": "Calentamiento",
+    "main": "Principal",
+    "technique": "Técnica",
+    "cool_down": "Enfriamiento"
+  },
+  "recording": {
+    "completion": "Registro: solo cumplimiento",
+    "per_repetition": "Registro: un tiempo por repetición",
+    "series_total": "Registro: total de la serie"
+  },
+  "recording_short": {
+    "completion": "Solo cumplimiento",
+    "per_repetition": "Tiempo por repetición",
+    "series_total": "Total de la serie"
+  },
+  "block": {
+    "summary": "{{repetitions}} × {{distance}} m {{activity}}",
+    "equipment": "Implementos: {{list}}",
+    "send_off": "Salida cada {{time}}"
+  },
+  "editor": {
+    "phase": "Fase",
+    "repetitions": "Repeticiones",
+    "distance": "Distancia",
+    "distance_option": "{{distance}} m",
+    "activity": "Estilo o ejercicio",
+    "equipment": "Implementos",
+    "send_off": "Salida",
+    "no_send_off": "Sin salida",
+    "recording": "Qué se registra",
+    "less_repetitions": "Quitar una repetición",
+    "more_repetitions": "Sumar una repetición",
+    "less_send_off": "Quitar {{seconds}} segundos",
+    "more_send_off": "Sumar {{seconds}} segundos",
+    "done": "Listo"
+  },
+  "builder": {
+    "count_one": "{{count}} bloque",
+    "count_other": "{{count}} bloques",
+    "empty_title": "Aún no hay bloques",
+    "empty_message": "Agrega el primer bloque del plan: calentamiento, principal, técnica o enfriamiento.",
+    "block_position": "Bloque {{position}}",
+    "edit": "Editar",
+    "move_up": "Subir",
+    "move_down": "Bajar",
+    "add": "Agregar bloque",
+    "save_template": "Guardar como plantilla"
+  },
+  "today": {
+    "title": "Hoy",
+    "caption": "{{plan}} · {{name}}",
+    "empty_title": "Hoy no hay plan",
+    "empty_message": "Cuando tu entrenador asigne un plan para hoy, aparecerá aquí.",
+    "error_title": "No pudimos cargar el plan de hoy",
+    "error_message": "Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Intentar de nuevo",
+    "offline_title": "Estás sin conexión",
+    "offline_message": "El plan de hoy aparecerá cuando vuelva la señal.",
+    "denied_title": "Esta información es privada",
+    "denied_message": "Solo {{name}}, sus acudientes y sus entrenadores pueden ver este plan.",
+    "banner_title": "Sin conexión.",
+    "banner_dated": "Plan guardado el {{date}}.",
+    "bring_title": "Lleva hoy",
+    "bring_none": "Hoy no necesitas implementos.",
+    "status": {
+      "done": "Hecho",
+      "partial": "Parcial · {{done}} de {{total}}",
+      "absent": "No asistió",
+      "not_marked": "Sin marcar"
+    },
+    "rep": "Rep. {{n}}",
+    "series_total": "Total serie",
+    "report": "Avisar algo al entrenador"
+  }
+}

@@ -11,6 +11,8 @@ export type ButtonProps = {
   onPress: () => void;
   variant?: ButtonVariant;
   size?: 'standard' | 'timing';
+  // Only for `stop` on the dark stopwatch card, where it turns coral (design-system Button README).
+  onClock?: boolean;
   icon?: ReactNode;
   loading?: boolean;
   loadingLabel?: string;
@@ -24,6 +26,11 @@ export const buttonColors: Record<ButtonVariant, { background: ColorToken | null
   secondary: { background: 'surface-1', text: 'ink' },
   stop: { background: 'stop', text: 'on-stop' },
   ghost: { background: null, text: 'ink' },
+};
+
+export const onClockStopColors: { background: ColorToken; text: ColorToken } = {
+  background: 'coral',
+  text: 'on-color',
 };
 
 export const unavailableColors: { background: ColorToken; text: ColorToken } = {
@@ -49,6 +56,7 @@ export function Button({
   onPress,
   variant = 'primary',
   size: buttonSize = 'standard',
+  onClock = false,
   icon,
   loading = false,
   loadingLabel,
@@ -60,7 +68,11 @@ export function Button({
 
   const unavailable = disabledReason !== undefined;
   const timing = buttonSize === 'timing';
-  const { background, text } = unavailable ? unavailableColors : buttonColors[variant];
+  const { background, text } = unavailable
+    ? unavailableColors
+    : variant === 'stop' && onClock
+      ? onClockStopColors
+      : buttonColors[variant];
   const ghost = !unavailable && background === null;
 
   // Unavailable: keep the label so two blocked buttons stay distinguishable, also for screen readers.

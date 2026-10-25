@@ -94,10 +94,8 @@ export function TimingSummaryScreen({
                     record.time !== null && typeof record.personalBest === 'number' && record.time < record.personalBest
                   }
                   timeLabel={t('timing.summary.time_label')}
+                  status={<SyncStatus state={record.syncState} onRetry={() => onRetry(record.id)} />}
                 />
-                <View style={{ paddingHorizontal: space[4], paddingBottom: space[3] }}>
-                  <SyncStatus state={record.syncState} onRetry={() => onRetry(record.id)} />
-                </View>
               </View>
             ))}
           </View>

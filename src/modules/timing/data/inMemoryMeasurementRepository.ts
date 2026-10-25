@@ -11,5 +11,10 @@ export function createInMemoryMeasurementRepository(): MeasurementRepository {
         .filter((m) => m.seriesId === seriesId)
         .sort((a, b) => (a.arrivalPosition ?? Infinity) - (b.arrivalPosition ?? Infinity));
     },
+    async listByAthleteEvent(athleteId, { stroke, distance, pool }) {
+      return [...byId.values()]
+        .filter((m) => m.athleteId === athleteId && m.stroke === stroke && m.distance === distance && m.pool === pool)
+        .sort((a, b) => (a.capturedAt === b.capturedAt ? a.id.localeCompare(b.id) : b.capturedAt.localeCompare(a.capturedAt)));
+    },
   };
 }
