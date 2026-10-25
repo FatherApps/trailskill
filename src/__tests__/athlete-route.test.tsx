@@ -13,9 +13,14 @@ jest.mock('../modules/athletes', () => {
   return {
     createPowerSyncSchoolAthleteRepository: () => ({}),
     createPowerSyncHistoryRepository: () => ({}),
+    createPowerSyncAthleteSchoolRepository: () => ({}),
     AthleteProfileContainer: ({ athleteId }: { athleteId: string }) => <Text>{`profile of ${athleteId}`}</Text>,
   };
 });
+jest.mock('../modules/school-console', () => ({
+  createPowerSyncSchoolNameRepository: () => ({}),
+  createPowerSyncSchoolStructureRepository: () => ({}),
+}));
 jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: 'a1' }) }));
 
 describe('athlete profile route', () => {

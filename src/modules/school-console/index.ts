@@ -58,6 +58,12 @@ export { galleryEntries } from './gallery';
 export { createInMemoryStaffSchoolRepository, createPowerSyncStaffSchoolRepository } from './data/staffSchools';
 export type { StaffMembershipRow, StaffSchool, StaffSchoolRepository } from './data/staffSchools';
 export {
+  createInMemorySchoolNameRepository,
+  createPowerSyncSchoolNameRepository,
+  type SchoolName,
+  type SchoolNameRepository,
+} from './data/schoolNames';
+export {
   CONSOLE_BEST_EVENT,
   createConsoleAthletesRepository,
   createPowerSyncConsoleAthletesRepository,
