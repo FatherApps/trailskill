@@ -39,3 +39,9 @@ export {
   type SeriesRepository,
 } from './data/series';
 export { SeriesTimingFlow, type SeriesTimingFlowProps } from './screens/SeriesTimingFlow';
+export {
+  createInMemorySessionSetupRepository,
+  createSecureStoreSessionSetupRepository,
+  type SessionSetup,
+  type SessionSetupRepository,
+} from './data/sessionSetup';
