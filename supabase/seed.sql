@@ -182,8 +182,7 @@ cross join (values ('FR', '50m', 3000), ('BK', '100m', 7000)) as e(stroke, dista
 cross join generate_series(0, 5) as w(week)
 on conflict do nothing;
 
--- A training plan of the school with one version of four blocks. There is no
--- plan assignment table yet: the school staff read the plan, nobody else.
+-- A training plan of the school with one version of four blocks.
 insert into public.training_plans (id, created_by, school_id, name)
 values ('00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-000000000001',
         '00000000-0000-4000-8000-0000000000a1', 'Demo weekly plan')
@@ -210,4 +209,15 @@ insert into public.training_plan_blocks (
   ('00000000-0000-4000-8000-0000000000f4', '00000000-0000-4000-8000-000000000001',
    '00000000-0000-4000-8000-0000000000e2', 4, 1, '200m', 'FR', null,
    '{}', null, 'cool_down', 'completion')
+on conflict do nothing;
+
+-- The plan, in its version, assigned to Group A for tomorrow. The coach and the
+-- admin read it as staff; the guardian reads it as the assignment of their
+-- athletes' group, with the plan, that version and its blocks.
+insert into public.training_plan_assignments
+  (id, created_by, school_id, plan_id, version_id, session_date, target, group_id)
+values ('00000000-0000-4000-8000-0000000000e3', '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000e1',
+        '00000000-0000-4000-8000-0000000000e2', current_date + 1, 'group',
+        '00000000-0000-4000-8000-0000000000b1')
 on conflict do nothing;

@@ -698,6 +698,37 @@ describe('SupabaseConnector.uploadData', () => {
       });
     });
 
+    describe('a fulfillment mark hidden after a withdrawal', () => {
+      const mark = () =>
+        entry('PUT', 'f1', { assignment_id: 'a1', block_id: 'b1', athlete_id: 'at1', status: 'done', captured_at: '2026-10-06T08:00:00.000Z', series_id: null }, 'training_plan_fulfillments');
+      const markRetry = (rpc: RpcResult) => setup({ upsert: empty, readBack: empty, rpc });
+
+      it('a retry confirmed as stored is a success, not no_rows_affected', async () => {
+        const t = markRetry({ data: 'stored', error: null });
+        await t.connector.uploadData(t.database([mark()]));
+
+        expect(failureInserts(t.committed)).toHaveLength(0);
+        expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['training_plan_fulfillments', 'f1']]);
+        expect(t.complete).toHaveBeenCalledTimes(1);
+      });
+
+      it('asks confirm_training_plan_fulfillment_insert with the values sent, without the null series_id', async () => {
+        const t = markRetry({ data: 'stored', error: null });
+        await t.connector.uploadData(t.database([mark()]));
+
+        expect(t.rpc).toHaveBeenCalledWith('confirm_training_plan_fulfillment_insert', {
+          payload: { id: 'f1', assignment_id: 'a1', block_id: 'b1', athlete_id: 'at1', status: 'done', captured_at: '2026-10-06T08:00:00.000Z' },
+        });
+      });
+
+      it('absent: no_rows_affected is recorded', async () => {
+        const t = markRetry({ data: 'absent', error: null });
+        await t.connector.uploadData(t.database([mark()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params[4])).toEqual(['no_rows_affected']);
+      });
+    });
+
     describe('a measurement hidden after a withdrawal (issue 206)', () => {
       // Stored hidden, the author cannot read it back: the insert returns no row and the read-back finds nothing.
       const hidden = () =>

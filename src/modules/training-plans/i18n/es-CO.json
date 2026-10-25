@@ -64,6 +64,7 @@
     "remove_cancel": "Conservar bloque",
     "save": "Guardar plan",
     "saved": "Plan guardado.",
+    "block_has_fulfillment": "Este bloque ya tiene cumplimiento registrado y no se puede quitar del plan.",
     "save_failed": "No pudimos guardar el plan. Inténtalo de nuevo.",
     "template_saved": "Plantilla guardada.",
     "template_failed": "No pudimos guardar la plantilla. Inténtalo de nuevo.",
