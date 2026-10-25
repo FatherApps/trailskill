@@ -98,6 +98,11 @@ const setup = () => {
         { coachId: 'k1', athleteId: 'a1' },
         { coachId: 'k3', athleteId: 'a1' },
         { coachId: 'k4', athleteId: 'a3' },
+        { coachId: 'k5', athleteId: 'a3' }, // no membership in school-a
+      ],
+      coachMemberships: [
+        { coachId: 'k3', schoolId: 'school-a' },
+        { coachId: 'k4', schoolId: 'school-a' },
       ],
     }),
   });
@@ -192,5 +197,58 @@ describe('console athletes repository', () => {
 
   it('lists no best for an athlete without eligible times', async () => {
     await expect(setup().repository.listBests('a3')).resolves.toEqual([]);
+  });
+
+  it('makes the same number of repository calls for 1 athlete as for 300 (no query per athlete)', async () => {
+    const calls: string[] = [];
+    // Counts every method call of a dependency, whatever it is called.
+    const counted = <T extends object>(name: string, target: T): T =>
+      Object.fromEntries(
+        Object.entries(target).map(([method, fn]) => [
+          method,
+          (...args: unknown[]) => {
+            calls.push(`${name}.${method}`);
+            return (fn as (...a: unknown[]) => unknown)(...args);
+          },
+        ]),
+      ) as T;
+
+    const callsFor = async (count: number) => {
+      calls.length = 0;
+      const ids = Array.from({ length: count }, (_, i) => `n${i}`);
+      const repository = createConsoleAthletesRepository({
+        athletes: counted(
+          'athletes',
+          createInMemorySchoolAthleteRepository({
+            athletes: ids.map((id) => ({ id, firstName: 'Sample', lastName: id })),
+            athleteSchools: ids.map((athleteId) => ({ athleteId, schoolId: 'school-a', categoryId: null })),
+            athleteGroups: [],
+          }),
+        ),
+        authorizations: counted('authorizations', createInMemoryAuthorizationStatusRepository([])),
+        history: counted('history', createInMemoryHistoryRepository(ids.map((id) => measurement(`m-${id}`, id)))),
+        measurements: counted('measurements', { countCapturedSince: jest.fn() }),
+        structure: counted(
+          'structure',
+          createInMemorySchoolStructureRepository({
+            categories: [],
+            groups: [],
+            groupAssignments: [],
+            athleteAssignments: [],
+            coachMemberships: [],
+          }),
+        ),
+      });
+      const listed = await repository.listAthletes('school-a');
+      expect(listed).toHaveLength(count);
+      expect(listed.every((a) => a.bestTime === 3000)).toBe(true);
+      return [...calls];
+    };
+
+    const one = await callsFor(1);
+    const many = await callsFor(300);
+
+    expect(many.length).toBe(one.length);
+    expect(many).not.toContain('history.listByEvent');
   });
 });

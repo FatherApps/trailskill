@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
@@ -95,6 +95,7 @@ const setup = () => {
         { coachId: 'k9', groupId: 'g9' },
       ],
       athleteAssignments: [],
+      coachMemberships: [],
     }),
   });
   return { repository, countCapturedSince };
@@ -111,7 +112,7 @@ const element = (repository: ConsoleAthletesRepository, extra: Extra = {}) => (
       schoolId="school-a"
       repository={repository}
       lastSyncedAt={syncedFiveMinutesAgo}
-      connected
+      connection="connected"
       now={now}
       {...extra}
     />
@@ -374,7 +375,7 @@ describe('AthletesSection', () => {
 
   describe('without network', () => {
     it('shows the stored list under a dated banner', async () => {
-      await show(setup().repository, { connected: false, lastSyncedAt: new Date(2026, 9, 23, 10, 0, 0) });
+      await show(setup().repository, { connection: 'offline', lastSyncedAt: new Date(2026, 9, 23, 10, 0, 0) });
 
       await athleteRow(/^Lucía Ramírez/);
       expect(screen.getByTestId('banner')).toHaveTextContent(
@@ -383,7 +384,7 @@ describe('AthletesSection', () => {
     });
 
     it('shows the undated banner when the last sync is not known', async () => {
-      await show(setup().repository, { connected: false, lastSyncedAt: null });
+      await show(setup().repository, { connection: 'offline', lastSyncedAt: null });
 
       await athleteRow(/^Lucía Ramírez/);
       expect(screen.getByTestId('banner')).toHaveTextContent('Estás sin conexión Mostramos lo guardado en este dispositivo.');
@@ -391,13 +392,40 @@ describe('AthletesSection', () => {
     });
 
     it('says nothing is stored when there is no data and it never synced', async () => {
-      await show(setup().repository, { schoolId: 'school-z', connected: false, lastSyncedAt: null });
+      await show(setup().repository, { schoolId: 'school-z', connection: 'offline', lastSyncedAt: null });
 
       expect(await screen.findByText('No hay deportistas guardados en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
     });
 
     it('shows the empty state, not the offline one, when it synced before and the school has no athletes', async () => {
-      await show(setup().repository, { schoolId: 'school-z', connected: false });
+      await show(setup().repository, { schoolId: 'school-z', connection: 'offline' });
+
+      expect(await screen.findByText('Aún no hay deportistas')).toBeOnTheScreen();
+    });
+  });
+
+  describe('while connecting', () => {
+    it('shows the list without the offline banner', async () => {
+      await show(setup().repository, { connection: 'connecting' });
+
+      await athleteRow(/^Lucía Ramírez/);
+      expect(screen.queryByText('Estás sin conexión')).toBeNull();
+    });
+
+    it('keeps loading, not "no athletes" or offline, when it never synced and the list is empty', async () => {
+      const { repository, countCapturedSince } = setup();
+      await show(repository, { schoolId: 'school-z', connection: 'connecting', lastSyncedAt: null });
+      // The read has finished: the screen holds back its answer on purpose.
+      await waitFor(() => expect(countCapturedSince).toHaveBeenCalled());
+      await act(async () => {});
+
+      expect(screen.getByTestId('state-view')).toHaveProp('accessibilityState', { busy: true });
+      expect(screen.queryByText('Aún no hay deportistas')).toBeNull();
+      expect(screen.queryByText(/No hay deportistas guardados/)).toBeNull();
+    });
+
+    it('shows the empty state when it synced before and the school has no athletes', async () => {
+      await show(setup().repository, { schoolId: 'school-z', connection: 'connecting' });
 
       expect(await screen.findByText('Aún no hay deportistas')).toBeOnTheScreen();
     });
@@ -483,6 +511,18 @@ describe('AthletesSection', () => {
       await resolve([]);
 
       expect(error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the bests of the open athlete', () => {
+    it('says they could not be loaded, not that there are none, when the read fails', async () => {
+      const repository: ConsoleAthletesRepository = { ...setup().repository, listBests: () => Promise.reject(new Error('read failed')) };
+      await show(repository);
+
+      await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+
+      expect(await screen.findByText('No se pudieron cargar las marcas')).toBeOnTheScreen();
+      expect(screen.queryByText('Aún no hay marcas')).toBeNull();
     });
   });
 

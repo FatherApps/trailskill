@@ -46,6 +46,8 @@ export type AthleteDetailData = {
   // `null` for each part that is not known: the console shows "Sin dato".
   guardian: { name: string | null; contact: string | null };
   bests: AthleteBest[];
+  // The bests could not be read: not the same as an athlete with no times.
+  bestsError?: boolean;
   // Absent while the console has no categories to choose from: the detail only shows the category tag.
   categoryChoice?: CategoryChoice;
 };

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { t } from '../../../core/i18n';
+import type { SyncConnection } from '../../../core/sync';
 import '../i18n';
 import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
@@ -19,7 +20,8 @@ export type AthletesSectionProps = ConsoleSectionProps & {
   refreshKey?: unknown;
   // When the local database last finished a sync; `null` when it never did.
   lastSyncedAt: Date | null;
-  connected: boolean;
+  // 'connecting' is not 'offline': PowerSync is still reaching the backend, so nothing says the device lacks a network yet.
+  connection: SyncConnection;
   // The clock. A stable function: the list is read again when it changes.
   now?: () => Date;
 };
@@ -83,7 +85,7 @@ export function AthletesSection({
   categories,
   refreshKey,
   lastSyncedAt,
-  connected,
+  connection,
   now = defaultNow,
 }: AthletesSectionProps) {
   const [answer, setAnswer] = useState<Answer>();
@@ -96,7 +98,7 @@ export function AthletesSection({
   // Bumped after each assignment so the list and the tags show the new category.
   const [version, setVersion] = useState(0);
   const [assignFailure, setAssignFailure] = useState<{ athleteId: string; message: string }>();
-  const [bests, setBests] = useState<{ athleteId: string; bests: AthleteBest[] }>();
+  const [bests, setBests] = useState<{ athleteId: string; bests: AthleteBest[]; failed: boolean }>();
 
   useEffect(() => {
     let active = true;
@@ -124,8 +126,8 @@ export function AthletesSection({
   useEffect(() => {
     if (selectedId === null) return;
     let active = true;
-    const settle = (list: AthleteBest[]) => active && setBests({ athleteId: selectedId, bests: list });
-    repository.listBests(selectedId).then(settle, () => settle([]));
+    const settle = (list: AthleteBest[], failed = false) => active && setBests({ athleteId: selectedId, bests: list, failed });
+    repository.listBests(selectedId).then((list) => settle(list), () => settle([], true));
     return () => {
       active = false;
     };
@@ -137,12 +139,13 @@ export function AthletesSection({
   const bestLabel = personalBestLabel(CONSOLE_BEST_EVENT.stroke, CONSOLE_BEST_EVENT.distance, CONSOLE_BEST_EVENT.pool);
 
   let view: AthletesView;
-  if (loaded === undefined) {
+  // Empty before the first sync arrives is not "no athletes": the data may still be on its way.
+  if (loaded === undefined || (connection === 'connecting' && lastSyncedAt === null && loaded !== 'error' && loaded.athletes.length === 0)) {
     view = { kind: 'loading' };
   } else if (loaded === 'error') {
     view = { kind: 'error', onRetry: () => setAttempt((n) => n + 1) };
   } else if (loaded.athletes.length === 0) {
-    view = !connected && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
+    view = connection === 'offline' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
   } else {
     const selected = loaded.athletes.find((a) => a.id === selectedId);
     const content: AthletesContent = {
@@ -168,6 +171,7 @@ export function AthletesSection({
             guardian: { name: null, contact: null },
             // Until the athlete's own bests arrive the list is empty, never another athlete's.
             bests: bests?.athleteId === selected.id ? bests.bests : [],
+            bestsError: bests?.athleteId === selected.id && bests.failed,
             categoryChoice: categories && {
               options: categoryOptions(categoryList, selected.categoryId),
               selectedId: selected.categoryId,
@@ -185,7 +189,7 @@ export function AthletesSection({
         : null,
     };
     // Without a connection the list is what the device stored; with no sync date the banner leaves the date out.
-    view = connected ? { kind: 'data', content } : { kind: 'offline', storedOn: lastSyncedAt ? localDate(lastSyncedAt) : '', content };
+    view = connection !== 'offline' ? { kind: 'data', content } : { kind: 'offline', storedOn: lastSyncedAt ? localDate(lastSyncedAt) : '', content };
   }
 
   return (

@@ -68,7 +68,9 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
         <Text accessibilityRole="header" style={[typography.label, { color: colors[athleteDetailColors.title] }]}>
           {t('schoolConsole.detail.bests')}
         </Text>
-        {athlete.bests.length === 0 ? (
+        {athlete.bestsError ? (
+          <Banner variant="warn" icon="error">{t('schoolConsole.detail.bests_error')}</Banner>
+        ) : athlete.bests.length === 0 ? (
           <Text style={[typography.body, { paddingVertical: space[3], color: colors[athleteDetailColors.caption] }]}>
             {t('schoolConsole.detail.no_bests')}
           </Text>
