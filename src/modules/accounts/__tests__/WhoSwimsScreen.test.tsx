@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
+import { typography } from '../../../core/theme';
 import { accountsFixture as fx } from '../__fixtures__/accounts';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from '../screens/WhoSwimsScreen';
 
@@ -28,6 +30,15 @@ describe('WhoSwimsScreen', () => {
     expect(screen.getByText('Soy mayor de edad y nado', hidden)).toBeOnTheScreen();
     expect(screen.queryByTestId('banner')).toBeNull();
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeOnTheScreen();
+  });
+
+  it('uses the title token for the screen title, like the timing header', async () => {
+    await renderScreen();
+
+    const style = StyleSheet.flatten(screen.getByRole('header', { name: 'Crear cuenta' }).props.style);
+    expect(style.fontSize).toBe(typography.title.fontSize);
+    expect(style.fontFamily).toBe(typography.title.fontFamily);
+    expect(style.fontSize).not.toBe(typography['title-lg'].fontSize);
   });
 
   it('child: explains that minors do not create their own account', async () => {
