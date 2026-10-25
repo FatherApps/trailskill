@@ -1,6 +1,10 @@
 import { t } from '../../../core/i18n';
 import '..';
 
+// The athletes index reaches the PowerSync repository through the timing index; the sync layer is ESM-only for Jest.
+jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync/db', () => ({ db: {} }));
+
 describe('athletes history i18n', () => {
   it.each([
     ['athletes.history.context.training', 'Entrenamiento'],
