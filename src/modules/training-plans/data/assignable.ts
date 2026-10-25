@@ -72,6 +72,17 @@ export function checkTarget(scope: AssignScope, target: AssignmentTarget): void 
   }
 }
 
+/** Whether the user may withdraw an assignment: the same scope that lets them make it (an assignment of another school never gets here). */
+export function canWithdraw(scope: AssignScope, target: AssignmentTarget): boolean {
+  try {
+    checkTarget(scope, target);
+    return true;
+  } catch (error) {
+    if (error instanceof TargetNotInChargeError || error instanceof TargetOutsideSchoolError) return false;
+    throw error;
+  }
+}
+
 /** Saves the assignment when the user may make it; nothing is written otherwise. Returns the assignment id. */
 export async function assignPlan(repository: AssignmentRepository, scope: AssignScope, assignment: Omit<NewAssignment, 'schoolId'>): Promise<string> {
   checkTarget(scope, assignment.target);
