@@ -50,6 +50,23 @@ describe('development gallery', () => {
     expect(screen.getByRole('button', { name: 'Button' })).toBeOnTheScreen();
   });
 
+  it('lists the timing module entries under their own group', async () => {
+    await renderRouter(routes, { initialUrl: '/gallery' });
+
+    expect(screen.getByText('timing')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'TimingSetupScreen' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'StopwatchScreen' })).toBeOnTheScreen();
+  });
+
+  it('opens a timing entry and shows the state chosen in the selector', async () => {
+    await renderRouter(routes, { initialUrl: '/gallery/stopwatch' });
+    expect(screen.getByRole('button', { name: 'Iniciar' })).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'stopped' }));
+
+    expect(screen.getByText('MP 34,82')).toBeOnTheScreen();
+  });
+
   it('opens an entry with a radio per state and the first one checked', async () => {
     const view = await openButtonEntry();
 

@@ -1,0 +1,38 @@
+{
+  "timing": {
+    "setup": {
+      "title": "Toma de tiempos",
+      "question": "¿Qué vas a medir?",
+      "stroke": "Estilo",
+      "distance": "Distancia",
+      "pool": "Piscina",
+      "session_type": "Tipo de sesión",
+      "source": "Fuente del tiempo",
+      "start": "Empezar toma"
+    },
+    "session_type": {
+      "training": "Entrenamiento",
+      "competition": "Competencia"
+    },
+    "source": {
+      "phone": "Este teléfono",
+      "external": "Cronómetro externo"
+    },
+    "stopwatch": {
+      "title": "{{name}} · {{current}} de {{total}}",
+      "start": "Iniciar",
+      "split": "Parcial",
+      "stop": "Detener",
+      "discard": "Descartar",
+      "save": "Guardar",
+      "personal_best": "MP {{time}}",
+      "split_row": "{{label}} · {{time}}",
+      "announce_running": "Cronómetro en marcha",
+      "announce_stopped": "Tiempo detenido: {{time}}",
+      "exit_title": "¿Descartar este tiempo?",
+      "exit_message": "El tiempo en marcha de {{name}} no se guardará. No se puede recuperar.",
+      "exit_confirm": "Descartar tiempo",
+      "exit_cancel": "Seguir midiendo"
+    }
+  }
+}
