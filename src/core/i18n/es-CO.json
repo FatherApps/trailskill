@@ -108,6 +108,10 @@
     "delta_faster": "{{time}} menos que la marca personal",
     "delta_slower": "{{time}} más que la marca personal"
   },
+  "swimmer_row": {
+    "personal_best": "marca personal {{time}}",
+    "no_best_time": "sin marca personal"
+  },
   "sync": {
     "on_device": "En el teléfono",
     "sending": "Enviando",

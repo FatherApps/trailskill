@@ -3,7 +3,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { StyleSheet } from 'react-native';
 
-import { Button, Icon, Segmented, StateView, StepHeader, SyncStatus, Tag, TextField, TimeValue } from '..';
+import {
+  Button,
+  Icon,
+  NavBar,
+  Segmented,
+  StateView,
+  StepHeader,
+  SwimmerRow,
+  SyncStatus,
+  Tag,
+  TextField,
+  TimeValue,
+} from '..';
 
 const uiDir = path.join(__dirname, '..');
 
@@ -48,6 +60,25 @@ describe('src/core/ui rules', () => {
         <TimeValue value={null} size="time-sm" />
         <TimeValue value={null} completed />
         <TimeValue value={3482} personalBest={3573} newPersonalBest />
+        <SwimmerRow
+          name="Lucía R."
+          initials="LR"
+          color="athlete-1"
+          detail="Infantil B"
+          bestTime={3482}
+          bestTimeLabel="MP 50 L"
+          tag={{ label: 'Consentimiento pendiente', variant: 'warn' }}
+          chevron
+          onPress={jest.fn()}
+        />
+        <NavBar
+          items={[
+            { id: 'home', label: 'Inicio', icon: 'home' },
+            { id: 'account', label: 'Cuenta', icon: 'person' },
+          ]}
+          activeId="home"
+          onSelect={jest.fn()}
+        />
       </>,
     );
 
@@ -63,6 +94,7 @@ describe('src/core/ui rules', () => {
       ...screen.getAllByRole('button'),
       ...screen.getAllByRole('text', { name: /pendiente/ }),
       ...screen.getAllByRole('radio'),
+      ...screen.getAllByRole('tab'),
     ];
     for (const control of controls) {
       const style = StyleSheet.flatten(control.props.style);
