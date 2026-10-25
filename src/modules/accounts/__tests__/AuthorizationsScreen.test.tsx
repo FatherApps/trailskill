@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryAuthorizationRepository, type AuthorizationRecord, type AuthorizationRepository, type AuthorizationText } from '../data/authorizations';
 import { createInMemoryRegistrationDraftRepository } from '../data/registrationDraft';
@@ -48,6 +48,23 @@ describe('AuthorizationsScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Guardar' }));
 
     expect(onSave).toHaveBeenCalledWith([{ athleteId: 'a1', text: texts[1] }]);
+  });
+
+  it('a second press before the first save resolves does not send the list again', async () => {
+    let finish: (saved: boolean) => void = () => {};
+    const onSave = jest.fn(() => new Promise<boolean>((resolve) => (finish = resolve)));
+    await render(<AuthorizationsScreen mode="registration" athletes={athletes} texts={texts} inForce={{}} onSave={onSave} onWithdraw={jest.fn()} />);
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: IMPORT }));
+    const button = screen.getByRole('button', { name: 'Continuar' });
+    // Both presses land in the same tick, before any re-render could disable the button (fireEvent would wait for the pending save).
+    await act(async () => {
+      button.props.onClick({});
+      button.props.onClick({});
+    });
+    await act(async () => finish(true));
+
+    expect(onSave).toHaveBeenCalledTimes(1);
   });
 
   it('a failed save keeps the checked box checked', async () => {

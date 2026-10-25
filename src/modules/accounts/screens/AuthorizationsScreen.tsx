@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
@@ -34,6 +34,9 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
   const { colors, space, typography } = useTheme();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  // State updates land after the render: a ref blocks a second press made before the loading state shows.
+  const saveInFlight = useRef(false);
   const keyOf = (athleteId: string, purpose: AuthorizationPurpose) => `${athleteId}:${purpose}`;
   const registration = mode === 'registration';
 
@@ -50,7 +53,15 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
     );
     // Manage with nothing checked has nothing to save; registration continues without authorizing.
     if (chosen.length === 0 && !registration) return;
-    if (await onSave(chosen)) setSelected({});
+    if (saveInFlight.current) return;
+    saveInFlight.current = true;
+    setSaving(true);
+    try {
+      if (await onSave(chosen)) setSelected({});
+    } finally {
+      saveInFlight.current = false;
+      setSaving(false);
+    }
   }
 
   function confirmWithdrawal() {
@@ -62,7 +73,7 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
     <ScreenFrame
       title={registration ? t('accounts.create_title') : t('accounts.authorizations.title')}
       before={!registration && onBack ? <Button variant="ghost" label={t('common.back')} onPress={onBack} /> : undefined}
-      footer={<Button label={t(registration ? 'accounts.authorizations.continue' : 'accounts.authorizations.save')} onPress={save} />}
+      footer={<Button label={t(registration ? 'accounts.authorizations.continue' : 'accounts.authorizations.save')} onPress={save} loading={saving} />}
     >
       {registration && step && onBack && (
         <StepHeader step={step.current} total={step.total} title={t('accounts.authorizations.title')} onBack={onBack} />

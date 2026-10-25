@@ -52,7 +52,7 @@ describe('AddAthletesContainer', () => {
     expect(screen.getByDisplayValue('Rojas')).toBeOnTheScreen();
   });
 
-  it('Continuar keeps the swimmer choice in the draft, drops the typed names and goes on', async () => {
+  it('Continuar keeps the swimmer choice and the reached step in the draft, drops the typed names and goes on', async () => {
     const { mount, onContinue, drafts, profiles } = setup();
     await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Lucía', lastName: 'Rojas', relation: 'guardian' });
     await mount();
@@ -61,7 +61,7 @@ describe('AddAthletesContainer', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
 
     await waitFor(() => expect(onContinue).toHaveBeenCalled());
-    expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: '' });
+    expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: '', step: 'authorizations' });
   });
 
   it('shows an error and keeps the names when the profile cannot be saved', async () => {

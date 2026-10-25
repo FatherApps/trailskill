@@ -12,6 +12,8 @@ export type RegistrationDraft = {
   email: string;
   // Step 3 (guardian): the profile being typed.
   athlete?: { firstName: string; lastName: string };
+  // The step reached once the account and profiles exist; the authorizations step clears the draft.
+  step?: 'authorizations';
 };
 
 export type RegistrationDraftRepository = {
@@ -69,7 +71,8 @@ export type FinishRegistrationInput = {
 // Runs once the account exists: stores the profile typed during registration, then drops the draft's personal fields.
 // An adult also gets their own athlete profile (relation 'self', idempotent). In both cases the draft keeps only the swimmer choice
 // and the result names the next step ('add_athletes' for a guardian, 'authorizations' for an adult); the authorizations step clears the draft.
-// A draft typed for another email is left alone, and a failed save keeps the draft so the next launch retries.
+// The adult's kept draft stays bound to the account by its email and carries the reached step; the guardian's kept draft carries no email
+// and the add-athletes step records the reached step. A draft typed for another email is left alone, and a failed save keeps the draft so the next launch retries.
 export async function finishRegistration({
   userId,
   email,
@@ -81,9 +84,13 @@ export async function finishRegistration({
   if (!draft) return;
   const firstName = draft.firstName?.trim();
   const lastName = draft.lastName?.trim();
+  const sameEmail = draft.email?.trim().toLowerCase() === email.trim().toLowerCase();
   // A person who left the flow unfinished comes back to the step they were on: the names were already saved and blanked.
-  if (!firstName || !lastName) return draft.swimmer === 'child' ? 'add_athletes' : draft.swimmer === 'adult' ? 'authorizations' : undefined;
-  if (draft.email?.trim().toLowerCase() !== email.trim().toLowerCase()) return;
+  if (!firstName || !lastName) {
+    if (draft.swimmer === 'child') return draft.step ?? 'add_athletes';
+    return draft.swimmer === 'adult' && draft.step === 'authorizations' && sameEmail ? 'authorizations' : undefined;
+  }
+  if (!sameEmail) return;
   await profiles.save({ userId, firstName, lastName });
   if (draft.swimmer === 'child') {
     await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: '' });
@@ -91,7 +98,7 @@ export async function finishRegistration({
   }
   if (draft.swimmer === 'adult') {
     await managedProfiles.createManagedAthlete({ userId, firstName, lastName, relation: 'self' });
-    await drafts.save({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+    await drafts.save({ swimmer: 'adult', firstName: '', lastName: '', email: draft.email, step: 'authorizations' });
     return 'authorizations';
   }
   await drafts.clear();

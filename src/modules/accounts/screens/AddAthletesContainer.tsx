@@ -53,10 +53,10 @@ export function AddAthletesContainer({
   const queue = useRef<Promise<void>>(Promise.resolve());
   const enqueue = (write: () => Promise<void>) => (queue.current = queue.current.then(write).catch(() => {}));
   // Never throws: losing a draft must not block typing.
-  const persist = (athlete: typeof empty | undefined) =>
+  const persist = (athlete: typeof empty | undefined, step?: 'authorizations') =>
     enqueue(async () => {
       const current = await drafts.load();
-      await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: '', ...current, athlete });
+      await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: '', ...current, athlete, ...(step && { step }) });
     });
 
   function change(field: AddAthleteField, value: string) {
@@ -83,9 +83,9 @@ export function AddAthletesContainer({
     setBusy(false);
   }
 
-  // The profiles are saved, so the typed names have nothing left to keep; the swimmer choice stays until the authorizations step ends.
+  // The profiles are saved, so the typed names have nothing left to keep; the swimmer choice and the reached step stay until the authorizations step ends.
   async function finish() {
-    await persist(undefined);
+    await persist(undefined, 'authorizations');
     onContinue();
   }
 
