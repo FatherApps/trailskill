@@ -71,21 +71,31 @@ describe('finishRegistration', () => {
   it('child: keeps only the swimmer choice, creates no athlete and asks to open the add screen', async () => {
     const { drafts, athletes, next } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer: 'child' }));
 
-    expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: '' });
+    expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: 'Camila@Example.test' });
     await expect(athletes.listManaged('user-1')).resolves.toEqual([]);
     expect(next).toBe('add_athletes');
   });
 
   it('child: asks again to open the add screen on a later launch, when the names are already blank', async () => {
-    const { next } = await run(createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: '' }));
+    const { next } = await run(createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: 'Camila@Example.test' }));
 
     expect(next).toBe('add_athletes');
   });
 
   it('child: resumes to the authorizations once the add-athletes step was finished', async () => {
-    const { next } = await run(createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: '', step: 'authorizations' }));
+    const { next } = await run(
+      createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: 'Camila@Example.test', step: 'authorizations' }),
+    );
 
     expect(next).toBe('authorizations');
+  });
+
+  it.each([undefined, 'authorizations' as const])('child: leaves a draft kept for another email alone and does not route (step %s)', async (step) => {
+    const kept: RegistrationDraft = { swimmer: 'child', firstName: '', lastName: '', email: 'other@example.test', ...(step && { step }) };
+    const { drafts, next } = await run(createInMemoryRegistrationDraftRepository(kept));
+
+    expect(next).toBeUndefined();
+    expect(await drafts.load()).toEqual(kept);
   });
 
   it('adult: resumes to the authorizations on a later launch for the same email', async () => {

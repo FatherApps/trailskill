@@ -64,6 +64,38 @@ describe('AddAthletesContainer', () => {
     expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: '', step: 'authorizations' });
   });
 
+  it('Continuar stays on the screen with an error when the reached step cannot be saved', async () => {
+    const { mount, onContinue, drafts, profiles } = setup();
+    await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Lucía', lastName: 'Rojas', relation: 'guardian' });
+    await mount();
+    await screen.findByLabelText('Lucía R., Hijo o hija');
+    const failing = jest.spyOn(drafts, 'save').mockRejectedValue(new Error('store failed'));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(await screen.findByText('No pudimos guardar el avance. Inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(onContinue).not.toHaveBeenCalled();
+
+    failing.mockRestore();
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(onContinue).toHaveBeenCalled());
+    expect(screen.queryByText('No pudimos guardar el avance. Inténtalo de nuevo.')).toBeNull();
+  });
+
+  it('with no draft, typing and continuing never invent one', async () => {
+    const { mount, onContinue, drafts, profiles } = setup();
+    await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Lucía', lastName: 'Rojas', relation: 'guardian' });
+    await drafts.clear();
+    await mount();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+    await screen.findByLabelText('Lucía R., Hijo o hija');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(onContinue).toHaveBeenCalled());
+    expect(await drafts.load()).toBeNull();
+  });
+
   it('shows an error and keeps the names when the profile cannot be saved', async () => {
     const { mount, profiles } = setup();
     jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValue(new Error('write failed'));
