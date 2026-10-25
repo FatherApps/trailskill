@@ -4,7 +4,7 @@
 -- here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(27);
 
 -- Users: school admins A (school one) and B (school two), coach C and guardian G
 -- of school one, platform admin P.
@@ -126,6 +126,36 @@ select throws_ok(
      where id = '57000000-0000-4000-8000-000000000103' $$,
   '42501', null,
   'school admin A cannot change another column of an invitation'
+);
+
+-- A retried upload of an invitation that already exists (the connector sends
+-- insert ... on conflict (id) do nothing) changes nothing.
+do $$ begin
+  perform set_config('test.first_token', (
+    select token from public.school_invitations where id = '57000000-0000-4000-8000-000000000101'
+  ), true);
+  perform set_config('test.first_expiry', (
+    select expires_at::text from public.school_invitations where id = '57000000-0000-4000-8000-000000000101'
+  ), true);
+end $$;
+
+select lives_ok(
+  $$ insert into public.school_invitations (id, school_id, group_id, token, expires_at)
+     values ('57000000-0000-4000-8000-000000000101', '57000000-0000-4000-8000-0000000000b1',
+             '57000000-0000-4000-8000-0000000000d1', 'retried-client-token-0123456789abcdef',
+             '2099-01-01 00:00:00+00')
+     on conflict (id) do nothing $$,
+  'school admin A retries the upload of an existing invitation'
+);
+select is(
+  (select token from public.school_invitations where id = '57000000-0000-4000-8000-000000000101'),
+  current_setting('test.first_token'),
+  'a retried upload keeps the stored token'
+);
+select is(
+  (select expires_at::text from public.school_invitations where id = '57000000-0000-4000-8000-000000000101'),
+  current_setting('test.first_expiry'),
+  'a retried upload keeps the stored expiry'
 );
 
 -- Who cannot revoke: the update policy hides the row, so nothing changes.
