@@ -56,4 +56,4 @@ Only over HTTPS on a public domain, with certificates managed by Dokploy's Traef
 - Environments inside the Dokploy project (one shared environment, or separate staging and production).
 - How migrations and Edge Functions from `supabase/` are applied on each deployment.
 - PowerSync Open Edition license terms for this use.
-- Still open from ADR 0001: SMS or email provider for verification codes, and the hosting budget.
+- Still open from ADR 0001: the email provider, now only for the fallback sign-in code and invitations ([ADR 0004](0004-sign-in-with-google-microsoft-and-email-code.md)), and the hosting budget.
