@@ -34,7 +34,7 @@ The app uses native modules (op-sqlite, PowerSync) that Expo Go does not include
 Prerequisites: Android Studio with the Android SDK, the `Medium_Phone_API_37.0` emulator running, and `JAVA_HOME` set to Android Studio's JDK (on macOS, `/Applications/Android Studio.app/Contents/jbr/Contents/Home`).
 
 1. Install dependencies: `npm ci`.
-2. Build and install the development build on the emulator: `npx expo run:android --no-bundler`. It generates `android/` (ignored by Git). Rebuild only when a native dependency or a config plugin changes; JavaScript changes do not need a new build.
+2. Build and install the development build on the emulator: `npx expo run:android --no-bundler`. It generates `android/` (ignored by Git). Rebuild only when a native dependency or a config plugin changes; JavaScript changes do not need a new build. The local database is encrypted with SQLCipher, so pull the change that enabled it and rebuild once; the first launch deletes the old unencrypted local database and creates an empty encrypted one, which syncs again from the server.
 3. Start Metro in watch mode: `npx expo start --dev-client`, then press `a` to open TrailSkill on the emulator. Saving a file reloads the app.
 
 Several worktrees and sessions share the emulator:
