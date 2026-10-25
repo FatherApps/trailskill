@@ -2,7 +2,13 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import { ThemeProvider } from '../../../core/theme';
-import { AthleteProfileContainer, createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository } from '..';
+import { createInMemorySchoolNameRepository, createInMemorySchoolStructureRepository } from '../../school-console';
+import {
+  AthleteProfileContainer,
+  createInMemoryAthleteSchoolRepository,
+  createInMemoryHistoryRepository,
+  createInMemorySchoolAthleteRepository,
+} from '..';
 import type { HistoryMeasurement, HistoryRepository } from '..';
 
 jest.mock('../../../core/sync', () => ({
@@ -16,6 +22,24 @@ const athletes = createInMemorySchoolAthleteRepository({
   athletes: [{ id: 'a1', firstName: 'Ana', lastName: 'Marin' }],
   athleteSchools: [],
   athleteGroups: [],
+});
+const schoolLinks = createInMemoryAthleteSchoolRepository([
+  { athleteId: 'a1', schoolId: 'delfines', categoryId: 'infantil' },
+  { athleteId: 'a1', schoolId: 'tiburones', categoryId: 'juvenil' },
+]);
+const schoolNames = createInMemorySchoolNameRepository([
+  { id: 'delfines', name: 'Escuela Delfines' },
+  { id: 'tiburones', name: 'Club Tiburones' },
+]);
+const categories = createInMemorySchoolStructureRepository({
+  categories: [
+    { id: 'infantil', schoolId: 'delfines', name: 'Infantil B', sortOrder: 0 },
+    { id: 'juvenil', schoolId: 'tiburones', name: 'Juvenil A', sortOrder: 0 },
+  ],
+  groups: [],
+  groupAssignments: [],
+  athleteAssignments: [],
+  coachMemberships: [],
 });
 const authorizations = (granted: boolean) =>
   createInMemoryAuthorizationStatusRepository([{ athleteId: 'a1', purpose: 'record_times', isGranted: granted }]);
@@ -52,6 +76,9 @@ const show = (props: Partial<Parameters<typeof AthleteProfileContainer>[0]> = {}
         athletes={athletes}
         history={createInMemoryHistoryRepository([measurement({ id: 'm1' })])}
         authorizations={authorizations(true)}
+        schoolLinks={schoolLinks}
+        schoolNames={schoolNames}
+        categories={categories}
         lastSyncedAt={null}
         {...props}
       />
@@ -103,5 +130,28 @@ describe('athlete profile container', () => {
     expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
     // Only the history row shows it: the personal best card has no time.
     expect(screen.getAllByText('10,00', { includeHiddenElements: true })).toHaveLength(1);
+  });
+
+  it('shows the category and the school, and no school selector with a single school', async () => {
+    await show({ schoolLinks: createInMemoryAthleteSchoolRepository([{ athleteId: 'a1', schoolId: 'delfines', categoryId: 'infantil' }]) });
+
+    expect(await screen.findByText('Infantil B · Escuela Delfines')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Escuela')).toBeNull();
+  });
+
+  it('chooses among several schools and shows the category and the school of the chosen one', async () => {
+    await show();
+
+    expect(await screen.findByText('Juvenil A · Club Tiburones')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Escuela Delfines' }));
+
+    expect(await screen.findByText('Infantil B · Escuela Delfines')).toBeOnTheScreen();
+  });
+
+  it('shows the profile without category or school when the athlete has none on the device', async () => {
+    await show({ schoolLinks: createInMemoryAthleteSchoolRepository([]) });
+
+    expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Escuela')).toBeNull();
   });
 });

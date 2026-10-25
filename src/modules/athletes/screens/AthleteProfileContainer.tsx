@@ -5,6 +5,7 @@ import { distances, pools, strokes } from '../../../core/sport';
 import { useRecordSyncStates } from '../../../core/sync';
 import type { EventValue } from '../components/EventSelector';
 import type { HistoryResult } from '../components/HistoryList';
+import type { AthleteSchoolRepository } from '../data/athleteSchools';
 import type { HistoryMeasurement, HistoryRepository } from '../data/history';
 import type { SchoolAthlete, SchoolAthleteRepository } from '../data/schoolAthletes';
 import { personalBest } from '../personalBest';
@@ -15,15 +16,21 @@ export type AthleteProfileContainerProps = {
   athletes: SchoolAthleteRepository;
   history: HistoryRepository;
   authorizations: AuthorizationStatusRepository;
+  schoolLinks: AthleteSchoolRepository;
+  // Satisfied by the school console's repositories: the names of the schools and of their categories.
+  schoolNames: { listByIds(ids: readonly string[]): Promise<{ id: string; name: string }[]> };
+  categories: { listCategories(schoolId: string): Promise<{ id: string; name: string }[]> };
   // When the last sync finished; `null` when it never did.
   lastSyncedAt: Date | null;
 };
+
+type ProfileSchool = { id: string; name: string; category: string };
 
 type Loaded =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'denied' }
-  | { kind: 'ready'; athlete: SchoolAthlete; authorized: boolean; measurements: HistoryMeasurement[] };
+  | { kind: 'ready'; athlete: SchoolAthlete; authorized: boolean; measurements: HistoryMeasurement[]; schools: ProfileSchool[] };
 
 const initialEvent: EventValue = { stroke: strokes[0].code, distance: distances[1].code, pool: pools[0].code };
 const day = (iso: string) => iso.slice(0, 10);
@@ -57,10 +64,38 @@ function toResult(m: HistoryMeasurement, personalBestId: string | undefined, syn
   ];
 }
 
+// The athlete's schools with the category in each, by school name. A school whose name is not on the device is left out.
+async function readSchools(
+  athleteId: string,
+  links: AthleteSchoolRepository,
+  names: AthleteProfileContainerProps['schoolNames'],
+  categories: AthleteProfileContainerProps['categories'],
+): Promise<ProfileSchool[]> {
+  const linked = await links.listByAthlete(athleteId);
+  const named = await names.listByIds(linked.map((l) => l.schoolId));
+  return Promise.all(
+    named.map(async ({ id, name }) => {
+      const categoryId = linked.find((l) => l.schoolId === id)?.categoryId;
+      const category = categoryId ? (await categories.listCategories(id)).find((c) => c.id === categoryId)?.name : undefined;
+      return { id, name, category: category ?? '' };
+    }),
+  );
+}
+
 // Connects the profile screen to the athlete, the history of the chosen event and the authorization on this device.
-export function AthleteProfileContainer({ athleteId, athletes, history, authorizations, lastSyncedAt }: AthleteProfileContainerProps) {
+export function AthleteProfileContainer({
+  athleteId,
+  athletes,
+  history,
+  authorizations,
+  schoolLinks,
+  schoolNames,
+  categories,
+  lastSyncedAt,
+}: AthleteProfileContainerProps) {
   const [event, setEvent] = useState<EventValue>(initialEvent);
   const [attempt, setAttempt] = useState(0);
+  const [chosenSchoolId, setChosenSchoolId] = useState('');
   // The answer is stored with the request it belongs to: any other request shows as loading until its own answer lands.
   const requestKey = `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${attempt}`;
   const [answer, setAnswer] = useState<{ key: string; result: Loaded }>();
@@ -73,15 +108,19 @@ export function AthleteProfileContainer({ athleteId, athletes, history, authoriz
     (async () => {
       const [athlete] = await athletes.listByIds([athleteId]);
       if (!athlete) return { kind: 'denied' } as const;
-      const [granted, measurements] = await Promise.all([authorizations.listGrantedAthleteIds('record_times'), history.listByEvent(athleteId, event)]);
-      return { kind: 'ready', athlete, authorized: granted.includes(athleteId), measurements } as const;
+      const [granted, measurements, schools] = await Promise.all([
+        authorizations.listGrantedAthleteIds('record_times'),
+        history.listByEvent(athleteId, event),
+        readSchools(athleteId, schoolLinks, schoolNames, categories),
+      ]);
+      return { kind: 'ready', athlete, authorized: granted.includes(athleteId), measurements, schools } as const;
     })()
       .catch((): Loaded => ({ kind: 'error' }))
       .then((result) => active && setAnswer({ key: requestKey, result }));
     return () => {
       active = false;
     };
-  }, [athleteId, athletes, authorizations, history, event, requestKey]);
+  }, [athleteId, athletes, authorizations, history, schoolLinks, schoolNames, categories, event, requestKey]);
 
   const ids = useMemo(() => (loaded.kind === 'ready' ? loaded.measurements.map((m) => m.id) : []), [loaded]);
   const syncStates = useRecordSyncStates('measurements', ids);
@@ -91,15 +130,17 @@ export function AthleteProfileContainer({ athleteId, athletes, history, authoriz
   if (loaded.kind === 'denied') return <AthleteProfileScreen name="" view={{ kind: 'denied' }} />;
   if (loaded.kind === 'error') return <AthleteProfileScreen name="" view={{ kind: 'error', onRetry: retry }} />;
 
-  const { athlete, authorized, measurements } = loaded;
+  const { athlete, authorized, measurements, schools } = loaded;
+  // A choice that is no longer among the athlete's schools falls back to the first one.
+  const school = schools.find((s) => s.id === chosenSchoolId) ?? schools[0];
   const best = personalBest(measurements);
   const content = {
     header: {
       name: `${athlete.firstName} ${athlete.lastName}`.trim(),
-      // shortcut: the category and school names live in the school console's tables, so the header shows neither; upgrade with a shared read.
-      category: '',
-      schools: [],
-      schoolId: '',
+      category: school?.category ?? '',
+      schools: schools.map(({ id, name }) => ({ id, name })),
+      schoolId: school?.id ?? '',
+      onSchoolChange: setChosenSchoolId,
       authorization: authorized ? ('valid' as const) : ('pending' as const),
       updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.round((openedAt - lastSyncedAt.getTime()) / 60000)) : null,
     },

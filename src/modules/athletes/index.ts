@@ -30,6 +30,12 @@ export { createHistoryRepository, createPowerSyncHistoryRepository } from './dat
 export { personalBest, personalBestKinds, personalBestTime, type PersonalBestResult } from './personalBest';
 export { formatShortName } from './formatShortName';
 export {
+  createInMemoryAthleteSchoolRepository,
+  createPowerSyncAthleteSchoolRepository,
+  type AthleteSchoolLink,
+  type AthleteSchoolRepository,
+} from './data/athleteSchools';
+export {
   createInMemoryAthleteRepository,
   createPowerSyncAthleteRepository,
   type AthleteProfileInput,
