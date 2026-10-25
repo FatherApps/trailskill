@@ -1,0 +1,18 @@
+{
+  "logo": {
+    "label": "TrailSkill"
+  },
+  "nav": {
+    "label": "Secciones de la consola",
+    "athletes": "Deportistas",
+    "coaches": "Entrenadores",
+    "records": "Récords",
+    "measurements": "Mediciones",
+    "authorizations": "Autorizaciones",
+    "settings": "Ajustes"
+  },
+  "layout": {
+    "close": "Cerrar",
+    "detail_dialog": "Detalle de {{name}}"
+  }
+}
