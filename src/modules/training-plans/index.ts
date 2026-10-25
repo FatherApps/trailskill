@@ -47,6 +47,6 @@ export {
   type AssignmentTarget,
   type NewAssignment,
 } from './data/assignments';
-export { assignPlan, checkTarget, listAssignmentsOfDay, loadAssignScope, type AssignScope } from './data/assignable';
+export { assignPlan, canWithdraw, checkTarget, listAssignmentsOfDay, loadAssignScope, type AssignScope } from './data/assignable';
 export { AssignPlanScreen, type AssignedRow, type AssignmentKind, type AssignOption, type AssignPlanContent, type AssignPlanScreenProps, type AssignPlanView } from './screens/AssignPlanScreen';
 export { AssignPlanContainer, type AssignPlanContainerProps } from './screens/AssignPlanContainer';

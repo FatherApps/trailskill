@@ -169,9 +169,15 @@
     "assigned_empty": "Aún no hay asignaciones para este día.",
     "reaches_one": "Llega a {{count}} deportista",
     "reaches_other": "Llega a {{count}} deportistas",
+    "withdraw": "Quitar asignación",
+    "withdraw_title": "¿Quitar esta asignación?",
+    "withdraw_message": "{{plan}} deja de estar asignado a {{target}} para este día.",
+    "withdraw_confirm": "Quitar del día",
+    "withdraw_cancel": "Conservar asignación",
     "failure": {
       "denied": "No puedes asignar este plan a ese destino.",
-      "save": "No pudimos guardar la asignación. Inténtalo de nuevo."
+      "save": "No pudimos guardar la asignación. Inténtalo de nuevo.",
+      "withdraw": "No pudimos quitar la asignación. Inténtalo de nuevo."
     }
   }
 }

@@ -148,7 +148,7 @@ function PlanListPreview({ view }: { view: PlanListView }) {
 function AssignPreview({ view }: { view: AssignPlanView }) {
   return (
     <ScreenFrame>
-      <AssignPlanScreen view={view} onPreviousDay={noop} onNextDay={noop} onSelectPlan={noop} onSelectKind={noop} onSelectOption={noop} onAssign={noop} />
+      <AssignPlanScreen view={view} onPreviousDay={noop} onNextDay={noop} onSelectPlan={noop} onSelectKind={noop} onSelectOption={noop} onAssign={noop} onWithdraw={noop} />
     </ScreenFrame>
   );
 }
@@ -164,7 +164,7 @@ const assignContent = {
     { id: 'g2', label: 'Grupo B' },
   ],
   selectedOptionId: 'g1',
-  assigned: [{ id: 'a1', planName: planList.plans[0]?.name ?? '', targetLabel: 'Grupo A', athleteCount: 12 }],
+  assigned: [{ id: 'a1', planName: planList.plans[0]?.name ?? '', targetLabel: 'Grupo A', athleteCount: 12, canWithdraw: true }],
   saving: false,
 };
 

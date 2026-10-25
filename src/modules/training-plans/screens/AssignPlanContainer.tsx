@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { SchoolAthleteRepository } from '../../athletes';
 import type { SchoolStructureRepository, StaffSchoolRepository } from '../../school-console';
 import { dayLabel, shiftDay, todayText } from '../components/day';
-import { assignPlan, listAssignmentsOfDay, loadAssignScope, type AssignScope } from '../data/assignable';
+import { assignPlan, canWithdraw, listAssignmentsOfDay, loadAssignScope, type AssignScope } from '../data/assignable';
 import { PlanNotAssignableError, TargetNotInChargeError, TargetOutsideSchoolError, type AssignmentRepository, type AssignmentTarget } from '../data/assignments';
 import type { PlanSummary, TrainingPlanRepository } from '../data/plans';
 import '../i18n';
@@ -97,6 +97,7 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
             planName: ready.plans.find((p) => p.id === assignment.planId)?.name ?? '',
             targetLabel: targetLabel(ready.scope, assignment.target),
             athleteCount: athleteIds.length,
+            canWithdraw: canWithdraw(ready.scope, assignment.target),
           })),
         );
       } catch {
@@ -125,6 +126,21 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
     } finally {
       busy.current = false;
       setSaving(false);
+    }
+  }
+
+  // The repository writes on the device first, so the row leaves the list at once, also offline.
+  async function withdraw(id: string) {
+    if (busy.current) return;
+    busy.current = true;
+    setFailure(undefined);
+    try {
+      await assignments.withdraw(id);
+      setRows((current) => current.filter((row) => row.id !== id));
+    } catch {
+      setFailure('withdraw');
+    } finally {
+      busy.current = false;
     }
   }
 
@@ -168,6 +184,7 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
       }}
       onSelectOption={setOptionId}
       onAssign={save}
+      onWithdraw={withdraw}
     />
   );
 }

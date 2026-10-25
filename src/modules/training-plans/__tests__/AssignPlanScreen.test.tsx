@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 
-import { AssignPlanContainer, createInMemoryAssignmentRepository, createInMemoryTrainingPlanRepository } from '..';
+import { AssignPlanContainer, createInMemoryAssignmentRepository, createInMemoryTrainingPlanRepository, type AssignmentTarget } from '..';
 import { athletes, plan, sources } from '../__fixtures__/assignments';
 import { dayLabel, shiftDay, todayText } from '../components/day';
 
@@ -8,10 +8,11 @@ import { dayLabel, shiftDay, todayText } from '../components/day';
 jest.mock('../../../core/sync', () => ({ db: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
-async function setup(userId: string) {
+async function setup(userId: string, existing: AssignmentTarget[] = []) {
   const plans = createInMemoryTrainingPlanRepository();
   await plans.save(plan('p1'));
   const assignments = createInMemoryAssignmentRepository(plans);
+  for (const target of existing) await assignments.create({ planId: 'p1', schoolId: 's1', sessionDate: '2026-11-02', target });
   await render(
     <AssignPlanContainer
       plans={plans}
@@ -57,6 +58,43 @@ describe('AssignPlanScreen', () => {
     expect(screen.queryByRole('button', { name: 'Grupo B' })).toBeNull();
     expect(screen.queryByRole('radio', { name: 'Categoría' })).toBeNull();
     expect(screen.queryByRole('radio', { name: 'Toda la escuela' })).toBeNull();
+  });
+});
+
+describe('withdrawing an assignment', () => {
+  const group = (groupId: string): AssignmentTarget => ({ kind: 'group', groupId });
+  const athlete = (athleteId: string): AssignmentTarget => ({ kind: 'athlete', athleteId });
+  // Coach k1 has group g1 and the athlete a4; the rest is out of charge or shared by the whole school.
+  const all: AssignmentTarget[] = [group('g1'), athlete('a4'), group('g2'), athlete('a3'), { kind: 'category', categoryId: 'c1' }, { kind: 'school' }];
+  const rowOf = async (assignments: Awaited<ReturnType<typeof setup>>, index: number) =>
+    screen.findByTestId(`assigned-${(await assignments.list('s1', '2026-11-02'))[index].id}`);
+
+  it('offers a coach to withdraw only the assignments of the athletes and groups in charge', async () => {
+    const assignments = await setup('k1', all);
+    await screen.findByText('Asignado para este día');
+
+    const offered = await Promise.all(all.map(async (_, i) => within(await rowOf(assignments, i)).queryByRole('button', { name: 'Quitar asignación' }) !== null));
+    expect(offered).toEqual([true, true, false, false, false, false]);
+  });
+
+  it('offers an administrator to withdraw every assignment of the school', async () => {
+    await setup('admin', all);
+
+    expect(await screen.findAllByRole('button', { name: 'Quitar asignación' })).toHaveLength(all.length);
+  });
+
+  it('withdraws the assignment only after the confirmation, and keeps it when cancelled', async () => {
+    const assignments = await setup('admin', [group('g1')]);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Quitar asignación' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Conservar asignación' }));
+    expect(screen.getByText('Llega a 2 deportistas')).toBeOnTheScreen();
+    expect(await assignments.list('s1', '2026-11-02')).toHaveLength(1);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Quitar asignación' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Quitar del día' }));
+    expect(await screen.findByText('Aún no hay asignaciones para este día.')).toBeOnTheScreen();
+    expect(await assignments.list('s1', '2026-11-02')).toHaveLength(0);
   });
 });
 

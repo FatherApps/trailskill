@@ -1,16 +1,16 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, Segmented, StateView, Tag } from '../../../core/ui';
+import { Banner, Button, ConfirmSheet, Segmented, StateView, Tag } from '../../../core/ui';
 import type { AssignmentTarget } from '../data/assignments';
 import type { PlanSummary } from '../data/plans';
 import '../i18n';
 
 export type AssignmentKind = AssignmentTarget['kind'];
 export type AssignOption = { id: string; label: string };
-export type AssignedRow = { id: string; planName: string; targetLabel: string; athleteCount: number };
+export type AssignedRow = { id: string; planName: string; targetLabel: string; athleteCount: number; canWithdraw: boolean };
 
 export type AssignPlanContent = {
   // The day, already formatted for reading (for example "lunes 2 de noviembre").
@@ -25,8 +25,8 @@ export type AssignPlanContent = {
   selectedOptionId: string | null;
   assigned: AssignedRow[];
   saving: boolean;
-  // 'denied': the plan or the target is not assignable; 'save': anything else.
-  failure?: 'denied' | 'save';
+  // 'denied': the plan or the target is not assignable; 'save' and 'withdraw': anything else, saving or withdrawing.
+  failure?: 'denied' | 'save' | 'withdraw';
 };
 
 export type AssignPlanView =
@@ -43,6 +43,7 @@ export type AssignPlanScreenProps = {
   onSelectKind: (kind: AssignmentKind) => void;
   onSelectOption: (id: string) => void;
   onAssign: () => void;
+  onWithdraw: (id: string) => void;
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -89,8 +90,10 @@ function AssignForm({
   onSelectKind,
   onSelectOption,
   onAssign,
+  onWithdraw,
 }: { content: AssignPlanContent } & Omit<AssignPlanScreenProps, 'view'>) {
   const { colors, space, radius, typography } = useTheme();
+  const [withdrawing, setWithdrawing] = useState<AssignedRow | null>(null);
   const ready = content.selectedPlanId !== null && (content.kind === 'school' || content.selectedOptionId !== null);
   return (
     <>
@@ -153,20 +156,35 @@ function AssignForm({
           <Text style={[typography.body, { color: colors.ink }]}>{t('training_plans.assign.assigned_empty')}</Text>
         ) : (
           content.assigned.map((row) => (
-            <View key={row.id} style={{ gap: space[1], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
+            <View testID={`assigned-${row.id}`} key={row.id} style={{ gap: space[1], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
               <Text style={[typography.subtitle, { color: colors.ink }]}>{row.planName}</Text>
               <Text style={[typography.body, { color: colors.ink }]}>{row.targetLabel}</Text>
               <Text style={[typography.body, { color: colors.ink }]}>{t('training_plans.assign.reaches', { count: row.athleteCount })}</Text>
+              {row.canWithdraw && <Button variant="secondary" label={t('training_plans.assign.withdraw')} onPress={() => setWithdrawing(row)} />}
             </View>
           ))
         )}
       </Section>
+
+      <ConfirmSheet
+        visible={withdrawing !== null}
+        title={t('training_plans.assign.withdraw_title')}
+        message={t('training_plans.assign.withdraw_message', { plan: withdrawing?.planName ?? '', target: withdrawing?.targetLabel ?? '' })}
+        confirmLabel={t('training_plans.assign.withdraw_confirm')}
+        cancelLabel={t('training_plans.assign.withdraw_cancel')}
+        destructive
+        onConfirm={() => {
+          if (withdrawing) onWithdraw(withdrawing.id);
+          setWithdrawing(null);
+        }}
+        onCancel={() => setWithdrawing(null)}
+      />
     </>
   );
 }
 
 // Presentational: no repository; the caller supplies the state and handles the events.
-export function AssignPlanScreen({ view, onPreviousDay, onNextDay, onSelectPlan, onSelectKind, onSelectOption, onAssign }: AssignPlanScreenProps) {
+export function AssignPlanScreen({ view, onPreviousDay, onNextDay, onSelectPlan, onSelectKind, onSelectOption, onAssign, onWithdraw }: AssignPlanScreenProps) {
   const { colors, space, typography } = useTheme();
 
   return (
@@ -195,6 +213,7 @@ export function AssignPlanScreen({ view, onPreviousDay, onNextDay, onSelectPlan,
           onSelectKind={onSelectKind}
           onSelectOption={onSelectOption}
           onAssign={onAssign}
+          onWithdraw={onWithdraw}
         />
       )}
     </ScrollView>
