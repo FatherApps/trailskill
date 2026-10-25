@@ -190,7 +190,7 @@ export function Stopwatch({
         <ActionRow
           large={large}
           secondary={{ variant: 'secondary', size: 'timing', label: t('timing.stopwatch.split'), onPress: onSplit }}
-          primary={{ variant: 'stop', size: 'timing', label: t('timing.stopwatch.stop'), onPress: onStop }}
+          primary={{ variant: 'stop', onClock: true, size: 'timing', label: t('timing.stopwatch.stop'), onPress: onStop }}
         />
       )}
       {stopped && (
