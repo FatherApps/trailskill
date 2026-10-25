@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { colors, contrastRatio, type ThemeName } from '../../theme';
-import { SyncStatus, syncStatusColors, type RecordSyncState } from '..';
+import type { RecordSyncState } from '../../sync';
+import { SyncStatus, syncStatusColors } from '..';
 import { buttonColors } from '../Button';
 
 const themes: ThemeName[] = ['light', 'dark'];

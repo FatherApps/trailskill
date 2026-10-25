@@ -3,5 +3,5 @@ export { TextField, type TextFieldProps } from './TextField';
 export { Tag, type TagProps, type TagVariant } from './Tag';
 export { StepHeader, stepHeaderColors, type StepHeaderProps } from './StepHeader';
 export { StateView, stateViewColors, type StateKind, type StateViewProps } from './StateView';
-export { SyncStatus, syncStatusColors, type RecordSyncState, type SyncStatusProps } from './SyncStatus';
+export { SyncStatus, syncStatusColors, type SyncStatusProps } from './SyncStatus';
 export { ConfirmSheet, confirmSheetColors, type ConfirmSheetProps } from './ConfirmSheet';

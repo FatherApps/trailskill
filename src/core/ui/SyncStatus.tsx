@@ -1,11 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
+import type { RecordSyncState } from '../sync';
 import { fontFamily, useTheme, type ColorToken } from '../theme';
 import { Button } from './Button';
-
-// 'needs_review' joins with conflict handling (task 3.9a): add it here and a row to syncStatusColors.
-export type RecordSyncState = 'on_device' | 'sending' | 'synced' | 'not_sent';
 
 export type SyncStatusProps = {
   state: RecordSyncState;
