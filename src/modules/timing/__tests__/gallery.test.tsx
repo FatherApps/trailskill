@@ -19,6 +19,7 @@ describe('timing gallery entries', () => {
       'summary-loading',
       'summary-error',
       'summary-empty',
+      'summary-offline',
     ]);
     expect(Object.keys(entry('stopwatch').states)).toEqual([
       'ready',
@@ -27,6 +28,7 @@ describe('timing gallery entries', () => {
       'stopped',
       'stopped-no-pb',
       'exit-confirm',
+      'offline',
     ]);
   });
 
@@ -62,6 +64,8 @@ describe('timing gallery entries', () => {
     ['timingSummary', 'summary', 'Resumen de la toma'],
     ['timingSummary', 'summary-error', 'No pudimos cargar el resumen'],
     ['timingSummary', 'summary-empty', 'Sin tiempos guardados'],
+    ['timingSummary', 'summary-offline', 'Sin conexión. Se guarda en el teléfono.'],
+    ['stopwatch', 'offline', 'Sin conexión. Se guarda en el teléfono.'],
   ])('%s / %s shows its content', async (id, state, text) => {
     await render(<ThemeProvider>{entry(id).states[state]()}</ThemeProvider>);
 

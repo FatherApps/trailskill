@@ -1,12 +1,12 @@
-import type { ReactNode } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { Button, Icon, StateView, SwimmerRow, SyncStatus } from '../../../core/ui';
+import { Banner, Button, Icon, StateView, SwimmerRow, SyncStatus } from '../../../core/ui';
+import { OfflineBanner } from '../components/OfflineBanner';
 import { TimingHeader } from '../components/TimingHeader';
 import '../i18n';
 
@@ -24,8 +24,8 @@ export type TimingSummaryScreenProps = {
   subtitle: string;
   status: 'loading' | 'error' | 'ready';
   records: SummaryRecord[];
-  // Slot for the shared Banner (issue 176), for example "4 tiempos guardados".
-  banner?: ReactNode;
+  // Shows the offline notice above the rest. Nothing is disabled: times are saved on the phone.
+  offline?: boolean;
   onRetry: (recordId: string) => void;
   onRetryLoad: () => void;
   onCorrect: () => void;
@@ -37,20 +37,29 @@ export function TimingSummaryScreen({
   subtitle,
   status,
   records,
-  banner,
+  offline = false,
   onRetry,
   onRetryLoad,
   onCorrect,
   onFinish,
   onBack,
 }: TimingSummaryScreenProps) {
-  const { colors, space, radius } = useTheme();
+  const { colors, space, radius, typography } = useTheme();
+  // A record without a time was not saved, so it is not counted.
+  const saved = records.filter((record) => record.time !== null).length;
+  const onDevice = records.filter((record) => record.syncState === 'on_device').length;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       <TimingHeader title={t('timing.summary.title')} subtitle={subtitle} onBack={onBack} />
       <ScrollView contentContainerStyle={{ gap: space[4], padding: space[4] }}>
-        {banner}
+        {offline && <OfflineBanner />}
+        {status === 'ready' && saved > 0 && (
+          <Banner variant="success" icon="check_circle">
+            <Text style={typography['body-strong']}>{t('timing.summary.saved', { count: saved })}</Text>
+            {onDevice > 0 && ` ${t('timing.summary.on_device', { count: onDevice })}`}
+          </Banner>
+        )}
         {status === 'loading' && <StateView kind="loading" />}
         {status === 'error' && (
           <StateView

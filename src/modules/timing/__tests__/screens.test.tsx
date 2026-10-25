@@ -264,9 +264,65 @@ describe('TimingSummaryScreen', () => {
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
-  it('draws the banner slot only when given', async () => {
-    await renderSummary({ banner: <Text>BANNER</Text> });
-    expect(screen.getByText('BANNER')).toBeOnTheScreen();
+  const record = (id: string, syncState: 'on_device' | 'synced' | 'sending', time: number | null = 3391) => ({
+    id,
+    shortName: 'Mateo C.',
+    initials: 'MC',
+    color: 'athlete-1' as const,
+    time,
+    syncState,
+  });
+
+  it('says how many times were saved and how many are still on the phone', async () => {
+    await renderSummary();
+
+    expect(screen.getByText('3 tiempos guardados. 1 en el teléfono, se enviará con señal.')).toBeOnTheScreen();
+    expect(screen.queryByText(/Sin conexión/)).toBeNull();
+  });
+
+  it('leaves out the on-phone sentence when everything is synced', async () => {
+    await renderSummary({ records: [record('a', 'synced'), record('b', 'synced')] });
+
+    expect(screen.getByText('2 tiempos guardados.')).toBeOnTheScreen();
+    expect(screen.queryByText(/en el teléfono, se enviar/)).toBeNull();
+  });
+
+  it('counts the times that are on the phone, plural', async () => {
+    await renderSummary({ records: [record('a', 'on_device'), record('b', 'on_device'), record('c', 'on_device')] });
+
+    expect(screen.getByText('3 tiempos guardados. 3 en el teléfono, se enviarán con señal.')).toBeOnTheScreen();
+  });
+
+  it('uses the singular for one saved time and does not count a missing one', async () => {
+    await renderSummary({ records: [record('a', 'synced'), record('b', 'sending', null)] });
+
+    expect(screen.getByText('1 tiempo guardado.')).toBeOnTheScreen();
+  });
+
+  it('shows no success banner when no record has a time', async () => {
+    await renderSummary({ records: [record('a', 'sending', null)] });
+
+    expect(screen.queryByText(/guardado/)).toBeNull();
+  });
+
+  it('shows the offline banner above the success banner and blocks nothing', async () => {
+    const { onCorrect, onFinish, onRetry } = await renderSummary({ offline: true });
+
+    const [first, second] = screen.getAllByTestId('banner');
+    expect(first).toHaveTextContent('Sin conexión. Se guarda en el teléfono.');
+    expect(second).toHaveTextContent(/^3 tiempos guardados/);
+    await fireEvent.press(screen.getByRole('button', { name: 'Corregir un tiempo' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Terminar' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+    expect(onCorrect).toHaveBeenCalledTimes(1);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    expect(onRetry).toHaveBeenCalledWith('r2');
+  });
+
+  it('shows the offline banner on the empty state too', async () => {
+    await renderSummary({ offline: true, records: [] });
+
+    expect(screen.getByTestId('banner')).toHaveTextContent('Sin conexión. Se guarda en el teléfono.');
   });
 
   it('shows the empty state without records', async () => {
@@ -296,16 +352,26 @@ describe('TimingSummaryScreen', () => {
 });
 
 describe('StopwatchScreen extras', () => {
-  it('draws the banner slot and the sync pill of the record when given', async () => {
-    await renderStopwatchScreen({
-      state: 'running',
-      elapsedHundredths: 3391,
-      banner: <Text>BANNER</Text>,
-      syncState: 'on_device',
-    });
+  it('draws the sync pill of the record when given', async () => {
+    await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391, syncState: 'on_device' });
 
-    expect(screen.getByText('BANNER')).toBeOnTheScreen();
     expect(screen.getByLabelText('En el teléfono')).toBeOnTheScreen();
+  });
+
+  it('shows the offline banner and keeps every action working', async () => {
+    const { onStop, onSplit } = await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391, offline: true });
+
+    expect(screen.getByTestId('banner')).toHaveTextContent('Sin conexión. Se guarda en el teléfono.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Parcial' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Detener' }));
+    expect(onSplit).toHaveBeenCalledTimes(1);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no banner while online', async () => {
+    await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391 });
+
+    expect(screen.queryByTestId('banner')).toBeNull();
   });
 
   it('draws neither without them', async () => {

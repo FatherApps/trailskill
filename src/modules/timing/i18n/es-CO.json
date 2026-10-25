@@ -49,7 +49,15 @@
       "retry_load": "Intentar de nuevo",
       "correct": "Corregir un tiempo",
       "finish": "Terminar",
-      "time_label": "Tiempo"
+      "time_label": "Tiempo",
+      "saved_one": "{{count}} tiempo guardado.",
+      "saved_other": "{{count}} tiempos guardados.",
+      "on_device_one": "{{count}} en el teléfono, se enviará con señal.",
+      "on_device_other": "{{count}} en el teléfono, se enviarán con señal."
+    },
+    "offline": {
+      "title": "Sin conexión.",
+      "message": "Se guarda en el teléfono."
     }
   }
 }

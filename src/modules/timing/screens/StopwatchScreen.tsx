@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import { BackHandler, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,6 +6,7 @@ import { t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import { ConfirmSheet, SyncStatus } from '../../../core/ui';
+import { OfflineBanner } from '../components/OfflineBanner';
 import { Stopwatch, type StopwatchProps } from '../components/Stopwatch';
 import { TimingHeader } from '../components/TimingHeader';
 import '../i18n';
@@ -19,8 +20,8 @@ export type StopwatchScreenProps = StopwatchProps & {
   // The event, for example "Libre 50 m · Entrenamiento".
   eventSubtitle: string;
   // Header back button and, while running, the Android back button. The container decides what to do (open the sheet).
-  // Slot for the shared Banner (issue 176), for example the offline notice. It never blocks the stopwatch.
-  banner?: ReactNode;
+  // Shows the offline notice. Nothing is disabled: times are saved on the phone.
+  offline?: boolean;
   // Sync state of the record being timed, drawn as a pill in the header. SyncStatus cannot show a pending count.
   syncState?: RecordSyncState;
   onBack: () => void;
@@ -35,7 +36,7 @@ export function StopwatchScreen({
   position,
   total,
   eventSubtitle,
-  banner,
+  offline = false,
   syncState,
   onBack,
   exitConfirmVisible,
@@ -63,7 +64,11 @@ export function StopwatchScreen({
         trailing={syncState && <SyncStatus state={syncState} />}
         onBack={onBack}
       />
-      {banner && <View style={{ paddingHorizontal: space[4] }}>{banner}</View>}
+      {offline && (
+        <View style={{ paddingHorizontal: space[4] }}>
+          <OfflineBanner />
+        </View>
+      )}
       <Stopwatch {...stopwatch} />
       <ConfirmSheet
         visible={exitConfirmVisible}

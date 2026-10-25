@@ -34,13 +34,14 @@ function StopwatchPreview(props: Partial<StopwatchScreenProps>) {
 }
 
 // The clock advances by itself, like the container's clock will.
-function RunningPreview({ withSplits }: { withSplits: boolean }) {
+function RunningPreview({ withSplits, offline }: { withSplits: boolean; offline?: boolean }) {
   const elapsed = useFakeClock(true, fixture.times.running);
   return (
     <StopwatchPreview
       state="running"
       elapsedHundredths={elapsed}
       splits={withSplits ? fixture.splits : undefined}
+      offline={offline}
     />
   );
 }
@@ -136,6 +137,7 @@ export const galleryEntries: GalleryEntry[] = [
       'summary-loading': () => <SummaryPreview status="loading" />,
       'summary-error': () => <SummaryPreview status="error" />,
       'summary-empty': () => <SummaryPreview records={[]} />,
+      'summary-offline': () => <SummaryPreview offline />,
     },
   },
   {
@@ -148,6 +150,7 @@ export const galleryEntries: GalleryEntry[] = [
       stopped: () => <StopwatchPreview {...stopped} bestTime={fixture.times.bestTime} splits={fixture.splits} />,
       'stopped-no-pb': () => <StopwatchPreview {...stopped} bestTime={null} />,
       'exit-confirm': () => <ExitConfirmPreview />,
+      offline: () => <RunningPreview withSplits={false} offline />,
     },
   },
 ] satisfies { id: string; title: string; states: Record<string, () => ReactElement> }[];
