@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { PixelRatio, StyleSheet } from 'react-native';
 
 import { colors } from '../../../core/theme';
 import { SeriesAssignmentScreen } from '../screens/SeriesAssignmentScreen';
@@ -86,6 +86,42 @@ describe('SeriesAssignmentScreen', () => {
     expect(avatarBackground(3, '3')).toBe(colors.light['surface-2']);
     expect(athleteValues).not.toContain(avatarBackground(3, '3'));
     expect(avatarBackground(2, 'LR')).toBe(colors.light['athlete-2']);
+  });
+
+  it('names an unassigned position with the short ordinal and keeps its time and por asignar tag', async () => {
+    // Jest reports a system font scale of 2: pin 1 so the default layout is the one under test.
+    jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1);
+    await renderScreen({ positions: snapshots.pending });
+
+    const row = within(screen.getByTestId('position-row-3'));
+    expect(row.getByText('3.º', hidden)).toBeOnTheScreen();
+    expect(row.queryByText('Posición 3', hidden)).toBeNull();
+    expect(row.getByText('35,22', hidden)).toBeOnTheScreen();
+    expect(row.getByText('por asignar', hidden)).toBeOnTheScreen();
+    expect(row.getAllByLabelText(/./, hidden)[0].props.accessibilityLabel).toBe('3.º, 35,22, por asignar');
+    jest.restoreAllMocks();
+  });
+
+  describe('at a large text scale', () => {
+    beforeEach(() => jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(2));
+    afterEach(() => jest.restoreAllMocks());
+
+    it('moves por asignar under the ordinal so the name column never collapses, and still lists the time', async () => {
+      await renderScreen({ positions: snapshots.pending });
+
+      const row = within(screen.getByTestId('position-row-3'));
+      expect(row.getByText('3.º', hidden)).toBeOnTheScreen();
+      expect(row.getByText('por asignar', hidden)).toBeOnTheScreen();
+      expect(row.getByText('35,22', hidden)).toBeOnTheScreen();
+      expect(row.getAllByLabelText(/./, hidden)[0].props.accessibilityLabel).toBe('3.º, por asignar, 35,22');
+      expect(isSelected(3)).toBe(true);
+    });
+
+    it('never drops an unassigned position', async () => {
+      await renderScreen({ positions: snapshots.none });
+
+      expect(screen.getAllByText('por asignar', hidden)).toHaveLength(4);
+    });
   });
 
   it('never drops a position without an athlete', async () => {

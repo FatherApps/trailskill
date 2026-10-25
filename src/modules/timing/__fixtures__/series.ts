@@ -42,6 +42,8 @@ export const seriesFixture = {
   eventSubtitle: `${t('sport.stroke.FR')} ${t('sport.distance.50m')} · ${t('timing.session_type.training')}`,
   athletes,
   times,
+  // Fixed clock values, so a screenshot of the series timing screen is still.
+  clock: { empty: 0, still: 5670 },
   // The same arrivals, in the shape the list receives them.
   arrivals: arrivals(timed).map(({ position, time }) => ({ id: `arrival-${position}`, time })),
   // Many arrivals, to see the list grow.

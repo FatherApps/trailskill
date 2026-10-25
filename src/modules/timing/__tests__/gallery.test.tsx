@@ -132,16 +132,32 @@ describe('timing gallery entries', () => {
   });
 
   it('adds an arrival and undoes it in the series timing preview', async () => {
+    await render(<ThemeProvider>{entry('seriesTiming').states['no-arrivals']()}</ThemeProvider>);
+    expect(screen.queryByRole('button', { name: 'Deshacer última' })).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Llegada' }));
+    expect(screen.getAllByLabelText(/^Llegada \d/)).toHaveLength(1);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Deshacer última' }));
+    expect(screen.getByText('Aún no hay llegadas')).toBeOnTheScreen();
+  });
+
+  it.each([
+    ['no-arrivals', '0:00,00'],
+    ['running', '0:56,70'],
+    ['external-disconnected', '0:56,70'],
+    ['offline', '0:56,70'],
+  ])('keeps the series timing clock still in %s', async (state, time) => {
     jest.useFakeTimers();
     try {
-      await render(<ThemeProvider>{entry('seriesTiming').states['no-arrivals']()}</ThemeProvider>);
-      expect(screen.queryByRole('button', { name: 'Deshacer última' })).toBeNull();
+      await render(<ThemeProvider>{entry('seriesTiming').states[state]()}</ThemeProvider>);
+      expect(screen.getByText(time, { includeHiddenElements: true })).toBeOnTheScreen();
 
-      await fireEvent.press(screen.getByRole('button', { name: 'Llegada' }));
-      expect(screen.getAllByLabelText(/^Llegada \d/)).toHaveLength(1);
+      await act(async () => {
+        jest.advanceTimersByTime(2000);
+      });
 
-      await fireEvent.press(screen.getByRole('button', { name: 'Deshacer última' }));
-      expect(screen.getByText('Aún no hay llegadas')).toBeOnTheScreen();
+      expect(screen.getByText(time, { includeHiddenElements: true })).toBeOnTheScreen();
     } finally {
       jest.useRealTimers();
     }

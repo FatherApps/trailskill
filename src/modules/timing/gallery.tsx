@@ -129,17 +129,18 @@ function Stack({ children }: { children: ReactNode }) {
   return <View style={{ alignSelf: 'stretch', gap: space[2] }}>{children}</View>;
 }
 
-// The clock advances by itself and the big button adds an arrival at the current time, like the container will.
+// The clock is fixed so the screen stays still for screenshots; the big button adds an arrival at that time.
 function SeriesTimingPreview({
   initial,
+  elapsed,
   disconnected,
   offline,
 }: {
   initial: typeof seriesFixture.arrivals;
+  elapsed: number;
   disconnected?: boolean;
   offline?: boolean;
 }) {
-  const elapsed = useFakeClock(true, 3700);
   const [arrivals, setArrivals] = useState(initial);
 
   return (
@@ -282,10 +283,10 @@ export const galleryEntries: GalleryEntry[] = [
     id: 'seriesTiming',
     title: 'SeriesTimingScreen',
     states: {
-      'no-arrivals': () => <SeriesTimingPreview initial={[]} />,
-      running: () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 3)} />,
-      'external-disconnected': () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 2)} disconnected />,
-      offline: () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 2)} offline />,
+      'no-arrivals': () => <SeriesTimingPreview initial={[]} elapsed={seriesFixture.clock.empty} />,
+      running: () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 3)} elapsed={seriesFixture.clock.still} />,
+      'external-disconnected': () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 2)} elapsed={seriesFixture.clock.still} disconnected />,
+      offline: () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 2)} elapsed={seriesFixture.clock.still} offline />,
     },
   },
   {
