@@ -84,7 +84,7 @@ describe('training-plans gallery entries', () => {
 
     await fireEvent.press(lucia());
     expect(lucia().props.accessibilityLabel).toContain(': No asistió');
-    expect(lucia().props.accessibilityLabel).toContain('Corregido por Paula G. · 24 oct');
+    expect(lucia().props.accessibilityLabel).toContain('Corregido por Paula G. · 24 oct');
   });
 
   it('opens the editor when a block is added in the builder preview', async () => {

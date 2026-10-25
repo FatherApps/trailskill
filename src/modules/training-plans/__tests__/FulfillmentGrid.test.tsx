@@ -91,18 +91,31 @@ describe('FulfillmentGrid', () => {
   it('names who marked or corrected a cell and when', async () => {
     await render(setup().ui);
 
-    expect(screen.getAllByText('Marcado por Paula G. · 24 oct', hidden).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Corregido por Paula G. · 24 oct', hidden).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Marcado por Paula G. · 24\u00A0oct', hidden).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Corregido por Paula G. · 24\u00A0oct', hidden).length).toBeGreaterThan(0);
+  });
+
+  it('never splits the date of the author caption', async () => {
+    const value: FulfillmentContent = {
+      ...content,
+      athletes: [content.athletes[0]],
+      cells: { [cellKey('a1', 'b1')]: { status: 'done', change: { kind: 'corrected', author: 'Paula G.', dateLabel: '24 oct' } } },
+    };
+    await render(setup(value).ui);
+
+    const caption = screen.getByText(/^Corregido por Paula G\./, hidden);
+    expect(caption.props.children).toContain('24 oct');
+    expect(caption.props.children).not.toContain('24 oct');
   });
 
   it('labels each cell with athlete, block, status, times and author for screen readers', async () => {
     await render(setup().ui);
 
     expect(cell('Lucía R.', 2).props.accessibilityLabel).toBe(
-      'Lucía R. · Bloque 2, 8 × 50 m Libre: Parcial · 3 de 8, 3/8 tiempos, Corregido por Paula G. · 24 oct',
+      'Lucía R. · Bloque 2, 8 × 50 m Libre: Parcial · 3 de 8, 3/8 tiempos, Corregido por Paula G. · 24\u00A0oct',
     );
     expect(cell('Lucía R.', 1).props.accessibilityLabel).toBe(
-      'Lucía R. · Bloque 1, 1 × 200 m Libre: Hecho, Marcado por Paula G. · 24 oct',
+      'Lucía R. · Bloque 1, 1 × 200 m Libre: Hecho, Marcado por Paula G. · 24\u00A0oct',
     );
     expect(cell('Lucía R.', 3).props.accessibilityLabel).toBe('Lucía R. · Bloque 3, 4 × 25 m Patada: No asistió');
     expect(cell('Mateo C.', 5).props.accessibilityLabel).toBe('Mateo C. · Bloque 5, 1 × 100 m Espalda: Sin marcar');

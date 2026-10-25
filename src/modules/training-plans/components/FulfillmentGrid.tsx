@@ -45,7 +45,8 @@ function changeText(cell: FulfillmentCell): string | null {
   const { kind, author, dateLabel } = cell.change;
   return t(
     `training_plans.fulfillment.${kind === "marked" ? "marked_by" : "corrected_by"}`,
-    { name: author, date: dateLabel },
+    // Non-breaking spaces keep the date from wrapping between day and month.
+    { name: author, date: dateLabel.replace(/ /g, "\u00A0") },
   );
 }
 
