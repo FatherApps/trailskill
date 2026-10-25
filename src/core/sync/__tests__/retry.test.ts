@@ -212,6 +212,15 @@ describe('retryFailedRecord', () => {
     expect(queue()).toEqual([{ op: 'PUT', id: 'a-1', type: 'athletes', data: JSON.stringify({ first_name: 'Ana', last_name: 'Ríos' }) }]);
   });
 
+  it('sorts a failure recorded before client_id existed (null) first, so the DELETE with a client_id decides a failed_at tie', async () => {
+    const failedAt = '2026-10-24T10:00:00.000Z';
+    seed({ id: 'a-1', first_name: 'Ana', last_name: 'Ríos' }, { op: 'PUT', payload: {}, failedAt }, { op: 'DELETE', payload: {}, failedAt, clientId: 1 });
+
+    await expect(retryFailedRecord('athletes', 'a-1')).resolves.toBe('queued');
+
+    expect(queue()).toEqual([{ op: 'DELETE', id: 'a-1', type: 'athletes', data: null }]);
+  });
+
   it('rejects an unsafe table name and writes nothing', async () => {
     await expect(retryFailedRecord('athletes; DROP TABLE athletes', 'a-1')).rejects.toThrow('Unsafe SQL identifier');
 

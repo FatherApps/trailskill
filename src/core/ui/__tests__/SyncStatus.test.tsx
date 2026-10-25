@@ -32,6 +32,19 @@ describe('SyncStatus', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it('shows an optional message under the pill and no message without it', async () => {
+    await render(<SyncStatus state="not_sent" message="Mensaje de prueba" />);
+    expect(screen.getByText('Mensaje de prueba')).toBeOnTheScreen();
+
+    await screen.rerender(<SyncStatus state="not_sent" />);
+    expect(screen.queryByText('Mensaje de prueba')).toBeNull();
+  });
+
+  it('renders an empty message without raw text outside a Text element', async () => {
+    await render(<SyncStatus state="not_sent" message="" />);
+    expect(screen.getByRole('text', { name: 'No enviado' })).toBeOnTheScreen();
+  });
+
   it('announces state changes politely', async () => {
     await render(<SyncStatus state="on_device" />);
     expect(screen.getByTestId('sync-status').props.accessibilityLiveRegion).toBe('polite');

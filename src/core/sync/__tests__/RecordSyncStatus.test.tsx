@@ -43,6 +43,32 @@ describe('RecordSyncStatus', () => {
     expect(screen.getByRole('text', { name: 'Enviado' })).toBeOnTheScreen();
   });
 
+  it.each([
+    ['row_missing', 'No se puede reenviar: este registro ya no está en el teléfono.'],
+    ['nothing_to_send', 'No hay cambios para reenviar.'],
+  ])('shows the %s message after a retry and drops it when the state changes', async (result, message) => {
+    (retryFailedRecord as jest.Mock).mockResolvedValue(result);
+    setState('not_sent');
+    await render(<RecordSyncStatus table="athletes" id="a-1" />);
+    expect(screen.queryByText(message)).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+    expect(await screen.findByText(message)).toBeOnTheScreen();
+
+    setState('on_device');
+    await screen.rerender(<RecordSyncStatus table="athletes" id="a-1" />);
+    expect(screen.queryByText(message)).toBeNull();
+  });
+
+  it('shows no message when the retry was queued', async () => {
+    setState('not_sent');
+    await render(<RecordSyncStatus table="athletes" id="a-1" />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+    await waitFor(() => expect(retryFailedRecord).toHaveBeenCalled());
+
+    expect(screen.queryByText(/reenviar/)).toBeNull();
+  });
+
   it('logs a rejected retry without row data and does not throw', async () => {
     const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     (retryFailedRecord as jest.Mock).mockRejectedValue(new Error('disk full'));

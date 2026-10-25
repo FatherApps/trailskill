@@ -3,7 +3,9 @@ import { View } from 'react-native';
 
 import { space } from '../theme';
 import { buttonFixture as b } from './__fixtures__/button';
+import { t } from '../i18n';
 import { Button } from './Button';
+import { SyncStatus } from './SyncStatus';
 
 // One component or screen in the development gallery: each state renders it with synthetic props.
 export type GalleryEntry = {
@@ -36,6 +38,13 @@ export const galleryEntries: GalleryEntry[] = [
           </View>
         </View>
       ),
+    },
+  },
+  {
+    id: 'sync-status',
+    title: 'SyncStatus',
+    states: {
+      'not_sent con mensaje': () => <SyncStatus state="not_sent" onRetry={noop} message={t('sync.retry_row_missing')} />,
     },
   },
 ];
