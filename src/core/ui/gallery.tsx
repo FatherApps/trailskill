@@ -244,6 +244,9 @@ export const galleryEntries: GalleryEntry[] = [
       'time-sm': () => <TimeValue size="time-sm" value={tv.small} />,
       missing: () => <TimeValue value={null} />,
       'decimal-point': () => <TimeValue value={tv.large} decimalSeparator="." />,
+      faster: () => <TimeValue size="time-lg" value={tv.large} personalBest={tv.pbFaster} newPersonalBest />,
+      slower: () => <TimeValue size="time-md" value={tv.medium} personalBest={tv.pbSlower} />,
+      completed: () => <TimeValue value={null} completed />,
     },
   },
 ];
