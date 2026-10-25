@@ -166,6 +166,49 @@
     },
     "offline_empty": "No hay mediciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión."
   },
+  "authorizations": {
+    "title": "Autorizaciones",
+    "count_one": "{{count}} deportista",
+    "count_other": "{{count}} deportistas",
+    "pending_one": "{{count}} con solicitud pendiente",
+    "pending_other": "{{count}} con solicitudes pendientes",
+    "guardian": "Acudiente: {{name}}",
+    "purposes": {
+      "record": "Registrar tiempos y resultados",
+      "import": "Importar resultados oficiales",
+      "share": "Compartir resultados con otra escuela"
+    },
+    "withdrawn": "Retirada",
+    "spoken": "{{purpose}}: {{status}}",
+    "resend": "Reenviar solicitud",
+    "resend_hint": "Reenviar a {{guardian}} la solicitud «{{purpose}}» de {{athlete}}",
+    "cancel": "Cancelar",
+    "resend_confirm": {
+      "title": "¿Reenviar la solicitud?",
+      "message": "Se enviará de nuevo a {{guardian}} la solicitud de autorización «{{purpose}}» de {{athlete}}.",
+      "confirm": "Reenviar al acudiente"
+    },
+    "requests": {
+      "title": "Solicitudes de otras escuelas",
+      "detail": "Pidió ver los resultados de tu escuela",
+      "detail_dated": "Pidió ver los resultados de tu escuela · {{date}}",
+      "approve": "Aprobar",
+      "approve_hint": "Aprobar la solicitud de {{school}}"
+    },
+    "approve_confirm": {
+      "title": "¿Aprobar que {{school}} vea los resultados de tu escuela?",
+      "message": "{{school}} podrá ver los resultados de tu escuela, solo con conexión.",
+      "confirm": "Aprobar acceso"
+    },
+    "empty": {
+      "title": "Aún no hay autorizaciones",
+      "message": "Aparecen cuando un acudiente crea la cuenta de un deportista y responde la solicitud."
+    },
+    "error": {
+      "title": "No pudimos cargar las autorizaciones"
+    },
+    "offline_empty": "No hay autorizaciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión."
+  },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",
