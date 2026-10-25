@@ -1,0 +1,42 @@
+# PowerSync Sync Streams. They mirror the select policies in supabase/migrations
+# (athletes_visibility_and_policies, school-console_policies, accounts_policies):
+# a row syncs only if the signed-in user could read it through RLS.
+# Platform admins have no stream on purpose: their access is online support.
+config:
+  edition: 3
+
+with:
+  managed_athlete_ids: SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()
+  coach_direct_athlete_ids: SELECT athlete_id FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id()
+  coach_group_athlete_ids: SELECT athlete_id FROM athlete_groups WHERE group_id IN (SELECT group_id FROM coach_group_assignments WHERE coach_user_id = auth.user_id())
+  admin_school_ids: SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin'
+  admin_athlete_ids: SELECT athlete_id FROM athlete_schools WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin')
+  admin_group_ids: SELECT id FROM training_groups WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin')
+  member_school_ids: SELECT school_id FROM school_memberships WHERE user_id = auth.user_id()
+
+streams:
+  athletes_visible:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM athletes WHERE id IN managed_athlete_ids OR id IN coach_direct_athlete_ids OR id IN coach_group_athlete_ids OR id IN admin_athlete_ids
+      - SELECT * FROM athlete_schools WHERE athlete_id IN managed_athlete_ids OR athlete_id IN coach_direct_athlete_ids OR athlete_id IN coach_group_athlete_ids OR athlete_id IN admin_athlete_ids
+      - SELECT * FROM athlete_groups WHERE athlete_id IN managed_athlete_ids OR athlete_id IN coach_direct_athlete_ids OR athlete_id IN coach_group_athlete_ids OR athlete_id IN admin_athlete_ids
+
+  accounts_athlete_managers:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM athlete_managers WHERE athlete_id IN managed_athlete_ids OR athlete_id IN coach_direct_athlete_ids OR athlete_id IN coach_group_athlete_ids OR athlete_id IN admin_athlete_ids
+
+  school_console_school:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM schools WHERE id IN member_school_ids
+      - SELECT * FROM categories WHERE school_id IN member_school_ids
+      - SELECT * FROM training_groups WHERE school_id IN member_school_ids
+
+  school_console_staff:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM school_memberships WHERE user_id = auth.user_id() OR school_id IN admin_school_ids
+      - SELECT * FROM coach_group_assignments WHERE coach_user_id = auth.user_id() OR group_id IN admin_group_ids
+      - SELECT * FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id() OR athlete_id IN admin_athlete_ids
