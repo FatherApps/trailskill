@@ -210,13 +210,13 @@ select throws_ok(
 select throws_ok(
   $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1', hundredths = 1000
      where id = '20000000-0000-4000-8000-0000000000f7' $$,
-  '42501', null,
+  '42501', 'only athlete_id can change on a measurement',
   'completing an arrival cannot change its time'
 );
 select throws_ok(
   $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1', kind = 'race'
      where id = '20000000-0000-4000-8000-0000000000f7' $$,
-  '42501', null,
+  '42501', 'only athlete_id can change on a measurement',
   'completing an arrival cannot change its kind'
 );
 select isnt_empty(
@@ -299,7 +299,7 @@ select throws_ok(
 );
 select is_empty(
   $$ update public.measurements set athlete_id = '20000000-0000-4000-8000-0000000000e1'
-     where id = '20000000-0000-4000-8000-0000000000f7' returning id $$,
+     where id = '20000000-0000-4000-8000-0000000000f1' returning id $$,
   'guardian G cannot edit a measurement'
 );
 select throws_ok(
