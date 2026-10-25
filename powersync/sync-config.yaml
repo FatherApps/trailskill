@@ -5,7 +5,7 @@
 # training-plans_plans, accounts_record_times_withdrawal_check,
 # timing_hide_after_withdrawal, training-plans_assignments,
 # training-plans_assignment_scope_and_withdrawal, timing_school_id,
-# timing_admin_measurement_conflicts):
+# school-console_coach_assignment_school, timing_admin_measurement_conflicts):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -60,7 +60,7 @@ streams:
     queries:
       - SELECT * FROM school_memberships WHERE user_id = auth.user_id() OR school_id IN admin_school_ids
       - SELECT * FROM coach_group_assignments WHERE coach_user_id = auth.user_id() OR group_id IN admin_group_ids
-      - SELECT * FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id() OR athlete_id IN admin_athlete_ids
+      - SELECT * FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id() OR school_id IN admin_school_ids
 
   timing_series_own:
     auto_subscribe: true

@@ -9,7 +9,7 @@ export const AppSchema = new Schema({
   training_groups: new Table({ ...audit, school_id: column.text, name: column.text }),
   school_memberships: new Table({ ...audit, school_id: column.text, user_id: column.text, role: column.text }),
   coach_group_assignments: new Table({ ...audit, coach_user_id: column.text, group_id: column.text }),
-  coach_athlete_assignments: new Table({ ...audit, coach_user_id: column.text, athlete_id: column.text }),
+  coach_athlete_assignments: new Table({ ...audit, school_id: column.text, coach_user_id: column.text, athlete_id: column.text }),
   athletes: new Table({ ...audit, first_name: column.text, last_name: column.text }),
   athlete_schools: new Table({ ...audit, athlete_id: column.text, school_id: column.text, category_id: column.text }),
   athlete_groups: new Table({ ...audit, athlete_id: column.text, group_id: column.text }),
