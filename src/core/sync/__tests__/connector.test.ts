@@ -172,6 +172,26 @@ describe('SupabaseConnector.uploadData', () => {
       expect(t.complete).toHaveBeenCalledTimes(1);
     });
 
+    it('keeps a given-up op at the limit, so a multi-op transaction ends in linear rounds', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const code = '42703';
+      const t = setup({ upsert: { data: null, error: { code, message: 'no column' } } }, { sleep });
+      const ops = [put(1), put(2), put(3)];
+
+      let rounds = 0;
+      let done = false;
+      while (!done && rounds < 20) {
+        rounds++;
+        done = await t.connector.uploadData(t.database(ops)).then(() => true, () => false);
+      }
+      // Each op needs maxAttempts - 1 throwing rounds, then the last op's give-up round completes.
+      expect(rounds).toBe(13);
+      expect(failureInserts(t.committed).map(([, params]) => params[4])).toEqual([code, code, code]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+      // A given-up op never sleeps again: only 4 waits per op.
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000, 8000, 1000, 2000, 4000, 8000, 1000, 2000, 4000, 8000]);
+    });
+
     it('never counts or gives up a code-less network error', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
       const error = { message: 'Network request failed' };

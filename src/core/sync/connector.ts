@@ -89,6 +89,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     });
     // complete() runs in its own transaction: a crash between the two re-sends ops already sent, which is safe (inserts are idempotent, marks are per op).
     await transaction.complete();
+    for (const op of transaction.crud) this.attempts.delete(op.clientId);
   }
 
   /**
@@ -104,11 +105,9 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       const code = (error as { code?: string }).code;
       if (!code || AUTH_ERROR_CODES.has(code)) throw error;
       const attempt = (this.attempts.get(op.clientId) ?? 0) + 1;
-      if (attempt >= this.maxAttempts) {
-        this.attempts.delete(op.clientId);
-        return code;
-      }
+      // The count is kept even on give-up: if a later op throws, this op gives up at once next round. uploadData clears it after complete().
       this.attempts.set(op.clientId, attempt);
+      if (attempt >= this.maxAttempts) return code;
       await this.sleep(Math.min(BASE_WAIT_MS * 2 ** (attempt - 1), MAX_WAIT_MS));
       throw error;
     }
