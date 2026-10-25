@@ -380,6 +380,26 @@ describe('SupabaseConnector.uploadData', () => {
       expect(t.writeTransaction).not.toHaveBeenCalled();
     });
 
+    it('a cancel while a batch is in flight records nothing and sends no further op', async () => {
+      // After the session ends the request goes out without the user's token: RLS hides the row, so a PATCH matches none.
+      let answer!: () => void;
+      const inFlight = new Promise<Result>((resolve) => (answer = () => resolve(empty)));
+      const t = setup();
+      t.updateEq.mockReturnValue({ select: jest.fn().mockReturnValue(inFlight) });
+
+      const rejection = expect(
+        t.connector.uploadData(t.database([entry('PATCH', 'a', { first_name: 'Ana' }), entry('PUT', 'b', {}, 'athletes', 2)])),
+      ).rejects.toThrow('Upload canceled');
+      while (!t.update.mock.calls.length) await Promise.resolve();
+      t.connector.cancelWaits();
+      answer();
+      await rejection;
+
+      expect(t.upsert).not.toHaveBeenCalled();
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
     it('the default sleep clears its timer when canceled', async () => {
       jest.useFakeTimers();
       try {
