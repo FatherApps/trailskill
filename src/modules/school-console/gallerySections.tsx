@@ -195,7 +195,12 @@ export const gallerySectionEntries: GalleryEntry[] = [
     ),
     'sharing-requests': () => (
       <FullWidth>
-        <SharingRequestList requests={sharingRequestsFixture} onApprove={noop} onWithdraw={noop} />
+        <SharingRequestList requests={sharingRequestsFixture} onApprove={noop} onWithdraw={noop} onReject={noop} onRetry={noop} />
+      </FullWidth>
+    ),
+    'read-error': () => (
+      <FullWidth>
+        <SharingRequestList requests="error" onApprove={noop} onWithdraw={noop} onReject={noop} onRetry={noop} />
       </FullWidth>
     ),
   }),
@@ -212,6 +217,7 @@ export const gallerySectionEntries: GalleryEntry[] = [
         onResend={noop}
         onApproveSharing={noop}
         onWithdrawSharing={noop}
+        onRetrySharingRequests={noop}
       />
     )),
   ),

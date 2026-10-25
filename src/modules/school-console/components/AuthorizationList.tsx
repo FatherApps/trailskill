@@ -36,6 +36,9 @@ export type SharingRequest = {
   status: 'pending' | 'approved';
 };
 
+// What the requests area has to show: the requests, or why there are none to show. An empty list is a real answer ("nobody asked"); the other three are not.
+export type SharingRequestsState = SharingRequest[] | 'loading' | 'offline' | 'error';
+
 export const purposeLabel = (purpose: AuthorizationPurpose) => t(`schoolConsole.authorizations.purposes.${purpose}`);
 
 export const authorizationListColors: { background: ColorToken; divider: ColorToken; text: ColorToken; caption: ColorToken } = {
@@ -117,24 +120,29 @@ export function AuthorizationList({ athletes, onResend }: AuthorizationListProps
 }
 
 export type SharingRequestListProps = {
-  // null while the requests are not available (they are read online only): the title and a note, no requests.
-  requests: SharingRequest[] | null;
+  // The requests are read online only. Offline or failed: the title and a note (with a retry when the read failed), no requests. The caller shows nothing while loading.
+  requests: Exclude<SharingRequestsState, 'loading'>;
   // Only report the press: the confirmation and the call belong to the caller.
   onApprove: (requestId: string) => void;
   onWithdraw: (requestId: string) => void;
+  onReject: (requestId: string) => void;
+  onRetry: () => void;
 };
 
-// The schools that asked to see this school's results, each with the approve action.
-export function SharingRequestList({ requests, onApprove, onWithdraw }: SharingRequestListProps) {
+// The schools that asked to see this school's results: approve or reject a pending one, withdraw an approved one.
+export function SharingRequestList({ requests, onApprove, onWithdraw, onReject, onRetry }: SharingRequestListProps) {
   const { colors, space, radius, typography } = useTheme();
 
-  if (requests === null) {
+  if (!Array.isArray(requests)) {
     return (
-      <View testID="sharing-requests" style={{ gap: space[2] }}>
+      <View testID="sharing-requests" style={{ gap: space[2], alignItems: 'flex-start' }}>
         <Text accessibilityRole="header" style={[typography.label, { color: colors[authorizationListColors.text] }]}>
           {t('schoolConsole.authorizations.requests.title')}
         </Text>
-        <Text style={[typography.caption, { color: colors[authorizationListColors.caption] }]}>{t('schoolConsole.authorizations.requests.offline')}</Text>
+        <Text style={[typography.caption, { color: colors[authorizationListColors.caption] }]}>
+          {t(`schoolConsole.authorizations.requests.${requests}`)}
+        </Text>
+        {requests === 'error' && <Button variant="ghost" label={t('schoolConsole.screen.retry')} onPress={onRetry} />}
       </View>
     );
   }
@@ -165,12 +173,20 @@ export function SharingRequestList({ requests, onApprove, onWithdraw }: SharingR
                 </Text>
               </View>
               {request.status === 'pending' ? (
-                <Button
-                  variant="secondary"
-                  label={t('schoolConsole.authorizations.requests.approve')}
-                  accessibilityHint={t('schoolConsole.authorizations.requests.approve_hint', { school: request.school })}
-                  onPress={() => onApprove(request.id)}
-                />
+                <View style={{ flexDirection: 'row', gap: space[2] }}>
+                  <Button
+                    variant="ghost"
+                    label={t('schoolConsole.authorizations.requests.reject')}
+                    accessibilityHint={t('schoolConsole.authorizations.requests.reject_hint', { school: request.school })}
+                    onPress={() => onReject(request.id)}
+                  />
+                  <Button
+                    variant="secondary"
+                    label={t('schoolConsole.authorizations.requests.approve')}
+                    accessibilityHint={t('schoolConsole.authorizations.requests.approve_hint', { school: request.school })}
+                    onPress={() => onApprove(request.id)}
+                  />
+                </View>
               ) : (
                 <Button
                   variant="secondary"
