@@ -10,3 +10,9 @@ export {
   type AuthorizationPurpose,
   type AuthorizationStatusRepository,
 } from './data/authorizationStatus';
+export {
+  createInMemoryManagedAthleteRepository,
+  createPowerSyncManagedAthleteRepository,
+  type ManagedAthleteRepository,
+  type ManagedAthleteRow,
+} from './data/managedAthletes';
