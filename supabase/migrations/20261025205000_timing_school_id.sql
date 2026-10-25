@@ -129,8 +129,10 @@ grant execute on function app.staff_school_ids() to authenticated;
 
 -- The checks hold for every writer, the owner and the service role included,
 -- so they look at created_by, not at the signed-in user. Security definer
--- because app.athlete_in_school is not executable by clients. A missing school
--- is left to the not null constraint.
+-- because app.athlete_in_school is not executable by clients. On insert a
+-- missing school (an upload queued offline before the app sent it, or from an
+-- old app) gets the only possible school, as in the backfill, then passes the
+-- same checks and RLS; with none or several it stays null and the row is rejected.
 create function public.timing_series_check_school()
 returns trigger
 language plpgsql
@@ -143,6 +145,11 @@ begin
       raise exception 'the school of a series cannot change' using errcode = '42501';
     end if;
     return new;
+  end if;
+  if new.school_id is null then
+    select case when count(distinct school_id) = 1 then (array_agg(school_id))[1] end into new.school_id
+    from public.school_memberships
+    where user_id = new.created_by and role in ('coach', 'school_admin');
   end if;
   if new.school_id is not null and not exists (
     select 1 from public.school_memberships
@@ -164,6 +171,16 @@ security definer
 set search_path = ''
 as $$
 begin
+  if tg_op = 'INSERT' and new.school_id is null then
+    if new.series_id is not null then
+      select s.school_id into new.school_id from public.timing_series s where s.id = new.series_id;
+    else
+      select case when count(distinct sm.school_id) = 1 then (array_agg(sm.school_id))[1] end into new.school_id
+      from public.school_memberships sm
+      where sm.user_id = new.created_by and sm.role in ('coach', 'school_admin')
+        and (new.athlete_id is null or app.athlete_in_school(new.athlete_id, sm.school_id));
+    end if;
+  end if;
   if new.school_id is null then
     return new;
   end if;

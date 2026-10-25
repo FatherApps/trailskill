@@ -6,7 +6,7 @@
 -- X and adult athlete Y are in schools A and B. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(41);
 
 -- The backfill of the migration (app.timing_backfill_school_ids) checks every
 -- row first and then fails once, naming how many rows have no single possible
@@ -329,6 +329,81 @@ select lives_ok(
        ('29100000-0000-4000-8000-0000000000b2', 'repetition', '29100000-0000-4000-8000-0000000000e1', 3200,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-b', '2026-10-24 09:00:00+00') $$,
   'coach B records a mark of X in B'
+);
+
+-- An insert without school_id (queued offline before the app sent it, or sent
+-- by an old app) gets the only possible school, as in the backfill; with none
+-- or several it stays null and the row is rejected.
+set local request.jwt.claims = '{"sub": "29100000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select lives_ok(
+  $$ insert into public.timing_series (id, stroke, distance, pool, session_type, device_id)
+     values ('29100000-0000-4000-8000-0000000000c4', 'FR', '50m', 'SCM', 'training', 'dev-a') $$,
+  'coach A, staff of one school only, opens a series without school_id'
+);
+select lives_ok(
+  $$ insert into public.measurements
+       (id, kind, athlete_id, series_id, arrival_position, hundredths,
+        stroke, distance, pool, session_type, source, device_id, captured_at)
+     values
+       ('29100000-0000-4000-8000-0000000000d3', 'repetition', '29100000-0000-4000-8000-0000000000e1',
+        '29100000-0000-4000-8000-0000000000c4', 1, 3300,
+        'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-a', '2026-10-24 11:00:00+00'),
+       ('29100000-0000-4000-8000-0000000000d4', 'repetition', '29100000-0000-4000-8000-0000000000e2',
+        null, null, 3300, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-a', '2026-10-24 11:00:00+00') $$,
+  'coach A records without school_id a mark in that series and an individual mark of Y, who is in A and B'
+);
+select throws_ok(
+  $$ insert into public.measurements
+       (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+     values
+       ('29100000-0000-4000-8000-0000000000d5', 'repetition', '29100000-0000-4000-8000-0000000000e3', 3300,
+        'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-a', '2026-10-24 11:00:00+00') $$,
+  '23502', null,
+  'an individual mark without school_id of an athlete with no school in common with the author is rejected'
+);
+select throws_ok(
+  $$ insert into public.measurements
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+     values
+       ('29100000-0000-4000-8000-0000000000b2', 'repetition', '29100000-0000-4000-8000-0000000000e1', 3300,
+        'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-a', '2026-10-24 11:00:00+00') $$,
+  '42501', 'the author of a series or measurement must be a coach or admin of its school',
+  'an explicit school where the author is not staff is still rejected'
+);
+set local request.jwt.claims = '{"sub": "29100000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
+select throws_ok(
+  $$ insert into public.timing_series (stroke, distance, pool, session_type, device_id)
+     values ('FR', '50m', 'SCM', 'training', 'dev-w') $$,
+  '42501', 'new row violates row-level security policy for table "timing_series"',
+  'a series without school_id by a coach of two schools is rejected: RLS refuses its null school'
+);
+select throws_ok(
+  $$ insert into public.measurements
+       (id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+     values
+       ('29100000-0000-4000-8000-0000000000d6', 'repetition', '29100000-0000-4000-8000-0000000000e1', 3300,
+        'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-w', '2026-10-24 11:00:00+00') $$,
+  '23502', null,
+  'an individual mark without school_id of an athlete in two of the author''s schools is rejected'
+);
+reset role;
+set local request.jwt.claims = '';
+select throws_ok(
+  $$ update public.measurements set school_id = null where id = '29100000-0000-4000-8000-0000000000f1' $$,
+  '42501', 'only athlete_id and hundredths can change on a measurement',
+  'only an insert gets a derived school: the owner cannot set the school of a measurement to null'
+);
+select set_eq(
+  $$ select id, school_id from public.timing_series where id = '29100000-0000-4000-8000-0000000000c4'
+     union all
+     select id, school_id from public.measurements where id in ('29100000-0000-4000-8000-0000000000d3',
+       '29100000-0000-4000-8000-0000000000d4', '29100000-0000-4000-8000-0000000000d5',
+       '29100000-0000-4000-8000-0000000000d6', '29100000-0000-4000-8000-0000000000f1') $$,
+  $$ values ('29100000-0000-4000-8000-0000000000c4'::uuid, '29100000-0000-4000-8000-0000000000b1'::uuid),
+            ('29100000-0000-4000-8000-0000000000d3', '29100000-0000-4000-8000-0000000000b1'),
+            ('29100000-0000-4000-8000-0000000000d4', '29100000-0000-4000-8000-0000000000b1'),
+            ('29100000-0000-4000-8000-0000000000f1', '29100000-0000-4000-8000-0000000000b1') $$,
+  'derived rows have the only possible school, rejected marks were not stored, and f1 kept its school'
 );
 
 select * from finish();
