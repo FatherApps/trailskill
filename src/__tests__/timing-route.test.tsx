@@ -15,17 +15,24 @@ jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   createPowerSyncStaffSchoolRepository: () => ({ listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args) }),
 }));
+const mockListAll = jest.fn();
+const mockListGranted = jest.fn();
+jest.mock('../modules/accounts', () => ({
+  createPowerSyncAuthorizationStatusRepository: () => ({ listGrantedAthleteIds: (...args: unknown[]) => mockListGranted(...args) }),
+}));
 jest.mock('../modules/athletes', () => ({
   ...jest.requireActual('../modules/athletes/athleteDisplay'),
-  createPowerSyncSchoolAthleteRepository: () => ({}),
+  createPowerSyncSchoolAthleteRepository: () => ({ listAll: (...args: unknown[]) => mockListAll(...args) }),
 }));
+let mockLoadRoster: () => Promise<{ id: string; shortName: string; authorized: boolean }[]>;
 jest.mock('../modules/timing', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     createPowerSyncMeasurementRepository: () => ({}),
-    IndividualTimingFlow: ({ subtitle, userId, deviceId }: { subtitle: string; userId: string; deviceId: string }) => (
-      <Text>{`timing flow for ${subtitle} by ${userId} on ${deviceId}`}</Text>
-    ),
+    IndividualTimingFlow: ({ subtitle, userId, deviceId, loadRoster }: { subtitle: string; userId: string; deviceId: string; loadRoster: typeof mockLoadRoster }) => {
+      mockLoadRoster = loadRoster;
+      return <Text>{`timing flow for ${subtitle} by ${userId} on ${deviceId}`}</Text>;
+    },
   };
 });
 jest.mock('expo-router', () => {
@@ -36,6 +43,8 @@ jest.mock('expo-router', () => {
 beforeEach(() => {
   mockUserId = 'user-1';
   mockListStaffSchools.mockReset().mockResolvedValue([]);
+  mockListAll.mockReset().mockResolvedValue([]);
+  mockListGranted.mockReset().mockResolvedValue([]);
 });
 
 describe('timing route', () => {
@@ -59,5 +68,21 @@ describe('timing route', () => {
 
     expect(await screen.findByText('timing flow for Escuela Delfines by user-1 on device-1')).toBeOnTheScreen();
     expect(screen.queryByText(/redirected/)).toBeNull();
+  });
+
+  it('marks an athlete without a granted record_times as not authorized, so the flow skips them', async () => {
+    mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockListAll.mockResolvedValue([
+      { id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] },
+      { id: 'a2', firstName: 'Ben', lastName: 'Arce', categoryId: null, groupIds: [] },
+    ]);
+    mockListGranted.mockResolvedValue(['a1']);
+    await render(<TimingRoute />);
+    await screen.findByText(/timing flow/);
+
+    const roster = await mockLoadRoster();
+
+    expect(roster.map((a) => [a.id, a.authorized])).toEqual([['a1', true], ['a2', false]]);
+    expect(mockListGranted).toHaveBeenCalledWith('record_times');
   });
 });
