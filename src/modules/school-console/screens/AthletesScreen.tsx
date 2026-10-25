@@ -101,7 +101,7 @@ export function AthletesScreen({
         <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors[athletesScreenColors.title] }]}>
           {t('schoolConsole.screen.title')}
         </Text>
-        {caption && <Text style={[typography.caption, { color: colors[athletesScreenColors.caption] }]}>{caption}</Text>}
+        {caption ? <Text style={[typography.caption, { color: colors[athletesScreenColors.caption] }]}>{caption}</Text> : null}
       </View>
       {canInvite && (
         <Button

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { BackHandler, Text } from 'react-native';
 
 import { breakpoint } from '../../../core/theme';
 import { ConsoleLayout, consoleLayoutFor, type ConsoleLayoutProps } from '../components/ConsoleLayout';
@@ -147,6 +147,29 @@ describe('ConsoleLayout', () => {
     expect(await scrolls({})).toBe(scrolling);
     // The sheet is an overlay over the layout, so it scrolls itself even when the page scrolls.
     expect(await scrolls({ scrollEnabled: false })).toBe(parentScrolls);
+  });
+
+  describe('Android back in the compact detail', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    it('closes the detail like Volver and is only subscribed while it is open', async () => {
+      let handler: Parameters<typeof BackHandler.addEventListener>[1] | undefined;
+      const remove = jest.fn();
+      const add = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_, listener) => {
+        handler = listener;
+        return { remove };
+      });
+      await show(360);
+      expect(add).not.toHaveBeenCalled();
+
+      await screen.rerender(<ConsoleLayout {...base(360, { detail })} />);
+      expect(add).toHaveBeenCalledTimes(1);
+      expect(handler?.(undefined as never)).toBe(true);
+      expect(onClose).toHaveBeenCalledTimes(1);
+
+      await screen.rerender(<ConsoleLayout {...base(360)} />);
+      expect(remove).toHaveBeenCalled();
+    });
   });
 
   it('scrolls its content unless a parent scrolls instead', async () => {

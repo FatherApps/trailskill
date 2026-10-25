@@ -59,6 +59,27 @@ describe('AthleteDetail', () => {
     expect(screen.getByText('Aún no hay marcas')).toBeOnTheScreen();
   });
 
+  it('renders a best mark with an empty source without the tag', async () => {
+    await render(
+      <AthleteDetail
+        athlete={{ ...detailFixture, bests: [{ id: 'x', event: 'Libre 50', time: 3482, source: '' }] }}
+        onViewProfile={() => {}}
+      />,
+    );
+
+    expect(screen.getByLabelText('Libre 50, 34 segundos con 82 centésimas')).toBeOnTheScreen();
+    // A bare string inside a View throws on device ("Text strings must be rendered within a <Text>"); jest does not.
+    const bareStrings = (node: unknown): string[] =>
+      Array.isArray(node)
+        ? node.flatMap(bareStrings)
+        : node && typeof node === 'object'
+          ? (((node as { type: string; children: unknown[] | null }).children ?? []) as unknown[]).flatMap((child) =>
+              typeof child === 'string' ? (node as { type: string }).type === 'Text' ? [] : [child] : bareStrings(child),
+            )
+          : [];
+    expect(bareStrings(screen.toJSON())).toEqual([]);
+  });
+
   it('opens the full profile from a secondary button', async () => {
     const onViewProfile = jest.fn();
     await render(<AthleteDetail athlete={detailFixture} onViewProfile={onViewProfile} />);

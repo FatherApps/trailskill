@@ -77,7 +77,7 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
             >
               <View {...hidden} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
                 <Text style={[typography.body, { flex: 1, color: colors[athleteDetailColors.title] }]}>{best.event}</Text>
-                {best.source && <Tag label={best.source} variant="info" />}
+                {best.source ? <Tag label={best.source} variant="info" /> : null}
                 <TimeValue value={best.time} size="time-sm" />
               </View>
             </View>
