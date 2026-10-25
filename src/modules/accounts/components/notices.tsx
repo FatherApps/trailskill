@@ -18,6 +18,15 @@ export function InvitationBanner({ school, group }: Invitation) {
   );
 }
 
+// Registration goes on without a school or group.
+export function InvalidInvitationBanner() {
+  return (
+    <Banner variant="warn" icon="error">
+      {t('accounts.invitation.invalid')}
+    </Banner>
+  );
+}
+
 // The draft is kept: only what needs the network waits for signal.
 export function OfflineBanner() {
   return (

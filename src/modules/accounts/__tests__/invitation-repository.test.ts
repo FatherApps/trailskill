@@ -1,8 +1,10 @@
 import { createInMemoryInvitationRepository, createSupabaseInvitationRepository } from '../data/invitations';
 
 const mockInsert = jest.fn();
+const mockRpc = jest.fn();
 jest.mock('../../../core/sync', () => ({
   supabase: {
+    rpc: (name: string, args: unknown) => mockRpc(name, args),
     from: (table: string) => ({
       insert: (row: unknown) => mockInsert(table, row),
     }),
@@ -63,6 +65,49 @@ describe('Supabase invitation repository', () => {
     });
 
     await expect(createSupabaseInvitationRepository().create({ schoolId: 'school-1', groupId: 'group-1' })).rejects.toBe(error);
+  });
+});
+
+describe('Supabase invitation repository: resolve and accept', () => {
+  beforeEach(() => mockRpc.mockReset());
+
+  it('resolves a token to the school, the group and the categories', async () => {
+    mockRpc.mockResolvedValue({
+      data: { school_name: 'Escuela Delfines', group_name: 'Infantil B', categories: [{ id: 'c1', name: '9-10', sort_order: 1 }] },
+      error: null,
+    });
+    await expect(createSupabaseInvitationRepository().resolve('tok')).resolves.toEqual({
+      school: 'Escuela Delfines',
+      group: 'Infantil B',
+      categories: [{ id: 'c1', name: '9-10' }],
+    });
+    expect(mockRpc).toHaveBeenCalledWith('resolve_invitation', { token: 'tok' });
+  });
+
+  it('resolves an unknown, expired or revoked token to null', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: null });
+    await expect(createSupabaseInvitationRepository().resolve('tok')).resolves.toBeNull();
+  });
+
+  it('throws when the request fails', async () => {
+    const error = { message: 'Network request failed' };
+    mockRpc.mockResolvedValue({ data: null, error });
+    await expect(createSupabaseInvitationRepository().resolve('tok')).rejects.toBe(error);
+  });
+
+  it('accepts with a category, or with null when there is none', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: null });
+    const repository = createSupabaseInvitationRepository();
+    await repository.accept({ token: 'tok', athleteId: 'a1', categoryId: 'c1' });
+    await repository.accept({ token: 'tok', athleteId: 'a1' });
+    expect(mockRpc).toHaveBeenNthCalledWith(1, 'accept_invitation', { token: 'tok', athlete_id: 'a1', category_id: 'c1' });
+    expect(mockRpc).toHaveBeenNthCalledWith(2, 'accept_invitation', { token: 'tok', athlete_id: 'a1', category_id: null });
+  });
+
+  it('throws when accepting fails', async () => {
+    const error = { code: '42501', message: 'denied' };
+    mockRpc.mockResolvedValue({ data: null, error });
+    await expect(createSupabaseInvitationRepository().accept({ token: 'tok', athleteId: 'a1' })).rejects.toBe(error);
   });
 });
 

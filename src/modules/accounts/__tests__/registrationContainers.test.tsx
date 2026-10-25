@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 
 import { CodeMismatchError } from '../../../core/session';
 import { accountsFixture as fx } from '../__fixtures__/accounts';
+import { createInMemoryInvitationRepository } from '../data/invitations';
 import { createInMemoryRegistrationDraftRepository, type RegistrationDraft } from '../data/registrationDraft';
 import { AccountDetailsContainer } from '../screens/AccountDetailsContainer';
 import { WhoSwimsContainer } from '../screens/WhoSwimsContainer';
@@ -20,7 +21,7 @@ async function renderDetails(
   const requestCode = session.requestCode ?? jest.fn().mockResolvedValue(undefined);
   const verifyCode = session.verifyCode ?? jest.fn().mockResolvedValue(undefined);
   const view = await render(
-    <AccountDetailsContainer drafts={drafts} requestCode={requestCode} verifyCode={verifyCode} onBack={jest.fn()} onSignIn={jest.fn()} />,
+    <AccountDetailsContainer drafts={drafts} invitations={createInMemoryInvitationRepository()} requestCode={requestCode} verifyCode={verifyCode} onBack={jest.fn()} onSignIn={jest.fn()} />,
   );
   await screen.findByLabelText('Nombre');
   return { drafts, requestCode, verifyCode, view };
@@ -63,6 +64,17 @@ describe('AccountDetailsContainer', () => {
       while (finish.length > 0) finish.pop()?.();
       expect((await stored.load())?.firstName).toBe('Camila');
     });
+  });
+
+  it('still saves the typed values when the draft cannot be read', async () => {
+    const stored = createInMemoryRegistrationDraftRepository();
+    const drafts = { ...stored, load: jest.fn(stored.load), save: jest.fn(stored.save) };
+    await renderDetails(drafts);
+    drafts.load.mockRejectedValue(new Error('disk'));
+
+    await fillIn();
+
+    await waitFor(() => expect(drafts.save).toHaveBeenCalledWith(expect.objectContaining(typed)));
   });
 
   it('shows the required errors on the fields and asks for no code', async () => {
@@ -208,11 +220,44 @@ describe('AccountDetailsContainer', () => {
   });
 });
 
+describe('invitation in the registration containers', () => {
+  const invited = { firstName: '', lastName: '', email: '', invitationToken: 'tok-1' };
+  const invitations = createInMemoryInvitationRepository({ invitations: { 'tok-1': { school: 'Escuela Delfines', group: 'Infantil B', categories: [] } } });
+
+  it('step 1 shows the school and group of the saved token', async () => {
+    await render(<WhoSwimsContainer drafts={createInMemoryRegistrationDraftRepository(invited)} invitations={invitations} onContinue={jest.fn()} onBack={jest.fn()} />);
+    expect(await screen.findAllByText('Escuela Delfines')).not.toHaveLength(0);
+  });
+
+  it('step 1 tells the link is invalid and registration goes on without it', async () => {
+    const drafts = createInMemoryRegistrationDraftRepository(invited);
+    await render(<WhoSwimsContainer drafts={drafts} invitations={createInMemoryInvitationRepository()} onContinue={jest.fn()} onBack={jest.fn()} />);
+    expect(await screen.findByText(/enlace de invitación/)).toBeOnTheScreen();
+    expect((await drafts.load())?.invitationToken).toBeUndefined();
+  });
+
+  it('step 2 keeps the token in the draft while the person types', async () => {
+    const drafts = createInMemoryRegistrationDraftRepository(invited);
+    await render(
+      <AccountDetailsContainer
+        drafts={drafts}
+        invitations={createInMemoryInvitationRepository({ offline: true })}
+        requestCode={jest.fn()}
+        verifyCode={jest.fn()}
+        onBack={jest.fn()}
+        onSignIn={jest.fn()}
+      />,
+    );
+    await fireEvent.changeText(await screen.findByLabelText('Nombre'), 'Camila');
+    await waitFor(async () => expect(await drafts.load()).toMatchObject({ firstName: 'Camila', invitationToken: 'tok-1' }));
+  });
+});
+
 describe('WhoSwimsContainer', () => {
   it('saves the choice in the draft, continues, and shows it chosen when opened again', async () => {
     const drafts = createInMemoryRegistrationDraftRepository();
     const onContinue = jest.fn();
-    const view = await render(<WhoSwimsContainer drafts={drafts} onContinue={onContinue} onBack={jest.fn()} />);
+    const view = await render(<WhoSwimsContainer drafts={drafts} invitations={createInMemoryInvitationRepository()} onContinue={onContinue} onBack={jest.fn()} />);
 
     await fireEvent.press(await screen.findByRole('radio', { name: /^Yo,/ }));
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
@@ -221,13 +266,13 @@ describe('WhoSwimsContainer', () => {
     expect(await drafts.load()).toMatchObject({ swimmer: 'adult' });
 
     await view.unmount();
-    await render(<WhoSwimsContainer drafts={drafts} onContinue={onContinue} onBack={jest.fn()} />);
+    await render(<WhoSwimsContainer drafts={drafts} invitations={createInMemoryInvitationRepository()} onContinue={onContinue} onBack={jest.fn()} />);
     expect(await screen.findByRole('radio', { name: /^Yo,/ })).toBeChecked();
   });
 
   it('keeps the names already typed when the choice changes', async () => {
     const drafts = createInMemoryRegistrationDraftRepository({ ...typed, swimmer: 'child' });
-    await render(<WhoSwimsContainer drafts={drafts} onContinue={jest.fn()} onBack={jest.fn()} />);
+    await render(<WhoSwimsContainer drafts={drafts} invitations={createInMemoryInvitationRepository()} onContinue={jest.fn()} onBack={jest.fn()} />);
 
     await fireEvent.press(await screen.findByRole('radio', { name: /^Yo,/ }));
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
@@ -238,7 +283,7 @@ describe('WhoSwimsContainer', () => {
   it('continues even when the draft cannot be saved', async () => {
     const drafts = { ...createInMemoryRegistrationDraftRepository(), save: jest.fn().mockRejectedValue(new Error('disk')) };
     const onContinue = jest.fn();
-    await render(<WhoSwimsContainer drafts={drafts} onContinue={onContinue} onBack={jest.fn()} />);
+    await render(<WhoSwimsContainer drafts={drafts} invitations={createInMemoryInvitationRepository()} onContinue={onContinue} onBack={jest.fn()} />);
 
     await fireEvent.press(await screen.findByRole('radio', { name: /^Mi hijo/ }));
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));

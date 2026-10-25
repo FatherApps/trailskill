@@ -3,6 +3,8 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'TrailSkill',
   slug: 'trailskill',
+  // Opens school invitation links: trailskill://invite/<token>.
+  scheme: 'trailskill',
   version: '1.0.0',
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',
