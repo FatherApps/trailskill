@@ -1,4 +1,5 @@
 import type { BlockRecording } from '../types';
+import type { InMemoryTrainingPlanRepository } from './inMemoryTrainingPlanRepository';
 import { checkSeriesLink, currentMarks, validatedCount, type FulfillmentMark, type FulfillmentRepository } from './fulfillment';
 
 /** What the local database knows, to check a mark's series; a value not listed here is unknown and lets the mark through. */
@@ -8,7 +9,8 @@ export type FulfillmentLookups = {
   seriesSchools?: Record<string, string>;
 };
 
-export function createInMemoryFulfillmentRepository(lookups: FulfillmentLookups = {}): FulfillmentRepository {
+// With the plan repository, the sessions that get a mark are known to it, so saving the plan keeps their version.
+export function createInMemoryFulfillmentRepository(lookups: FulfillmentLookups = {}, plans?: InMemoryTrainingPlanRepository): FulfillmentRepository {
   const stored: FulfillmentMark[] = [];
   return {
     async list(assignmentId) {
@@ -24,6 +26,7 @@ export function createInMemoryFulfillmentRepository(lookups: FulfillmentLookups 
           seriesSchoolId: lookups.seriesSchools?.[mark.seriesId],
         });
       }
+      plans?.store.marked.add(mark.assignmentId);
       const id = `mark-${stored.length + 1}`;
       stored.push({ ...mark, id, completedRepetitions, seriesId: mark.seriesId ?? null, capturedAt: mark.capturedAt ?? new Date().toISOString() });
       return id;

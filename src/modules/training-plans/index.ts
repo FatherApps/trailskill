@@ -31,7 +31,7 @@ export { PlansScreen, type PlansScreenProps } from './screens/PlansScreen';
 export { PlanListScreen, type PlanListScreenProps, type PlanListView } from './screens/PlanListScreen';
 export { planVocabulary } from './vocabulary';
 export { galleryEntries } from './gallery';
-export { createInMemoryTrainingPlanRepository } from './data/inMemoryTrainingPlanRepository';
+export { createInMemoryTrainingPlanRepository, type InMemoryTrainingPlanRepository } from './data/inMemoryTrainingPlanRepository';
 export { createPowerSyncTrainingPlanRepository } from './data/powerSyncTrainingPlanRepository';
 export { BlockHasFulfillmentError } from './data/plans';
 export type { Plan, PlanSummary, TrainingPlanRepository } from './data/plans';

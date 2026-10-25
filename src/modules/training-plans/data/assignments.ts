@@ -10,14 +10,17 @@ export type Assignment = {
   id: string;
   schoolId: string;
   planId: string;
-  // The plan version the assignment runs with: the latest one when it was created.
+  // The plan version the assignment runs with: the latest one when it was created, or a later one when the plan was edited before
+  // anything was recorded in the session.
   versionId: string;
+  // True when the version was created after the session was assigned, so the session changed version (server timestamps; false when either is unknown).
+  versionChanged: boolean;
   // YYYY-MM-DD, the day of the session.
   sessionDate: string;
   target: AssignmentTarget;
 };
 
-export type NewAssignment = Omit<Assignment, 'id' | 'versionId'>;
+export type NewAssignment = Omit<Assignment, 'id' | 'versionId' | 'versionChanged'>;
 
 export interface AssignmentRepository {
   /** The assignments of the school for a day (YYYY-MM-DD), oldest first. Withdrawn assignments are not listed. */

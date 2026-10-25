@@ -21,12 +21,13 @@ jest.mock('../../../core/sync', () => ({
 
 const TABLES = `
   CREATE TABLE training_plans (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, school_id TEXT, name TEXT, is_template INTEGER);
-  CREATE TABLE training_plan_versions (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, plan_id TEXT, version INTEGER);
+  CREATE TABLE training_plan_versions (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, plan_id TEXT, version INTEGER, complete INTEGER, assigned INTEGER);
   CREATE TABLE training_plan_blocks (
     id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, version_id TEXT, position INTEGER, repetitions INTEGER,
     distance TEXT, stroke TEXT, drill TEXT, equipment TEXT, send_off_seconds INTEGER, phase TEXT, recording TEXT
   );
-  CREATE TABLE training_plan_fulfillments (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, block_id TEXT, status TEXT);
+  CREATE TABLE training_plan_assignments (id TEXT PRIMARY KEY, plan_id TEXT, version_id TEXT, withdrawn_at TEXT);
+  CREATE TABLE training_plan_fulfillments (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, assignment_id TEXT, block_id TEXT, status TEXT);
 `;
 
 let removeStore: (() => void) | undefined;

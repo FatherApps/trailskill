@@ -19,6 +19,7 @@ type AssignmentRow = {
   athlete_id: string | null;
   group_id: string | null;
   category_id: string | null;
+  version_changed: number;
 };
 
 // Rows are trusted: the server checks that exactly the column of the target is set.
@@ -39,8 +40,11 @@ export function createPowerSyncAssignmentRepository(): AssignmentRepository {
   return {
     async list(schoolId, sessionDate) {
       const rows = await db.getAll<AssignmentRow>(
-        `SELECT id, school_id, plan_id, version_id, session_date, target, athlete_id, group_id, category_id
-         FROM training_plan_assignments WHERE school_id = ? AND session_date = ? AND withdrawn_at IS NULL ORDER BY created_at, id`,
+        // julianday compares moments: synced timestamps may use a space instead of 'T'; a NULL on either side gives false.
+        `SELECT a.id, a.school_id, a.plan_id, a.version_id, a.session_date, a.target, a.athlete_id, a.group_id, a.category_id,
+                COALESCE(julianday(v.created_at) > julianday(a.created_at), 0) AS version_changed
+         FROM training_plan_assignments a LEFT JOIN training_plan_versions v ON v.id = a.version_id
+         WHERE a.school_id = ? AND a.session_date = ? AND a.withdrawn_at IS NULL ORDER BY a.created_at, a.id`,
         [schoolId, sessionDate],
       );
       return rows.map(
@@ -49,6 +53,7 @@ export function createPowerSyncAssignmentRepository(): AssignmentRepository {
           schoolId: row.school_id,
           planId: row.plan_id,
           versionId: row.version_id,
+          versionChanged: row.version_changed === 1,
           sessionDate: row.session_date,
           target: toTarget(row),
         }),
