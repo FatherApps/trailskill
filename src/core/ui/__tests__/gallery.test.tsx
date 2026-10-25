@@ -33,13 +33,22 @@ describe('core/ui gallery entries', () => {
     expect(stateKeys('segmented')).toEqual(['strokes', 'distances', 'long-text']);
     expect(stateKeys('banner')).toEqual(['info', 'warn', 'success', 'noIcon']);
     expect(stateKeys('timeValue')).toEqual(['time-lg', 'time-md', 'time-sm', 'missing', 'decimal-point']);
+    expect(stateKeys('swimmerRow')).toEqual([
+      'normal',
+      'selected',
+      'missing-authorization',
+      'chevron',
+      'missing-time',
+      'long-text',
+    ]);
+    expect(stateKeys('navBar')).toEqual(['home-active', 'times-active', 'long-labels']);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
     await render(<ThemeProvider name={theme} fontScale={scale}>{entryById(id).states[state]()}</ThemeProvider>);
   });
 
-  it.each(['stepHeader', 'stateView', 'segmented', 'banner'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
+  it.each(['stepHeader', 'stateView', 'segmented', 'swimmerRow', 'navBar', 'banner'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
     '%s / %s fills the width of the preview',
     async (id, state) => {
       await render(<ThemeProvider>{entryById(id).states[state]()}</ThemeProvider>);
@@ -103,5 +112,39 @@ describe('core/ui gallery entries', () => {
     await render(<ThemeProvider>{entryById('timeValue').states[state]()}</ThemeProvider>);
 
     expect(screen.getByText(text)).toBeOnTheScreen();
+  });
+
+  it.each([
+    ['normal', 'Lucía R., Infantil B · 3 tiempos este mes, marca personal 34,82, MP 50 L'],
+    ['selected', 'Mateo C., Infantil B · 5 tiempos este mes, marca personal 33,91, MP 50 L'],
+    ['missing-authorization', 'Sara P., Juvenil A, Consentimiento'],
+    ['chevron', 'Tomás V., Máster · Se registró él mismo'],
+    ['missing-time', 'Lucía R., Infantil B · 3 tiempos este mes, sin marca personal, MP 100 E'],
+  ])('swimmerRow / %s is one row labelled "%s"', async (state, label) => {
+    await render(<ThemeProvider>{entryById('swimmerRow').states[state]()}</ThemeProvider>);
+
+    expect(screen.getByRole('button', { name: label })).toBeOnTheScreen();
+  });
+
+  it('swimmerRow / selected is the only selected row', async () => {
+    await render(<ThemeProvider>{entryById('swimmerRow').states.selected()}</ThemeProvider>);
+    expect(screen.getByRole('button')).toBeSelected();
+
+    await render(<ThemeProvider>{entryById('swimmerRow').states.normal()}</ThemeProvider>);
+    expect(screen.getByRole('button')).not.toBeSelected();
+  });
+
+  it.each([
+    ['home-active', 'Inicio', 'Tiempos'],
+    ['times-active', 'Tiempos', 'Cuenta'],
+    ['long-labels', 'Nadadores de mi grupo', 'Cuenta y autorizaciones'],
+  ])('navBar / %s starts on %s and moves the active item to %s when it is tapped', async (state, first, second) => {
+    await render(<ThemeProvider>{entryById('navBar').states[state]()}</ThemeProvider>);
+    expect(screen.getByRole('tab', { name: first })).toBeSelected();
+
+    await fireEvent.press(screen.getByRole('tab', { name: second }));
+
+    expect(screen.getByRole('tab', { name: second })).toBeSelected();
+    expect(screen.getByRole('tab', { name: first })).not.toBeSelected();
   });
 });

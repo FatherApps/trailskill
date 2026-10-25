@@ -7,9 +7,11 @@ import { space, typography, useTheme } from '../theme';
 import { bannerFixture as bn } from './__fixtures__/banner';
 import { buttonFixture as b } from './__fixtures__/button';
 import { confirmSheetFixture as cs } from './__fixtures__/confirmSheet';
+import { navBarFixture as nb } from './__fixtures__/navBar';
 import { segmentedFixture as sg } from './__fixtures__/segmented';
 import { stateViewFixture as sv } from './__fixtures__/stateView';
 import { stepHeaderFixture as sh } from './__fixtures__/stepHeader';
+import { swimmerRowFixture as sr } from './__fixtures__/swimmerRow';
 import { tagFixture as tg } from './__fixtures__/tag';
 import { textFieldFixture as tf } from './__fixtures__/textField';
 import { timeValueFixture as tv } from './__fixtures__/timeValue';
@@ -18,9 +20,11 @@ import { Button } from './Button';
 import { ConfirmSheet } from './ConfirmSheet';
 import { Icon } from './Icon';
 import { iconPaths, type IconName } from './icons';
+import { NavBar, type NavBarItem } from './NavBar';
 import { Segmented, type SegmentedOption } from './Segmented';
 import { StateView } from './StateView';
 import { StepHeader } from './StepHeader';
+import { SwimmerRow, type SwimmerRowProps } from './SwimmerRow';
 import { SyncStatus } from './SyncStatus';
 import { Tag } from './Tag';
 import { TextField } from './TextField';
@@ -91,6 +95,23 @@ function SegmentedPreview<T extends string>({
   return (
     <FullWidth>
       <Segmented accessibilityLabel={label} options={options} value={value} onChange={setValue} />
+    </FullWidth>
+  );
+}
+
+const SwimmerRowPreview = (props: SwimmerRowProps) => (
+  <FullWidth>
+    <SwimmerRow onPress={noop} {...props} />
+  </FullWidth>
+);
+
+// Same for the navigation bar: tapping an item makes it the active one.
+function NavBarPreview({ items, initialId }: { items: NavBarItem[]; initialId: string }) {
+  const [activeId, setActiveId] = useState(initialId);
+
+  return (
+    <FullWidth>
+      <NavBar items={items} activeId={activeId} onSelect={setActiveId} />
     </FullWidth>
   );
 }
@@ -280,6 +301,27 @@ export const galleryEntries: GalleryEntry[] = [
       'time-sm': () => <TimeValue size="time-sm" value={tv.small} />,
       missing: () => <TimeValue value={null} />,
       'decimal-point': () => <TimeValue value={tv.large} decimalSeparator="." />,
+    },
+  },
+  {
+    id: 'swimmerRow',
+    title: 'SwimmerRow',
+    states: {
+      normal: () => <SwimmerRowPreview {...sr.normal} />,
+      selected: () => <SwimmerRowPreview {...sr.selected} selected />,
+      'missing-authorization': () => <SwimmerRowPreview {...sr.missingAuthorization} />,
+      chevron: () => <SwimmerRowPreview {...sr.chevron} chevron />,
+      'missing-time': () => <SwimmerRowPreview {...sr.missingTime} bestTime={null} />,
+      'long-text': () => <SwimmerRowPreview {...sr.longText} chevron />,
+    },
+  },
+  {
+    id: 'navBar',
+    title: 'NavBar',
+    states: {
+      'home-active': () => <NavBarPreview items={nb.items} initialId="home" />,
+      'times-active': () => <NavBarPreview items={nb.items} initialId="times" />,
+      'long-labels': () => <NavBarPreview items={nb.longItems} initialId="swimmers" />,
     },
   },
 ];
