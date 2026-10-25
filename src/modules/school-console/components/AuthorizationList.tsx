@@ -19,9 +19,11 @@ export type AthleteAuthorizations = {
   athlete: string;
   initials: string;
   color: SwimmerRowProps['color'];
-  // Full name of the guardian the requests go to.
-  guardian: string;
+  // Full name of the guardian the requests go to; null when the console cannot read it.
+  guardian: string | null;
   purposes: Record<AuthorizationPurpose, AuthorizationStatus>;
+  // False when a request cannot be sent again (the athlete has no group to invite to): no button.
+  canResend: boolean;
 };
 
 // Another school asking to see this school's results; the administrator of this school approves it.
@@ -58,6 +60,7 @@ export type AuthorizationListProps = {
 // Status per athlete and purpose. A pending purpose can be asked again; a valid or withdrawn one cannot.
 export function AuthorizationList({ athletes, onResend }: AuthorizationListProps) {
   const { colors, space, radius, typography } = useTheme();
+  const noData = t('schoolConsole.common.no_data');
 
   return (
     <View testID="authorization-list" style={{ borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors[authorizationListColors.background] }}>
@@ -73,7 +76,7 @@ export function AuthorizationList({ athletes, onResend }: AuthorizationListProps
             name={athlete.athlete}
             initials={athlete.initials}
             color={athlete.color}
-            detail={t('schoolConsole.authorizations.guardian', { name: athlete.guardian })}
+            detail={t('schoolConsole.authorizations.guardian', { name: athlete.guardian ?? noData })}
           />
           <View style={{ gap: space[1], paddingLeft: space[4], paddingRight: space[3] }}>
             {authorizationPurposes.map((purpose) => {
@@ -93,11 +96,11 @@ export function AuthorizationList({ athletes, onResend }: AuthorizationListProps
                       <Tag label={t(tag.key)} variant={tag.variant} icon={tag.icon} />
                     </View>
                   </View>
-                  {status === 'pending' && (
+                  {status === 'pending' && athlete.canResend && (
                     <Button
                       variant="ghost"
                       label={t('schoolConsole.authorizations.resend')}
-                      accessibilityHint={t('schoolConsole.authorizations.resend_hint', { guardian: athlete.guardian, purpose: label, athlete: athlete.athlete })}
+                      accessibilityHint={t('schoolConsole.authorizations.resend_hint', { guardian: athlete.guardian ?? noData, purpose: label, athlete: athlete.athlete })}
                       onPress={() => onResend(athlete.id, purpose)}
                     />
                   )}
@@ -112,7 +115,8 @@ export function AuthorizationList({ athletes, onResend }: AuthorizationListProps
 }
 
 export type SharingRequestListProps = {
-  requests: SharingRequest[];
+  // null while approving another school is not available yet: the title and a note, no requests.
+  requests: SharingRequest[] | null;
   // Only reports the press: the confirmation and the approval belong to the caller.
   onApprove: (requestId: string) => void;
 };
@@ -120,6 +124,17 @@ export type SharingRequestListProps = {
 // The schools that asked to see this school's results, each with the approve action.
 export function SharingRequestList({ requests, onApprove }: SharingRequestListProps) {
   const { colors, space, radius, typography } = useTheme();
+
+  if (requests === null) {
+    return (
+      <View testID="sharing-requests" style={{ gap: space[2] }}>
+        <Text accessibilityRole="header" style={[typography.label, { color: colors[authorizationListColors.text] }]}>
+          {t('schoolConsole.authorizations.requests.title')}
+        </Text>
+        <Text style={[typography.caption, { color: colors[authorizationListColors.caption] }]}>{t('schoolConsole.authorizations.requests.later')}</Text>
+      </View>
+    );
+  }
 
   return (
     <View testID="sharing-requests" style={{ gap: space[2] }}>

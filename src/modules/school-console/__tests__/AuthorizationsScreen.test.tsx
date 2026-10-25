@@ -118,6 +118,32 @@ describe('AuthorizationsScreen', () => {
       expect(screen.queryByRole('button', { name: 'Aprobar' })).toBeNull();
     });
 
+    it('shows an unknown guardian as "Sin dato" and says so in the ConfirmSheet', async () => {
+      await show({ kind: 'data', content: { ...content, athletes: [{ ...authorizationsFixture[0], guardian: null }] } });
+
+      expect(screen.getByLabelText('Lucía Ramírez, Acudiente: Sin dato')).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Reenviar solicitud' }));
+      expect(
+        screen.getByText(
+          'Se creará una invitación nueva para que el acudiente de Lucía Ramírez responda la solicitud «Compartir resultados con otra escuela». La compartes en el siguiente paso.',
+        ),
+      ).toBeOnTheScreen();
+    });
+
+    it('offers no re-send for an athlete that cannot be re-sent', async () => {
+      await show({ kind: 'data', content: { ...content, athletes: [{ ...authorizationsFixture[0], canResend: false }] } });
+
+      expect(screen.queryByRole('button', { name: 'Reenviar solicitud' })).toBeNull();
+    });
+
+    it('shows the requests title with a note, and no approval, when approving is not available yet', async () => {
+      await show({ kind: 'data', content: { ...content, sharingRequests: null } });
+
+      expect(screen.getByText('Solicitudes de otras escuelas')).toBeOnTheScreen();
+      expect(screen.getByText('Aprobar que otra escuela vea tus resultados estará disponible más adelante.')).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: 'Aprobar' })).toBeNull();
+    });
+
     it('passes the navigation to the caller', async () => {
       const { onNavigate } = await show({ kind: 'data', content });
 

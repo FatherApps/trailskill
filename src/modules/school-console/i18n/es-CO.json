@@ -216,14 +216,16 @@
     "resend_confirm": {
       "title": "¿Reenviar la solicitud?",
       "message": "Se enviará de nuevo a {{guardian}} la solicitud de autorización «{{purpose}}» de {{athlete}}.",
-      "confirm": "Reenviar al acudiente"
+      "confirm": "Reenviar al acudiente",
+      "message_no_guardian": "Se creará una invitación nueva para que el acudiente de {{athlete}} responda la solicitud «{{purpose}}». La compartes en el siguiente paso."
     },
     "requests": {
       "title": "Solicitudes de otras escuelas",
       "detail": "Pidió ver los resultados de tu escuela",
       "detail_dated": "Pidió ver los resultados de tu escuela · {{date}}",
       "approve": "Aprobar",
-      "approve_hint": "Aprobar la solicitud de {{school}}"
+      "approve_hint": "Aprobar la solicitud de {{school}}",
+      "later": "Aprobar que otra escuela vea tus resultados estará disponible más adelante."
     },
     "approve_confirm": {
       "title": "¿Aprobar que {{school}} vea los resultados de tu escuela?",
@@ -237,7 +239,9 @@
     "error": {
       "title": "No pudimos cargar las autorizaciones"
     },
-    "offline_empty": "No hay autorizaciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión."
+    "offline_empty": "No hay autorizaciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.",
+    "resend_error": "No pudimos crear la invitación. Revisa la conexión e inténtalo de nuevo.",
+    "share_message": "{{school}} te invita a TrailSkill para responder las autorizaciones de tu deportista. Código de invitación: {{token}}. Vence el {{date}}."
   },
   "date": {
     "short": "{{day}} {{month}} {{year}}",

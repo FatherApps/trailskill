@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { t } from '../../../core/i18n';
-import { ConfirmSheet } from '../../../core/ui';
+import { Banner, ConfirmSheet } from '../../../core/ui';
 import '../i18n';
 import {
   AuthorizationList,
@@ -18,8 +18,8 @@ export type AuthorizationsContent = {
   // Minutes since the data was updated; `null` when it is not known.
   updatedMinutesAgo: number | null;
   athletes: AthleteAuthorizations[];
-  // Other schools waiting for this school's administrator to approve sharing results with them.
-  sharingRequests: SharingRequest[];
+  // Other schools waiting for this school's administrator to approve sharing results with them; null while not available yet.
+  sharingRequests: SharingRequest[] | null;
 };
 
 export type AuthorizationsView = SectionView<AuthorizationsContent>;
@@ -29,6 +29,8 @@ export type AuthorizationsScreenProps = ConsoleSectionProps & {
   // Both fire only after the ConfirmSheet is confirmed; the real sending and approval belong to the caller.
   onResend: (athleteId: string, purpose: AuthorizationPurpose) => void;
   onApproveSharing: (requestId: string) => void;
+  // Why the last re-send failed, shown above the list; null or absent when nothing failed.
+  resendError?: string | null;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
 };
@@ -37,7 +39,7 @@ export type AuthorizationsScreenProps = ConsoleSectionProps & {
 type Pending = { kind: 'resend'; athleteId: string; purpose: AuthorizationPurpose } | { kind: 'approve'; requestId: string };
 
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
-export function AuthorizationsScreen({ width, schoolName, view, onNavigate, onResend, onApproveSharing, scrollEnabled }: AuthorizationsScreenProps) {
+export function AuthorizationsScreen({ width, schoolName, view, onNavigate, onResend, onApproveSharing, resendError, scrollEnabled }: AuthorizationsScreenProps) {
   const [pending, setPending] = useState<Pending | null>(null);
 
   const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
@@ -51,11 +53,15 @@ export function AuthorizationsScreen({ width, schoolName, view, onNavigate, onRe
         <ConfirmSheet
           visible
           title={t('schoolConsole.authorizations.resend_confirm.title')}
-          message={t('schoolConsole.authorizations.resend_confirm.message', {
-            guardian: athlete.guardian,
-            purpose: purposeLabel(pending.purpose),
-            athlete: athlete.athlete,
-          })}
+          message={
+            athlete.guardian === null
+              ? t('schoolConsole.authorizations.resend_confirm.message_no_guardian', { purpose: purposeLabel(pending.purpose), athlete: athlete.athlete })
+              : t('schoolConsole.authorizations.resend_confirm.message', {
+                  guardian: athlete.guardian,
+                  purpose: purposeLabel(pending.purpose),
+                  athlete: athlete.athlete,
+                })
+          }
           confirmLabel={t('schoolConsole.authorizations.resend_confirm.confirm')}
           cancelLabel={t('schoolConsole.authorizations.cancel')}
           onConfirm={() => {
@@ -67,7 +73,7 @@ export function AuthorizationsScreen({ width, schoolName, view, onNavigate, onRe
       );
     }
   } else if (pending?.kind === 'approve') {
-    const request = content?.sharingRequests.find((row) => row.id === pending.requestId);
+    const request = content?.sharingRequests?.find((row) => row.id === pending.requestId);
     if (request) {
       sheet = (
         <ConfirmSheet
@@ -106,7 +112,8 @@ export function AuthorizationsScreen({ width, schoolName, view, onNavigate, onRe
     >
       {({ athletes, sharingRequests }) => (
         <>
-          {sharingRequests.length > 0 && (
+          {resendError ? <Banner variant="warn" icon="error">{resendError}</Banner> : null}
+          {(sharingRequests === null || sharingRequests.length > 0) && (
             <SharingRequestList requests={sharingRequests} onApprove={(requestId) => setPending({ kind: 'approve', requestId })} />
           )}
           <AuthorizationList athletes={athletes} onResend={(athleteId, purpose) => setPending({ kind: 'resend', athleteId, purpose })} />
