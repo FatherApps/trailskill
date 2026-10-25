@@ -4,6 +4,7 @@ import { Share } from 'react-native';
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
 import '../i18n';
+import type { SharingRequest } from '../components/AuthorizationList';
 import { formatDate, localDate } from '../components/formatDate';
 import type { AuthorizationsRepository, ConsoleAuthorizationRow } from '../data/authorizations';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -30,11 +31,14 @@ type Answer = {
   result: ConsoleAuthorizationRow[] | 'error';
 };
 
+// The sharing requests are read online, apart from the athletes: a failure here never breaks the list.
+type RequestsAnswer = { schoolId: string; result: SharingRequest[] | 'error' };
+
 const defaultNow = () => new Date();
 const defaultShare = (message: string) => Share.share({ message });
 const MINUTE_MS = 60_000;
 
-// The authorizations of the school's athletes, read from the local database. Re-sending creates a new invitation and shares it.
+// The authorizations of the school's athletes, read from the local database, and the sharing requests, read online. Re-sending creates a new invitation and shares it.
 export function AuthorizationsSection({
   width,
   schoolName,
@@ -50,6 +54,10 @@ export function AuthorizationsSection({
   const [answer, setAnswer] = useState<Answer>();
   const [attempt, setAttempt] = useState(0);
   const [resendError, setResendError] = useState<string | null>(null);
+  const [requestsAnswer, setRequestsAnswer] = useState<RequestsAnswer>();
+  // Bumped after an approval or a withdrawal to read the requests again.
+  const [requestsReload, setRequestsReload] = useState(0);
+  const offline = connection === 'offline';
 
   useEffect(() => {
     let active = true;
@@ -59,6 +67,19 @@ export function AuthorizationsSection({
       active = false;
     };
   }, [repository, schoolId, refreshKey, attempt]);
+
+  useEffect(() => {
+    if (offline) return;
+    let active = true;
+    const settle = (result: RequestsAnswer['result']) => active && setRequestsAnswer({ schoolId, result });
+    repository.listSharingRequests(schoolId).then(settle, () => settle('error'));
+    return () => {
+      active = false;
+    };
+  }, [repository, schoolId, refreshKey, requestsReload, offline]);
+
+  // Offline, still unread, another school's answer or a failed read: not available, never an empty list.
+  const sharingRequests = !offline && requestsAnswer?.schoolId === schoolId && requestsAnswer.result !== 'error' ? requestsAnswer.result : null;
 
   const loaded = answer?.schoolId === schoolId && answer.attempt === attempt ? answer.result : undefined;
   const rows = loaded === undefined || loaded === 'error' ? undefined : loaded;
@@ -80,8 +101,7 @@ export function AuthorizationsSection({
         guardian: null,
         canResend: groupId !== null,
       })),
-      // Approving another school is not available yet: its data model is still to be decided.
-      sharingRequests: null,
+      sharingRequests,
     };
     view =
       connection !== 'offline'
@@ -112,6 +132,17 @@ export function AuthorizationsSection({
     await share(message).catch(() => undefined);
   };
 
+  const changeSharing = async (action: 'approveSharing' | 'withdrawSharing', id: string) => {
+    setResendError(null);
+    try {
+      await repository[action](id);
+    } catch {
+      setResendError(t('schoolConsole.authorizations.sharing_error'));
+    }
+    // Also after a failure: the request may have changed on the server.
+    setRequestsReload((n) => n + 1);
+  };
+
   return (
     <AuthorizationsScreen
       width={width}
@@ -119,7 +150,8 @@ export function AuthorizationsSection({
       view={view}
       onNavigate={onNavigate}
       onResend={(athleteId) => void resend(athleteId)}
-      onApproveSharing={() => {}}
+      onApproveSharing={(id) => void changeSharing('approveSharing', id)}
+      onWithdrawSharing={(id) => void changeSharing('withdrawSharing', id)}
       resendError={resendError}
     />
   );
