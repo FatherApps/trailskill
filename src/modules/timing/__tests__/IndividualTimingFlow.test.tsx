@@ -34,6 +34,7 @@ const setup = async (over: Partial<IndividualTimingFlowProps> = {}) => {
     <ThemeProvider>
       <IndividualTimingFlow
         subtitle="Escuela Delfines"
+        schoolId="school-1"
         loadRoster={async () => roster}
         measurements={measurements}
         userId="coach-1"
@@ -184,6 +185,7 @@ describe('individual timing flow', () => {
       sessionType: 'training',
       source: 'screen_stopwatch',
       createdBy: 'coach-1',
+      schoolId: 'school-1',
       deviceId: 'device-1',
       seriesId: null,
       parentId: null,

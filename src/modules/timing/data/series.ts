@@ -8,6 +8,7 @@ import { createPowerSyncMeasurementRepository, measurementRow } from './powerSyn
 export type SeriesRecord = {
   id: string;
   createdBy: string;
+  schoolId: string;
   deviceId: string;
   stroke: StrokeCode;
   distance: DistanceCode;
@@ -67,6 +68,7 @@ export function createPowerSyncSeriesRepository(): SeriesRepository {
         await batch.write('timing_series', {
           id: series.id,
           created_by: series.createdBy,
+          school_id: series.schoolId,
           device_id: series.deviceId,
           stroke: series.stroke,
           distance: series.distance,

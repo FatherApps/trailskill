@@ -26,6 +26,10 @@
       "done": "Listo",
       "empty_message": "Ningún nadador con autorización para medir."
     },
+    "school": {
+      "label": "Escuela",
+      "question": "¿En qué escuela vas a medir?"
+    },
     "session_type": {
       "training": "Entrenamiento",
       "competition": "Competencia"

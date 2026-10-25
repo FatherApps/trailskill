@@ -18,6 +18,8 @@ import { useSessionSetup } from './useSessionSetup';
 export type SeriesTimingFlowProps = {
   // For example the school name.
   subtitle: string;
+  // The school the times are written for.
+  schoolId: string;
   loadRoster(): Promise<RosterAthlete[]>;
   series: SeriesRepository;
   // Remembers the event and the athletes between sessions; without it the setup lives only while the flow is open.
@@ -62,7 +64,7 @@ export function SeriesTimingFlow(props: SeriesTimingFlowProps) {
   return <RosterGate loadRoster={props.loadRoster}>{(roster) => <SeriesSession {...props} roster={roster} />}</RosterGate>;
 }
 
-function SeriesSession({ subtitle, roster, series: repository, setups, userId, deviceId, now = clock, offline, onExit }: SeriesTimingFlowProps & { roster: RosterAthlete[] }) {
+function SeriesSession({ subtitle, schoolId, roster, series: repository, setups, userId, deviceId, now = clock, offline, onExit }: SeriesTimingFlowProps & { roster: RosterAthlete[] }) {
   const { choice, selectedIds, ready, changeChoice, changeSelected } = useSessionSetup(setups, roster);
   const [step, setStep] = useState<Step>({ kind: 'setup' });
   const session = useRef<Session>(newSession());
@@ -121,7 +123,7 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
     if (!s.unsaved.has(arrival.id)) return;
     try {
       if (s.opened) await repository.addArrival(arrival);
-      else await repository.open({ id: s.seriesId, createdBy: userId, deviceId, ...choice } as SeriesRecord, arrival);
+      else await repository.open({ id: s.seriesId, createdBy: userId, schoolId, deviceId, ...choice } as SeriesRecord, arrival);
       s.opened = true;
       s.unsaved.delete(arrival.id);
     } catch {
@@ -175,6 +177,7 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
         sessionType: choice.sessionType,
         source: 'screen_button',
         createdBy: userId,
+        schoolId,
         deviceId,
         capturedAt: new Date().toISOString(),
         parentId: null,

@@ -43,6 +43,7 @@ function arrival(id: string, seriesId: string, position: number, athleteId: stri
     sessionType: 'training',
     source: 'screen_button',
     createdBy: 'coach-a',
+    schoolId: 'school-a',
     deviceId: 'device-a',
     capturedAt: '2026-10-24T08:00:00Z',
     parentId: null,
@@ -61,7 +62,7 @@ function completed(id: string): Measurement {
 const MEASUREMENTS_TABLE = `CREATE TABLE measurements (
   id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, device_id TEXT, kind TEXT, athlete_id TEXT,
   series_id TEXT, arrival_position INTEGER, hundredths INTEGER, stroke TEXT, distance TEXT, pool TEXT,
-  session_type TEXT, source TEXT, captured_at TEXT, parent_id TEXT, version INTEGER, base_version INTEGER,
+  session_type TEXT, source TEXT, school_id TEXT, captured_at TEXT, parent_id TEXT, version INTEGER, base_version INTEGER,
   edited_by TEXT, edited_at TEXT, edited_device_id TEXT, edit_reason TEXT, discarded_at TEXT, discarded_by TEXT
 )`;
 
@@ -99,6 +100,13 @@ describe.each(factories)('%s measurement repository', (_name, create) => {
 
     expect(listed.map((m) => m.id)).toEqual(['m1', 'm2', 'm3']);
     expect(listed[1]?.athleteId).toBeNull();
+  });
+
+  it('keeps the school a measurement was written with', async () => {
+    const repository = create();
+    await repository.add({ ...arrival('m1', 'S', 1, 'athlete-1'), schoolId: 'school-b' });
+
+    expect((await repository.listBySeries('S')).map((m) => m.schoolId)).toEqual(['school-b']);
   });
 
   it('reads a missing time back as null, never 0', async () => {

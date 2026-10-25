@@ -14,6 +14,7 @@ type MeasurementRow = {
   session_type: Measurement['sessionType'];
   source: Measurement['source'];
   created_by: string;
+  school_id: string;
   device_id: string;
   captured_at: string;
   parent_id: string | null;
@@ -40,6 +41,7 @@ function toMeasurement(row: MeasurementRow): Measurement {
     sessionType: row.session_type,
     source: row.source,
     createdBy: row.created_by,
+    schoolId: row.school_id,
     deviceId: row.device_id,
     capturedAt: row.captured_at,
     parentId: row.parent_id,
@@ -66,6 +68,7 @@ export function measurementRow(m: Measurement) {
     session_type: m.sessionType,
     source: m.source,
     created_by: m.createdBy,
+    school_id: m.schoolId,
     device_id: m.deviceId,
     captured_at: m.capturedAt,
     parent_id: m.parentId,

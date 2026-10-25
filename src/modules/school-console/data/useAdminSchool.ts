@@ -3,25 +3,27 @@ import { useEffect, useState } from 'react';
 import type { StaffSchool, StaffSchoolRepository } from './staffSchools';
 
 export type AdminSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'admin'; school: StaffSchool };
-export type StaffSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'staff'; school: StaffSchool };
+// `school` is the first school by name (the console shows that one); `schools` are all of them, for the timing to ask which one when there are several.
+export type StaffSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'staff'; school: StaffSchool; schools: StaffSchool[] };
+type FoundSchools = { status: 'found'; school: StaffSchool; schools: StaffSchool[] };
 
-// Looks up the schools of a user and keeps the first one. Fails closed: no user or a failed lookup is a denial.
+// Looks up the schools of a user: the first one and the whole list. Fails closed: no user or a failed lookup is a denial.
 // The answer is stored with the user who asked, so another user never inherits it while their own lookup runs.
 function useFirstSchool(
   list: (userId: string) => Promise<StaffSchool[]>,
   repository: StaffSchoolRepository,
   userId: string | undefined,
   refreshKey: unknown,
-): { status: 'loading' } | { status: 'denied' } | { status: 'found'; school: StaffSchool } {
-  const [answer, setAnswer] = useState<{ userId: string; result: { status: 'denied' } | { status: 'found'; school: StaffSchool } }>();
+): { status: 'loading' } | { status: 'denied' } | FoundSchools {
+  const [answer, setAnswer] = useState<{ userId: string; result: { status: 'denied' } | FoundSchools }>();
   useEffect(() => {
     let active = true;
     if (userId) {
-      const settle = (result: { status: 'denied' } | { status: 'found'; school: StaffSchool }) =>
+      const settle = (result: { status: 'denied' } | FoundSchools) =>
         active && setAnswer({ userId, result });
       list(userId)
-        // shortcut: takes the first school by name, no school picker; upgrade when a person runs more than one school.
-        .then((schools) => settle(schools[0] ? { status: 'found', school: schools[0] } : { status: 'denied' }))
+        // shortcut: `school` is the first by name, with no picker in the console; the timing asks among `schools`. Upgrade when the console needs a school picker.
+        .then((schools) => settle(schools[0] ? { status: 'found', school: schools[0], schools } : { status: 'denied' }))
         .catch(() => settle({ status: 'denied' }));
     }
     return () => {
@@ -51,5 +53,5 @@ export function useStaffSchool(
   refreshKey?: unknown,
 ): StaffSchoolResult {
   const result = useFirstSchool((id) => repository.listStaffSchools(id), repository, userId, refreshKey);
-  return result.status === 'found' ? { status: 'staff', school: result.school } : result;
+  return result.status === 'found' ? { status: 'staff', school: result.school, schools: result.schools } : result;
 }

@@ -24,6 +24,8 @@ import { useSessionSetup } from './useSessionSetup';
 export type IndividualTimingFlowProps = {
   // For example the school name.
   subtitle: string;
+  // The school the times are written for.
+  schoolId: string;
   loadRoster(): Promise<RosterAthlete[]>;
   measurements: MeasurementRepository;
   // Remembers the event and the athletes between sessions; without it the setup lives only while the flow is open.
@@ -63,6 +65,7 @@ export function IndividualTimingFlow(props: IndividualTimingFlowProps) {
 
 function IndividualSession({
   subtitle,
+  schoolId,
   roster,
   measurements,
   setups,
@@ -150,6 +153,7 @@ function IndividualSession({
         sessionType: choice.sessionType,
         source: 'screen_stopwatch',
         createdBy: userId,
+        schoolId,
         deviceId,
         capturedAt: new Date().toISOString(),
         version: 1,
