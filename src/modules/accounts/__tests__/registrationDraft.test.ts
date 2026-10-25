@@ -1,4 +1,7 @@
+import { createInMemoryAthleteRepository } from '../../athletes';
 import { createInMemoryAdultProfileRepository } from '../data/adultProfiles';
+import { createInMemoryManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
+import { createInMemoryManagedAthleteRepository, type ManagedAthleteRow } from '../data/managedAthletes';
 import {
   createInMemoryRegistrationDraftRepository,
   createSecureStoreRegistrationDraftRepository,
@@ -43,21 +46,42 @@ describe('SecureStore draft', () => {
 });
 
 describe('finishRegistration', () => {
-  const run = (drafts = createInMemoryRegistrationDraftRepository(draft), profiles = createInMemoryAdultProfileRepository()) =>
-    finishRegistration({ userId: 'user-1', email: ' camila@example.test ', drafts, profiles }).then(() => ({ drafts, profiles }));
+  const run = (drafts = createInMemoryRegistrationDraftRepository(draft), profiles = createInMemoryAdultProfileRepository()) => {
+    const links: ManagedAthleteRow[] = [];
+    const athletes = createInMemoryAthleteRepository(createInMemoryManagedAthleteRepository(links));
+    const managedProfiles = createInMemoryManagedAthleteProfileRepository(athletes, links);
+    return finishRegistration({ userId: 'user-1', email: ' camila@example.test ', drafts, profiles, managedProfiles }).then((next) => ({
+      drafts,
+      profiles,
+      athletes,
+      next,
+    }));
+  };
 
-  it('saves the trimmed profile and keeps only the swimmer choice when the email matches', async () => {
-    const { drafts, profiles } = await run();
+  it('adult: saves the trimmed profile, creates the own athlete profile and clears the draft', async () => {
+    const { drafts, profiles, athletes, next } = await run();
 
     expect(profiles.saved).toEqual([{ userId: 'user-1', firstName: 'Camila', lastName: 'Rojas' }]);
-    expect(await drafts.load()).toEqual({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+    const own = await athletes.listManaged('user-1');
+    expect(own.map((a) => `${a.firstName} ${a.lastName}`)).toEqual(['Camila Rojas']);
+    expect(await drafts.load()).toBeNull();
+    expect(next).toBeUndefined();
+  });
+
+  it('child: keeps only the swimmer choice, creates no athlete and asks to open the add screen', async () => {
+    const { drafts, athletes, next } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer: 'child' }));
+
+    expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: '' });
+    await expect(athletes.listManaged('user-1')).resolves.toEqual([]);
+    expect(next).toBe('add_athletes');
   });
 
   it('clears the draft when there is no swimmer choice', async () => {
     const { swimmer: _swimmer, ...noSwimmer } = draft;
-    const { drafts, profiles } = await run(createInMemoryRegistrationDraftRepository(noSwimmer));
+    const { drafts, profiles, athletes } = await run(createInMemoryRegistrationDraftRepository(noSwimmer));
 
     expect(profiles.saved).toHaveLength(1);
+    await expect(athletes.listManaged('user-1')).resolves.toEqual([]);
     expect(await drafts.load()).toBeNull();
   });
 

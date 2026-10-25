@@ -1,47 +1,39 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { athleteDisplay, type AthleteRepository } from '../../athletes';
+import type { RegistrationDraftRepository } from '../data/registrationDraft';
 import type { ManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
 import { AddAthletesScreen, type AddAthleteField, type AddedAthlete } from './AddAthletesScreen';
 
-type AthleteDraft = { firstName: string; lastName: string };
-
-// The part of the registration draft this step uses (RegistrationDraftRepository, task 2.3): the rest of the draft is kept as is.
-export type AthleteDraftStore = {
-  load(): Promise<{ athlete?: AthleteDraft } | null | undefined>;
-  save(draft: { athlete?: AthleteDraft }): Promise<void>;
-};
-
 export type AddAthletesContainerProps = {
   userId: string;
-  relation: 'guardian' | 'self';
   step?: number;
   total?: number;
   profiles: ManagedAthleteProfileRepository;
   athletes: AthleteRepository;
-  draft: AthleteDraftStore;
+  drafts: RegistrationDraftRepository;
   renderStatus?: (athleteId: string) => ReactNode;
   onContinue: () => void;
   onBack: () => void;
 };
 
-const empty: AthleteDraft = { firstName: '', lastName: '' };
+const empty = { firstName: '', lastName: '' };
 
 export function AddAthletesContainer({
   userId,
-  relation,
   step = 3,
   total = 4,
   profiles,
   athletes,
-  draft,
+  drafts,
   renderStatus,
   onContinue,
   onBack,
 }: AddAthletesContainerProps) {
-  const [values, setValues] = useState<AthleteDraft>(empty);
+  const [values, setValues] = useState(empty);
   const [added, setAdded] = useState<AddedAthlete[]>([]);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const refresh = useCallback(
     () =>
@@ -53,13 +45,16 @@ export function AddAthletesContainer({
 
   useEffect(() => {
     // A failed read shows an empty form and nobody added: the person can still add.
-    draft.load().then((saved) => saved?.athlete && setValues(saved.athlete)).catch(() => {});
+    drafts.load().then((saved) => saved?.athlete && setValues(saved.athlete)).catch(() => {});
     refresh().catch(() => {});
-  }, [draft, refresh]);
+  }, [drafts, refresh]);
 
   // Never throws: losing a draft must not block typing.
-  const persist = (athlete: AthleteDraft | undefined) =>
-    draft.load().then((current) => draft.save({ ...current, athlete })).catch(() => {});
+  const persist = (athlete: typeof empty | undefined) =>
+    drafts
+      .load()
+      .then((current) => drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: '', ...current, athlete }))
+      .catch(() => {});
 
   function change(field: AddAthleteField, value: string) {
     const next = { ...values, [field]: value };
@@ -69,14 +64,24 @@ export function AddAthletesContainer({
 
   async function add() {
     setBusy(true);
+    setFailed(false);
     try {
-      await profiles.createManagedAthlete({ userId, relation, ...values });
+      await profiles.createManagedAthlete({ userId, relation: 'guardian', ...values });
       setValues(empty);
       void persist(undefined);
       await refresh();
+    } catch {
+      // Nothing was saved: the names stay in the form and the person can try again.
+      setFailed(true);
     } finally {
       setBusy(false);
     }
+  }
+
+  // The profiles are saved: the draft, swimmer choice included, has nothing left to keep.
+  async function finish() {
+    await drafts.clear().catch(() => {});
+    onContinue();
   }
 
   return (
@@ -85,12 +90,12 @@ export function AddAthletesContainer({
       total={total}
       values={values}
       athletes={added}
-      relation={relation}
       busy={busy}
+      failed={failed}
       renderStatus={renderStatus}
       onChange={change}
-      onAdd={() => void add().catch(() => {})}
-      onContinue={onContinue}
+      onAdd={() => void add()}
+      onContinue={() => void finish()}
       onBack={onBack}
     />
   );

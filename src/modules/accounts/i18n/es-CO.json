@@ -58,7 +58,7 @@
       "continue": "Continuar",
       "add_first": "Agrega al menos un deportista",
       "relation_guardian": "Hijo o hija",
-      "relation_self": "Tú"
+      "add_failed": "No pudimos guardar el deportista. Inténtalo de nuevo."
     }
   }
 }
