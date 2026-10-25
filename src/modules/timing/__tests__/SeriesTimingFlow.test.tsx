@@ -526,6 +526,49 @@ describe('series timing flow', () => {
     });
   });
 
+  it('writes a pending arrival only once when "Asignar nombres" is tapped twice in a row', async () => {
+    const { openSpy } = await setup();
+    openSpy.mockRejectedValueOnce(new Error('disk full'));
+    await startSeries();
+    await press('Llegada');
+    await arrive(31n);
+    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+    const name = screen.getByRole('button', { name: /Asignar nombres/ });
+
+    await act(async () => {
+      fireEvent.press(name);
+      fireEvent.press(name);
+    });
+
+    await screen.findByRole('header', { name: 'Asignar nombres' });
+    expect(openSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays on the timing screen, without an unhandled rejection, when the arrivals cannot be written', async () => {
+    const { openSpy } = await setup();
+    openSpy.mockRejectedValue(new Error('disk full'));
+    await startSeries();
+    await press('Llegada');
+    await arrive(31n);
+    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+
+    await press('Asignar nombres');
+
+    expect(screen.getByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
+  });
+
+  it('shows no pending notice when the list of pending arrivals cannot be read', async () => {
+    const { series, onExit } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+    jest.spyOn(series, 'listPending').mockRejectedValue(new Error('unreadable'));
+    await startSeries();
+    await press('Volver');
+
+    expect(await screen.findByText('Nadadores (2 de 3)')).toBeOnTheScreen();
+    expect(screen.queryByText(/sin nombre de/)).toBeNull();
+    expect(onExit).not.toHaveBeenCalled();
+  });
+
   it('writes a pending arrival only once when the exit is confirmed twice in a row', async () => {
     const { openSpy } = await setup();
     openSpy.mockRejectedValueOnce(new Error('disk full'));

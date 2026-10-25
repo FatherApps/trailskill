@@ -71,6 +71,7 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
   const [exitConfirm, setExitConfirm] = useState(false);
   const [pending, setPending] = useState<PendingSeries[]>([]);
   const leaving = useRef(false);
+  const naming = useRef(false);
   const [, setTick] = useState(0);
 
   const commit = () => {
@@ -96,7 +97,8 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
     repository
       .listPending()
       .then((list) => active && setPending(list))
-      .catch(() => {});
+      // Without a fresh read an old notice could be about a series that is named by now: show none.
+      .catch(() => active && setPending([]));
     return () => {
       active = false;
     };
@@ -200,11 +202,20 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
 
   // Ends the capture and names the arrivals, which are all on the phone by then.
   async function nameArrivals(queue: RosterAthlete[]) {
+    // A second tap while the first is still writing would write the same arrivals twice.
+    if (naming.current) return;
+    naming.current = true;
     const s = session.current;
-    await flush(s);
-    // An arrival still not written cannot be named: stay, and the next tap tries again.
-    if (s.unsaved.size > 0 || s.discards.size > 0 || !s.seriesId) return;
-    setStep({ kind: 'assign', queue, seriesId: s.seriesId, eventSubtitle, origin: 'live' });
+    try {
+      await flush(s);
+      // An arrival still not written cannot be named: stay, and the next tap tries again.
+      if (s.unsaved.size > 0 || s.discards.size > 0 || !s.seriesId) return;
+      setStep({ kind: 'assign', queue, seriesId: s.seriesId, eventSubtitle, origin: 'live' });
+    } catch {
+      // Stay on the timing screen; the next tap tries again.
+    } finally {
+      naming.current = false;
+    }
   }
 
   if (step.kind === 'setup') {
