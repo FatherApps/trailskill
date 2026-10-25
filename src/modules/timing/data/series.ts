@@ -1,7 +1,8 @@
 import type { DistanceCode, PoolCode, StrokeCode } from '../../../core/sport';
 import { writeBatch } from '../../../core/sync';
-import { type Measurement, type MeasurementRepository, type SessionType } from './measurements';
-import { measurementRow } from './powerSyncMeasurementRepository';
+import type { InMemoryMeasurementRepository } from './inMemoryMeasurementRepository';
+import { type Measurement, type SessionType } from './measurements';
+import { createPowerSyncMeasurementRepository, measurementRow } from './powerSyncMeasurementRepository';
 
 /** A series of athletes who start together: one row, and the arrivals are its measurements. */
 export type SeriesRecord = {
@@ -15,13 +16,23 @@ export type SeriesRecord = {
 };
 
 export interface SeriesRepository {
-  /** Saves the series with its arrivals, the ones without an athlete included ("por asignar" is never dropped). All of it or nothing. */
-  save(series: SeriesRecord, arrivals: Measurement[]): Promise<void>;
+  /** Opens the series: its row and its first arrival in one transaction, so no arrival can upload before its series. */
+  open(series: SeriesRecord, first: Measurement): Promise<void>;
+  /** Saves one more arrival of an open series on the phone, in its own transaction, the moment it is pressed. */
+  addArrival(arrival: Measurement): Promise<void>;
+  /**
+   * "Deshacer última": marks the arrival as discarded by its author. The row stays, marked, and every read leaves it out;
+   * the server accepts it once, only for the author's own unassigned series arrival. An arrival not on the phone is left alone.
+   */
+  discardArrival(id: string, discardedBy: string): Promise<void>;
+  /** Gives saved arrivals their athletes; the arrivals not listed stay "por asignar". */
+  assign(assignments: { id: string; athleteId: string }[], meta: { deviceId: string }): Promise<void>;
 }
 
 export function createPowerSyncSeriesRepository(): SeriesRepository {
+  const measurements = createPowerSyncMeasurementRepository();
   return {
-    async save(series, arrivals) {
+    async open(series, first) {
       await writeBatch(async (batch) => {
         await batch.write('timing_series', {
           id: series.id,
@@ -32,17 +43,34 @@ export function createPowerSyncSeriesRepository(): SeriesRepository {
           pool: series.pool,
           session_type: series.sessionType,
         });
-        for (const arrival of arrivals) await batch.write('measurements', measurementRow(arrival));
+        await batch.write('measurements', measurementRow(first));
       });
+    },
+    addArrival: (arrival) => measurements.add(arrival),
+    async discardArrival(id, discardedBy) {
+      await writeBatch(async (batch) => {
+        // writeRecord would insert a row that is not there, and the server refuses a second discard with another time:
+        // a missing or already discarded arrival changes nothing.
+        const [stored] = await batch.getAll<{ discarded_at: string | null }>('SELECT discarded_at FROM measurements WHERE id = ?', [id]);
+        if (stored && stored.discarded_at === null) {
+          await batch.write('measurements', { id, discarded_at: new Date().toISOString(), discarded_by: discardedBy });
+        }
+      });
+    },
+    async assign(assignments, meta) {
+      for (const { id, athleteId } of assignments) await measurements.edit(id, { athleteId }, meta);
     },
   };
 }
 
 // The measurements are the only thing the fake keeps: the series row has no reader yet.
-export function createInMemorySeriesRepository(measurements: MeasurementRepository): SeriesRepository {
+export function createInMemorySeriesRepository(measurements: InMemoryMeasurementRepository): SeriesRepository {
   return {
-    async save(_series, arrivals) {
-      for (const arrival of arrivals) await measurements.add(arrival);
+    open: (_series, first) => measurements.add(first),
+    addArrival: (arrival) => measurements.add(arrival),
+    discardArrival: (id) => measurements.discard(id),
+    async assign(assignments, meta) {
+      for (const { id, athleteId } of assignments) await measurements.edit(id, { athleteId }, meta);
     },
   };
 }

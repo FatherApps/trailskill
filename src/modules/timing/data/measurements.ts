@@ -63,6 +63,11 @@ export class CompletedMeasurementTimeError extends Error {
   override name = 'CompletedMeasurementTimeError';
 }
 
+/** A discarded arrival ("Deshacer última") never changes again: the server refuses a new time or athlete on it for good. */
+export class DiscardedMeasurementError extends Error {
+  override name = 'DiscardedMeasurementError';
+}
+
 /** A time is above zero: a missing time is null, never 0. */
 export class InvalidMeasurementTimeError extends Error {
   override name = 'InvalidMeasurementTimeError';

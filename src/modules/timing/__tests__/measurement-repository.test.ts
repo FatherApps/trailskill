@@ -4,6 +4,7 @@ import { createStore, openDatabase, type FakeDatabase } from '../../../core/sync
 import {
   CompletedMeasurementTimeError,
   createInMemoryMeasurementRepository,
+  DiscardedMeasurementError,
   createPowerSyncMeasurementRepository,
   InvalidMeasurementTimeError,
   type Measurement,
@@ -25,6 +26,7 @@ jest.mock('../../../core/sync', () => ({
   },
   writeRecord: jest.requireActual('../../../core/sync/writes').writeRecord,
   editRecord: jest.requireActual('../../../core/sync/writes').editRecord,
+  writeBatch: jest.requireActual('../../../core/sync/writes').writeBatch,
 }));
 
 function arrival(id: string, seriesId: string, position: number, athleteId: string | null): Measurement {
@@ -55,7 +57,7 @@ const MEASUREMENTS_TABLE = `CREATE TABLE measurements (
   id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, device_id TEXT, kind TEXT, athlete_id TEXT,
   series_id TEXT, arrival_position INTEGER, hundredths INTEGER, stroke TEXT, distance TEXT, pool TEXT,
   session_type TEXT, source TEXT, captured_at TEXT, parent_id TEXT, version INTEGER, base_version INTEGER,
-  edited_by TEXT, edited_at TEXT, edited_device_id TEXT, edit_reason TEXT
+  edited_by TEXT, edited_at TEXT, edited_device_id TEXT, edit_reason TEXT, discarded_at TEXT, discarded_by TEXT
 )`;
 
 let removeStore: (() => void) | undefined;
@@ -454,5 +456,51 @@ describe('PowerSync measurement repository edits', () => {
     await repository.edit('m1', { athleteId: 'athlete-2' }, { deviceId: 'device-b' });
 
     expect(rowOf('m1')).toMatchObject({ athlete_id: 'athlete-2', hundredths: 3001, edited_by: null, edited_at: null, version: 2 });
+  });
+});
+
+// "Deshacer última" keeps the row and marks it discarded: no read may bring it back (series, history, personal bests, console).
+describe('discarded arrivals', () => {
+  const event = { stroke: 'FR', distance: '50m', pool: 'SCM' } as const;
+
+  async function withDiscarded() {
+    const repository = factories[1]![1]();
+    await repository.add(arrival('kept', 'S', 1, 'athlete-1'));
+    await repository.add(arrival('gone', 'S', 2, 'athlete-1'));
+    await mockDb.writeTransaction((tx) =>
+      tx.execute("UPDATE measurements SET discarded_at = '2026-10-24T08:01:00Z', discarded_by = 'coach-a' WHERE id = 'gone'"),
+    );
+    return repository;
+  }
+
+  it('listBySeries leaves it out', async () => {
+    expect((await (await withDiscarded()).listBySeries('S')).map((m) => m.id)).toEqual(['kept']);
+  });
+
+  it('listByAthleteEvent leaves it out', async () => {
+    expect((await (await withDiscarded()).listByAthleteEvent('athlete-1', event)).map((m) => m.id)).toEqual(['kept']);
+  });
+
+  it('listByAthletesEvent leaves it out', async () => {
+    expect((await (await withDiscarded()).listByAthletesEvent(['athlete-1'], event)).map((m) => m.id)).toEqual(['kept']);
+  });
+
+  it('listByAthlete leaves it out', async () => {
+    expect((await (await withDiscarded()).listByAthlete('athlete-1')).map((m) => m.id)).toEqual(['kept']);
+  });
+
+  it('refuses to give it an athlete or a new time, and queues nothing', async () => {
+    const repository = await withDiscarded();
+    const pending = mockDb.getAll('SELECT id FROM pending_writes').length;
+
+    await expect(repository.edit('gone', { athleteId: 'athlete-2' }, { deviceId: 'device-b' })).rejects.toBeInstanceOf(DiscardedMeasurementError);
+    await expect(repository.edit('gone', { hundredths: 2950 }, { deviceId: 'device-b' })).rejects.toBeInstanceOf(DiscardedMeasurementError);
+
+    expect(mockDb.getAll('SELECT id FROM pending_writes')).toHaveLength(pending);
+    expect(mockDb.getAll("SELECT athlete_id, hundredths FROM measurements WHERE id = 'gone'")).toEqual([{ athlete_id: 'athlete-1', hundredths: 3002 }]);
+  });
+
+  it('countCapturedSince does not count it', async () => {
+    expect(await (await withDiscarded()).countCapturedSince(['athlete-1'], '2026-10-24T00:00:00Z')).toBe(1);
   });
 });

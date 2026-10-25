@@ -32,6 +32,8 @@ export type SharingRequest = {
   school: string;
   // ISO date (YYYY-MM-DD).
   requestedOn: string;
+  // Pending waits for this school's administrator; approved can be withdrawn.
+  status: 'pending' | 'approved';
 };
 
 export const purposeLabel = (purpose: AuthorizationPurpose) => t(`schoolConsole.authorizations.purposes.${purpose}`);
@@ -115,14 +117,15 @@ export function AuthorizationList({ athletes, onResend }: AuthorizationListProps
 }
 
 export type SharingRequestListProps = {
-  // null while approving another school is not available yet: the title and a note, no requests.
+  // null while the requests are not available (they are read online only): the title and a note, no requests.
   requests: SharingRequest[] | null;
-  // Only reports the press: the confirmation and the approval belong to the caller.
+  // Only report the press: the confirmation and the call belong to the caller.
   onApprove: (requestId: string) => void;
+  onWithdraw: (requestId: string) => void;
 };
 
 // The schools that asked to see this school's results, each with the approve action.
-export function SharingRequestList({ requests, onApprove }: SharingRequestListProps) {
+export function SharingRequestList({ requests, onApprove, onWithdraw }: SharingRequestListProps) {
   const { colors, space, radius, typography } = useTheme();
 
   if (requests === null) {
@@ -131,7 +134,7 @@ export function SharingRequestList({ requests, onApprove }: SharingRequestListPr
         <Text accessibilityRole="header" style={[typography.label, { color: colors[authorizationListColors.text] }]}>
           {t('schoolConsole.authorizations.requests.title')}
         </Text>
-        <Text style={[typography.caption, { color: colors[authorizationListColors.caption] }]}>{t('schoolConsole.authorizations.requests.later')}</Text>
+        <Text style={[typography.caption, { color: colors[authorizationListColors.caption] }]}>{t('schoolConsole.authorizations.requests.offline')}</Text>
       </View>
     );
   }
@@ -161,12 +164,21 @@ export function SharingRequestList({ requests, onApprove }: SharingRequestListPr
                     : t('schoolConsole.authorizations.requests.detail')}
                 </Text>
               </View>
-              <Button
-                variant="secondary"
-                label={t('schoolConsole.authorizations.requests.approve')}
-                accessibilityHint={t('schoolConsole.authorizations.requests.approve_hint', { school: request.school })}
-                onPress={() => onApprove(request.id)}
-              />
+              {request.status === 'pending' ? (
+                <Button
+                  variant="secondary"
+                  label={t('schoolConsole.authorizations.requests.approve')}
+                  accessibilityHint={t('schoolConsole.authorizations.requests.approve_hint', { school: request.school })}
+                  onPress={() => onApprove(request.id)}
+                />
+              ) : (
+                <Button
+                  variant="secondary"
+                  label={t('schoolConsole.authorizations.requests.withdraw')}
+                  accessibilityHint={t('schoolConsole.authorizations.requests.withdraw_hint', { school: request.school })}
+                  onPress={() => onWithdraw(request.id)}
+                />
+              )}
             </View>
           );
         })}

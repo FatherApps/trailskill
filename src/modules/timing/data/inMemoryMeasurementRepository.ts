@@ -3,11 +3,17 @@ import { assertEditableTime, type Measurement, type MeasurementRepository } from
 const newestFirst = (a: Measurement, b: Measurement) =>
   a.capturedAt === b.capturedAt ? a.id.localeCompare(b.id) : b.capturedAt.localeCompare(a.capturedAt);
 
-export function createInMemoryMeasurementRepository(): MeasurementRepository {
+// The fake also drops a discarded arrival: the real one keeps the row marked as discarded and leaves it out of every read.
+export type InMemoryMeasurementRepository = MeasurementRepository & { discard(id: string): Promise<void> };
+
+export function createInMemoryMeasurementRepository(): InMemoryMeasurementRepository {
   const byId = new Map<string, Measurement>();
   return {
     async add(measurement) {
       byId.set(measurement.id, measurement);
+    },
+    async discard(id) {
+      byId.delete(id);
     },
     async edit(id, { hundredths, athleteId }, { editReason }) {
       const stored = byId.get(id);
