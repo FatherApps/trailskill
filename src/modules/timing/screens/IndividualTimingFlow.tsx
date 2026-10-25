@@ -1,21 +1,15 @@
 import { randomUUID } from 'expo-crypto';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
 
 import { t } from '../../../core/i18n';
-import { distances, pools, strokes } from '../../../core/sport';
 import { retryFailedRecord, useRecordSyncStates } from '../../../core/sync';
-import { StateView } from '../../../core/ui';
 import type { Hundredths } from '../../../core/time';
-import type { Measurement, MeasurementRepository, SessionType } from '../data/measurements';
+import type { Measurement, MeasurementRepository } from '../data/measurements';
 import { elapsedAt, idleStopwatch, reset, split, splitTimes, start, stop, totalTime, type Stopwatch } from '../domain/stopwatch';
 import '../i18n';
 import { StopwatchScreen } from './StopwatchScreen';
-import { TimingSetupScreen, type SetupAthlete } from './TimingSetupScreen';
 import { TimingSummaryScreen } from './TimingSummaryScreen';
-
-// An athlete of the roster as the flow needs it. The container of the app builds it, so this module never reads another module's tables.
-export type RosterAthlete = Pick<SetupAthlete, 'id' | 'shortName' | 'initials' | 'color' | 'authorized'>;
+import { eventSubtitleOf, initialChoice, kindOf, RosterGate, TimingSetupStep, type Choice, type RosterAthlete } from './timingSession';
 
 export type IndividualTimingFlowProps = {
   // For example the school name.
@@ -30,7 +24,6 @@ export type IndividualTimingFlowProps = {
   onExit: () => void;
 };
 
-type Choice = { stroke: string; distance: string; pool: string; sessionType: SessionType };
 type Saved = { id: string; athlete: RosterAthlete; time: Hundredths };
 type Step =
   | { kind: 'setup' }
@@ -38,34 +31,28 @@ type Step =
   | { kind: 'summary'; saved: Saved[] };
 
 const TICK_MS = 50;
-const option = ({ code, nameKey }: { code: string; nameKey: string }) => ({ value: code, label: t(nameKey) });
-const nameOf = (catalog: readonly { code: string; nameKey: string }[], code: string) => t(catalog.find((c) => c.code === code)?.nameKey ?? code);
 const clock = () => BigInt(Math.round(performance.now() * 1e6));
 
 // Times the athletes of the session one by one with the on-screen stopwatch and saves each time on the phone.
-export function IndividualTimingFlow({ subtitle, loadRoster, measurements, userId, deviceId, now = clock, offline, onExit }: IndividualTimingFlowProps) {
-  const [roster, setRoster] = useState<RosterAthlete[] | 'error'>();
-  const [attempt, setAttempt] = useState(0);
-  const [choice, setChoice] = useState<Choice>({
-    stroke: strokes[0].code,
-    distance: distances[1].code,
-    pool: pools[0].code,
-    sessionType: 'training',
-  });
+export function IndividualTimingFlow(props: IndividualTimingFlowProps) {
+  return <RosterGate loadRoster={props.loadRoster}>{(roster) => <IndividualSession {...props} roster={roster} />}</RosterGate>;
+}
+
+function IndividualSession({
+  subtitle,
+  roster,
+  measurements,
+  userId,
+  deviceId,
+  now = clock,
+  offline,
+  onExit,
+}: IndividualTimingFlowProps & { roster: RosterAthlete[] }) {
+  const [choice, setChoice] = useState<Choice>(initialChoice);
   const [step, setStep] = useState<Step>({ kind: 'setup' });
   const [stopwatch, setStopwatch] = useState<Stopwatch>(idleStopwatch);
   const [exitConfirm, setExitConfirm] = useState(false);
   const [, setTick] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    loadRoster()
-      .then((athletes) => active && setRoster(athletes))
-      .catch(() => active && setRoster('error'));
-    return () => {
-      active = false;
-    };
-  }, [loadRoster, attempt]);
 
   const running = stopwatch.status === 'running';
   useEffect(() => {
@@ -77,48 +64,17 @@ export function IndividualTimingFlow({ subtitle, loadRoster, measurements, userI
   const savedIds = step.kind === 'setup' ? [] : step.saved.map((s) => s.id);
   const syncStates = useRecordSyncStates('measurements', savedIds);
 
-  if (roster === undefined) return <StateView kind="loading" />;
-  if (roster === 'error') {
-    return (
-      <View style={{ flex: 1 }}>
-        <StateView
-          kind="error"
-          title={t('timing.setup.error_title')}
-          message={t('timing.setup.error_message')}
-          action={{ label: t('timing.summary.retry_load'), onPress: () => (setRoster(undefined), setAttempt((n) => n + 1)) }}
-        />
-      </View>
-    );
-  }
-
-  const field = (value: string, options: { code: string; nameKey: string }[]) => ({ value, options: options.map(option) });
-  const authorized = roster.filter((a) => a.authorized);
-  const eventSubtitle = `${nameOf(strokes, choice.stroke)} ${nameOf(distances, choice.distance)} · ${t(`timing.session_type.${choice.sessionType}`)}`;
+  const eventSubtitle = eventSubtitleOf(choice);
 
   if (step.kind === 'setup') {
     return (
-      <TimingSetupScreen
+      <TimingSetupStep
         subtitle={subtitle}
-        stroke={field(choice.stroke, [...strokes])}
-        distance={field(choice.distance, [...distances])}
-        pool={field(choice.pool, [...pools])}
-        sessionType={{
-          value: choice.sessionType,
-          options: (['training', 'competition'] as const).map((value) => ({ value, label: t(`timing.session_type.${value}`) })),
-        }}
-        source={{ value: 'screen_stopwatch', options: [{ value: 'screen_stopwatch', label: t('timing.source.phone') }] }}
-        onStrokeChange={(stroke) => setChoice((c) => ({ ...c, stroke }))}
-        onDistanceChange={(distance) => setChoice((c) => ({ ...c, distance }))}
-        onPoolChange={(pool) => setChoice((c) => ({ ...c, pool }))}
-        onSessionTypeChange={(sessionType) => setChoice((c) => ({ ...c, sessionType: sessionType as SessionType }))}
-        // shortcut: the best time is not read yet, so the rows show "—"; upgrade with a read of each athlete's best for the event.
-        athletes={roster.map((a) => ({ ...a, bestTime: null }))}
-        selectedCount={authorized.length}
-        groupCount={roster.length}
-        // shortcut: everyone authorized is timed, in roster order; the picker screen does not exist yet.
-        onChooseAthletes={() => {}}
-        onSourceChange={() => {}}
-        onStart={() => authorized.length > 0 && setStep({ kind: 'timing', queue: authorized, position: 0, saved: [] })}
+        roster={roster}
+        choice={choice}
+        onChoiceChange={(change) => setChoice((c) => ({ ...c, ...change }))}
+        sourceLabel={t('timing.source.phone')}
+        onStart={(queue) => setStep({ kind: 'timing', queue, position: 0, saved: [] })}
         onBack={onExit}
       />
     );
@@ -159,7 +115,7 @@ export function IndividualTimingFlow({ subtitle, loadRoster, measurements, userI
         await measurements.add({
           ...base,
           id,
-          kind: choice.sessionType === 'competition' ? 'race' : 'repetition',
+          kind: kindOf(choice),
           hundredths: total,
           parentId: null,
         } as Measurement);
