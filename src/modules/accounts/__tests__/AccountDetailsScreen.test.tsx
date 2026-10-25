@@ -1,0 +1,213 @@
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
+
+import { colors } from '../../../core/theme';
+import { accountsFixture as fx } from '../__fixtures__/accounts';
+import { AccountDetailsScreen, type AccountDetailsScreenProps } from '../screens/AccountDetailsScreen';
+
+const empty = { name: '', email: '', phone: '', code: '' };
+const filled = { name: fx.person.name, email: fx.person.email, phone: fx.person.phone, code: '' };
+
+const CODE_MISMATCH = 'Ese código no coincide. Revisa el último mensaje o pide uno nuevo.';
+const EMAIL_IN_USE = 'Ya hay una cuenta con este correo. Inicia sesión';
+
+function makeCallbacks() {
+  return {
+    onGoogle: jest.fn(),
+    onMicrosoft: jest.fn(),
+    onRequestCode: jest.fn(),
+    onSubmitCode: jest.fn(),
+    onBack: jest.fn(),
+    onSignIn: jest.fn(),
+    onChange: jest.fn(),
+  };
+}
+
+async function renderScreen(props: Partial<AccountDetailsScreenProps> = {}) {
+  const callbacks = makeCallbacks();
+  await render(<AccountDetailsScreen step={2} total={4} values={empty} {...callbacks} {...props} />);
+  return callbacks;
+}
+
+const buttonNames = () => screen.getAllByRole('button').map((button) => button.props.accessibilityLabel);
+const backgroundOf = (name: string) =>
+  StyleSheet.flatten(screen.getByRole('button', { name }).props.style).backgroundColor;
+
+describe('AccountDetailsScreen states', () => {
+  it('initial: providers first, then the code option with name, email and phone', async () => {
+    await renderScreen();
+
+    expect(screen.getByRole('header', { name: 'Crear cuenta' })).toBeOnTheScreen();
+    expect(screen.getByText('Paso 2 de 4')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Nombre')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Celular')).toBeOnTheScreen();
+    expect(screen.getByText('o con un código por correo')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Continuar con Microsoft' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Enviarme un código' })).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Código de 6 dígitos')).toBeNull();
+    expect(screen.queryByTestId('banner')).toBeNull();
+  });
+
+  it('codeSent: asks for the 6-digit code that was sent to the email', async () => {
+    await renderScreen({ values: filled, codeSent: true });
+
+    const code = screen.getByLabelText('Código de 6 dígitos');
+    expect(code.props.accessibilityHint).toBe(`Te enviamos un código de 6 dígitos a ${fx.person.email}.`);
+    expect(code.props.keyboardType).toBe('number-pad');
+    expect(code.props.maxLength).toBe(6);
+    expect(screen.getByRole('button', { name: 'Verificar y continuar' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Pedir un código nuevo' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Enviarme un código' })).toBeNull();
+  });
+
+  it('codeMismatch: shows the exact message on the code field', async () => {
+    await renderScreen({
+      values: { ...filled, code: fx.wrongCode },
+      codeSent: true,
+      errors: { code: 'mismatch' },
+    });
+
+    expect(screen.getByText(CODE_MISMATCH)).toBeOnTheScreen();
+    expect(screen.getByLabelText('Código de 6 dígitos').props.accessibilityHint).toBe(CODE_MISMATCH);
+  });
+
+  it('emailInUse: shows the exact message and a way to the sign-in screen', async () => {
+    const { onSignIn } = await renderScreen({ values: filled, errors: { email: 'in_use' } });
+
+    expect(screen.getByText(EMAIL_IN_USE)).toBeOnTheScreen();
+    expect(screen.getByLabelText('Correo electrónico').props.accessibilityHint).toBe(EMAIL_IN_USE);
+    await fireEvent.press(screen.getByRole('button', { name: 'Iniciar sesión' }));
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
+
+  it('offline: says verifying needs signal, keeps what was typed and marks network buttons', async () => {
+    await renderScreen({ values: filled, codeSent: true, offline: true });
+
+    expect(screen.getByTestId('banner')).toHaveTextContent(
+      'Estás sin conexión. Guardamos lo que escribiste; verificar el código necesita señal.',
+    );
+    expect(screen.getByDisplayValue(fx.person.name)).toBeOnTheScreen();
+    expect(screen.getByDisplayValue(fx.person.email)).toBeOnTheScreen();
+    expect(screen.getByDisplayValue(fx.person.phone)).toBeOnTheScreen();
+    for (const name of [
+      'Continuar con Google',
+      'Continuar con Microsoft',
+      'Verificar y continuar',
+      'Pedir un código nuevo',
+    ]) {
+      const button = screen.getByRole('button', { name });
+      expect(button).toBeDisabled();
+      expect(button.props.accessibilityHint).toBe('Necesitas señal');
+    }
+    expect(screen.getAllByText('Necesitas señal')).toHaveLength(4);
+  });
+
+  it('offline before the code: the code request needs signal too', async () => {
+    await renderScreen({ values: filled, offline: true });
+
+    const button = screen.getByRole('button', { name: 'Enviarme un código' });
+    expect(button).toBeDisabled();
+    expect(button.props.accessibilityHint).toBe('Necesitas señal');
+  });
+
+  it('sending: the code button shows its loading label', async () => {
+    await renderScreen({ values: filled, busy: 'sending' });
+
+    expect(screen.getByText('Enviando código…')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Enviarme un código' })).toBeBusy();
+  });
+
+  it('verifying: the verify button shows its loading label', async () => {
+    await renderScreen({ values: { ...filled, code: fx.wrongCode }, codeSent: true, busy: 'verifying' });
+
+    expect(screen.getByText('Verificando…')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Verificar y continuar' })).toBeBusy();
+  });
+
+  it('invitation: the school and the group come filled in and only confirming is left', async () => {
+    await renderScreen({ values: filled, invitation: fx.invitation });
+
+    expect(screen.getAllByText(fx.invitation.school, { exact: true })).toHaveLength(2);
+    expect(screen.getByTestId('banner')).toHaveTextContent(
+      'Te invitó Escuela Delfines al grupo Infantil B. Revisa tus datos y confirma.',
+    );
+  });
+});
+
+describe('AccountDetailsScreen rules', () => {
+  it('puts Google and Microsoft before the code option, and the code option is not primary', async () => {
+    await renderScreen({ values: filled });
+
+    const names = buttonNames();
+    const code = names.indexOf('Enviarme un código');
+    expect(names.indexOf('Continuar con Google')).toBeLessThan(code);
+    expect(names.indexOf('Continuar con Microsoft')).toBeLessThan(code);
+    expect(backgroundOf('Enviarme un código')).not.toBe(colors.light.action);
+    expect(backgroundOf('Continuar con Google')).not.toBe(colors.light.action);
+  });
+
+  it.each([
+    ['initial', {}],
+    ['codeSent', { codeSent: true }],
+    ['offline', { offline: true, codeSent: true }],
+    ['emailInUse', { errors: { email: 'in_use' as const } }],
+  ])('%s has no password field', async (_name, props) => {
+    await renderScreen(props);
+
+    const inputs = screen.container.queryAll((node) => node.type === 'TextInput');
+    expect(inputs.length).toBeGreaterThan(0);
+    expect(inputs.every((input) => !input.props.secureTextEntry)).toBe(true);
+  });
+
+  it('keeps every field readable at large text: a scroll view and no clipping', async () => {
+    await renderScreen({ values: filled, codeSent: true });
+
+    expect(screen.container.queryAll((node) => node.type === 'RCTScrollView').length).toBeGreaterThan(0);
+    for (const text of screen.container.queryAll((node) => node.type === 'Text')) {
+      expect(text.props.numberOfLines).toBeUndefined();
+      expect(text.props.allowFontScaling).not.toBe(false);
+    }
+  });
+});
+
+describe('AccountDetailsScreen callbacks', () => {
+  it('calls the provider and code callbacks', async () => {
+    const callbacks = await renderScreen({ values: filled });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar con Google' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar con Microsoft' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviarme un código' }));
+
+    expect(callbacks.onGoogle).toHaveBeenCalledTimes(1);
+    expect(callbacks.onMicrosoft).toHaveBeenCalledTimes(1);
+    expect(callbacks.onRequestCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('submits the code, asks for a new one and goes back', async () => {
+    const callbacks = await renderScreen({ values: { ...filled, code: '123456' }, codeSent: true });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Verificar y continuar' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Pedir un código nuevo' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+
+    expect(callbacks.onSubmitCode).toHaveBeenCalledTimes(1);
+    expect(callbacks.onRequestCode).toHaveBeenCalledTimes(1);
+    expect(callbacks.onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports each edited field, keeping only digits in the code', async () => {
+    const { onChange } = await renderScreen({ codeSent: true });
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Camila');
+    await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'c@example.test');
+    await fireEvent.changeText(screen.getByLabelText('Celular'), '300');
+    await fireEvent.changeText(screen.getByLabelText('Código de 6 dígitos'), '12a3 4567');
+
+    expect(onChange).toHaveBeenNthCalledWith(1, 'name', 'Camila');
+    expect(onChange).toHaveBeenNthCalledWith(2, 'email', 'c@example.test');
+    expect(onChange).toHaveBeenNthCalledWith(3, 'phone', '300');
+    expect(onChange).toHaveBeenNthCalledWith(4, 'code', '123456');
+  });
+});
