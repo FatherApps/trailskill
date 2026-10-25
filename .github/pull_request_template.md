@@ -36,6 +36,8 @@ Closes #
 - [ ] Documentación y `AGENTS.md` actualizados si cambió el comportamiento o el flujo.
 - [ ] Sin secretos, credenciales ni datos personales reales.
 - [ ] Se consideró el uso sin conexión y los datos faltantes (un tiempo faltante no es cero).
+- [ ] Reutiliza funciones y componentes existentes (o explica por qué no).
+- [ ] Cambios de interfaz: incluye capturas lado a lado comparadas con el sistema de diseño, con datos ficticios.
 
 ## Requiere aprobación del maintainer
 

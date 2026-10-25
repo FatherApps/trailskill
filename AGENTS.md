@@ -57,6 +57,7 @@ Every module has the same shape: `src/modules/<module>/index.ts` (its only publi
 - `src/core/` never imports a module. `src/app/` imports only module `index.ts` files and `src/core/`.
 - Each table belongs to one module. Other modules read it through that module's public API.
 - Put new code in the module that owns the behavior. Move code to `src/core/` only when two modules need it and the maintainer approves.
+- Reuse before creating, and check interface work against the design system: see [Reuse before creating](CONTRIBUTING.md#reuse-before-creating) and [Visual fidelity](CONTRIBUTING.md#visual-fidelity).
 
 ### Patterns
 
