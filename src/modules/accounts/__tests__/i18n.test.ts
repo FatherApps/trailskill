@@ -2,6 +2,10 @@ import { t } from '../../../core/i18n';
 import '../index';
 import esCO from '../i18n/es-CO.json';
 
+// The accounts index reaches the PowerSync repository; the sync layer is ESM-only for Jest.
+jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync/db', () => ({ db: {} }));
+
 describe('accounts i18n', () => {
   it('registers its copy when the module is imported', () => {
     expect(t('accounts.create_title')).toBe('Crear cuenta');
