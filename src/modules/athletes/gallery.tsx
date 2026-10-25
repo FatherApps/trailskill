@@ -3,12 +3,14 @@ import { View } from 'react-native';
 
 import type { GalleryEntry } from '../../core/ui';
 import { historyFixture as h, historyLongTextResults, historyResults } from './__fixtures__/history';
+import { profileContentFixture, storedOnFixture } from './__fixtures__/screen';
 import { eventFixture as ev, personalBestFixture as pb, profileFixture as pf } from './__fixtures__/profile';
 import { EventSelector, type EventValue } from './components/EventSelector';
 import { HistoryList } from './components/HistoryList';
 import { ImportPrompt } from './components/ImportPrompt';
 import { PersonalBest, type PersonalBestProps } from './components/PersonalBest';
 import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHeader';
+import { AthleteProfileScreen, type AthleteProfileContent, type AthleteProfileView } from './screens/AthleteProfileScreen';
 
 // The preview box shrinks its children to their content; these components need the full width.
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
@@ -64,6 +66,20 @@ const noop = () => {};
 
 const prompt = { athleteName: h.athleteName, onDismiss: noop, onRefresh: noop, onLearnMore: noop };
 
+// Holds the event selection, so tapping an option changes it in the gallery. `view` picks the state to show.
+function AthleteProfileScreenPreview({ view }: { view: (content: AthleteProfileContent) => AthleteProfileView }) {
+  const [value, setValue] = useState<EventValue>(profileContentFixture.event.value);
+  const content = { ...profileContentFixture, event: { ...profileContentFixture.event, value, onChange: setValue } };
+
+  // The gallery page scrolls, so the list inside does not.
+  return <AthleteProfileScreen name={pf.name} view={view(content)} scrollEnabled={false} />;
+}
+
+const screenPreview = (view: (content: AthleteProfileContent) => AthleteProfileView) =>
+  function ScreenPreview() {
+    return <AthleteProfileScreenPreview view={view} />;
+  };
+
 const entry = (id: string, title: string, states: Record<string, () => ReactElement>): GalleryEntry => ({
   id,
   title,
@@ -114,4 +130,18 @@ export const galleryEntries: GalleryEntry[] = [
       'no-source': () => <ImportPrompt {...prompt} imported={false} />,
     },
   },
+  entry('athleteProfileScreen', 'AthleteProfileScreen', {
+    'with-data': screenPreview((content) => ({ kind: 'data', content })),
+    loading: screenPreview(() => ({ kind: 'loading' })),
+    empty: screenPreview((content) => ({ kind: 'empty', content })),
+    error: screenPreview(() => ({ kind: 'error', onRetry: noop })),
+    'offline-with-data': screenPreview((content) => ({ kind: 'offline', storedOn: storedOnFixture, content })),
+    'offline-no-data': screenPreview(() => ({ kind: 'offline-empty' })),
+    denied: screenPreview(() => ({ kind: 'denied', onRequestAccess: noop })),
+    'other-school-offline': screenPreview(() => ({ kind: 'other-school-offline' })),
+    'with-import-prompt': screenPreview((content) => ({
+      kind: 'data',
+      content: { ...content, importPrompt: { ...prompt, sourceName: h.sourceName, imported: false } },
+    })),
+  }),
 ];

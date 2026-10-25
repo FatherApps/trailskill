@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { processColor, StyleSheet } from 'react-native';
+import { Dimensions, processColor, StyleSheet } from 'react-native';
 
 import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../theme';
 import { iconPaths } from '../icons';
@@ -19,6 +19,13 @@ const base: SwimmerRowProps = {
 
 const rowStyle = (row: { props: { style?: unknown } }) => StyleSheet.flatten(row.props.style as never);
 const hiddenTexts = () => screen.queryAllByText(/./, { includeHiddenElements: true });
+
+// The avatar is the parent of the initials text.
+const avatarStyle = () => rowStyle(screen.getByText('LR', { includeHiddenElements: true }).parent as never);
+
+const realGet = Dimensions.get.bind(Dimensions);
+const setOsFontScale = (fontScale: number) =>
+  jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale }));
 
 describe('SwimmerRow time', () => {
   const timed = { name: 'Lucía R.', initials: 'LR', color: 'athlete-1', detail: 'Infantil B' } as const;
@@ -97,6 +104,11 @@ describe('SwimmerRow difference against the personal best', () => {
 });
 
 describe('SwimmerRow', () => {
+  // The Jest environment reports an OS text scale of 2; pin it so tests do not depend on it.
+  beforeEach(() => setOsFontScale(1));
+
+  afterEach(() => jest.restoreAllMocks());
+
   it('is one accessible element with a composed label', async () => {
     await render(<SwimmerRow {...base} onPress={jest.fn()} />);
 
@@ -241,7 +253,7 @@ describe('SwimmerRow', () => {
         </ThemeProvider>,
       );
 
-      const avatars = screen.container.queryAll((node) => rowStyle(node)?.borderRadius === 999 && rowStyle(node)?.minWidth === 40);
+      const avatars = screen.container.queryAll((node) => rowStyle(node)?.borderRadius === 999 && rowStyle(node)?.width === rowStyle(node)?.height);
       expect(avatars.length).toBeGreaterThan(0);
       expect(rowStyle(avatars[0]).backgroundColor).toBe(colors[theme]['surface-2']);
       expect(StyleSheet.flatten(screen.getByText('LR', { includeHiddenElements: true }).props.style).color).toBe(
@@ -271,6 +283,30 @@ describe('SwimmerRow', () => {
         colors[theme]['on-color'],
       );
     }
+  });
+
+  it('draws a 40 x 40 circle at the default text scale', async () => {
+    await render(<SwimmerRow {...base} />);
+
+    expect(avatarStyle()).toMatchObject({ width: 40, height: 40, borderRadius: 999 });
+  });
+
+  it.each([
+    ['the theme preview scale', 2, 1],
+    ['the OS text scale', 1, 2],
+  ])('keeps the initials inside a square avatar at 200 %% of %s', async (_name, themeScale, osScale) => {
+    setOsFontScale(osScale);
+    await render(
+      <ThemeProvider fontScale={themeScale}>
+        <SwimmerRow {...base} />
+      </ThemeProvider>,
+    );
+
+    const { width, height } = avatarStyle();
+    const { lineHeight } = StyleSheet.flatten(screen.getByText('LR', { includeHiddenElements: true }).props.style);
+    expect(width).toBe(height);
+    expect(width).toBeGreaterThan(40);
+    expect(width).toBeGreaterThanOrEqual(lineHeight * osScale);
   });
 
   describe.each(themes)('%s theme contrast', (theme) => {

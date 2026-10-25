@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
-import { PixelRatio, StyleSheet } from 'react-native';
+import { PixelRatio, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, contrastRatio, size, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { historyFixture, historyResults } from '../__fixtures__/history';
@@ -7,6 +7,15 @@ import { HistoryList, type HistoryResult } from '../components/HistoryList';
 
 const themes: ThemeName[] = ['light', 'dark'];
 const byId = (id: string): HistoryResult => historyResults.find((result) => result.id === id)!;
+// Host element types and accessibility labels and texts, in render order.
+type Json = { type: string; props: { accessibilityLabel?: string }; children: Json[] | string[] | null };
+const flatten = (node: unknown): string[] => {
+  if (node === null || node === undefined) return [];
+  if (Array.isArray(node)) return node.flatMap(flatten);
+  if (typeof node === 'string') return [node];
+  const { type, props, children } = node as Json;
+  return [type, ...(props.accessibilityLabel ? [props.accessibilityLabel] : []), ...flatten(children)];
+};
 const hiddenText = (text: string | RegExp) => screen.queryAllByText(text, { includeHiddenElements: true });
 
 describe('HistoryList', () => {
@@ -190,6 +199,41 @@ describe('HistoryList', () => {
       expect(rowStyle().flexDirection).toBe('column');
       expect(rowStyle().alignItems).toBe('stretch');
       expect(trailingStyle().alignItems).toBe('flex-start');
+    });
+  });
+
+  describe('header and footer', () => {
+    it('renders the header above the rows and the footer below them, inside the one list', async () => {
+      await render(
+        <HistoryList results={[byId('race-pb')]} header={<Text>Encabezado</Text>} footer={<Text>Pie</Text>} />,
+      );
+
+      expect(screen.getByText('Encabezado')).toBeOnTheScreen();
+      expect(screen.getByText('Pie')).toBeOnTheScreen();
+      const flat = flatten(screen.toJSON());
+      // One scroll container: the header and footer scroll with the rows.
+      expect(flat.filter((item) => item === 'RCTScrollView')).toHaveLength(1);
+      expect(flat.indexOf('Encabezado')).toBeLessThan(flat.findIndex((item) => item.startsWith('Libre 50 m')));
+      expect(flat.findIndex((item) => item.startsWith('Libre 50 m'))).toBeLessThan(flat.indexOf('Pie'));
+    });
+
+    it('still renders the header and footer without results', async () => {
+      await render(<HistoryList results={[]} header={<Text>Encabezado</Text>} footer={<Text>Pie</Text>} />);
+
+      expect(screen.getByText('Encabezado')).toBeOnTheScreen();
+      expect(screen.getByText('Pie')).toBeOnTheScreen();
+    });
+
+    it('fills the height it is given when it scrolls, so the list is bounded', async () => {
+      const rootStyle = () =>
+        StyleSheet.flatten((screen.toJSON() as unknown as { props: { style: StyleProp<ViewStyle> } }).props.style);
+
+      await render(<HistoryList results={[byId('race-pb')]} />);
+      expect(rootStyle()?.flex).toBe(1);
+
+      await screen.unmount();
+      await render(<HistoryList results={[byId('race-pb')]} scrollEnabled={false} />);
+      expect(rootStyle()?.flex).toBeUndefined();
     });
   });
 

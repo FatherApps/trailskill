@@ -52,6 +52,33 @@
     "learn_more": "Ver cómo",
     "refresh": "Actualizar desde {{source}}"
   },
+  "screen": {
+    "history_title": "Historial",
+    "retry": "Intentar de nuevo",
+    "empty": {
+      "title": "Aún no hay tiempos",
+      "message": "Cuando el entrenador registre una medición de {{name}}, aparecerá aquí."
+    },
+    "error": {
+      "title": "No pudimos cargar el perfil",
+      "message": "Revisa tu conexión e inténtalo de nuevo."
+    },
+    "offline": {
+      "title": "Estás sin conexión",
+      "banner_dated": "Mostramos lo guardado en este teléfono el {{date}}.",
+      "banner_undated": "Mostramos lo guardado en este teléfono.",
+      "message": "No hay datos guardados de {{name}} en este teléfono. Aparecerán cuando vuelva la conexión."
+    },
+    "online_only": {
+      "title": "Disponible con conexión",
+      "message": "Los resultados de otra escuela se ven solo con conexión. No guardamos copias en este teléfono."
+    },
+    "denied": {
+      "title": "Esta información es privada",
+      "message": "Solo el acudiente de {{name}} y su escuela pueden verla.",
+      "action": "Pedir acceso a la escuela"
+    }
+  },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",
