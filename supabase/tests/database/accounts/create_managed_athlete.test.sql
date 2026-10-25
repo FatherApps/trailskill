@@ -6,7 +6,7 @@
 -- All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(32);
 
 -- Users: guardian G, guardian X (another family) and adult athlete A.
 insert into auth.users (id, email) values
@@ -139,6 +139,21 @@ select throws_ok(
   'a blank first name is refused'
 );
 select throws_ok(
+  format($$ select public.create_managed_athlete(pg_temp.sent(
+       '71000000-0000-4000-8000-0000000000e3', '71000000-0000-4000-8000-0000000000f3', %L)) $$, repeat('a', 101)),
+  '22023',
+  null,
+  'a first name of 101 characters is refused'
+);
+select throws_ok(
+  $$ select public.create_managed_athlete(jsonb_set(pg_temp.sent(
+       '71000000-0000-4000-8000-0000000000e3', '71000000-0000-4000-8000-0000000000f3', 'Carla'),
+       '{athlete,last_name}', to_jsonb(repeat('b', 101)))) $$,
+  '22023',
+  null,
+  'a last name of 101 characters is refused'
+);
+select throws_ok(
   $$ select public.create_managed_athlete(pg_temp.sent(
        '71000000-0000-4000-8000-0000000000e3', '71000000-0000-4000-8000-0000000000f3', 'Carla', 'guardian',
        '{"athlete_id": "71000000-0000-4000-8000-0000000000e1"}')) $$,
@@ -151,6 +166,14 @@ select throws_ok(
   '22023',
   null,
   'a payload without athlete and manager is refused'
+);
+
+select is(
+  public.create_managed_athlete(jsonb_set(pg_temp.sent(
+    '71000000-0000-4000-8000-0000000000ea', '71000000-0000-4000-8000-0000000000fa', repeat('a', 100)),
+    '{athlete,last_name}', to_jsonb(repeat('b', 100)))),
+  'stored',
+  'names of exactly 100 characters are accepted'
 );
 
 -- Guardian X cannot take over or replay what G created.

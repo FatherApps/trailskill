@@ -41,7 +41,8 @@ begin
   v_relation := m ->> 'relation';
   if v_athlete is null or v_manager is null or (m ->> 'athlete_id')::uuid is distinct from v_athlete
      or v_relation is null or v_relation not in ('guardian', 'self')
-     or btrim(coalesce(v_first, '')) = '' or btrim(coalesce(v_last, '')) = '' then
+     or btrim(coalesce(v_first, '')) = '' or btrim(coalesce(v_last, '')) = ''
+     or char_length(v_first) > 100 or char_length(v_last) > 100 then
     raise exception 'invalid athlete or manager' using errcode = '22023';
   end if;
 
