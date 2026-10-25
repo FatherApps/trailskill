@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Pressable, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 
 import { t } from '../i18n';
 import { typography as baseTypography, useTheme, type ColorToken } from '../theme';
@@ -53,6 +53,10 @@ export const swimmerRowColors: {
 // From this text scale up the name and the trailing element no longer fit side by side (as in HistoryList).
 const largeTextScale = 1.5;
 
+// A name column narrower than this many body-strong font sizes breaks words mid-word ("Vale / ntina"); 8 em holds the
+// longest first names and surnames with room to spare.
+const minNameEms = 8;
+
 // The row is one accessible element: its parts are hidden from screen readers and the label says them all.
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
@@ -79,7 +83,21 @@ export function SwimmerRow({
   // 40 is the design-system avatar size at 100 % (not a token).
   const avatarSize = Math.max(40, Math.ceil(typography.label.lineHeight * fontScale) + 2 * space[2]);
   // The gallery preview scale (theme) and the system scale both apply.
-  const large = (typography.caption.fontSize / baseTypography.caption.fontSize) * fontScale >= largeTextScale;
+  const largeText = (typography.caption.fontSize / baseTypography.caption.fontSize) * fontScale >= largeTextScale;
+
+  // Widths measured by layout, in dp. The row's width is set by its parent, so it never depends on the layout chosen
+  // here. The trailing width is only taken from the side-by-side layout (the one place that wrapper exists), so
+  // stacking cannot change it and the row cannot flip back and forth.
+  const [rowWidth, setRowWidth] = useState<number | null>(null);
+  const [trailingWidth, setTrailingWidth] = useState(0);
+  const onRowLayout = ({ nativeEvent }: LayoutChangeEvent) => setRowWidth(nativeEvent.layout.width);
+  const onTrailingLayout = ({ nativeEvent }: LayoutChangeEvent) => setTrailingWidth(nativeEvent.layout.width);
+  // Side by side needs: row padding both sides, avatar, the gaps either side of the name, a name column of at least
+  // `minNameEms`, and the trailing element at its natural width. Less than that and the trailing element goes below.
+  const sideBySideWidth =
+    2 * space[4] + avatarSize + 2 * space[3] + minNameEms * typography['body-strong'].fontSize * fontScale + trailingWidth;
+  // Unknown width (before the first layout): side by side, as before.
+  const large = largeText || (rowWidth !== null && rowWidth < sideBySideWidth);
 
   // `time` wins over `bestTime`: the row never shows two times on the right.
   const showBest = time === undefined && bestTime !== undefined;
@@ -154,7 +172,8 @@ export function SwimmerRow({
 
   // A status can be wide (a pill plus a retry button): cap its column so it wraps instead of squeezing the name.
   // At large text the column already sits below the name with the full width.
-  const statusColumnStyle = large ? trailingStyle : ({ ...trailingStyle, maxWidth: '50%' } as const);
+  // Side by side the cap sits on the measured trailing wrapper (50 % of the row), so the column only has to shrink.
+  const statusColumnStyle = large ? trailingStyle : ({ ...trailingStyle, flexShrink: 1 } as const);
 
   // With a status the end column is not hidden as a whole: only the time is, and the status stays its own element.
   const timeColumn = (timeBlock: ReactNode) =>
@@ -205,6 +224,18 @@ export function SwimmerRow({
   // A status may hold a button, and an accessible element hides its children from iOS screen readers. So with a
   // status the single accessible element (and touch target) is only the avatar and text; the trailing column,
   // status included, sits beside it (below it at large text).
+  // Side by side, the trailing parts share one wrapper so their natural width can be measured. Not rendered when
+  // there is nothing to show, so it adds no gap.
+  const hasTrailing = time !== undefined || showBest || Boolean(status) || Boolean(tag) || chevron;
+  const sideTrailing = hasTrailing ? (
+    <View
+      onLayout={onTrailingLayout}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], flexShrink: 0, ...(status && { maxWidth: '50%' }) }}
+    >
+      {trailing}
+    </View>
+  ) : null;
+
   if (status) {
     const group = { flexDirection: 'row', alignItems: 'center', gap: space[3] } as const;
     const lead = (
@@ -214,7 +245,10 @@ export function SwimmerRow({
       </>
     );
     return (
-      <View style={large ? { ...rowStyle, flexDirection: 'column', alignItems: 'stretch', gap: space[2] } : rowStyle}>
+      <View
+        onLayout={onRowLayout}
+        style={large ? { ...rowStyle, flexDirection: 'column', alignItems: 'stretch', gap: space[2] } : rowStyle}
+      >
         {onPress ? (
           <Pressable
             accessibilityRole="button"
@@ -239,7 +273,7 @@ export function SwimmerRow({
           // Aligned with the name: avatar width plus the gap.
           <View style={{ ...trailingGroupStyle, paddingLeft: avatarSize + space[3] }}>{trailing}</View>
         ) : (
-          trailing
+          sideTrailing
         )}
       </View>
     );
@@ -257,7 +291,7 @@ export function SwimmerRow({
       ) : (
         <>
           {nameBlock({ flex: 1, flexShrink: 1, minWidth: 0 })}
-          {trailing}
+          {sideTrailing}
         </>
       )}
     </>
@@ -269,12 +303,13 @@ export function SwimmerRow({
       accessibilityLabel={label}
       accessibilityState={{ selected }}
       onPress={onPress}
+      onLayout={onRowLayout}
       style={rowStyle}
     >
       {content}
     </Pressable>
   ) : (
-    <View accessible accessibilityLabel={label} accessibilityState={{ selected }} style={rowStyle}>
+    <View accessible accessibilityLabel={label} accessibilityState={{ selected }} onLayout={onRowLayout} style={rowStyle}>
       {content}
     </View>
   );
