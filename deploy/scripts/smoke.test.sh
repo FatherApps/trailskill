@@ -25,6 +25,7 @@ export POWERSYNC_DB_PASSWORD POWERSYNC_STORAGE_PASSWORD SUPABASE_JWT_SECRET SUPA
 R=$T/repo
 mkdir -p "$R/deploy" "$R/powersync" "$R/supabase/migrations" "$R/.git"
 cp -R "$HERE/../compose.yaml" "$HERE/../powersync" "$HERE/../scripts" "$R/deploy/"
+cp "$HERE/../../powersync/sync-config.yaml" "$R/powersync/"
 echo "SECRET_MARKER=$SUPER_PW" >"$R/deploy/.env" # Dokploy writes the service environment here
 echo ref >"$R/.git/HEAD"
 COMPOSE=$R/deploy/compose.yaml
@@ -83,6 +84,17 @@ until [ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/probes
   sleep 2
 done
 echo "PASS: powersync liveness 200"
+# By default PowerSync must load the repository's Sync Streams file without config errors.
+# shellcheck disable=SC2016 # expansion must happen inside the container
+dc exec -T powersync sh -c '[ "$PS_SYNC_CONFIG_PATH" = /sync/sync-config.yaml ] && [ -s "$PS_SYNC_CONFIG_PATH" ]' \
+  || fail "powersync does not default to powersync/sync-config.yaml"
+i=0
+until dc logs powersync 2>&1 | grep -q '"Loaded sync config"'; do
+  i=$((i + 1)); [ "$i" -gt 30 ] && fail "powersync did not load the sync config"
+  sleep 2
+done
+dc logs powersync 2>&1 | grep -qE 'PSYNC_S1141|PSYNC_S2302' && fail "powersync reported a sync config error"
+echo "PASS: powersync loaded the Sync Streams config"
 # Neither container may see .env, .git or the rest of the repository.
 dc exec -T powersync sh -c '
   [ ! -e /repo ] && [ ! -e /config/.env ] && [ ! -e /sync/.env ] &&
