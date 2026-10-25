@@ -29,12 +29,23 @@ const sourceFiles = filesIn(moduleDir).filter((file) => !file.includes('__tests_
 
 describe('athletes gallery entries', () => {
   it('have unique ids and the expected states', () => {
-    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'importPrompt']);
+    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'importPrompt', 'athleteProfileScreen']);
     expect(stateKeys('profileHeader')).toEqual(['one-school', 'several-schools', 'pending-authorization', 'long-text']);
     expect(stateKeys('eventSelector')).toEqual(['one-pool', 'two-pools']);
     expect(stateKeys('personalBest')).toEqual(['with-improvement', 'no-improvement', 'missing', 'training']);
     expect(stateKeys('historyList')).toEqual(['mixed', 'long-text']);
     expect(stateKeys('importPrompt')).toEqual(['not-imported', 'imported', 'no-source']);
+    expect(stateKeys('athleteProfileScreen')).toEqual([
+      'with-data',
+      'loading',
+      'empty',
+      'error',
+      'offline-with-data',
+      'offline-no-data',
+      'denied',
+      'other-school-offline',
+      'with-import-prompt',
+    ]);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
@@ -87,6 +98,26 @@ describe('athletes gallery entries', () => {
 
     expect(screen.getByText('—', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.queryByText('0,00', { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('athleteProfileScreen / with-data keeps the event selection while it is shown and starts fresh when mounted again', async () => {
+    const { unmount } = await render(<ThemeProvider>{entryById('athleteProfileScreen').states['with-data']()}</ThemeProvider>);
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'Espalda' }));
+    expect(screen.getByRole('radio', { name: 'Espalda' })).toBeChecked();
+
+    await unmount();
+    await render(<ThemeProvider>{entryById('athleteProfileScreen').states['with-data']()}</ThemeProvider>);
+    expect(screen.getByRole('radio', { name: 'Libre' })).toBeChecked();
+  });
+
+  it('athleteProfileScreen / with-import-prompt shows the prompt and with-data does not', async () => {
+    await render(<ThemeProvider>{entryById('athleteProfileScreen').states['with-import-prompt']()}</ThemeProvider>);
+    expect(screen.getByRole('button', { name: 'Ahora no' })).toBeOnTheScreen();
+
+    await screen.unmount();
+    await render(<ThemeProvider>{entryById('athleteProfileScreen').states['with-data']()}</ThemeProvider>);
+    expect(screen.queryByRole('button', { name: 'Ahora no' })).toBeNull();
   });
 
   it('no module file contains a hexadecimal color, a line limit or a font-scaling opt-out', () => {

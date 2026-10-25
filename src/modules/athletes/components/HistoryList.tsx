@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { FlatList, PixelRatio, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -42,6 +43,10 @@ export type HistoryListProps = {
   results: HistoryResult[];
   // Set to false when the list sits inside a parent ScrollView, which scrolls instead.
   scrollEnabled?: boolean;
+  // Scroll with the rows, above and below them and outside the card: a screen puts its content here so the
+  // whole screen is this one virtualized list instead of a list inside a ScrollView.
+  header?: ReactNode;
+  footer?: ReactNode;
 };
 
 export const historyListColors: { card: ColorToken; separator: ColorToken; title: ColorToken; meta: ColorToken } = {
@@ -175,25 +180,37 @@ function HistoryRow({ result }: { result: HistoryResult }) {
 }
 
 // Presentational: the caller supplies the results (newest first) and each one's real sync state.
-export function HistoryList({ results, scrollEnabled = true }: HistoryListProps) {
+export function HistoryList({ results, scrollEnabled = true, header, footer }: HistoryListProps) {
   const { colors, radius } = useTheme();
 
-  if (results.length === 0) return null;
+  if (results.length === 0 && header === undefined && footer === undefined) return null;
+
+  const last = results.length - 1;
 
   return (
-    <View
-      style={{
-        alignSelf: 'stretch',
-        overflow: 'hidden',
-        borderRadius: radius.md,
-        backgroundColor: colors[historyListColors.card],
-      }}
-    >
+    // A list that scrolls fills the height it is given; with no bounded height it would just grow.
+    <View style={{ alignSelf: 'stretch', flex: scrollEnabled ? 1 : undefined }}>
       <FlatList
         data={results}
         scrollEnabled={scrollEnabled}
         keyExtractor={(result) => result.id}
-        renderItem={({ item }) => <HistoryRow result={item} />}
+        ListHeaderComponent={header === undefined ? undefined : <>{header}</>}
+        ListFooterComponent={footer === undefined ? undefined : <>{footer}</>}
+        // The card is drawn row by row, so the header and footer sit outside it.
+        renderItem={({ item, index }) => (
+          <View
+            style={{
+              backgroundColor: colors[historyListColors.card],
+              borderTopLeftRadius: index === 0 ? radius.md : 0,
+              borderTopRightRadius: index === 0 ? radius.md : 0,
+              borderBottomLeftRadius: index === last ? radius.md : 0,
+              borderBottomRightRadius: index === last ? radius.md : 0,
+              overflow: 'hidden',
+            }}
+          >
+            <HistoryRow result={item} />
+          </View>
+        )}
         ItemSeparatorComponent={() => (
           <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors[historyListColors.separator] }} />
         )}
