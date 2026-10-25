@@ -25,8 +25,10 @@ alter table public.categories
 update public.categories set active = true;
 
 -- Organizations: federations, leagues, clubs and schools as generic rows
--- (ADR 0003). Only platform admins write them; any signed-in user may read
--- them. They are not synced to devices, so there is no PowerSync stream.
+-- (ADR 0003). Only platform admins write them. Federations, leagues and clubs
+-- are readable by any signed-in user; the organization of a school only by
+-- whoever can see that school (the subquery applies the schools policies) and
+-- by platform admins. They are not synced to devices, so there is no PowerSync stream.
 create table public.organizations (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
@@ -42,8 +44,6 @@ alter table public.organizations enable row level security;
 
 grant select, insert, update, delete on table public.organizations to authenticated;
 
-create policy organizations_select on public.organizations for select to authenticated
-  using (true);
 create policy organizations_insert on public.organizations for insert to authenticated
   with check ((select app.is_platform_admin()));
 create policy organizations_update on public.organizations for update to authenticated
@@ -71,6 +71,14 @@ end;
 $$;
 
 alter table public.schools alter column organization_id set not null;
+
+-- Created here because the policy reads schools.organization_id.
+create policy organizations_select on public.organizations for select to authenticated
+  using (
+    type <> 'school'
+    or id in (select organization_id from public.schools)
+    or (select app.is_platform_admin())
+  );
 
 -- Security definer with an empty search_path, like every function in schema
 -- app (a pgTAP test enforces it). A BEFORE trigger runs before the row-level
@@ -114,7 +122,8 @@ create trigger schools_set_organization
   for each row execute function app.set_school_organization();
 
 -- Category templates: the categories a new school starts with, defined per
--- organization (read by any signed-in user, written by platform admins).
+-- organization (readable wherever the organization is, written by platform
+-- admins).
 create table public.category_templates (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
@@ -129,7 +138,7 @@ alter table public.category_templates enable row level security;
 grant select, insert, update, delete on table public.category_templates to authenticated;
 
 create policy category_templates_select on public.category_templates for select to authenticated
-  using (true);
+  using (organization_id in (select id from public.organizations));
 create policy category_templates_insert on public.category_templates for insert to authenticated
   with check ((select app.is_platform_admin()));
 create policy category_templates_update on public.category_templates for update to authenticated

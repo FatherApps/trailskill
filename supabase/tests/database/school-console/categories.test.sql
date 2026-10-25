@@ -4,7 +4,7 @@
 -- check uses the name columns of the athlete.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(59);
+select plan(69);
 
 -- Users: platform admin P, school admin of A, school admin of B, coach of A,
 -- guardian G.
@@ -13,7 +13,8 @@ insert into auth.users (id, email) values
   ('30000000-0000-4000-8000-0000000000a2', 'admin-a@example.test'),
   ('30000000-0000-4000-8000-0000000000a3', 'admin-b@example.test'),
   ('30000000-0000-4000-8000-0000000000a4', 'coach-a@example.test'),
-  ('30000000-0000-4000-8000-0000000000a5', 'guardian-g@example.test');
+  ('30000000-0000-4000-8000-0000000000a5', 'guardian-g@example.test'),
+  ('30000000-0000-4000-8000-0000000000a6', 'unrelated-n@example.test');
 
 insert into public.platform_admins (user_id) values ('30000000-0000-4000-8000-0000000000a1');
 
@@ -102,7 +103,66 @@ insert into public.athlete_schools (athlete_id, school_id, category_id) values
 insert into public.athlete_managers (user_id, athlete_id, relation)
 values ('30000000-0000-4000-8000-0000000000a5', '30000000-0000-4000-8000-0000000000e1', 'guardian');
 
+-- A template of the organization of school A.
+insert into public.category_templates (organization_id, name)
+values ('30000000-0000-4000-8000-0000000000c3', 'School Organization Template');
+
 set local role authenticated;
+
+-- Who sees which organization: school organizations only to people who can
+-- see the school, everything else to everyone.
+set local request.jwt.claims = '{"sub": "30000000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
+
+select is_empty(
+  $$ select 1 from public.organizations where id = '30000000-0000-4000-8000-0000000000c3' $$,
+  'a user with no relation does not see the organization of school A'
+);
+select is_empty(
+  $$ select 1 from public.organizations o join public.schools s on s.organization_id = o.id $$,
+  'a user with no relation sees no school organization'
+);
+select isnt_empty(
+  $$ select 1 from public.organizations where id = '30000000-0000-4000-8000-0000000000c1' $$,
+  'a user with no relation sees a federation'
+);
+select is_empty(
+  $$ select 1 from public.category_templates where organization_id = '30000000-0000-4000-8000-0000000000c3' $$,
+  'a user with no relation does not see the templates of a school organization'
+);
+select isnt_empty(
+  $$ select 1 from public.category_templates where organization_id = '30000000-0000-4000-8000-0000000000c1' $$,
+  'a user with no relation sees the templates of a federation'
+);
+
+set local request.jwt.claims = '{"sub": "30000000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
+
+select isnt_empty(
+  $$ select 1 from public.organizations where id = '30000000-0000-4000-8000-0000000000c3' $$,
+  'the guardian sees the organization of the athlete''s school'
+);
+
+set local request.jwt.claims = '{"sub": "30000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+
+select isnt_empty(
+  $$ select 1 from public.organizations where id = '30000000-0000-4000-8000-0000000000c3' $$,
+  'a school member sees the organization of the school'
+);
+select is_empty(
+  $$ select 1 from public.organizations
+     where id = (select organization_id from public.schools where name = 'Categories School B') $$,
+  'a school member does not see the organization of another school'
+);
+
+set local request.jwt.claims = '{"sub": "30000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+
+select isnt_empty(
+  $$ select 1 from public.organizations where id = '30000000-0000-4000-8000-0000000000c3' $$,
+  'platform admin P sees the organization of school A'
+);
+select isnt_empty(
+  $$ select 1 from public.organizations where id = '30000000-0000-4000-8000-0000000000c5' $$,
+  'platform admin P sees a school organization no school uses'
+);
 
 -- Platform admin P
 set local request.jwt.claims = '{"sub": "30000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
