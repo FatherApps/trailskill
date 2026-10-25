@@ -99,6 +99,135 @@
       "clear": "Limpiar búsqueda y filtros"
     }
   },
+  "coaches": {
+    "title": "Entrenadores",
+    "count_one": "{{count}} entrenador",
+    "count_other": "{{count}} entrenadores",
+    "athletes_one": "{{count}} deportista",
+    "athletes_other": "{{count}} deportistas",
+    "no_groups": "Sin grupos",
+    "invite": "Invitar entrenador",
+    "deactivate": "Desactivar",
+    "deactivate_hint": "Desactivar a {{name}}",
+    "cancel": "Cancelar",
+    "invite_confirm": {
+      "title": "¿Invitar a un entrenador?",
+      "message": "La persona invitada podrá registrar mediciones de los deportistas que le asignes.",
+      "confirm": "Enviar invitación"
+    },
+    "deactivate_confirm": {
+      "title": "¿Desactivar a {{name}}?",
+      "message": "{{name}} dejará de ser entrenador activo de la escuela. Sus registros anteriores conservan su autoría.",
+      "confirm": "Desactivar entrenador"
+    },
+    "empty": {
+      "title": "Aún no hay entrenadores",
+      "message": "Invita a un entrenador para que pueda registrar mediciones de sus deportistas."
+    },
+    "error": {
+      "title": "No pudimos cargar los entrenadores"
+    },
+    "offline_empty": "No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
+  },
+  "records": {
+    "title": "Récords",
+    "count_one": "{{count}} prueba",
+    "count_other": "{{count}} pruebas",
+    "event": "Prueba",
+    "best_mark": "Mejor marca",
+    "athlete": "Deportista",
+    "date": "Fecha",
+    "none": "—",
+    "no_mark": "sin marca",
+    "category": "Categoría",
+    "category_spoken": "Categoría: {{value}}",
+    "pool_filter": "Piscina",
+    "pool": {
+      "SCM": "25 m",
+      "LCM": "50 m"
+    },
+    "pool_empty": {
+      "title": "Aún no hay récords en esta piscina",
+      "message": "Aparecen cuando se registra una marca de esta categoría en esta piscina."
+    },
+    "empty": {
+      "title": "Aún no hay récords",
+      "message": "Aparecen cuando los entrenadores registran marcas de los deportistas de la categoría."
+    },
+    "error": {
+      "title": "No pudimos cargar los récords"
+    },
+    "offline_empty": "No hay récords guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
+  },
+  "measurements": {
+    "title": "Mediciones",
+    "count_one": "{{count}} medición",
+    "count_other": "{{count}} mediciones",
+    "conflicts": "{{count}} en conflicto",
+    "time": "Tiempo",
+    "no_time": "sin tiempo",
+    "conflict": "Conflicto",
+    "conflict_title": "Versiones en conflicto",
+    "conflict_note": "Un administrador de la plataforma decide cuál se conserva.",
+    "version_first": "Primera versión",
+    "version_second": "Segunda versión",
+    "version_n": "Versión {{n}}",
+    "no_results": {
+      "title": "No hay mediciones con estos filtros",
+      "message": "Cambia o quita un filtro para ver más mediciones."
+    },
+    "empty": {
+      "title": "Aún no hay mediciones",
+      "message": "Aparecen cuando los entrenadores registran tiempos de los deportistas."
+    },
+    "error": {
+      "title": "No pudimos cargar las mediciones"
+    },
+    "offline_empty": "No hay mediciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión."
+  },
+  "authorizations": {
+    "title": "Autorizaciones",
+    "count_one": "{{count}} deportista",
+    "count_other": "{{count}} deportistas",
+    "pending_one": "{{count}} con solicitud pendiente",
+    "pending_other": "{{count}} con solicitudes pendientes",
+    "guardian": "Acudiente: {{name}}",
+    "purposes": {
+      "record": "Registrar tiempos y resultados",
+      "import": "Importar resultados oficiales",
+      "share": "Compartir resultados con otra escuela"
+    },
+    "withdrawn": "Retirada",
+    "spoken": "{{purpose}}: {{status}}",
+    "resend": "Reenviar solicitud",
+    "resend_hint": "Reenviar a {{guardian}} la solicitud «{{purpose}}» de {{athlete}}",
+    "cancel": "Cancelar",
+    "resend_confirm": {
+      "title": "¿Reenviar la solicitud?",
+      "message": "Se enviará de nuevo a {{guardian}} la solicitud de autorización «{{purpose}}» de {{athlete}}.",
+      "confirm": "Reenviar al acudiente"
+    },
+    "requests": {
+      "title": "Solicitudes de otras escuelas",
+      "detail": "Pidió ver los resultados de tu escuela",
+      "detail_dated": "Pidió ver los resultados de tu escuela · {{date}}",
+      "approve": "Aprobar",
+      "approve_hint": "Aprobar la solicitud de {{school}}"
+    },
+    "approve_confirm": {
+      "title": "¿Aprobar que {{school}} vea los resultados de tu escuela?",
+      "message": "{{school}} podrá ver los resultados de tu escuela, solo con conexión.",
+      "confirm": "Aprobar acceso"
+    },
+    "empty": {
+      "title": "Aún no hay autorizaciones",
+      "message": "Aparecen cuando un acudiente crea la cuenta de un deportista y responde la solicitud."
+    },
+    "error": {
+      "title": "No pudimos cargar las autorizaciones"
+    },
+    "offline_empty": "No hay autorizaciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión."
+  },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",

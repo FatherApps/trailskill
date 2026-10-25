@@ -9,6 +9,11 @@ export { AthleteFilters, type AthleteFiltersProps } from './components/AthleteFi
 export { AthleteTable, type AthleteTableProps } from './components/AthleteTable';
 export { AthleteDetail, type AthleteDetailProps } from './components/AthleteDetail';
 export { AthleteFilterOptions, type AthleteFilterOption, type AthleteFilterOptionsProps } from './components/AthleteFilterOptions';
+export { CoachList, type CoachListProps, type CoachRow } from './components/CoachList';
+export { AuthorizationList, SharingRequestList, type AthleteAuthorizations, type AuthorizationListProps, type AuthorizationPurpose, type AuthorizationStatus, type SharingRequest, type SharingRequestListProps } from './components/AuthorizationList';
+export { MeasurementLog, type MeasurementEntry, type MeasurementLogProps, type MeasurementVersion } from './components/MeasurementLog';
+export { RecordTable, type RecordRow, type RecordTableProps } from './components/RecordTable';
+export type { SectionView } from './components/SectionFrame';
 export { eventLabel, personalBestLabel } from './components/eventLabel';
 export type {
   AthleteAuthorization,
@@ -28,6 +33,20 @@ export { AthletesSection, type AthletesSectionProps } from './screens/AthletesSe
 export { ConsoleScreen, type ConsoleScreenProps, type ConsoleSectionProps } from './screens/ConsoleScreen';
 export { EmptySectionScreen, type EmptySectionScreenProps } from './screens/EmptySectionScreen';
 export { useAdminSchool, useStaffSchool, type AdminSchoolResult, type StaffSchoolResult } from './data/useAdminSchool';
+export { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from './screens/CoachesScreen';
+export { RecordsScreen, type RecordsContent, type RecordsScreenProps, type RecordsView } from './screens/RecordsScreen';
+export {
+  MeasurementsScreen,
+  type MeasurementsContent,
+  type MeasurementsScreenProps,
+  type MeasurementsView,
+} from './screens/MeasurementsScreen';
+export {
+  AuthorizationsScreen,
+  type AuthorizationsContent,
+  type AuthorizationsScreenProps,
+  type AuthorizationsView,
+} from './screens/AuthorizationsScreen';
 export { galleryEntries } from './gallery';
 export { createInMemoryStaffSchoolRepository, createPowerSyncStaffSchoolRepository } from './data/staffSchools';
 export type { StaffMembershipRow, StaffSchool, StaffSchoolRepository } from './data/staffSchools';
