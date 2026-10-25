@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { PixelRatio, StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, size, type ThemeName } from '../../../core/theme';
+import { colors, contrastRatio, size, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { historyFixture, historyResults } from '../__fixtures__/history';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 
@@ -10,6 +10,12 @@ const byId = (id: string): HistoryResult => historyResults.find((result) => resu
 const hiddenText = (text: string | RegExp) => screen.queryAllByText(text, { includeHiddenElements: true });
 
 describe('HistoryList', () => {
+  // Jest reports a system font scale of 2; the tests run at the system's normal size unless they say otherwise.
+  beforeEach(() => {
+    jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
   it('renders nothing without results', async () => {
     await render(<HistoryList results={[]} />);
 
@@ -143,6 +149,34 @@ describe('HistoryList', () => {
     const style = StyleSheet.flatten(screen.getAllByLabelText(/^Libre 50 m/)[0].props.style);
     expect(style.minHeight).toBe(size['target-min']);
     expect(style.width).toBeUndefined();
+  });
+
+  describe('large text', () => {
+    const rowStyle = () => StyleSheet.flatten(screen.getAllByLabelText(/^Libre 50 m/)[0].props.style);
+    const trailingStyle = () =>
+      StyleSheet.flatten(
+        screen.getAllByLabelText(/^Libre 50 m/)[0].children
+          .map((child) => child as { props?: { style?: unknown } })
+          .at(-1)?.props?.style as never,
+      );
+
+    it('keeps the time beside the text at normal size', async () => {
+      await render(<HistoryList results={[byId('race-pb')]} />);
+
+      expect(rowStyle().flexDirection).toBe('row');
+    });
+
+    it('puts the time below the text at 200 % so words are never split', async () => {
+      await render(
+        <ThemeProvider fontScale={2}>
+          <HistoryList results={[byId('race-pb')]} />
+        </ThemeProvider>,
+      );
+
+      expect(rowStyle().flexDirection).toBe('column');
+      expect(rowStyle().alignItems).toBe('stretch');
+      expect(trailingStyle().alignItems).toBe('flex-start');
+    });
   });
 
   describe.each(themes)('%s theme contrast', (theme) => {

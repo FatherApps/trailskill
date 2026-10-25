@@ -1,9 +1,9 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, PixelRatio, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { distances, strokes, type DistanceCode, type StrokeCode } from '../../../core/sport';
 import type { RecordSyncState } from '../../../core/sync';
-import { useTheme, type ColorToken } from '../../../core/theme';
+import { typography as baseTypography, useTheme, type ColorToken } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
 import { spokenTime } from '../../../core/time';
 import { SyncStatus, Tag, TimeValue, type IconName } from '../../../core/ui';
@@ -53,9 +53,15 @@ export const historyListColors: { card: ColorToken; separator: ColorToken; title
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
+  // Large text: the time goes below the text, each at the full row width, so no word is split.
+  rowLarge: { flexDirection: 'column', alignItems: 'stretch' },
   text: { flex: 1 },
   trailing: { alignItems: 'flex-end', flexShrink: 1 },
+  trailingLarge: { alignItems: 'flex-start' },
 });
+
+// From this text scale up the two columns no longer fit side by side.
+const largeTextScale = 1.5;
 
 // The row is one accessible element: its parts are hidden from screen readers and the label says them all.
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
@@ -96,6 +102,9 @@ const valueLabel = (value: HistoryValue): string | null => {
 
 function HistoryRow({ result }: { result: HistoryResult }) {
   const { colors, space, size, typography } = useTheme();
+  // The gallery preview scale (theme) and the system scale both apply.
+  const large =
+    (typography.caption.fontSize / baseTypography.caption.fontSize) * PixelRatio.getFontScale() >= largeTextScale;
 
   const title = `${nameOf(strokes, result.stroke)} ${nameOf(distances, result.distance)}`;
   const context = t(`athletes.history.context.${result.context}`);
@@ -132,6 +141,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
       accessibilityLabel={label}
       style={[
         styles.row,
+        large && styles.rowLarge,
         {
           gap: space[3],
           paddingVertical: space[3],
@@ -140,12 +150,12 @@ function HistoryRow({ result }: { result: HistoryResult }) {
         },
       ]}
     >
-      <View {...hidden} style={[styles.text, { gap: space[1] }]}>
+      <View {...hidden} style={[large ? undefined : styles.text, { gap: space[1] }]}>
         <Text style={[typography['body-strong'], { color: colors[historyListColors.title] }]}>{title}</Text>
         <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{meta}</Text>
         {origin && <Tag variant="outline" icon={origin.icon} label={origin.label} />}
       </View>
-      <View {...hidden} style={[styles.trailing, { gap: space[1] }]}>
+      <View {...hidden} style={[styles.trailing, large && styles.trailingLarge, { gap: space[1] }]}>
         <TimeValue
           value={result.time}
           size="time-sm"
