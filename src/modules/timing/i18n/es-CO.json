@@ -66,6 +66,11 @@
       "on_device_one": "{{count}} en el teléfono, se enviará con señal.",
       "on_device_other": "{{count}} en el teléfono, se enviarán con señal."
     },
+    "completed": {
+      "title": "Completado sin tiempo",
+      "finish": "Terminar",
+      "error": "No pudimos guardar el cambio en este teléfono. Inténtalo de nuevo."
+    },
     "correct": {
       "title": "Corregir un tiempo",
       "current": "Tiempo guardado",

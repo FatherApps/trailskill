@@ -53,6 +53,11 @@ function arrival(id: string, seriesId: string, position: number, athleteId: stri
   };
 }
 
+// A done repetition without a time: its hundredths are null, never 0.
+function completed(id: string): Measurement {
+  return { ...arrival(id, 'S', 1, 'athlete-1'), kind: 'completed', hundredths: null, seriesId: null, arrivalPosition: null } as Measurement;
+}
+
 const MEASUREMENTS_TABLE = `CREATE TABLE measurements (
   id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, device_id TEXT, kind TEXT, athlete_id TEXT,
   series_id TEXT, arrival_position INTEGER, hundredths INTEGER, stroke TEXT, distance TEXT, pool TEXT,
@@ -103,6 +108,17 @@ describe.each(factories)('%s measurement repository', (_name, create) => {
     const [listed] = await repository.listBySeries('S');
 
     expect(listed?.hundredths).toBeNull();
+  });
+
+  it('stores a completed measurement without a time and leaves it out of every read once discarded', async () => {
+    const repository = create();
+    await repository.add(completed('c1'));
+
+    expect((await repository.listByAthlete('athlete-1')).map((m) => [m.kind, m.hundredths])).toEqual([['completed', null]]);
+
+    await repository.discard('c1', 'coach-a');
+
+    expect(await repository.listByAthlete('athlete-1')).toEqual([]);
   });
 
   describe('listByAthleteEvent', () => {
@@ -503,6 +519,29 @@ describe('discarded arrivals', () => {
   it('countCapturedSince does not count it', async () => {
     expect(await (await withDiscarded()).countCapturedSince(['athlete-1'], '2026-10-24T00:00:00Z')).toBe(1);
   });
+
+  it('discard keeps the row with who made it and when, marks who discarded it, and a second discard changes nothing', async () => {
+    const repository = factories[1]![1]();
+    await repository.add(completed('c1'));
+
+    await repository.discard('c1', 'coach-a');
+    const [first] = mockDb.getAll<{ discarded_at: string | null }>('SELECT discarded_at FROM measurements WHERE id = ?', ['c1']);
+    await repository.discard('c1', 'coach-b');
+
+    expect(first?.discarded_at).not.toBeNull();
+    expect(mockDb.getAll('SELECT kind, hundredths, created_by, captured_at, discarded_by FROM measurements WHERE id = ?', ['c1'])).toEqual([
+      { kind: 'completed', hundredths: null, created_by: 'coach-a', captured_at: '2026-10-24T08:00:00Z', discarded_by: 'coach-a' },
+    ]);
+    expect(mockDb.getAll('SELECT discarded_at FROM measurements WHERE id = ?', ['c1'])).toEqual([first]);
+  });
+
+  it('discard of an id that is not stored writes nothing', async () => {
+    const repository = factories[1]![1]();
+
+    await repository.discard('missing', 'coach-a');
+
+    expect(mockDb.getAll('SELECT id FROM measurements')).toEqual([]);
+  });
 });
 
 // The fake behaves like the real repository: a discarded arrival stays stored, marked, and no read returns it.
@@ -515,8 +554,8 @@ describe('in-memory measurement repository discards', () => {
     await repository.add(arrival('gone', 'S', 2, 'athlete-1'));
     await repository.add(arrival('kept-open', 'S', 3, null));
     await repository.add(arrival('gone-open', 'S', 4, null));
-    await repository.discard('gone');
-    await repository.discard('gone-open');
+    await repository.discard('gone', 'coach-a');
+    await repository.discard('gone-open', 'coach-a');
     return repository;
   }
 

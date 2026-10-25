@@ -47,6 +47,11 @@ export interface MeasurementRepository {
   /** How many measurements of the athletes were captured at or after `since` (ISO 8601). An empty list counts 0. */
   countCapturedSince(athleteIds: readonly string[], since: string): Promise<number>;
   /**
+   * Marks the measurement as discarded by its author ("Deshacer última", or unticking "Completado"). The row stays, with who and when,
+   * and every read leaves it out. Never a delete: the server cannot undo one. A missing or already discarded measurement changes nothing.
+   */
+  discard(id: string, discardedBy: string): Promise<void>;
+  /**
    * Edits an existing measurement: only the time and the athlete can change. The edit is sent with the version it was based on
    * and the editing device, so another device's different edit becomes a conflict ("Revisar") instead of overwriting. Rejects a missing id.
    * `undefined` leaves a field as it is; `null` clears it.
