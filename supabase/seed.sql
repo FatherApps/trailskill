@@ -45,9 +45,26 @@ insert into auth.identities (
    'email', now(), now(), now())
 on conflict do nothing;
 
--- School, groups and staff.
-insert into public.schools (id, name)
-values ('00000000-0000-4000-8000-0000000000a1', 'Demo Swim School')
+-- Organizations: a league with three category templates, and the school's own
+-- organization below it. Names are invented; none is a real federation category.
+insert into public.organizations (id, type, country_code, parent_organization_id, name) values
+  ('00000000-0000-4000-8000-000000000101', 'league', null, null, 'Demo Swim League'),
+  ('00000000-0000-4000-8000-000000000102', 'school', null, '00000000-0000-4000-8000-000000000101', 'Demo Swim School')
+on conflict do nothing;
+
+insert into public.category_templates (id, organization_id, name, sort_order) values
+  ('00000000-0000-4000-8000-000000000111', '00000000-0000-4000-8000-000000000101', 'Under 11', 1),
+  ('00000000-0000-4000-8000-000000000112', '00000000-0000-4000-8000-000000000101', 'Under 14', 2),
+  ('00000000-0000-4000-8000-000000000113', '00000000-0000-4000-8000-000000000101', 'Open', 3)
+on conflict do nothing;
+
+-- School, groups and staff. Inserting the school copies the league's templates
+-- into its categories (random ids), so they are looked up by name below. The
+-- organization is given, not left to the trigger: the trigger would create a
+-- new one on every run, even when the school already exists.
+insert into public.schools (id, name, organization_id)
+values ('00000000-0000-4000-8000-0000000000a1', 'Demo Swim School',
+        '00000000-0000-4000-8000-000000000102')
 on conflict do nothing;
 
 insert into public.training_groups (id, school_id, name) values
@@ -65,8 +82,9 @@ insert into public.coach_group_assignments (coach_user_id, group_id)
 values ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000b1')
 on conflict do nothing;
 
--- Athletes: invented names. Group A is c1-c5, Group B is c6-ca. The queries
--- below pick the demo athletes by that id range, never the ones people add.
+-- Athletes: invented names. Group A is c1, c2, c5, c6, c7; Group B is c3, c4,
+-- c8, c9, ca. The queries below pick the demo athletes by the id range c1-ca,
+-- never the ones people add.
 insert into public.athletes (id, first_name, last_name) values
   ('00000000-0000-4000-8000-0000000000c1', 'Mateo', 'Varelo'),
   ('00000000-0000-4000-8000-0000000000c2', 'Sofia', 'Quendal'),
@@ -80,14 +98,22 @@ insert into public.athletes (id, first_name, last_name) values
   ('00000000-0000-4000-8000-0000000000ca', 'Camila', 'Ordelan')
 on conflict do nothing;
 
+-- Categories: c1-c4 Under 11, c5-c8 Under 14, c9 and ca Open. A school that
+-- already existed without categories gets no category (left join).
 insert into public.athlete_schools (athlete_id, school_id, category_id)
-select id, '00000000-0000-4000-8000-0000000000a1', null
-from public.athletes
-where id::text ~ '^00000000-0000-4000-8000-0000000000c[1-9a]$'
+select a.id, '00000000-0000-4000-8000-0000000000a1', c.id
+from public.athletes a
+left join public.categories c
+  on c.school_id = '00000000-0000-4000-8000-0000000000a1'
+ and c.name = case when a.id::text ~ 'c[1-4]$' then 'Under 11'
+                   when a.id::text ~ 'c[5-8]$' then 'Under 14'
+                   else 'Open' end
+where a.id::text ~ '^00000000-0000-4000-8000-0000000000c[1-9a]$'
 on conflict do nothing;
 
+-- c1, c2 in Group A and c3, c4 in Group B, as in the first version of this seed, so a database that has it converges.
 insert into public.athlete_groups (athlete_id, group_id)
-select id, case when id::text ~ '^00000000-0000-4000-8000-0000000000c[1-5]$'
+select id, case when id::text ~ '^00000000-0000-4000-8000-0000000000c[12567]$'
                 then '00000000-0000-4000-8000-0000000000b1'::uuid
                 else '00000000-0000-4000-8000-0000000000b2'::uuid end
 from public.athletes

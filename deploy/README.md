@@ -116,7 +116,7 @@ PowerSync logs replication errors (`Publication 'powersync' does not exist`) unt
 
 ## Demo data
 
-`supabase/seed.sql` is the demo for development and walkthroughs. Everything in it is invented: a school ("Demo Swim School") with two groups and ten athletes, six weeks of times in two events (so there is history and personal bests), one training plan, and the authorizations in force for two athletes. It has no platform admin account; if a walkthrough needs one, add it later.
+`supabase/seed.sql` is the demo for development and walkthroughs. Everything in it is invented: a school ("Demo Swim School") with its own organization, hanging from a parent league organization ("Demo Swim League") whose three category templates (`Under 11`, `Under 14`, `Open`) become the school's categories, two groups and ten athletes (each with a category), six weeks of times in two events (so there is history and personal bests), one training plan, and the authorizations in force for two athletes. It has no platform admin account; if a walkthrough needs one, add it later.
 
 | Account | Role | Sees |
 | --- | --- | --- |
@@ -135,13 +135,13 @@ The seed is idempotent: every insert uses fixed ids and `on conflict do nothing`
 
 `migrate` records the seed by path and hash. A later change to `seed.sql` is not applied by itself: `migrate` only logs `seed ... changed since it was applied; not re-applied`. To update the demo, delete the row with path `supabase/seed.sql` from `supabase_migrations.seed_files` by hand and redeploy with `APPLY_SEED=true`; the seed only adds what is missing. To start over clean, remove the demo first (below).
 
-**Remove it.** [`supabase/scripts/seed-remove.sql`](../supabase/scripts/seed-remove.sql) deletes the demo school, its athletes, times, plans and authorizations (also what people added to that school while trying it) and the three accounts. It also deletes the `seed_files` row, so `APPLY_SEED` can apply the demo again. It keeps the authorization texts. From a clone of the repository on the server:
+**Remove it.** [`supabase/scripts/seed-remove.sql`](../supabase/scripts/seed-remove.sql) deletes the demo school, its organization and the parent league with its category templates, the athletes, times, plans and authorizations (also what people added to that school while trying it) and the three accounts. An athlete who also belongs to another school stays, only unlinked from the demo school. It also deletes the `seed_files` row, so `APPLY_SEED` can apply the demo again. It keeps the authorization texts. It lifts the authorizations delete trigger for one statement, so it must run in one transaction (`psql --single-transaction`) and refuses to run otherwise. From a clone of the repository on the server:
 
 ```sh
 docker exec -i <supabase db container> psql -U postgres -d postgres -v ON_ERROR_STOP=1 --single-transaction < supabase/scripts/seed-remove.sql
 ```
 
-**Check it locally.** `supabase db reset` (it loads the seed), then `sh supabase/scripts/seed.test.sh`. The script applies the seed again and checks nothing changed, checks what each account sees, and checks that `seed-remove.sql` removes the demo (inside a rolled-back transaction).
+**Check it locally.** `supabase db reset` (it loads the seed), then `sh supabase/scripts/seed.test.sh`. The script applies the seed again and checks nothing changed, checks what each account sees, checks that `seed-remove.sql` refuses to run outside a transaction, and checks that it removes the demo (inside a rolled-back transaction).
 
 ## Security notes
 

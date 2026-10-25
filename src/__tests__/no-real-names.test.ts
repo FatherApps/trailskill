@@ -36,6 +36,8 @@ function walk(dir: string, skipTests: boolean): string[] {
 const scanned = [
   ...walk(path.join(root, 'src'), true),
   ...walk(path.join(root, 'supabase', 'migrations'), false),
+  ...walk(path.join(root, 'supabase', 'scripts'), false),
+  path.join(root, 'supabase', 'seed.sql'),
   ...walk(path.join(root, 'powersync'), false),
 ];
 

@@ -3,8 +3,9 @@
 # applied, normally a fresh `supabase db reset`:
 #   1. applying it again changes no row;
 #   2. each demo account sees what its role allows;
-#   3. supabase/scripts/seed-remove.sql removes it (inside a rolled-back
-#      transaction, so the database is left as it was).
+#   3. supabase/scripts/seed-remove.sql refuses to run outside a transaction and
+#      removes the demo inside one (rolled back, so the database is left as it
+#      was), keeping an athlete who also belongs to another school.
 # Needs psql. DB_URL defaults to the local Supabase database.
 set -eu
 
@@ -58,6 +59,8 @@ begin
   assert (select count(*) from public.authorizations where withdrawn_at is null) = 4,
     'guardian sees their four authorizations in force';
   assert not exists (select 1 from public.training_plans), 'guardian sees no training plans';
+  assert exists (select 1 from public.organizations where id = '00000000-0000-4000-8000-000000000101'),
+    'guardian reads the parent organization';
 end;
 $$;
 
@@ -79,6 +82,10 @@ begin
     'coach sees the plan of the school';
   assert (select count(*) from public.training_plan_blocks) = 4, 'coach sees the four blocks of the plan';
   assert not exists (select 1 from public.authorizations), 'coach reads no authorization evidence';
+  assert (select array_agg(id::text order by id) from public.organizations)
+    = array['00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000102'],
+    'coach reads the school organization and its parent';
+  assert (select count(*) from public.categories) = 3, 'coach reads the three categories of the school';
 end;
 $$;
 
@@ -93,25 +100,104 @@ begin
   assert (select count(*) from public.training_plans) = 1, 'school admin sees the plan';
   assert (select count(*) from public.school_memberships) = 2, 'school admin sees the coach and the admin';
   assert (select count(*) from public.authorizations) = 4, 'school admin reads the authorization evidence';
+  assert (select array_agg(id::text order by id) from public.organizations)
+    = array['00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000102'],
+    'school admin reads the school organization and its parent';
+  assert (select parent_organization_id from public.organizations
+          where id = '00000000-0000-4000-8000-000000000102') = '00000000-0000-4000-8000-000000000101',
+    'the school organization hangs from the parent';
+  assert (select array_agg(name order by sort_order) from public.categories)
+    = array['Under 11', 'Under 14', 'Open'], 'school admin sees the three categories of the school';
+  assert (select count(*) from public.category_templates
+          where organization_id = '00000000-0000-4000-8000-000000000101') = 3,
+    'school admin reads the three templates of the parent';
+  assert (select count(*) from public.athlete_schools where category_id is not null) = 10,
+    'every demo athlete has a category';
 end;
 $$;
 rollback;
 SQL
 echo "ok - each demo account sees what its role allows"
 
-{
-  echo 'begin;'
-  cat "$dir/seed-remove.sql"
-  cat <<'SQL'
+# Runs seed-remove.sql in a transaction that is rolled back: $1 is SQL to run
+# before it, $2 the assertions to run after it.
+remove_check() {
+  {
+    echo 'begin;'
+    printf '%s\n' "$1"
+    cat "$dir/seed-remove.sql"
+    printf '%s\n' "$2"
+    echo 'rollback;'
+  } | psql_run
+}
+
+# Outside a transaction it must stop on its guard before deleting anything.
+if psql_run -f "$dir/seed-remove.sql" 2>/dev/null; then
+  echo "FAIL: seed-remove.sql ran outside a transaction" >&2
+  exit 1
+fi
+psql_run <<'SQL'
+do $$
+begin
+  assert exists (select 1 from public.schools where id = '00000000-0000-4000-8000-0000000000a1'),
+    'the guard stopped it before deleting';
+  assert (select tgenabled from pg_trigger where tgname = 'authorizations_forbid_delete') = 'O',
+    'the authorizations delete trigger is still enabled';
+end;
+$$;
+SQL
+echo "ok - seed-remove.sql refuses to run outside a transaction"
+
+remove_check '' "$(cat <<'SQL'
 do $$
 begin
   assert not exists (select 1 from public.schools where id = '00000000-0000-4000-8000-0000000000a1'), 'school removed';
   assert not exists (select 1 from public.athletes where id::text like '00000000-0000-4000-8000-0000000000%'), 'athletes removed';
   assert not exists (select 1 from public.measurements where created_by::text like '00000000-0000-4000-8000-00000000000%'), 'times removed';
   assert not exists (select 1 from auth.users where email like 'demo-%@example.test'), 'accounts removed';
+  assert not exists (select 1 from public.organizations
+                     where id in ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000102')),
+    'organizations removed';
+  assert not exists (select 1 from public.category_templates
+                     where organization_id = '00000000-0000-4000-8000-000000000101'), 'templates removed';
+  assert not exists (select 1 from public.categories where school_id = '00000000-0000-4000-8000-0000000000a1'),
+    'categories removed';
+  assert not exists (select 1 from public.training_plans where school_id = '00000000-0000-4000-8000-0000000000a1'),
+    'plans removed';
+  assert not exists (select 1 from public.school_memberships where school_id = '00000000-0000-4000-8000-0000000000a1'),
+    'memberships removed';
+  assert not exists (select 1 from public.authorizations
+                     where athlete_id::text like '00000000-0000-4000-8000-0000000000%'), 'authorizations removed';
+  assert (select tgenabled from pg_trigger where tgname = 'authorizations_forbid_delete') = 'O',
+    'the authorizations delete trigger is enabled again';
 end;
 $$;
-rollback;
 SQL
-} | psql_run
+)"
 echo "ok - seed-remove.sql removes the demo"
+
+# An athlete who also belongs to another school stays, linked to that school only.
+remove_check "$(cat <<'SQL'
+insert into public.schools (id, name) values ('11111111-1111-4111-8111-111111111111', 'Other Test School');
+insert into public.athlete_schools (athlete_id, school_id)
+values ('00000000-0000-4000-8000-0000000000c1', '11111111-1111-4111-8111-111111111111');
+SQL
+)" "$(cat <<'SQL'
+do $$
+begin
+  assert exists (select 1 from public.athletes where id = '00000000-0000-4000-8000-0000000000c1'),
+    'the shared athlete stays';
+  assert (select array_agg(school_id::text) from public.athlete_schools
+          where athlete_id = '00000000-0000-4000-8000-0000000000c1') = array['11111111-1111-4111-8111-111111111111'],
+    'the shared athlete keeps only the other school';
+  assert not exists (select 1 from public.athlete_groups where athlete_id = '00000000-0000-4000-8000-0000000000c1'),
+    'the shared athlete leaves the demo groups';
+  assert not exists (select 1 from public.athlete_managers where athlete_id = '00000000-0000-4000-8000-0000000000c1'),
+    'the demo guardian no longer manages the shared athlete';
+  assert not exists (select 1 from public.athletes where id = '00000000-0000-4000-8000-0000000000c2'),
+    'an athlete of the demo school only is removed';
+end;
+$$;
+SQL
+)"
+echo "ok - seed-remove.sql keeps an athlete of another school"
