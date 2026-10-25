@@ -43,7 +43,8 @@ psql_run <<'SQL'
 begin;
 set local role authenticated;
 
--- Guardian: the two athletes they manage, their times and authorizations; no plans.
+-- Guardian: the two athletes they manage, their times and authorizations, and
+-- only the plan assigned to their group (that version and its blocks).
 set local request.jwt.claims = '{"sub": "00000000-0000-4000-8000-000000000002", "role": "authenticated"}';
 do $$
 begin
@@ -58,7 +59,15 @@ begin
     'guardian sees both purposes granted for both athletes';
   assert (select count(*) from public.authorizations where withdrawn_at is null) = 4,
     'guardian sees their four authorizations in force';
-  assert not exists (select 1 from public.training_plans), 'guardian sees no training plans';
+  assert (select array_agg(id::text) from public.training_plans)
+    = array['00000000-0000-4000-8000-0000000000e1']
+    and (select array_agg(id::text) from public.training_plan_versions)
+    = array['00000000-0000-4000-8000-0000000000e2']
+    and (select count(*) from public.training_plan_blocks) = 4,
+    'guardian reads exactly the assigned demo plan, its assigned version and its blocks';
+  assert (select array_agg(id::text) from public.training_plan_assignments)
+    = array['00000000-0000-4000-8000-0000000000e3'],
+    'the demo assignment of the plan to Group A exists and the guardian reads it';
   assert exists (select 1 from public.organizations where id = '00000000-0000-4000-8000-000000000101'),
     'guardian reads the parent organization';
 end;
@@ -164,6 +173,8 @@ begin
     'categories removed';
   assert not exists (select 1 from public.training_plans where school_id = '00000000-0000-4000-8000-0000000000a1'),
     'plans removed';
+  assert not exists (select 1 from public.training_plan_assignments
+                     where school_id = '00000000-0000-4000-8000-0000000000a1'), 'assignments removed';
   assert not exists (select 1 from public.school_memberships where school_id = '00000000-0000-4000-8000-0000000000a1'),
     'memberships removed';
   assert not exists (select 1 from public.authorizations

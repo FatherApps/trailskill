@@ -20,6 +20,7 @@ export {
   createPowerSyncAuthorizationStatusRepository,
   type AuthorizationPurpose,
   type AuthorizationStatusRepository,
+  type AuthorizationStatusRow,
 } from './data/authorizationStatus';
 export {
   createInMemoryAuthorizationRepository,
@@ -48,6 +49,13 @@ export {
   type AdultProfile,
   type AdultProfileRepository,
 } from './data/adultProfiles';
+export {
+  createInMemoryInvitationRepository,
+  createSupabaseInvitationRepository,
+  type CreatedInvitation,
+  type InvitationInput,
+  type InvitationRepository,
+} from './data/invitations';
 export {
   createInMemoryRegistrationDraftRepository,
   createSecureStoreRegistrationDraftRepository,

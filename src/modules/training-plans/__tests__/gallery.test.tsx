@@ -12,7 +12,7 @@ const cases = galleryEntries.flatMap((e) =>
 
 describe('training-plans gallery entries', () => {
   it('cover the block card, the plan builder, the plan list, the today view and the fulfillment grid', () => {
-    expect(galleryEntries.map((e) => e.id)).toEqual(['blockCard', 'planBuilder', 'planList', 'today', 'fulfillment']);
+    expect(galleryEntries.map((e) => e.id)).toEqual(['blockCard', 'planBuilder', 'planList', 'assignPlan', 'today', 'fulfillment']);
     expect(Object.keys(entry('blockCard').states)).toEqual(['phases', 'recordings']);
     expect(Object.keys(entry('planBuilder').states)).toEqual(['empty', 'blocks', 'editing', 'errors', 'drill', 'removing', 'saved']);
     expect(Object.keys(entry('planList').states)).toEqual(['data', 'empty', 'loading', 'error', 'no-school']);

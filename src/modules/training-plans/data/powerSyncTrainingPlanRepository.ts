@@ -1,7 +1,7 @@
 import { distances, isStroke } from '../../../core/sport';
 import { db, writeBatch, type WriteBatch } from '../../../core/sync';
 import type { BlockPhase, BlockRecording, PlanBlock } from '../types';
-import { normalizeBlock, validatePlan, type PlanSummary, type TrainingPlanRepository } from './plans';
+import { BlockHasFulfillmentError, normalizeBlock, validatePlan, type PlanSummary, type TrainingPlanRepository } from './plans';
 
 type PlanRow = { id: string; school_id: string; name: string; is_template: number };
 type BlockRow = {
@@ -31,9 +31,9 @@ function toBlock(row: BlockRow): PlanBlock {
 }
 
 // `reader` is the database, or a batch so the save reads what it is about to change in its own transaction.
-type Reader = Pick<WriteBatch, 'getAll'>;
+export type Reader = Pick<WriteBatch, 'getAll'>;
 
-async function latestVersionId(reader: Reader, planId: string): Promise<string | null> {
+export async function latestVersionId(reader: Reader, planId: string): Promise<string | null> {
   const [version] = await reader.getAll<{ id: string }>(
     'SELECT id FROM training_plan_versions WHERE plan_id = ? ORDER BY version DESC LIMIT 1',
     [planId],
@@ -66,14 +66,21 @@ export function createPowerSyncTrainingPlanRepository(): TrainingPlanRepository 
     async save(plan) {
       validatePlan(plan);
       await writeBatch(async (batch) => {
-        await batch.write('training_plans', { id: plan.id, school_id: plan.schoolId, name: plan.name, is_template: plan.isTemplate ? 1 : 0 });
-        const versionId =
-          (await latestVersionId(batch, plan.id)) ?? (await batch.write('training_plan_versions', { plan_id: plan.id, version: 1 }));
-
+        const existingVersionId = await latestVersionId(batch, plan.id);
         const keep = new Set(plan.blocks.map((block) => block.id));
-        for (const stored of await blocksOf(batch, versionId)) {
-          if (!keep.has(stored.id)) await batch.delete('training_plan_blocks', stored.id);
+        const removed = existingVersionId ? (await blocksOf(batch, existingVersionId)).filter((stored) => !keep.has(stored.id)) : [];
+        if (removed.length > 0) {
+          // shortcut: only marks already on this device are seen (a hidden mark or one not yet synced still fails on upload), revisit with #74
+          const [marked] = await batch.getAll<{ block_id: string }>(
+            `SELECT block_id FROM training_plan_fulfillments WHERE block_id IN (${removed.map(() => '?').join(', ')}) LIMIT 1`,
+            removed.map((stored) => stored.id),
+          );
+          if (marked) throw new BlockHasFulfillmentError(removed.map((stored) => stored.id));
         }
+
+        await batch.write('training_plans', { id: plan.id, school_id: plan.schoolId, name: plan.name, is_template: plan.isTemplate ? 1 : 0 });
+        const versionId = existingVersionId ?? (await batch.write('training_plan_versions', { plan_id: plan.id, version: 1 }));
+        for (const stored of removed) await batch.delete('training_plan_blocks', stored.id);
         for (const [index, raw] of plan.blocks.entries()) {
           const block = normalizeBlock(raw);
           const stroke = isStroke(block.activity);

@@ -82,6 +82,38 @@ export const AppSchema = new Schema({
     },
     { indexes: { version: ['version_id'] } },
   ),
+  training_plan_assignments: new Table(
+    {
+      ...audit,
+      school_id: column.text,
+      plan_id: column.text,
+      version_id: column.text,
+      session_date: column.text,
+      target: column.text,
+      athlete_id: column.text,
+      group_id: column.text,
+      category_id: column.text,
+    },
+    { indexes: { version: ['version_id'], school: ['school_id'] } },
+  ),
+  // Append-only marks, one new row per mark.
+  training_plan_fulfillments: new Table(
+    {
+      ...audit,
+      device_id: column.text,
+      assignment_id: column.text,
+      version_id: column.text,
+      block_id: column.text,
+      athlete_id: column.text,
+      status: column.text,
+      completed_repetitions: column.integer,
+      series_id: column.text,
+      captured_at: column.text,
+      // SQLite has no boolean: hidden is 1 for a mark stored after an authorization withdrawal, 0 otherwise.
+      hidden: column.integer,
+    },
+    { indexes: { assignment: ['assignment_id'], block: ['block_id'] } },
+  ),
   authorization_texts: new Table({
     ...audit,
     purpose: column.text,

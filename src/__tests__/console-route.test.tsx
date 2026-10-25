@@ -33,7 +33,11 @@ jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/screens/CoachesScreen'),
   ...jest.requireActual('../modules/school-console/screens/RecordsScreen'),
   ...jest.requireActual('../modules/school-console/screens/MeasurementsScreen'),
-  ...jest.requireActual('../modules/school-console/screens/AuthorizationsScreen'),
+  ...jest.requireActual('../modules/school-console/screens/AuthorizationsSection'),
+  createPowerSyncAuthorizationsRepository: () => ({
+    listAthletes: () => Promise.resolve([]),
+    resend: () => Promise.reject(new Error('not used')),
+  }),
   createPowerSyncStaffSchoolRepository: () => ({
     listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
   }),

@@ -47,6 +47,13 @@ export {
   type AuthorizationsScreenProps,
   type AuthorizationsView,
 } from './screens/AuthorizationsScreen';
+export { AuthorizationsSection, type AuthorizationsSectionProps } from './screens/AuthorizationsSection';
+export {
+  createAuthorizationsRepository,
+  createPowerSyncAuthorizationsRepository,
+  type AuthorizationsRepository,
+  type ConsoleAuthorizationRow,
+} from './data/authorizations';
 export { galleryEntries } from './gallery';
 export { createInMemoryStaffSchoolRepository, createPowerSyncStaffSchoolRepository } from './data/staffSchools';
 export type { StaffMembershipRow, StaffSchool, StaffSchoolRepository } from './data/staffSchools';

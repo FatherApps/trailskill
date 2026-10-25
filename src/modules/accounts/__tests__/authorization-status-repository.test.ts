@@ -76,4 +76,14 @@ describe.each(factories)('%s authorization status repository', (_name, create) =
     await expect(repository.listGrantedAthleteIds('import_official_results')).resolves.toEqual(['a4']);
     await expect(repository.listGrantedAthleteIds('share_results_with_school')).resolves.toEqual(['a5']);
   });
+
+  it('lists every status row of the athletes asked for, and nothing for an athlete without rows', async () => {
+    const statuses = await create().listStatuses(['a1', 'a3', 'a6']);
+
+    expect([...statuses].sort((a, b) => `${a.athleteId}${a.purpose}`.localeCompare(`${b.athleteId}${b.purpose}`))).toEqual([
+      { athleteId: 'a1', purpose: 'import_official_results', isGranted: false },
+      { athleteId: 'a1', purpose: 'record_times', isGranted: true },
+      { athleteId: 'a3', purpose: 'record_times', isGranted: false },
+    ]);
+  });
 });

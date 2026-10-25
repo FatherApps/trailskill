@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 
 import { createInMemoryStaffSchoolRepository } from '../../school-console';
+import { BlockHasFulfillmentError } from '../data/plans';
 import { createInMemoryTrainingPlanRepository } from '../data/inMemoryTrainingPlanRepository';
 import { PlanEditorScreen } from '../screens/PlanEditorScreen';
 import { planVocabulary } from '../vocabulary';
@@ -313,6 +314,20 @@ describe('PlanEditorScreen', () => {
       await press('Intentar de nuevo');
       expect(await screen.findByText('1 bloque')).toBeOnTheScreen();
       expect(get).toHaveBeenCalledTimes(2);
+    });
+
+    it('says the block cannot be removed when it already has fulfillment', async () => {
+      const ctx = setup();
+      jest.spyOn(ctx.repository, 'save').mockRejectedValueOnce(new BlockHasFulfillmentError(['b1']));
+      await render(ctx.element(null));
+      await screen.findByLabelText('Nombre del plan');
+      await nameIt('Cumplido');
+      await addBlock(everyField[0]);
+
+      await press('Guardar plan');
+
+      expect(await screen.findByText('Este bloque ya tiene cumplimiento registrado y no se puede quitar del plan.')).toBeOnTheScreen();
+      expect(ctx.onSaved).not.toHaveBeenCalled();
     });
 
     it('shows the failure and keeps the draft when saving fails', async () => {
