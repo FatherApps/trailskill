@@ -53,10 +53,18 @@ describe('sign-in screen', () => {
   });
 
   it('continues a registration left half done', async () => {
-    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: 'ana@example.com' });
     await render(<SignIn />);
 
     await waitFor(() => expect(router.push).toHaveBeenLastCalledWith('/register/details'));
+  });
+
+  it('does not reopen registration for a draft left with only the swimmer choice', async () => {
+    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+    await render(<SignIn />);
+
+    await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it('stays on sign-in when no registration was started', async () => {

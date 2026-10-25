@@ -31,6 +31,8 @@ export default function SignIn() {
       .load()
       .then((draft) => {
         if (!current || !draft?.swimmer) return;
+        // A draft left with only the swimmer choice means the account already exists.
+        if (![draft.email, draft.firstName, draft.lastName].some((value) => value?.trim())) return;
         router.push('/register');
         router.push('/register/details');
       })

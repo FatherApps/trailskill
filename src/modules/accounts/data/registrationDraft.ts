@@ -60,7 +60,7 @@ export type FinishRegistrationInput = {
   profiles: AdultProfileRepository;
 };
 
-// Runs once the account exists: stores the profile typed during registration, then drops the draft.
+// Runs once the account exists: stores the profile typed during registration, then drops the draft's personal fields.
 // A draft typed for another email is left alone, and a failed save keeps the draft so the next launch retries.
 export async function finishRegistration({ userId, email, drafts, profiles }: FinishRegistrationInput): Promise<void> {
   const draft = await drafts.load();
@@ -70,7 +70,9 @@ export async function finishRegistration({ userId, email, drafts, profiles }: Fi
   if (!firstName || !lastName) return;
   if (draft.email?.trim().toLowerCase() !== email.trim().toLowerCase()) return;
   await profiles.save({ userId, firstName, lastName });
-  await drafts.clear();
+  // Issue #42's next step needs the swimmer choice and clears it when it finishes; no personal data stays.
+  if (draft.swimmer) await drafts.save({ swimmer: draft.swimmer, firstName: '', lastName: '', email: '' });
+  else await drafts.clear();
 }
 
 export function useFinishRegistration(

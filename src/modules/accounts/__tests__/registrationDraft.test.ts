@@ -46,10 +46,18 @@ describe('finishRegistration', () => {
   const run = (drafts = createInMemoryRegistrationDraftRepository(draft), profiles = createInMemoryAdultProfileRepository()) =>
     finishRegistration({ userId: 'user-1', email: ' camila@example.test ', drafts, profiles }).then(() => ({ drafts, profiles }));
 
-  it('saves the trimmed profile and clears the draft when the email matches', async () => {
+  it('saves the trimmed profile and keeps only the swimmer choice when the email matches', async () => {
     const { drafts, profiles } = await run();
 
     expect(profiles.saved).toEqual([{ userId: 'user-1', firstName: 'Camila', lastName: 'Rojas' }]);
+    expect(await drafts.load()).toEqual({ swimmer: 'adult', firstName: '', lastName: '', email: '' });
+  });
+
+  it('clears the draft when there is no swimmer choice', async () => {
+    const { swimmer: _swimmer, ...noSwimmer } = draft;
+    const { drafts, profiles } = await run(createInMemoryRegistrationDraftRepository(noSwimmer));
+
+    expect(profiles.saved).toHaveLength(1);
     expect(await drafts.load()).toBeNull();
   });
 
