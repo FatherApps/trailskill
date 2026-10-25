@@ -14,7 +14,7 @@ const fillOf = (token: keyof (typeof colors)['light']) => ({
 });
 
 describe('Icon', () => {
-  it('bundles exactly the design system subset plus the icons of Banner', () => {
+  it('bundles exactly the design system subset plus the icons of Banner and the registration screens', () => {
     expect([...names].sort()).toEqual(
       [
         'timer',
@@ -45,6 +45,10 @@ describe('Icon', () => {
         'check_circle',
         'edit',
         'info',
+        'family_restroom',
+        'radio_button_checked',
+        'radio_button_unchecked',
+        'school',
       ].sort(),
     );
   });
