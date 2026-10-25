@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
 
 import { SupabaseConnector } from '../../sync';
 import { CodeMismatchError, SessionProvider, signOutDecision, useSession } from '../SessionProvider';
@@ -7,26 +8,43 @@ const mockCalls: string[] = [];
 let mockUnsent: Promise<number>;
 let mockConnect: () => Promise<unknown>;
 let mockConfigError: string | null = null;
+let mockInitialSession: unknown;
+let mockAuthCallback: (event: string, session: unknown) => void = () => {};
+// The user whose data the local database holds, as stored on the device.
+let mockOwner: string | null;
 const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
 const mockSignInWithOtp = jest.fn();
 const mockVerifyOtp = jest.fn();
 const mockSignOut = jest.fn();
 const mockGetSession = jest.fn();
 
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: async () => mockOwner,
+  setItemAsync: async (_key: string, value: string) => {
+    mockCalls.push(`owner=${value}`);
+    mockOwner = value;
+  },
+}));
+
 jest.mock('../../sync', () => ({
   countUnsentRecords: () => mockUnsent,
   get supabaseConfigError() {
     return mockConfigError;
   },
-  SupabaseConnector: jest.fn(),
+  SupabaseConnector: jest.fn(() => ({ cancelWaits: () => mockCalls.push('connector.cancelWaits') })),
   db: {
     connect: jest.fn(() => mockConnect()),
-    disconnectAndClear: jest.fn(async () => mockCalls.push('db.disconnectAndClear')),
+    disconnect: jest.fn(async () => mockCalls.push('db.disconnect')),
+    disconnectAndClear: jest.fn(async () => {
+      mockCalls.push('db.disconnectAndClear');
+      mockUnsent = Promise.resolve(0);
+    }),
   },
   supabase: {
     auth: {
       onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
-        callback('INITIAL_SESSION', mockSignedIn);
+        mockAuthCallback = callback;
+        callback('INITIAL_SESSION', mockInitialSession);
         return { data: { subscription: { unsubscribe: jest.fn() } } };
       },
       signInWithOtp: (...args: unknown[]) => mockSignInWithOtp(...args),
@@ -40,6 +58,8 @@ jest.mock('../../sync', () => ({
 beforeEach(() => {
   mockCalls.length = 0;
   mockConfigError = null;
+  mockInitialSession = mockSignedIn;
+  mockOwner = 'coach-1';
   mockUnsent = Promise.resolve(0);
   mockConnect = async () => mockCalls.push('db.connect');
   mockSignInWithOtp.mockReset().mockResolvedValue({ error: null });
@@ -53,7 +73,22 @@ beforeEach(() => {
 
 async function renderSession() {
   const { result } = await renderHook(() => useSession(), { wrapper: SessionProvider });
+  // The provider renders nothing until it knows whose data the local database holds.
+  await waitFor(() => expect(result.current).toBeTruthy());
   return result;
+}
+
+function Probe() {
+  const { session } = useSession();
+  return <Text>{session ? 'signed-in' : 'signed-out'}</Text>;
+}
+
+async function renderProbe() {
+  await render(
+    <SessionProvider>
+      <Probe />
+    </SessionProvider>,
+  );
 }
 
 describe('signOutDecision', () => {
@@ -184,7 +219,7 @@ describe('signOut', () => {
     });
 
     expect(outcome).toBe('signed_out');
-    expect(mockCalls).toEqual(['db.disconnectAndClear', 'auth.signOut']);
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear', 'auth.signOut']);
   });
 
   it('without force and with unsent records keeps the session and the local data', async () => {
@@ -211,7 +246,7 @@ describe('signOut', () => {
     });
 
     expect(outcome).toBe('signed_out');
-    expect(mockCalls).toEqual(['db.disconnectAndClear', 'auth.signOut']);
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear', 'auth.signOut']);
   });
 
   it('waits for the unsent count to load instead of deciding on a placeholder', async () => {
@@ -243,7 +278,7 @@ describe('signOut', () => {
       await expect(session.current.signOut({ force: true })).rejects.toBe(failure);
     });
 
-    expect(mockCalls).toEqual(['db.disconnectAndClear']);
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear']);
   });
 
   it('still signs out offline once supabase-js dropped the stored session', async () => {
@@ -256,5 +291,98 @@ describe('signOut', () => {
     });
 
     expect(outcome).toBe('signed_out');
+  });
+});
+
+describe('local data on a shared phone', () => {
+  it('shows no local data while the session is expired', async () => {
+    mockInitialSession = null;
+    const session = await renderSession();
+
+    expect(session.current.session).toBeNull();
+    expect(mockCalls).toEqual([]);
+  });
+
+  it('disconnects without clearing when the session ends without signing out', async () => {
+    const session = await renderSession();
+    mockCalls.length = 0;
+
+    await act(async () => mockAuthCallback('SIGNED_OUT', null));
+
+    expect(session.current.session).toBeNull();
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnect']);
+  });
+
+  it('gives the same person back their data and unsent records', async () => {
+    mockUnsent = Promise.resolve(3);
+    const session = await renderSession();
+
+    expect(session.current.session).toBe(mockSignedIn);
+    expect(mockCalls).toEqual(['db.connect']);
+  });
+
+  it.each([
+    ['another person', 'coach-0'],
+    ['an unknown person', null],
+  ])('clears the data of %s with nothing unsent before connecting', async (_who, owner) => {
+    mockOwner = owner;
+    const session = await renderSession();
+
+    expect(session.current.session).toBe(mockSignedIn);
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear', 'owner=coach-1', 'db.connect']);
+  });
+
+  it('warns about the unsent records of another person and shows none of their data', async () => {
+    mockOwner = 'coach-0';
+    mockUnsent = Promise.resolve(3);
+    await renderProbe();
+
+    expect(await screen.findByRole('header', { name: '¿Descartar los registros de la persona anterior?' })).toBeOnTheScreen();
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(mockCalls).toEqual([]);
+  });
+
+  it('discarding clears the local database before connecting the new person', async () => {
+    mockOwner = 'coach-0';
+    mockUnsent = Promise.resolve(3);
+    await renderProbe();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Descartar registros' }));
+
+    expect(await screen.findByText('signed-in')).toBeOnTheScreen();
+    expect(mockCalls).toEqual([
+      'connector.cancelWaits',
+      'db.disconnectAndClear',
+      'owner=coach-1',
+      'connector.cancelWaits',
+      'db.disconnect',
+      'db.connect',
+    ]);
+  });
+
+  it('going back to the previous person ends only the new session and keeps the data', async () => {
+    mockOwner = 'coach-0';
+    mockUnsent = Promise.resolve(3);
+    await renderProbe();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ingresar como la persona anterior' }));
+
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mockCalls).toEqual(['auth.signOut']);
+    expect(mockOwner).toBe('coach-0');
+  });
+
+  it('does not warn again once the records of the previous person are gone', async () => {
+    mockOwner = 'coach-0';
+    mockUnsent = Promise.resolve(3);
+    await renderProbe();
+    await screen.findByRole('button', { name: 'Ingresar como la persona anterior' });
+
+    await act(async () => mockAuthCallback('SIGNED_OUT', null));
+    mockUnsent = Promise.resolve(0);
+    await act(async () => mockAuthCallback('SIGNED_IN', mockSignedIn));
+
+    expect(await screen.findByText('signed-in')).toBeOnTheScreen();
+    expect(screen.queryByRole('header', { name: '¿Descartar los registros de la persona anterior?' })).toBeNull();
   });
 });
