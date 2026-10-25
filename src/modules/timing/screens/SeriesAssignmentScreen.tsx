@@ -109,7 +109,8 @@ export function SeriesAssignmentScreen({
           <OfflineBanner />
         </View>
       )}
-      <ScrollView contentContainerStyle={{ gap: space[4], padding: space[4] }}>
+      {/* Android needs nestedScrollEnabled for this list to scroll when hosted inside another ScrollView (e.g. the dev gallery preview). */}
+      <ScrollView nestedScrollEnabled contentContainerStyle={{ gap: space[4], padding: space[4] }}>
         {completionOnly ? (
           <View style={listStyle}>
             {athletes.map((athlete, index) => (

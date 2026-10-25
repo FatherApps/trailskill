@@ -184,6 +184,7 @@ describe('SeriesAssignmentScreen', () => {
     }
     const contentStyle = StyleSheet.flatten(scroll.props.contentContainerStyle);
     expect(contentStyle?.paddingBottom ?? contentStyle?.padding).toBeGreaterThan(0);
+    expect(scroll.props.nestedScrollEnabled).toBe(true);
   });
 
   it('shows the offline notice', async () => {
