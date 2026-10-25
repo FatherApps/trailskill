@@ -1,5 +1,5 @@
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useSession } from '../../core/session';
 import { db, useGlobalSyncSummary } from '../../core/sync';
@@ -51,11 +51,16 @@ export default function TimingRoute() {
       .catch(() => {});
   }, []);
 
+  // A new function after each sync makes the flow reload the roster, so a withdrawal that arrives marks the athlete "se omitirá" at once.
+  // The sync time is not read by the loader: it is only what makes the function new.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const syncedRoster = useCallback(() => loadRoster(), [lastSyncedAt]);
+
   if (access.status === 'loading') return null;
   // Only a hidden button is not protection: the backend enforces who may record times.
   if (access.status === 'denied' || !session) return <Redirect href="/" />;
   if (!deviceId) return null;
-  const flow = { subtitle: access.school.name, loadRoster, userId: session.user.id, deviceId, setups: sessionSetups, onExit: leave };
+  const flow = { subtitle: access.school.name, loadRoster: syncedRoster, userId: session.user.id, deviceId, setups: sessionSetups, onExit: leave };
   if (mode === 'series') return <SeriesTimingFlow {...flow} series={seriesRepository} />;
   if (mode === 'completed') return <CompletedFlow {...flow} measurements={measurements} />;
   return <IndividualTimingFlow {...flow} measurements={measurements} loadBestTime={loadBestTime} />;
