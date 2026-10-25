@@ -1,6 +1,7 @@
 {
   "home": {
-    "title": "TrailSkill"
+    "title": "TrailSkill",
+    "plans": "Planes de entrenamiento"
   },
   "auth": {
     "email_title": "Ingresa a TrailSkill",
@@ -60,6 +61,19 @@
     "pool": {
       "SCM": "Piscina de 25 m",
       "LCM": "Piscina de 50 m"
+    },
+    "equipment": {
+      "fins": "Aletas",
+      "paddles": "Paletas",
+      "snorkel": "Tubo",
+      "kickboard": "Tabla",
+      "pull_buoy": "Pull buoy"
+    },
+    "phase": {
+      "warm_up": "Calentamiento",
+      "main": "Principal",
+      "technique": "Técnica",
+      "cool_down": "Enfriamiento"
     }
   },
   "dev": {

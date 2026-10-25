@@ -1,9 +1,20 @@
 'use strict';
 
 import { i18n } from '../../i18n';
-import { distances, isDistance, isPool, isStroke, pools, strokes } from '..';
+import {
+  distances,
+  equipment,
+  isDistance,
+  isEquipment,
+  isPhase,
+  isPool,
+  isStroke,
+  phases,
+  pools,
+  strokes,
+} from '..';
 
-const catalogs = { strokes, distances, pools };
+const catalogs = { strokes, distances, pools, equipment, phases };
 
 describe.each(Object.entries(catalogs))('%s catalog', (_name, catalog) => {
   it('has unique codes', () => {
@@ -42,6 +53,14 @@ describe('catalog contents', () => {
     ]);
   });
 
+  it('lists the five pieces of training equipment', () => {
+    expect(equipment.map((e) => e.code)).toEqual(['fins', 'paddles', 'snorkel', 'kickboard', 'pull_buoy']);
+  });
+
+  it('lists the four training phases in session order', () => {
+    expect(phases.map((p) => p.code)).toEqual(['warm_up', 'main', 'technique', 'cool_down']);
+  });
+
   it('is read-only', () => {
     expect(() => {
       // @ts-expect-error catalogs are read-only
@@ -59,6 +78,8 @@ describe.each([
   ['isStroke', isStroke, strokes],
   ['isDistance', isDistance, distances],
   ['isPool', isPool, pools],
+  ['isEquipment', isEquipment, equipment],
+  ['isPhase', isPhase, phases],
 ] as const)('%s', (_name, isCode, catalog) => {
   it('accepts every catalog code', () => {
     for (const entry of catalog) {
@@ -76,5 +97,7 @@ describe('validators', () => {
     expect(isStroke('SCM')).toBe(false);
     expect(isPool('FR')).toBe(false);
     expect(isDistance('FR')).toBe(false);
+    expect(isEquipment('main')).toBe(false);
+    expect(isPhase('fins')).toBe(false);
   });
 });

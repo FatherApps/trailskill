@@ -41,6 +41,32 @@ export const AppSchema = new Schema({
     },
     { indexes: { series: ['series_id'] } },
   ),
+  training_plans: new Table(
+    // SQLite has no boolean: is_template is 1 for a school template, 0 otherwise.
+    { ...audit, school_id: column.text, name: column.text, is_template: column.integer },
+    { indexes: { school: ['school_id'] } },
+  ),
+  training_plan_versions: new Table(
+    { ...audit, plan_id: column.text, version: column.integer },
+    { indexes: { plan: ['plan_id'] } },
+  ),
+  training_plan_blocks: new Table(
+    {
+      ...audit,
+      version_id: column.text,
+      position: column.integer,
+      repetitions: column.integer,
+      distance: column.text,
+      stroke: column.text,
+      drill: column.text,
+      // PowerSync syncs a Postgres array as JSON array text.
+      equipment: column.text,
+      send_off_seconds: column.integer,
+      phase: column.text,
+      recording: column.text,
+    },
+    { indexes: { version: ['version_id'] } },
+  ),
   authorization_texts: new Table({
     ...audit,
     purpose: column.text,

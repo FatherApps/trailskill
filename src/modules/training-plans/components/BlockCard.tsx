@@ -3,15 +3,16 @@ import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
+import type { DraftBlock } from '../draft';
 import '../i18n';
-import type { PlanBlock, PlanVocabulary } from '../types';
+import type { PlanVocabulary } from '../types';
 import { labelOf } from '../vocabulary';
 import { blockSummary } from './blockSummary';
 import { formatSendOff } from './formatSendOff';
 import { PhaseTag } from './PhaseTag';
 
 export type BlockCardProps = {
-  block: PlanBlock;
+  block: DraftBlock;
   vocabulary: PlanVocabulary;
   // A footer slot: the builder actions, or the Today status and times.
   children?: ReactNode;
@@ -37,7 +38,7 @@ export function BlockCard({ block, vocabulary, children }: BlockCardProps) {
       {block.sendOffSeconds !== null && (
         <Text style={muted}>{t('training_plans.block.send_off', { time: formatSendOff(block.sendOffSeconds) })}</Text>
       )}
-      <Text style={muted}>{t(`training_plans.recording.${block.recording}`)}</Text>
+      {block.recording && <Text style={muted}>{t(`training_plans.recording.${block.recording}`)}</Text>}
       {children}
     </View>
   );

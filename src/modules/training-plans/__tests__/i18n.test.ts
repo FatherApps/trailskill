@@ -2,6 +2,10 @@ import { i18n, t } from '../../../core/i18n';
 import '..';
 import esCO from '../i18n/es-CO.json';
 
+// The module barrel exports the PowerSync repository, which pulls in the ESM-only PowerSync package.
+jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync/db', () => ({ db: {} }));
+
 describe('training-plans i18n', () => {
   it('makes the module keys available once the module is loaded', () => {
     expect(t('training_plans.phase.warm_up')).toBe('Calentamiento');
@@ -9,6 +13,7 @@ describe('training-plans i18n', () => {
       '4 × 100 m Libre',
     );
     expect(t('training_plans.today.status.partial', { done: 3, total: 4 })).toBe('Parcial · 3 de 4');
+    expect(t('training_plans.builder.remove_message', { position: 2 })).toBe('El bloque 2 sale del plan cuando lo guardes.');
   });
 
   it('pluralizes the block count', () => {
