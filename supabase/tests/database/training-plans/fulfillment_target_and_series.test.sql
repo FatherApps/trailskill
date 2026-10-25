@@ -9,7 +9,7 @@
 -- the groups of the coach's directly assigned athletes. All data here is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(38);
 
 -- Users: coach C1 (school 1, group g1 and direct e2), coach K (school 1, direct
 -- e5 who is in group g2, responsible for no group), coach F (school 2) and U,
@@ -47,6 +47,7 @@ insert into public.athletes (id, first_name, last_name) values
   ('75000000-0000-4000-8000-0000000000e4', 'Athlete', 'E4'),
   ('75000000-0000-4000-8000-0000000000e5', 'Athlete', 'E5'),
   ('75000000-0000-4000-8000-0000000000e6', 'Athlete', 'E6'),
+  ('75000000-0000-4000-8000-0000000000e7', 'Athlete', 'E7'),
   ('75000000-0000-4000-8000-0000000000e9', 'Athlete', 'E9');
 
 insert into public.athlete_schools (athlete_id, school_id, category_id) values
@@ -55,11 +56,13 @@ insert into public.athlete_schools (athlete_id, school_id, category_id) values
   ('75000000-0000-4000-8000-0000000000e4', '75000000-0000-4000-8000-0000000000b1', null),
   ('75000000-0000-4000-8000-0000000000e5', '75000000-0000-4000-8000-0000000000b1', null),
   ('75000000-0000-4000-8000-0000000000e6', '75000000-0000-4000-8000-0000000000b1', null),
+  ('75000000-0000-4000-8000-0000000000e7', '75000000-0000-4000-8000-0000000000b1', null),
   ('75000000-0000-4000-8000-0000000000e9', '75000000-0000-4000-8000-0000000000b2', null);
 
 insert into public.athlete_groups (athlete_id, group_id) values
   ('75000000-0000-4000-8000-0000000000e1', '75000000-0000-4000-8000-0000000000c1'),
   ('75000000-0000-4000-8000-0000000000e5', '75000000-0000-4000-8000-0000000000c2'),
+  ('75000000-0000-4000-8000-0000000000e7', '75000000-0000-4000-8000-0000000000c2'),
   ('75000000-0000-4000-8000-0000000000e6', '75000000-0000-4000-8000-0000000000c3');
 
 insert into public.coach_group_assignments (coach_user_id, group_id) values ('75000000-0000-4000-8000-0000000000a1', '75000000-0000-4000-8000-0000000000c1');
@@ -73,7 +76,7 @@ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_
 values ('75000000-0000-4000-8000-0000000000a1', '75000000-0000-4000-8000-0000000000e9', '75000000-0000-4000-8000-0000000000b2');
 alter table public.coach_athlete_assignments enable trigger user;
 
--- record_times is authorized for e1, e2, e4 and e9, so only the target and series
+-- e7 is in g2 too but in nobody's charge. record_times is authorized for e1, e2, e4, e5, e7 and e9, so only the target and series
 -- checks and the charge decide below.
 insert into public.authorization_texts (id, purpose, version, language, body) values
   ('75000000-0000-4000-8000-000000000071', 'record_times', 1, 'en-US', 'Synthetic record times text v1');
@@ -81,6 +84,8 @@ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at
   ('75000000-0000-4000-8000-000000000081', '75000000-0000-4000-8000-0000000000e1', 'record_times', '75000000-0000-4000-8000-000000000071', '2026-10-01 08:00:00+00', '75000000-0000-4000-8000-0000000000a4'),
   ('75000000-0000-4000-8000-000000000082', '75000000-0000-4000-8000-0000000000e2', 'record_times', '75000000-0000-4000-8000-000000000071', '2026-10-01 08:00:00+00', '75000000-0000-4000-8000-0000000000a4'),
   ('75000000-0000-4000-8000-000000000084', '75000000-0000-4000-8000-0000000000e4', 'record_times', '75000000-0000-4000-8000-000000000071', '2026-10-01 08:00:00+00', '75000000-0000-4000-8000-0000000000a4'),
+  ('75000000-0000-4000-8000-000000000085', '75000000-0000-4000-8000-0000000000e5', 'record_times', '75000000-0000-4000-8000-000000000071', '2026-10-01 08:00:00+00', '75000000-0000-4000-8000-0000000000a4'),
+  ('75000000-0000-4000-8000-000000000087', '75000000-0000-4000-8000-0000000000e7', 'record_times', '75000000-0000-4000-8000-000000000071', '2026-10-01 08:00:00+00', '75000000-0000-4000-8000-0000000000a4'),
   ('75000000-0000-4000-8000-000000000089', '75000000-0000-4000-8000-0000000000e9', 'record_times', '75000000-0000-4000-8000-000000000071', '2026-10-01 08:00:00+00', '75000000-0000-4000-8000-0000000000a4');
 
 insert into public.training_plans (id, created_by, school_id, name) values
@@ -244,6 +249,17 @@ select lives_ok(
   $$ update public.training_plan_fulfillments set athlete_id = athlete_id where id = '75000000-0000-4000-8000-000000000f01' $$,
   'rewriting the athlete of a mark, as the withdrawal recompute does, is never refused'
 );
+-- Discriminating recompute: e6 is a member of g3 when the mark on the g3 assignment is
+-- saved, then leaves the group. Rewriting the athlete must still not be refused.
+select lives_ok(
+  $$ insert into public.training_plan_fulfillments (id, device_id, assignment_id, version_id, block_id, athlete_id, captured_at) values ('75000000-0000-4000-8000-000000000f30', 'device-1', '75000000-0000-4000-8000-000000000037', '75000000-0000-4000-8000-000000000011', '75000000-0000-4000-8000-000000000021', '75000000-0000-4000-8000-0000000000e6', '2026-10-26 08:00:00+00') $$,
+  'a mark on a group assignment is accepted while the athlete is in the group'
+);
+delete from public.athlete_groups where athlete_id = '75000000-0000-4000-8000-0000000000e6';
+select lives_ok(
+  $$ update public.training_plan_fulfillments set athlete_id = athlete_id where id = '75000000-0000-4000-8000-000000000f30' $$,
+  'rewriting the athlete of a mark whose athlete left the group, as the withdrawal recompute does, is never refused'
+);
 select lives_ok(
   $$ update public.training_plan_fulfillments set series_id = '75000000-0000-4000-8000-000000000051' where id = '75000000-0000-4000-8000-000000000f01' $$,
   'an update of series_id to a series of the school is accepted'
@@ -302,6 +318,14 @@ set local request.jwt.claims = '{"sub": "75000000-0000-4000-8000-0000000000a2", 
 select is_empty(
   $$ select id from stream_k except select id from public.training_plan_assignments $$,
   'every assignment in K''s stream is readable by K'
+);
+select lives_ok(
+  $$ insert into public.training_plan_fulfillments (id, device_id, assignment_id, version_id, block_id, athlete_id, captured_at) values ('75000000-0000-4000-8000-000000000f20', 'device-1', '75000000-0000-4000-8000-000000000036', '75000000-0000-4000-8000-000000000011', '75000000-0000-4000-8000-000000000021', '75000000-0000-4000-8000-0000000000e5', '2026-10-26 08:00:00+00') $$,
+  'K marks its direct athlete against the group assignment of the group the athlete is in'
+);
+select throws_ok(
+  $$ insert into public.training_plan_fulfillments (id, device_id, assignment_id, version_id, block_id, athlete_id, captured_at) values ('75000000-0000-4000-8000-000000000f21', 'device-1', '75000000-0000-4000-8000-000000000036', '75000000-0000-4000-8000-000000000011', '75000000-0000-4000-8000-000000000021', '75000000-0000-4000-8000-0000000000e7', '2026-10-26 08:00:00+00') $$,
+  '42501', 'new row violates row-level security policy for table "training_plan_fulfillments"', 'but not another member of that group who is not in K''s charge'
 );
 reset role;
 
