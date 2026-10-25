@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isPermanentUploadError, SupabaseConnector } from '../connector';
 import { createStore, openDatabase } from '../testing/fakeDatabase';
 
-type Result = { data: { id: string }[] | null; error: { code?: string; message: string } | null };
+type Result = { data: { id: string }[] | null; error: { code?: string; message: string } | null; status?: number };
 
 const ok: Result = { data: [{ id: 'row-1' }], error: null };
 const empty: Result = { data: [], error: null };
@@ -17,7 +17,7 @@ type Statements = [string, unknown[]][];
 
 function setup(
   results: { upsert?: Result; update?: Result; delete?: Result; readBack?: Result } = {},
-  options: { maxAttempts?: number; sleep?: (ms: number) => Promise<void> } = {},
+  options: { maxAttempts?: number; sleep?: (ms: number, signal: AbortSignal) => Promise<void> } = {},
 ) {
   // An upsert is awaited directly, or chained with .select('id') when the connector needs the inserted row.
   const upsertResult = results.upsert ?? { data: null, error: null };
@@ -43,6 +43,7 @@ function setup(
         if (failOn && sql.startsWith(failOn)) throw new Error('disk full');
         staged.push([sql, params]);
       },
+      getOptional: async () => null,
     });
     committed.push(...staged);
     return result;
@@ -121,7 +122,7 @@ describe('SupabaseConnector.uploadData', () => {
 
   it('rethrows a network error without touching local state so PowerSync retries', async () => {
     const error = { message: 'Network request failed' };
-    const t = setup({ upsert: { data: null, error } });
+    const t = setup({ upsert: { data: null, error } }, { sleep: jest.fn().mockResolvedValue(undefined) });
     await expect(t.connector.uploadData(t.database([entry('PUT', 'a', { first_name: 'Ana' })]))).rejects.toBe(error);
 
     expect(t.complete).not.toHaveBeenCalled();
@@ -130,17 +131,17 @@ describe('SupabaseConnector.uploadData', () => {
   });
 
   describe('retry limit for persistent coded errors', () => {
-    const transient = { code: '42P01', message: 'relation does not exist' };
+    const persistent = { code: '42P01', message: 'relation does not exist' };
     const put = (clientId = 1) => entry('PUT', 'a', { first_name: 'Ana' }, 'athletes', clientId);
 
     it('throws with a growing wait for 4 attempts, then records the code and completes on the 5th', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
-      const t = setup({ upsert: { data: null, error: transient } }, { sleep });
+      const t = setup({ upsert: { data: null, error: persistent } }, { sleep });
 
       for (let attempt = 1; attempt <= 4; attempt++) {
-        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(transient);
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(persistent);
       }
-      expect(sleep.mock.calls).toEqual([[1000], [2000], [4000], [8000]]);
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000, 8000]);
       expect(t.complete).not.toHaveBeenCalled();
       expect(t.writeTransaction).not.toHaveBeenCalled();
 
@@ -155,16 +156,16 @@ describe('SupabaseConnector.uploadData', () => {
 
     it('caps the wait at 30 seconds', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
-      const t = setup({ upsert: { data: null, error: transient } }, { sleep, maxAttempts: 10 });
+      const t = setup({ upsert: { data: null, error: persistent } }, { sleep, maxAttempts: 10 });
       for (let attempt = 1; attempt <= 9; attempt++) {
-        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(transient);
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(persistent);
       }
       expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000]);
     });
 
     it('gives up one op and still sends the rest of the transaction', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
-      const t = setup({ upsert: { data: null, error: transient } }, { sleep, maxAttempts: 1 });
+      const t = setup({ upsert: { data: null, error: persistent } }, { sleep, maxAttempts: 1 });
       await t.connector.uploadData(t.database([put(), entry('PATCH', 'b', { first_name: 'Bea' }, 'athletes', 2)]));
 
       expect(t.update).toHaveBeenCalledTimes(1);
@@ -192,7 +193,36 @@ describe('SupabaseConnector.uploadData', () => {
       expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000, 8000, 1000, 2000, 4000, 8000, 1000, 2000, 4000, 8000]);
     });
 
-    it('never counts or gives up a code-less network error', async () => {
+    const growingWaits = [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000];
+
+    it('gives up a 500 that carries a deterministic code (P0004) after maxAttempts and records it', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code: 'P0004', message: 'assert failed' };
+      const t = setup({ upsert: { data: null, error, status: 500 } }, { sleep });
+
+      for (let attempt = 1; attempt < 5; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
+      }
+      await t.connector.uploadData(t.database([put()]));
+      expect(failureInserts(t.committed)).toHaveLength(1);
+      expect(failureInserts(t.committed)[0][1]).toContain('P0004');
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('never gives up a 500 without a code', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { message: 'internal error' };
+      const t = setup({ upsert: { data: null, error, status: 500 } }, { sleep });
+
+      for (let attempt = 1; attempt <= 8; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
+      }
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual(growingWaits);
+      expect(failureInserts(t.committed)).toHaveLength(0);
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
+    it('never counts or gives up a code-less network error, and waits with a growing delay', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
       const error = { message: 'Network request failed' };
       const t = setup({ upsert: { data: null, error } }, { sleep });
@@ -200,12 +230,12 @@ describe('SupabaseConnector.uploadData', () => {
       for (let attempt = 1; attempt <= 8; attempt++) {
         await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
       }
-      expect(sleep).not.toHaveBeenCalled();
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual(growingWaits);
       expect(t.writeTransaction).not.toHaveBeenCalled();
       expect(t.complete).not.toHaveBeenCalled();
     });
 
-    it('never counts or gives up an expired-session error (PGRST303)', async () => {
+    it('never counts or gives up an expired-session error (PGRST303), and waits with a growing delay', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
       const error = { code: 'PGRST303', message: 'JWT expired' };
       const t = setup({ upsert: { data: null, error } }, { sleep });
@@ -213,33 +243,157 @@ describe('SupabaseConnector.uploadData', () => {
       for (let attempt = 1; attempt <= 8; attempt++) {
         await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
       }
-      expect(sleep).not.toHaveBeenCalled();
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual(growingWaits);
       expect(t.writeTransaction).not.toHaveBeenCalled();
       expect(t.complete).not.toHaveBeenCalled();
     });
 
+    it.each(['57014', '40001', '40P01'])('never gives up the transient server error %s, and waits with a growing delay', async (code) => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code, message: 'transient' };
+      const t = setup({ upsert: { data: null, error } }, { sleep });
+
+      for (let attempt = 1; attempt <= 8; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
+      }
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual(growingWaits);
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+      expect(failureInserts(t.committed)).toHaveLength(0);
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
+    it('never gives up a response with HTTP status 503, even with a code that would otherwise give up', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code: '42P01', message: 'service unavailable' };
+      const t = setup({ upsert: { data: null, error, status: 503 } }, { sleep });
+
+      for (let attempt = 1; attempt <= 8; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
+      }
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual(growingWaits);
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+      expect(failureInserts(t.committed)).toHaveLength(0);
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
+    it('does not mix network retries into the give-up count of coded errors', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const t = setup({ upsert: { data: null, error: { message: 'Network request failed' } } }, { sleep });
+      for (let attempt = 1; attempt <= 6; attempt++) await t.connector.uploadData(t.database([put()])).catch(() => undefined);
+
+      t.upsert.mockImplementation(() => Object.assign(Promise.resolve({ data: null, error: persistent }), { select: jest.fn() }));
+      await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(persistent);
+      expect(failureInserts(t.committed)).toHaveLength(0);
+    });
+
     it('drops the counter of a completed op: another op starts at attempt 1', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
-      const failing = setup({ upsert: { data: null, error: transient } }, { sleep });
+      const failing = setup({ upsert: { data: null, error: persistent } }, { sleep });
       // Reuse one connector across a failing op that gives up and a new op with a different clientId.
       for (let attempt = 1; attempt <= 5; attempt++) {
         await failing.connector.uploadData(failing.database([put(1)])).catch(() => undefined);
       }
       sleep.mockClear();
-      await expect(failing.connector.uploadData(failing.database([put(2)]))).rejects.toBe(transient);
-      expect(sleep.mock.calls).toEqual([[1000]]);
+      await expect(failing.connector.uploadData(failing.database([put(2)]))).rejects.toBe(persistent);
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000]);
     });
 
     it('a successful send resets the counter of that op', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
-      const t = setup({ upsert: { data: null, error: transient } }, { sleep });
-      await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(transient);
+      const t = setup({ upsert: { data: null, error: persistent } }, { sleep });
+      await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(persistent);
       t.upsert.mockImplementation(() => Object.assign(Promise.resolve({ data: null, error: null }), { select: jest.fn() }));
       await t.connector.uploadData(t.database([put()]));
-      t.upsert.mockImplementation(() => Object.assign(Promise.resolve({ data: null, error: transient }), { select: jest.fn() }));
+      t.upsert.mockImplementation(() => Object.assign(Promise.resolve({ data: null, error: persistent }), { select: jest.fn() }));
       sleep.mockClear();
-      await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(transient);
-      expect(sleep.mock.calls).toEqual([[1000]]);
+      await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(persistent);
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000]);
+    });
+  });
+
+  describe('cancelWaits', () => {
+    const networkError = { message: 'Network request failed' };
+    const put = () => entry('PUT', 'a', { first_name: 'Ana' });
+
+    // A sleep that only ends when its signal aborts; `waiting` resolves once a wait has started.
+    function hangingSleep() {
+      let started!: () => void;
+      const waiting = new Promise<void>((resolve) => (started = resolve));
+      const sleep = jest.fn().mockImplementation(
+        (_ms: number, signal: AbortSignal) =>
+          new Promise<void>((_resolve, reject) => {
+            started();
+            signal.addEventListener('abort', () => reject(new Error('wait canceled')));
+          }),
+      );
+      return { sleep, waiting };
+    }
+
+    it('ends a wait in progress: the upload rejects at once, writes nothing and does not complete', async () => {
+      const { sleep, waiting } = hangingSleep();
+      const t = setup({ upsert: { data: null, error: networkError } }, { sleep });
+
+      const upload = t.connector.uploadData(t.database([put()]));
+      const rejection = expect(upload).rejects.toThrow('wait canceled');
+      await waiting;
+      t.connector.cancelWaits();
+      await rejection;
+
+      expect(t.complete).not.toHaveBeenCalled();
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+      expect(t.execute).not.toHaveBeenCalled();
+    });
+
+    it('does not affect later uploads', async () => {
+      const { sleep, waiting } = hangingSleep();
+      const t = setup({ upsert: { data: null, error: networkError } }, { sleep });
+      const upload = t.connector.uploadData(t.database([put()]));
+      const rejection = expect(upload).rejects.toThrow('wait canceled');
+      await waiting;
+      t.connector.cancelWaits();
+      await rejection;
+
+      t.upsert.mockImplementation(() => Object.assign(Promise.resolve({ data: null, error: null }), { select: jest.fn() }));
+      await expect(t.connector.uploadData(t.database([put()]))).resolves.toBeUndefined();
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('a cancel while the request is in flight is not lost: the wait that follows starts already aborted', async () => {
+      let answer!: () => void;
+      const inFlight = new Promise<Result>((resolve) => (answer = () => resolve({ data: null, error: networkError })));
+      const aborted: boolean[] = [];
+      const sleep = jest.fn().mockImplementation(async (_ms: number, signal: AbortSignal) => {
+        aborted.push(signal.aborted);
+        if (signal.aborted) throw new Error('wait canceled');
+      });
+      const t = setup({}, { sleep });
+      t.upsert.mockImplementation(() => Object.assign(inFlight, { select: jest.fn() }));
+
+      const rejection = expect(t.connector.uploadData(t.database([put()]))).rejects.toThrow('wait canceled');
+      while (!t.upsert.mock.calls.length) await Promise.resolve();
+      t.connector.cancelWaits();
+      answer();
+      await rejection;
+
+      expect(aborted).toEqual([true]);
+      expect(t.complete).not.toHaveBeenCalled();
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+    });
+
+    it('the default sleep clears its timer when canceled', async () => {
+      jest.useFakeTimers();
+      try {
+        const t = setup({ upsert: { data: null, error: networkError } });
+        const rejection = expect(t.connector.uploadData(t.database([put()]))).rejects.toThrow();
+        await jest.advanceTimersByTimeAsync(0);
+        expect(jest.getTimerCount()).toBe(1);
+
+        t.connector.cancelWaits();
+        await rejection;
+        expect(jest.getTimerCount()).toBe(0);
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 
@@ -348,12 +502,22 @@ describe('SupabaseConnector.uploadData', () => {
         db.getAll("SELECT id FROM pending_writes WHERE table_name = 'athletes' AND record_id = ?", [id]).length;
       const failures = (db: ReturnType<typeof openDatabase>, id: string) =>
         db.getAll<{ error_code: string }>("SELECT error_code FROM upload_failures WHERE table_name = 'athletes' AND record_id = ?", [id]);
+      const addMark = (db: ReturnType<typeof openDatabase>, id: string) =>
+        db.writeTransaction(async (tx) => {
+          await tx.execute("INSERT INTO pending_writes (id, table_name, record_id) VALUES (uuid(), 'athletes', ?)", [id]);
+        });
+      const uploadedOps = (db: ReturnType<typeof openDatabase>) =>
+        db.getAll<{ client_id: number }>('SELECT client_id FROM uploaded_ops ORDER BY client_id').map((row) => row.client_id);
 
       function withStore(run: (db: ReturnType<typeof openDatabase>, uploaded: (t: ReturnType<typeof setup>, crud: CrudEntry[]) => Promise<void>) => Promise<void>) {
         return async () => {
           const store = createStore();
           try {
             const db = openDatabase(store.path);
+            // The shared fake store does not know this table yet.
+            await db.writeTransaction(async (tx) => {
+              await tx.execute('CREATE TABLE uploaded_ops (id TEXT PRIMARY KEY, client_id INTEGER)');
+            });
             const uploaded = (t: ReturnType<typeof setup>, crud: CrudEntry[]) => {
               const base = t.database(crud) as unknown as Record<string, unknown>;
               return t.connector.uploadData({ ...base, writeTransaction: db.writeTransaction.bind(db) } as unknown as AbstractPowerSyncDatabase);
@@ -396,14 +560,61 @@ describe('SupabaseConnector.uploadData', () => {
         withStore(async (db, uploaded) => {
           // Rule: successes clear old failures first, then this transaction's failures are inserted; a failure never disappears here.
           const t = setup({ update: empty });
-          await uploaded(t, [entry('PUT', 'a', { first_name: 'Ana' }), entry('PATCH', 'a', { first_name: 'Bea' })]);
+          // Distinct clientIds, as in PowerSync: a second batch reusing one would be taken for a re-sent transaction.
+          await uploaded(t, [entry('PUT', 'a', { first_name: 'Ana' }, 'athletes', 1), entry('PATCH', 'a', { first_name: 'Bea' }, 'athletes', 2)]);
           expect(failures(db, 'a')).toEqual([{ error_code: 'no_rows_affected' }]);
 
           const t2 = setup({ update: empty });
-          await uploaded(t2, [entry('PATCH', 'b', { first_name: 'Bea' }), entry('PUT', 'b', { first_name: 'Ana' })]);
+          await uploaded(t2, [entry('PATCH', 'b', { first_name: 'Bea' }, 'athletes', 3), entry('PUT', 'b', { first_name: 'Ana' }, 'athletes', 4)]);
           expect(failures(db, 'b')).toEqual([{ error_code: 'no_rows_affected' }]);
         }),
       );
+
+      describe('crash between bookkeeping and complete()', () => {
+        it(
+          'does not delete the mark of a newer write when the same transaction is sent again',
+          withStore(async (db, uploaded) => {
+            await addMark(db, 'a');
+            const t = setup();
+            t.complete.mockRejectedValueOnce(new Error('crash'));
+            const crud = [entry('PUT', 'a', { first_name: 'Ana' }, 'athletes', 7)];
+
+            await expect(uploaded(t, crud)).rejects.toThrow('crash');
+            expect(pendingCount(db, 'a')).toBe(0);
+
+            await addMark(db, 'a');
+            await uploaded(t, crud);
+            expect(pendingCount(db, 'a')).toBe(1);
+            expect(t.complete).toHaveBeenCalledTimes(2);
+          }),
+        );
+
+        it(
+          'does not record the same failure twice when the transaction is sent again',
+          withStore(async (db, uploaded) => {
+            await addMark(db, 'a');
+            const t = setup({ update: empty });
+            t.complete.mockRejectedValueOnce(new Error('crash'));
+            const crud = [entry('PATCH', 'a', { first_name: 'Bea' }, 'athletes', 7)];
+
+            await expect(uploaded(t, crud)).rejects.toThrow('crash');
+            await uploaded(t, crud);
+            expect(failures(db, 'a')).toEqual([{ error_code: 'no_rows_affected' }]);
+          }),
+        );
+
+        it(
+          'prunes the ops of completed transactions: ids below the first op of this transaction',
+          withStore(async (db, uploaded) => {
+            await db.writeTransaction(async (tx) => {
+              await tx.execute('INSERT INTO uploaded_ops (id, client_id) VALUES (uuid(), 3), (uuid(), 9)');
+            });
+            await uploaded(setup(), [entry('PUT', 'a', { first_name: 'Ana' }, 'athletes', 5)]);
+
+            expect(uploadedOps(db)).toEqual([5, 9]);
+          }),
+        );
+      });
     });
   });
 });

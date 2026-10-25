@@ -45,9 +45,10 @@ describe('AppSchema', () => {
     expect(byName.has('platform_admins')).toBe(false);
   });
 
-  it('keeps pending_writes and upload_failures local only', () => {
+  it('keeps pending_writes, upload_failures and uploaded_ops local only', () => {
     expect(byName.get('pending_writes')?.localOnly).toBe(true);
     expect(byName.get('upload_failures')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(18);
+    expect(byName.get('uploaded_ops')?.localOnly).toBe(true);
+    expect(AppSchema.tables).toHaveLength(19);
   });
 });
