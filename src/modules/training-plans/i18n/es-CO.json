@@ -32,8 +32,8 @@
     "recording": "Qué se registra",
     "less_repetitions": "Quitar una repetición",
     "more_repetitions": "Sumar una repetición",
-    "less_send_off": "Quitar 5 segundos",
-    "more_send_off": "Sumar 5 segundos",
+    "less_send_off": "Quitar {{seconds}} segundos",
+    "more_send_off": "Sumar {{seconds}} segundos",
     "done": "Listo"
   },
   "builder": {

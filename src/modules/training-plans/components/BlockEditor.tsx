@@ -157,8 +157,8 @@ export function BlockEditor({ block, vocabulary, onChange, onDone }: BlockEditor
       <Field label={t('training_plans.editor.send_off')}>
         <Stepper
           value={block.sendOffSeconds === null ? t('training_plans.editor.no_send_off') : formatSendOff(sendOff)}
-          lessLabel={t('training_plans.editor.less_send_off')}
-          moreLabel={t('training_plans.editor.more_send_off')}
+          lessLabel={t('training_plans.editor.less_send_off', { seconds: SEND_OFF_STEP })}
+          moreLabel={t('training_plans.editor.more_send_off', { seconds: SEND_OFF_STEP })}
           onLess={() => stepSendOff(-SEND_OFF_STEP)}
           onMore={() => stepSendOff(SEND_OFF_STEP)}
         />

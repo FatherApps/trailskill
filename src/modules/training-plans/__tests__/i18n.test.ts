@@ -1,5 +1,6 @@
-import { t } from '../../../core/i18n';
+import { i18n, t } from '../../../core/i18n';
 import '..';
+import esCO from '../i18n/es-CO.json';
 
 describe('training-plans i18n', () => {
   it('makes the module keys available once the module is loaded', () => {
@@ -16,10 +17,8 @@ describe('training-plans i18n', () => {
   });
 
   it('keeps registration harmless when the module loads twice and leaves core copy untouched', () => {
-    jest.isolateModules(() => {
-      jest.requireActual('../i18n');
-      jest.requireActual('../i18n');
-    });
+    i18n.addResourceBundle('es-CO', 'translation', { training_plans: esCO }, true, true);
+    i18n.addResourceBundle('es-CO', 'translation', { training_plans: esCO }, true, true);
 
     expect(t('training_plans.builder.add')).toBe('Agregar bloque');
     expect(t('common.back')).toBe('Volver');

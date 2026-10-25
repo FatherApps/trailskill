@@ -64,7 +64,21 @@ describe('training-plans gallery entries', () => {
     expect(screen.getByText('1 bloque')).toBeOnTheScreen();
   });
 
-  it('moves a block and closes the editor in the builder preview', async () => {
+  it('moves a block down in the builder preview', async () => {
+    await render(<ThemeProvider>{entry('planBuilder').states.blocks()}</ThemeProvider>);
+    const summaries = () => screen.getAllByText(/^\d+ × \d+ m /).map((n) => n.props.children);
+    const [first, second] = summaries();
+    expect(first).toBe('1 × 200 m Libre');
+    expect(second).toBe('8 × 50 m Libre');
+
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Bajar' })[0]);
+
+    expect(summaries().slice(0, 2)).toEqual([second, first]);
+    expect(screen.getAllByRole('button', { name: 'Subir' })).toHaveLength(4);
+    expect(screen.getAllByRole('button', { name: 'Bajar' })).toHaveLength(4);
+  });
+
+  it('closes the editor in the builder preview', async () => {
     await render(<ThemeProvider>{entry('planBuilder').states.editing()}</ThemeProvider>);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Listo' }));
