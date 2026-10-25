@@ -669,3 +669,22 @@ describe('SwimmerRow at a narrow width', () => {
     expect(chainOf(tag()).some((style) => style.flexWrap === 'wrap')).toBe(true);
   });
 });
+
+describe('SwimmerRow focus ring', () => {
+  it.each([
+    ['a pressable row', {}],
+    ['a pressable row with a status', { status: <Text>Estado</Text> }],
+  ])('draws the shared 2 dp ring on %s only while focused', async (_name, extra) => {
+    await render(<SwimmerRow {...base} onPress={jest.fn()} {...extra} />);
+    expect(rowStyle(screen.getByRole('button')).outlineWidth).toBeUndefined();
+
+    await fireEvent(screen.getByRole('button'), 'focus');
+    expect(rowStyle(screen.getByRole('button'))).toMatchObject({
+      outlineColor: colors.light.focus,
+      outlineWidth: 2,
+    });
+
+    await fireEvent(screen.getByRole('button'), 'blur');
+    expect(rowStyle(screen.getByRole('button')).outlineWidth).toBeUndefined();
+  });
+});

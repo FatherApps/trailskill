@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
 import { darken, useTheme, type ColorToken } from '../theme';
+import { useFocusRing } from './focusRing';
 import { Icon } from './Icon';
 
 export type ButtonVariant = 'primary' | 'dark' | 'secondary' | 'stop' | 'ghost';
@@ -64,7 +65,7 @@ export function Button({
   accessibilityHint,
 }: ButtonProps) {
   const { colors, space, radius, size, typography } = useTheme();
-  const [focused, setFocused] = useState(false);
+  const { focusProps, ring } = useFocusRing();
 
   const unavailable = disabledReason !== undefined;
   const timing = buttonSize === 'timing';
@@ -88,8 +89,7 @@ export function Button({
       // Pressable only stops claiming touches (and RNTL only skips onPress) when `disabled` is set; it also reports disabled while loading.
       disabled={unavailable || loading}
       onPress={onPress}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+      {...focusProps}
       style={({ pressed }) => [
         styles.button,
         ghost && styles.ghost,
@@ -104,12 +104,7 @@ export function Button({
             : 'transparent',
           borderColor: variant === 'secondary' && !unavailable ? colors.border : 'transparent',
         },
-        focused && {
-          outlineColor: colors.focus,
-          outlineWidth: 2,
-          outlineOffset: 2,
-          outlineStyle: 'solid',
-        },
+        ring,
       ]}
     >
       {({ pressed }) => {

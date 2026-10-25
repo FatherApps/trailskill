@@ -4,6 +4,7 @@ import { Pressable, Text, useWindowDimensions, View, type LayoutChangeEvent } fr
 import { t } from '../i18n';
 import { typography as baseTypography, useTheme, type ColorToken } from '../theme';
 import { formatTime, personalBestDifference, spokenDifference, type Hundredths } from '../time';
+import { useFocusRing } from './focusRing';
 import { Icon } from './Icon';
 import { Tag, type TagProps } from './Tag';
 import { TimeValue } from './TimeValue';
@@ -80,6 +81,7 @@ export function SwimmerRow({
   const { colors, space, radius, typography } = useTheme();
   // The OS text scale grows Text but is not in the theme tokens; the avatar grows with it so the initials stay inside.
   const { fontScale } = useWindowDimensions();
+  const { focusProps, ring } = useFocusRing();
   // 40 is the design-system avatar size at 100 % (not a token).
   const avatarSize = Math.max(40, Math.ceil(typography.label.lineHeight * fontScale) + 2 * space[2]);
   // The gallery preview scale (theme) and the system scale both apply.
@@ -255,7 +257,8 @@ export function SwimmerRow({
             accessibilityLabel={label}
             accessibilityState={{ selected }}
             onPress={onPress}
-            style={large ? group : { ...group, flex: 1 }}
+            {...focusProps}
+            style={[large ? group : { ...group, flex: 1 }, ring]}
           >
             {lead}
           </Pressable>
@@ -304,7 +307,8 @@ export function SwimmerRow({
       accessibilityState={{ selected }}
       onPress={onPress}
       onLayout={onRowLayout}
-      style={rowStyle}
+      {...focusProps}
+      style={[rowStyle, ring]}
     >
       {content}
     </Pressable>
