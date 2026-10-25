@@ -508,3 +508,44 @@ describe('SwimmerRow status at large text', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('SwimmerRow status column width', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  // Style assertions: the emulator showed a wide status squeezing the name, and layout is not measurable in RNTL.
+  const statusColumn = () => {
+    for (let n = screen.getByText('Estado').parent; n; n = n.parent) {
+      const style = StyleSheet.flatten(n.props.style as never) as { maxWidth?: unknown } | undefined;
+      if (style?.maxWidth !== undefined) return style;
+    }
+    return undefined;
+  };
+  const timed = { name: 'Lucía R.', initials: 'LR', color: 'athlete-1', detail: '' } as const;
+
+  it('caps the status column at half the row and keeps the name growing at 100 %', async () => {
+    setOsFontScale(1);
+    await render(<SwimmerRow {...timed} time={3522} status={<Text>Estado</Text>} />);
+
+    expect(statusColumn()).toMatchObject({ maxWidth: '50%', flexShrink: 0 });
+    const name = screen.getByText('Lucía R.', { includeHiddenElements: true }).parent!;
+    expect(StyleSheet.flatten(name.props.style as never)).toMatchObject({ flex: 1, minWidth: 0 });
+  });
+
+  it('caps a status alone in its column too', async () => {
+    setOsFontScale(1);
+    await render(<SwimmerRow {...timed} status={<Text>Estado</Text>} />);
+
+    expect(statusColumn()).toMatchObject({ maxWidth: '50%' });
+  });
+
+  it('lets the stacked column take the whole width at 200 %', async () => {
+    setOsFontScale(1);
+    await render(
+      <ThemeProvider fontScale={2}>
+        <SwimmerRow {...timed} time={3522} status={<Text>Estado</Text>} />
+      </ThemeProvider>,
+    );
+
+    expect(statusColumn()).toMatchObject({ maxWidth: '100%' });
+  });
+});

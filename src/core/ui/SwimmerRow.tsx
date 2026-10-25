@@ -151,10 +151,14 @@ export function SwimmerRow({
     </View>
   );
 
+  // A status can be wide (a pill plus a retry button): cap its column so it wraps instead of squeezing the name.
+  // At large text the column already sits below the name with the full width.
+  const statusColumnStyle = large ? trailingStyle : ({ ...trailingStyle, maxWidth: '50%' } as const);
+
   // With a status the end column is not hidden as a whole: only the time is, and the status stays its own element.
   const timeColumn = (timeBlock: ReactNode) =>
     status ? (
-      <View style={trailingStyle}>
+      <View style={statusColumnStyle}>
         <View {...hidden} style={{ alignItems: trailingStyle.alignItems }}>
           {timeBlock}
         </View>
@@ -179,7 +183,7 @@ export function SwimmerRow({
           </>,
         )}
       {/* time and best time are exclusive (showBest needs no time), so the status is drawn once in every case */}
-      {time === undefined && !showBest && status && <View style={trailingStyle}>{status}</View>}
+      {time === undefined && !showBest && status && <View style={statusColumnStyle}>{status}</View>}
       {tag && (
         <View {...hidden} style={trailingStyle}>
           <Tag {...tag} />
