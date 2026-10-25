@@ -18,6 +18,11 @@
       "empty_title": "Aún no hay nadadores",
       "empty_message": "Elige a quienes vas a medir para empezar la toma."
     },
+    "picker": {
+      "title": "Elegir nadadores",
+      "done": "Listo",
+      "empty_message": "Ningún nadador con autorización para medir."
+    },
     "session_type": {
       "training": "Entrenamiento",
       "competition": "Competencia"

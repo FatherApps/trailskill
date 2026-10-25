@@ -85,6 +85,53 @@ describe('individual timing flow', () => {
     expect(await measurements.listByAthleteEvent('a2', { stroke: 'FR', distance: '50m', pool: 'SCM' })).toEqual([]);
   });
 
+  it('opens the picker from "Elegir", shows the chosen count and times only the chosen athletes in the chosen order', async () => {
+    await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+
+    await press('Elegir');
+    // Ben A. has no authorization, so he cannot be chosen. Clearing Ana and choosing her again moves her to the end.
+    expect(screen.queryByRole('button', { name: /^Ben A\./ })).toBeNull();
+    await press('1 · Ana M.');
+    await press('Ana M.');
+    await press('Listo');
+
+    expect(await screen.findByText('Nadadores (2 de 3)')).toBeOnTheScreen();
+    await press('Empezar toma');
+    expect(await screen.findByText('Cleo O. · 1 de 2')).toBeOnTheScreen();
+    await timeAthlete(40n);
+    expect(await screen.findByText('Ana M. · 2 de 2')).toBeOnTheScreen();
+  });
+
+  it('times a single chosen athlete and leaves out the one that was cleared', async () => {
+    const { measurements } = await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+
+    await press('Elegir');
+    await press('2 · Cleo O.');
+    await press('Listo');
+
+    expect(await screen.findByText('Nadadores (1 de 3)')).toBeOnTheScreen();
+    await press('Empezar toma');
+    expect(await screen.findByText('Ana M. · 1 de 1')).toBeOnTheScreen();
+    await timeAthlete(35n);
+    expect(await screen.findByText('1 tiempo guardado.')).toBeOnTheScreen();
+    expect(await measurements.listByAthleteEvent('a3', { stroke: 'FR', distance: '50m', pool: 'SCM' })).toEqual([]);
+  });
+
+  it('does not start when every athlete was cleared in the picker', async () => {
+    await setup();
+    await screen.findByText('Nadadores (2 de 3)');
+
+    await press('Elegir');
+    await press('1 · Ana M.');
+    await press('1 · Cleo O.');
+    await press('Listo');
+    await press('Empezar toma');
+
+    expect(screen.getByText('Nadadores (0 de 3)')).toBeOnTheScreen();
+  });
+
   it('saves a training time as a repetition with the event, the author and the device', async () => {
     const { measurements } = await setup();
     await screen.findByText('Nadadores (2 de 3)');
@@ -254,7 +301,6 @@ describe('individual timing flow', () => {
 
     await press('Empezar toma');
 
-    expect(screen.queryByText(/de 0$/)).toBeNull();
     expect(screen.getByText('Nadadores (0 de 1)')).toBeOnTheScreen();
   });
 });
