@@ -67,6 +67,20 @@ describe('development gallery', () => {
     expect(screen.getByText('MP 34,82')).toBeOnTheScreen();
   });
 
+  it('lists the athletes group with its entries and opens one', async () => {
+    const view = await renderRouter(routes, { initialUrl: '/gallery' });
+
+    expect(screen.getByText('athletes')).toBeOnTheScreen();
+    for (const title of ['ProfileHeader', 'EventSelector', 'PersonalBest', 'HistoryList', 'ImportPrompt']) {
+      expect(screen.getByRole('button', { name: title })).toBeOnTheScreen();
+    }
+
+    await fireEvent.press(screen.getByRole('button', { name: 'PersonalBest' }));
+
+    expect(view.getPathname()).toBe('/gallery/personalBest');
+    expect(screen.getByRole('radio', { name: 'with-improvement' })).toBeChecked();
+  });
+
   it('lists the accounts screens under their own group and opens one with its states', async () => {
     const view = await renderRouter(routes, { initialUrl: '/gallery' });
 
