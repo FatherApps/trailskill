@@ -103,9 +103,9 @@ describe('src/modules/timing rules', () => {
     const controls = [...screen.getAllByRole('button', { includeHiddenElements: true }), ...screen.getAllByRole('radio')];
     for (const control of controls) {
       const style = StyleSheet.flatten(control.props.style);
-      expect(style.width).toBeUndefined();
-      expect(style.height).toBeUndefined();
-      expect(style.minHeight).toBeGreaterThanOrEqual(48);
+      expect(style?.width).toBeUndefined();
+      expect(style?.height).toBeUndefined();
+      expect(style?.minHeight).toBeGreaterThanOrEqual(48);
     }
   });
 });

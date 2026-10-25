@@ -117,8 +117,8 @@ describe('Stopwatch running', () => {
     const { onSplit, onStop } = await renderWatch({ state: 'running', elapsedHundredths: 3391 });
 
     expect(screen.queryByRole('button', { name: 'Iniciar' })).toBeNull();
-    expect(styleOf(screen.getByTestId('stopwatch-split-slot').props.style).flex).toBe(1);
-    expect(styleOf(screen.getByTestId('stopwatch-stop-slot').props.style).flex).toBe(1.4);
+    expect(styleOf(screen.getByTestId('stopwatch-split-slot').props.style)?.flex).toBe(1);
+    expect(styleOf(screen.getByTestId('stopwatch-stop-slot').props.style)?.flex).toBe(1.4);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Parcial' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Detener' }));
