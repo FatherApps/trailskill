@@ -114,6 +114,8 @@ A pull request is ready to merge when:
 - [ ] Docs, help text, and `AGENTS.md` references are updated when behavior or workflow changed.
 - [ ] No secrets, credentials, or real personal data in code, fixtures, logs, or screenshots.
 - [ ] Offline behavior and missing data were considered where they apply (a missing time is not zero).
+- [ ] It reuses existing functions, hooks, and components, or the description explains why none fit (see [Reuse before creating](#reuse-before-creating)).
+- [ ] Interface changes match the design-system reference, with side-by-side screenshots in the description (see [Visual fidelity](#visual-fidelity)).
 - [ ] It has the required approvals.
 
 ## Product decisions and architecture
@@ -122,6 +124,21 @@ A pull request is ready to merge when:
 - If an issue depends on an open item, stop and ask the maintainer. Do not fill the gap with an assumption.
 - Significant technical decisions (backend, sync strategy, auth provider, and similar) are recorded as Architecture Decision Records in `docs/decisions/NNNN-short-title.md` with context, decision, and consequences.
 - Visual design (palette, typography, components, logo) comes only from the TrailSkill design system linked in [`design/README.md`](design/README.md). Design changes start there, never in code.
+
+### Reuse before creating
+
+Before writing a new function, hook, or component, search for an existing one in `src/core/`, in the module that owns the behavior, and in the `index.ts` of other modules.
+
+- If something similar exists, reuse it or extend it instead of writing a duplicate.
+- If a second module needs code that lives in another module, propose moving it to `src/core/`; the maintainer must approve the move ([ADR 0003](docs/decisions/0003-modular-architecture.md)).
+- The pull request description says what was reused, or why nothing existing fit.
+
+### Visual fidelity
+
+Issues labeled `area: front-mobile` or `area: front-tablet` are checked against their design-system reference: the component's README or the matching `Pantalla*` reference screen.
+
+- The pull request includes side-by-side screenshots of the reference and the implementation, using synthetic data only.
+- Anything the design system does not document is asked to the maintainer before it is implemented.
 
 ## Personal data and security
 
@@ -140,7 +157,24 @@ Issues are written in Spanish with the templates in [`.github/ISSUE_TEMPLATE/`](
 - **Problem or goal:** what a user can or cannot do today.
 - **Scope:** what is included, plus explicit non-goals.
 - **Acceptance criteria:** observable and testable.
-- **Labels:** type (`feat`, `fix`, ...), area, and `needs-decision` when blocked by an open product question.
+- **Labels:** type (`feat`, `fix`, ...), at least one area label, and `needs-decision` when blocked by an open product question.
+
+### Area labels
+
+Every issue has at least one area label besides its type label. Area labels combine: a screen that also changes sync logic gets both `area: front-mobile` and `area: app-logic`.
+
+| Label | Use |
+| --- | --- |
+| `area: front-mobile` | App screens and components on the phone |
+| `area: front-tablet` | Tablet screens: school console, fulfillment grid |
+| `area: app-logic` | App logic without interface: sync, session, repositories, pure logic |
+| `area: backend` | Supabase: migrations, RLS, functions, Sync Streams |
+| `area: infra` | Dokploy deployment, CI, builds |
+| `area: docs` | ADRs, documentation, test records |
+| `area: chore` | Maintenance: dependencies, cleanup |
+| `area: research` | Research or a decision, no app code |
+
+The pilot has no web version: the school console is the same app on a tablet. If a web version arrives, it gets its own area label together with an ADR.
 
 Large features are split into sub-issues that can each be merged on their own.
 
