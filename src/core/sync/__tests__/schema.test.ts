@@ -60,6 +60,11 @@ describe('AppSchema', () => {
     expect(columnsOf('record_conflicts')).toEqual(['table_name', 'record_id', 'status']);
   });
 
+  it('syncs the active flag of categories', () => {
+    const columns = (byName.get('categories') as unknown as { columns: Record<string, unknown> }).columns;
+    expect(Object.keys(columns)).toContain('active');
+  });
+
   it('keeps pending_writes, upload_failures and uploaded_ops local only', () => {
     expect(byName.get('pending_writes')?.localOnly).toBe(true);
     expect(byName.get('upload_failures')?.localOnly).toBe(true);
