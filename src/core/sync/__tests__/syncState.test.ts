@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react-native';
 
-import { recordSyncState, useGlobalSyncSummary, useRecordSyncState } from '../syncState';
+import { countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState } from '../syncState';
 import { createStore, openDatabase, type FakeDatabase } from '../testing/fakeDatabase';
 import { writeRecord } from '../writes';
 
@@ -93,5 +93,23 @@ describe('useGlobalSyncSummary', () => {
 
   it('reports nothing pending and no last sync on a fresh database', async () => {
     expect(await summary()).toEqual({ pending: 0, failed: 0, uploading: false, lastSyncedAt: null });
+  });
+});
+
+describe('countUnsentRecords', () => {
+  it('counts every record still pending or rejected by the server, each once', async () => {
+    const a = await writeRecord('athletes', { first_name: 'Ana' });
+    await writeRecord('athletes', { id: a, first_name: 'Bea' });
+    await mockDb.writeTransaction(async (tx) => {
+      // A record both pending and rejected counts once.
+      await tx.execute("INSERT INTO upload_failures (id, table_name, record_id) VALUES (uuid(), 'athletes', ?)", [a]);
+      await tx.execute("INSERT INTO upload_failures (id, table_name, record_id) VALUES (uuid(), 'athletes', 'x')");
+    });
+
+    expect(await countUnsentRecords()).toBe(2);
+  });
+
+  it('is zero on a fresh database', async () => {
+    expect(await countUnsentRecords()).toBe(0);
   });
 });
