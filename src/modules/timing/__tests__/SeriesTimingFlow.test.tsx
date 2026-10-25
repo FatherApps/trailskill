@@ -309,6 +309,41 @@ describe('series timing flow', () => {
       ]);
     });
 
+    it('writes an arrival whose write failed once more when the series is left', async () => {
+      const { measurements, openSpy } = await setup();
+      openSpy.mockRejectedValueOnce(new Error('disk full'));
+      await startSeries();
+      await press('Llegada');
+      await arrive(31n);
+      await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+
+      await press('Volver');
+      await press('Salir de la serie');
+      await screen.findByText('Nadadores (2 de 3)');
+
+      expect(openSpy).toHaveBeenCalledTimes(2);
+      expect(await measurements.listBySeries(openSpy.mock.calls[1]![0].id)).toHaveLength(1);
+    });
+
+    it('discards again on save an arrival whose discard failed', async () => {
+      const { measurements, series, openSpy } = await setup();
+      jest.spyOn(series, 'discardArrival').mockRejectedValueOnce(new Error('disk full'));
+      await startSeries();
+      await press('Llegada');
+      await arrive(31n);
+      await arrive(3n);
+      await press('Deshacer última');
+      await waitFor(() => expect(series.discardArrival).toHaveBeenCalledTimes(1));
+      await press('Asignar nombres');
+      await press('Asignar a Ana M.');
+
+      await press('Guardar serie');
+      await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+
+      expect(series.discardArrival).toHaveBeenCalledTimes(2);
+      expect((await measurements.listBySeries(seriesOf(openSpy))).map((m) => m.arrivalPosition)).toEqual([1]);
+    });
+
     it('is ready for the next series right after saving, without going through the setup', async () => {
       const { measurements, openSpy } = await setup();
       await startSeries();

@@ -42,11 +42,13 @@ type Session = {
   opened: boolean;
   // Arrivals not written yet, or whose write failed: they are written again when the series is saved.
   unsaved: Map<string, Measurement>;
+  // Undone arrivals whose discard has not gone through yet: tried again on save and on exit.
+  discards: Set<string>;
   // Writes run one after another, so the series row always goes first and an undo comes after its arrival.
   writes: Promise<void>;
 };
 
-const newSession = (): Session => ({ series: readySeries, ids: [], seriesId: null, opened: false, unsaved: new Map(), writes: Promise.resolve() });
+const newSession = (): Session => ({ series: readySeries, ids: [], seriesId: null, opened: false, unsaved: new Map(), discards: new Set(), writes: Promise.resolve() });
 
 const TICK_MS = 50;
 const clock = () => BigInt(Math.round(performance.now() * 1e6));
@@ -103,6 +105,23 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
     }
   }
 
+  async function discard(s: Session, id: string) {
+    if (!s.discards.has(id)) return;
+    try {
+      await repository.discardArrival(id, userId);
+      s.discards.delete(id);
+    } catch {
+      // Kept in `discards`.
+    }
+  }
+
+  // Everything still pending: arrivals whose write failed and discards that failed. Each is tried once more.
+  async function flush(s: Session) {
+    await s.writes;
+    for (const arrival of [...s.unsaved.values()]) await write(s, arrival);
+    for (const id of [...s.discards]) await discard(s, id);
+  }
+
   // The arrival at the instant `at`, the monotonic mark of the touch. The on-screen button calls it with the clock; an external button can call it with its own mark.
   const arriveAt = (at: bigint) => {
     const s = session.current;
@@ -154,7 +173,8 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
     s.series = undoLastArrival(s.series);
     s.ids = s.ids.slice(0, -1);
     s.unsaved.delete(id);
-    s.writes = s.writes.then(() => repository.discardArrival(id, userId)).catch(() => {});
+    s.discards.add(id);
+    s.writes = s.writes.then(() => discard(s, id));
     commit();
   };
 
@@ -201,7 +221,11 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
           message={t('timing.series.exit_message')}
           confirmLabel={t('timing.series.exit_confirm')}
           cancelLabel={t('timing.series.exit_cancel')}
-          onConfirm={toSetup}
+          onConfirm={async () => {
+            // Leaving must not drop an arrival whose write failed: one more try, then out.
+            await flush(session.current).catch(() => {});
+            toSetup();
+          }}
           onCancel={() => setExitConfirm(false)}
         />
       </>
@@ -212,9 +236,8 @@ function SeriesSession({ subtitle, roster, series: repository, setups, userId, d
   async function save() {
     const s = session.current;
     try {
-      await s.writes;
-      for (const arrival of [...s.unsaved.values()]) await write(s, arrival);
-      if (s.unsaved.size > 0) return;
+      await flush(s);
+      if (s.unsaved.size > 0 || s.discards.size > 0) return;
       const assignments = arrivals(s.series).flatMap(({ position, athleteId }) => (athleteId ? [{ id: s.ids[position - 1]!, athleteId }] : []));
       await repository.assign(assignments, { deviceId });
     } catch {
