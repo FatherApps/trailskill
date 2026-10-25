@@ -64,6 +64,8 @@ describe('AthletesScreen', () => {
       await show({ kind: 'data', content });
 
       expect(screen.getByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
+      expect(screen.getByRole('header', { name: 'Deportistas' })).toHaveProp('numberOfLines', 1);
+      expect(screen.getByRole('header', { name: 'Deportistas' })).toHaveProp('adjustsFontSizeToFit', true);
       expect(screen.getByText('128 activos · Actualizado hace 2 min')).toBeOnTheScreen();
       expect(screen.getByLabelText('Autorización pendiente: 7')).toBeOnTheScreen();
       expect(screen.getByLabelText('Buscar por nombre')).toBeOnTheScreen();

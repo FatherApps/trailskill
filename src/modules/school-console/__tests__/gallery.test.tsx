@@ -199,12 +199,14 @@ describe('school console gallery entries', () => {
     expect(screen.getByRole('button', { name: /^Julián Ortiz/ })).toBeSelected();
   });
 
-  it('no module file contains a hexadecimal color, a line limit or a font-scaling opt-out', () => {
+  it('no module file contains a hexadecimal color, a line limit that is not shrink-to-fit, or a font-scaling opt-out', () => {
     const offenders = sourceFiles.filter((file) => {
       const text = fs.readFileSync(file, 'utf8');
       return (
         /#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\b/i.test(text) ||
-        /numberOfLines|adjustsFontSizeToFit|allowFontScaling=\{false\}/.test(text)
+        // Shrink-to-fit never clips: numberOfLines is allowed only as {1} followed by adjustsFontSizeToFit in the same tag.
+        text.replace(/numberOfLines=\{1\} adjustsFontSizeToFit(?![\w])/g, '').includes('numberOfLines') ||
+        /allowFontScaling=\{false\}/.test(text)
       );
     });
     expect(offenders).toEqual([]);

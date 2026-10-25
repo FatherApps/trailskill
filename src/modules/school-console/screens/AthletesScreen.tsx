@@ -98,7 +98,8 @@ export function AthletesScreen({
   const header = (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[3] }}>
       <View style={{ flexShrink: 1 }}>
-        <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors[athletesScreenColors.title] }]}>
+        {/* A single word that cannot fit shrinks instead of breaking mid-word; it never clips. */}
+        <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit style={[typography['title-lg'], { color: colors[athletesScreenColors.title] }]}>
           {t('schoolConsole.screen.title')}
         </Text>
         {caption ? <Text style={[typography.caption, { color: colors[athletesScreenColors.caption] }]}>{caption}</Text> : null}
