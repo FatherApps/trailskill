@@ -6,12 +6,12 @@ import { AccessibilityInfo, View } from 'react-native';
 import { t } from '../i18n';
 import { countUnsentRecords, db, supabase, supabaseConfigError, SupabaseConnector } from '../sync';
 import { useTheme } from '../theme';
-import { ConfirmSheet, StateView } from '../ui';
+import { Button, ConfirmSheet, StateView } from '../ui';
 
 // The id of the user whose data the local database holds. SecureStore keys allow only letters, digits, ".", "-" and "_".
 const LOCAL_OWNER_KEY = 'trailskill-local-owner';
 
-type SignOutResult = 'signed_out' | 'blocked_pending';
+type SignOutResult = { status: 'signed_out' } | { status: 'blocked_pending'; unsent: number; rejected: number };
 
 type SessionValue = {
   /** Null until the local database holds only this user's data, so no screen shows another person's records. */
@@ -49,7 +49,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [blockedFor, setBlockedFor] = useState<string>();
   // The user whose owner check failed, and the user whose discard failed: each shows its error until a retry.
   const [checkFailedFor, setCheckFailedFor] = useState<string>();
-  const [discardFailedFor, setDiscardFailedFor] = useState<string>();
+  // `cleared`: the local data was already cleared when the discard failed, so it must not be described as still there.
+  const [discardFailure, setDiscardFailure] = useState<{ userId: string; cleared: boolean }>();
   const { colors, space } = useTheme();
   // The user of the session stored before launch: before owners were recorded, the local data was always theirs.
   const restoredUserId = useRef<string>(undefined);
@@ -84,7 +85,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
       } else if (owner !== userId) {
         // Any other unknown owner (first run, or a new sign-in over old data) counts as another person.
-        if ((await countUnsentRecords()) > 0) {
+        if ((await countUnsentRecords()).unsent > 0) {
           if (current) setBlockedFor(userId);
           return;
         }
@@ -109,7 +110,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setReadyFor(undefined);
       setBlockedFor(undefined);
       setCheckFailedFor(undefined);
-      setDiscardFailedFor(undefined);
+      setDiscardFailure(undefined);
       // The session ended or changed without signing out: stop syncing, keep the data for its owner.
       connector.cancelWaits();
       db.disconnect().catch(() => {});
@@ -119,28 +120,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const ready = userId !== undefined && readyFor === userId;
   const previousUserPending = userId !== undefined && blockedFor === userId;
   const checkFailed = userId !== undefined && checkFailedFor === userId;
-  const discardFailed = userId !== undefined && discardFailedFor === userId;
+  const discardFailed = userId !== undefined && discardFailure?.userId === userId;
+  const discardFailedMessage = t(discardFailure?.cleared ? 'session.discard_incomplete' : 'session.discard_failed');
   const checking = userId !== undefined && !ready && !previousUserPending && !checkFailed;
 
   const retryCheck = useCallback(() => setCheck((value) => value + 1), []);
 
   const discardPreviousUserData = useCallback(async () => {
     if (!userId) return;
+    let cleared = false;
     try {
       connector.cancelWaits();
       await db.disconnectAndClear();
+      cleared = true;
       await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
     } catch {
       // The sheet stays open with the failure, so the person can try again or go back to the previous person.
-      setDiscardFailedFor(userId);
-      AccessibilityInfo.announceForAccessibility(t('session.discard_failed'));
+      setDiscardFailure({ userId, cleared });
+      AccessibilityInfo.announceForAccessibility(t(cleared ? 'session.discard_incomplete' : 'session.discard_failed'));
       return;
     }
     retryCheck();
   }, [userId, connector, retryCheck]);
 
-  // The safe choice: the new session ends, the previous person's records stay on the phone until they sign in again.
-  const returnToPreviousUser = useCallback(() => {
+  // Ends this device's session and keeps the local data for its owner: the safe choice in the previous-person sheet,
+  // and the way out of a failed owner check.
+  const endSessionKeepingData = useCallback(() => {
     // Offline, supabase-js still drops the stored session; there is nothing else to do with an error here.
     supabase.auth.signOut({ scope: 'local' }).catch(() => {});
   }, []);
@@ -161,8 +166,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async (options?: { force?: boolean }): Promise<SignOutResult> => {
     // Awaits the real count: the sync hook reports 0 until its first query lands.
-    if (signOutDecision(await countUnsentRecords(), options?.force ?? false) === 'blocked_pending') {
-      return 'blocked_pending';
+    const { unsent, rejected } = await countUnsentRecords();
+    if (signOutDecision(unsent, options?.force ?? false) === 'blocked_pending') {
+      return { status: 'blocked_pending', unsent, rejected };
     }
     // Clear first, so the next person on a shared phone starts with an empty local database.
     connector.cancelWaits();
@@ -171,7 +177,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // only a session that is still stored means the sign-out failed.
     const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error && (await supabase.auth.getSession()).data.session) throw error;
-    return 'signed_out';
+    return { status: 'signed_out' };
   }, [connector]);
 
   const visibleSession = ready ? session : null;
@@ -185,13 +191,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   if (!restored || checking) return null;
   if (checkFailed) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', padding: space[4], backgroundColor: colors['surface-0'] }}>
+      <View style={{ flex: 1, justifyContent: 'center', padding: space[4], gap: space[3], backgroundColor: colors['surface-0'] }}>
         <StateView
           kind="error"
           title={t('session.check_failed_title')}
           message={t('session.check_failed_message')}
           action={{ label: t('sync.retry'), onPress: retryCheck }}
         />
+        {/* StateView takes one action: the way out sits below it, quieter than the retry. */}
+        <Button variant="ghost" label={t('session.sign_out')} onPress={endSessionKeepingData} />
       </View>
     );
   }
@@ -201,12 +209,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       <ConfirmSheet
         visible={previousUserPending}
         title={t('session.previous_user_title')}
-        message={discardFailed ? t('session.discard_failed') : t('session.previous_user_message')}
+        message={discardFailed ? discardFailedMessage : t('session.previous_user_message')}
         confirmLabel={t('session.previous_user_discard')}
         cancelLabel={t('session.previous_user_return')}
         destructive
         onConfirm={discardPreviousUserData}
-        onCancel={returnToPreviousUser}
+        onCancel={endSessionKeepingData}
       />
     </SessionContext.Provider>
   );

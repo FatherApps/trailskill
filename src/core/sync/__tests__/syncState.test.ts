@@ -106,10 +106,19 @@ describe('countUnsentRecords', () => {
       await tx.execute("INSERT INTO upload_failures (id, table_name, record_id) VALUES (uuid(), 'athletes', 'x')");
     });
 
-    expect(await countUnsentRecords()).toBe(2);
+    // Both records count as unsent; both have a server rejection.
+    expect(await countUnsentRecords()).toEqual({ unsent: 2, rejected: 2 });
   });
 
   it('is zero on a fresh database', async () => {
-    expect(await countUnsentRecords()).toBe(0);
+    expect(await countUnsentRecords()).toEqual({ unsent: 0, rejected: 0 });
+  });
+});
+
+describe('countUnsentRecords rejected', () => {
+  it('counts only rejected records as rejected', async () => {
+    await writeRecord('athletes', { first_name: 'Ana' });
+
+    expect(await countUnsentRecords()).toEqual({ unsent: 1, rejected: 0 });
   });
 });
