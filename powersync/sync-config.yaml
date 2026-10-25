@@ -2,7 +2,8 @@
 # (athletes_visibility_and_policies, school-console_policies, accounts_policies,
 # timing_measurements, athletes_managed_school_links,
 # school-console_managed_policies, accounts_authorizations_invitations,
-# training-plans_plans):
+# training-plans_plans, accounts_record_times_withdrawal_check,
+# timing_hide_after_withdrawal):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -63,7 +64,12 @@ streams:
   timing_measurements:
     auto_subscribe: true
     queries:
-      - SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids OR athlete_id IN coach_direct_athlete_ids OR athlete_id IN coach_group_athlete_ids OR athlete_id IN admin_athlete_ids
+      # Guardians and adult athletes also get the rows hidden after a withdrawal; everyone else does not.
+      - SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids
+      # One query per source, so each stays a plain AND of one condition.
+      - SELECT * FROM measurements WHERE athlete_id IN coach_direct_athlete_ids AND hidden = false
+      - SELECT * FROM measurements WHERE athlete_id IN coach_group_athlete_ids AND hidden = false
+      - SELECT * FROM measurements WHERE athlete_id IN admin_athlete_ids AND hidden = false
       - SELECT * FROM measurements WHERE athlete_id IS NULL AND series_id IN own_series_ids
 
   training_plans_school:
