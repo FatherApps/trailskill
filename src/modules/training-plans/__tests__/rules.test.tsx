@@ -7,7 +7,9 @@ import { BlockCard } from '../components/BlockCard';
 import { newDraftBlock } from '../draft';
 import { PlanListScreen } from '../screens/PlanListScreen';
 import { PlanBuilderScreen } from '../screens/PlanBuilderScreen';
+import { FulfillmentScreen } from '../screens/FulfillmentScreen';
 import { TodayScreen } from '../screens/TodayScreen';
+import { fulfillmentFixture } from '../__fixtures__/fulfillment';
 import { plansFixture } from '../__fixtures__/plans';
 
 const moduleDir = path.join(__dirname, '..');
@@ -33,6 +35,12 @@ describe('src/modules/training-plans rules', () => {
   it('no screen or component imports the sport catalog', () => {
     const offenders = shown().filter((file) => /core\/sport/.test(fs.readFileSync(file, 'utf8')));
     expect(relative(offenders)).toEqual([]);
+  });
+
+  it('the fulfillment grid and screen keep the phase as plain text, without PhaseTag', () => {
+    const files = shown().filter((file) => /Fulfillment(Grid|Screen)\.tsx$/.test(file));
+    expect(relative(files)).toHaveLength(2);
+    expect(relative(files.filter((file) => /PhaseTag|phaseColors/.test(fs.readFileSync(file, 'utf8'))))).toEqual([]);
   });
 
   it('no file of the module has a hexadecimal color literal', () => {
@@ -80,6 +88,12 @@ describe('src/modules/training-plans rules', () => {
           onOpenPlan={noop}
         />
         <TodayScreen athleteName="Lucía R." view={{ kind: 'data', content: today }} onReportToCoach={noop} />
+        <FulfillmentScreen
+          planName="Resistencia aeróbica"
+          dateLabel="24 oct"
+          view={{ kind: 'data', content: fulfillmentFixture.grid }}
+          onCycle={noop}
+        />
       </>,
     );
 

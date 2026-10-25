@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import { iconPaths } from '../../../core/ui';
 import { TodayScreen, type TodayContent, type TodayView } from '../screens/TodayScreen';
 import { plansFixture } from '../__fixtures__/plans';
 
@@ -98,6 +99,14 @@ describe('TodayScreen content', () => {
     expect(screen.getByLabelText('Parcial · 3 de 8')).toBeOnTheScreen();
     expect(screen.getByLabelText('No asistió')).toBeOnTheScreen();
     expect(screen.getByLabelText('Sin marcar')).toBeOnTheScreen();
+  });
+
+  it('draws the partial and not-marked tags with their icons', async () => {
+    await render(setup({ kind: 'data', content }).ui);
+
+    const drawn = screen.container.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
+    expect(drawn).toContain(iconPaths.incomplete_circle);
+    expect(drawn).toContain(iconPaths.radio_button_unchecked);
   });
 
   it.each([3, 2])('takes the partial count (%i) from completedRepetitions, not from the recorded times', async (completedRepetitions) => {

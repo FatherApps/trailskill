@@ -6,7 +6,7 @@ import { useTheme } from '../../../core/theme';
 import { Button, Icon, Segmented, TextField } from '../../../core/ui';
 import { isOption, MAX_DRILL_LENGTH, type BlockErrors, type DraftBlock } from '../draft';
 import '../i18n';
-import type { BlockPhase, BlockRecording, PlanVocabulary } from '../types';
+import { phases, recordings, type BlockRecording, type PlanVocabulary } from '../types';
 import { formatSendOff } from './formatSendOff';
 
 export type BlockEditorProps = {
@@ -18,8 +18,6 @@ export type BlockEditorProps = {
   onDone: () => void;
 };
 
-const phases: BlockPhase[] = ['warm_up', 'main', 'technique', 'cool_down'];
-const recordings: BlockRecording[] = ['completion', 'per_repetition', 'series_total'];
 const SEND_OFF_STEP = 5;
 const activityErrors = {
   required: 'training_plans.editor.activity_required',

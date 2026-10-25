@@ -7,6 +7,7 @@ import type { DraftBlock } from '../draft';
 import '../i18n';
 import type { PlanVocabulary } from '../types';
 import { labelOf } from '../vocabulary';
+import { blockSummary } from './blockSummary';
 import { formatSendOff } from './formatSendOff';
 import { PhaseTag } from './PhaseTag';
 
@@ -25,11 +26,7 @@ export function BlockCard({ block, vocabulary, children }: BlockCardProps) {
     <View style={{ gap: space[2], padding: space[5], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
       <PhaseTag phase={block.phase} />
       <Text style={[typography.subtitle, { color: colors.ink }]}>
-        {t('training_plans.block.summary', {
-          repetitions: block.repetitions,
-          distance: block.distance,
-          activity: labelOf(vocabulary.activities, block.activity),
-        })}
+        {blockSummary(block, vocabulary)}
       </Text>
       {block.equipment.length > 0 && (
         <Text style={muted}>
