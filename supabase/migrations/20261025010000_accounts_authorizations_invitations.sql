@@ -100,7 +100,10 @@ set search_path = ''
 as $$
 begin
   new.received_at := clock_timestamp();
-  new.accepted_at := least(new.accepted_at, new.received_at);
+  -- least() ignores null: a missing device time must still hit NOT NULL.
+  if new.accepted_at is not null then
+    new.accepted_at := least(new.accepted_at, new.received_at);
+  end if;
   return new;
 end;
 $$;

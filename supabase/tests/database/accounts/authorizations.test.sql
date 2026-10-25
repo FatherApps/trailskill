@@ -5,7 +5,7 @@
 -- token without a session. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(94);
+select plan(96);
 
 -- Users: guardians G and H, coaches C and D, school admins S and T, platform admin P.
 -- G and H both manage athlete e1; H also manages e2. Coach C is assigned to e1.
@@ -501,6 +501,20 @@ select is(
    from public.authorizations where id = '40000000-0000-4000-8000-000000000107'),
   current_setting('test.withdrawal'),
   'the retry left the withdrawal unchanged'
+);
+
+select throws_ok(
+  $$ update public.authorizations set withdrawn_at = '2026-10-01 00:00:00+00'
+     where id = '40000000-0000-4000-8000-000000000107' $$,
+  '42501', null,
+  'a clamped withdrawal cannot move to an earlier time'
+);
+select throws_ok(
+  $$ insert into public.authorizations (athlete_id, purpose, text_id, accepted_at)
+     values ('40000000-0000-4000-8000-0000000000e2', 'record_times',
+             '40000000-0000-4000-8000-0000000000f1', null) $$,
+  '23502', null,
+  'an acceptance without a device time is rejected, not filled in'
 );
 
 -- anon reads no table and resolves a token without a session.
