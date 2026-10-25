@@ -3,7 +3,8 @@
 # timing_measurements, athletes_managed_school_links,
 # school-console_managed_policies, accounts_authorizations_invitations,
 # training-plans_plans, accounts_record_times_withdrawal_check,
-# timing_hide_after_withdrawal, training-plans_assignments):
+# timing_hide_after_withdrawal, training-plans_assignments,
+# training-plans_assignment_scope_and_withdrawal):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -24,7 +25,7 @@ with:
   coach_group_ids: SELECT group_id FROM coach_group_assignments WHERE coach_user_id = auth.user_id()
   coach_direct_category_ids: SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id())
   coach_group_category_ids: SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM athlete_groups WHERE group_id IN (SELECT group_id FROM coach_group_assignments WHERE coach_user_id = auth.user_id()))
-  managed_assignment_ids: SELECT id FROM training_plan_assignments WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()) OR group_id IN (SELECT group_id FROM athlete_groups WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR category_id IN (SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR (target = 'school' AND school_id IN (SELECT school_id FROM athlete_schools WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())))
+  managed_assignment_ids: SELECT id FROM training_plan_assignments WHERE withdrawn_at IS NULL AND (athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()) OR group_id IN (SELECT group_id FROM athlete_groups WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR category_id IN (SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR (target = 'school' AND school_id IN (SELECT school_id FROM athlete_schools WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()))))
 
 streams:
   athletes_visible:
@@ -85,17 +86,18 @@ streams:
 
   # Staff download the assignments that concern them, always within their own schools
   # (a subset of the select policy, which lets any member read the whole school).
-  # One query per source, so each stays a plain AND of one condition.
+  # One query per source, so each stays a plain AND of one condition. A withdrawn
+  # assignment syncs to nobody (issue #274); staff still read it online.
   training_plans_assignments_staff:
     auto_subscribe: true
     queries:
-      - SELECT * FROM training_plan_assignments WHERE school_id IN admin_school_ids
-      - SELECT * FROM training_plan_assignments WHERE group_id IN coach_group_ids AND school_id IN member_school_ids
-      - SELECT * FROM training_plan_assignments WHERE athlete_id IN coach_direct_athlete_ids AND school_id IN member_school_ids
-      - SELECT * FROM training_plan_assignments WHERE athlete_id IN coach_group_athlete_ids AND school_id IN member_school_ids
-      - SELECT * FROM training_plan_assignments WHERE category_id IN coach_direct_category_ids AND school_id IN member_school_ids
-      - SELECT * FROM training_plan_assignments WHERE category_id IN coach_group_category_ids AND school_id IN member_school_ids
-      - SELECT * FROM training_plan_assignments WHERE target = 'school' AND school_id IN member_school_ids
+      - SELECT * FROM training_plan_assignments WHERE school_id IN admin_school_ids AND withdrawn_at IS NULL
+      - SELECT * FROM training_plan_assignments WHERE group_id IN coach_group_ids AND school_id IN member_school_ids AND withdrawn_at IS NULL
+      - SELECT * FROM training_plan_assignments WHERE athlete_id IN coach_direct_athlete_ids AND school_id IN member_school_ids AND withdrawn_at IS NULL
+      - SELECT * FROM training_plan_assignments WHERE athlete_id IN coach_group_athlete_ids AND school_id IN member_school_ids AND withdrawn_at IS NULL
+      - SELECT * FROM training_plan_assignments WHERE category_id IN coach_direct_category_ids AND school_id IN member_school_ids AND withdrawn_at IS NULL
+      - SELECT * FROM training_plan_assignments WHERE category_id IN coach_group_category_ids AND school_id IN member_school_ids AND withdrawn_at IS NULL
+      - SELECT * FROM training_plan_assignments WHERE target = 'school' AND school_id IN member_school_ids AND withdrawn_at IS NULL
 
   # Guardians and adult athletes: the assignments of their athletes, their groups,
   # their categories and school-wide ones, plus the assigned plan, the assigned
@@ -103,10 +105,10 @@ streams:
   training_plans_assignments_managed:
     auto_subscribe: true
     queries:
-      - SELECT * FROM training_plan_assignments WHERE athlete_id IN managed_athlete_ids
-      - SELECT * FROM training_plan_assignments WHERE group_id IN managed_group_ids
-      - SELECT * FROM training_plan_assignments WHERE category_id IN managed_category_ids
-      - SELECT * FROM training_plan_assignments WHERE target = 'school' AND school_id IN managed_school_ids
+      - SELECT * FROM training_plan_assignments WHERE athlete_id IN managed_athlete_ids AND withdrawn_at IS NULL
+      - SELECT * FROM training_plan_assignments WHERE group_id IN managed_group_ids AND withdrawn_at IS NULL
+      - SELECT * FROM training_plan_assignments WHERE category_id IN managed_category_ids AND withdrawn_at IS NULL
+      - SELECT * FROM training_plan_assignments WHERE target = 'school' AND school_id IN managed_school_ids AND withdrawn_at IS NULL
       - SELECT * FROM training_plans WHERE id IN (SELECT plan_id FROM training_plan_assignments WHERE id IN managed_assignment_ids)
       - SELECT * FROM training_plan_versions WHERE id IN (SELECT version_id FROM training_plan_assignments WHERE id IN managed_assignment_ids)
       - SELECT * FROM training_plan_blocks WHERE version_id IN (SELECT version_id FROM training_plan_assignments WHERE id IN managed_assignment_ids)
