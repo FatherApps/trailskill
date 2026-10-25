@@ -790,6 +790,51 @@ describe('SupabaseConnector.uploadData', () => {
     });
   });
 
+  describe('measurement edits (issue 55)', () => {
+    const edit = (id: string, clientId: number, hundredths: number) =>
+      entry('PATCH', id, { hundredths, base_version: 3, edited_device_id: 'device-a', edit_reason: null }, 'measurements', clientId);
+
+    it('sends an edit with the version it was based on and the device', async () => {
+      const t = setup({ update: ok });
+      await t.connector.uploadData(t.database([edit('m1', 1, 2950)]));
+
+      expect(t.update).toHaveBeenCalledWith({ hundredths: 2950, base_version: 3, edited_device_id: 'device-a', edit_reason: null });
+      expect(t.updateEq).toHaveBeenCalledWith('id', 'm1');
+    });
+
+    it('a conflicting edit comes back as the unchanged stored row: it is sent, not recorded as a failure, and the queue goes on', async () => {
+      // The server keeps the stored row and records the conflict; the UPDATE still returns that row.
+      const t = setup({ update: ok });
+      await t.connector.uploadData(t.database([edit('m1', 1, 2950), edit('m2', 2, 2900)]));
+
+      expect(t.update).toHaveBeenCalledTimes(2);
+      expect(failureInserts(t.committed)).toHaveLength(0);
+      expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['measurements', 'm1'], ['measurements', 'm2']]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    describe('a whole row re-sent as a PUT carries the server-set edit columns', () => {
+      const serverSet = { version: 2, base_version: 2, edited_by: 'u1', edited_at: '2026-10-25T10:00:00.000Z', edited_device_id: 'device-a', edit_reason: 'typo', hidden: false };
+      const resent = () => entry('PUT', 'm1', { kind: 'repetition', hundredths: 3150, created_at: '2026-10-06T08:00:00.000Z', ...serverSet }, 'measurements');
+
+      it('does not compare them when it reads the row back', async () => {
+        const t = setup({ upsert: empty, readBack: ok });
+        await t.connector.uploadData(t.database([resent()]));
+
+        expect(t.readQueries[0]).toEqual([['id', 'm1'], ['kind', 'repetition'], ['hundredths', 3150]]);
+        expect(failureInserts(t.committed)).toHaveLength(0);
+      });
+
+      it('does not send them to the confirm function either', async () => {
+        const t = setup({ upsert: empty, readBack: empty, rpc: { data: 'stored', error: null } });
+        await t.connector.uploadData(t.database([resent()]));
+
+        expect(t.rpc).toHaveBeenCalledWith('confirm_measurement_insert', { payload: { id: 'm1', kind: 'repetition', hundredths: 3150 } });
+        expect(failureInserts(t.committed)).toHaveLength(0);
+      });
+    });
+  });
+
   describe('DELETE already applied (case 5)', () => {
     it('succeeds when the delete affected no row and the row is gone', async () => {
       const t = setup({ delete: empty, readBack: empty });

@@ -116,7 +116,7 @@ function NavBarPreview({ items, initialId }: { items: NavBarItem[]; initialId: s
   );
 }
 
-const syncStates: RecordSyncState[] = ['on_device', 'sending', 'synced', 'not_sent'];
+const syncStates: RecordSyncState[] = ['on_device', 'sending', 'synced', 'not_sent', 'needs_review'];
 
 export const galleryEntries: GalleryEntry[] = [
   {

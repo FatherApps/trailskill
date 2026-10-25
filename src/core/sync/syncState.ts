@@ -2,21 +2,25 @@ import { useQuery, useStatus } from '@powersync/react';
 
 import { db } from './db';
 
-// 'needs_review' joins with conflict handling (task 3.9a): add it here and a row to syncStatusColors in src/core/ui/SyncStatus.tsx.
-export type RecordSyncState = 'on_device' | 'sending' | 'synced' | 'not_sent';
+export type RecordSyncState = 'on_device' | 'sending' | 'synced' | 'not_sent' | 'needs_review';
 
-/** A server rejection wins over everything; otherwise a pending write is on the device or being sent. */
-export function recordSyncState(input: { pending: boolean; failed: boolean; uploading: boolean }): RecordSyncState {
+/**
+ * A server rejection wins over everything, then an open edit conflict ("Revisar": nothing is lost, an administrator decides);
+ * otherwise a pending write is on the device or being sent.
+ */
+export function recordSyncState(input: { pending: boolean; failed: boolean; uploading: boolean; conflict?: boolean }): RecordSyncState {
   if (input.failed) return 'not_sent';
+  if (input.conflict) return 'needs_review';
   if (input.pending) return input.uploading ? 'sending' : 'on_device';
   return 'synced';
 }
 
 export function useRecordSyncState(table: string, id: string): RecordSyncState {
-  const { data } = useQuery<{ pending: number; failed: number }>(
+  const { data } = useQuery<{ pending: number; failed: number; conflict: number }>(
     `SELECT EXISTS (SELECT 1 FROM pending_writes WHERE table_name = ? AND record_id = ?) AS pending,
-            EXISTS (SELECT 1 FROM upload_failures WHERE table_name = ? AND record_id = ?) AS failed`,
-    [table, id, table, id],
+            EXISTS (SELECT 1 FROM upload_failures WHERE table_name = ? AND record_id = ?) AS failed,
+            EXISTS (SELECT 1 FROM record_conflicts WHERE table_name = ? AND record_id = ? AND status = 'open') AS conflict`,
+    [table, id, table, id, table, id],
   );
   const status = useStatus();
   const row = data[0];
@@ -25,6 +29,7 @@ export function useRecordSyncState(table: string, id: string): RecordSyncState {
     // Until the first result lands, never claim "sent" without proof.
     pending: row ? row.pending === 1 : true,
     failed: row?.failed === 1,
+    conflict: row?.conflict === 1,
     uploading: status.dataFlowStatus.uploading,
   });
 }

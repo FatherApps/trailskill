@@ -18,6 +18,7 @@ export function createStore(): { path: string; remove: () => void } {
   const store = new DatabaseSync(path);
   store.exec(`
     CREATE TABLE athletes (id TEXT PRIMARY KEY, first_name TEXT, last_name TEXT);
+    CREATE TABLE record_conflicts (id TEXT PRIMARY KEY, table_name TEXT, record_id TEXT, status TEXT);
     CREATE TABLE pending_writes (id TEXT PRIMARY KEY, table_name TEXT, record_id TEXT);
     CREATE TABLE upload_failures (
       id TEXT PRIMARY KEY, table_name TEXT, record_id TEXT, op TEXT, payload TEXT, error_code TEXT, failed_at TEXT

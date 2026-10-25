@@ -132,6 +132,7 @@
     "sending": "Enviando",
     "synced": "Enviado",
     "not_sent": "No enviado",
+    "needs_review": "Revisar",
     "retry": "Intentar de nuevo",
     "retry_row_missing": "No se puede reenviar: este registro ya no está en el teléfono.",
     "retry_nothing_to_send": "No hay cambios para reenviar.",

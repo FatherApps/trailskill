@@ -21,6 +21,11 @@ type MeasurementBase = {
   deviceId: string;
   capturedAt: string; // ISO 8601
   parentId: string | null;
+  // Edit trail (issue #55). The server owns them: `version` starts at 1 and goes up with each applied edit.
+  version: number;
+  editedBy: string | null; // null while never edited
+  editedAt: string | null; // ISO 8601
+  editReason: string | null;
 };
 
 // A missing time is null, never 0; a completed measurement never has one.
@@ -35,4 +40,31 @@ export interface MeasurementRepository {
   listBySeries(seriesId: string): Promise<Measurement[]>;
   /** Every kind of measurement of the athlete in the event, newest first (by id on a tie). */
   listByAthleteEvent(athleteId: string, event: MeasurementEvent): Promise<Measurement[]>;
+  /**
+   * Edits an existing measurement: only the time and the athlete can change. The edit is sent with the version it was based on
+   * and the editing device, so another device's different edit becomes a conflict ("Revisar") instead of overwriting. Rejects a missing id.
+   * `undefined` leaves a field as it is; `null` clears it.
+   */
+  edit(
+    id: string,
+    changes: { hundredths?: Hundredths | null; athleteId?: AthleteId | null },
+    meta: { deviceId: string; editReason?: string },
+  ): Promise<void>;
+}
+
+/** A completed measurement records a done repetition without a time, so a time cannot be set on it. */
+export class CompletedMeasurementTimeError extends Error {
+  override name = 'CompletedMeasurementTimeError';
+}
+
+/** A time is above zero: a missing time is null, never 0. */
+export class InvalidMeasurementTimeError extends Error {
+  override name = 'InvalidMeasurementTimeError';
+}
+
+/** Rejects a time the server would turn into a permanent upload failure (zero, negative or non-integer), so the change is refused before anything is written. */
+export function assertEditableTime(kind: MeasurementKind, hundredths: number | null | undefined): void {
+  if (typeof hundredths !== 'number') return;
+  if (kind === 'completed') throw new CompletedMeasurementTimeError('A completed measurement has no time');
+  if (!Number.isInteger(hundredths) || hundredths <= 0) throw new InvalidMeasurementTimeError('A time must be greater than 0');
 }
