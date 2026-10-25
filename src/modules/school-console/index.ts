@@ -28,3 +28,27 @@ export { useAdminSchool, type AdminSchoolResult } from './data/useAdminSchool';
 export { galleryEntries } from './gallery';
 export { createInMemoryStaffSchoolRepository, createPowerSyncStaffSchoolRepository } from './data/staffSchools';
 export type { StaffMembershipRow, StaffSchool, StaffSchoolRepository } from './data/staffSchools';
+export {
+  CONSOLE_BEST_EVENT,
+  createConsoleAthletesRepository,
+  createPowerSyncConsoleAthletesRepository,
+  type ConsoleAthlete,
+  type ConsoleAthletesRepository,
+} from './data/consoleAthletes';
+export {
+  createInMemorySchoolStructureRepository,
+  createPowerSyncSchoolStructureRepository,
+  type CoachAssignment,
+  type SchoolCategory,
+  type SchoolGroup,
+  type SchoolStructureRepository,
+  type SchoolStructureRows,
+} from './data/schoolStructure';
+export {
+  athleteIndicators,
+  filterAthletes,
+  filterOptions,
+  startOfWeek,
+  type ConsoleIndicators,
+  type FilterOption,
+} from './data/athletesList';
