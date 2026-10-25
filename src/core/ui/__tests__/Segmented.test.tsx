@@ -159,6 +159,26 @@ describe('Segmented', () => {
       }
     });
 
+    it('draws an option wider than the viewport at the viewport width, wrapping its label', async () => {
+      await render(
+        <ThemeProvider fontScale={2}>
+          <Segmented accessibilityLabel="Estilo" options={longOptions} value="a" onChange={jest.fn()} />
+        </ThemeProvider>,
+      );
+      const radio = () => screen.getByRole('radio', { name: 'Esperanza de la mañana' });
+      // Before the viewport is measured there is no cap: a width of 0 would collapse the options.
+      expect(StyleSheet.flatten(radio().props.style).maxWidth).toBeUndefined();
+
+      await fireEvent(scrollerOf(), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 240, height: 48 } } });
+
+      for (const { label } of longOptions) {
+        const style = StyleSheet.flatten(screen.getByRole('radio', { name: label }).props.style);
+        expect(style.maxWidth).toBe(240);
+        expect(style.minHeight).toBe(size['target-min']);
+        expect(screen.getByText(label).props.numberOfLines).toBeUndefined();
+      }
+    });
+
     // The Jest ScrollView mock has no layout engine: the test feeds the layouts and watches `scrollTo`.
     describe('keeps the selected option in view', () => {
       const layouts = {

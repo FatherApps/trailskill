@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
 
 import { useTheme, type ColorToken } from '../theme';
@@ -29,9 +29,11 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
   const scroller = useRef<ScrollViewInstance>(null);
   const layouts = useRef(new Map<T, { x: number }>());
   const viewport = useRef(0);
+  // Same measurement as `viewport`, in state because the option cap must re-render. Unset until measured: a cap of 0 would collapse the options.
+  const [viewportWidth, setViewportWidth] = useState<number>();
   const content = useRef(0);
 
-  // Options keep the width of their label, so a long set scrolls: bring the selected one into view.
+  // Options keep the width of their label up to the viewport, so a long set scrolls: bring the selected one into view.
   // Nothing to do when everything fits, and the target never goes past the end of the content.
   const reveal = useCallback((target: T, animated: boolean) => {
     const layout = layouts.current.get(target);
@@ -69,6 +71,7 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
         contentContainerStyle={{ flexGrow: 1 }}
         onLayout={({ nativeEvent: { layout } }) => {
           viewport.current = layout.width;
+          setViewportWidth(layout.width > 0 ? layout.width : undefined);
           reveal(value, false);
         }}
         onContentSizeChange={(width) => {
@@ -93,6 +96,8 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
               style={{
                 flexGrow: 1,
                 flexShrink: 0,
+                // An option never exceeds the viewport, so its label wraps between words and it is seen whole.
+                maxWidth: viewportWidth,
                 minHeight: size['target-min'],
                 alignItems: 'center',
                 justifyContent: 'center',
