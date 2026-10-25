@@ -50,6 +50,23 @@ describe('development gallery', () => {
     expect(screen.getByRole('button', { name: 'Button' })).toBeOnTheScreen();
   });
 
+  it('lists the accounts screens under their own group and opens one with its states', async () => {
+    const view = await renderRouter(routes, { initialUrl: '/gallery' });
+
+    expect(screen.getByText('accounts')).toBeOnTheScreen();
+    for (const name of ['WhoSwimsScreen', 'AccountDetailsScreen', 'SignInScreen']) {
+      expect(screen.getByRole('button', { name })).toBeOnTheScreen();
+    }
+
+    await fireEvent.press(screen.getByRole('button', { name: 'SignInScreen' }));
+
+    expect(view.getPathname()).toBe('/gallery/signIn');
+    for (const state of ['initial', 'codeSent', 'codeMismatch', 'sending', 'offline']) {
+      expect(screen.getByRole('radio', { name: state })).toBeOnTheScreen();
+    }
+    expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeOnTheScreen();
+  });
+
   it('opens an entry with a radio per state and the first one checked', async () => {
     const view = await openButtonEntry();
 
