@@ -45,7 +45,15 @@ services:
       - default
 
   powersync:
-    image: journeyapps/powersync-service:1.21.0
+    # Built from the pinned image with powersync/sync-config.yaml copied in. A deploy that changes
+    # that file builds a new image, so Compose recreates the container and PowerSync loads the new
+    # config. A bind mount would not: Compose does not recreate a container when a mounted file changes.
+    build:
+      context: ../powersync
+      dockerfile_inline: |
+        FROM journeyapps/powersync-service:1.21.0
+        COPY sync-config.yaml /sync/sync-config.yaml
+    pull_policy: build # always build on `compose up`, with or without --build; an unchanged file reuses the cached image
     restart: unless-stopped
     command: ["start", "-r", "unified"]
     depends_on:
@@ -55,7 +63,6 @@ services:
         condition: service_healthy
     volumes:
       - ./powersync:/config:ro
-      - ../powersync:/sync:ro
     environment:
       POWERSYNC_CONFIG_PATH: /config/powersync.yaml
       PS_DATA_SOURCE_URI: postgresql://powersync_role:${POWERSYNC_DB_PASSWORD}@${SUPABASE_DB_HOST}:${SUPABASE_DB_PORT:-5432}/${SUPABASE_DB_NAME:-postgres}

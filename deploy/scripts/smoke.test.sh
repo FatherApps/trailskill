@@ -1,5 +1,5 @@
 #!/bin/sh
-# Starts deploy/compose.yaml against a stand-in Supabase Postgres and waits for PowerSync.
+# Starts deploy/compose.yaml against a stand-in Supabase Postgres and waits for PowerSync, then checks a sync config change restarts it.
 # Usage: sh deploy/scripts/smoke.test.sh   (needs Docker and curl; all data is synthetic)
 set -u
 
@@ -107,4 +107,20 @@ dc run --rm --no-deps -T --entrypoint sh migrate -c '
   [ ! -e /repo/.git ] && [ ! -e /repo/deploy ]' \
   || fail "migrate can see files outside its mounts"
 echo "PASS: migrate sees only scripts and supabase"
+# A deploy where only the Sync Streams file changed must restart PowerSync with the new file.
+# Like Dokploy, replace the file and run compose up again.
+old=$(dc ps -q powersync)
+marker="# smoke-change-$(rand)"
+cfg=$R/powersync/sync-config.yaml
+{ cat "$cfg"; echo "$marker"; } >"$cfg.new" && rm "$cfg" && mv "$cfg.new" "$cfg"
+dc up -d || fail "compose up after the sync config change"
+new=$(dc ps -q powersync)
+[ -n "$new" ] && [ "$new" != "$old" ] || fail "powersync was not recreated after the sync config changed"
+dc exec -T powersync grep -qxF "$marker" /sync/sync-config.yaml || fail "powersync does not see the new sync config"
+i=0
+until docker logs "$new" 2>&1 | grep -q '"Sync config updated"'; do
+  i=$((i + 1)); [ "$i" -gt 30 ] && fail "powersync did not apply the new sync config"
+  sleep 2
+done
+echo "PASS: a sync config change restarts powersync with the new config"
 echo "ALL PASSED"
