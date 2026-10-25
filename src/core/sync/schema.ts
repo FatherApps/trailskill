@@ -1,0 +1,34 @@
+import { column, Schema, Table } from '@powersync/react-native';
+
+// PowerSync adds the `id` column to every table; it is never declared here.
+const audit = { created_at: column.text, created_by: column.text };
+
+export const AppSchema = new Schema({
+  schools: new Table({ ...audit, name: column.text }),
+  categories: new Table({ ...audit, school_id: column.text, name: column.text, sort_order: column.integer }),
+  training_groups: new Table({ ...audit, school_id: column.text, name: column.text }),
+  school_memberships: new Table({ ...audit, school_id: column.text, user_id: column.text, role: column.text }),
+  coach_group_assignments: new Table({ ...audit, coach_user_id: column.text, group_id: column.text }),
+  coach_athlete_assignments: new Table({ ...audit, coach_user_id: column.text, athlete_id: column.text }),
+  athletes: new Table({ ...audit, first_name: column.text, last_name: column.text }),
+  athlete_schools: new Table({ ...audit, athlete_id: column.text, school_id: column.text, category_id: column.text }),
+  athlete_groups: new Table({ ...audit, athlete_id: column.text, group_id: column.text }),
+  athlete_managers: new Table({ ...audit, user_id: column.text, athlete_id: column.text, relation: column.text }),
+  pending_writes: new Table(
+    { table_name: column.text, record_id: column.text },
+    { localOnly: true, indexes: { record: ['table_name', 'record_id'] } },
+  ),
+  upload_failures: new Table(
+    {
+      table_name: column.text,
+      record_id: column.text,
+      op: column.text,
+      payload: column.text,
+      error_code: column.text,
+      failed_at: column.text,
+    },
+    { localOnly: true },
+  ),
+});
+
+export type Database = (typeof AppSchema)['types'];
