@@ -28,7 +28,7 @@ const hidden = { importantForAccessibility: 'no-hide-descendants', accessibility
 // The label of the sheet that lists the options of a filter.
 export const filterSheetLabel = (id: AthleteFilterId) => t(`schoolConsole.filters.sheet.${id}`);
 
-function OptionRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+export function OptionRow({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const { colors, space, radius, size, typography } = useTheme();
   const { focusProps, ring } = useFocusRing();
 

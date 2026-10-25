@@ -65,7 +65,17 @@
     "no_time": "sin tiempo",
     "authorized": "Autorizado",
     "pending": "Pendiente",
-    "view_profile": "Ver perfil completo"
+    "view_profile": "Ver perfil completo",
+    "category": "Categoría",
+    "no_category": "Sin categoría",
+    "inactive_option": "{{name}} · Inactiva",
+    "category_error": {
+      "category_inactive": "Esa categoría está inactiva: elige otra.",
+      "category_wrong_school": "Esa categoría es de otra escuela.",
+      "category_missing": "Esa categoría ya no existe.",
+      "athlete_school_missing": "El deportista no está en esta escuela.",
+      "other": "No pudimos guardar la categoría. Inténtalo de nuevo."
+    }
   },
   "screen": {
     "title": "Deportistas",

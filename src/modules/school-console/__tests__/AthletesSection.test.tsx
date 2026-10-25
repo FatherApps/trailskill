@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository, type HistoryMeasurement } from '../../athletes';
 import { ThemeProvider } from '../../../core/theme';
 import { startOfWeek } from '../data/athletesList';
+import { createInMemoryCategoriesRepository, type CategoriesRepository } from '../data/categories';
 import { createConsoleAthletesRepository, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import { createInMemorySchoolStructureRepository } from '../data/schoolStructure';
 import { AthletesSection } from '../screens/AthletesSection';
@@ -285,6 +286,89 @@ describe('AthletesSection', () => {
       await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
 
       expect(screen.queryByTestId('detail-panel')).toBeNull();
+    });
+  });
+
+  describe('category selector', () => {
+    // Synthetic categories of school-a; c3 is inactive and c9 belongs to another school.
+    // The athletes list (setup) gives a1 the category c1 and a2 the category c2.
+    const memory = (juvenilActive = true) =>
+      createInMemoryCategoriesRepository({
+        categories: [
+          { id: 'c1', schoolId: 'school-a', name: 'Infantil B', sortOrder: 0, active: true },
+          { id: 'c2', schoolId: 'school-a', name: 'Juvenil', sortOrder: 1, active: juvenilActive },
+          { id: 'c3', schoolId: 'school-a', name: 'Máster', sortOrder: 2, active: false },
+          { id: 'c9', schoolId: 'school-b', name: 'Otra escuela', sortOrder: 0, active: true },
+        ],
+        athleteSchools: [
+          { id: 'r1', athleteId: 'a1', schoolId: 'school-a', categoryId: 'c1' },
+          { id: 'r2', athleteId: 'a2', schoolId: 'school-a', categoryId: 'c2' },
+        ],
+      });
+    const open = async (categories: CategoriesRepository, name: RegExp = /^Lucía Ramírez/) => {
+      const { repository } = setup();
+      const listAthletes = jest.spyOn(repository, 'listAthletes');
+      await show(repository, { categories });
+      await fireEvent.press(await athleteRow(name));
+      return { listAthletes };
+    };
+    const option = (name: string) => screen.findByRole('button', { name });
+
+    it('assigns the chosen active category and reads the list again', async () => {
+      const categories = memory();
+      const { listAthletes } = await open(categories);
+      await option('Juvenil');
+      listAthletes.mockClear();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Juvenil' }));
+
+      await waitFor(() => expect(categories.athleteCategory('a1', 'school-a')).toBe('c2'));
+      await waitFor(() => expect(listAthletes).toHaveBeenCalledTimes(1));
+    });
+
+    it('offers only the active categories of the school, and the current one marked', async () => {
+      await open(memory());
+
+      expect(await option('Infantil B')).toBeSelected();
+      expect(screen.getByRole('button', { name: 'Juvenil' })).not.toBeSelected();
+      expect(screen.getByRole('button', { name: 'Sin categoría' })).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: /Máster/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Otra escuela/ })).toBeNull();
+    });
+
+    it('still shows the inactive category an athlete already has', async () => {
+      await open(memory(false), /^Mateo Castro/);
+
+      expect(await option('Juvenil · Inactiva')).toBeSelected();
+      expect(screen.queryByRole('button', { name: 'Máster' })).toBeNull();
+    });
+
+    it('clears the category with Sin categoría', async () => {
+      const categories = memory();
+      await open(categories);
+
+      await fireEvent.press(await option('Sin categoría'));
+
+      await waitFor(() => expect(categories.athleteCategory('a1', 'school-a')).toBeNull());
+    });
+
+    it('shows the error of the repository and keeps the category', async () => {
+      const categories = memory();
+      await open(categories);
+      await option('Juvenil');
+      jest.spyOn(categories, 'assignAthlete').mockRejectedValue(new Error('category_inactive'));
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Juvenil' }));
+
+      expect(await screen.findByText('Esa categoría está inactiva: elige otra.')).toBeOnTheScreen();
+      expect(categories.athleteCategory('a1', 'school-a')).toBe('c1');
+    });
+
+    it('has no selector without a categories repository', async () => {
+      await show(setup().repository);
+      await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+
+      expect(screen.queryByRole('button', { name: 'Sin categoría' })).toBeNull();
     });
   });
 

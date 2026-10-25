@@ -28,6 +28,16 @@ export type AthleteBest = {
   source?: string;
 };
 
+// The category selector of the detail: the choices the admin can make and what happens when one is picked.
+export type CategoryChoice = {
+  // `id: null` clears the category.
+  options: { id: string | null; label: string }[];
+  selectedId: string | null;
+  // Already translated; `null` when the last change worked.
+  error: string | null;
+  onChoose: (categoryId: string | null) => void;
+};
+
 export type AthleteDetailData = {
   id: string;
   name: string;
@@ -36,6 +46,8 @@ export type AthleteDetailData = {
   // `null` for each part that is not known: the console shows "Sin dato".
   guardian: { name: string | null; contact: string | null };
   bests: AthleteBest[];
+  // Absent while the console has no categories to choose from: the detail only shows the category tag.
+  categoryChoice?: CategoryChoice;
 };
 
 export type AthleteFilterId = 'category' | 'group' | 'coach';
