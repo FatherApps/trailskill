@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { colors, radius, size } from '../../../core/theme';
+import { colors, radius, size, ThemeProvider } from '../../../core/theme';
 import { ChoiceRow } from '../components/ChoiceRow';
 import { ProviderButton } from '../components/ProviderButton';
+import { googleMark } from '../components/providerMarks';
 
 describe('ProviderButton', () => {
   it.each(['google', 'microsoft'] as const)('%s: a labelled button with its own mark', async (provider) => {
@@ -21,6 +22,31 @@ describe('ProviderButton', () => {
     await fireEvent.press(button);
     expect(onPress).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['light', 'dark'] as const)('google: the G sits on a white disc in the %s theme', async (name) => {
+    await render(
+      <ThemeProvider name={name}>
+        <ProviderButton provider="google" onPress={jest.fn()} />
+      </ThemeProvider>,
+    );
+
+    const disc = screen.getByTestId('provider-mark-disc', { includeHiddenElements: true });
+    const image = disc.children[0];
+    if (typeof image === 'string') throw new Error('the disc must hold the G image');
+    expect(StyleSheet.flatten(image.props.style)).toMatchObject({ width: 20, height: 20 });
+    expect(StyleSheet.flatten(disc.props.style)).toMatchObject({
+      backgroundColor: googleMark.background,
+      width: 28,
+      height: 28,
+      borderRadius: radius.full,
+    });
+  });
+
+  it('microsoft: the mark has no disc', async () => {
+    await render(<ProviderButton provider="microsoft" onPress={jest.fn()} />);
+
+    expect(screen.queryByTestId('provider-mark-disc', { includeHiddenElements: true })).toBeNull();
+      });
 
   it('shows the reason instead of going silent when it cannot be used', async () => {
     const onPress = jest.fn();

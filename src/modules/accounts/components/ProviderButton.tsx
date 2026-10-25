@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 
-import { darken, useTheme } from '../../../core/theme';
+import { darken, radius, useTheme } from '../../../core/theme';
 import { Icon } from '../../../core/ui';
 import { t } from '../i18n';
 import { googleMark, microsoftMark } from './providerMarks';
@@ -18,6 +18,8 @@ export type ProviderButtonProps = {
 
 // Gap: the mark is 20 dp in the design reference; icon-md (22) is the closest token but would change an official mark's size.
 const MARK = 20;
+// Gap: the design reference has no Google button; the white disc Google's guidelines require is 28 dp, which no size token matches.
+const DISC = 28;
 
 const styles = StyleSheet.create({
   button: {
@@ -27,6 +29,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   mark: { width: MARK, height: MARK },
+  disc: { width: DISC, height: DISC, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   label: { flexShrink: 1, textAlign: 'center' },
 });
 
@@ -35,7 +38,11 @@ const hidden = { importantForAccessibility: 'no-hide-descendants', accessibility
 
 function Mark({ provider }: { provider: Provider }) {
   if (provider === 'google') {
-    return <Image source={googleMark.source} resizeMode="contain" style={styles.mark} />;
+    return (
+      <View testID="provider-mark-disc" style={[styles.disc, { backgroundColor: googleMark.background }]}>
+        <Image source={googleMark.source} resizeMode="contain" style={styles.mark} />
+      </View>
+    );
   }
   return (
     <Svg width={MARK} height={MARK} viewBox={microsoftMark.viewBox}>
