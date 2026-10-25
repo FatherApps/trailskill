@@ -32,6 +32,51 @@ describe('TimingHeader', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  describe('trailing slot placement', () => {
+    const layoutOf = (testID: string, width: number) =>
+      fireEvent(screen.getByTestId(testID, { includeHiddenElements: true }), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width, height: 48 } },
+      });
+    const measure = async (container: number, text: number, trailing: number) => {
+      await layoutOf('timing-header', container);
+      await layoutOf('timing-header-text-measure', text);
+      await layoutOf('timing-header-trailing-measure', trailing);
+    };
+    const trailingUnderTitle = () =>
+      within(screen.getByTestId('timing-header-text')).queryByTestId('timing-header-trailing') !== null;
+    const renderHeader = () =>
+      render(<TimingHeader title="Mateo C. · 1 de 4" subtitle="Libre 50 m" onBack={jest.fn()} trailing={<Text>Pill</Text>} />);
+
+    it('keeps the trailing slot beside the title before anything is measured', async () => {
+      await renderHeader();
+
+      expect(screen.getByText('Pill')).toBeOnTheScreen();
+      expect(trailingUnderTitle()).toBe(false);
+    });
+
+    it('keeps it beside the title when everything fits on one row', async () => {
+      await renderHeader();
+      await measure(360, 150, 100);
+
+      expect(trailingUnderTitle()).toBe(false);
+    });
+
+    it('drops it under the title and subtitle when it does not fit beside them', async () => {
+      await renderHeader();
+      await measure(360, 180, 100);
+
+      expect(trailingUnderTitle()).toBe(true);
+      expect(screen.getAllByText('Pill')).toHaveLength(1);
+    });
+
+    it('has no placement to decide without a trailing slot', async () => {
+      await render(<TimingHeader title="Mateo C." onBack={jest.fn()} />);
+
+      expect(screen.queryByTestId('timing-header-trailing', { includeHiddenElements: true })).toBeNull();
+      expect(screen.getByRole('header', { name: 'Mateo C.' })).toBeOnTheScreen();
+    });
+  });
+
   it('works without subtitle or trailing slot', async () => {
     await render(<TimingHeader title="Toma de tiempos" onBack={jest.fn()} />);
 
