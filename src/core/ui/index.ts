@@ -7,3 +7,4 @@ export { SyncStatus, syncStatusColors, type SyncStatusProps } from './SyncStatus
 export { ConfirmSheet, confirmSheetColors, type ConfirmSheetProps } from './ConfirmSheet';
 export { Icon, type IconProps } from './Icon';
 export { iconPaths, type IconName } from './icons';
+export { galleryEntries, type GalleryEntry } from './gallery';
