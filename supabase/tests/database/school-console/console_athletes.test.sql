@@ -11,13 +11,14 @@
 --   * accounts/authorizations.test.sql and timing/measurements.test.sql cover
 --     authorization_status and measurements per role, but never next to the
 --     other console tables, and never for the admin of another school.
--- Here: the related tables for a coach (only the rows outside the
--- assignments are excluded, plus one positive anchor), the school admin, the
+-- Here: the related tables for a coach (athlete-scoped tables exclude the rows
+-- outside the assignments; the assignment tables are self-scoped, so they
+-- exclude the other coach of another school), the school admin, the
 -- admin of ANOTHER school on every table (athletes included), and a user with
 -- no relations. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(36);
 
 -- Users: school admin S and coach A (school 1), school admin T and coach B
 -- (school 2), guardian G, and N with no relations.
@@ -93,12 +94,13 @@ insert into public.authorization_status (athlete_id, purpose, is_granted) values
   ('62000000-0000-4000-8000-0000000000e3', 'record_times', true),
   ('62000000-0000-4000-8000-0000000000e4', 'record_times', true);
 
--- One measurement per athlete (m1..m4).
+-- One measurement per athlete (m1..m4), created by admin S: a neutral creator
+-- (not coach A), so coach reads cannot come from a creator-visibility rule.
 insert into public.measurements
   (id, created_by, device_id, kind, athlete_id, hundredths, stroke, distance, pool,
    session_type, source, captured_at)
 select ('62000000-0000-4000-8000-0000000000f' || n)::uuid,
-       '62000000-0000-4000-8000-0000000000a2', 'device-a', 'repetition',
+       '62000000-0000-4000-8000-0000000000a1', 'device-a', 'repetition',
        ('62000000-0000-4000-8000-0000000000e' || n)::uuid, 3150, 'FR', '50m', 'SCM',
        'training', 'screen_button', '2026-10-24 08:00:00+00'
 from generate_series(1, 4) n;
@@ -130,6 +132,22 @@ select set_eq(
   $$ values ('62000000-0000-4000-8000-0000000000e1'::uuid),
             ('62000000-0000-4000-8000-0000000000e3'::uuid) $$,
   'coach A reads the measurements of assigned athletes only, not of e2'
+);
+
+select set_eq(
+  'select athlete_id from public.athlete_managers',
+  $$ values ('62000000-0000-4000-8000-0000000000e1'::uuid) $$,
+  'coach A reads the guardian links of assigned athletes only (e1; e3 has none), not e2 or e4'
+);
+select set_eq(
+  'select group_id from public.coach_group_assignments',
+  $$ values ('62000000-0000-4000-8000-0000000000d1'::uuid) $$,
+  'coach A reads only A''s own group assignments, not coach B''s of school 2'
+);
+select set_eq(
+  'select athlete_id from public.coach_athlete_assignments',
+  $$ values ('62000000-0000-4000-8000-0000000000e3'::uuid) $$,
+  'coach A reads only A''s own direct assignments, not coach B''s of school 2'
 );
 
 -- School admin S: every athlete of school 1 and the related rows, none of school 2.
