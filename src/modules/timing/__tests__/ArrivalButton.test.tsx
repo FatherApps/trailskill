@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { colors, size } from '../../../core/theme';
+import { colors } from '../../../core/theme';
 import { ArrivalButton } from '../components/ArrivalButton';
 
 describe('ArrivalButton', () => {
@@ -15,13 +15,11 @@ describe('ArrivalButton', () => {
     expect(onArrival).toHaveBeenCalledTimes(1);
   });
 
-  it('has a touch target of 88 dp that also emits onArrival once', async () => {
-    const onArrival = jest.fn();
-    await render(<ArrivalButton onArrival={onArrival} />);
+  it('is a single accessible button of at least 72 dp, with no extra touchable around it', async () => {
+    await render(<ArrivalButton onArrival={jest.fn()} />);
 
-    const target = screen.getByTestId('arrival-target');
-    expect(StyleSheet.flatten(target.props.style)?.minHeight).toBe(size['target-timing']);
-    await fireEvent.press(target);
-    expect(onArrival).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('button', { includeHiddenElements: true })).toHaveLength(1);
+    expect(screen.queryByTestId('arrival-target')).toBeNull();
+    expect(StyleSheet.flatten(screen.getByRole('button').props.style)?.minHeight).toBeGreaterThanOrEqual(72);
   });
 });
