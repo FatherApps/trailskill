@@ -12,6 +12,7 @@
 // - Icons used by the TimeValue preview: check, arrow_upward, arrow_downward.
 // - Icons used by Banner (issue 176): info, check_circle.
 // - Icons used by the registration screens (issue 89): family_restroom, radio_button_checked, radio_button_unchecked, school.
+// - Icon used by the training-plans fulfillment status (issue 98): incomplete_circle.
 // Every path uses the viewBox "0 -960 960 960".
 export const iconPaths = {
   timer:
@@ -68,6 +69,8 @@ export const iconPaths = {
     'M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z',
   school:
     'M480-120 200-272v-240L40-600l440-240 440 240v320h-80v-276l-80 44v240L480-120Zm0-332 274-148-274-148-274 148 274 148Zm0 241 200-108v-151L480-360 280-470v151l200 108Zm0-241Zm0 90Zm0 0Z',
+  incomplete_circle:
+    'M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-84 31-156.5T196-764l284 284v-400q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z',
 } as const;
 
 export type IconName = keyof typeof iconPaths;
