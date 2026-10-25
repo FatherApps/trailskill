@@ -201,6 +201,8 @@ export const galleryEntries: GalleryEntry[] = [
       stop: () => <ConfirmSheetPreview copy={cs.stop} destructive />,
       primary: () => <ConfirmSheetPreview copy={cs.primary} destructive={false} />,
       signOut: () => <ConfirmSheetPreview copy={cs.signOut} destructive />,
+      discardIncomplete: () => <ConfirmSheetPreview copy={cs.discardIncomplete} destructive={false} />,
+      signOutOffline: () => <ConfirmSheetPreview copy={cs.signOutOffline} destructive />,
     },
   },
 ];
