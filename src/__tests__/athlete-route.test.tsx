@@ -3,10 +3,11 @@ import { render, screen } from '@testing-library/react-native';
 import AthleteRoute from '../app/(app)/athletes/[id]';
 
 let mockUserId: string | undefined;
+let mockStaff = false;
 jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
-jest.mock('../core/sync', () => ({ useGlobalSyncSummary: () => ({ lastSyncedAt: null }) }));
+jest.mock('../core/sync', () => ({ useGlobalSyncSummary: () => ({ lastSyncedAt: null, connection: 'connected' }) }));
 jest.mock('../modules/accounts', () => ({ createPowerSyncAuthorizationStatusRepository: () => ({}) }));
 jest.mock('../modules/athletes', () => {
   const { Text } = jest.requireActual('react-native');
@@ -14,12 +15,17 @@ jest.mock('../modules/athletes', () => {
     createPowerSyncSchoolAthleteRepository: () => ({}),
     createPowerSyncHistoryRepository: () => ({}),
     createPowerSyncAthleteSchoolRepository: () => ({}),
-    AthleteProfileContainer: ({ athleteId }: { athleteId: string }) => <Text>{`profile of ${athleteId}`}</Text>,
+    createSupabaseOtherSchoolResultsRepository: () => ({}),
+    AthleteProfileContainer: ({ athleteId, otherSchoolResults, online }: { athleteId: string; otherSchoolResults?: object; online?: boolean }) => (
+      <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}`}</Text>
+    ),
   };
 });
 jest.mock('../modules/school-console', () => ({
   createPowerSyncSchoolNameRepository: () => ({}),
   createPowerSyncSchoolStructureRepository: () => ({}),
+  createPowerSyncStaffSchoolRepository: () => ({}),
+  useStaffSchool: () => ({ status: mockStaff ? 'staff' : 'none' }),
 }));
 jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: 'a1' }) }));
 
@@ -28,7 +34,16 @@ describe('athlete profile route', () => {
     mockUserId = 'user-1';
     await render(<AthleteRoute />);
 
-    expect(await screen.findByText('profile of a1')).toBeOnTheScreen();
+    expect(await screen.findByText('profile of a1 online')).toBeOnTheScreen();
+  });
+
+  it('offers the results of other schools only to school staff', async () => {
+    mockUserId = 'user-1';
+    mockStaff = true;
+    await render(<AthleteRoute />);
+    mockStaff = false;
+
+    expect(await screen.findByText('profile of a1 with other schools online')).toBeOnTheScreen();
   });
 
   it('shows nothing to a signed-out user', async () => {

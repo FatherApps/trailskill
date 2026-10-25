@@ -7,6 +7,7 @@ import {
   AthleteProfileContainer,
   createInMemoryAthleteSchoolRepository,
   createInMemoryHistoryRepository,
+  createInMemoryOtherSchoolResultsRepository,
   createInMemorySchoolAthleteRepository,
 } from '..';
 import type { HistoryMeasurement, HistoryRepository } from '..';
@@ -153,5 +154,63 @@ describe('athlete profile container', () => {
 
     expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
     expect(screen.queryByLabelText('Escuela')).toBeNull();
+  });
+
+  describe('results of another school', () => {
+    const otherSchool = () =>
+      createInMemoryOtherSchoolResultsRepository([
+        {
+          athleteId: 'a1',
+          id: 'o1',
+          kind: 'race',
+          hundredths: 3300,
+          stroke: 'FR',
+          distance: '50m',
+          pool: 'SCM',
+          sessionType: 'competition',
+          capturedAt: '2026-10-19T10:00:00.000Z',
+          arrivalPosition: null,
+        },
+      ]);
+    const tree = (props: Partial<Parameters<typeof AthleteProfileContainer>[0]>) => (
+      <ThemeProvider>
+        <AthleteProfileContainer
+          athleteId="a1"
+          athletes={athletes}
+          history={createInMemoryHistoryRepository([measurement({ id: 'm1' })])}
+          authorizations={authorizations(true)}
+          schoolLinks={schoolLinks}
+          schoolNames={schoolNames}
+          categories={categories}
+          lastSyncedAt={null}
+          {...props}
+        />
+      </ThemeProvider>
+    );
+
+    it('shows them as online only while connected, and drops them without keeping a copy when the connection is lost', async () => {
+      const results = otherSchool();
+      const listByEvent = jest.spyOn(results, 'listByEvent');
+      const view = await render(tree({ otherSchoolResults: results, online: true }));
+
+      expect(await screen.findByLabelText(/Otra escuela.*Solo en línea/)).toBeOnTheScreen();
+      expect(screen.getAllByText('33,00', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+
+      await view.rerender(tree({ otherSchoolResults: results, online: false }));
+
+      expect(await screen.findByText('Disponible con conexión')).toBeOnTheScreen();
+      expect(screen.queryByLabelText(/Otra escuela/)).toBeNull();
+      expect(screen.queryAllByText('33,00', { includeHiddenElements: true })).toHaveLength(0);
+      expect(listByEvent).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the profile when only the other school fails', async () => {
+      const results = { listByEvent: jest.fn().mockRejectedValue(new Error('offline')) };
+      await show({ otherSchoolResults: results, online: true });
+
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      expect(await screen.findByText('Disponible con conexión')).toBeOnTheScreen();
+      expect(screen.getAllByText('34,82', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+    });
   });
 });
