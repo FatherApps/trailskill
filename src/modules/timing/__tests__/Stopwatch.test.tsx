@@ -238,7 +238,7 @@ describe.each([
   };
   const direction = () => styleOf(screen.getByTestId('stopwatch-actions-layout').props.style)?.flexDirection;
   const order = () =>
-    screen.getByTestId('stopwatch-actions-layout').children.map((child) => (child as { props: { testID: string } }).props.testID);
+    screen.getByTestId('stopwatch-actions-layout').children.map((child) => (typeof child === 'string' ? child : child.props.testID));
 
   it('is a row by default, before anything is measured: secondary at its content width, primary takes the rest', async () => {
     await renderWatch(props);
