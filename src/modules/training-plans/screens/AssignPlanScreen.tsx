@@ -44,6 +44,8 @@ export type AssignPlanScreenProps = {
   onSelectOption: (id: string) => void;
   onAssign: () => void;
   onWithdraw: (id: string) => void;
+  // Opens the fulfillment grid of an assigned plan; without it the rows have no such button.
+  onOpenFulfillment?: (id: string) => void;
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -91,6 +93,7 @@ function AssignForm({
   onSelectOption,
   onAssign,
   onWithdraw,
+  onOpenFulfillment,
 }: { content: AssignPlanContent } & Omit<AssignPlanScreenProps, 'view'>) {
   const { colors, space, radius, typography } = useTheme();
   const [withdrawing, setWithdrawing] = useState<AssignedRow | null>(null);
@@ -160,6 +163,7 @@ function AssignForm({
               <Text style={[typography.subtitle, { color: colors.ink }]}>{row.planName}</Text>
               <Text style={[typography.body, { color: colors.ink }]}>{row.targetLabel}</Text>
               <Text style={[typography.body, { color: colors.ink }]}>{t('training_plans.assign.reaches', { count: row.athleteCount })}</Text>
+              {onOpenFulfillment && <Button label={t('training_plans.assign.open_fulfillment')} onPress={() => onOpenFulfillment(row.id)} />}
               {row.canWithdraw && <Button variant="secondary" label={t('training_plans.assign.withdraw')} onPress={() => setWithdrawing(row)} />}
             </View>
           ))
@@ -184,7 +188,7 @@ function AssignForm({
 }
 
 // Presentational: no repository; the caller supplies the state and handles the events.
-export function AssignPlanScreen({ view, onPreviousDay, onNextDay, onSelectPlan, onSelectKind, onSelectOption, onAssign, onWithdraw }: AssignPlanScreenProps) {
+export function AssignPlanScreen({ view, onPreviousDay, onNextDay, onSelectPlan, onSelectKind, onSelectOption, onAssign, onWithdraw, onOpenFulfillment }: AssignPlanScreenProps) {
   const { colors, space, typography } = useTheme();
 
   return (
@@ -214,6 +218,7 @@ export function AssignPlanScreen({ view, onPreviousDay, onNextDay, onSelectPlan,
           onSelectOption={onSelectOption}
           onAssign={onAssign}
           onWithdraw={onWithdraw}
+          onOpenFulfillment={onOpenFulfillment}
         />
       )}
     </ScrollView>

@@ -47,6 +47,10 @@ export {
   type AssignmentTarget,
   type NewAssignment,
 } from './data/assignments';
+export { createInMemoryFulfillmentRepository } from './data/inMemoryFulfillmentRepository';
+export { createPowerSyncFulfillmentRepository } from './data/powerSyncFulfillmentRepository';
+export { InvalidFulfillmentError, type FulfillmentMark, type FulfillmentRepository, type NewFulfillmentMark } from './data/fulfillment';
 export { assignPlan, canWithdraw, checkTarget, listAssignmentsOfDay, loadAssignScope, type AssignScope } from './data/assignable';
 export { AssignPlanScreen, type AssignedRow, type AssignmentKind, type AssignOption, type AssignPlanContent, type AssignPlanScreenProps, type AssignPlanView } from './screens/AssignPlanScreen';
+export { FulfillmentContainer, type FulfillmentContainerProps } from './screens/FulfillmentContainer';
 export { AssignPlanContainer, type AssignPlanContainerProps } from './screens/AssignPlanContainer';
