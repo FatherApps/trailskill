@@ -10,7 +10,10 @@ export interface SchoolStructureRepository {
   listCategories(schoolId: string): Promise<SchoolCategory[]>;
   /** Training groups of the school by name, id. Local database only. */
   listGroups(schoolId: string): Promise<SchoolGroup[]>;
-  /** Coach assignments to the groups of the school and to the given athletes (the caller supplies the school's athletes). Local database only. */
+  /**
+   * Coach assignments to the groups of the school and to the given athletes (the caller supplies the school's athletes).
+   * A direct assignment counts only for a coach of this school. Local database only.
+   */
   listCoachAssignments(schoolId: string, athleteIds: readonly string[]): Promise<CoachAssignment[]>;
 }
 
@@ -31,8 +34,11 @@ export function createPowerSyncSchoolStructureRepository(): SchoolStructureRepos
          FROM coach_group_assignments a JOIN training_groups g ON g.id = a.group_id WHERE g.school_id = ?
          UNION
          SELECT DISTINCT d.coach_user_id AS coachId, NULL AS groupId, d.athlete_id AS athleteId
-         FROM coach_athlete_assignments d WHERE d.athlete_id IN (SELECT value FROM json_each(?))`,
-        [schoolId, JSON.stringify(athleteIds)],
+         FROM coach_athlete_assignments d WHERE d.athlete_id IN (SELECT value FROM json_each(?))
+         -- Direct assignments carry no school: known limit, a coach who is a member of both schools still appears
+         -- (they are a coach of this school too); the column decision is tracked separately.
+         AND EXISTS (SELECT 1 FROM school_memberships m WHERE m.school_id = ? AND m.user_id = d.coach_user_id AND m.role = 'coach')`,
+        [schoolId, JSON.stringify(athleteIds), schoolId],
       );
     },
   };
@@ -43,6 +49,8 @@ export type SchoolStructureRows = {
   groups: (SchoolGroup & { schoolId: string })[];
   groupAssignments: { coachId: string; groupId: string }[];
   athleteAssignments: { coachId: string; athleteId: string }[];
+  // Coaches by school (school_memberships with role 'coach').
+  coachMemberships: { coachId: string; schoolId: string }[];
 };
 
 export function createInMemorySchoolStructureRepository(rows: SchoolStructureRows): SchoolStructureRepository {
@@ -62,10 +70,11 @@ export function createInMemorySchoolStructureRepository(rows: SchoolStructureRow
     async listCoachAssignments(schoolId, athleteIds) {
       const groupIds = new Set(rows.groups.filter((g) => g.schoolId === schoolId).map((g) => g.id));
       const wanted = new Set(athleteIds);
+      const coaches = new Set(rows.coachMemberships.filter((m) => m.schoolId === schoolId).map((m) => m.coachId));
       const unique = <T extends { coachId: string }>(list: T[], key: (a: T) => string) => [...new Map(list.map((a) => [`${a.coachId}|${key(a)}`, a])).values()];
       return [
         ...unique(rows.groupAssignments.filter((a) => groupIds.has(a.groupId)), (a) => a.groupId).map((a) => ({ coachId: a.coachId, groupId: a.groupId, athleteId: null })),
-        ...unique(rows.athleteAssignments.filter((a) => wanted.has(a.athleteId)), (a) => a.athleteId).map((a) => ({ coachId: a.coachId, groupId: null, athleteId: a.athleteId })),
+        ...unique(rows.athleteAssignments.filter((a) => wanted.has(a.athleteId) && coaches.has(a.coachId)), (a) => a.athleteId).map((a) => ({ coachId: a.coachId, groupId: null, athleteId: a.athleteId })),
       ];
     },
   };

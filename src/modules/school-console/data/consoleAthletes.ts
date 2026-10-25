@@ -68,45 +68,49 @@ export function createConsoleAthletesRepository({ athletes, authorizations, hist
   return {
     async listAthletes(schoolId) {
       const listed = await athletes.listBySchool(schoolId);
-      const [granted, categories, groups, assignments] = await Promise.all([
+      const [granted, categories, groups, assignments, eventTimes] = await Promise.all([
         authorizations.listGrantedAthleteIds('record_times'),
         structure.listCategories(schoolId),
         structure.listGroups(schoolId),
         structure.listCoachAssignments(schoolId, listed.map((a) => a.id)),
+        // One query for the whole school: the cost does not grow with the number of athletes.
+        history.listByAthletesEvent(listed.map((a) => a.id), CONSOLE_BEST_EVENT),
       ]);
       const grantedIds = new Set(granted);
       const categoryById = new Map(categories.map((c) => [c.id, c]));
       const groupById = new Map(groups.map((g) => [g.id, g]));
+      const timesByAthlete = new Map<string, typeof eventTimes>();
+      for (const m of eventTimes) {
+        if (m.athleteId !== null) timesByAthlete.set(m.athleteId, [...(timesByAthlete.get(m.athleteId) ?? []), m]);
+      }
 
-      return Promise.all(
-        listed.map(async (athlete) => {
-          const category = athlete.categoryId ? categoryById.get(athlete.categoryId) : undefined;
-          const schoolGroups = athlete.groupIds
-            .flatMap((id) => groupById.get(id) ?? [])
-            .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-          const groupIds = new Set(schoolGroups.map((g) => g.id));
-          const coachIds = new Set(
-            assignments
-              .filter((a) => (a.groupId !== null && groupIds.has(a.groupId)) || a.athleteId === athlete.id)
-              .map((a) => a.coachId),
-          );
-          const best = personalBest(await history.listByEvent(athlete.id, CONSOLE_BEST_EVENT));
-          return {
-            id: athlete.id,
-            name: `${athlete.firstName} ${athlete.lastName}`,
-            initials: initialsOf(athlete.firstName, athlete.lastName),
-            color: colorOf(athlete.id),
-            categoryId: category?.id ?? null,
-            category: category?.name ?? null,
-            categorySortOrder: category?.sortOrder ?? null,
-            groupIds: schoolGroups.map((g) => g.id),
-            groups: schoolGroups.map((g) => g.name),
-            coachIds: [...coachIds].sort(),
-            authorization: grantedIds.has(athlete.id) ? 'valid' : 'pending',
-            bestTime: best?.hundredths ?? null,
-          };
-        }),
-      );
+      return listed.map((athlete) => {
+        const category = athlete.categoryId ? categoryById.get(athlete.categoryId) : undefined;
+        const schoolGroups = athlete.groupIds
+          .flatMap((id) => groupById.get(id) ?? [])
+          .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+        const groupIds = new Set(schoolGroups.map((g) => g.id));
+        const coachIds = new Set(
+          assignments
+            .filter((a) => (a.groupId !== null && groupIds.has(a.groupId)) || a.athleteId === athlete.id)
+            .map((a) => a.coachId),
+        );
+        const best = personalBest(timesByAthlete.get(athlete.id) ?? []);
+        return {
+          id: athlete.id,
+          name: `${athlete.firstName} ${athlete.lastName}`,
+          initials: initialsOf(athlete.firstName, athlete.lastName),
+          color: colorOf(athlete.id),
+          categoryId: category?.id ?? null,
+          category: category?.name ?? null,
+          categorySortOrder: category?.sortOrder ?? null,
+          groupIds: schoolGroups.map((g) => g.id),
+          groups: schoolGroups.map((g) => g.name),
+          coachIds: [...coachIds].sort(),
+          authorization: grantedIds.has(athlete.id) ? 'valid' : 'pending',
+          bestTime: best?.hundredths ?? null,
+        };
+      });
     },
     countMeasurementsSince(athleteIds, since) {
       return measurements.countCapturedSince(athleteIds, since);

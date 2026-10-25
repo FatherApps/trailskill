@@ -8,7 +8,7 @@ jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
 jest.mock('../core/sync', () => ({
-  useGlobalSyncSummary: () => ({ lastSyncedAt: null, connected: true }),
+  useGlobalSyncSummary: () => ({ lastSyncedAt: null, connected: true, connection: 'connected' }),
 }));
 const mockListAdminSchools = jest.fn();
 const mockConsoleAthletes = {

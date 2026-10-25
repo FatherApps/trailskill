@@ -9,6 +9,9 @@ export function createHistoryRepository(measurements: MeasurementRepository): Hi
     async listByEvent(athleteId, event) {
       return asOwn(await measurements.listByAthleteEvent(athleteId, event));
     },
+    async listByAthletesEvent(athleteIds, event) {
+      return asOwn(await measurements.listByAthletesEvent(athleteIds, event));
+    },
     async listByAthlete(athleteId) {
       return asOwn(await measurements.listByAthlete(athleteId));
     },
