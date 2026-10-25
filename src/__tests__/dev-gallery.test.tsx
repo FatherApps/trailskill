@@ -1,4 +1,5 @@
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { router } from 'expo-router';
+import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
 
 import Home from '../app/(app)/index';
@@ -86,6 +87,37 @@ describe('development gallery', () => {
 
     await fireEvent.press(screen.getByRole('radio', { name: '100 %' }));
     expect(fontSize()).toBe(16);
+  });
+
+  it('keeps the screen chrome in the app theme and at normal size while the preview changes', async () => {
+    await openButtonEntry();
+    const chromeBackground = () => StyleSheet.flatten(screen.getByTestId('gallery-screen').props.style).backgroundColor;
+    const labelFontSize = () => StyleSheet.flatten(screen.getByText('Estado').props.style).fontSize;
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'Oscuro' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '200 %' }));
+
+    expect(chromeBackground()).toBe(colors.light['surface-0']);
+    expect(labelFontSize()).toBe(14);
+  });
+
+  it('shows the new entry with its first state when the id changes in place', async () => {
+    await openButtonEntry();
+    await fireEvent.press(screen.getByRole('radio', { name: 'loading' }));
+
+    await act(() => router.setParams({ id: 'tag' }));
+
+    expect(screen.getByRole('header', { name: 'Tag' })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'neutral' })).toBeChecked();
+    expect(screen.getByLabelText('Infantil B')).toBeOnTheScreen();
+  });
+
+  it('goes home from the gallery when there is no history to go back to', async () => {
+    const view = await renderRouter(routes, { initialUrl: '/gallery' });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+
+    expect(view.getPathname()).toBe('/');
   });
 
   it('says so when the entry does not exist', async () => {

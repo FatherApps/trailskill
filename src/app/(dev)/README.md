@@ -1,6 +1,6 @@
 # Development gallery
 
-Shows components and screens with synthetic data, in every state, in light and dark theme and at 200 % text size. It exists only in development builds: outside `__DEV__` the `(dev)` layout redirects to `/`.
+Shows components and screens with synthetic data, in every state, in light and dark theme and at 200 % text size; the theme and size choices apply only to the preview, not to the gallery's own controls. It exists only in development builds: outside `__DEV__` the `(dev)` layout redirects to `/`.
 
 ## Open it
 
