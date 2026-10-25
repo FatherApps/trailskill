@@ -176,6 +176,15 @@ begin
     return new;
   end if;
   if tg_op = 'INSERT' then
+    -- A replayed PUT (ON CONFLICT DO UPDATE) proposes the stored row again: let it
+    -- reach the update, which then changes nothing. created_at is left out of the
+    -- comparison because the proposed row carries its column default, not the stored
+    -- value.
+    perform 1 from public.training_plan_blocks b
+      where b.id = new.id and to_jsonb(b) - 'created_at' = to_jsonb(new) - 'created_at';
+    if found then
+      return new;
+    end if;
     versions := array[new.version_id];
   elsif tg_op = 'DELETE' then
     versions := array[old.version_id];

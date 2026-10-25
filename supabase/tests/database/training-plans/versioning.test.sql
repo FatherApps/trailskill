@@ -20,7 +20,7 @@
 -- All data here is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(88);
+select plan(92);
 
 -- Users: coach C1 (school 1, responsible for group g1) and U, who accepts the
 -- authorizations.
@@ -271,6 +271,30 @@ select throws_ok(
 select lives_ok(
   $$ update public.training_plan_blocks set repetitions = repetitions where id = '74000000-0000-4000-8000-000000000021' $$,
   'an update that changes nothing, as a sync upsert retry sends, passes'
+);
+-- The connector replays a PUT as INSERT ... ON CONFLICT (id) DO UPDATE; its BEFORE
+-- INSERT trigger sees the proposed row (created_at is the column default, not the
+-- stored one), so an identical replay must pass and change nothing.
+select lives_ok(
+  $$ insert into public.training_plan_blocks (id, version_id, position, repetitions, distance, stroke, phase, recording)
+     values ('74000000-0000-4000-8000-000000000021', '74000000-0000-4000-8000-000000000011', 1, 4, '50m', 'FR', 'warm_up', 'completion')
+     on conflict (id) do update set version_id = excluded.version_id, position = excluded.position, repetitions = excluded.repetitions,
+       distance = excluded.distance, stroke = excluded.stroke, phase = excluded.phase, recording = excluded.recording $$,
+  'an identical upsert replay of a block of a version with a mark passes'
+);
+select is(
+  (select repetitions || ':' || distance from public.training_plan_blocks where id = '74000000-0000-4000-8000-000000000021'),
+  '4:50m', 'and the block is unchanged'
+);
+select throws_ok(
+  $$ insert into public.training_plan_blocks (id, version_id, position, repetitions, distance, stroke, phase, recording)
+     values ('74000000-0000-4000-8000-000000000021', '74000000-0000-4000-8000-000000000011', 1, 4, '100m', 'FR', 'warm_up', 'completion')
+     on conflict (id) do update set distance = excluded.distance $$,
+  '42501', 'new row violates row-level security policy for table "training_plan_blocks"', 'a different upsert of a block of a version with a mark is refused'
+);
+select is(
+  (select repetitions || ':' || distance from public.training_plan_blocks where id = '74000000-0000-4000-8000-000000000021'),
+  '4:50m', 'and the block is unchanged'
 );
 select lives_ok(
   $$ update public.training_plan_blocks set repetitions = 6 where id = '74000000-0000-4000-8000-000000000023' $$,
