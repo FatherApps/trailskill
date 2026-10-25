@@ -1,5 +1,27 @@
 {
   "home": {
     "title": "TrailSkill"
+  },
+  "sport": {
+    "stroke": {
+      "FR": "Libre",
+      "BK": "Espalda",
+      "BR": "Pecho",
+      "FL": "Mariposa",
+      "IM": "Combinado"
+    },
+    "distance": {
+      "25m": "25 m",
+      "50m": "50 m",
+      "100m": "100 m",
+      "200m": "200 m",
+      "400m": "400 m",
+      "800m": "800 m",
+      "1500m": "1500 m"
+    },
+    "pool": {
+      "SCM": "Piscina de 25 m",
+      "LCM": "Piscina de 50 m"
+    }
   }
 }
