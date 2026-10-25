@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
 import { useTheme, type ColorToken } from '../theme';
+import { Icon } from './Icon';
 
 export type TextFieldProps = Omit<TextInputProps, 'style' | 'editable'> & {
   label: string;
@@ -49,6 +50,8 @@ export const textFieldColors: Record<'rest' | 'error' | 'protected', FieldColors
 const styles = StyleSheet.create({
   field: { gap: 6 },
   box: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5 },
+  help: { flexDirection: 'row', alignItems: 'flex-start' },
+  helpText: { flexShrink: 1 },
   input: { flex: 1, alignSelf: 'stretch', paddingHorizontal: 0, paddingVertical: 0 },
 });
 
@@ -66,8 +69,9 @@ export function TextField({
   const [focused, setFocused] = useState(false);
 
   const locked = !!isProtected || !!readOnly;
+  // An empty error string means no error.
   const state = isProtected ? textFieldColors.protected : error ? textFieldColors.error : textFieldColors.rest;
-  const hint = error ?? help;
+  const hint = error || help || undefined;
 
   return (
     <View style={styles.field}>
@@ -85,6 +89,7 @@ export function TextField({
             minHeight: size['field-h'],
             borderRadius: radius.sm,
             paddingHorizontal: space[3],
+            gap: space[2],
             backgroundColor: colors[state.background],
             borderColor: colors[state.border],
           },
@@ -97,10 +102,11 @@ export function TextField({
             },
         ]}
       >
+        {isProtected && <Icon name="lock" size="icon-sm" color={state.text} />}
         {/* No accessibilityRole: React Native has no textbox role, and 'none' would drop the native EditText semantics. */}
         <TextInput
           {...inputProps}
-          readOnly={readOnly}
+          readOnly={locked}
           editable={!locked}
           accessibilityLabel={label}
           accessibilityHint={hint}
@@ -118,9 +124,15 @@ export function TextField({
         />
       </View>
       {error ? (
-        <Text accessibilityLiveRegion="polite" style={[typography.caption, { color: colors['danger-text'] }]}>
-          {error}
-        </Text>
+        <View style={[styles.help, { gap: space[1] }]}>
+          <Icon name="error" size="icon-sm" color="danger-text" />
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.helpText, typography.caption, { color: colors['danger-text'] }]}
+          >
+            {error}
+          </Text>
+        </View>
       ) : help ? (
         <Text
           importantForAccessibility="no"

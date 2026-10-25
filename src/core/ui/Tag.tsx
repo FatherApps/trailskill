@@ -1,14 +1,15 @@
-import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { fontFamily, useTheme, type ColorToken } from '../theme';
+import { Icon } from './Icon';
+import type { IconName } from './icons';
 
 export type TagVariant = 'neutral' | 'outline' | 'info' | 'ok' | 'warn';
 
 export type TagProps = {
   label: string;
   variant?: TagVariant;
-  icon?: ReactNode;
+  icon?: IconName;
 };
 
 export const tagColors: Record<TagVariant, { background: ColorToken | null; text: ColorToken }> = {
@@ -52,7 +53,7 @@ export function Tag({ label, variant = 'neutral', icon }: TagProps) {
         },
       ]}
     >
-      {icon}
+      {icon && <Icon name={icon} size="icon-sm" color={text} />}
       <Text
         importantForAccessibility="no"
         accessibilityElementsHidden

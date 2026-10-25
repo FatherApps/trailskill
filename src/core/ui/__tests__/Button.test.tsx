@@ -1,8 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, useColorScheme } from 'react-native';
 
 import { colors, contrastRatio, darken, size, type ThemeName } from '../../theme';
+import { ThemeProvider } from '../../theme/ThemeProvider';
 import { Button, buttonColors, unavailableColors, type ButtonVariant } from '../Button';
+import { iconPaths } from '../icons';
+
+jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ default: jest.fn() }));
 
 const themes: ThemeName[] = ['light', 'dark'];
 const variants = Object.keys(buttonColors) as ButtonVariant[];
@@ -43,6 +47,66 @@ describe('Button', () => {
 
     fireEvent.press(button);
     expect(onPress).not.toHaveBeenCalled();
+  });
+
+  describe('ghost underline', () => {
+    const ghost = () => (
+      <ThemeProvider>
+        <Button label="Volver" variant="ghost" onPress={jest.fn()} />
+      </ThemeProvider>
+    );
+    const label = () => screen.getByText('Volver');
+    const style = () => StyleSheet.flatten(label().props.style);
+
+    it.each(themes)('is underlined in the %s theme', async (theme) => {
+      jest.mocked(useColorScheme).mockReturnValue(theme);
+      await render(ghost());
+
+      expect(style().textDecorationLine).toBe('underline');
+      expect(style().color).toBe(colors[theme].ink);
+    });
+
+    it('stays underlined, on a fresh label, when the scheme switches at runtime', async () => {
+      jest.mocked(useColorScheme).mockReturnValue('dark');
+      const { rerender } = await render(ghost());
+      const before = label();
+
+      // Android drops textDecorationLine from a mounted Text whose color changes, so the label must be remounted.
+      jest.mocked(useColorScheme).mockReturnValue('light');
+      await rerender(ghost());
+
+      expect(label()).not.toBe(before);
+      expect(style().textDecorationLine).toBe('underline');
+      expect(style().color).toBe(colors.light.ink);
+    });
+  });
+
+  describe('lock icon', () => {
+    const lockPaths = () =>
+      screen.container.queryAll((node) => node.type === 'RNSVGPath' && node.props.d === iconPaths.lock);
+
+    it('shows a lock hidden from screen readers when unavailable', async () => {
+      await render(<Button label="Autorizar" disabledReason="Solo el acudiente" onPress={jest.fn()} />);
+
+      expect(lockPaths()).toHaveLength(1);
+      expect(screen.queryByRole('image')).toBeNull();
+      const svg = screen.container.queryAll((node) => node.type === 'RNSVGSvgView')[0];
+      expect(svg.props.width).toBe(size['icon-sm']);
+      expect(svg.props.importantForAccessibility).toBe('no-hide-descendants');
+    });
+
+    it('is not shown on an available button', async () => {
+      await render(<Button label="Autorizar" onPress={jest.fn()} />);
+
+      expect(lockPaths()).toHaveLength(0);
+    });
+
+    it('is not shown while loading, which shows the spinner instead', async () => {
+      await render(<Button label="Guardar" loading onPress={jest.fn()} />);
+
+      expect(lockPaths()).toHaveLength(0);
+      expect(screen.container.queryAll((node) => node.type === 'ActivityIndicator')).toHaveLength(1);
+    });
   });
 
   it.each(variants)('%s keeps at least target-min height and a pill radius', async (variant) => {

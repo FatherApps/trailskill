@@ -2,9 +2,12 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { colors, contrastRatio, size, type ThemeName } from '../../theme';
+import { iconPaths } from '../icons';
 import { TextField, textFieldColors } from '../TextField';
 
 const themes: ThemeName[] = ['light', 'dark'];
+const paths = (name: keyof typeof iconPaths) =>
+  screen.container.queryAll((node) => node.type === 'RNSVGPath' && node.props.d === iconPaths[name]);
 const states = Object.keys(textFieldColors) as (keyof typeof textFieldColors)[];
 
 describe('TextField', () => {
@@ -53,6 +56,61 @@ describe('TextField', () => {
     expect(input.props.editable).toBe(false);
     expect(input).toBeDisabled();
     expect(StyleSheet.flatten(input.parent?.props.style).backgroundColor).toBe(colors.light['surface-2']);
+  });
+
+  it('shows the error icon beside the error message, hidden from screen readers', async () => {
+    await render(<TextField label="Celular" error="Faltan dígitos." value="300 12" />);
+
+    expect(paths('error')).toHaveLength(1);
+    expect(paths('lock')).toHaveLength(0);
+    expect(screen.queryByRole('image')).toBeNull();
+    expect(screen.getByText('Faltan dígitos.').props.accessibilityLiveRegion).toBe('polite');
+  });
+
+  it('shows no error icon without an error', async () => {
+    await render(<TextField label="Celular" help="Diez dígitos" value="" />);
+
+    expect(paths('error')).toHaveLength(0);
+  });
+
+  it('treats an empty error as no error', async () => {
+    await render(<TextField label="Celular" error="" value="" />);
+
+    const input = screen.getByLabelText('Celular');
+    expect(input.props.accessibilityHint).toBeUndefined();
+    expect(StyleSheet.flatten(input.parent?.props.style).backgroundColor).toBe(colors.light['surface-1']);
+    expect(paths('error')).toHaveLength(0);
+  });
+
+  it('falls back to the help text when the error is empty', async () => {
+    await render(<TextField label="Celular" help="Diez dígitos" error="" value="" />);
+
+    expect(screen.getByLabelText('Celular').props.accessibilityHint).toBe('Diez dígitos');
+    expect(screen.getByText('Diez dígitos', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('a protected field shows a lock inside the box, before the input', async () => {
+    await render(<TextField label="Documento del nadador" value="Registrado · ••••42" protected />);
+
+    expect(paths('lock')).toHaveLength(1);
+    const box = screen.getByLabelText('Documento del nadador').parent;
+    expect(box?.children.length).toBe(2);
+  });
+
+  it('a protected field stays read-only even with readOnly={false}', async () => {
+    await render(<TextField label="Documento del nadador" value="Registrado · ••••42" protected readOnly={false} />);
+
+    const input = screen.getByLabelText('Documento del nadador');
+    expect(input.props.readOnly).toBe(true);
+    expect(input.props.editable).toBe(false);
+    expect(input).toBeDisabled();
+  });
+
+  it('a plain read-only field shows no lock', async () => {
+    await render(<TextField label="Categoría" value="Infantil B" readOnly />);
+
+    expect(paths('lock')).toHaveLength(0);
+    expect(screen.getByLabelText('Categoría').props.readOnly).toBe(true);
   });
 
   it('a read-only field is announced as disabled', async () => {
