@@ -123,8 +123,8 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         const code = codes[i];
         if (!code || done.has(op.clientId)) continue;
         await tx.execute(
-          'INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at) VALUES (uuid(), ?, ?, ?, ?, ?, ?)',
-          [op.table, op.id, op.op, JSON.stringify(op.opData ?? {}), code, new Date().toISOString()],
+          'INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at, client_id) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?)',
+          [op.table, op.id, op.op, JSON.stringify(op.opData ?? {}), code, new Date().toISOString(), op.clientId],
         );
       }
       for (const clientId of new Set(transaction.crud.map((op) => op.clientId))) {

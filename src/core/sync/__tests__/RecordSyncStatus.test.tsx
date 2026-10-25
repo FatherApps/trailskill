@@ -13,7 +13,7 @@ const setState = (state: RecordSyncState) => (useRecordSyncState as jest.Mock).m
 
 beforeEach(() => {
   jest.clearAllMocks();
-  (retryFailedRecord as jest.Mock).mockResolvedValue(undefined);
+  (retryFailedRecord as jest.Mock).mockResolvedValue('queued');
 });
 
 describe('RecordSyncStatus', () => {

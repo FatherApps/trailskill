@@ -53,6 +53,8 @@ export const AppSchema = new Schema({
       payload: column.text,
       error_code: column.text,
       failed_at: column.text,
+      // The op's queue number; the order key when two failures share a failed_at.
+      client_id: column.integer,
     },
     { localOnly: true },
   ),

@@ -61,6 +61,9 @@ export async function deleteRecord(table: string, id: string): Promise<void> {
 // Columns the server fills with a default; sending an explicit null breaks `not null default` (23502).
 const SERVER_ASSIGNED_COLUMNS = ['created_at', 'created_by'];
 
+/** What a retry did: `row_missing` and `nothing_to_send` both queued nothing, for different reasons. */
+export type RetryResult = 'queued' | 'row_missing' | 'nothing_to_send';
+
 /**
  * Requeues the rejected writes of a record using the values on the device now, never the stored payloads,
  * so an old payload can never overwrite a newer edit. The user's intent decides what is queued:
@@ -70,17 +73,20 @@ const SERVER_ASSIGNED_COLUMNS = ['created_at', 'created_by'];
  * only failed PATCHes requeue the current values of their still-existing columns.
  * `powersync_crud` is PowerSync's documented manual-queue API (raw tables); it must be verified on a device (#35).
  */
-export async function retryFailedRecord(table: string, id: string): Promise<void> {
+export async function retryFailedRecord(table: string, id: string): Promise<RetryResult> {
   assertIdentifier(table);
 
-  await db.writeTransaction(async (tx) => {
+  return db.writeTransaction<RetryResult>(async (tx) => {
     // One aggregate row (a plain `get`, which every transaction supports); sorted here so the order never depends on SQLite.
     const { failures: json } = await tx.get<{ failures: string }>(
-      "SELECT json_group_array(json_object('op', op, 'payload', payload, 'failed_at', failed_at)) AS failures FROM upload_failures WHERE table_name = ? AND record_id = ?",
+      "SELECT json_group_array(json_object('op', op, 'payload', payload, 'failed_at', failed_at, 'client_id', client_id)) AS failures FROM upload_failures WHERE table_name = ? AND record_id = ?",
       [table, id],
     );
-    const failures = (JSON.parse(json) as { op: string; payload: string; failed_at: string }[]).sort((a, b) => a.failed_at.localeCompare(b.failed_at));
-    if (failures.length === 0) return;
+    // PowerSync numbers ops with AUTOINCREMENT, so client_id is the real queue order when failed_at ties (null, from older rows, sorts first).
+    const failures = (JSON.parse(json) as { op: string; payload: string; failed_at: string; client_id: number | null }[]).sort(
+      (a, b) => a.failed_at.localeCompare(b.failed_at) || (a.client_id ?? -1) - (b.client_id ?? -1),
+    );
+    if (failures.length === 0) return 'nothing_to_send';
 
     const row = await tx.getOptional<Record<string, unknown>>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
     let op: 'DELETE' | 'PUT' | 'PATCH';
@@ -89,7 +95,7 @@ export async function retryFailedRecord(table: string, id: string): Promise<void
     if (failures[failures.length - 1].op === 'DELETE') {
       op = 'DELETE';
     } else if (!row) {
-      return;
+      return 'row_missing';
     } else {
       const { id: _id, ...values } = row;
       if (failures.some((failure) => failure.op === 'PUT')) {
@@ -99,7 +105,7 @@ export async function retryFailedRecord(table: string, id: string): Promise<void
         op = 'PATCH';
         const columns = new Set(failures.flatMap((failure) => Object.keys(JSON.parse(failure.payload))));
         data = Object.fromEntries([...columns].filter((column) => column in values).map((column) => [column, values[column]]));
-        if (Object.keys(data).length === 0) return;
+        if (Object.keys(data).length === 0) return 'nothing_to_send';
       }
     }
 
@@ -109,5 +115,6 @@ export async function retryFailedRecord(table: string, id: string): Promise<void
     );
     await markPending(tx, table, id);
     await tx.execute('DELETE FROM upload_failures WHERE table_name = ? AND record_id = ?', [table, id]);
+    return 'queued';
   });
 }
