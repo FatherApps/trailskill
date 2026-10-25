@@ -40,19 +40,23 @@ const rows: SchoolStructureRows = {
     { coachId: 'coach-9', groupId: 'g9' },
   ],
   athleteAssignments: [
-    { coachId: 'coach-3', athleteId: 'a1' },
-    { coachId: 'coach-9', athleteId: 'a9' },
-    { coachId: 'coach-4', athleteId: 'a2' },
+    { coachId: 'coach-3', athleteId: 'a1', schoolId: 'school-a' },
+    { coachId: 'coach-9', athleteId: 'a9', schoolId: 'school-b' },
+    { coachId: 'coach-4', athleteId: 'a2', schoolId: 'school-a' },
     // a3 is in two schools: only the coach with a coach membership in school-a counts for school-a.
-    { coachId: 'coach-5', athleteId: 'a3' },
-    { coachId: 'coach-6', athleteId: 'a3' },
-    { coachId: 'coach-7', athleteId: 'a3' },
+    { coachId: 'coach-5', athleteId: 'a3', schoolId: 'school-a' },
+    { coachId: 'coach-6', athleteId: 'a3', schoolId: 'school-b' },
+    { coachId: 'coach-7', athleteId: 'a3', schoolId: 'school-a' },
+    // coach-8 coaches in both schools but was assigned to a4 only in school-b.
+    { coachId: 'coach-8', athleteId: 'a4', schoolId: 'school-b' },
   ],
   coachMemberships: [
     { coachId: 'coach-3', schoolId: 'school-a' },
     { coachId: 'coach-4', schoolId: 'school-a' },
     { coachId: 'coach-6', schoolId: 'school-b' },
     { coachId: 'coach-7', schoolId: 'school-a' },
+    { coachId: 'coach-8', schoolId: 'school-a' },
+    { coachId: 'coach-8', schoolId: 'school-b' },
   ],
 };
 
@@ -70,13 +74,13 @@ function createPowerSync(): SchoolStructureRepository {
     CREATE TABLE categories (id TEXT PRIMARY KEY, school_id TEXT, name TEXT, sort_order INTEGER);
     CREATE TABLE training_groups (id TEXT PRIMARY KEY, school_id TEXT, name TEXT);
     CREATE TABLE coach_group_assignments (id TEXT PRIMARY KEY, coach_user_id TEXT, group_id TEXT);
-    CREATE TABLE coach_athlete_assignments (id TEXT PRIMARY KEY, coach_user_id TEXT, athlete_id TEXT);
+    CREATE TABLE coach_athlete_assignments (id TEXT PRIMARY KEY, coach_user_id TEXT, athlete_id TEXT, school_id TEXT);
     CREATE TABLE school_memberships (id TEXT PRIMARY KEY, school_id TEXT, user_id TEXT, role TEXT);
   `);
   for (const c of rows.categories) seed.prepare('INSERT INTO categories VALUES (?, ?, ?, ?)').run(c.id, c.schoolId, c.name, c.sortOrder);
   for (const g of rows.groups) seed.prepare('INSERT INTO training_groups VALUES (?, ?, ?)').run(g.id, g.schoolId, g.name);
   rows.groupAssignments.forEach((r, i) => seed.prepare('INSERT INTO coach_group_assignments VALUES (?, ?, ?)').run(`ga${i}`, r.coachId, r.groupId));
-  rows.athleteAssignments.forEach((r, i) => seed.prepare('INSERT INTO coach_athlete_assignments VALUES (?, ?, ?)').run(`aa${i}`, r.coachId, r.athleteId));
+  rows.athleteAssignments.forEach((r, i) => seed.prepare('INSERT INTO coach_athlete_assignments VALUES (?, ?, ?, ?)').run(`aa${i}`, r.coachId, r.athleteId, r.schoolId));
   rows.coachMemberships.forEach((r, i) => seed.prepare('INSERT INTO school_memberships VALUES (?, ?, ?, ?)').run(`sm${i}`, r.schoolId, r.coachId, 'coach'));
   seed.close();
   mockDb = openDatabase(store.path);
@@ -131,6 +135,13 @@ describe.each(factories)('%s school structure repository', (_name, create) => {
 
     // coach-5 has no membership; coach-6 belongs to another school only.
     expect(assignments.filter((a) => a.athleteId === 'a3')).toEqual([{ coachId: 'coach-7', groupId: null, athleteId: 'a3' }]);
+  });
+
+  it('lists a direct assignment only for the school where it was made, even when the coach coaches in both', async () => {
+    const direct = async (schoolId: string) => (await create().listCoachAssignments(schoolId, ['a4'])).filter((a) => a.athleteId !== null);
+
+    await expect(direct('school-a')).resolves.toEqual([]);
+    await expect(direct('school-b')).resolves.toEqual([{ coachId: 'coach-8', groupId: null, athleteId: 'a4' }]);
   });
 
   it('collapses duplicated athlete ids into one assignment', async () => {

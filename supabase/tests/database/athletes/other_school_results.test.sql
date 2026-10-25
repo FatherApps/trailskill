@@ -5,11 +5,12 @@
 -- nothing here is synced. All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(28);
 
 -- Users: admin A, admin B, coach B (assigned to e1), guardian G (of e1 and e2,
 -- no school role), N with no relations, admin C, coach B2 (of B, not assigned), X (coach of B
--- not assigned to e1 and admin of C).
+-- not assigned to e1 and admin of C), coach B3 (of B and C, assigned to e1 only in C by
+-- a direct assignment) and coach B4 (of B and C, assigned to e1 only through a coach group of C).
 insert into auth.users (id, email) values
   ('06800000-0000-4000-8000-0000000000a1', 'admin-a@example.test'),
   ('06800000-0000-4000-8000-0000000000a2', 'admin-b@example.test'),
@@ -18,7 +19,9 @@ insert into auth.users (id, email) values
   ('06800000-0000-4000-8000-0000000000a5', 'no-relation-n@example.test'),
   ('06800000-0000-4000-8000-0000000000a6', 'admin-c@example.test'),
   ('06800000-0000-4000-8000-0000000000a7', 'coach-b2@example.test'),
-  ('06800000-0000-4000-8000-0000000000a8', 'coach-b-admin-c@example.test');
+  ('06800000-0000-4000-8000-0000000000a8', 'coach-b-admin-c@example.test'),
+  ('06800000-0000-4000-8000-0000000000a9', 'coach-b3@example.test'),
+  ('06800000-0000-4000-8000-0000000000aa', 'coach-b4@example.test');
 
 insert into public.schools (id, name) values
   ('06800000-0000-4000-8000-0000000000b1', 'Results School A'),
@@ -32,7 +35,11 @@ insert into public.school_memberships (school_id, user_id, role) values
   ('06800000-0000-4000-8000-0000000000b3', '06800000-0000-4000-8000-0000000000a6', 'school_admin'),
   ('06800000-0000-4000-8000-0000000000b2', '06800000-0000-4000-8000-0000000000a7', 'coach'),
   ('06800000-0000-4000-8000-0000000000b2', '06800000-0000-4000-8000-0000000000a8', 'coach'),
-  ('06800000-0000-4000-8000-0000000000b3', '06800000-0000-4000-8000-0000000000a8', 'school_admin');
+  ('06800000-0000-4000-8000-0000000000b3', '06800000-0000-4000-8000-0000000000a8', 'school_admin'),
+  ('06800000-0000-4000-8000-0000000000b2', '06800000-0000-4000-8000-0000000000a9', 'coach'),
+  ('06800000-0000-4000-8000-0000000000b3', '06800000-0000-4000-8000-0000000000a9', 'coach'),
+  ('06800000-0000-4000-8000-0000000000b2', '06800000-0000-4000-8000-0000000000aa', 'coach'),
+  ('06800000-0000-4000-8000-0000000000b3', '06800000-0000-4000-8000-0000000000aa', 'coach');
 
 -- e1: A, B and C, authorized to share. e2: A and B, not authorized to share.
 insert into public.athletes (id, first_name, last_name) values
@@ -50,8 +57,17 @@ insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('06800000-0000-4000-8000-0000000000a4', '06800000-0000-4000-8000-0000000000e1', 'guardian'),
   ('06800000-0000-4000-8000-0000000000a4', '06800000-0000-4000-8000-0000000000e2', 'guardian');
 
-insert into public.coach_athlete_assignments (coach_user_id, athlete_id) values
-  ('06800000-0000-4000-8000-0000000000a3', '06800000-0000-4000-8000-0000000000e1');
+insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
+  ('06800000-0000-4000-8000-0000000000a3', '06800000-0000-4000-8000-0000000000e1', '06800000-0000-4000-8000-0000000000b2'),
+  ('06800000-0000-4000-8000-0000000000a9', '06800000-0000-4000-8000-0000000000e1', '06800000-0000-4000-8000-0000000000b3');
+
+-- g1 is a group of C with e1 in it, coached by B4.
+insert into public.training_groups (id, school_id, name) values
+  ('06800000-0000-4000-8000-000000000091', '06800000-0000-4000-8000-0000000000b3', 'Results Group C');
+insert into public.athlete_groups (athlete_id, group_id) values
+  ('06800000-0000-4000-8000-0000000000e1', '06800000-0000-4000-8000-000000000091');
+insert into public.coach_group_assignments (coach_user_id, group_id) values
+  ('06800000-0000-4000-8000-0000000000aa', '06800000-0000-4000-8000-000000000091');
 
 insert into public.authorization_texts (id, purpose, version, language, body) values
   ('06800000-0000-4000-8000-0000000000f1', 'share_results_with_school', 1, 'en-US', 'Synthetic sharing text v1'),
@@ -131,6 +147,10 @@ set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a3", 
 select results_eq($$ select id from public.other_school_results('06800000-0000-4000-8000-0000000000e1') $$, $$ values ('06800000-0000-4000-8000-0000000000d1'::uuid) $$, 'coach B assigned to e1 gets the race of A');
 set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
 select is_empty($$ select * from public.other_school_results('06800000-0000-4000-8000-0000000000e1') $$, 'coach B2 not assigned to e1 gets nothing');
+set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a9", "role": "authenticated"}';
+select is_empty($$ select * from public.other_school_results('06800000-0000-4000-8000-0000000000e1') $$, 'coach of B assigned to e1 directly only in C gets nothing: being assigned in C is not being assigned in B');
+set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000aa", "role": "authenticated"}';
+select is_empty($$ select * from public.other_school_results('06800000-0000-4000-8000-0000000000e1') $$, 'coach of B assigned to e1 only through a coach group of C gets nothing');
 set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a8", "role": "authenticated"}';
 select is_empty($$ select * from public.other_school_results('06800000-0000-4000-8000-0000000000e1') $$, 'coach of B not assigned to e1 who is also admin of C gets nothing: C''s visibility is not B''s approval');
 set local request.jwt.claims = '{"sub": "06800000-0000-4000-8000-0000000000a4", "role": "authenticated"}';

@@ -51,9 +51,13 @@ insert into public.athlete_schools (athlete_id, school_id) values
 insert into public.athlete_managers (user_id, athlete_id, relation)
 values ('20000000-0000-4000-8000-0000000000a7', '20000000-0000-4000-8000-0000000000e1', 'guardian');
 
--- F also still has a direct athlete assignment.
-insert into public.coach_athlete_assignments (coach_user_id, athlete_id)
-values ('20000000-0000-4000-8000-0000000000a6', '20000000-0000-4000-8000-0000000000e1');
+-- F also still has a direct athlete assignment, made while F was still a coach.
+insert into public.school_memberships (school_id, user_id, role)
+values ('20000000-0000-4000-8000-0000000000b1', '20000000-0000-4000-8000-0000000000a6', 'coach');
+insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id)
+values ('20000000-0000-4000-8000-0000000000a6', '20000000-0000-4000-8000-0000000000e1', '20000000-0000-4000-8000-0000000000b1');
+delete from public.school_memberships
+where user_id = '20000000-0000-4000-8000-0000000000a6' and school_id = '20000000-0000-4000-8000-0000000000b1';
 
 set local role authenticated;
 
@@ -90,8 +94,8 @@ select isnt_empty(
 );
 
 select lives_ok(
-  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id)
-     values ('20000000-0000-4000-8000-0000000000a2', '20000000-0000-4000-8000-0000000000e1') $$,
+  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id)
+     values ('20000000-0000-4000-8000-0000000000a2', '20000000-0000-4000-8000-0000000000e1', '20000000-0000-4000-8000-0000000000b1') $$,
   'school admin S can assign a coach of S''s school to an athlete of S''s school'
 );
 select throws_ok(
@@ -106,14 +110,14 @@ select isnt_empty(
   'school admin S can still remove the direct assignment of a coach who lost the membership'
 );
 select throws_ok(
-  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id)
-     values ('20000000-0000-4000-8000-0000000000a4', '20000000-0000-4000-8000-0000000000e1') $$,
+  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id)
+     values ('20000000-0000-4000-8000-0000000000a4', '20000000-0000-4000-8000-0000000000e1', '20000000-0000-4000-8000-0000000000b1') $$,
   '42501', null,
   'school admin S cannot assign a user without a coach membership to an athlete'
 );
 select throws_ok(
-  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id)
-     values ('20000000-0000-4000-8000-0000000000a3', '20000000-0000-4000-8000-0000000000e1') $$,
+  $$ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id)
+     values ('20000000-0000-4000-8000-0000000000a3', '20000000-0000-4000-8000-0000000000e1', '20000000-0000-4000-8000-0000000000b2') $$,
   '42501', null,
   'school admin S cannot assign a coach of the athlete''s other school, which S does not administer'
 );

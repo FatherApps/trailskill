@@ -95,10 +95,10 @@ const setup = () => {
         { coachId: 'k9', groupId: 'g9' },
       ],
       athleteAssignments: [
-        { coachId: 'k1', athleteId: 'a1' },
-        { coachId: 'k3', athleteId: 'a1' },
-        { coachId: 'k4', athleteId: 'a3' },
-        { coachId: 'k5', athleteId: 'a3' }, // no membership in school-a
+        { coachId: 'k1', athleteId: 'a1', schoolId: 'school-a' },
+        { coachId: 'k3', athleteId: 'a1', schoolId: 'school-a' },
+        { coachId: 'k4', athleteId: 'a3', schoolId: 'school-a' },
+        { coachId: 'k5', athleteId: 'a3', schoolId: 'school-a' }, // no membership in school-a
       ],
       coachMemberships: [
         { coachId: 'k3', schoolId: 'school-a' },
