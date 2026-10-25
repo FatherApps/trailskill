@@ -26,11 +26,14 @@ const DEFAULT_MAX_ATTEMPTS = 5;
 const AUTH_ERROR_CODES = new Set(['PGRST301', 'PGRST302', 'PGRST303']);
 /** Postgres statement timeout, serialization failure and deadlock: the server itself says to retry, so they are treated like a network error. */
 const TRANSIENT_ERROR_CODES = new Set(['57014', '40001', '40P01']);
+/** Gateway statuses: the request never reached PostgREST's own error handling, so the server may recover. Any other 5xx with a code is a deterministic SQLSTATE failure. */
+const GATEWAY_STATUSES = new Set([502, 503, 504]);
 const BASE_WAIT_MS = 1000;
 const MAX_WAIT_MS = 30_000;
 
 function sleepUnlessAborted(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(new Error('Upload wait canceled'));
     const timer = setTimeout(() => {
       signal.removeEventListener('abort', onAbort);
       resolve();
@@ -130,23 +133,25 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
 
   /**
    * Sends one op. An error with a code that is not permanent is retried with a growing wait; after maxAttempts it becomes a recorded failure ("No enviado").
-   * An error without a code (network), a JWT/auth error (AUTH_ERROR_CODES), a transient server error (TRANSIENT_ERROR_CODES) or an HTTP status >= 500
+   * An error without a code (network), a JWT/auth error (AUTH_ERROR_CODES), a transient server error (TRANSIENT_ERROR_CODES) or a gateway status (502/503/504)
    * is also retried with a growing wait but never counted toward giving up: offline, an expired session or an overloaded server never gives up.
    */
   private async sendLimited(op: CrudEntry): Promise<string | null> {
+    // Captured before the request: a cancelWaits() while it is in flight must still abort the wait that follows.
+    const signal = this.waitController.signal;
     try {
       const code = await this.send(op);
       this.forget(op);
       return code;
     } catch (error) {
       const { code, status } = error as { code?: string; status?: number };
-      const neverGiveUp = !code || AUTH_ERROR_CODES.has(code) || TRANSIENT_ERROR_CODES.has(code) || (status ?? 0) >= 500;
+      const neverGiveUp = !code || AUTH_ERROR_CODES.has(code) || TRANSIENT_ERROR_CODES.has(code) || GATEWAY_STATUSES.has(status ?? 0);
       const counts = neverGiveUp ? this.waits : this.attempts;
       const attempt = (counts.get(op.clientId) ?? 0) + 1;
       // The count is kept even on give-up: if a later op throws, this op gives up at once next round. uploadData clears it after complete().
       counts.set(op.clientId, attempt);
       if (!neverGiveUp && attempt >= this.maxAttempts) return code!;
-      await this.sleep(Math.min(BASE_WAIT_MS * 2 ** (attempt - 1), MAX_WAIT_MS), this.waitController.signal);
+      await this.sleep(Math.min(BASE_WAIT_MS * 2 ** (attempt - 1), MAX_WAIT_MS), signal);
       throw error;
     }
   }

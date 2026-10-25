@@ -195,6 +195,33 @@ describe('SupabaseConnector.uploadData', () => {
 
     const growingWaits = [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000];
 
+    it('gives up a 500 that carries a deterministic code (P0004) after maxAttempts and records it', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code: 'P0004', message: 'assert failed' };
+      const t = setup({ upsert: { data: null, error, status: 500 } }, { sleep });
+
+      for (let attempt = 1; attempt < 5; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
+      }
+      await t.connector.uploadData(t.database([put()]));
+      expect(failureInserts(t.committed)).toHaveLength(1);
+      expect(failureInserts(t.committed)[0][1]).toContain('P0004');
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('never gives up a 500 without a code', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { message: 'internal error' };
+      const t = setup({ upsert: { data: null, error, status: 500 } }, { sleep });
+
+      for (let attempt = 1; attempt <= 8; attempt++) {
+        await expect(t.connector.uploadData(t.database([put()]))).rejects.toBe(error);
+      }
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual(growingWaits);
+      expect(failureInserts(t.committed)).toHaveLength(0);
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
     it('never counts or gives up a code-less network error, and waits with a growing delay', async () => {
       const sleep = jest.fn().mockResolvedValue(undefined);
       const error = { message: 'Network request failed' };
@@ -329,6 +356,28 @@ describe('SupabaseConnector.uploadData', () => {
       t.upsert.mockImplementation(() => Object.assign(Promise.resolve({ data: null, error: null }), { select: jest.fn() }));
       await expect(t.connector.uploadData(t.database([put()]))).resolves.toBeUndefined();
       expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('a cancel while the request is in flight is not lost: the wait that follows starts already aborted', async () => {
+      let answer!: () => void;
+      const inFlight = new Promise<Result>((resolve) => (answer = () => resolve({ data: null, error: networkError })));
+      const aborted: boolean[] = [];
+      const sleep = jest.fn().mockImplementation(async (_ms: number, signal: AbortSignal) => {
+        aborted.push(signal.aborted);
+        if (signal.aborted) throw new Error('wait canceled');
+      });
+      const t = setup({}, { sleep });
+      t.upsert.mockImplementation(() => Object.assign(inFlight, { select: jest.fn() }));
+
+      const rejection = expect(t.connector.uploadData(t.database([put()]))).rejects.toThrow('wait canceled');
+      while (!t.upsert.mock.calls.length) await Promise.resolve();
+      t.connector.cancelWaits();
+      answer();
+      await rejection;
+
+      expect(aborted).toEqual([true]);
+      expect(t.complete).not.toHaveBeenCalled();
+      expect(t.writeTransaction).not.toHaveBeenCalled();
     });
 
     it('the default sleep clears its timer when canceled', async () => {
