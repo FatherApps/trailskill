@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Pressable, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime } from '../../../core/time';
-import { SwimmerRow, Tag, TimeValue } from '../../../core/ui';
+import { SwimmerRow, Tag, TimeValue, useFocusRing } from '../../../core/ui';
 import '../i18n';
 import type { AthleteAuthorization, AthleteRow } from './athleteTypes';
 import { useTextScale } from './textScale';
@@ -48,6 +48,35 @@ const authorizationVariant: Record<AthleteAuthorization, 'ok' | 'warn'> = { vali
 const authorizationLabel = (value: AthleteAuthorization) => t(`schoolConsole.table.${value === 'valid' ? 'valid' : 'pending'}`);
 
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
+
+// One table row: its own component so each keeps its focus state.
+function TableRow({
+  label,
+  selected,
+  onPress,
+  style,
+  children,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  style: StyleProp<ViewStyle>;
+  children: ReactNode;
+}) {
+  const { focusProps, ring } = useFocusRing();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      {...focusProps}
+      style={[style, ring]}
+    >
+      {children}
+    </Pressable>
+  );
+}
 
 export function AthleteTable({ athletes, bestLabel, selectedId = null, onSelect, compact = false }: AthleteTableProps) {
   const { colors, space, radius, size, typography } = useTheme();
@@ -122,10 +151,11 @@ export function AthleteTable({ athletes, bestLabel, selectedId = null, onSelect,
           athlete.bestTime === null ? t('schoolConsole.table.no_best') : spokenTime(athlete.bestTime);
         const text = { color: colors[athleteTableColors.text] };
         return (
-          <Pressable
+          <TableRow
             key={athlete.id}
-            accessibilityRole="button"
-            accessibilityLabel={[
+            selected={selected}
+            onPress={() => onSelect(athlete.id)}
+            label={[
               athlete.name,
               athlete.category,
               athlete.group,
@@ -133,8 +163,6 @@ export function AthleteTable({ athletes, bestLabel, selectedId = null, onSelect,
               authorizationLabel(athlete.authorization),
               t('schoolConsole.table.best_spoken', { label: bestLabel, time: best }),
             ].join(', ')}
-            accessibilityState={{ selected }}
-            onPress={() => onSelect(athlete.id)}
             style={[
               {
                 flexDirection: 'row',
@@ -157,7 +185,7 @@ export function AthleteTable({ athletes, bestLabel, selectedId = null, onSelect,
                 <TimeValue value={athlete.bestTime} size="time-sm" />
               </View>
             </View>
-          </Pressable>
+          </TableRow>
         );
       })}
     </View>

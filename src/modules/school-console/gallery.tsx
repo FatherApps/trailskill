@@ -18,11 +18,13 @@ import { AthleteFilters, type AthleteFiltersProps } from './components/AthleteFi
 import { AthleteIndicators } from './components/AthleteIndicators';
 import { AthleteTable } from './components/AthleteTable';
 import type { AthleteFilterId } from './components/athleteTypes';
-import { ConsoleNav } from './components/ConsoleNav';
+import { ConsoleNav, type ConsoleDestinationId } from './components/ConsoleNav';
 import { personalBestLabel } from './components/eventLabel';
 import { Logo } from './components/Logo';
 import { SideSheet } from './components/SideSheet';
 import { AthletesScreen, type AthletesContent, type AthletesView } from './screens/AthletesScreen';
+import { ConsoleScreen } from './screens/ConsoleScreen';
+import { EmptySectionScreen } from './screens/EmptySectionScreen';
 
 // The preview box shrinks its children to their content; these components need the full width.
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
@@ -117,6 +119,45 @@ const screenPreview = (view: (content: AthletesContent) => AthletesView, options
   function ScreenPreview() {
     return <AthletesScreenPreview view={view} {...options} />;
   };
+
+// Shows a screen at a fixed width (scrolling sideways when wider than the phone) or at the measured width of the preview.
+function WidthPreview({ fixedWidth, children }: { fixedWidth?: number; children: (width: number) => ReactElement }) {
+  const [measured, setMeasured] = useState(useWindowDimensions().width);
+  if (fixedWidth !== undefined) {
+    return (
+      <ScrollView horizontal testID="console-preview" style={{ alignSelf: 'stretch' }}>
+        <View style={{ width: fixedWidth, minHeight: 720 }}>{children(fixedWidth)}</View>
+      </ScrollView>
+    );
+  }
+  return (
+    <View
+      testID="console-preview"
+      onLayout={(event: LayoutChangeEvent) => setMeasured(event.nativeEvent.layout.width)}
+      style={{ alignSelf: 'stretch', minHeight: 720 }}
+    >
+      {children(measured)}
+    </View>
+  );
+}
+
+// The settings section has no screen yet, so it shows its title only; the other tabs switch sections in place.
+function EmptySectionPreview({ fixedWidth }: { fixedWidth: number }) {
+  const [sectionId, setSectionId] = useState<ConsoleDestinationId>('settings');
+  return (
+    <WidthPreview fixedWidth={fixedWidth}>
+      {(width) => (
+        <EmptySectionScreen
+          width={width}
+          schoolName={schoolNameFixture}
+          sectionId={sectionId}
+          onNavigate={setSectionId}
+          scrollEnabled={false}
+        />
+      )}
+    </WidthPreview>
+  );
+}
 
 // Holds the query and the filters, so typing and tapping a chip change the component in the gallery.
 function FiltersPreview({ initial }: { initial: AthleteFiltersProps['filters'] }) {
@@ -225,5 +266,17 @@ export const galleryEntries: GalleryEntry[] = [
     'expanded-1280': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 1280, initialSelected: 'a1' }),
     'medium-800': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 800 }),
     'compact-360': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 360 }),
+  }),
+  entry('consoleScreen', 'ConsoleScreen', {
+    // The shell that holds the active section; follows the width of the preview.
+    shell: () => (
+      <WidthPreview>
+        {(width) => <ConsoleScreen width={width} schoolName={schoolNameFixture} scrollEnabled={false} />}
+      </WidthPreview>
+    ),
+    // The section without a screen yet ('Categorías' under Ajustes) in the three layouts.
+    'expanded-1280': () => <EmptySectionPreview fixedWidth={1280} />,
+    'medium-800': () => <EmptySectionPreview fixedWidth={800} />,
+    'compact-360': () => <EmptySectionPreview fixedWidth={360} />,
   }),
 ];

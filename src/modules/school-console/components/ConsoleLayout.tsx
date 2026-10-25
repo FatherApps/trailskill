@@ -70,18 +70,6 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
       node
     );
 
-  if (layout === 'compact') {
-    if (!detail) return <View style={root}>{content}</View>;
-    return (
-      <View style={[root, { padding, gap: space[4], backgroundColor: colors['surface-1'] }]}>
-        <View style={{ alignItems: 'flex-start' }}>
-          <IconButton icon="arrow_back" label={t('common.back')} onPress={detail.onClose} />
-        </View>
-        {scrollDetail(detail.content)}
-      </View>
-    );
-  }
-
   // The 240 dp side panel cannot hold the labels whole at large text: the top navigation, whose pills wrap, takes over.
   const sideNav = layout === 'expanded' && !largeText;
   const nav = (
@@ -92,10 +80,31 @@ export function ConsoleLayout({ width, schoolName, activeId, onSelect, children,
       schoolName={schoolName}
     />
   );
+  const testID = `console-layout-${layout}`;
+
+  if (layout === 'compact') {
+    // The compact navigation is not defined in the design system, so it reuses the medium top navigation.
+    if (!detail) {
+      return (
+        <View testID={testID} style={root}>
+          {nav}
+          {content}
+        </View>
+      );
+    }
+    return (
+      <View testID={testID} style={[root, { padding, gap: space[4], backgroundColor: colors['surface-1'] }]}>
+        <View style={{ alignItems: 'flex-start' }}>
+          <IconButton icon="arrow_back" label={t('common.back')} onPress={detail.onClose} />
+        </View>
+        {scrollDetail(detail.content)}
+      </View>
+    );
+  }
   const sheetOpen = layout === 'medium' && detail !== undefined;
 
   return (
-    <View style={root}>
+    <View testID={testID} style={root}>
       <View {...(sheetOpen ? hiddenBehind : null)} style={{ flexGrow: 1, flexDirection: sideNav ? 'row' : 'column' }}>
         {nav}
         {/* Expanded with the top navigation: the content and the detail panel share the row under it. */}

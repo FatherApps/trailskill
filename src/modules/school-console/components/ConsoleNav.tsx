@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { Icon, type IconName } from '../../../core/ui';
+import { Icon, type IconName, useFocusRing } from '../../../core/ui';
 import '../i18n';
 import { Logo } from './Logo';
 
@@ -44,8 +44,56 @@ export const consoleNavColors: {
 // Width of the side navigation in the design-system reference; it is not a token.
 const SIDE_WIDTH = 240;
 
+// One tab: its own component so each keeps its focus state.
+function NavTab({
+  id,
+  icon,
+  selected,
+  onSelect,
+}: {
+  id: ConsoleDestinationId;
+  icon: IconName;
+  selected: boolean;
+  onSelect: (id: ConsoleDestinationId) => void;
+}) {
+  const { space, radius, size, typography, colors } = useTheme();
+  const { focusProps, ring } = useFocusRing();
+  const textColor = selected ? consoleNavColors.active.text : consoleNavColors.inactive;
+  const label = t(`schoolConsole.nav.${id}`);
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}
+      onPress={() => onSelect(id)}
+      {...focusProps}
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space[3],
+          minHeight: size['target-min'],
+          paddingHorizontal: space[4],
+          borderRadius: radius.full,
+          backgroundColor: selected ? colors[consoleNavColors.active.background] : 'transparent',
+        },
+        ring,
+      ]}
+    >
+      <Icon name={icon} color={textColor} />
+      <Text
+        importantForAccessibility="no"
+        accessibilityElementsHidden
+        style={[selected ? typography['body-strong'] : typography.body, { flexShrink: 1, color: colors[textColor] }]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function ConsoleNav({ variant, activeId, onSelect, schoolName }: ConsoleNavProps) {
-  const { colors, space, radius, size, typography } = useTheme();
+  const { colors, space, typography } = useTheme();
   const side = variant === 'side';
 
   const brand = (
@@ -77,38 +125,9 @@ export function ConsoleNav({ variant, activeId, onSelect, schoolName }: ConsoleN
         accessibilityLabel={t('schoolConsole.nav.label')}
         style={side ? { flexDirection: 'column', gap: space[1] } : { flexDirection: 'row', flexWrap: 'wrap', gap: space[1] }}
       >
-        {consoleDestinations.map(({ id, icon }) => {
-          const selected = id === activeId;
-          const textColor = selected ? consoleNavColors.active.text : consoleNavColors.inactive;
-          const label = t(`schoolConsole.nav.${id}`);
-          return (
-            <Pressable
-              key={id}
-              accessibilityRole="tab"
-              accessibilityLabel={label}
-              accessibilityState={{ selected }}
-              onPress={() => onSelect(id)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: space[3],
-                minHeight: size['target-min'],
-                paddingHorizontal: space[4],
-                borderRadius: radius.full,
-                backgroundColor: selected ? colors[consoleNavColors.active.background] : 'transparent',
-              }}
-            >
-              <Icon name={icon} color={textColor} />
-              <Text
-                importantForAccessibility="no"
-                accessibilityElementsHidden
-                style={[selected ? typography['body-strong'] : typography.body, { flexShrink: 1, color: colors[textColor] }]}
-              >
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {consoleDestinations.map(({ id, icon }) => (
+          <NavTab key={id} id={id} icon={icon} selected={id === activeId} onSelect={onSelect} />
+        ))}
       </View>
     </View>
   );

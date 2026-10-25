@@ -11,6 +11,9 @@
     "authorizations": "Autorizaciones",
     "settings": "Ajustes"
   },
+  "sections": {
+    "settings_title": "Categorías"
+  },
   "layout": {
     "close": "Cerrar",
     "detail_dialog": "Detalle de {{name}}"

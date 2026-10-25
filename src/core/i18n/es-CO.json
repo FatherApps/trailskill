@@ -1,7 +1,8 @@
 {
   "home": {
     "title": "TrailSkill",
-    "plans": "Planes de entrenamiento"
+    "plans": "Planes de entrenamiento",
+    "console": "Consola"
   },
   "auth": {
     "email_title": "Ingresa a TrailSkill",
