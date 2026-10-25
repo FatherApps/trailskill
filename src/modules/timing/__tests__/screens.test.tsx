@@ -374,6 +374,13 @@ describe('StopwatchScreen extras', () => {
     expect(screen.getByLabelText('En el teléfono · 3')).toBeOnTheScreen();
   });
 
+  it.each(['synced', 'not_sent'] as const)('leaves the count off a %s pill', async (syncState) => {
+    await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391, syncState, pendingCount: 3 });
+
+    expect(screen.getByLabelText(syncState === 'synced' ? 'Enviado' : 'No enviado')).toBeOnTheScreen();
+    expect(screen.queryByLabelText(/·/)).toBeNull();
+  });
+
   it('shows the offline banner and keeps every action working', async () => {
     const { onStop, onSplit } = await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391, offline: true });
 

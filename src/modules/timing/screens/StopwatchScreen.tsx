@@ -25,6 +25,7 @@ export type StopwatchScreenProps = StopwatchProps & {
   // Sync state of the record being timed, drawn as a pill in the header.
   syncState?: RecordSyncState;
   // Records of the session still on the phone, shown next to the pill ("En el teléfono · 3").
+  // Only used while `syncState` is 'on_device': the count means records still on the phone.
   pendingCount?: number;
   onBack: () => void;
   // Controlled: the container shows the sheet when leaving would lose a running time.
@@ -64,7 +65,7 @@ export function StopwatchScreen({
       <TimingHeader
         title={t('timing.stopwatch.title', { name: athleteName, current: position, total })}
         subtitle={eventSubtitle}
-        trailing={syncState && <SyncStatus state={syncState} count={pendingCount} />}
+        trailing={syncState && <SyncStatus state={syncState} count={syncState === 'on_device' ? pendingCount : undefined} />}
         onBack={onBack}
       />
       {offline && (
