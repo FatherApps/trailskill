@@ -33,7 +33,7 @@ const styles = StyleSheet.create({
 });
 
 export function Tag({ label, variant = 'neutral', icon }: TagProps) {
-  const { colors, space, radius, typography } = useTheme();
+  const { colors, space, radius, size, typography } = useTheme();
   const { background, text } = tagColors[variant];
   // A pill radius turns a wrapped label into an oval, so wrapped text gets radius-md.
   const [wrapped, setWrapped] = useState(false);
@@ -48,6 +48,7 @@ export function Tag({ label, variant = 'neutral', icon }: TagProps) {
         styles.tag,
         {
           gap: space[1],
+          alignItems: wrapped ? 'flex-start' : 'center',
           borderRadius: wrapped ? radius.md : radius.full,
           backgroundColor: background ? colors[background] : 'transparent',
         },
@@ -57,7 +58,12 @@ export function Tag({ label, variant = 'neutral', icon }: TagProps) {
         },
       ]}
     >
-      {icon && <Icon name={icon} size="icon-sm" color={text} />}
+      {icon && (
+        // Wrapped: the icon sits on the first line, centered on that line's height.
+        <View style={wrapped && { marginTop: (typography.caption.lineHeight - size['icon-sm']) / 2 }}>
+          <Icon name={icon} size="icon-sm" color={text} />
+        </View>
+      )}
       <Text
         importantForAccessibility="no"
         accessibilityElementsHidden

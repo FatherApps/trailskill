@@ -61,6 +61,19 @@ describe('Tag', () => {
     expect(style.borderRadius).toBe(radius.md);
   });
 
+  it.each(variants)('%s centers its icon on one line and aligns it with the first line once the text wraps', async (variant) => {
+    const label = 'Otra escuela: Club Acuático Norte del Litoral Occidental';
+    await render(<Tag label={label} variant={variant} icon="schedule" />);
+    const align = () => StyleSheet.flatten(screen.getByRole('text', { name: label }).props.style).alignItems;
+    expect(align()).toBe('center');
+
+    await fireEvent(screen.getByText(label, { includeHiddenElements: true }), 'textLayout', layout(1));
+    expect(align()).toBe('center');
+
+    await fireEvent(screen.getByText(label, { includeHiddenElements: true }), 'textLayout', layout(2));
+    expect(align()).toBe('flex-start');
+  });
+
   it('never truncates its label', async () => {
     await render(<Tag label="Infantil B" />);
     const props = screen.getByText('Infantil B', { includeHiddenElements: true }).props;
