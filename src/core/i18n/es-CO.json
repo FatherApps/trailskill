@@ -2,6 +2,23 @@
   "home": {
     "title": "TrailSkill"
   },
+  "auth": {
+    "email_title": "Ingresa a TrailSkill",
+    "email_label": "Correo electrónico",
+    "send_code": "Enviar código",
+    "not_configured_title": "La app no está lista para ingresar",
+    "not_configured_message": "Falta la configuración del servidor. Avísale a quien administra la app.",
+    "request_failed_title": "No pudimos enviar el código",
+    "request_failed_message": "Revisa el correo y tu conexión, e inténtalo de nuevo.",
+    "code_title": "Escribe tu código",
+    "code_help": "Te enviamos un código de 6 dígitos a {{email}}.",
+    "code_label": "Código de 6 dígitos",
+    "code_mismatch": "Ese código no coincide. Revisa el último mensaje o pide uno nuevo.",
+    "verify_failed": "No pudimos revisar el código. Inténtalo de nuevo.",
+    "resend": "Pedir un código nuevo",
+    "resend_sent": "Te enviamos un código nuevo.",
+    "resend_failed": "No pudimos enviar un código nuevo. Inténtalo de nuevo en un momento."
+  },
   "sport": {
     "stroke": {
       "FR": "Libre",
@@ -53,6 +70,7 @@
     "sending": "Enviando",
     "synced": "Enviado",
     "not_sent": "No enviado",
-    "retry": "Intentar de nuevo"
+    "retry": "Intentar de nuevo",
+    "connect_failed": "No pudimos conectar la sincronización. Tus registros siguen guardados en el teléfono."
   }
 }

@@ -5,6 +5,7 @@ import {
   IBMPlexSans_500Medium,
   IBMPlexSans_600SemiBold,
 } from '@expo-google-fonts/ibm-plex-sans';
+import { PowerSyncContext } from '@powersync/react';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -12,9 +13,28 @@ import { useEffect } from 'react';
 import { I18nextProvider } from 'react-i18next';
 
 import { i18n } from '../core/i18n';
+import { SessionProvider, useSession } from '../core/session';
+import { db } from '../core/sync';
 import { ThemeProvider } from '../core/theme';
 
 SplashScreen.preventAutoHideAsync();
+
+// Guarded groups redirect on their own when the session changes: no navigation calls in the auth flow.
+// redirectTo is needed for a cold start: without it the guarded "/" is an unmatched route.
+export function SessionGate() {
+  const { session } = useSession();
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Protected guard={session != null} redirectTo="/sign-in">
+        <Stack.Screen name="(app)" />
+      </Stack.Protected>
+      <Stack.Protected guard={session == null}>
+        <Stack.Screen name="(auth)" />
+      </Stack.Protected>
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   // A font error must not trap the app on the splash screen: it falls back to the system font.
@@ -37,7 +57,11 @@ export default function RootLayout() {
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
-        <Stack screenOptions={{ headerShown: false }} />
+        <PowerSyncContext.Provider value={db}>
+          <SessionProvider>
+            <SessionGate />
+          </SessionProvider>
+        </PowerSyncContext.Provider>
       </ThemeProvider>
     </I18nextProvider>
   );

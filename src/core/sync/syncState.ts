@@ -1,5 +1,7 @@
 import { useQuery, useStatus } from '@powersync/react';
 
+import { db } from './db';
+
 // 'needs_review' joins with conflict handling (task 3.9a): add it here and a row to syncStatusColors in src/core/ui/SyncStatus.tsx.
 export type RecordSyncState = 'on_device' | 'sending' | 'synced' | 'not_sent';
 
@@ -27,11 +29,19 @@ export function useRecordSyncState(table: string, id: string): RecordSyncState {
   });
 }
 
+// A record can have several pending rows: count records, not rows.
+const pendingRecords = 'SELECT DISTINCT table_name, record_id FROM pending_writes';
+const failedRecords = 'SELECT DISTINCT table_name, record_id FROM upload_failures';
+
+/** Records that exist only on this device or were rejected by the server: signing out would lose them. */
+export async function countUnsentRecords(): Promise<number> {
+  const rows = await db.getAll<{ unsent: number }>(`SELECT COUNT(*) AS unsent FROM (${pendingRecords} UNION ${failedRecords})`);
+  return rows[0]?.unsent ?? 0;
+}
+
 export function useGlobalSyncSummary(): { pending: number; failed: number; uploading: boolean; lastSyncedAt: Date | null } {
-  // A record can have several pending rows: count records, not rows.
   const { data } = useQuery<{ pending: number; failed: number }>(
-    `SELECT (SELECT COUNT(*) FROM (SELECT DISTINCT table_name, record_id FROM pending_writes)) AS pending,
-            (SELECT COUNT(*) FROM (SELECT DISTINCT table_name, record_id FROM upload_failures)) AS failed`,
+    `SELECT (SELECT COUNT(*) FROM (${pendingRecords})) AS pending, (SELECT COUNT(*) FROM (${failedRecords})) AS failed`,
   );
   const status = useStatus();
 

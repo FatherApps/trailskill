@@ -8,6 +8,15 @@ import GalleryEntryScreen from '../app/(dev)/gallery/[id]';
 import { colors } from '../core/theme';
 import { galleryEntries } from '../core/ui';
 
+// Home reads the session and the sync summary, which need the native database.
+jest.mock('../core/sync', () => ({
+  ...jest.requireActual('../core/sync/syncState'),
+  useGlobalSyncSummary: () => ({ pending: 0, failed: 0, uploading: false, lastSyncedAt: null }),
+}));
+jest.mock('../core/session', () => ({ useSession: () => ({ syncConnectFailed: false }) }));
+jest.mock('@powersync/react', () => ({}));
+jest.mock('../core/sync/db', () => ({ db: {} }));
+
 // Lives outside src/app: Expo Router would treat a test file there as a route.
 const routes = {
   '(app)/index': Home,
