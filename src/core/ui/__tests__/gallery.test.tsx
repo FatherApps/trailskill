@@ -1,0 +1,68 @@
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+
+import { ThemeProvider, type ThemeName } from '../../theme';
+import { galleryEntries, iconPaths } from '..';
+
+const themes: ThemeName[] = ['light', 'dark'];
+const scales = [1, 2];
+
+const entryById = (id: string) => galleryEntries.find((entry) => entry.id === id)!;
+const stateKeys = (id: string) => Object.keys(entryById(id).states);
+
+const cases = galleryEntries.flatMap((entry) =>
+  Object.keys(entry.states).flatMap((state) =>
+    themes.flatMap((theme) => scales.map((scale) => [entry.id, state, theme, scale] as const)),
+  ),
+);
+
+describe('core/ui gallery entries', () => {
+  it('have unique ids', () => {
+    const ids = galleryEntries.map((entry) => entry.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('cover every core/ui component with all its states', () => {
+    expect(stateKeys('textField')).toEqual(['rest', 'help', 'error', 'protected']);
+    expect(stateKeys('tag')).toEqual(['neutral', 'outline', 'info', 'ok', 'warn']);
+    expect(stateKeys('icon')).toEqual(['icon-md', 'icon-sm']);
+    expect(stateKeys('stepHeader')).toEqual(['first', 'middle', 'last']);
+    expect(stateKeys('stateView')).toEqual(['loading', 'empty', 'error', 'offline', 'denied']);
+    expect(stateKeys('syncStatus')).toEqual(['on_device', 'sending', 'synced', 'not_sent']);
+    expect(stateKeys('confirmSheet')).toEqual(['stop', 'primary']);
+  });
+
+  it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
+    await render(<ThemeProvider name={theme} fontScale={scale}>{entryById(id).states[state]()}</ThemeProvider>);
+  });
+
+  it.each(['stepHeader', 'stateView'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
+    '%s / %s fills the width of the preview',
+    async (id, state) => {
+      await render(<ThemeProvider>{entryById(id).states[state]()}</ThemeProvider>);
+
+      const root = screen.toJSON() as unknown as { props: { style: StyleProp<ViewStyle> } };
+      expect(StyleSheet.flatten(root.props.style)?.alignSelf).toBe('stretch');
+    },
+  );
+
+  it('renders every icon of the set with its name', async () => {
+    await render(<ThemeProvider>{entryById('icon').states['icon-md']()}</ThemeProvider>);
+
+    for (const name of Object.keys(iconPaths)) expect(screen.getAllByText(name)).toHaveLength(1);
+  });
+
+  it.each([
+    ['stop', '¿Descartar este tiempo?', 'Seguir revisando'],
+    ['primary', '¿Confirmar la importación?', 'Revisar de nuevo'],
+  ])('shows the %s confirm sheet only after pressing the button', async (state, title, cancel) => {
+    await render(<ThemeProvider>{entryById('confirmSheet').states[state]()}</ThemeProvider>);
+    expect(screen.queryByText(title)).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Mostrar hoja' }));
+    expect(screen.getByText(title)).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: cancel }));
+    expect(screen.queryByText(title)).toBeNull();
+  });
+});
