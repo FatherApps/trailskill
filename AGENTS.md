@@ -126,6 +126,7 @@ Code, commits, and docs in English. Issues and pull request descriptions in Span
 - Type check: `npm run typecheck`
 - Lint (includes the module boundary rules): `npm run lint`
 - Test: `npm test`
+- Database tests (needs Docker and the Supabase CLI): `supabase db start && supabase test db`
 - Development build: `eas build --profile development --platform android`
 
 ## Reporting
