@@ -12,8 +12,14 @@ const cases = galleryEntries.flatMap((e) =>
 
 describe('timing gallery entries', () => {
   it('cover setup and every stopwatch state', () => {
-    expect(galleryEntries.map((e) => e.id)).toEqual(['timingSetup', 'stopwatch']);
-    expect(Object.keys(entry('timingSetup').states)).toEqual(['setup']);
+    expect(galleryEntries.map((e) => e.id)).toEqual(['timingSetup', 'timingSummary', 'stopwatch']);
+    expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-empty']);
+    expect(Object.keys(entry('timingSummary').states)).toEqual([
+      'summary',
+      'summary-loading',
+      'summary-error',
+      'summary-empty',
+    ]);
     expect(Object.keys(entry('stopwatch').states)).toEqual([
       'ready',
       'running',
@@ -47,6 +53,19 @@ describe('timing gallery entries', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it.each([
+    ['timingSetup', 'setup', '1 · Mateo C.'],
+    ['timingSetup', 'setup-skipped', 'Falta autorización — se omitirá'],
+    ['timingSetup', 'setup-empty', 'Aún no hay nadadores'],
+    ['timingSummary', 'summary', 'Resumen de la toma'],
+    ['timingSummary', 'summary-error', 'No pudimos cargar el resumen'],
+    ['timingSummary', 'summary-empty', 'Sin tiempos guardados'],
+  ])('%s / %s shows its content', async (id, state, text) => {
+    await render(<ThemeProvider>{entry(id).states[state]()}</ThemeProvider>);
+
+    expect(screen.getAllByText(text, { exact: false, includeHiddenElements: true }).length).toBeGreaterThan(0);
   });
 
   it('shows the personal best with and without a value', async () => {

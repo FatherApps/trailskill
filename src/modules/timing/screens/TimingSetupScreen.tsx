@@ -1,15 +1,24 @@
-import type { ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Button, Segmented, type SegmentedOption } from '../../../core/ui';
+import type { Hundredths } from '../../../core/time';
+import { Button, Segmented, StateView, SwimmerRow, type SegmentedOption } from '../../../core/ui';
 import { TimingHeader } from '../components/TimingHeader';
 import '../i18n';
 
 // The options arrive from the container (catalogs and session choices); the screen only draws them.
 export type SetupField = { options: SegmentedOption<string>[]; value: string };
+
+export type SetupAthlete = {
+  id: string;
+  shortName: string;
+  initials: string;
+  color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
+  bestTime: Hundredths | null;
+  authorized: boolean;
+};
 
 export type TimingSetupScreenProps = {
   // For example the group and the time of the session.
@@ -24,8 +33,11 @@ export type TimingSetupScreenProps = {
   onPoolChange: (value: string) => void;
   onSessionTypeChange: (value: string) => void;
   onSourceChange: (value: string) => void;
-  // Slot for the athlete rows, drawn between the selectors and the start button.
-  athletes?: ReactNode;
+  // In timing order. Athletes without authorization are listed and marked as skipped.
+  athletes: SetupAthlete[];
+  selectedCount: number;
+  groupCount: number;
+  onChooseAthletes: () => void;
   onStart: () => void;
   onBack: () => void;
 };
@@ -43,10 +55,13 @@ export function TimingSetupScreen({
   onSessionTypeChange,
   onSourceChange,
   athletes,
+  selectedCount,
+  groupCount,
+  onChooseAthletes,
   onStart,
   onBack,
 }: TimingSetupScreenProps) {
-  const { colors, space, typography } = useTheme();
+  const { colors, space, radius, typography } = useTheme();
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
@@ -58,7 +73,35 @@ export function TimingSetupScreen({
         <Segmented accessibilityLabel={t('timing.setup.pool')} onChange={onPoolChange} {...pool} />
         <Segmented accessibilityLabel={t('timing.setup.session_type')} onChange={onSessionTypeChange} {...sessionType} />
         <Segmented accessibilityLabel={t('timing.setup.source')} onChange={onSourceChange} {...source} />
-        {athletes}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
+          <Text style={[typography.label, { flex: 1, color: colors.ink }]}>
+            {t('timing.setup.athletes_count', { selected: selectedCount, group: groupCount })}
+          </Text>
+          <Button variant="ghost" label={t('timing.setup.choose')} onPress={onChooseAthletes} />
+        </View>
+        {athletes.length === 0 ? (
+          <StateView
+            kind="empty"
+            icon="group"
+            title={t('timing.setup.empty_title')}
+            message={t('timing.setup.empty_message')}
+          />
+        ) : (
+          <View style={{ gap: 1, overflow: 'hidden', borderRadius: radius.md, backgroundColor: colors.border }}>
+            {athletes.map((athlete, index) => (
+              <SwimmerRow
+                key={athlete.id}
+                name={t('timing.setup.athlete_name', { order: index + 1, name: athlete.shortName })}
+                initials={athlete.initials}
+                color={athlete.color}
+                detail=""
+                {...(athlete.authorized
+                  ? { bestTime: athlete.bestTime, bestTimeLabel: t('timing.setup.best_time_label') }
+                  : { tag: { variant: 'warn', icon: 'schedule', label: t('timing.setup.skipped') } })}
+              />
+            ))}
+          </View>
+        )}
         <View>
           <Button size="timing" label={t('timing.setup.start')} onPress={onStart} />
         </View>

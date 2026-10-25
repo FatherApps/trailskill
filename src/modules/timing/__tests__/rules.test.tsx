@@ -6,6 +6,7 @@ import { StyleSheet } from 'react-native';
 import { Stopwatch } from '../components/Stopwatch';
 import { StopwatchScreen } from '../screens/StopwatchScreen';
 import { TimingSetupScreen } from '../screens/TimingSetupScreen';
+import { TimingSummaryScreen } from '../screens/TimingSummaryScreen';
 import { fixture } from '../__fixtures__/timing';
 
 const moduleDir = path.join(__dirname, '..');
@@ -75,6 +76,16 @@ describe('src/modules/timing rules', () => {
           onPoolChange={noop}
           onSessionTypeChange={noop}
           onSourceChange={noop}
+          onChooseAthletes={noop}
+        />
+        <TimingSummaryScreen
+          {...fixture.summaryScreen}
+          status="ready"
+          onRetry={noop}
+          onRetryLoad={noop}
+          onCorrect={noop}
+          onFinish={noop}
+          onBack={noop}
         />
       </>,
       // The exit sheet is a Modal: keep it closed so every node is reachable.
@@ -84,7 +95,8 @@ describe('src/modules/timing rules', () => {
     expect(texts.length).toBeGreaterThan(0);
     for (const text of texts) {
       expect(text.props.allowFontScaling).not.toBe(false);
-      expect(text.props.maxFontSizeMultiplier).toBeUndefined();
+      // Only the stopwatch clock is limited (see Stopwatch.test.tsx).
+      if (text.props.testID !== 'stopwatch-time') expect(text.props.maxFontSizeMultiplier).toBeUndefined();
       expect(text.props.numberOfLines).toBeUndefined();
     }
 

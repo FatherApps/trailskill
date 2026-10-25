@@ -3,6 +3,7 @@ import { BackHandler, Text } from 'react-native';
 
 import { TimingHeader } from '../components/TimingHeader';
 import { StopwatchScreen } from '../screens/StopwatchScreen';
+import { TimingSummaryScreen } from '../screens/TimingSummaryScreen';
 import { TimingSetupScreen } from '../screens/TimingSetupScreen';
 import { fixture } from '../__fixtures__/timing';
 
@@ -123,6 +124,7 @@ function renderSetup(props: Partial<Parameters<typeof TimingSetupScreen>[0]> = {
     onPoolChange: jest.fn(),
     onSessionTypeChange: jest.fn(),
     onSourceChange: jest.fn(),
+    onChooseAthletes: jest.fn(),
   };
   return render(<TimingSetupScreen {...fixture.setupScreen} {...callbacks} {...props} />).then(() => callbacks);
 }
@@ -173,20 +175,142 @@ describe('TimingSetupScreen', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it('draws the athletes slot between the selectors and the start button, and nothing without it', async () => {
-    await renderSetup({ athletes: <Text>ATHLETES SLOT</Text> });
-
-    const tree = JSON.stringify(screen.toJSON());
-    const at = (text: string) => tree.indexOf(text);
-    expect(at('Cronómetro externo')).toBeGreaterThan(-1);
-    expect(at('ATHLETES SLOT')).toBeGreaterThan(at('Cronómetro externo'));
-    expect(at('Empezar toma')).toBeGreaterThan(at('ATHLETES SLOT'));
-  });
-
-  it('renders no athlete rows when the slot is absent', async () => {
+  it('lists the athletes in order with their personal best, between the selectors and the start button', async () => {
     await renderSetup();
 
-    expect(screen.queryByText('ATHLETES SLOT')).toBeNull();
-    expect(screen.getAllByRole('button')).toHaveLength(2);
+    expect(screen.getByText('Nadadores (3 de 12)')).toBeOnTheScreen();
+    expect(screen.getByLabelText('1 · Mateo C., marca personal 34,82, MP')).toBeOnTheScreen();
+    expect(screen.getByLabelText('2 · Lucía R., marca personal 34,82, MP')).toBeOnTheScreen();
+    expect(screen.getByLabelText('3 · Sara P., sin marca personal, MP')).toBeOnTheScreen();
+    const tree = JSON.stringify(screen.toJSON());
+    const at = (text: string) => tree.indexOf(text);
+    expect(at('Cronómetro externo')).toBeLessThan(at('Nadadores (3 de 12)'));
+    expect(at('Nadadores (3 de 12)')).toBeLessThan(at('1 · Mateo C.'));
+    expect(at('3 · Sara P.')).toBeLessThan(at('Empezar toma'));
+  });
+
+  it('marks and announces an athlete without authorization as skipped', async () => {
+    await renderSetup({ athletes: fixture.athletesWithSkipped });
+
+    expect(screen.getByLabelText(/3 · Sara P\..*Falta autorización — se omitirá/)).toBeOnTheScreen();
+    expect(screen.getAllByText('Falta autorización — se omitirá', { includeHiddenElements: true })).toHaveLength(1);
+    expect(screen.getByLabelText('1 · Mateo C., marca personal 34,82, MP')).toBeOnTheScreen();
+  });
+
+  it('invites to choose athletes when there are none, without a second action', async () => {
+    await renderSetup({ athletes: [], selectedCount: 0 });
+
+    expect(screen.getByText('Aún no hay nadadores')).toBeOnTheScreen();
+    expect(screen.getByText('Nadadores (0 de 12)')).toBeOnTheScreen();
+    expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['Volver', 'Elegir', 'Empezar toma']);
+  });
+
+  it('asks the container to choose athletes', async () => {
+    const { onChooseAthletes } = await renderSetup();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Elegir' }));
+    expect(onChooseAthletes).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no athlete rows or count control issues: start and back stay available', async () => {
+    const { onStart } = await renderSetup({ athletes: [] });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Empezar toma' }));
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('TimingSummaryScreen', () => {
+  function renderSummary(props: Partial<Parameters<typeof TimingSummaryScreen>[0]> = {}) {
+    const callbacks = {
+      onBack: jest.fn(),
+      onRetry: jest.fn(),
+      onRetryLoad: jest.fn(),
+      onCorrect: jest.fn(),
+      onFinish: jest.fn(),
+    };
+    return render(<TimingSummaryScreen {...fixture.summaryScreen} status="ready" {...callbacks} {...props} />).then(
+      () => callbacks,
+    );
+  }
+
+  it('lists every record with its time and sync pill, a missing time as a dash', async () => {
+    await renderSummary();
+
+    expect(screen.getByRole('header', { name: 'Resumen de la toma' })).toBeOnTheScreen();
+    expect(screen.getByText('Grupo B · Libre 50 m')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Mateo C., marca personal 33,91')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Sara P., sin marca personal')).toBeOnTheScreen();
+    for (const label of ['En el teléfono', 'No enviado', 'Enviado', 'Enviando']) {
+      expect(screen.getByLabelText(label)).toBeOnTheScreen();
+    }
+    expect(screen.getAllByText('—', { includeHiddenElements: true })).toHaveLength(1);
+    expect(screen.queryByText(/0,00/, { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('retries one record by id', async () => {
+    const { onRetry } = await renderSummary();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+    expect(onRetry).toHaveBeenCalledWith('r2');
+  });
+
+  it('offers correct and finish', async () => {
+    const { onCorrect, onFinish } = await renderSummary();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Corregir un tiempo' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Terminar' }));
+    expect(onCorrect).toHaveBeenCalledTimes(1);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it('draws the banner slot only when given', async () => {
+    await renderSummary({ banner: <Text>BANNER</Text> });
+    expect(screen.getByText('BANNER')).toBeOnTheScreen();
+  });
+
+  it('shows the empty state without records', async () => {
+    await renderSummary({ records: [] });
+
+    expect(screen.getByText('Sin tiempos guardados')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Corregir un tiempo' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Terminar' })).toBeOnTheScreen();
+  });
+
+  it('shows the loading state without list or actions', async () => {
+    await renderSummary({ status: 'loading' });
+
+    expect(screen.getByTestId('state-view')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Terminar' })).toBeNull();
+    expect(screen.queryByLabelText('Mateo C., marca personal 33,91')).toBeNull();
+  });
+
+  it('shows the error state and retries the load', async () => {
+    const { onRetryLoad } = await renderSummary({ status: 'error' });
+
+    expect(screen.getByText('No pudimos cargar el resumen')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+    expect(onRetryLoad).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Terminar' })).toBeNull();
+  });
+});
+
+describe('StopwatchScreen extras', () => {
+  it('draws the banner slot and the sync pill of the record when given', async () => {
+    await renderStopwatchScreen({
+      state: 'running',
+      elapsedHundredths: 3391,
+      banner: <Text>BANNER</Text>,
+      syncState: 'on_device',
+    });
+
+    expect(screen.getByText('BANNER')).toBeOnTheScreen();
+    expect(screen.getByLabelText('En el teléfono')).toBeOnTheScreen();
+  });
+
+  it('draws neither without them', async () => {
+    await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391 });
+
+    expect(screen.queryByTestId('sync-status')).toBeNull();
   });
 });

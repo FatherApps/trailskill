@@ -33,6 +33,28 @@ const times: Record<'running' | 'final' | 'bestTime' | 'firstSplit', Hundredths>
   firstSplit: 1640,
 };
 
+type Athlete = {
+  id: string;
+  shortName: string;
+  initials: string;
+  color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
+  bestTime: Hundredths | null;
+  authorized: boolean;
+};
+
+const athletes: Athlete[] = [
+  { id: 'a1', shortName: 'Mateo C.', initials: 'MC', color: 'athlete-1', bestTime: 3482, authorized: true },
+  { id: 'a2', shortName: 'Lucía R.', initials: 'LR', color: 'athlete-2', bestTime: 3482, authorized: true },
+  { id: 'a3', shortName: 'Sara P.', initials: 'SP', color: 'athlete-3', bestTime: null, authorized: true },
+];
+
+const records = [
+  { id: 'r1', shortName: 'Mateo C.', initials: 'MC', color: 'athlete-1', time: 3391, syncState: 'on_device' },
+  { id: 'r2', shortName: 'Lucía R.', initials: 'LR', color: 'athlete-2', time: 3522, syncState: 'not_sent' },
+  { id: 'r3', shortName: 'Tomás V.', initials: 'TV', color: 'athlete-4', time: 3105, syncState: 'synced' },
+  { id: 'r4', shortName: 'Sara P.', initials: 'SP', color: 'athlete-3', time: null, syncState: 'sending' },
+] as const;
+
 export const fixture = {
   athleteNames: ['Mateo C.', 'Lucía R.', 'Sara P.'],
   times,
@@ -40,7 +62,14 @@ export const fixture = {
   setupScreen: {
     ...setupOptions,
     subtitle: 'Grupo B · Martes 7:00',
+    athletes,
+    selectedCount: 3,
+    groupCount: 12,
   },
+  athletesWithSkipped: athletes.map((athlete) =>
+    athlete.id === 'a3' ? { ...athlete, authorized: false } : athlete,
+  ),
+  summaryScreen: { subtitle: 'Grupo B · Libre 50 m', records: [...records] },
   stopwatchScreen: {
     athleteName: 'Mateo C.',
     position: 1,

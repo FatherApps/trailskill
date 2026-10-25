@@ -8,7 +8,14 @@
       "pool": "Piscina",
       "session_type": "Tipo de sesión",
       "source": "Fuente del tiempo",
-      "start": "Empezar toma"
+      "start": "Empezar toma",
+      "athletes_count": "Nadadores ({{selected}} de {{group}})",
+      "choose": "Elegir",
+      "skipped": "Falta autorización — se omitirá",
+      "athlete_name": "{{order}} · {{name}}",
+      "best_time_label": "MP",
+      "empty_title": "Aún no hay nadadores",
+      "empty_message": "Elige a quienes vas a medir para empezar la toma."
     },
     "session_type": {
       "training": "Entrenamiento",
@@ -33,6 +40,16 @@
       "exit_message": "El tiempo en marcha de {{name}} no se guardará. No se puede recuperar.",
       "exit_confirm": "Descartar tiempo",
       "exit_cancel": "Seguir midiendo"
+    },
+    "summary": {
+      "title": "Resumen de la toma",
+      "empty_title": "Sin tiempos guardados",
+      "empty_message": "Cuando guardes un tiempo aparecerá aquí.",
+      "error_title": "No pudimos cargar el resumen",
+      "error_message": "Los tiempos siguen guardados en el teléfono. Inténtalo de nuevo.",
+      "retry_load": "Intentar de nuevo",
+      "correct": "Corregir un tiempo",
+      "finish": "Terminar"
     }
   }
 }

@@ -11,4 +11,10 @@ export { galleryEntries } from './gallery';
 export { Stopwatch, type StopwatchProps, type StopwatchState } from './components/Stopwatch';
 export { TimingHeader, type TimingHeaderProps } from './components/TimingHeader';
 export { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
-export { TimingSetupScreen, type SetupField, type TimingSetupScreenProps } from './screens/TimingSetupScreen';
+export {
+  TimingSetupScreen,
+  type SetupAthlete,
+  type SetupField,
+  type TimingSetupScreenProps,
+} from './screens/TimingSetupScreen';
+export { TimingSummaryScreen, type SummaryRecord, type TimingSummaryScreenProps } from './screens/TimingSummaryScreen';

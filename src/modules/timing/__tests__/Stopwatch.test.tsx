@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { AccessibilityInfo, StyleSheet, Text } from 'react-native';
 
+import { colors } from '../../../core/theme';
 import { Stopwatch } from '../components/Stopwatch';
 
 type Props = Parameters<typeof Stopwatch>[0];
@@ -23,11 +24,10 @@ const styleOf = (element: Parameters<typeof StyleSheet.flatten>[0]) => StyleShee
 afterEach(() => jest.restoreAllMocks());
 
 describe('Stopwatch ready', () => {
-  it('shows a missing time and a single full-width start button', async () => {
+  it('shows the zero clock and a single full-width start button', async () => {
     const { onStart } = await renderWatch();
 
-    expect(screen.getByText('—')).toBeOnTheScreen();
-    expect(screen.queryByText(/0,00/)).toBeNull();
+    expect(screen.getByText('0:00,00')).toBeOnTheScreen();
     expect(screen.getAllByRole('button')).toHaveLength(1);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Iniciar' }));
@@ -37,15 +37,24 @@ describe('Stopwatch ready', () => {
   it('draws the time muted, centered, tabular, in time-display', async () => {
     await renderWatch();
 
-    const style = styleOf(screen.getByText('—').props.style);
-    expect(style).toMatchObject({ fontSize: 72, textAlign: 'center', fontVariant: ['tabular-nums'] });
+    const style = styleOf(screen.getByText('0:00,00').props.style);
+    expect(style).toMatchObject({ fontSize: 72, textAlign: 'center', fontVariant: ['tabular-nums'], color: colors.light['ink-muted'] });
+  });
+
+  it('pins the clock text size at 1.3 and leaves every other text unlimited', async () => {
+    await renderWatch({ state: 'stopped', elapsedHundredths: 3391, bestTime: 3482 });
+
+    expect(screen.getByText('0:33,91').props.maxFontSizeMultiplier).toBe(1.3);
+    const others = screen.container.queryAll((node) => node.type === 'Text' && node.props.testID !== 'stopwatch-time');
+    expect(others.length).toBeGreaterThan(0);
+    for (const text of others) expect(text.props.maxFontSizeMultiplier).toBeUndefined();
   });
 });
 
 describe('Stopwatch running', () => {
   it('draws the time only from props', async () => {
     const view = await renderWatch({ state: 'running', elapsedHundredths: 3391 });
-    expect(screen.getByText('33,91', hidden)).toBeOnTheScreen();
+    expect(screen.getByText('0:33,91', hidden)).toBeOnTheScreen();
 
     await view.rerender(
       <Stopwatch
@@ -60,14 +69,14 @@ describe('Stopwatch running', () => {
     );
 
     expect(screen.getByText('1:01,23', hidden)).toBeOnTheScreen();
-    expect(screen.queryByText('33,91', hidden)).toBeNull();
+    expect(screen.queryByText('0:33,91', hidden)).toBeNull();
   });
 
   it('hides the running clock from screen readers and never makes it a live region', async () => {
     await renderWatch({ state: 'running', elapsedHundredths: 3391 });
 
-    expect(screen.queryByText('33,91')).toBeNull();
-    const clock = screen.getByText('33,91', hidden);
+    expect(screen.queryByText('0:33,91')).toBeNull();
+    const clock = screen.getByText('0:33,91', hidden);
     expect(clock.props.importantForAccessibility).toBe('no-hide-descendants');
     expect(clock.props.accessibilityElementsHidden).toBe(true);
     expect(clock.props.accessibilityLiveRegion).toBeUndefined();
@@ -75,6 +84,8 @@ describe('Stopwatch running', () => {
 
   it('announces the state, not the ticking clock', async () => {
     const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    // The RN jest setup already mocks it, so calls from earlier tests would otherwise leak in.
+    announce.mockClear();
     const view = await renderWatch({ state: 'running', elapsedHundredths: 100 });
     const afterMount = announce.mock.calls.length;
 
@@ -131,7 +142,7 @@ describe('Stopwatch stopped', () => {
       bestTime: 3482,
     });
 
-    expect(screen.getByText('33,91')).toBeOnTheScreen();
+    expect(screen.getByText('0:33,91')).toBeOnTheScreen();
     expect(screen.getByText('MP 34,82')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Detener' })).toBeNull();
 
@@ -175,8 +186,10 @@ describe('Stopwatch stopped', () => {
 
   it('announces the final time once', async () => {
     const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    // The RN jest setup already mocks it, so calls from earlier tests would otherwise leak in.
+    announce.mockClear();
     await renderWatch({ state: 'stopped', elapsedHundredths: 3391 });
 
-    expect(announce).toHaveBeenCalledWith('Tiempo detenido: 33,91');
+    expect(announce).toHaveBeenCalledWith('Tiempo detenido: 0:33,91');
   });
 });

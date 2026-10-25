@@ -25,6 +25,9 @@ export type StopwatchProps = {
   onDiscard: () => void;
 };
 
+// The clock always shows minutes, in every state, so it keeps one shape from 0:00,00 on.
+const clockFormat = { alwaysShowMinutes: true };
+
 export function Stopwatch({
   elapsedHundredths,
   state,
@@ -49,19 +52,18 @@ export function Stopwatch({
   useEffect(() => {
     if (finalTime !== null) {
       AccessibilityInfo.announceForAccessibility(
-        t('timing.stopwatch.announce_stopped', { time: formatTime(finalTime) }),
+        t('timing.stopwatch.announce_stopped', { time: formatTime(finalTime, clockFormat) }),
       );
     }
   }, [finalTime]);
-
-  // A stopwatch that has not started has no time: "—", never 0,00.
-  const shownTime = state === 'ready' ? null : elapsedHundredths;
 
   return (
     <View style={{ flex: 1, gap: space[4], padding: space[4], backgroundColor: colors['surface-0'] }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', gap: space[4] }}>
         <Text
           testID="stopwatch-time"
+          // 72 sp would wrap "1:01,23" at 200 % text size.
+          maxFontSizeMultiplier={1.3}
           // The running clock is not a live region and is hidden: only the state is announced.
           {...(running && {
             importantForAccessibility: 'no-hide-descendants' as const,
@@ -72,7 +74,7 @@ export function Stopwatch({
             { textAlign: 'center', fontVariant: ['tabular-nums'], color: colors[state === 'ready' ? 'ink-muted' : 'ink'] },
           ]}
         >
-          {formatTime(shownTime)}
+          {formatTime(elapsedHundredths, clockFormat)}
         </Text>
         {stopped && (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2] }}>

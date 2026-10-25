@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
-import { BackHandler } from 'react-native';
+import { useEffect, type ReactNode } from 'react';
+import { BackHandler, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
+import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
-import { ConfirmSheet } from '../../../core/ui';
+import { ConfirmSheet, SyncStatus } from '../../../core/ui';
 import { Stopwatch, type StopwatchProps } from '../components/Stopwatch';
 import { TimingHeader } from '../components/TimingHeader';
 import '../i18n';
@@ -18,6 +19,10 @@ export type StopwatchScreenProps = StopwatchProps & {
   // The event, for example "Libre 50 m · Entrenamiento".
   eventSubtitle: string;
   // Header back button and, while running, the Android back button. The container decides what to do (open the sheet).
+  // Slot for the shared Banner (issue 176), for example the offline notice. It never blocks the stopwatch.
+  banner?: ReactNode;
+  // Sync state of the record being timed, drawn as a pill in the header. SyncStatus cannot show a pending count.
+  syncState?: RecordSyncState;
   onBack: () => void;
   // Controlled: the container shows the sheet when leaving would lose a running time.
   exitConfirmVisible: boolean;
@@ -30,13 +35,15 @@ export function StopwatchScreen({
   position,
   total,
   eventSubtitle,
+  banner,
+  syncState,
   onBack,
   exitConfirmVisible,
   onConfirmExit,
   onCancelExit,
   ...stopwatch
 }: StopwatchScreenProps) {
-  const { colors } = useTheme();
+  const { colors, space } = useTheme();
   const running = stopwatch.state === 'running';
 
   useEffect(() => {
@@ -53,8 +60,10 @@ export function StopwatchScreen({
       <TimingHeader
         title={t('timing.stopwatch.title', { name: athleteName, current: position, total })}
         subtitle={eventSubtitle}
+        trailing={syncState && <SyncStatus state={syncState} />}
         onBack={onBack}
       />
+      {banner && <View style={{ paddingHorizontal: space[4] }}>{banner}</View>}
       <Stopwatch {...stopwatch} />
       <ConfirmSheet
         visible={exitConfirmVisible}

@@ -5,7 +5,8 @@ import type { GalleryEntry } from '../../core/ui';
 import { fixture } from './__fixtures__/timing';
 import { useFakeClock } from './__fixtures__/fakeClock';
 import { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
-import { TimingSetupScreen } from './screens/TimingSetupScreen';
+import { TimingSetupScreen, type SetupAthlete } from './screens/TimingSetupScreen';
+import { TimingSummaryScreen, type TimingSummaryScreenProps } from './screens/TimingSummaryScreen';
 
 const noop = () => {};
 
@@ -62,7 +63,7 @@ function ExitConfirmPreview() {
 }
 
 // Holds the selections, so tapping an option changes it in the gallery.
-function SetupPreview() {
+function SetupPreview({ athletes, selectedCount }: { athletes: SetupAthlete[]; selectedCount: number }) {
   const [values, setValues] = useState({
     stroke: fixture.setupScreen.stroke.value,
     distance: fixture.setupScreen.distance.value,
@@ -87,8 +88,29 @@ function SetupPreview() {
         onPoolChange={set('pool')}
         onSessionTypeChange={set('sessionType')}
         onSourceChange={set('source')}
+        athletes={athletes}
+        selectedCount={selectedCount}
+        groupCount={setupScreen.groupCount}
+        onChooseAthletes={noop}
         onStart={noop}
         onBack={noop}
+      />
+    </ScreenFrame>
+  );
+}
+
+function SummaryPreview(props: Partial<TimingSummaryScreenProps>) {
+  return (
+    <ScreenFrame>
+      <TimingSummaryScreen
+        {...fixture.summaryScreen}
+        status="ready"
+        onRetry={noop}
+        onRetryLoad={noop}
+        onCorrect={noop}
+        onFinish={noop}
+        onBack={noop}
+        {...props}
       />
     </ScreenFrame>
   );
@@ -97,7 +119,25 @@ function SetupPreview() {
 const stopped = { state: 'stopped', elapsedHundredths: fixture.times.final } as const;
 
 export const galleryEntries: GalleryEntry[] = [
-  { id: 'timingSetup', title: 'TimingSetupScreen', states: { setup: () => <SetupPreview /> } },
+  {
+    id: 'timingSetup',
+    title: 'TimingSetupScreen',
+    states: {
+      setup: () => <SetupPreview athletes={fixture.setupScreen.athletes} selectedCount={3} />,
+      'setup-skipped': () => <SetupPreview athletes={fixture.athletesWithSkipped} selectedCount={2} />,
+      'setup-empty': () => <SetupPreview athletes={[]} selectedCount={0} />,
+    },
+  },
+  {
+    id: 'timingSummary',
+    title: 'TimingSummaryScreen',
+    states: {
+      summary: () => <SummaryPreview />,
+      'summary-loading': () => <SummaryPreview status="loading" />,
+      'summary-error': () => <SummaryPreview status="error" />,
+      'summary-empty': () => <SummaryPreview records={[]} />,
+    },
+  },
   {
     id: 'stopwatch',
     title: 'StopwatchScreen',
