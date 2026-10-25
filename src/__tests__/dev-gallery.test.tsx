@@ -54,7 +54,7 @@ describe('development gallery', () => {
     const view = await renderRouter(routes, { initialUrl: '/gallery' });
 
     expect(screen.getByText('athletes')).toBeOnTheScreen();
-    for (const title of ['ProfileHeader', 'EventSelector', 'PersonalBest']) {
+    for (const title of ['ProfileHeader', 'EventSelector', 'PersonalBest', 'HistoryList', 'ImportPrompt']) {
       expect(screen.getByRole('button', { name: title })).toBeOnTheScreen();
     }
 

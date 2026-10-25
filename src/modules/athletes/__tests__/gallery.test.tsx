@@ -29,17 +29,24 @@ const sourceFiles = filesIn(moduleDir).filter((file) => !file.includes('__tests_
 
 describe('athletes gallery entries', () => {
   it('have unique ids and the expected states', () => {
-    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest']);
+    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'importPrompt']);
     expect(stateKeys('profileHeader')).toEqual(['one-school', 'several-schools', 'pending-authorization', 'long-text']);
     expect(stateKeys('eventSelector')).toEqual(['one-pool', 'two-pools']);
     expect(stateKeys('personalBest')).toEqual(['with-improvement', 'no-improvement', 'missing', 'training']);
+    expect(stateKeys('historyList')).toEqual(['mixed', 'long-text']);
+    expect(stateKeys('importPrompt')).toEqual(['not-imported', 'imported', 'no-source']);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
     await render(<ThemeProvider name={theme} fontScale={scale}>{entryById(id).states[state]()}</ThemeProvider>);
   });
 
-  it.each(galleryEntries.flatMap((entry) => Object.keys(entry.states).map((state) => [entry.id, state])))(
+  // importPrompt / no-source renders nothing by design, so it has no root to measure.
+  it.each(
+    galleryEntries
+      .flatMap((entry) => Object.keys(entry.states).map((state) => [entry.id, state]))
+      .filter(([id, state]) => !(id === 'importPrompt' && state === 'no-source')),
+  )(
     '%s / %s fills the width of the preview',
     async (id, state) => {
       await render(<ThemeProvider>{entryById(id).states[state]()}</ThemeProvider>);

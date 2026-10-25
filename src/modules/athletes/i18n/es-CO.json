@@ -25,6 +25,33 @@
     },
     "kind_and_date": "{{kind}} · {{date}}"
   },
+  "history": {
+    "context": {
+      "training": "Entrenamiento",
+      "competition": "Competencia"
+    },
+    "meta": "{{date}} · {{context}}",
+    "meta_with_value": "{{date}} · {{context}} · {{value}}",
+    "value": {
+      "repetition": "Rep. {{index}}",
+      "series_total": "Total serie",
+      "split": "Parcial {{distance}}"
+    },
+    "origin": {
+      "import": "Importado",
+      "external_timer": "Botón externo",
+      "other_school": "Otra escuela",
+      "other_school_named": "Otra escuela: {{source}}"
+    }
+  },
+  "import_prompt": {
+    "question": "¿{{name}} compitió antes?",
+    "offer": "Puedes traer su historial de {{source}}. Tú lo confirmas antes de importar.",
+    "imported": "Ya importamos el historial de {{name}} desde {{source}}. Puedes actualizarlo cuando quieras.",
+    "dismiss": "Ahora no",
+    "learn_more": "Ver cómo",
+    "refresh": "Actualizar desde {{source}}"
+  },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",

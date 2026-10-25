@@ -2,8 +2,11 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import type { GalleryEntry } from '../../core/ui';
+import { historyFixture as h, historyLongTextResults, historyResults } from './__fixtures__/history';
 import { eventFixture as ev, personalBestFixture as pb, profileFixture as pf } from './__fixtures__/profile';
 import { EventSelector, type EventValue } from './components/EventSelector';
+import { HistoryList } from './components/HistoryList';
+import { ImportPrompt } from './components/ImportPrompt';
 import { PersonalBest, type PersonalBestProps } from './components/PersonalBest';
 import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHeader';
 
@@ -57,6 +60,10 @@ const PersonalBestPreview = (props: PersonalBestProps) => (
   </FullWidth>
 );
 
+const noop = () => {};
+
+const prompt = { athleteName: h.athleteName, onDismiss: noop, onRefresh: noop, onLearnMore: noop };
+
 const entry = (id: string, title: string, states: Record<string, () => ReactElement>): GalleryEntry => ({
   id,
   title,
@@ -89,4 +96,22 @@ export const galleryEntries: GalleryEntry[] = [
     missing: () => <PersonalBestPreview {...personalBestBase} best={null} kind={undefined} date={undefined} />,
     training: () => <PersonalBestPreview {...personalBestBase} kind="training" date={pb.trainingDate} />,
   }),
+  {
+    id: 'historyList',
+    title: 'HistoryList',
+    states: {
+      mixed: () => <HistoryList scrollEnabled={false} results={historyResults} />,
+      'long-text': () => <HistoryList scrollEnabled={false} results={historyLongTextResults} />,
+    },
+  },
+  {
+    id: 'importPrompt',
+    title: 'ImportPrompt',
+    states: {
+      'not-imported': () => <ImportPrompt {...prompt} sourceName={h.sourceName} imported={false} />,
+      imported: () => <ImportPrompt {...prompt} sourceName={h.sourceName} imported />,
+      // No provider configured: the component renders nothing.
+      'no-source': () => <ImportPrompt {...prompt} imported={false} />,
+    },
+  },
 ];
