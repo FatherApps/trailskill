@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
+import { router } from 'expo-router';
+
 import Home from '../app/(app)/index';
 import { t } from '../core/i18n';
 
@@ -12,8 +14,13 @@ jest.mock('../core/sync', () => ({
 let mockSyncConnectFailed = false;
 const mockSignOut = jest.fn();
 jest.mock('../core/session', () => ({
-  useSession: () => ({ syncConnectFailed: mockSyncConnectFailed, signOut: mockSignOut }),
+  useSession: () => ({ syncConnectFailed: mockSyncConnectFailed, signOut: mockSignOut, session: { user: { id: 'user-1' } } }),
 }));
+const mockListStaffSchools = jest.fn();
+jest.mock('../modules/school-console', () => ({
+  createPowerSyncStaffSchoolRepository: () => ({ listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args) }),
+}));
+jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), router: { push: jest.fn() } }));
 jest.mock('@powersync/react', () => ({}));
 jest.mock('../core/sync/db', () => ({ db: {} }));
 
@@ -21,6 +28,8 @@ beforeEach(() => {
   mockSummary = { pending: 0, failed: 0, uploading: false, lastSyncedAt: null };
   mockSyncConnectFailed = false;
   mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
+  mockListStaffSchools.mockReset().mockResolvedValue([]);
+  (router.push as jest.Mock).mockClear();
 });
 
 // Lives outside src/app: Expo Router would treat a test file there as a route.
@@ -64,6 +73,44 @@ describe('home screen', () => {
     await render(<Home />);
 
     expect(screen.queryByText(/No pudimos conectar la sincronización/)).toBeNull();
+  });
+});
+
+describe('training plans button', () => {
+  const plans = { name: 'Planes de entrenamiento' };
+
+  it('is hidden from a user who is not school staff', async () => {
+    await render(<Home />);
+
+    expect(mockListStaffSchools).toHaveBeenCalledWith('user-1');
+    expect(screen.queryByRole('button', plans)).toBeNull();
+  });
+
+  it('is hidden when the lookup fails', async () => {
+    mockListStaffSchools.mockRejectedValue(new Error('db'));
+    await render(<Home />);
+
+    expect(screen.queryByRole('button', plans)).toBeNull();
+  });
+
+  it('opens the plans for school staff', async () => {
+    mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela' }]);
+    await render(<Home />);
+
+    await fireEvent.press(await screen.findByRole('button', plans));
+
+    expect(router.push).toHaveBeenCalledWith('/plans');
+  });
+
+  it('appears once memberships arrive with a later sync', async () => {
+    const { rerender } = await render(<Home />);
+    expect(screen.queryByRole('button', plans)).toBeNull();
+
+    mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela' }]);
+    mockSummary = { ...mockSummary, lastSyncedAt: new Date(1000) };
+    await rerender(<Home />);
+
+    expect(await screen.findByRole('button', plans)).toBeOnTheScreen();
   });
 });
 
