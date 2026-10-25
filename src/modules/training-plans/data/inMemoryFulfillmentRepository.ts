@@ -1,7 +1,7 @@
 import type { BlockRecording } from '../types';
 import { checkSeriesLink, currentMarks, validatedCount, type FulfillmentMark, type FulfillmentRepository } from './fulfillment';
 
-/** What the local database knows, to check a mark's series; a series is refused when it is not listed here. */
+/** What the local database knows, to check a mark's series; a value not listed here is unknown and lets the mark through. */
 export type FulfillmentLookups = {
   recordings?: Record<string, BlockRecording>;
   assignmentSchools?: Record<string, string>;

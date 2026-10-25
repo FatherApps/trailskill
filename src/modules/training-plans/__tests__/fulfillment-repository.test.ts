@@ -149,13 +149,23 @@ describe.each(factories)('%s fulfillment repository', (_name, create) => {
   it.each([
     ['a completion block', { blockId: 'b1', seriesId: 'series-1' }],
     ['a series of another school', { blockId: 'b2', seriesId: 'series-2' }],
-    ['an unknown series', { blockId: 'b2', seriesId: 'nope' }],
   ])('rejects a series on %s, writing nothing', async (_label, overrides) => {
     const repository = await create();
 
     await expect(repository.mark(mark(overrides))).rejects.toThrow(InvalidFulfillmentError);
 
     expect(await repository.list('as1')).toEqual([]);
+  });
+
+  it.each([
+    ['a series unknown locally', { blockId: 'b2', seriesId: 'nope' }],
+    ['a series whose block is unknown locally', { blockId: 'unsynced-block', seriesId: 'series-1' }],
+  ])('saves %s, because the server decides', async (_label, overrides) => {
+    const repository = await create();
+
+    await repository.mark(mark(overrides));
+
+    expect(await repository.list('as1')).toHaveLength(1);
   });
 
   it('saves a series of the assignment school on a per-repetition and on a series-total block, and no series on a completion block', async () => {
