@@ -124,6 +124,7 @@ export const galleryEntries: GalleryEntry[] = [
       child: () => whoSwims({ initialChoice: 'child' }),
       adult: () => whoSwims({ initialChoice: 'adult' }),
       invitation: () => whoSwims({ invitation: fx.invitation }),
+      invalidInvitation: () => whoSwims({ invalidInvitation: true }),
     },
   },
   {

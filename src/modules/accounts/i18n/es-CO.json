@@ -55,7 +55,8 @@
     "invitation": {
       "before": "Te invitó ",
       "middle": " al grupo ",
-      "after": ". Revisa tus datos y confirma."
+      "after": ". Revisa tus datos y confirma.",
+      "invalid": "Este enlace de invitación no es válido o ya venció. Puedes registrarte igual; pídele a la escuela un enlace nuevo."
     },
     "authorizations": {
       "title": "Autorizaciones",

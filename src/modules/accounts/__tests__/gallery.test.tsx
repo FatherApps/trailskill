@@ -19,7 +19,7 @@ describe('accounts gallery entries', () => {
       'addAthletes',
       'resumeRegistration',
     ]);
-    expect(statesOf('whoSwims')).toEqual(['initial', 'child', 'adult', 'invitation']);
+    expect(statesOf('whoSwims')).toEqual(['initial', 'child', 'adult', 'invitation', 'invalidInvitation']);
     expect(statesOf('accountDetails')).toEqual([
       'initial',
       'codeSent',
