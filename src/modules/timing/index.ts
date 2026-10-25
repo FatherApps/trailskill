@@ -1,6 +1,7 @@
 export { createInMemoryMeasurementRepository } from './data/inMemoryMeasurementRepository';
 export type {
   Measurement,
+  MeasurementEvent,
   MeasurementKind,
   MeasurementRepository,
   MeasurementSource,

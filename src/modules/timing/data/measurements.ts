@@ -27,8 +27,12 @@ type MeasurementBase = {
 export type Measurement = MeasurementBase &
   ({ kind: TimeKind; hundredths: Hundredths | null } | { kind: 'completed'; hundredths: null });
 
+export type MeasurementEvent = { stroke: StrokeCode; distance: DistanceCode; pool: PoolCode };
+
 export interface MeasurementRepository {
   add(measurement: Measurement): Promise<void>;
   /** Every measurement of the series, assigned or not, by arrival position. */
   listBySeries(seriesId: string): Promise<Measurement[]>;
+  /** Every kind of measurement of the athlete in the event, newest first (by id on a tie). */
+  listByAthleteEvent(athleteId: string, event: MeasurementEvent): Promise<Measurement[]>;
 }
