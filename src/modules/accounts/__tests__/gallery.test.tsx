@@ -10,7 +10,7 @@ const statesOf = (id: string) => Object.keys(galleryEntries.find((entry) => entr
 
 describe('accounts gallery entries', () => {
   it('has one entry per screen with every listed state', () => {
-    expect(galleryEntries.map((entry) => entry.id)).toEqual(['whoSwims', 'accountDetails', 'signIn', 'consentCard']);
+    expect(galleryEntries.map((entry) => entry.id)).toEqual(['whoSwims', 'accountDetails', 'signIn', 'authorizations', 'consentCard']);
     expect(statesOf('whoSwims')).toEqual(['initial', 'child', 'adult', 'invitation']);
     expect(statesOf('accountDetails')).toEqual([
       'initial',
@@ -24,6 +24,7 @@ describe('accounts gallery entries', () => {
       'invitation',
     ]);
     expect(statesOf('signIn')).toEqual(['initial', 'codeSent', 'codeMismatch', 'sending', 'offline']);
+    expect(statesOf('authorizations')).toEqual(['initial']);
     expect(statesOf('consentCard')).toEqual(['unchecked', 'accepted']);
   });
 

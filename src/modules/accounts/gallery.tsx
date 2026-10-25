@@ -5,6 +5,7 @@ import type { GalleryEntry } from '../../core/ui';
 import { accountsFixture as fx } from './__fixtures__/accounts';
 import { AccountDetailsScreen, type AccountDetailsScreenProps } from './screens/AccountDetailsScreen';
 import { SignInScreen, type SignInScreenProps } from './screens/SignInScreen';
+import { AuthorizationsScreen } from './screens/AuthorizationsScreen';
 import { ConsentCard } from './components/ConsentCard';
 import type { AuthorizationRecord, AuthorizationText } from './data/authorizations';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';
@@ -84,6 +85,13 @@ const consentAccepted: AuthorizationRecord = {
   withdrawnAt: null,
 };
 
+// Synthetic texts of the three purposes; the authorizations screen lists them for each athlete.
+const authorizationTexts: AuthorizationText[] = [
+  consentText,
+  { id: 'gallery-text-results', purpose: 'import_official_results', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
+  { id: 'gallery-text-school', purpose: 'share_results_with_school', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
+];
+
 export const galleryEntries: GalleryEntry[] = [
   {
     id: 'whoSwims',
@@ -129,6 +137,31 @@ export const galleryEntries: GalleryEntry[] = [
       ),
       sending: () => <SignInPreview values={{ email: fx.person.email, code: '' }} busy="sending" />,
       offline: () => <SignInPreview values={{ email: fx.person.email, code: '' }} codeSent offline />,
+    },
+  },
+  {
+    id: 'authorizations',
+    title: 'AuthorizationsScreen',
+    states: {
+      // Lucía has record_times in force; Tomás does not, so his card shows the skipped tag.
+      initial: () => (
+        <FullWidth>
+          <AuthorizationsScreen
+            mode="registration"
+            step={{ current: 4, total: 4 }}
+            athletes={[
+              { id: 'gallery-athlete', name: 'Lucía R.' },
+              { id: 'gallery-athlete-2', name: 'Tomás P.' },
+            ]}
+            texts={authorizationTexts}
+            inForce={{ 'gallery-athlete': { record_times: consentAccepted } }}
+            failed={false}
+            onSave={noop}
+            onWithdraw={noop}
+            onBack={noop}
+          />
+        </FullWidth>
+      ),
     },
   },
   {
