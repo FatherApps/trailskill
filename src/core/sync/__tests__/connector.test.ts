@@ -248,7 +248,7 @@ describe('SupabaseConnector.uploadData', () => {
       expect(t.complete).not.toHaveBeenCalled();
     });
 
-    it.each(['57014', '40001', '40P01'])('never gives up the transient server error %s, and waits with a growing delay', async (code) => {
+    it.each(['57014', '40001', '40P01', '40003', '55P03', '57P01', '57P03'])('never gives up the transient server error %s, and waits with a growing delay', async (code) => {
       const sleep = jest.fn().mockResolvedValue(undefined);
       const error = { code, message: 'transient' };
       const t = setup({ upsert: { data: null, error } }, { sleep });
@@ -592,6 +592,24 @@ describe('SupabaseConnector.uploadData', () => {
             await expect(uploaded(t, crud)).rejects.toThrow('crash');
             await uploaded(t, crud);
             expect(failures(db, 'a')).toEqual([{ error_code: 'no_rows_affected' }]);
+          }),
+        );
+
+        it(
+          'a re-send that succeeds still clears the old failure recorded by the first pass, and leaves the marks alone',
+          withStore(async (db, uploaded) => {
+            await addMark(db, 'a');
+            const t = setup({ update: empty });
+            t.complete.mockRejectedValueOnce(new Error('crash'));
+            const crud = [entry('PATCH', 'a', { first_name: 'Bea' }, 'athletes', 7)];
+
+            await expect(uploaded(t, crud)).rejects.toThrow('crash');
+            expect(failures(db, 'a')).toEqual([{ error_code: 'no_rows_affected' }]);
+
+            await addMark(db, 'a');
+            await uploaded(setup(), crud);
+            expect(failures(db, 'a')).toEqual([]);
+            expect(pendingCount(db, 'a')).toBe(1);
           }),
         );
 
