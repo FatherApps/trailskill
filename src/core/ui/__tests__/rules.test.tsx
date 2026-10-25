@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { StyleSheet } from 'react-native';
 
-import { Button, Tag, TextField } from '..';
+import { Button, StateView, StepHeader, SyncStatus, Tag, TextField } from '..';
 
 const uiDir = path.join(__dirname, '..');
 
@@ -31,6 +31,9 @@ describe('src/core/ui rules', () => {
         <TextField label="Celular" help="Diez dígitos" value="" />
         <TextField label="Correo" error="Escribe un correo válido." value="" />
         <Tag label="Consentimiento pendiente" variant="warn" />
+        <StepHeader step={2} total={4} title="Datos del nadador" onBack={jest.fn()} />
+        <SyncStatus state="not_sent" onRetry={jest.fn()} />
+        <StateView kind="error" title="No pudimos cargar el historial" message="Revisa tu conexión." />
       </>,
     );
 

@@ -18,6 +18,7 @@ i18n.use(initReactI18next).init({
 export { i18n };
 
 // A missing translation stays visible as its key (i18next returns the key).
-export function t(key: string): string {
-  return i18n.t(key);
+// `values` fills {{placeholders}} in the translation, for example {{step}}.
+export function t(key: string, values?: Record<string, string | number>): string {
+  return i18n.t(key, values);
 }
