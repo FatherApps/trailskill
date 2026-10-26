@@ -52,18 +52,28 @@ export function AddAthletesContainer({
   const [busy, setBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const finishingRef = useRef(false);
+  const addingRef = useRef(false);
   const [failed, setFailed] = useState<false | 'add' | 'continue'>(false);
+  // A list that could not be read says nothing about who is added: a missing datum is not zero.
+  const [unreadable, setUnreadable] = useState(false);
 
   const refresh = useCallback(
     () =>
-      athletes.listManaged(userId).then((found) =>
-        setAdded(found.map((a) => ({ id: a.id, ...pick(athleteDisplay(a)) }))),
+      athletes.listManaged(userId).then(
+        (found) => {
+          setUnreadable(false);
+          setAdded(found.map((a) => ({ id: a.id, ...pick(athleteDisplay(a)) })));
+        },
+        (error: unknown) => {
+          setUnreadable(true);
+          throw error;
+        },
       ),
     [athletes, userId],
   );
 
-  // The route asked for it because "Continuar" is the only way out of this step. When that way is shut (the step cannot be kept, or adding failed and nobody is added yet to continue with), back leaves through `onBack`.
-  const noWayOut = failed === 'continue' || (failed === 'add' && added.length === 0);
+  // The route asked for it because "Continuar" is the only way out of this step. When that way is shut (the step cannot be kept, or adding failed and nobody is known to be added to continue with), back leaves through `onBack`.
+  const noWayOut = failed === 'continue' || (failed === 'add' && !unreadable && added.length === 0);
   useHardwareBack(blockSystemBack ? (noWayOut ? onBack : swallowBack) : undefined);
 
   useEffect(() => {
@@ -97,39 +107,49 @@ export function AddAthletesContainer({
   }
 
   async function add() {
+    // An add in flight, or Continuar saving the step, blocks a second add.
+    if (addingRef.current || finishingRef.current) return;
+    addingRef.current = true;
     setBusy(true);
     setFailed(false);
-    let athleteId: string;
     try {
-      athleteId = await profiles.createManagedAthlete({ userId, relation: 'guardian', ...values });
-    } catch {
-      // Nothing was saved: the names stay in the form and the person can try again.
-      setFailed('add');
+      let athleteId: string;
+      try {
+        athleteId = await profiles.createManagedAthlete({ userId, relation: 'guardian', ...values });
+      } catch {
+        // Nothing was saved: the names stay in the form and the person can try again.
+        setFailed('add');
+        return;
+      }
+      setValues(empty);
+      setCategoryId('');
+      void persist(undefined);
+      // The athlete only exists on this device so far: queue the acceptance, which retries until the server knows them. It never blocks the registration.
+      const token = (await drafts.load().catch(() => null))?.invitationToken;
+      if (token) void queueInvitation(pending, invitations, { userId, token, athleteId, ...(categoryId && { categoryId }) }).catch(() => {});
+      // Saved already: a failed list read must not look like a failed save.
+      await refresh().catch(() => {});
+    } finally {
+      addingRef.current = false;
       setBusy(false);
-      return;
     }
-    setValues(empty);
-    setCategoryId('');
-    void persist(undefined);
-    // The athlete only exists on this device so far: queue the acceptance, which retries until the server knows them. It never blocks the registration.
-    const token = (await drafts.load().catch(() => null))?.invitationToken;
-    if (token) void queueInvitation(pending, invitations, { userId, token, athleteId, ...(categoryId && { categoryId }) }).catch(() => {});
-    // Saved already: a failed list read must not look like a failed save.
-    await refresh().catch(() => {});
-    setBusy(false);
   }
 
   // The profiles are saved, so the typed names have nothing left to keep; the swimmer choice and the reached step stay until the authorizations step ends.
   // If the step cannot be kept the person stays here: going on would bring them back to this screen on the next launch.
   async function finish() {
-    // A second tap while the first one still saves would continue twice.
-    if (finishingRef.current) return;
+    // A second tap while the first one still saves would continue twice; an add in flight would land after the step was kept.
+    if (finishingRef.current || addingRef.current) return;
     finishingRef.current = true;
     setFinishing(true);
     setFailed(false);
-    const kept = await persist(undefined, 'authorizations');
-    finishingRef.current = false;
-    setFinishing(false);
+    let kept: boolean;
+    try {
+      kept = await persist(undefined, 'authorizations');
+    } finally {
+      finishingRef.current = false;
+      setFinishing(false);
+    }
     if (!kept) return setFailed('continue');
     onContinue();
   }
