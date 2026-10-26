@@ -52,7 +52,10 @@ export function TodayContainer(props: TodayContainerProps) {
   const [attempt, setAttempt] = useState(0);
   const selected = athletes.find((a) => a.id === selectedId);
   // The short name only, never the document or the birth date.
-  const names = athletes.map((athlete) => ({ id: athlete.id, name: athleteDisplay(athlete).shortName }));
+  const names = athletes.map((athlete) => {
+    const { shortName, initials, color } = athleteDisplay(athlete);
+    return { id: athlete.id, name: shortName, initials, color };
+  });
   const athleteName = names.find((n) => n.id === selectedId)?.name ?? '';
 
   async function load(athlete: SchoolAthlete): Promise<Loaded | null> {

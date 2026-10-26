@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { Banner, Button, Segmented, StateView, Tag, TextField, TimeValue } from '../../../core/ui';
+import { Banner, Button, ChipRow, ColorCard, Icon, Segmented, StateView, Tag, TextField, TimeValue, type ColorCardColor, type InitialsDotProps } from '../../../core/ui';
 import '../i18n';
 import { BlockCard } from '../components/BlockCard';
 import { statusTag } from '../components/blockStatus';
@@ -35,7 +35,8 @@ export type TodayContent = {
   notes?: TodayNote[];
 };
 
-export type TodayAthlete = { id: string; name: string };
+// `initials` and `color` are the athlete's dot in the picker and the colour of the header (the athletes module derives both).
+export type TodayAthlete = { id: string; name: string; initials: string; color: InitialsDotProps['color'] };
 
 export type TodayView =
   | { kind: 'data'; content: TodayContent }
@@ -73,21 +74,41 @@ function TimeRow({ label, value }: { label: string; value: Hundredths | null }) 
   );
 }
 
-function BlockStatusAndTimes({ entry }: { entry: TodayBlock }) {
+function BlockTimes({ entry }: { entry: TodayBlock }) {
   const { space } = useTheme();
   const times = entry.times ?? [];
-  return (
-    <View style={{ gap: space[2] }}>
-      <Tag {...statusTag({ ...entry, repetitions: entry.block.repetitions })} />
-      {/* A completion-only block has no time to show: never a zero. */}
-      {entry.block.recording === 'per_repetition' &&
-        times.map((time, index) => (
+  // A completion-only block has no time to show: never a zero.
+  if (entry.block.recording === 'per_repetition' && times.length > 0) {
+    return (
+      <View style={{ gap: space[1] }}>
+        {times.map((time, index) => (
           <TimeRow key={index} label={t('training_plans.today.rep', { n: index + 1 })} value={time} />
         ))}
-      {entry.block.recording === 'series_total' && times.length > 0 && (
-        <TimeRow label={t('training_plans.today.series_total')} value={times[0]} />
-      )}
-    </View>
+      </View>
+    );
+  }
+  if (entry.block.recording === 'series_total' && times.length > 0) {
+    return <TimeRow label={t('training_plans.today.series_total')} value={times[0]} />;
+  }
+  return null;
+}
+
+// 2000 → "2.000" (es-CO); Intl drops the separator of four-digit numbers in Spanish.
+const withThousands = (value: number) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+function PlanHeader({ content, athleteName, color }: { content: TodayContent; athleteName: string; color: ColorCardColor }) {
+  const { colors, typography } = useTheme();
+  const meters = content.blocks.reduce((sum, { block }) => sum + block.repetitions * block.distance, 0);
+  const count = content.blocks.length;
+  // Never an empty string: the colour card would draw bare text outside <Text>.
+  const summary = count > 0 ? t('training_plans.today.summary', { meters: withThousands(meters), count }) : undefined;
+
+  return (
+    <ColorCard color={color} title={content.planName} detail={summary}>
+      <Text accessibilityRole="header" style={[typography.label, { color: colors['on-color'] }]}>
+        {t('training_plans.today.caption', { name: athleteName })}
+      </Text>
+    </ColorCard>
   );
 }
 
@@ -128,7 +149,13 @@ function NoticeSection({
 
   return (
     <>
-      <Button variant="dark" label={t('training_plans.today.report')} onPress={() => setOpen((value) => !value)} />
+      {/* The board draws chat_bubble, which the icon set lacks: info is the closest. */}
+      <Button
+        variant="secondary"
+        icon={<Icon name="info" />}
+        label={t('training_plans.today.report')}
+        onPress={() => setOpen((value) => !value)}
+      />
       {open && (
         <View style={{ gap: space[3], padding: space[5], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
           <Segmented
@@ -174,10 +201,14 @@ function NoticeSection({
 
 function TodayContentView({
   content,
+  athleteName,
+  color,
   onSendNotice,
   renderNoticeStatus,
 }: {
   content: TodayContent;
+  athleteName: string;
+  color: ColorCardColor;
   onSendNotice: TodayScreenProps['onSendNotice'];
   renderNoticeStatus?: TodayScreenProps['renderNoticeStatus'];
 }) {
@@ -188,11 +219,27 @@ function TodayContentView({
 
   return (
     <>
+      <PlanHeader content={content} athleteName={athleteName} color={color} />
       {content.planChanged && (
         <Banner variant="info" icon="info">
           {t('training_plans.today.plan_changed')}
         </Banner>
       )}
+      <View style={{ paddingHorizontal: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
+        {content.blocks.map((entry, index) => (
+          <Fragment key={entry.block.id}>
+            {index > 0 && <View style={{ height: 1, backgroundColor: colors.border }} />}
+            <BlockCard
+              variant="row"
+              block={entry.block}
+              vocabulary={vocabulary}
+              trailing={<Tag {...statusTag({ ...entry, repetitions: entry.block.repetitions })} />}
+            >
+              <BlockTimes entry={entry} />
+            </BlockCard>
+          </Fragment>
+        ))}
+      </View>
       <View style={{ gap: space[2], padding: space[5], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
         <Text style={[typography.subtitle, { color: colors.ink }]}>{t('training_plans.today.bring_title')}</Text>
         {equipment.length > 0 ? (
@@ -205,11 +252,6 @@ function TodayContentView({
           <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('training_plans.today.bring_none')}</Text>
         )}
       </View>
-      {content.blocks.map((entry) => (
-        <BlockCard key={entry.block.id} block={entry.block} vocabulary={vocabulary}>
-          <BlockStatusAndTimes entry={entry} />
-        </BlockCard>
-      ))}
       <NoticeSection content={content} onSendNotice={onSendNotice} renderNoticeStatus={renderNoticeStatus} />
     </>
   );
@@ -228,22 +270,21 @@ export function TodayScreen({ athleteName, view, athletes, selectedAthleteId, on
       style={{ backgroundColor: colors['surface-0'] }}
       contentContainerStyle={{ padding: space[4], gap: space[4] }}
     >
-      <View style={{ gap: space[1] }}>
-        <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
-          {t('training_plans.today.title')}
-        </Text>
-        <Text style={[typography.caption, { color: colors['ink-muted'] }]}>
-          {content
-            ? t('training_plans.today.caption', { plan: content.planName, name: athleteName })
-            : athleteName}
-        </Text>
-      </View>
+      {/* With data the colour header below carries the title; the other states keep a plain one. */}
+      {!content && (
+        <View style={{ gap: space[1] }}>
+          <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
+            {t('training_plans.today.title')}
+          </Text>
+          <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{athleteName}</Text>
+        </View>
+      )}
       {athletes && athletes.length > 1 && selectedAthleteId && onSelectAthlete && (
-        <Segmented
+        <ChipRow
           accessibilityLabel={t('training_plans.today.athlete_picker')}
           value={selectedAthleteId}
           onChange={onSelectAthlete}
-          options={athletes.map(({ id, name }) => ({ value: id, label: name }))}
+          options={athletes.map(({ id, name, initials, color }) => ({ value: id, label: name, dot: { initials, color } }))}
         />
       )}
       {view.kind === 'loading' && <StateView kind="loading" />}
@@ -283,7 +324,15 @@ export function TodayScreen({ athleteName, view, athletes, selectedAthleteId, on
           {t('training_plans.today.banner_dated', { date: view.storedOnLabel })}
         </Banner>
       )}
-      {content && <TodayContentView content={content} onSendNotice={onSendNotice} renderNoticeStatus={renderNoticeStatus} />}
+      {content && (
+        <TodayContentView
+          content={content}
+          athleteName={athleteName}
+          color={athletes?.find(({ id }) => id === selectedAthleteId)?.color ?? 'lime'}
+          onSendNotice={onSendNotice}
+          renderNoticeStatus={renderNoticeStatus}
+        />
+      )}
     </ScrollView>
   );
 }
