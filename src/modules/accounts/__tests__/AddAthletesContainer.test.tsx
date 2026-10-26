@@ -88,6 +88,12 @@ function heldReads(drafts: ReturnType<typeof setup>['drafts']) {
   return releases;
 }
 
+// Lets every promise continuation that is ready run, so a read that was released has finished its code before the test goes on.
+const settle = () =>
+  act(async () => {
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+
 describe('AddAthletesContainer', () => {
   it('requires both names, then adds the profile to the list showing only the short name', async () => {
     const { mount } = setup();
@@ -880,21 +886,19 @@ describe('AddAthletesContainer', () => {
     const releases = heldReads(drafts);
     const view = await mount();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-    // Three reads wait: the invitation hook's, the one the screen starts with and the one of the keystroke save.
-    await waitFor(() => expect(releases).toHaveLength(3));
+    await settle();
     await view.unmount();
     const another = { swimmer: 'adult' as const, firstName: 'Nuevo', lastName: 'Registro', email: 'nuevo@example.com' };
     await drafts.clear();
     await drafts.save(another);
     const saves = save.mock.calls.length;
-    const load = jest.mocked(drafts.load);
 
-    // The keystroke save reads the new registration first: with no origin known it is not this screen's.
-    releases[2]();
-    await load.mock.results[2].value;
-    // Then the screen's first read ends: it is no origin either, so nothing is written back from it.
-    releases[1]();
-    await load.mock.results[1].value;
+    // Newest first, whatever their number: the keystroke save reads the new registration before any other read ends, and with no origin known it is not this screen's.
+    // The reads that end after it (the screen's first one included) are no origin either, so nothing is written back from them.
+    for (const release of releases.splice(0).reverse()) {
+      release();
+      await settle();
+    }
 
     expect(save).toHaveBeenCalledTimes(saves);
   });
@@ -1016,5 +1020,85 @@ describe('AddAthletesContainer', () => {
     // The saved names leave the draft, or the next launch would offer to add the same athlete again.
     await waitFor(async () => expect((await drafts.load())?.athlete).toBeUndefined());
     expect(list).toHaveBeenCalledTimes(reads);
+  });
+
+  it('an add that ends after the screen went away, before any read ended, still takes the names it saved out of the draft', async () => {
+    const { mount, drafts, profiles } = setup();
+    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Lucía', lastName: 'Rojas' } });
+    const real = drafts.load.bind(drafts);
+    const create = profiles.createManagedAthlete.bind(profiles);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
+      await gate;
+      return create(input);
+    });
+    const releases = heldReads(drafts);
+    const view = await mount();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+    // The screen goes away while the add saves and no read has ended: it knows no origin.
+    await view.unmount();
+
+    await act(async () => {
+      release();
+      await gate;
+    });
+    // Every read, the ones the add starts after it saved included, ends now.
+    for (let i = 0; i < 5; i++) {
+      releases.splice(0).forEach((end) => end());
+      await settle();
+    }
+
+    // The draft held exactly the names that were just saved as a profile: leaving them would offer to add the same athlete again.
+    expect((await real())?.athlete).toBeUndefined();
+  });
+
+  it('an add that ends after the screen went away, before any read ended, leaves other names in the draft alone', async () => {
+    const { mount, drafts, profiles } = setup();
+    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Anterior', lastName: 'Guardado' } });
+    const real = drafts.load.bind(drafts);
+    const create = profiles.createManagedAthlete.bind(profiles);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
+      await gate;
+      return create(input);
+    });
+    const releases = heldReads(drafts);
+    const view = await mount();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+    await view.unmount();
+
+    await act(async () => {
+      release();
+      await gate;
+    });
+    for (let i = 0; i < 5; i++) {
+      releases.splice(0).forEach((end) => end());
+      await settle();
+    }
+
+    // Those names were never added: with no origin known they are not this screen's to remove.
+    expect((await real())?.athlete).toEqual({ firstName: 'Anterior', lastName: 'Guardado' });
+  });
+
+  // Decision (issue 626): a save that changes nothing does not renew the 24 hours of the draft; only a write that changes it does.
+  it('typing what the draft already holds writes nothing, so it does not renew the 24 hours either', async () => {
+    const { mount, drafts } = setup();
+    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Lucía', lastName: 'Rojas' } });
+    const save = jest.spyOn(drafts, 'save');
+    await mount();
+    await waitFor(() => expect(screen.getByLabelText('Nombre').props.value).toBe('Lucía'));
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await settle();
+
+    expect(save).not.toHaveBeenCalled();
   });
 });

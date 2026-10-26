@@ -14,6 +14,7 @@ function filesIn(dir: string): string[] {
 }
 
 describe('src/modules/accounts rules', () => {
+  // The scan reads comments and strings too: a hash sign followed by 3, 4, 6 or 8 hex characters is a color, and an issue number such as 611 is one. Write "issue 611", never the number with a hash sign in front.
   it('no source file outside providerMarks.ts contains a hexadecimal color literal', () => {
     const files = filesIn(moduleDir).filter((file) => /\.(ts|tsx|json)$/.test(file));
     expect(files.length).toBeGreaterThan(0);
