@@ -8,7 +8,7 @@ import { Banner, Button, ChipRow, ColorCard, Segmented, StateView, Tag, TextFiel
 import '../i18n';
 import { BlockCard } from '../components/BlockCard';
 import { statusTag } from '../components/blockStatus';
-import { formatNumber } from '../components/formatNumber';
+import { planSummary } from '../components/planVolume';
 import { MAX_NOTICE_LENGTH } from '../data/notices';
 import type { BlockStatus, PlanBlock, PlanVocabulary } from '../types';
 import { labelOf } from '../vocabulary';
@@ -98,10 +98,8 @@ function BlockTimes({ entry }: { entry: TodayBlock }) {
 
 function PlanHeader({ content, athleteName, color }: { content: TodayContent; athleteName: string; color: ColorCardColor }) {
   const { colors, typography } = useTheme();
-  const meters = content.blocks.reduce((sum, { block }) => sum + block.repetitions * block.distance, 0);
-  const count = content.blocks.length;
   // Never an empty string: the colour card would draw bare text outside <Text>.
-  const summary = count > 0 ? t('training_plans.today.summary', { meters: formatNumber(meters), count }) : undefined;
+  const summary = planSummary(content.blocks.map(({ block }) => block));
 
   const title = t('training_plans.today.title');
   // The card is the heading: it is announced with the visible title (the plan) and keeps "Hoy", then the rest of what it shows.

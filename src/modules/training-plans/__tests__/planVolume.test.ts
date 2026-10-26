@@ -1,0 +1,30 @@
+import { planSummary, planVolume } from '../components/planVolume';
+
+const block = (repetitions: number, distance: number) => ({ repetitions, distance });
+
+describe('planVolume', () => {
+  it('adds repetitions × distance and counts the blocks that add no metres', () => {
+    expect(planVolume([block(8, 50), block(4, 0), block(0, 100), block(1, 200)])).toEqual({ meters: 600, unmeasured: 2, count: 4 });
+  });
+});
+
+describe('planSummary', () => {
+  it('keeps "metres · blocks" when every block adds metres', () => {
+    expect(planSummary([block(1, 200), block(8, 50)])).toBe('600 m · 2 bloques');
+    expect(planSummary([block(8, 250)])).toBe('2.000 m · 1 bloque');
+  });
+
+  it('adds the blocks without distance next to the metres', () => {
+    expect(planSummary([block(8, 50), block(4, 0)])).toBe('400 m + 1 bloque sin distancia');
+    expect(planSummary([block(8, 50), block(4, 0), block(0, 25)])).toBe('400 m + 2 bloques sin distancia');
+  });
+
+  it('shows only the number of blocks, never "0 m", when no block adds metres', () => {
+    expect(planSummary([block(4, 0), block(0, 50)])).toBe('2 bloques');
+    expect(planSummary([block(4, 0)])).toBe('1 bloque');
+  });
+
+  it('has no summary without blocks', () => {
+    expect(planSummary([])).toBeUndefined();
+  });
+});
