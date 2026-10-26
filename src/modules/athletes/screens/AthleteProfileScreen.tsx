@@ -72,7 +72,9 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   const withBand = (state: ReactNode) => (
     <View style={frame}>
       <ColorHeader color={profileBandColor} title={name} onBack={onBack} />
-      <View style={[frame, padded, { paddingVertical: space[4] }]}>{state}</View>
+      <View testID="profile-content" style={[frame, padded, { paddingVertical: space[4] }]}>
+        {state}
+      </View>
     </View>
   );
 
