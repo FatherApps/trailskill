@@ -15,7 +15,8 @@ jest.mock('../modules/athletes', () => ({
 }));
 jest.mock('../modules/timing', () => ({ createPowerSyncSeriesRepository: () => ({}) }));
 jest.mock('../modules/training-plans', () => ({
-  ...jest.requireActual('../modules/training-plans'),
+  // Only the container: the barrel pulls in every screen of the module.
+  ...jest.requireActual('../modules/training-plans/screens/TodayContainer'),
   createPowerSyncAssignmentRepository: () => ({}),
   createPowerSyncFulfillmentRepository: () => ({}),
   createPowerSyncNoticeRepository: () => ({}),
@@ -64,7 +65,7 @@ describe('today route, athlete-less message', () => {
     expect(screen.getByRole('button', ACTION)).toBeOnTheScreen();
   });
 
-  it.each(['a guardian or adult athlete', 'an admin or coach'])('keeps the action for %s when the role lookup fails: nobody is left without an exit', async () => {
+  it('keeps the action when the role lookup fails: nobody is left without an exit', async () => {
     mockListStaffSchools.mockRejectedValue(new Error('db'));
     await render(<TodayRoute />);
 
