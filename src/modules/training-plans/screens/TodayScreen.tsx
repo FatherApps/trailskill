@@ -4,7 +4,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { Banner, Button, ChipRow, ColorCard, Segmented, StateView, Tag, TextField, TimeValue, type ColorCardColor, type InitialsDotProps } from '../../../core/ui';
+import { Banner, Button, ChipRow, ColorCard, Icon, Segmented, StateView, Tag, TextField, TimeValue, type ColorCardColor, type InitialsDotProps } from '../../../core/ui';
 import '../i18n';
 import { BlockCard } from '../components/BlockCard';
 import { statusTag } from '../components/blockStatus';
@@ -153,8 +153,12 @@ function NoticeSection({
 
   return (
     <>
-      {/* The board draws chat_bubble, which the icon set lacks; info is the plan-changed banner's glyph and made this read as a notice, so no icon. */}
-      <Button variant="secondary" label={t('training_plans.today.report')} onPress={() => setOpen((value) => !value)} />
+      <Button
+        variant="secondary"
+        label={t('training_plans.today.report')}
+        icon={<Icon name="chat_bubble" size="icon-sm" />}
+        onPress={() => setOpen((value) => !value)}
+      />
       {open && (
         <View style={{ gap: space[3], padding: space[5], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
           <Segmented
