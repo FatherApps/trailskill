@@ -76,7 +76,9 @@ describe('TodayScreen states', () => {
   it('shows the plan, the athlete and the blocks with data', async () => {
     await render(setup({ kind: 'data', content }).ui);
 
-    expect(screen.getByRole('header', { name: 'Hoy · Lucía R.' })).toBeOnTheScreen();
+    // One heading, announced with the visible title (the plan) and keeping "Hoy", then the athlete and the summary.
+    expect(screen.getAllByRole('header')).toHaveLength(1);
+    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, Lucía R., 950 m · 5 bloques' })).toBeOnTheScreen();
     expect(screen.getByText('Resistencia aeróbica')).toBeOnTheScreen();
     expect(screen.getByText('1 × 200 m Libre')).toBeOnTheScreen();
     expect(screen.queryByTestId('banner')).toBeNull();
@@ -159,6 +161,13 @@ describe('TodayScreen blocks card', () => {
     await render(setup({ kind: 'data', content }).ui);
 
     expect(screen.getByRole('button', { name: 'Avisar algo al entrenador' })).toBeOnTheScreen();
+  });
+
+  it('draws no icon in the report button: the info glyph belongs to the plan-changed banner', async () => {
+    await render(setup({ kind: 'data', content }).ui);
+
+    const drawn = screen.container.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
+    expect(drawn).not.toContain(iconPaths.info);
   });
 });
 

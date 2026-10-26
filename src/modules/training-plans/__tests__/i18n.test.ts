@@ -21,6 +21,13 @@ describe('training-plans i18n', () => {
     expect(t('training_plans.builder.count', { count: 5 })).toBe('5 bloques');
   });
 
+  it('writes "Hoy" once: the caption takes the title as a parameter', () => {
+    expect(esCO.today.caption).not.toContain('Hoy');
+    expect(t('training_plans.today.caption', { title: t('training_plans.today.title'), name: 'Lucía R.' })).toBe(
+      'Hoy · Lucía R.',
+    );
+  });
+
   it('keeps registration harmless when the module loads twice and leaves core copy untouched', () => {
     i18n.addResourceBundle('es-CO', 'translation', { training_plans: esCO }, true, true);
     i18n.addResourceBundle('es-CO', 'translation', { training_plans: esCO }, true, true);
