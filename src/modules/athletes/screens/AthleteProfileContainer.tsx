@@ -29,7 +29,7 @@ export type AthleteProfileContainerProps = {
   // Whether the device is connected. Without a connection no result of another school is asked for or shown.
   online?: boolean;
   // Where the band's back button goes; the route decides (the module has no router).
-  onBack?: () => void;
+  onBack: () => void;
 };
 
 type ProfileSchool = { id: string; name: string; category: string };

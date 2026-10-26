@@ -12,6 +12,7 @@ const base: ProfileHeaderProps = {
   schoolId: 'delfines',
   authorization: 'valid',
   updatedMinutesAgo: 5,
+  onBack: jest.fn(),
 };
 
 describe('ProfileHeader', () => {
@@ -44,10 +45,13 @@ describe('ProfileHeader', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the back button on screen without a handler', async () => {
-    await render(<ProfileHeader {...base} />);
+  it('cannot show a back button without a destination: onBack is required', () => {
+    const { onBack, ...withoutBack } = base;
+    // @ts-expect-error a header without onBack would show a "Volver" that does nothing
+    const element = <ProfileHeader {...withoutBack} />;
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+    expect(onBack).toBeDefined();
+    expect(element).toBeDefined();
   });
 
   it('says the authorization is valid or pending, in text', async () => {
