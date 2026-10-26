@@ -407,6 +407,22 @@ describe('CoachesScreen', () => {
         expect(screen.getByLabelText('Nombre')).toHaveDisplayValue('Rosa Londoño');
       });
 
+      it('draws the retry of the groups disabled while an invitation is on its way', async () => {
+        const onRetryGroups = jest.fn();
+        const base = { width: 1280, schoolName: schoolNameFixture, view: { kind: 'data', content } as CoachesView, onNavigate: jest.fn(), onInvite: jest.fn(() => new Promise<void>(() => {})), onDeactivate: jest.fn(), onRetryGroups };
+        const view = await render(<CoachesScreen {...base} groups={inviteGroupsFixture} />);
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fill();
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        await view.rerender(<CoachesScreen {...base} groups="error" />);
+
+        const retry = within(screen.getByTestId('side-sheet')).getByRole('button', { name: /Intentar de nuevo/ });
+        expect(retry).toBeDisabled();
+        await fireEvent.press(retry);
+        expect(onRetryGroups).not.toHaveBeenCalled();
+      });
+
       it('shows no retry while the groups load or when there is no way to retry', async () => {
         await open({ groups: 'error' });
         expect(screen.queryByRole('button', { name: 'Intentar de nuevo' })).toBeNull();
@@ -437,6 +453,8 @@ describe('CoachesScreen', () => {
     });
 
     describe('while sending', () => {
+      // A failure that arrives after the sheet was closed says which invitation it was.
+      const lateFailure = 'No pudimos enviar la invitación a rosa@example.com. Inténtalo de nuevo.';
       const sendSlow = async () => {
         let finish!: () => void;
         const onInvite = jest.fn(() => new Promise<void>((resolve) => (finish = resolve)));
@@ -513,10 +531,10 @@ describe('CoachesScreen', () => {
 
         await act(async () => fail(new Error('offline')));
 
-        expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
+        expect(screen.getByText(lateFailure)).toBeOnTheScreen();
         expect(screen.queryByTestId('side-sheet')).toBeNull();
         await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
-        expect(screen.queryByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeNull();
+        expect(screen.queryByText(lateFailure)).toBeNull();
       });
 
       it('tells on the screen when the invitation of a closed sheet fails even if the school has no coaches', async () => {
@@ -532,7 +550,7 @@ describe('CoachesScreen', () => {
 
         await act(async () => fail(new Error('offline')));
 
-        expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
+        expect(screen.getByText(lateFailure)).toBeOnTheScreen();
       });
 
       it('sends once even when the button is pressed twice before the sheet draws again', async () => {
@@ -549,6 +567,37 @@ describe('CoachesScreen', () => {
         });
 
         expect(onInvite).toHaveBeenCalledTimes(1);
+      });
+
+      it('does not send the same invitation again from a new opening while the first one is still pending', async () => {
+        const { onInvite, finish } = await sendSlow();
+        await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'Rosa@Example.com');
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        expect(onInvite).toHaveBeenCalledTimes(1);
+        await finish();
+        expect(screen.queryByTestId('side-sheet')).toBeNull();
+      });
+
+      it('shows the failure of the invitation of a closed sheet, saying which one, even while another sheet is open', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        let fail!: (error: Error) => void;
+        const onInvite = jest.fn(() => new Promise<void>((_resolve, reject) => (fail = reject)));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+        await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+
+        await act(async () => fail(new Error('offline')));
+
+        expect(within(screen.getByTestId('side-sheet')).getByText(lateFailure)).toBeOnTheScreen();
       });
 
       it('does not let an invitation from a previous opening close the sheet opened afterwards', async () => {
@@ -589,6 +638,23 @@ describe('CoachesScreen', () => {
         await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
 
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('[school-console]'), 'Error');
+        expect(JSON.stringify(warn.mock.calls)).not.toMatch(/rosa|example\.com/i);
+      });
+
+      it.each([
+        ['a code', Object.assign(new Error('rosa@example.com is already invited'), { code: '23505' }), 'Error 23505'],
+        ['a status', Object.assign(new Error('rosa@example.com is already invited'), { status: 503 }), 'Error 503'],
+      ])('logs in development the %s of the error too, never the email', async (_label, reason, kind) => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const onInvite = jest.fn().mockRejectedValue(reason);
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('[school-console]'), kind);
         expect(JSON.stringify(warn.mock.calls)).not.toMatch(/rosa|example\.com/i);
       });
 

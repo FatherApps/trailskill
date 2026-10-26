@@ -4,6 +4,7 @@ import { t } from '../../../core/i18n';
 import { Banner, ConfirmSheet } from '../../../core/ui';
 import '../i18n';
 import { CoachList, type CoachRow } from '../components/CoachList';
+import { kindOf } from '../components/errorKind';
 import { InviteCoachSheet, type CoachInvitation, type InviteGroups } from '../components/InviteCoachSheet';
 import { SectionFrame, type SectionView } from '../components/SectionFrame';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -65,8 +66,37 @@ export function CoachesScreen({
     setPending(null);
   };
   const closeDeactivate = () => setPending(null);
-  // An invitation whose sheet was closed before it failed: nothing else would tell the person.
-  const [lateFailure, setLateFailure] = useState(false);
+  // The invitations whose sheet was closed before they failed, by the email they went to: nothing else would tell the person.
+  const [lateFailures, setLateFailures] = useState<string[]>([]);
+  // The invitations still on their way by email, so the same one is not sent twice from another opening; a second send waits for the first.
+  const sends = useRef(new Map<string, Promise<void>>());
+  const send = (invitation: CoachInvitation) => {
+    const key = invitation.email.toLowerCase();
+    const running = sends.current.get(key);
+    if (running) return running;
+    const started = (async () => {
+      try {
+        await onInvite(invitation);
+      } catch (error) {
+        // Only the kind of the error: its message can carry the invitee's email.
+        if (__DEV__) console.warn('[school-console] The coach invitation could not be sent', kindOf(error));
+        throw error;
+      }
+    })();
+    sends.current.set(key, started);
+    const settled = () => sends.current.delete(key);
+    started.then(settled, settled);
+    return started;
+  };
+  const lateNotice = lateFailures.length > 0 && (
+    <>
+      {lateFailures.map((email) => (
+        <Banner key={email} variant="warn" icon="error">
+          {t('schoolConsole.coaches.invite_sheet.failed_to', { email })}
+        </Banner>
+      ))}
+    </>
+  );
 
   let sheet = null;
   if (pending?.kind === 'invite') {
@@ -76,15 +106,15 @@ export function CoachesScreen({
         groups={groups}
         initialGroupId={contextGroupId}
         onRetryGroups={onRetryGroups}
+        notice={lateNotice || undefined}
         onSubmit={async (invitation) => {
           const { opening } = pending;
           try {
-            await onInvite(invitation);
+            await send(invitation);
           } catch (error) {
-            // Only the kind of the error: its message can carry the invitee's email.
-            if (__DEV__) console.warn('[school-console] The coach invitation could not be sent', error instanceof Error ? error.name : typeof error);
             if (opening === openings.current) throw error;
-            setLateFailure(true);
+            const email = invitation.email;
+            setLateFailures((current) => (current.includes(email) ? current : [...current, email]));
             return;
           }
           if (opening === openings.current) closeInvite();
@@ -124,17 +154,11 @@ export function CoachesScreen({
         updatedMinutesAgo,
       })}
       action={{ label: t('schoolConsole.coaches.invite'), icon: 'person_add', onPress: () => {
-          setLateFailure(false);
+          setLateFailures([]);
           setPending({ kind: 'invite', opening: ++openings.current });
         },
       }}
-      notice={
-        lateFailure ? (
-          <Banner variant="warn" icon="error">
-            {t('schoolConsole.coaches.invite_sheet.failed')}
-          </Banner>
-        ) : undefined
-      }
+      notice={lateNotice || undefined}
       overlay={sheet}
     >
       {({ coaches }) => <CoachList coaches={coaches} deactivateAvailable={deactivateAvailable} onDeactivate={(id) => setPending({ kind: 'deactivate', id })} />}
