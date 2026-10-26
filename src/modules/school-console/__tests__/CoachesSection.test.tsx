@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
@@ -133,6 +133,24 @@ describe('CoachesSection', () => {
 
     expect(await rows()).toHaveLength(3);
     expect(listCoaches).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries from the invite sheet when the groups failed to load, keeping what was typed', async () => {
+    const real = coachRepository();
+    const listCoaches = jest.fn().mockImplementationOnce(real.listCoaches).mockRejectedValueOnce(new Error('boom')).mockImplementation(real.listCoaches);
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const view = await show({ listCoaches });
+    await rows();
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+
+    await view.rerender(tree({ listCoaches }, { refreshKey: 1 }));
+    expect(await screen.findByText('No pudimos cargar los grupos.')).toBeOnTheScreen();
+    await fireEvent.press(within(screen.getByTestId('side-sheet')).getByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(await screen.findByRole('radio', { name: 'Group A' })).toBeOnTheScreen();
+    expect(screen.getByLabelText('Nombre')).toHaveDisplayValue('Rosa Londoño');
+    expect(listCoaches).toHaveBeenCalledTimes(3);
   });
 
   it('shows the stored list under a dated banner without network', async () => {

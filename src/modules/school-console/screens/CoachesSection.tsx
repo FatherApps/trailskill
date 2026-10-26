@@ -123,5 +123,5 @@ export function CoachesSection({
   // The groups feed the invite sheet's chips; while they are read or failed the sheet is told so, not given an empty list. «Desactivar» stays disabled (the screen's default) until issue 220.
   const groups: InviteGroups = loaded === undefined ? 'loading' : loaded === 'error' ? 'error' : loaded.groups;
 
-  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onInvite={onInvite} onDeactivate={onDeactivate} />;
+  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onRetryGroups={() => setAttempt((n) => n + 1)} onInvite={onInvite} onDeactivate={onDeactivate} />;
 }

@@ -404,6 +404,8 @@ export const galleryEntries: GalleryEntry[] = [
       selected: () => <Chip label={ch.selected} selected onPress={noop} />,
       'with-dot': () => <Chip label={ch.rest} dot={ch.tomas} onPress={noop} />,
       'selected-with-dot': () => <Chip label={ch.selected} dot={ch.lucia} selected onPress={noop} />,
+      disabled: () => <Chip label={ch.rest} disabled onPress={noop} />,
+      'selected-disabled': () => <Chip label={ch.selected} selected disabled onPress={noop} />,
       'long-text': () => (
         <FullWidth>
           <Chip label={ch.longText} dot={ch.lucia} onPress={noop} />

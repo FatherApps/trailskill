@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { colors, contrastRatio, radius, size, ThemeProvider, type ThemeName } from '../../theme';
+import { unavailableColors } from '../Button';
 import { Chip, chipColors, InitialsDot } from '../Chip';
 
 const themes: ThemeName[] = ['light', 'dark'];
@@ -59,6 +60,62 @@ describe('Chip', () => {
     );
 
     expect(StyleSheet.flatten(screen.getByText('Lucía', { includeHiddenElements: true }).props.style).color).toBe(colors.light[chipColors.selected.text]);
+  });
+
+  describe('disabled', () => {
+    it('does not call onPress and says so to screen readers, keeping checked and selected', async () => {
+      const onPress = jest.fn();
+      await render(
+        <ThemeProvider>
+          <Chip label="Lucía" selected disabled onPress={onPress} />
+          <Chip label="Tomás" disabled onPress={onPress} />
+        </ThemeProvider>,
+      );
+
+      await fireEvent.press(screen.getByRole('radio', { name: 'Tomás' }));
+
+      expect(onPress).not.toHaveBeenCalled();
+      expect(screen.getByRole('radio', { name: 'Lucía' }).props.accessibilityState).toEqual({ checked: true, selected: true, disabled: true });
+      expect(screen.getByRole('radio', { name: 'Tomás' }).props.accessibilityState).toEqual({ checked: false, selected: false, disabled: true });
+    });
+
+    it('is enabled by default', async () => {
+      await render(
+        <ThemeProvider>
+          <Chip label="Lucía" onPress={jest.fn()} />
+        </ThemeProvider>,
+      );
+
+      expect(screen.getByRole('radio', { name: 'Lucía' })).toBeEnabled();
+    });
+
+    it('turns the unchosen chip into the unavailable grey of Button, with no border', async () => {
+      await render(
+        <ThemeProvider>
+          <Chip label="Tomás" disabled onPress={jest.fn()} />
+        </ThemeProvider>,
+      );
+
+      const style = StyleSheet.flatten(screen.getByRole('radio', { name: 'Tomás' }).props.style);
+      expect(style).toMatchObject({ backgroundColor: colors.light[unavailableColors.background], borderColor: 'transparent' });
+      expect(StyleSheet.flatten(screen.getByText('Tomás', { includeHiddenElements: true }).props.style).color).toBe(colors.light[unavailableColors.text]);
+    });
+
+    it('keeps the black of a chosen chip', async () => {
+      await render(
+        <ThemeProvider>
+          <Chip label="Lucía" selected disabled onPress={jest.fn()} />
+        </ThemeProvider>,
+      );
+
+      const style = StyleSheet.flatten(screen.getByRole('radio', { name: 'Lucía' }).props.style);
+      expect(style).toMatchObject({ backgroundColor: colors.light[chipColors.selected.background], borderColor: colors.light[chipColors.selected.border] });
+      expect(StyleSheet.flatten(screen.getByText('Lucía', { includeHiddenElements: true }).props.style).color).toBe(colors.light[chipColors.selected.text]);
+    });
+
+    it.each(themes)('keeps the unchosen label readable in the %s theme', (theme) => {
+      expect(contrastRatio(colors[theme][unavailableColors.text], colors[theme][unavailableColors.background])).toBeGreaterThanOrEqual(4.5);
+    });
   });
 
   it('shows the swimmer dot with the initials but reads only the label', async () => {
