@@ -21,6 +21,7 @@ describe('training-plans gallery entries', () => {
       'several-athletes',
       'loading',
       'empty',
+      'no-athletes',
       'error',
       'offline',
       'offline-empty',

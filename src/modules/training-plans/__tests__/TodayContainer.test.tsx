@@ -23,8 +23,8 @@ const schoolLinks = createInMemoryAthleteSchoolRepository([
   { athleteId: 'a3', schoolId: 's1', categoryId: 'c2' },
 ]);
 
-async function setup(options: { ids?: string[]; initialAthleteId?: string; changePlan?: boolean } = {}) {
-  const { ids = ['a1'], initialAthleteId, changePlan = false } = options;
+async function setup(options: { ids?: string[]; initialAthleteId?: string; changePlan?: boolean; onOpenAthletes?: () => void } = {}) {
+  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes } = options;
   const plans = createInMemoryTrainingPlanRepository();
   // Plan p1 (an untimed and a timed block) goes to group g1, which has a1; plan p2 goes to group g2, which has a3.
   await plans.save({ ...plan('p1'), blocks: [...plan('p1').blocks, timed] });
@@ -54,6 +54,7 @@ async function setup(options: { ids?: string[]; initialAthleteId?: string; chang
       athletes={await athletes.listByIds(ids)}
       initialAthleteId={initialAthleteId}
       day={DAY}
+      onOpenAthletes={onOpenAthletes}
       renderNoticeStatus={(id) => <Text>{`sync:${id}`}</Text>}
     />,
   );
@@ -115,6 +116,16 @@ describe('TodayContainer', () => {
     await setup({ ids: ['a4'] });
 
     expect(await screen.findByText('Hoy no hay plan')).toBeOnTheScreen();
+  });
+
+  it('says there is no linked athlete, not "no plan", when the user manages nobody, and leads to "Mis deportistas"', async () => {
+    const onOpenAthletes = jest.fn();
+    await setup({ ids: [], onOpenAthletes });
+
+    expect(await screen.findByText('Aún no hay un deportista vinculado')).toBeOnTheScreen();
+    expect(screen.queryByText('Hoy no hay plan')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Ir a Mis deportistas' }));
+    expect(onOpenAthletes).toHaveBeenCalledTimes(1);
   });
 
   it('saves a note with author, athlete, assignment, version and block, and lists it with its sync status', async () => {
