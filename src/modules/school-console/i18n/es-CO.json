@@ -129,7 +129,8 @@
       "email": "Correo",
       "groups": "Grupos a cargo",
       "send": "Enviar invitación",
-      "incomplete": "Escribe el nombre y un correo válido"
+      "incomplete": "Escribe el nombre y un correo válido",
+      "failed": "No pudimos enviar la invitación. Inténtalo de nuevo."
     },
     "status": {
       "active": "Activo",

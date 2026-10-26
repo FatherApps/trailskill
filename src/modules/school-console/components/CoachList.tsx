@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { View, type LayoutChangeEvent } from 'react-native';
+import { View } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
 import type { InitialsDotProps } from '../../../core/ui';
@@ -28,26 +27,20 @@ export type CoachListProps = {
   onDeactivate: (id: string) => void;
 };
 
-// Narrowest list that holds two cards side by side at normal text size without squeezing the name; it is not a token.
-const MIN_TWO_COLUMNS_WIDTH = 480;
-
-// A grid of cards, two columns wide; with large text or a narrow list it is one column.
+// A grid of cards that wrap by themselves, two columns at most: each card has a base just over a third of the row
+// and grows into what is left, so the cards of a row are even and a lone card fills it. A row narrower than twice
+// CoachCard's minimum width, or large text, gives one column.
 export function CoachList({ coaches, deactivateAvailable = false, onDeactivate }: CoachListProps) {
   const { space } = useTheme();
-  const [width, setWidth] = useState<number | null>(null);
-  const oneColumn = useTextScale() >= LARGE_TEXT_SCALE || (width !== null && width < MIN_TWO_COLUMNS_WIDTH);
+  const oneColumn = useTextScale() >= LARGE_TEXT_SCALE;
 
   return (
-    <View
-      testID="coach-list"
-      onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
-      style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3] }}
-    >
+    <View testID="coach-list" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3] }}>
       {coaches.map((coach) => (
         <CoachCard
           key={coach.id}
           coach={coach}
-          basis={oneColumn ? '100%' : '48%'}
+          oneColumn={oneColumn}
           deactivateAvailable={deactivateAvailable}
           onDeactivate={onDeactivate}
         />

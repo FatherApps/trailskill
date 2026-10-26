@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
 import { coachesFixture, inviteGroupsFixture, pendingCoachFixture } from '../__fixtures__/coaches';
@@ -161,6 +161,129 @@ describe('CoachesScreen', () => {
 
       expect(screen.queryAllByRole('radio', { checked: true })).toHaveLength(0);
     });
+
+    describe('when the groups or the context change with the sheet open', () => {
+      const [groupA, groupB, groupC] = inviteGroupsFixture;
+      const props =(extra: Partial<CoachesScreenProps> = {}) => ({
+        width: 1280,
+        schoolName: schoolNameFixture,
+        view: { kind: 'data', content } as CoachesView,
+        onNavigate: jest.fn(),
+        onInvite: jest.fn(),
+        onDeactivate: jest.fn(),
+        ...extra,
+      });
+
+      it('shows a group that arrives and lets it be chosen, keeping what was already chosen', async () => {
+        const base = props({ groups: [groupA!, groupB!] });
+        const view = await render(<CoachesScreen {...base} />);
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo A' }));
+
+        await view.rerender(<CoachesScreen {...base} groups={[groupA!, groupB!, groupC!]} />);
+        expect(screen.getByRole('radio', { name: 'Grupo C' })).toBeOnTheScreen();
+        expect(screen.getByRole('radio', { name: 'Grupo A' })).toBeChecked();
+
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo C' }));
+        expect(screen.getByRole('radio', { name: 'Grupo A' })).toBeChecked();
+        expect(screen.getByRole('radio', { name: 'Grupo C' })).toBeChecked();
+      });
+
+      it('chooses the context group when the groups arrive after the sheet opened', async () => {
+        const base = props({ contextGroupId: 'g2' });
+        const view = await render(<CoachesScreen {...base} />);
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+
+        await view.rerender(<CoachesScreen {...base} groups={inviteGroupsFixture} />);
+
+        expect(screen.getByRole('radio', { name: 'Grupo B' })).toBeChecked();
+        expect(screen.getByRole('radio', { name: 'Grupo A' })).not.toBeChecked();
+      });
+
+      it('follows a new context group, but never undoes what the user chose or cleared', async () => {
+        const base = props({ groups: inviteGroupsFixture, contextGroupId: 'g2' });
+        const view = await render(<CoachesScreen {...base} />);
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo B' }));
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo A' }));
+
+        await view.rerender(<CoachesScreen {...base} contextGroupId="g3" />);
+
+        expect(screen.getByRole('radio', { name: 'Grupo A' })).toBeChecked();
+        expect(screen.getByRole('radio', { name: 'Grupo B' })).not.toBeChecked();
+        expect(screen.getByRole('radio', { name: 'Grupo C' })).toBeChecked();
+      });
+
+      it('sends only groups that still exist', async () => {
+        const base = props({ groups: inviteGroupsFixture });
+        const view = await render(<CoachesScreen {...base} />);
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo A' }));
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo B' }));
+        await view.rerender(<CoachesScreen {...base} groups={[groupB!, groupC!]} />);
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        expect(base.onInvite).toHaveBeenCalledWith({ name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g2'] });
+      });
+    });
+
+    describe('when the invitation fails', () => {
+      const fill = async () => {
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo A' }));
+      };
+
+      it('keeps the sheet open with what was typed and says it failed', async () => {
+        const onInvite = jest.fn().mockRejectedValue(new Error('offline'));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fill();
+
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        expect(onInvite).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
+        expect(screen.getByLabelText('Nombre')).toHaveDisplayValue('Rosa Londoño');
+        expect(screen.getByLabelText('Correo')).toHaveDisplayValue('rosa@example.com');
+        expect(screen.getByRole('radio', { name: 'Grupo A' })).toBeChecked();
+        expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
+      });
+
+      it('closes the sheet when a retry works, and sends the same data again', async () => {
+        const onInvite = jest.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined);
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fill();
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        expect(onInvite).toHaveBeenCalledTimes(2);
+        expect(onInvite).toHaveBeenLastCalledWith({ name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g1'] });
+        expect(screen.queryByTestId('side-sheet')).toBeNull();
+      });
+
+      it('stays open until a slow invitation ends, and does not send twice meanwhile', async () => {
+        let finish!: () => void;
+        const onInvite = jest.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fill();
+
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+        await fireEvent.press(screen.getByRole('button', { name: /^Enviar invitación/ }));
+
+        expect(onInvite).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
+
+        await act(async () => finish());
+        expect(screen.queryByTestId('side-sheet')).toBeNull();
+      });
+    });
   });
 
   describe('deactivating', () => {
@@ -235,26 +358,37 @@ describe('CoachesScreen', () => {
   });
 
   describe('the grid', () => {
-    const measure = (width: number) =>
-      fireEvent(screen.getByTestId('coach-list'), 'layout', { nativeEvent: { layout: { width, height: 400, x: 0, y: 0 } } });
-    const basis = () => StyleSheet.flatten(screen.getAllByTestId('coach-card')[0].props.style).flexBasis;
-
-    it('has two columns when the list is wide enough, and one when it is narrow', async () => {
-      await show({ kind: 'data', content });
-      expect(basis()).toBe('48%');
-
-      await measure(400);
-      expect(basis()).toBe('100%');
-
-      await measure(700);
-      expect(basis()).toBe('48%');
+    const cardStyles = () => screen.getAllByTestId('coach-card').map((card) => StyleSheet.flatten(card.props.style));
+    const coachesOf = (count: number): CoachesContent => ({
+      updatedMinutesAgo: 2,
+      coaches: Array.from({ length: count }, (_, index) => ({ ...coachesFixture[0]!, id: `c${index}` })),
     });
 
-    it('has one column with large text', async () => {
+    // Jest has no layout engine, so this pins the contract that makes a wrapped row even and at most two wide:
+    // the same base for every card, more than a third of the row (three never fit) and at most half (two always do),
+    // growth into what is left, and the same numeric minimum width that sends a narrow list to one column.
+    it.each([1, 2, 3, 5])('with %i coaches every card has the same two-column base, grows, and has the same minimum width', async (count) => {
+      await show({ kind: 'data', content: coachesOf(count) });
+
+      const styles = cardStyles();
+      expect(styles).toHaveLength(count);
+      for (const style of styles) {
+        const share = parseFloat(String(style.flexBasis));
+        expect(String(style.flexBasis)).toMatch(/^\d+(\.\d+)?%$/);
+        expect(share).toBeGreaterThan(100 / 3);
+        expect(share).toBeLessThanOrEqual(50);
+        expect(style.flexGrow).toBeGreaterThanOrEqual(1);
+        expect(typeof style.minWidth).toBe('number');
+        expect(style.flexBasis).toBe(styles[0]!.flexBasis);
+        expect(style.minWidth).toBe(styles[0]!.minWidth);
+      }
+    });
+
+    it('has one full-width column with large text', async () => {
       jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 2 }));
       await show({ kind: 'data', content });
 
-      expect(basis()).toBe('100%');
+      for (const style of cardStyles()) expect(style.flexBasis).toBe('100%');
     });
   });
 

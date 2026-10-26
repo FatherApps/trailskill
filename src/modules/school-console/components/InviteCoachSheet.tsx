@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Button, Chip, TextField } from '../../../core/ui';
+import { Banner, Button, Chip, TextField } from '../../../core/ui';
 import '../i18n';
 import { SideSheet } from './SideSheet';
 
@@ -17,7 +17,8 @@ export type InviteCoachSheetProps = {
   groups: InviteGroup[];
   // The group the invitation link came from, chosen when the sheet opens; ignored when the school has no such group.
   initialGroupId?: string;
-  onSubmit: (invitation: CoachInvitation) => void;
+  // The sheet stays open until this finishes; if it throws or rejects, what was typed is kept and the error is shown.
+  onSubmit: (invitation: CoachInvitation) => void | Promise<void>;
   onClose: () => void;
 };
 
@@ -29,10 +30,26 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onClose }: 
   const { colors, space, typography } = useTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [chosen, setChosen] = useState<string[]>(() => (groups.some((group) => group.id === initialGroupId) ? [initialGroupId!] : []));
+  // Only what the user pressed; a group not in here follows the context group, so groups that arrive later are right too.
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [sending, setSending] = useState(false);
+  const [failed, setFailed] = useState(false);
 
+  const isChosen = (id: string) => picked[id] ?? id === initialGroupId;
   const complete = name.trim() !== '' && EMAIL.test(email.trim());
-  const toggle = (id: string) => setChosen((ids) => (ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id]));
+  const toggle = (id: string) => setPicked((current) => ({ ...current, [id]: !isChosen(id) }));
+  const send = async () => {
+    if (sending) return;
+    setSending(true);
+    setFailed(false);
+    try {
+      await onSubmit({ name: name.trim(), email: email.trim(), groupIds: groups.filter((group) => isChosen(group.id)).map((group) => group.id) });
+    } catch {
+      setFailed(true);
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <SideSheet label={t('schoolConsole.coaches.invite_sheet.label')} titleKey="schoolConsole.coaches.invite" onClose={onClose}>
@@ -51,21 +68,20 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onClose }: 
           <Text style={[typography.label, { color: colors.ink }]}>{t('schoolConsole.coaches.invite_sheet.groups')}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
             {groups.map((group) => (
-              <Chip key={group.id} label={group.name} selected={chosen.includes(group.id)} onPress={() => toggle(group.id)} />
+              <Chip key={group.id} label={group.name} selected={isChosen(group.id)} onPress={() => toggle(group.id)} />
             ))}
           </View>
         </View>
       )}
+      {failed && (
+        <Banner variant="warn" icon="error">
+          {t('schoolConsole.coaches.invite_sheet.failed')}
+        </Banner>
+      )}
       <Button
         label={t('schoolConsole.coaches.invite_sheet.send')}
         disabledReason={complete ? undefined : t('schoolConsole.coaches.invite_sheet.incomplete')}
-        onPress={() =>
-          onSubmit({
-            name: name.trim(),
-            email: email.trim(),
-            groupIds: groups.filter((group) => chosen.includes(group.id)).map((group) => group.id),
-          })
-        }
+        onPress={() => void send()}
       />
     </SideSheet>
   );
