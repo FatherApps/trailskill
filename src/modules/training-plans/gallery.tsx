@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../core/i18n';
@@ -59,7 +59,7 @@ function BuilderPreview({
   const [editingId, setEditingId] = useState(initialEditingId);
   const [message, setMessage] = useState(savedMessage ? t('training_plans.builder.saved') : undefined);
   // Like the editor: assigning waits until the plan is saved, and saving the plan or a template unlocks it until it is edited again.
-  const draft = snapshot(name, current);
+  const draft = useMemo(() => snapshot(name, current), [name, current]);
   const [stored, setStored] = useState<string | null>(initialAssignBlocked ? null : draft);
 
   const add = () => {
