@@ -1,10 +1,14 @@
-import { act, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import TodayRoute from '../app/(app)/today';
 
 const mockListStaffSchools = jest.fn();
 jest.mock('../core/session', () => ({ useSession: () => ({ session: { user: { id: 'user-1' } } }) }));
-jest.mock('../core/sync', () => ({ db: {}, RecordSyncStatus: () => null, useGlobalSyncSummary: () => ({ lastSyncedAt: new Date(), connection: 'connected' }) }));
+// One date for every render, as the real summary keeps it until the next sync: a new one each render would look the role up again each time.
+jest.mock('../core/sync', () => {
+  const lastSyncedAt = new Date();
+  return { db: {}, RecordSyncStatus: () => null, useGlobalSyncSummary: () => ({ lastSyncedAt, connection: 'connected' }) };
+});
 jest.mock('../core/sync/db', () => ({ db: {} }));
 jest.mock('../modules/accounts', () => ({ createPowerSyncManagedAthleteRepository: () => ({}) }));
 jest.mock('../modules/athletes', () => ({
@@ -65,10 +69,22 @@ describe('today route, athlete-less message', () => {
     expect(screen.getByRole('button', ACTION)).toBeOnTheScreen();
   });
 
-  it('keeps the action when the role lookup fails: nobody is left without an exit', async () => {
+  it('shows the error view with a retry, not the message with its action, when the role lookup fails', async () => {
     mockListStaffSchools.mockRejectedValue(new Error('db'));
     await render(<TodayRoute />);
 
+    expect(await screen.findByText('No pudimos cargar el plan de hoy')).toBeOnTheScreen();
+    expect(screen.queryByText(MESSAGE)).toBeNull();
+    expect(screen.queryByRole('button', ACTION)).toBeNull();
+  });
+
+  it('looks up the role again on "Intentar de nuevo" and leaves the error view', async () => {
+    mockListStaffSchools.mockRejectedValueOnce(new Error('db')).mockResolvedValue([]);
+    await render(<TodayRoute />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(mockListStaffSchools).toHaveBeenCalledTimes(2);
     expect(await screen.findByText(MESSAGE)).toBeOnTheScreen();
     expect(screen.getByRole('button', ACTION)).toBeOnTheScreen();
   });

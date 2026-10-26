@@ -3,7 +3,6 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import {
   createInMemoryStaffSchoolRepository,
   useAdminSchool,
-  useStaffSchool,
   type AdminSchoolResult,
   type StaffSchool,
   type StaffSchoolRepository,
@@ -95,14 +94,5 @@ describe('useAdminSchool', () => {
     await rerender({ key: 1 });
 
     await waitFor(() => expect(result.current.status).toBe('admin'));
-  });
-});
-
-describe('useStaffSchool', () => {
-  it('reports a failed lookup as an error, not as a denial', async () => {
-    const failing: StaffSchoolRepository = { ...repository, listStaffSchools: () => Promise.reject(new Error('db')) };
-    const { result } = await renderHook(() => useStaffSchool(failing, 'coach-1'));
-
-    await waitFor(() => expect(result.current).toEqual({ status: 'error' }));
   });
 });

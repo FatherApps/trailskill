@@ -34,6 +34,8 @@ export type TodayContainerProps = {
   onOpenAthletes?: () => void;
   // Whether the caller is still deciding `onOpenAthletes`; the message without athletes waits for it, so it never shows without an exit and then gains one.
   actionPending?: boolean;
+  // Set when the caller could not decide `onOpenAthletes` because its lookup failed: without athletes, the error view with this retry shows instead of the message.
+  onRetryAction?: () => void;
   renderNoticeStatus?: (noticeId: string) => ReactNode;
 };
 
@@ -53,10 +55,11 @@ function timesOf(recording: string, repetitions: number, mark: FulfillmentMark |
 const notesOf = (list: Notice[]) =>
   list.map((n) => ({ id: n.id, body: n.body, blockId: n.blockId, dateLabel: new Date(n.createdAt).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) }));
 
-function viewOf(athletes: SchoolAthlete[], synced: boolean, offline: boolean, loaded: Loaded | null | 'loading' | 'error', actions: { onOpenAthletes?: () => void; actionPending: boolean; onRetry: () => void }): TodayView {
+function viewOf(athletes: SchoolAthlete[], synced: boolean, offline: boolean, loaded: Loaded | null | 'loading' | 'error', actions: { onOpenAthletes?: () => void; onRetryAction?: () => void; actionPending: boolean; onRetry: () => void }): TodayView {
   if (athletes.length === 0) {
-    if (synced) return actions.actionPending ? { kind: 'loading' } : { kind: 'no-athletes', onOpenAthletes: actions.onOpenAthletes };
-    return offline ? { kind: 'offline-empty' } : { kind: 'loading' };
+    if (!synced) return offline ? { kind: 'offline-empty' } : { kind: 'loading' };
+    if (actions.actionPending) return { kind: 'loading' };
+    return actions.onRetryAction ? { kind: 'error', onRetry: actions.onRetryAction } : { kind: 'no-athletes', onOpenAthletes: actions.onOpenAthletes };
   }
   // Nothing found: after the first sync that is "no plan"; before it, offline says so and anything else is still connecting, so loading.
   if (loaded === null) return synced ? { kind: 'empty' } : offline ? { kind: 'offline-empty' } : { kind: 'loading' };
@@ -195,7 +198,7 @@ export function TodayContainer(props: TodayContainerProps) {
     if (id !== selectedId) reload();
   };
 
-  const view = viewOf(athletes, synced, props.offline ?? false, loaded, { onOpenAthletes: props.onOpenAthletes, actionPending: props.actionPending ?? false, onRetry: reload });
+  const view = viewOf(athletes, synced, props.offline ?? false, loaded, { onOpenAthletes: props.onOpenAthletes, onRetryAction: props.onRetryAction, actionPending: props.actionPending ?? false, onRetry: reload });
 
   return (
     <TodayScreen
