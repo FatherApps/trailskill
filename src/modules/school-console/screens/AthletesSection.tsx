@@ -136,13 +136,13 @@ export function AthletesSection({
   const bestLabel = personalBestLabel(CONSOLE_BEST_EVENT.stroke, CONSOLE_BEST_EVENT.distance, CONSOLE_BEST_EVENT.pool);
 
   let view: AthletesView;
-  // Empty before the first sync arrives is not "no athletes": the data may still be on its way.
-  if (loaded === undefined || (connection === 'connecting' && lastSyncedAt === null && loaded !== 'error' && loaded.athletes.length === 0)) {
+  if (loaded === undefined) {
     view = { kind: 'loading' };
   } else if (loaded === 'error') {
     view = { kind: 'error', onRetry: () => setAttempt((n) => n + 1) };
   } else if (loaded.athletes.length === 0) {
-    view = connection === 'offline' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
+    // Never synced and still not connected: nothing is stored yet, and the list fills in when the first sync arrives.
+    view = connection !== 'connected' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
   } else {
     const selected = loaded.athletes.find((a) => a.id === selectedId);
     const content: AthletesContent = {

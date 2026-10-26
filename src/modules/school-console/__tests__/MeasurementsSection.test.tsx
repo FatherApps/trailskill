@@ -61,7 +61,7 @@ async function repositoryWith(measurements: Measurement[]) {
 
 const categories = () => createInMemoryCategoriesRepository({ categories: categoriesFixture, athleteSchools: [] });
 
-const section = (repository: MeasurementLogRepository) => (
+const section = (repository: MeasurementLogRepository, sync: { connection?: 'connected' | 'connecting' | 'offline'; lastSyncedAt?: Date | null } = {}) => (
   <ThemeProvider>
     <MeasurementsSection
       width={1280}
@@ -71,8 +71,8 @@ const section = (repository: MeasurementLogRepository) => (
       schoolId="school-1"
       repository={repository}
       categories={categories()}
-      lastSyncedAt={new Date('2026-10-25T12:00:00Z')}
-      connection="connected"
+      lastSyncedAt={sync.lastSyncedAt === undefined ? new Date('2026-10-25T12:00:00Z') : sync.lastSyncedAt}
+      connection={sync.connection ?? 'connected'}
       now={() => new Date('2026-10-25T12:02:00Z')}
     />
   </ThemeProvider>
@@ -90,6 +90,13 @@ const hidden = { includeHiddenElements: true };
 const entries = () => screen.queryAllByTestId('measurement-entry');
 
 describe('MeasurementsSection', () => {
+  it('does not load forever while connecting, never synced and without measurements: it says nothing is stored yet', async () => {
+    await render(section(await repositoryWith([]), { connection: 'connecting', lastSyncedAt: null }));
+
+    expect(await screen.findByText('No hay mediciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
+    expect(screen.queryByTestId('state-view')).not.toHaveProp('accessibilityState', { busy: true });
+  });
+
   it('lists the measurements of the school with author, device, type and sync state, and a dash for a missing time', async () => {
     mockStates = new Map<string, RecordSyncState>([['m1', 'synced'], ['m2', 'synced']]);
     await render(
