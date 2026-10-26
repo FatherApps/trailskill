@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
 import { createInMemoryStaffSchoolRepository } from '../../school-console';
@@ -359,6 +359,89 @@ describe('PlanEditorScreen', () => {
       await screen.findByText('No pudimos guardar el plan. Inténtalo de nuevo.');
 
       expect(blocked()).toBeDisabled();
+    });
+
+    // Presses save without waiting for it: the press itself resolves only when the save does.
+    const startSave = async () => {
+      let saving!: Promise<void>;
+      const button = screen.getByRole('button', { name: 'Guardar plan' });
+      await act(async () => {
+        saving = button.props.onClick({ stopPropagation: () => {}, nativeEvent: {} });
+      });
+      return { saving };
+    };
+
+    it('is enabled after changing a block and putting it back, whatever key order storage returns', async () => {
+      const ctx = setup();
+      const id = await createPlan(ctx, 'Resistencia', [everyField[0]]);
+      await screen.unmount();
+      const get = ctx.repository.get.bind(ctx.repository);
+      jest.spyOn(ctx.repository, 'get').mockImplementation(async (planId) => {
+        const plan = await get(planId);
+        return plan && { ...plan, blocks: plan.blocks.map((block) => Object.fromEntries(Object.entries(block).reverse()) as typeof block) };
+      });
+
+      await render(ctx.element(id));
+      await screen.findByLabelText('Nombre del plan');
+      await press('Editar');
+      await press('Sumar una repetición');
+      expect(blocked()).toBeDisabled();
+      await press('Quitar una repetición');
+
+      expect(enabled()).toBeEnabled();
+    });
+
+    it('ignores a save that ends after another plan was opened', async () => {
+      const ctx = setup();
+      const first = await createPlan(ctx, 'Primero', [everyField[0]]);
+      await screen.unmount();
+      await render(ctx.element(null));
+      await screen.findByLabelText('Nombre del plan');
+      await nameIt('Segundo');
+      await addBlock(everyField[1]);
+      await press('Guardar plan');
+      await screen.findByText('Plan guardado.');
+      const second = ctx.onSaved.mock.calls.at(-1)![0] as string;
+      await screen.unmount();
+
+      await render(ctx.element(first));
+      await screen.findByLabelText('Nombre del plan');
+      await nameIt('Primero editado');
+      let finish!: () => void;
+      const save = ctx.repository.save.bind(ctx.repository);
+      jest.spyOn(ctx.repository, 'save').mockImplementationOnce(
+        (plan) => new Promise<void>((resolve) => (finish = () => resolve(save(plan)))),
+      );
+      const { saving } = await startSave();
+
+      await screen.rerender(ctx.element(second));
+      await screen.findByDisplayValue('Segundo');
+      await act(async () => {
+        finish();
+        await saving;
+      });
+
+      expect(enabled()).toBeEnabled();
+      expect(screen.queryByText('Plan guardado.')).toBeNull();
+    });
+
+    it('does not touch the screen when a save ends after it was closed', async () => {
+      const ctx = setup();
+      await render(ctx.element(null));
+      await screen.findByLabelText('Nombre del plan');
+      await nameIt('Cerrado');
+      let finish!: () => void;
+      jest.spyOn(ctx.repository, 'save').mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)));
+      const { saving } = await startSave();
+      await screen.unmount();
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await act(async () => {
+        finish();
+        await saving;
+      });
+
+      expect(error).not.toHaveBeenCalled();
     });
   });
 

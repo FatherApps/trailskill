@@ -1,5 +1,5 @@
 import { randomUUID } from 'expo-crypto';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -51,6 +51,17 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
   const plan = useRef({ id: '', schoolId: '', isTemplate: false });
   // State updates land after the render: a ref blocks a second press made before the loading state shows.
   const busy = useRef(false);
+  // A save that ends after the screen closed must not touch it.
+  const mounted = useRef(true);
+  // The draft in the form it is compared with `stored`, rebuilt only when it changes.
+  const draft = useMemo(() => snapshot(name, blocks), [name, blocks]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     // The route swaps /plans/new for the saved id: the draft in memory is already that plan.
@@ -118,7 +129,8 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
   const nameMissing = name.trim() === '';
 
   // Saves the plan when the name and every block are valid; otherwise shows what is wrong and writes nothing.
-  async function persist(): Promise<boolean> {
+  // `live` tells whether the screen still shows the plan the save started for, once an await has ended.
+  async function persist(live: () => boolean): Promise<boolean> {
     setShowErrors(true);
     const invalid = blocks.find((block) => hasErrors(blockErrors(block, vocabulary)));
     if (nameMissing || invalid) {
@@ -129,12 +141,14 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
     const saved = snapshot(name, blocks);
     try {
       await repository.save({ ...plan.current, name: name.trim(), blocks: blocks.map(toPlanBlock) });
-      setStored(saved);
     } catch (error) {
       const key = error instanceof BlockHasFulfillmentError ? 'block_has_fulfillment' : 'save_failed';
-      setMessage({ kind: 'error', text: t(`training_plans.builder.${key}`) });
+      if (live()) setMessage({ kind: 'error', text: t(`training_plans.builder.${key}`) });
       return false;
     }
+    // The plan is saved, but the screen moved on: what it shows is no longer this plan.
+    if (!live()) return false;
+    setStored(saved);
     onSaved?.(plan.current.id);
     return true;
   }
@@ -144,18 +158,20 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
     busy.current = true;
     setSaving(kind);
     setMessage(undefined);
+    const started = plan.current;
+    const live = () => mounted.current && plan.current === started;
     try {
-      if (!(await persist())) return;
+      if (!(await persist(live))) return;
       if (kind === 'plan') return setMessage({ kind: 'success', text: t('training_plans.builder.saved') });
       try {
-        await repository.copy(plan.current.id, true);
-        setMessage({ kind: 'success', text: t('training_plans.builder.template_saved') });
+        await repository.copy(started.id, true);
+        if (live()) setMessage({ kind: 'success', text: t('training_plans.builder.template_saved') });
       } catch {
-        setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
+        if (live()) setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
       }
     } finally {
       busy.current = false;
-      setSaving(null);
+      if (mounted.current) setSaving(null);
     }
   }
 
@@ -198,7 +214,7 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
       onSave={() => run('plan')}
       onSaveTemplate={() => run('template')}
       onAssign={onAssign && (() => onAssign(plan.current.id))}
-      assignBlocked={stored !== snapshot(name, blocks)}
+      assignBlocked={stored !== draft}
     />
   );
 }

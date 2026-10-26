@@ -139,6 +139,24 @@ describe('training-plans gallery entries', () => {
     expect(screen.getByText('4 bloques')).toBeOnTheScreen();
   });
 
+  it.each([
+    ['blocks', 'Asignar · Guarda el plan para asignarlo'],
+    ['saved', 'Asignar'],
+  ])('shows the %s builder state with the assign button named %s', async (state, name) => {
+    await render(<ThemeProvider>{entry('planBuilder').states[state]()}</ThemeProvider>);
+
+    expect(screen.getByRole('button', { name })).toBeOnTheScreen();
+  });
+
+  it.each(['Guardar plan', 'Guardar como plantilla'])('unlocks assigning in the builder preview after %s', async (label) => {
+    await render(<ThemeProvider>{entry('planBuilder').states.blocks()}</ThemeProvider>);
+    expect(screen.getByRole('button', { name: 'Asignar · Guarda el plan para asignarlo' })).toBeDisabled();
+
+    await fireEvent.press(screen.getByRole('button', { name: label }));
+
+    expect(screen.getByRole('button', { name: 'Asignar' })).toBeEnabled();
+  });
+
   it('closes the editor in the builder preview', async () => {
     await render(<ThemeProvider>{entry('planBuilder').states.editing()}</ThemeProvider>);
 
