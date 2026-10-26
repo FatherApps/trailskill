@@ -139,6 +139,9 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
   const editing = blocks.find((block) => block.id === editingId);
   const nameMissing = name.trim() === '';
 
+  // Whether the screen shows the plan `id`, also when it was reopened during a save that started for it.
+  const showsPlan = (id: string) => mounted.current && shown.current === id;
+
   // Saves the plan when the name and every block are valid; otherwise shows what is wrong and writes nothing.
   // `live` tells whether the screen still shows the plan the save started for, once an await has ended.
   // 'left': the plan is saved but the screen moved on, so neither the screen nor `onSaved` hears about it.
@@ -161,8 +164,9 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
     }
     // The plan is saved, but the screen moved on, so it says nothing and `onSaved` is not called. If it shows this plan again
     // (reopened during the save), what is stored is still what this save wrote, and its draft was read before or edited since.
+    // shortcut: assumes this save was the last writer, so with another concurrent writer "Assign" could enable over something other than what is stored; upgrade when a plan can have two editors at once.
     if (!live()) {
-      if (mounted.current && shown.current === target.id) setStored(saved);
+      if (showsPlan(target.id)) setStored(saved);
       return 'left';
     }
     setStored(saved);
@@ -177,6 +181,7 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
     busy.current = { id: started.id, kind };
     setSaving(kind);
     setMessage(undefined);
+    // Not `showsPlan`: it counts loads, not the id, so a save that ends after the same plan was reopened still ends as 'left'.
     const live = () => mounted.current && moves.current === movesAtStart;
     try {
       const result = await persist(live);
@@ -187,17 +192,16 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
       }
       // A template asked for a saved plan is made even if the screen moved on. It says so only while the screen shows the plan
       // it was made from, also when that plan was reopened during the save; with another plan on screen it says nothing.
-      const shows = () => mounted.current && shown.current === started.id;
       try {
         await repository.copy(started.id, true);
-        if (shows()) setMessage({ kind: 'success', text: t('training_plans.builder.template_saved') });
+        if (showsPlan(started.id)) setMessage({ kind: 'success', text: t('training_plans.builder.template_saved') });
       } catch {
-        if (shows()) setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
+        if (showsPlan(started.id)) setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
       }
     } finally {
       if (busy.current?.id === started.id) busy.current = null;
       // Also when the plan was reopened during the save: its button was left busy for this save.
-      if (mounted.current && shown.current === started.id) setSaving(null);
+      if (showsPlan(started.id)) setSaving(null);
     }
   }
 
