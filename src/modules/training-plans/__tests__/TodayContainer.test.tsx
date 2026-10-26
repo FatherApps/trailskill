@@ -64,7 +64,8 @@ describe('TodayContainer', () => {
   it('shows the plan of the day of the athlete with its equipment, block status and times, and "—" for a missing time', async () => {
     await setup();
 
-    expect(await screen.findByText('Plan p1 · A1 S.')).toBeOnTheScreen();
+    expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · A1 S.' })).toBeOnTheScreen();
     expect(screen.getAllByLabelText('Aletas').filter((node) => node.props.accessibilityRole === 'text')).toHaveLength(1);
     expect(screen.getByLabelText('Sin marcar')).toBeOnTheScreen();
     expect(screen.getByLabelText('Parcial · 2 de 3')).toBeOnTheScreen();
@@ -78,13 +79,13 @@ describe('TodayContainer', () => {
   it('shows the short name only, never the last name', async () => {
     await setup();
 
-    await screen.findByText('Plan p1 · A1 S.');
+    await screen.findByText('Plan p1');
     expect(screen.queryByText(/Sintético/)).toBeNull();
   });
 
   it('shows the notice only when the plan changed after it was assigned', async () => {
     await setup();
-    await screen.findByText('Plan p1 · A1 S.');
+    await screen.findByText('Plan p1');
     expect(screen.queryByText('El entrenador cambió el plan de hoy.')).toBeNull();
   });
 
@@ -97,16 +98,17 @@ describe('TodayContainer', () => {
   it('lets a guardian with two athletes pick one and shows only the plan of that athlete', async () => {
     await setup({ ids: ['a1', 'a3'] });
 
-    expect(await screen.findByText('Plan p1 · A1 S.')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByText('A3 S.'));
-    expect(await screen.findByText('Plan del otro · A3 S.')).toBeOnTheScreen();
+    expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('radio', { name: 'A3 S.' }));
+    expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · A3 S.' })).toBeOnTheScreen();
     expect(screen.queryByText(/Plan p1/)).toBeNull();
   });
 
   it('starts with the athlete from the link', async () => {
     await setup({ ids: ['a1', 'a3'], initialAthleteId: 'a3' });
 
-    expect(await screen.findByText('Plan del otro · A3 S.')).toBeOnTheScreen();
+    expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
   });
 
   it('says there is no plan when the athlete has none today', async () => {
@@ -117,7 +119,7 @@ describe('TodayContainer', () => {
 
   it('saves a note with author, athlete, assignment, version and block, and lists it with its sync status', async () => {
     const { one, notices } = await setup();
-    await screen.findByText('Plan p1 · A1 S.');
+    await screen.findByText('Plan p1');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Avisar algo al entrenador' }));
     await fireEvent.press(screen.getByText('Bloque 2'));

@@ -78,6 +78,39 @@ describe('BlockCard', () => {
   });
 });
 
+describe('BlockCard row', () => {
+  it('draws the phase colour as a bar and the phase as text in a single caption line', async () => {
+    await render(<BlockCard variant="row" block={blocks[1]} vocabulary={vocabulary} />);
+
+    expect(screen.getByText('8 × 50 m Libre')).toBeOnTheScreen();
+    expect(screen.getByText('Principal · Salida cada 1:00 · Implementos: Paletas')).toBeOnTheScreen();
+    expect(screen.getByTestId('phase-bar')).toHaveStyle({ backgroundColor: colors.light[phaseColors.main.background] });
+  });
+
+  it('leaves out the send-off and the equipment of a block without them', async () => {
+    await render(<BlockCard variant="row" block={blocks[0]} vocabulary={vocabulary} />);
+
+    expect(screen.getByText('Calentamiento')).toBeOnTheScreen();
+  });
+
+  it('renders the trailing slot beside the text and the children below it', async () => {
+    await render(
+      <BlockCard variant="row" block={blocks[0]} vocabulary={vocabulary} trailing={<Text>Trailing</Text>}>
+        <Text>Footer</Text>
+      </BlockCard>,
+    );
+
+    expect(screen.getByText('Trailing')).toBeOnTheScreen();
+    expect(screen.getByText('Footer')).toBeOnTheScreen();
+  });
+
+  it('keeps the card layout by default, with no phase bar', async () => {
+    await render(<BlockCard block={blocks[1]} vocabulary={vocabulary} />);
+
+    expect(screen.queryByTestId('phase-bar')).toBeNull();
+  });
+});
+
 describe('phaseColors', () => {
   const themes: ThemeName[] = ['light', 'dark'];
 

@@ -82,7 +82,9 @@
   },
   "today": {
     "title": "Hoy",
-    "caption": "{{plan}} · {{name}}",
+    "caption": "Hoy · {{name}}",
+    "summary_one": "{{meters}} m · {{count}} bloque",
+    "summary_other": "{{meters}} m · {{count}} bloques",
     "empty_title": "Hoy no hay plan",
     "empty_message": "Cuando tu entrenador asigne un plan para hoy, aparecerá aquí.",
     "error_title": "No pudimos cargar el plan de hoy",

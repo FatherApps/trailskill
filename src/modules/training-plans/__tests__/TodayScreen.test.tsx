@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import { colors } from '../../../core/theme';
 import { iconPaths } from '../../../core/ui';
 import { TodayScreen, type TodayContent, type TodayView } from '../screens/TodayScreen';
 import { plansFixture } from '../__fixtures__/plans';
@@ -64,10 +65,89 @@ describe('TodayScreen states', () => {
   it('shows the plan, the athlete and the blocks with data', async () => {
     await render(setup({ kind: 'data', content }).ui);
 
-    expect(screen.getByRole('header', { name: 'Hoy' })).toBeOnTheScreen();
-    expect(screen.getByText('Resistencia aeróbica · Lucía R.')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · Lucía R.' })).toBeOnTheScreen();
+    expect(screen.getByText('Resistencia aeróbica')).toBeOnTheScreen();
     expect(screen.getByText('1 × 200 m Libre')).toBeOnTheScreen();
     expect(screen.queryByTestId('banner')).toBeNull();
+  });
+});
+
+describe('TodayScreen header', () => {
+  it('summarises the plan from its blocks: metres and number of blocks', async () => {
+    await render(setup({ kind: 'data', content }).ui);
+
+    // 200 + 8 × 50 + 4 × 25 + 6 × 25 + 100 metres in 5 blocks.
+    expect(screen.getByText('950 m · 5 bloques')).toBeOnTheScreen();
+  });
+
+  it('groups thousands with a dot and says "bloque" for one block', async () => {
+    const [, main] = content.blocks;
+    const one = { ...content, blocks: [{ ...main, block: { ...main.block, repetitions: 8, distance: 250 } }] };
+    await render(setup({ kind: 'data', content: one }).ui);
+
+    expect(screen.getByText('2.000 m · 1 bloque')).toBeOnTheScreen();
+  });
+
+  it('invents no schedule or group: the plan has none', async () => {
+    await render(setup({ kind: 'data', content }).ui);
+
+    expect(screen.queryByText(/Grupo/)).toBeNull();
+    expect(screen.queryByText(/p\. m\./)).toBeNull();
+  });
+});
+
+describe('TodayScreen athlete picker', () => {
+  const picker = (selectedAthleteId = 'a1', athletes = plansFixture.athletes) => {
+    const onSelectAthlete = jest.fn();
+    return {
+      onSelectAthlete,
+      ui: <TodayScreen athleteName="Lucía R." view={{ kind: 'data', content }} athletes={athletes} selectedAthleteId={selectedAthleteId} onSelectAthlete={onSelectAthlete} onSendNotice={jest.fn()} />,
+    };
+  };
+
+  it('shows one chip per athlete with the initials dot, the selected one checked', async () => {
+    await render(picker().ui);
+
+    expect(screen.getByLabelText('Deportista')).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Lucía R.' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Tomás R.' })).not.toBeChecked();
+    expect(screen.getByText('TR', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('changes the athlete when a chip is pressed', async () => {
+    const { onSelectAthlete, ui } = picker();
+    await render(ui);
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'Tomás R.' }));
+    expect(onSelectAthlete).toHaveBeenCalledWith('a2');
+  });
+
+  it('does not show the chips with a single athlete', async () => {
+    await render(picker('a1', plansFixture.athletes.slice(0, 1)).ui);
+
+    expect(screen.queryByLabelText('Deportista')).toBeNull();
+  });
+
+  it('colours the header with the selected athlete', async () => {
+    await render(picker('a2').ui);
+
+    expect(screen.getByText('Resistencia aeróbica').parent).toHaveStyle({ backgroundColor: colors.light['athlete-2'] });
+  });
+});
+
+describe('TodayScreen blocks card', () => {
+  it('lists every block as a row of one card, with the bar of its phase', async () => {
+    await render(setup({ kind: 'data', content }).ui);
+
+    expect(screen.getAllByTestId('phase-bar')).toHaveLength(5);
+    expect(screen.getAllByTestId('block-row')).toHaveLength(5);
+    expect(screen.getByText('Principal · Salida cada 1:00 · Implementos: Paletas')).toBeOnTheScreen();
+  });
+
+  it('keeps the report button after the equipment, with the same label', async () => {
+    await render(setup({ kind: 'data', content }).ui);
+
+    expect(screen.getByRole('button', { name: 'Avisar algo al entrenador' })).toBeOnTheScreen();
   });
 });
 
