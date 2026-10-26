@@ -161,6 +161,19 @@ describe('PlanBuilderScreen', () => {
 
       expect(onAssign).toHaveBeenCalledTimes(1);
     });
+
+    it.each([400, 1200])('keeps the button visible but disabled, with the reason, while assigning is blocked at %i dp', async (width) => {
+      const onAssign = jest.fn();
+      await render(setup({ width, onAssign, assignBlocked: true }).ui);
+
+      const button = screen.getByRole('button', { name: 'Asignar · Guarda el plan para asignarlo' });
+      expect(button).toBeOnTheScreen();
+      expect(button).toBeDisabled();
+      expect(button.props.accessibilityState).toMatchObject({ disabled: true });
+
+      await fireEvent.press(button);
+      expect(onAssign).not.toHaveBeenCalled();
+    });
   });
 
   it('has no template button when the caller offers none', async () => {

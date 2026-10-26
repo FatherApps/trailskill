@@ -64,6 +64,7 @@
     "remove_cancel": "Conservar bloque",
     "save": "Guardar plan",
     "assign": "Asignar",
+    "assign_blocked": "Guarda el plan para asignarlo",
     "editing_block": "Editando el bloque {{position}}",
     "pick_block": "Elige un bloque para editarlo",
     "saved": "Plan guardado.",

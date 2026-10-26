@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useSession } from '../../../core/session';
 import { createPowerSyncSchoolAthleteRepository } from '../../../modules/athletes';
@@ -17,6 +17,7 @@ const schools = createPowerSyncStaffSchoolRepository();
 
 export default function AssignPlanRoute() {
   const router = useRouter();
+  const { plan } = useLocalSearchParams<{ plan?: string }>();
   const { session } = useSession();
   if (!session) return null;
   return (
@@ -27,6 +28,7 @@ export default function AssignPlanRoute() {
       structure={structure}
       schools={schools}
       userId={session.user.id}
+      initialPlanId={plan}
       onOpenFulfillment={(id, day) => router.push({ pathname: '/plans/fulfillment', params: { assignment: id, day } })}
     />
   );

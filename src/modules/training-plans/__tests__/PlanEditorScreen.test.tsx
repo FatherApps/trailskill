@@ -291,15 +291,73 @@ describe('PlanEditorScreen', () => {
   });
 
   describe('assigning', () => {
-    it('hands over to the assign flow without saving or assigning anything itself', async () => {
+    const BLOCKED = 'Asignar · Guarda el plan para asignarlo';
+    const blocked = () => screen.getByRole('button', { name: BLOCKED });
+    const enabled = () => screen.getByRole('button', { name: 'Asignar' });
+
+    it('is disabled, and says why, for a new plan that was never saved', async () => {
       const ctx = setup();
       await render(ctx.element(null));
       await screen.findByLabelText('Nombre del plan');
 
+      expect(blocked()).toBeDisabled();
+      expect(blocked().props.accessibilityState).toMatchObject({ disabled: true });
+      await fireEvent.press(blocked());
+      expect(ctx.onAssign).not.toHaveBeenCalled();
+      expect(ctx.onSaved).not.toHaveBeenCalled();
+    });
+
+    it('is enabled once the plan is saved, and hands over its id without saving or assigning anything itself', async () => {
+      const ctx = setup();
+      const id = await createPlan(ctx, 'Resistencia', [everyField[0]]);
+      expect(ctx.onSaved).toHaveBeenCalledTimes(1);
+
       await press('Asignar');
 
+      expect(ctx.onAssign).toHaveBeenCalledWith(id);
       expect(ctx.onAssign).toHaveBeenCalledTimes(1);
-      expect(ctx.onSaved).not.toHaveBeenCalled();
+      expect(ctx.onSaved).toHaveBeenCalledTimes(1);
+    });
+
+    it('is enabled for a plan that was opened from storage and not touched', async () => {
+      const ctx = setup();
+      const id = await createPlan(ctx, 'Resistencia', [everyField[0]]);
+      await screen.unmount();
+
+      await render(ctx.element(id));
+      await screen.findByLabelText('Nombre del plan');
+
+      expect(enabled()).toBeEnabled();
+    });
+
+    it.each([
+      ['renaming it', () => nameIt('Otro nombre')],
+      ['adding a block', () => addBlock(everyField[1])],
+    ])('is disabled again after %s until the plan is saved', async (_, change) => {
+      const ctx = setup();
+      await createPlan(ctx, 'Resistencia', [everyField[0]]);
+      expect(enabled()).toBeEnabled();
+
+      await change();
+      expect(blocked()).toBeDisabled();
+      await fireEvent.press(blocked());
+      expect(ctx.onAssign).not.toHaveBeenCalled();
+
+      await press('Guardar plan');
+      await screen.findByText('Plan guardado.');
+      expect(enabled()).toBeEnabled();
+    });
+
+    it('stays disabled when a save fails', async () => {
+      const ctx = setup();
+      await createPlan(ctx, 'Resistencia', [everyField[0]]);
+      await nameIt('Otro nombre');
+      jest.spyOn(ctx.repository, 'save').mockRejectedValueOnce(new Error('offline'));
+
+      await press('Guardar plan');
+      await screen.findByText('No pudimos guardar el plan. Inténtalo de nuevo.');
+
+      expect(blocked()).toBeDisabled();
     });
   });
 

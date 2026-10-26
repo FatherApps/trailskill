@@ -39,6 +39,8 @@ export type PlanBuilderScreenProps = {
   scrollEnabled?: boolean;
   // Without a handler there is no assign button; the caller opens its assign flow, this screen never assigns.
   onAssign?: () => void;
+  // The plan has changes that are not saved: the assign button stays visible but disabled, and says why.
+  assignBlocked?: boolean;
   // The width in dp this screen can use; defaults to the window. From bp-expanded the list and the editing panel sit side by side.
   width?: number;
 };
@@ -68,6 +70,7 @@ export function PlanBuilderScreen({
   onSaveTemplate,
   scrollEnabled = true,
   onAssign,
+  assignBlocked = false,
   width,
 }: PlanBuilderScreenProps) {
   const { colors, space, radius, breakpoint, typography } = useTheme();
@@ -139,7 +142,14 @@ export function PlanBuilderScreen({
   const save = (
     <Button variant="primary" label={t('training_plans.builder.save')} loading={saving === 'plan'} onPress={onSave} />
   );
-  const assign = onAssign && <Button variant="secondary" label={t('training_plans.builder.assign')} onPress={onAssign} />;
+  const assign = onAssign && (
+    <Button
+      variant="secondary"
+      label={t('training_plans.builder.assign')}
+      disabledReason={assignBlocked ? t('training_plans.builder.assign_blocked') : undefined}
+      onPress={onAssign}
+    />
+  );
   const template = blocks.length > 0 && onSaveTemplate && (
     <Button
       variant="secondary"
