@@ -23,7 +23,6 @@ import type { AthleteFilterOption } from './components/AthleteFilterOptions';
 import type { AthleteFilterId } from './components/athleteTypes';
 import { ConsoleNav, type ConsoleDestinationId } from './components/ConsoleNav';
 import { personalBestLabel } from './components/eventLabel';
-import { Logo } from './components/Logo';
 import { createInMemoryCategoriesRepository } from './data/categories';
 import { SideSheet } from './components/SideSheet';
 import { ConsolePreview, filterValues, FullWidth, noop, toggleFilter } from './gallerySupport';
@@ -247,10 +246,6 @@ function TablePreview({ athletes, compact = false, initial = null }: { athletes:
 const entry = (id: string, title: string, states: Record<string, () => ReactElement>): GalleryEntry => ({ id, title, states });
 
 export const galleryEntries: GalleryEntry[] = [
-  entry('logo', 'Logo', {
-    default: () => <Logo />,
-    large: () => <Logo height={64} />,
-  }),
   entry('consoleNav', 'ConsoleNav', {
     side: () => <ConsoleNav variant="side" activeId="athletes" onSelect={noop} schoolName={schoolNameFixture} />,
     top: () => (

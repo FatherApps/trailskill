@@ -7,6 +7,9 @@
     "plans": "Planes de entrenamiento",
     "console": "Consola"
   },
+  "logo": {
+    "label": "TrailSkill"
+  },
   "auth": {
     "email_title": "Ingresa a TrailSkill",
     "email_label": "Correo electrónico",

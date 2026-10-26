@@ -1,8 +1,7 @@
 import Svg, { Circle, G, Path, Polyline, Rect } from 'react-native-svg';
 
-import { t } from '../../../core/i18n';
-import { useTheme, type ColorToken } from '../../../core/theme';
-import '../i18n';
+import { t } from '../i18n';
+import { useTheme, type ColorToken } from '../theme';
 
 // Shapes copied exactly from design/assets/logos/trailskill-lockup.svg and trailskill-lockup-reversed.svg (viewBox 0 0 219 64).
 const WORDMARK =
@@ -15,7 +14,43 @@ const LOGO_RATIO = 219 / 64;
 export type LogoProps = {
   // Rendered height in dp; the width follows the lockup's proportions.
   height?: number;
+  // Hidden from screen readers when a title or name next to it already says "TrailSkill".
+  decorative?: boolean;
 };
+
+export type LogoSymbolProps = {
+  // Rendered width and height in dp; the symbol is square.
+  size?: number;
+  decorative?: boolean;
+};
+
+// Screen-reader props: one "TrailSkill" image, or nothing when the logo only decorates.
+const a11y = (decorative: boolean | undefined, label: string) =>
+  decorative
+    ? ({ accessible: false, importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const)
+    : ({ accessible: true, accessibilityRole: 'image', accessibilityLabel: label } as const);
+
+// The symbol on its own is the badge and its mark: shapes copied exactly from design/assets/logos/trailskill-symbol.svg and trailskill-symbol-reversed.svg (viewBox 0 0 64 64).
+function Mark({ palette }: { palette: (typeof logoColors)['light'] }) {
+  const { colors } = useTheme();
+
+  return (
+    <G>
+      {/* The lockup draws the badge with a gradient whose two stops are the same color: a flat fill. */}
+      {palette.badge && <Rect width={64} height={64} rx={16} fill={colors[palette.badge]} />}
+      <Polyline
+        points="17.02695526217005,43.72304473782995 24.35,36.4 33.35,42.9 43.69,27.39"
+        fill="none"
+        stroke={colors[palette.symbol]}
+        strokeWidth={6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle cx={13.35} cy={47.4} r={4} fill="none" stroke={colors[palette.symbol]} strokeWidth={2.8} />
+      <Circle cx={49.35} cy={18.9} r={7} fill={colors[palette.accent]} />
+    </G>
+  );
+}
 
 // Colors per theme: the light lockup has a dark badge, the reversed one (dark theme) has none and a white wordmark.
 // Every color of the lockup is a token: its dark ink is primary/ink, its white is on-primary/on-header, its coral is coral.
@@ -24,35 +59,25 @@ export const logoColors: Record<'light' | 'dark', { badge: ColorToken | null; sy
   dark: { badge: null, symbol: 'on-header', wordmark: 'on-header', accent: 'coral' },
 };
 
-export function Logo({ height = 32 }: LogoProps) {
+export function Logo({ height = 32, decorative }: LogoProps) {
   const { colors, name } = useTheme();
   const palette = logoColors[name];
 
   return (
-    <Svg
-      width={height * LOGO_RATIO}
-      height={height}
-      viewBox="0 0 219 64"
-      accessible
-      accessibilityRole="image"
-      accessibilityLabel={t('schoolConsole.logo.label')}
-    >
-      <G>
-        {/* The lockup draws the badge with a gradient whose two stops are the same color: a flat fill. */}
-        {palette.badge && <Rect width={64} height={64} rx={16} fill={colors[palette.badge]} />}
-        <Polyline
-          points="17.02695526217005,43.72304473782995 24.35,36.4 33.35,42.9 43.69,27.39"
-          fill="none"
-          stroke={colors[palette.symbol]}
-          strokeWidth={6}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Circle cx={13.35} cy={47.4} r={4} fill="none" stroke={colors[palette.symbol]} strokeWidth={2.8} />
-        <Circle cx={49.35} cy={18.9} r={7} fill={colors[palette.accent]} />
-      </G>
+    <Svg width={height * LOGO_RATIO} height={height} viewBox="0 0 219 64" {...a11y(decorative, t('logo.label'))}>
+      <Mark palette={palette} />
       <Path d={WORDMARK} fill={colors[palette.wordmark]} />
       <Path d={DOT} fill={colors[palette.accent]} />
+    </Svg>
+  );
+}
+
+export function LogoSymbol({ size = 44, decorative }: LogoSymbolProps) {
+  const { name } = useTheme();
+
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64" {...a11y(decorative, t('logo.label'))}>
+      <Mark palette={logoColors[name]} />
     </Svg>
   );
 }

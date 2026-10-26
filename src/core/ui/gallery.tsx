@@ -20,6 +20,7 @@ import { Button } from './Button';
 import { ConfirmSheet } from './ConfirmSheet';
 import { Icon } from './Icon';
 import { iconPaths, type IconName } from './icons';
+import { Logo, LogoSymbol } from './Logo';
 import { NavBar, type NavBarItem } from './NavBar';
 import { Segmented, type SegmentedOption } from './Segmented';
 import { StateView } from './StateView';
@@ -204,6 +205,18 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       'icon-md': () => <IconSet size="icon-md" />,
       'icon-sm': () => <IconSet size="icon-sm" />,
+    },
+  },
+  {
+    id: 'logo',
+    title: 'Logo',
+    // Sizes the mockups use: the lockup at 30 dp (side navigation) and 38 dp (web registration), the symbol at 44, 40 and 26 dp.
+    states: {
+      'lockup-30': () => <Logo height={30} />,
+      'lockup-64': () => <Logo height={64} />,
+      'symbol-44': () => <LogoSymbol size={44} />,
+      'symbol-40': () => <LogoSymbol size={40} />,
+      'symbol-26-decorative': () => <LogoSymbol size={26} decorative />,
     },
   },
   {
