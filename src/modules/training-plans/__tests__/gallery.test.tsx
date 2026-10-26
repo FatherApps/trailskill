@@ -157,6 +157,27 @@ describe('training-plans gallery entries', () => {
     expect(screen.getByRole('button', { name: 'Asignar' })).toBeEnabled();
   });
 
+  it('locks assigning again in the builder preview once the saved plan is edited, and unlocks it when the edit is undone', async () => {
+    await render(<ThemeProvider>{entry('planBuilder').states.saved()}</ThemeProvider>);
+    expect(screen.getByRole('button', { name: 'Asignar' })).toBeEnabled();
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre del plan'), 'Otro nombre');
+    expect(screen.getByRole('button', { name: 'Asignar · Guarda el plan para asignarlo' })).toBeDisabled();
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre del plan'), 'Resistencia aeróbica');
+    expect(screen.getByRole('button', { name: 'Asignar' })).toBeEnabled();
+  });
+
+  it('locks assigning again in the builder preview when a block is added after saving', async () => {
+    await render(<ThemeProvider>{entry('planBuilder').states.blocks()}</ThemeProvider>);
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar plan' }));
+    expect(screen.getByRole('button', { name: 'Asignar' })).toBeEnabled();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar bloque' }));
+
+    expect(screen.getByRole('button', { name: 'Asignar · Guarda el plan para asignarlo' })).toBeDisabled();
+  });
+
   it('closes the editor in the builder preview', async () => {
     await render(<ThemeProvider>{entry('planBuilder').states.editing()}</ThemeProvider>);
 

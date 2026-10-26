@@ -7,7 +7,7 @@ import type { GalleryEntry } from '../../core/ui';
 import { BlockCard } from './components/BlockCard';
 import { cellKey, type FulfillmentCell, type FulfillmentContent } from './components/fulfillment';
 import { fulfillmentFixture } from './__fixtures__/fulfillment';
-import { blockErrors, newDraftBlock, type BlockErrors, type DraftBlock } from './draft';
+import { blockErrors, newDraftBlock, snapshot, type BlockErrors, type DraftBlock } from './draft';
 import { plansFixture } from './__fixtures__/plans';
 import { FulfillmentScreen, type FulfillmentView } from './screens/FulfillmentScreen';
 import { AssignPlanScreen, type AssignPlanView } from './screens/AssignPlanScreen';
@@ -37,7 +37,7 @@ type BuilderPreviewProps = {
   // Shows the field errors as after a failed save.
   showErrors?: boolean;
   savedMessage?: boolean;
-  // Whether assigning starts locked, as for a plan with unsaved changes; the saved state turns it off.
+  // Whether assigning starts locked, as for a plan with unsaved changes; the saved state starts with the draft already stored.
   initialAssignBlocked?: boolean;
   // Forces the layout width in dp; the expanded states pass bp-expanded so they show the two zones whatever the window.
   width?: number;
@@ -58,8 +58,9 @@ function BuilderPreview({
   const [name, setName] = useState(initialName);
   const [editingId, setEditingId] = useState(initialEditingId);
   const [message, setMessage] = useState(savedMessage ? t('training_plans.builder.saved') : undefined);
-  // Like the editor: assigning waits until the plan is saved, and saving the plan or a template unlocks it.
-  const [assignBlocked, setAssignBlocked] = useState(initialAssignBlocked);
+  // Like the editor: assigning waits until the plan is saved, and saving the plan or a template unlocks it until it is edited again.
+  const draft = snapshot(name, current);
+  const [stored, setStored] = useState<string | null>(initialAssignBlocked ? null : draft);
 
   const add = () => {
     const block = newDraftBlock(`new-${current.length + 1}`, vocabulary);
@@ -91,7 +92,7 @@ function BuilderPreview({
         defaultRemovingId={initialRemovingId}
         width={width}
         onAssign={noop}
-        assignBlocked={assignBlocked}
+        assignBlocked={stored !== draft}
         onChangeName={setName}
         onAddBlock={add}
         onEditBlock={setEditingId}
@@ -104,11 +105,11 @@ function BuilderPreview({
         }}
         onSave={() => {
           setMessage(t('training_plans.builder.saved'));
-          setAssignBlocked(false);
+          setStored(draft);
         }}
         onSaveTemplate={() => {
           setMessage(t('training_plans.builder.template_saved'));
-          setAssignBlocked(false);
+          setStored(draft);
         }}
       />
     </ScreenFrame>

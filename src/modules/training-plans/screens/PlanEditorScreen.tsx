@@ -7,7 +7,7 @@ import { useTheme } from '../../../core/theme';
 import { StateView } from '../../../core/ui';
 import type { StaffSchoolRepository } from '../../school-console';
 import { BlockHasFulfillmentError, type TrainingPlanRepository } from '../data/plans';
-import { blockErrors, hasErrors, newDraftBlock, toPlanBlock, type DraftBlock } from '../draft';
+import { blockErrors, hasErrors, newDraftBlock, snapshot, toPlanBlock, type DraftBlock } from '../draft';
 import '../i18n';
 import type { PlanVocabulary } from '../types';
 import { PlanBuilderScreen, type PlanBuilderScreenProps } from './PlanBuilderScreen';
@@ -31,9 +31,6 @@ type Load =
   | { kind: 'no_school' }
   | { kind: 'ready' };
 
-// The draft as it is compared with what is stored; the name is trimmed because that is how it is saved.
-const snapshot = (name: string, blocks: DraftBlock[]) => JSON.stringify({ name: name.trim(), blocks });
-
 // Container: loads the plan from the local repository, holds the draft, validates and saves.
 export function PlanEditorScreen({ planId, repository, schools, userId, vocabulary, onSaved, onAssign }: PlanEditorScreenProps) {
   const { colors, space } = useTheme();
@@ -49,8 +46,9 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
   const [stored, setStored] = useState<string | null>(null);
   // The plan being edited; a new plan gets its id and school on load, and keeps them after its first save.
   const plan = useRef({ id: '', schoolId: '', isTemplate: false });
-  // State updates land after the render: a ref blocks a second press made before the loading state shows.
-  const busy = useRef(false);
+  // The plan whose save is running. State updates land after the render, so a ref blocks a second press made before the
+  // loading state shows; keeping the plan, not a flag, means a plan opened during a save does not inherit it.
+  const busy = useRef<object | null>(null);
   // A save that ends after the screen closed must not touch it.
   const mounted = useRef(true);
   // The draft in the form it is compared with `stored`, rebuilt only when it changes.
@@ -91,6 +89,7 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
         setEditingId(null);
         setShowErrors(false);
         setMessage(undefined);
+        setSaving(null);
         setLoad({ kind: 'ready' });
       } catch {
         if (!cancelled) setLoad({ kind: 'error' });
@@ -130,39 +129,45 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
 
   // Saves the plan when the name and every block are valid; otherwise shows what is wrong and writes nothing.
   // `live` tells whether the screen still shows the plan the save started for, once an await has ended.
-  async function persist(live: () => boolean): Promise<boolean> {
+  // 'left': the plan is saved but the screen moved on, so neither the screen nor `onSaved` hears about it.
+  async function persist(live: () => boolean): Promise<'saved' | 'left' | 'failed'> {
     setShowErrors(true);
     const invalid = blocks.find((block) => hasErrors(blockErrors(block, vocabulary)));
     if (nameMissing || invalid) {
       if (invalid) setEditingId(invalid.id);
       setMessage({ kind: 'error', text: t('training_plans.builder.fix_errors') });
-      return false;
+      return 'failed';
     }
-    const saved = snapshot(name, blocks);
+    const saved = draft;
     try {
       await repository.save({ ...plan.current, name: name.trim(), blocks: blocks.map(toPlanBlock) });
     } catch (error) {
       const key = error instanceof BlockHasFulfillmentError ? 'block_has_fulfillment' : 'save_failed';
       if (live()) setMessage({ kind: 'error', text: t(`training_plans.builder.${key}`) });
-      return false;
+      return 'failed';
     }
     // The plan is saved, but the screen moved on: what it shows is no longer this plan.
-    if (!live()) return false;
+    if (!live()) return 'left';
     setStored(saved);
     onSaved?.(plan.current.id);
-    return true;
+    return 'saved';
   }
 
   async function run(kind: 'plan' | 'template') {
-    if (busy.current) return;
-    busy.current = true;
+    const started = plan.current;
+    if (busy.current === started) return;
+    busy.current = started;
     setSaving(kind);
     setMessage(undefined);
-    const started = plan.current;
     const live = () => mounted.current && plan.current === started;
     try {
-      if (!(await persist(live))) return;
-      if (kind === 'plan') return setMessage({ kind: 'success', text: t('training_plans.builder.saved') });
+      const result = await persist(live);
+      if (result === 'failed') return;
+      if (kind === 'plan') {
+        if (result === 'saved') setMessage({ kind: 'success', text: t('training_plans.builder.saved') });
+        return;
+      }
+      // A template asked for a saved plan is made even if the screen moved on; it says nothing then, there is no screen for it.
       try {
         await repository.copy(started.id, true);
         if (live()) setMessage({ kind: 'success', text: t('training_plans.builder.template_saved') });
@@ -170,8 +175,8 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
         if (live()) setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
       }
     } finally {
-      busy.current = false;
-      if (mounted.current) setSaving(null);
+      if (busy.current === started) busy.current = null;
+      if (live()) setSaving(null);
     }
   }
 
