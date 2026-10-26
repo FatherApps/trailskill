@@ -144,6 +144,38 @@
       "assign_note": "Toca un puesto para cambiar su nombre. Un tiempo sin nombre queda guardado como \"por asignar\"; nunca se borra solo.",
       "in_water_title": "En el agua en esta serie",
       "personal_best_tag": "MP"
+    },
+    "review": {
+      "title": "Revisar conflictos",
+      "subtitle_one": "{{count}} conflicto abierto",
+      "subtitle_other": "{{count}} conflictos abiertos",
+      "pool": "piscina {{meters}} m",
+      "empty_title": "No hay conflictos abiertos",
+      "empty_message": "Cuando dos teléfonos guarden tiempos distintos para la misma medición, aparecerán aquí.",
+      "error_title": "No pudimos cargar los conflictos",
+      "error_message": "Revisa tu conexión e inténtalo de nuevo.",
+      "retry": "Reintentar",
+      "current": "Versión guardada",
+      "incoming": "Versión recibida",
+      "unknown_author": "Autor desconocido",
+      "unknown_device": "Dispositivo desconocido",
+      "decision_label": "Qué tiempo queda",
+      "keep_current": "Dejar la guardada",
+      "use_incoming": "Usar la recibida",
+      "enter_value": "Escribir otro tiempo",
+      "value_label": "Tiempo correcto",
+      "value_help": "Déjalo vacío si no hay tiempo.",
+      "value_error": "Escribe el tiempo como 35,20 o 1:05,30.",
+      "reason_label": "Motivo",
+      "reason_help": "Queda registrado junto con tu decisión. Las dos versiones se conservan.",
+      "reason_error": "Escribe el motivo para resolver.",
+      "resolve": "Resolver conflicto",
+      "resolving": "Resolviendo…",
+      "offline": "Resolver un conflicto requiere señal. Lo que escribiste se queda aquí.",
+      "failure_stale": "La medición cambió mientras la revisabas. Recarga y vuelve a revisarla.",
+      "failure_resolved": "Otra persona ya resolvió este conflicto. Recarga la lista.",
+      "failure_forbidden": "Tu cuenta no puede resolver conflictos.",
+      "failure_failed": "No pudimos resolver el conflicto. Inténtalo de nuevo."
     }
   }
 }

@@ -21,6 +21,7 @@ describe('timing gallery entries', () => {
       'seriesTiming',
       'seriesAssignment',
       'completed',
+      'reviewConflicts',
     ]);
     expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-empty']);
     expect(Object.keys(entry('timingSummary').states)).toEqual([
@@ -61,6 +62,16 @@ describe('timing gallery entries', () => {
       'offline',
     ]);
     expect(Object.keys(entry('completed').states)).toEqual(['completed', 'completed-empty']);
+    expect(Object.keys(entry('reviewConflicts').states)).toEqual([
+      'list',
+      'detail',
+      'detail-unknown-author',
+      'detail-offline',
+      'detail-stale',
+      'empty',
+      'loading',
+      'error',
+    ]);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
