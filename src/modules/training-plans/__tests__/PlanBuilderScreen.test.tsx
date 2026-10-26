@@ -5,6 +5,7 @@ import { colors, contrastRatio, type ColorToken, type ThemeName } from '../../..
 import { PlanBuilderScreen, type PlanBuilderScreenProps } from '../screens/PlanBuilderScreen';
 import { plansFixture } from '../__fixtures__/plans';
 import { phaseColors } from '../components/PhaseTag';
+import { formatNumber } from '../components/formatNumber';
 import type { BlockPhase } from '../types';
 
 const { blocks, vocabulary } = plansFixture;
@@ -106,24 +107,25 @@ describe('PlanBuilderScreen', () => {
       expect(screen.getAllByLabelText('Fase')).toHaveLength(1);
     });
 
+    // plansFixture metres: 1 × 200 + 8 × 50 + 4 × 25 + 6 × 25 + 1 × 100 = 950 (block b2 is 8 × 50).
     it('summarises the plan with its metres and block count in the header', async () => {
       await render(setup(wide).ui);
 
       expect(screen.getByText('950 m · 5 bloques')).toBeOnTheScreen();
     });
 
-    // A block changed in place under the same array shows the memo: only a new array (what the caller must pass) updates the total.
-    it('keeps the summary while the blocks array is the same and updates it with a new array', async () => {
+    it('follows the content of blocks, also when a block is changed in place under the same array', async () => {
       const list = blocks.map((block) => ({ ...block }));
+      const b2 = list.find((block) => block.id === 'b2');
+      if (!b2) throw new Error('plansFixture lost block b2');
+      const total = (metres: number) => `${formatNumber(metres)} m · 5 bloques`;
+      const before = list.reduce((sum, block) => sum + block.repetitions * block.distance, 0);
       const { rerender } = await render(setup({ ...wide, blocks: list }).ui);
-      expect(screen.getByText('950 m · 5 bloques')).toBeOnTheScreen();
+      expect(screen.getByText(total(before))).toBeOnTheScreen();
 
-      list[1].repetitions += 1;
+      b2.repetitions += 1;
       await rerender(setup({ ...wide, blocks: list, planName: 'Otro nombre' }).ui);
-      expect(screen.getByText('950 m · 5 bloques')).toBeOnTheScreen();
-
-      await rerender(setup({ ...wide, blocks: [...list], planName: 'Otro nombre' }).ui);
-      expect(screen.getByText('1.000 m · 5 bloques')).toBeOnTheScreen();
+      expect(screen.getByText(total(before + b2.distance))).toBeOnTheScreen();
     });
 
     it('asks to pick a block while none is being edited', async () => {
