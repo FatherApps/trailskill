@@ -26,6 +26,8 @@ export type TodayContainerProps = {
   initialAthleteId?: string;
   // Today as YYYY-MM-DD; the device's today when omitted.
   day?: string;
+  // Opens "Mis deportistas", offered when the user manages no athlete yet.
+  onOpenAthletes?: () => void;
   renderNoticeStatus?: (noticeId: string) => ReactNode;
 };
 
@@ -129,9 +131,11 @@ export function TodayContainer(props: TodayContainerProps) {
   }
 
   const view: TodayView =
-    !selected || loaded === null
-      ? { kind: 'empty' }
-      : loaded === 'loading'
+    athletes.length === 0
+      ? { kind: 'no-athletes', onOpenAthletes: props.onOpenAthletes }
+      : !selected || loaded === null
+        ? { kind: 'empty' }
+        : loaded === 'loading'
         ? { kind: 'loading' }
         : loaded === 'error'
           ? { kind: 'error', onRetry: () => reload() }

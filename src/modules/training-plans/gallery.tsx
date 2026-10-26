@@ -268,6 +268,7 @@ export const galleryEntries: GalleryEntry[] = [
       'several-athletes': () => <TodayPreview withPicker view={{ kind: 'data', content: today }} />,
       loading: () => <TodayPreview view={{ kind: 'loading' }} />,
       empty: () => <TodayPreview view={{ kind: 'empty' }} />,
+      'no-athletes': () => <TodayPreview view={{ kind: 'no-athletes', onOpenAthletes: noop }} />,
       error: () => <TodayPreview view={{ kind: 'error', onRetry: noop }} />,
       offline: () => <TodayPreview view={{ kind: 'offline', storedOnLabel, content: today }} />,
       'offline-empty': () => <TodayPreview view={{ kind: 'offline-empty' }} />,

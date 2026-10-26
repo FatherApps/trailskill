@@ -43,6 +43,8 @@ export type TodayView =
   | { kind: 'loading' }
   // No plan today.
   | { kind: 'empty' }
+  // The user manages no athlete yet; `onOpenAthletes` leads to where one is added or linked.
+  | { kind: 'no-athletes'; onOpenAthletes?: () => void }
   | { kind: 'error'; onRetry: () => void }
   // Stored data under a dated banner; `storedOnLabel` is the date already formatted by the caller (for example "25 oct").
   | { kind: 'offline'; storedOnLabel: string; content: TodayContent }
@@ -294,6 +296,15 @@ export function TodayScreen({ athleteName, view, athletes, selectedAthleteId, on
           icon="schedule"
           title={t('training_plans.today.empty_title')}
           message={t('training_plans.today.empty_message')}
+        />
+      )}
+      {view.kind === 'no-athletes' && (
+        <StateView
+          kind="empty"
+          icon="group"
+          title={t('training_plans.today.no_athletes_title')}
+          message={t('training_plans.today.no_athletes_message')}
+          action={view.onOpenAthletes && { label: t('training_plans.today.no_athletes_action'), onPress: view.onOpenAthletes }}
         />
       )}
       {view.kind === 'error' && (
