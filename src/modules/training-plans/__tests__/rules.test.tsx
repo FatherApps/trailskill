@@ -87,7 +87,7 @@ describe('src/modules/training-plans rules', () => {
           onUseTemplate={noop}
           onOpenPlan={noop}
         />
-        <TodayScreen athleteName="Lucía R." view={{ kind: 'data', content: today }} onReportToCoach={noop} />
+        <TodayScreen athleteName="Lucía R." view={{ kind: 'data', content: today }} onSendNotice={noop} />
         <FulfillmentScreen
           planName="Resistencia aeróbica"
           dateLabel="24 oct"

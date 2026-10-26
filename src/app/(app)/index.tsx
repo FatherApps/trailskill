@@ -87,6 +87,7 @@ export default function Home() {
             />
           );
         })}
+      {managed.status === 'ready' && managed.athletes.length > 0 && <Button label={t('training_plans.today.title')} onPress={() => router.push('/today')} />}
       {managed.status === 'ready' && managed.athletes.length > 0 && (
         <Button variant="secondary" label={t('accounts.authorizations.title')} onPress={() => router.push('/authorizations')} />
       )}
