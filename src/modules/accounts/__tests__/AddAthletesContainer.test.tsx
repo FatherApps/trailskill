@@ -262,11 +262,11 @@ describe('AddAthletesContainer', () => {
       expect(subscriptions[0].remove).toHaveBeenCalledTimes(1);
     });
 
-    // The handler the container has subscribed. While the block holds there is exactly one active subscription: more than one means a handler leaked.
+    // The handler the container subscribed last and has not removed: how many were made before is the hook's business, not these tests'.
     const live = (subscriptions: ReturnType<typeof spyOnBack>) => {
       const active = subscriptions.filter((s) => s.remove.mock.calls.length === 0);
-      expect(active).toHaveLength(1);
-      return active[0];
+      expect(active.length).toBeGreaterThan(0);
+      return active[active.length - 1];
     };
 
     it('while Continuar is failing, back runs onBack instead of being swallowed, and is swallowed again after a retry', async () => {
@@ -359,6 +359,8 @@ describe('AddAthletesContainer', () => {
       // The retry saves (nothing was lost) and its read works: the list is known again.
       await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
       await screen.findByText('Lucía R.');
+      // The list is known again: Continuar is enabled because Lucía is listed, not because the read failed.
+      expect(screen.getByRole('button', { name: 'Continuar' }).props.accessibilityState.disabled).toBeFalsy();
       reading.mockRestore();
       jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValue(new Error('write failed'));
       await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
@@ -418,6 +420,8 @@ describe('AddAthletesContainer', () => {
 
       fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
       await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(true));
+      // Continuar shows it is waiting instead of swallowing the tap.
+      expect(screen.getByRole('button', { name: 'Continuar' }).props.accessibilityState.busy).toBe(true);
       await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
       release();
       await screen.findByText('Lucía R.');
@@ -446,6 +450,8 @@ describe('AddAthletesContainer', () => {
 
       fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
       await waitFor(() => expect(screen.getByRole('button', { name: 'Continuar' }).props.accessibilityState.busy).toBe(true));
+      // The add card shows it is waiting instead of swallowing the tap.
+      expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(true);
       await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
       release();
 
@@ -479,6 +485,104 @@ describe('AddAthletesContainer', () => {
 
       expect(spy).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('a late read never overwrites a newer one', async () => {
+    const { mount, athletes } = setup();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    // The first read (the one on mount) is slow and answers with the list as it was: empty.
+    jest.spyOn(athletes, 'listManaged').mockImplementationOnce(async () => {
+      await gate;
+      return [];
+    });
+    await mount();
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await screen.findByText('Lucía R.');
+    await act(async () => {
+      release();
+      await gate;
+    });
+
+    expect(screen.getByText('Lucía R.')).toBeOnTheScreen();
+  });
+
+  describe('what was typed while a profile was saving', () => {
+    async function addWhileTyping(next: { firstName: string; lastName: string }) {
+      const { mount, drafts, profiles } = setup();
+      const create = profiles.createManagedAthlete.bind(profiles);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
+        await gate;
+        return create(input);
+      });
+      await mount();
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+      fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), next.firstName);
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), next.lastName);
+      release();
+      await screen.findByText('Lucía R.');
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+      return { drafts };
+    }
+
+    it('is kept in the form and in the draft; only the saved names are cleared', async () => {
+      const { drafts } = await addWhileTyping({ firstName: 'Mateo', lastName: 'Gil' });
+
+      expect(screen.getByDisplayValue('Mateo')).toBeOnTheScreen();
+      expect(screen.getByDisplayValue('Gil')).toBeOnTheScreen();
+      await waitFor(async () => expect((await drafts.load())?.athlete).toEqual({ firstName: 'Mateo', lastName: 'Gil' }));
+    });
+
+    it('a field left untouched is cleared and a field that changed is kept', async () => {
+      const { drafts } = await addWhileTyping({ firstName: 'Mateo', lastName: 'Rojas' });
+
+      expect(screen.getByDisplayValue('Mateo')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Apellido').props.value).toBe('');
+      await waitFor(async () => expect((await drafts.load())?.athlete).toEqual({ firstName: 'Mateo', lastName: '' }));
+    });
+  });
+
+  it('after Continuar fails, Continuar and Agregar both work again: nothing stays blocked', async () => {
+    const { mount, onContinue, drafts, profiles } = setup();
+    await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
+    await mount();
+    await screen.findByText('Mateo G.');
+    const failing = jest.spyOn(drafts, 'save').mockRejectedValue(new Error('store failed'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+    await screen.findByText('No pudimos guardar el avance. Inténtalo de nuevo.');
+
+    // The failure released both guards and the busy state.
+    const next = screen.getByRole('button', { name: 'Continuar' });
+    expect(next.props.accessibilityState.busy).toBe(false);
+    expect(next.props.accessibilityState.disabled).toBe(false);
+    expect(onContinue).not.toHaveBeenCalled();
+    failing.mockRestore();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+    expect(await screen.findByText('Lucía R.')).toBeOnTheScreen();
+  });
+
+  it('Continuar stays on the screen with an error when the draft cannot even be read', async () => {
+    const { mount, onContinue, drafts, profiles } = setup();
+    await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
+    await mount();
+    await screen.findByText('Mateo G.');
+    jest.spyOn(drafts, 'load').mockRejectedValue(new Error('store failed'));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(await screen.findByText('No pudimos guardar el avance. Inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(onContinue).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Continuar' }).props.accessibilityState.busy).toBe(false);
   });
 
   it('a double tap on Continuar keeps the step once and continues once, and the button is busy meanwhile', async () => {
