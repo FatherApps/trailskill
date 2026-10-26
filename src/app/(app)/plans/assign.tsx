@@ -17,7 +17,7 @@ const schools = createPowerSyncStaffSchoolRepository();
 
 export default function AssignPlanRoute() {
   const router = useRouter();
-  const { plan } = useLocalSearchParams<{ plan?: string }>();
+  const { plan } = useLocalSearchParams<{ plan?: string | string[] }>();
   const { session } = useSession();
   if (!session) return null;
   return (
