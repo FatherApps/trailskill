@@ -1,11 +1,10 @@
-import { useEffect } from 'react';
-import { BackHandler, View } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
-import { ConfirmSheet, SyncStatus } from '../../../core/ui';
+import { ConfirmSheet, SyncStatus, useHardwareBack } from '../../../core/ui';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { Stopwatch, type StopwatchProps } from '../components/Stopwatch';
 import { TimingHeader } from '../components/TimingHeader';
@@ -55,14 +54,7 @@ export function StopwatchScreen({
 
   useAwakeWhile(running);
 
-  useEffect(() => {
-    if (!running) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onBack();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [running, onBack]);
+  useHardwareBack(running ? onBack : undefined);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>

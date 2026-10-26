@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { BackHandler } from 'react-native';
 
+import { useHardwareBack } from '../../../core/ui';
 import { athleteDisplay, type AthleteRepository } from '../../athletes';
 import type { InvitationRepository } from '../data/invitations';
 import { queueInvitation, type PendingInvitationRepository } from '../data/pendingInvitations';
@@ -26,6 +26,8 @@ export type AddAthletesContainerProps = {
 };
 
 const empty = { firstName: '', lastName: '' };
+// Stable, so the back subscription is made once while the block holds.
+const swallowBack = () => {};
 
 export function AddAthletesContainer({
   userId,
@@ -57,11 +59,7 @@ export function AddAthletesContainer({
 
   // The route asked for it because "Continuar" is the only way out of this step. When saving the step fails there is no other way out, so back works again.
   const blockBack = blockSystemBack && failed !== 'continue';
-  useEffect(() => {
-    if (!blockBack) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
-    return () => subscription.remove();
-  }, [blockBack]);
+  useHardwareBack(blockBack ? swallowBack : undefined);
 
   useEffect(() => {
     // A failed read shows an empty form and nobody added: the person can still add.

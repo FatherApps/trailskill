@@ -1,8 +1,9 @@
-import { useEffect, type ReactNode } from 'react';
-import { BackHandler, ScrollView, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { ScrollView, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type Theme } from '../../../core/theme';
+import { useHardwareBack } from '../../../core/ui';
 import '../i18n';
 import { ConsoleNav, type ConsoleDestinationId } from './ConsoleNav';
 import { IconButton } from './IconButton';
@@ -70,15 +71,7 @@ export function ConsoleLayout({
   );
 
   // The compact detail is a whole screen, so the Android back button closes it like Volver.
-  const closeCompactDetail = layout === 'compact' ? detail?.onClose : undefined;
-  useEffect(() => {
-    if (!closeCompactDetail) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      closeCompactDetail();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [closeCompactDetail]);
+  useHardwareBack(layout === 'compact' ? detail?.onClose : undefined);
 
   const root = { flexGrow: 1, alignSelf: 'stretch', backgroundColor: colors['surface-0'] } as const;
   // A detail taller than the screen scrolls on its own; in the gallery the page scrolls instead.
