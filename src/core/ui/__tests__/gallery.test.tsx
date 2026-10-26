@@ -26,6 +26,7 @@ describe('core/ui gallery entries', () => {
     expect(stateKeys('textField')).toEqual(['rest', 'help', 'error', 'protected']);
     expect(stateKeys('tag')).toEqual(['neutral', 'outline', 'info', 'ok', 'warn', 'long-text']);
     expect(stateKeys('icon')).toEqual(['icon-md', 'icon-sm']);
+    expect(stateKeys('logo')).toEqual(['lockup-30', 'lockup-64', 'symbol-44', 'symbol-40', 'symbol-26-decorative']);
     expect(stateKeys('stepHeader')).toEqual(['first', 'middle', 'last']);
     expect(stateKeys('stateView')).toEqual(['loading', 'empty', 'empty-group', 'error', 'offline', 'denied']);
     expect(stateKeys('syncStatus')).toEqual(['on_device', 'sending', 'synced', 'not_sent', 'needs_review', 'not_sent con mensaje']);

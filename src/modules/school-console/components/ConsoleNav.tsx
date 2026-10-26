@@ -2,9 +2,8 @@ import { Pressable, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { Icon, type IconName, useFocusRing } from '../../../core/ui';
+import { Icon, Logo, type IconName, useFocusRing } from '../../../core/ui';
 import '../i18n';
-import { Logo } from './Logo';
 
 export type ConsoleDestinationId = 'athletes' | 'coaches' | 'records' | 'measurements' | 'authorizations' | 'settings';
 
@@ -98,7 +97,10 @@ export function ConsoleNav({ variant, activeId, onSelect, schoolName }: ConsoleN
 
   const brand = (
     <View style={{ gap: space[1], paddingBottom: space[3] }}>
-      <Logo />
+      {/* Lockup 30 dp high, 8 dp in from the panel edge, at the start of the column (LInvitarEntrenador, LMarcasEscuela). */}
+      <View style={{ alignSelf: 'flex-start', marginHorizontal: space[2] }}>
+        <Logo height={30} />
+      </View>
       <Text style={[typography.caption, { color: colors[consoleNavColors.caption] }]}>{schoolName}</Text>
     </View>
   );

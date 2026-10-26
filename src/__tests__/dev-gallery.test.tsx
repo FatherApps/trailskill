@@ -85,7 +85,7 @@ describe('development gallery', () => {
     const view = await renderRouter(routes, { initialUrl: '/gallery' });
 
     expect(screen.getByText('school-console')).toBeOnTheScreen();
-    for (const name of ['Logo', 'ConsoleNav', 'SideSheet', 'AthleteIndicators', 'AthleteFilters', 'AthleteTable', 'AthleteDetail']) {
+    for (const name of ['ConsoleNav', 'SideSheet', 'AthleteIndicators', 'AthleteFilters', 'AthleteTable', 'AthleteDetail']) {
       expect(screen.getByRole('button', { name })).toBeOnTheScreen();
     }
 

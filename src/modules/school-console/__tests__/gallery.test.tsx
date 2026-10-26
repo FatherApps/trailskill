@@ -64,7 +64,6 @@ afterEach(() => jest.restoreAllMocks());
 describe('school console gallery entries', () => {
   it('have unique ids and the expected states', () => {
     expect(galleryEntries.map((entry) => entry.id)).toEqual([
-      'logo',
       'consoleNav',
       'sideSheet',
       'athleteIndicators',
@@ -83,7 +82,6 @@ describe('school console gallery entries', () => {
       'authorizationList',
       'authorizationsScreen',
     ]);
-    expect(stateKeys('logo')).toEqual(['default', 'large']);
     expect(stateKeys('consoleNav')).toEqual(['side', 'top']);
     expect(stateKeys('sideSheet')).toEqual(['open']);
     expect(stateKeys('athleteIndicators')).toEqual(['default', 'large-numbers']);
@@ -117,12 +115,12 @@ describe('school console gallery entries', () => {
     await render(<ThemeProvider name={theme} fontScale={scale}>{state(id, key)}</ThemeProvider>);
   });
 
-  // The fixed-width screens, the logo, the side sheet and the side navigation size themselves.
+  // The fixed-width screens, the side sheet and the side navigation size themselves.
   it.each(
     galleryEntries
       .flatMap((entry) => Object.keys(entry.states).map((key) => [entry.id, key]))
       // The side navigation has its own fixed width.
-      .filter(([id, key]) => !['logo', 'sideSheet'].includes(id) && !/^(expanded|medium|compact)-\d+$/.test(key) && !(id === 'consoleNav' && key === 'side')),
+      .filter(([id, key]) => id !== 'sideSheet' && !/^(expanded|medium|compact)-\d+$/.test(key) && !(id === 'consoleNav' && key === 'side')),
   )('%s / %s fills the width of the preview', async (id, key) => {
     await render(<ThemeProvider>{state(id, key)}</ThemeProvider>);
 
