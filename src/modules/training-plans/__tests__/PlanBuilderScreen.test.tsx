@@ -83,6 +83,86 @@ describe('PlanBuilderScreen', () => {
     expect(handlers.onSaveTemplate).toHaveBeenCalledTimes(1);
   });
 
+  describe('expanded width', () => {
+    const wide = { width: 1024 };
+
+    it('keeps the single column below the expanded breakpoint', async () => {
+      await render(setup({ width: 1023, editingId: 'b2' }).ui);
+
+      expect(screen.queryByTestId('builder-list')).toBeNull();
+      expect(screen.queryByTestId('builder-panel')).toBeNull();
+    });
+
+    it('shows the block list and the editing panel side by side', async () => {
+      await render(setup({ ...wide, editingId: 'b2' }).ui);
+
+      expect(within(screen.getByTestId('builder-list')).getAllByText(/^\d+ × \d+ m /)).toHaveLength(5);
+      const panel = within(screen.getByTestId('builder-panel'));
+      expect(panel.getByRole('header', { name: 'Editando el bloque 2' })).toBeOnTheScreen();
+      expect(panel.getByLabelText('Fase')).toBeOnTheScreen();
+      // The editor lives in the panel only, not inside the card.
+      expect(screen.getAllByLabelText('Fase')).toHaveLength(1);
+    });
+
+    it('summarises the plan with its metres and block count in the header', async () => {
+      await render(setup(wide).ui);
+
+      expect(screen.getByText('950 m · 5 bloques')).toBeOnTheScreen();
+    });
+
+    it('asks to pick a block while none is being edited', async () => {
+      await render(setup(wide).ui);
+
+      expect(within(screen.getByTestId('builder-panel')).getByText('Elige un bloque para editarlo')).toBeOnTheScreen();
+    });
+
+    it('opens a block in the panel and keeps move and remove on the cards', async () => {
+      const { handlers, ui } = setup({ ...wide, editingId: 'b2' });
+      await render(ui);
+
+      expect(screen.getAllByRole('button', { name: 'Editar' })).toHaveLength(4);
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Editar' })[0]);
+      expect(handlers.onEditBlock).toHaveBeenCalledWith('b1');
+      expect(screen.getAllByRole('button', { name: 'Quitar' })).toHaveLength(5);
+      expect(screen.getAllByRole('button', { name: 'Subir' })).toHaveLength(4);
+    });
+
+    it('still confirms before removing a block', async () => {
+      const { handlers, ui } = setup(wide);
+      await render(ui);
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Quitar' })[2]);
+      expect(screen.getByText('El bloque 3 sale del plan cuando lo guardes.')).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Quitar bloque' }));
+      expect(handlers.onRemoveBlock).toHaveBeenCalledWith('b3');
+    });
+
+    it('fills each card with its phase colour and names the phase in text', async () => {
+      await render(setup(wide).ui);
+
+      const list = within(screen.getByTestId('builder-list'));
+      expect(list.getByText('Calentamiento', { includeHiddenElements: true })).toBeOnTheScreen();
+      expect(list.getAllByTestId('block-card')[1]).toHaveStyle({ backgroundColor: colors.light.coral });
+    });
+  });
+
+  describe('assign', () => {
+    it('has no assign button when the caller offers none', async () => {
+      await render(setup().ui);
+
+      expect(screen.queryByRole('button', { name: 'Asignar' })).toBeNull();
+    });
+
+    it.each([400, 1200])('hands over to the assign flow from the button at %i dp', async (width) => {
+      const onAssign = jest.fn();
+      await render(setup({ width, onAssign }).ui);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Asignar' }));
+
+      expect(onAssign).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('has no template button when the caller offers none', async () => {
     await render(setup({ onSaveTemplate: undefined }).ui);
 
