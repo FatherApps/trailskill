@@ -33,8 +33,7 @@ function AthleteCardButton({ card, onOpen }: { card: MyAthleteCard; onOpen: (ath
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={card.name}
-      accessibilityValue={card.detail ? { text: card.detail } : undefined}
+      accessibilityLabel={card.detail ? t('athletes.my.card_label', { name: card.name, detail: card.detail }) : card.name}
       onPress={() => onOpen(card.id)}
       {...focusProps}
       style={[{ borderRadius: radius.md }, ring]}

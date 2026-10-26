@@ -44,9 +44,19 @@ describe('MyAthletesScreen', () => {
     const onOpen = jest.fn();
     await show(data, onOpen);
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Tomás R.' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Tomás R., Infantil A · Grupo B' }));
 
     expect(onOpen).toHaveBeenCalledWith('a1');
+  });
+
+  it('announces the name and the detail together, and only the name when there is no detail', async () => {
+    await show(data);
+
+    const [withDetail, withoutDetail] = screen.getAllByRole('button');
+    expect(withDetail.props.accessibilityLabel).toBe('Tomás R., Infantil A · Grupo B');
+    expect(withDetail.props.accessibilityValue?.text).toBeUndefined();
+    expect(withoutDetail.props.accessibilityLabel).toBe('Lucía R.');
+    expect(withoutDetail.props.accessibilityValue?.text).toBeUndefined();
   });
 
   it('shows an empty state in es-CO when there are no athletes', async () => {

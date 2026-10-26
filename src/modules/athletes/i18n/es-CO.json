@@ -86,6 +86,7 @@
   },
   "my": {
     "title": "Deportistas",
+    "card_label": "{{name}}, {{detail}}",
     "empty": {
       "title": "Aún no hay deportistas",
       "message": "Los deportistas que administras aparecerán aquí."

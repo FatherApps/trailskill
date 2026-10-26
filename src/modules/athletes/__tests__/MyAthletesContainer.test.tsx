@@ -68,7 +68,7 @@ describe('MyAthletesContainer', () => {
     const onOpen = jest.fn();
     await show('guardian-1', onOpen);
 
-    await fireEvent.press(await screen.findByRole('button', { name: 'Ana M.' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ana M., Infantil B · Grupo A' }));
 
     expect(onOpen).toHaveBeenCalledWith('a1');
   });
