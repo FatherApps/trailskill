@@ -60,6 +60,16 @@ describe('pending invitations', () => {
     expect(await pending.list()).toEqual([]);
   });
 
+  it('an inactive category (23514) is retried at once without it, so the athlete still joins the school and group', async () => {
+    const { pending, invitations } = setup();
+    invitations.rejectCategoryWith = '23514';
+
+    await queueInvitation(pending, invitations, { userId: 'u1', token, athleteId: 'a1', categoryId: 'c1' });
+
+    expect(invitations.accepted).toEqual([{ token, athleteId: 'a1' }]);
+    expect(await pending.list()).toEqual([]);
+  });
+
   it("never tries another account's invitations", async () => {
     const { pending, invitations } = setup();
     await pending.add({ userId: 'u2', token, athleteId: 'a2' });

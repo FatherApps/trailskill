@@ -30,6 +30,14 @@ export function createInMemoryPendingInvitationRepository(): PendingInvitationRe
   };
 }
 
+// add() and remove() read the whole list and write it back, and they are called from different places (a screen, a sync retry): one at a time.
+let writes: Promise<unknown> = Promise.resolve();
+function serialized<T>(operation: () => Promise<T>): Promise<T> {
+  const run = writes.then(operation);
+  writes = run.catch(() => {});
+  return run;
+}
+
 // Local, encrypted and never synced, like the registration draft.
 export function createSecureStorePendingInvitationRepository(): PendingInvitationRepository {
   async function read(): Promise<PendingInvitation[]> {
@@ -44,18 +52,19 @@ export function createSecureStorePendingInvitationRepository(): PendingInvitatio
   const write = (items: PendingInvitation[]) => (items.length === 0 ? SecureStore.deleteItemAsync(KEY) : SecureStore.setItemAsync(KEY, JSON.stringify(items)));
   return {
     list: read,
-    async add(item) {
-      const items = await read();
-      if (!items.some((own) => own.athleteId === item.athleteId)) await write([...items, item]);
-    },
-    async remove(athleteId) {
-      await write((await read()).filter((item) => item.athleteId !== athleteId));
-    },
+    add: (item) =>
+      serialized(async () => {
+        const items = await read();
+        if (!items.some((own) => own.athleteId === item.athleteId)) await write([...items, item]);
+      }),
+    remove: (athleteId) => serialized(async () => write((await read()).filter((item) => item.athleteId !== athleteId))),
   };
 }
 
 // The server says the token or the category can never work (unknown, expired or revoked; category of another school): trying again changes nothing.
 const PERMANENT = new Set(['P0002', '22023']);
+// The chosen category was deactivated after the invitation was resolved (trigger check_violation): the athlete still joins the school and group, the school sets the category.
+const INACTIVE_CATEGORY = '23514';
 
 /**
  * Accepts the account's queued invitations. An athlete the server does not know yet is rejected as not managed by the caller (42501), and a missing
@@ -65,7 +74,10 @@ const PERMANENT = new Set(['P0002', '22023']);
 export async function acceptPendingInvitations(userId: string, pending: PendingInvitationRepository, invitations: InvitationRepository): Promise<void> {
   for (const { token, athleteId, categoryId } of (await pending.list()).filter((item) => item.userId === userId)) {
     try {
-      await invitations.accept({ token, athleteId, ...(categoryId && { categoryId }) });
+      await invitations.accept({ token, athleteId, ...(categoryId && { categoryId }) }).catch((error) => {
+        if (!categoryId || (error as { code?: string }).code !== INACTIVE_CATEGORY) throw error;
+        return invitations.accept({ token, athleteId });
+      });
     } catch (error) {
       if (!PERMANENT.has((error as { code?: string }).code ?? '')) continue;
     }
