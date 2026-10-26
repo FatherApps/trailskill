@@ -98,7 +98,7 @@ function BuilderPreview({
 function TodayPreview({ view }: { view: TodayView }) {
   return (
     <ScreenFrame>
-      <TodayScreen athleteName={athleteName} view={view} onReportToCoach={noop} />
+      <TodayScreen athleteName={athleteName} view={view} onSendNotice={noop} />
     </ScreenFrame>
   );
 }

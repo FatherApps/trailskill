@@ -105,7 +105,16 @@
     },
     "rep": "Rep. {{n}}",
     "series_total": "Total serie",
-    "report": "Avisar algo al entrenador"
+    "report": "Avisar algo al entrenador",
+    "plan_changed": "El entrenador cambió el plan de hoy.",
+    "athlete_picker": "Deportista",
+    "note_about": "Sobre qué quieres avisar",
+    "note_whole_plan": "Todo el plan",
+    "note_label": "Tu aviso",
+    "note_send": "Enviar aviso",
+    "note_empty": "Escribe tu aviso antes de enviarlo.",
+    "note_error": "No pudimos guardar el aviso. Inténtalo de nuevo.",
+    "notes_title": "Tus avisos"
   },
   "fulfillment": {
     "caption": "Cumplimiento · {{date}}",
