@@ -20,7 +20,10 @@ export function useManagedAthletes(
       managed
         .listManagedAthleteIds(userId)
         .then((ids) => athletes.listByIds(ids))
-        .catch(() => [])
+        .catch((error: unknown) => {
+          if (__DEV__) console.warn('[athletes] Managed athletes lookup failed', error);
+          return [];
+        })
         .then((found) => active && setAnswer({ userId, athletes: found }));
     }
     return () => {

@@ -1,5 +1,5 @@
 import { open } from '@op-engineering/op-sqlite';
-import { PowerSyncDatabase } from '@powersync/react-native';
+import { createConsoleLogger, LogLevels, PowerSyncDatabase } from '@powersync/react-native';
 import { getRandomBytes } from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 
@@ -31,4 +31,6 @@ const encryptionKey = prepareEncryptedDatabase({
 export const db = new PowerSyncDatabase({
   schema: AppSchema,
   database: { dbFilename: ENCRYPTED_DB_FILENAME, sqliteOptions: { encryptionKey } },
+  // Debug lines in development show why a downloaded checkpoint is not applied; sync errors are logged at every level.
+  logger: createConsoleLogger({ minLevel: __DEV__ ? LogLevels.debug : LogLevels.info }),
 });

@@ -97,7 +97,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!current) return;
       setReadyFor(userId);
       if (supabaseConfigError) return;
-      await db.connect(connector).catch(() => {
+      await db.connect(connector).catch((error: unknown) => {
+        if (__DEV__) console.warn('[sync] Could not connect to the sync service', error);
         if (current) setSyncFailedFor(userId);
       });
     })().catch(() => {
