@@ -49,17 +49,15 @@ export type AthleteProfileScreenProps = {
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
   // Where the band's back button goes in the states without content; the states with content take it from their header.
-  onBack?: () => void;
+  onBack: () => void;
 };
 
 export const athleteProfileScreenColors: { title: ColorToken } = {
   title: 'ink',
 };
 
-const noop = () => {};
-
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
-export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack = noop }: AthleteProfileScreenProps) {
+export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack }: AthleteProfileScreenProps) {
   const { colors, space, typography } = useTheme();
   const values = { name };
   // A list that scrolls fills the height it is given; the gallery preview has none to give.

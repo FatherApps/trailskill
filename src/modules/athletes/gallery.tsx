@@ -78,7 +78,7 @@ function AthleteProfileScreenPreview({ view }: { view: (content: AthleteProfileC
   const content = { ...profileContentFixture, event: { ...profileContentFixture.event, value, onChange: setValue } };
 
   // The gallery page scrolls, so the list inside does not.
-  return <AthleteProfileScreen name={pf.name} view={view(content)} scrollEnabled={false} />;
+  return <AthleteProfileScreen name={pf.name} view={view(content)} scrollEnabled={false} onBack={noop} />;
 }
 
 const screenPreview = (view: (content: AthleteProfileContent) => AthleteProfileView) =>
