@@ -674,6 +674,7 @@ describe('AddAthletesContainer', () => {
     });
     await mount();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
 
     await act(async () => {
       release();
@@ -681,7 +682,59 @@ describe('AddAthletesContainer', () => {
     });
 
     expect(screen.getByLabelText('Nombre').props.value).toBe('Lucía');
-    expect(screen.getByLabelText('Apellido').props.value).toBe('');
+    expect(screen.getByLabelText('Apellido').props.value).toBe('Rojas');
+  });
+
+  it('a draft that loads late keeps the field the person did not edit and drops only the edited one', async () => {
+    const { mount, drafts } = setup();
+    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Anterior', lastName: 'Guardado' } });
+    const real = drafts.load.bind(drafts);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    jest.spyOn(drafts, 'load').mockImplementation(async () => {
+      const snapshot = await real();
+      await gate;
+      return snapshot;
+    });
+    await mount();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+
+    await act(async () => {
+      release();
+      await gate;
+    });
+
+    expect(screen.getByLabelText('Nombre').props.value).toBe('Lucía');
+    expect(screen.getByLabelText('Apellido').props.value).toBe('Guardado');
+    // The keystroke save wrote only the edited field: the kept one must be written back or a restart loses it.
+    await waitFor(async () => expect((await real())?.athlete).toEqual({ firstName: 'Lucía', lastName: 'Guardado' }));
+  });
+
+  it("a category that goes A, B, A while the athlete saves is the next athlete's choice and is not cleared", async () => {
+    const { mount, profiles } = setup('tok-1');
+    const create = profiles.createManagedAthlete.bind(profiles);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
+      await gate;
+      return create(input);
+    });
+    await mount();
+    await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+    await fireEvent.press(screen.getByRole('radio', { name: '11-12' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '9-10' }));
+
+    await act(async () => {
+      release();
+      await gate;
+    });
+
+    await screen.findByText('Lucía R.');
+    expect(screen.getByRole('radio', { name: '9-10' }).props.accessibilityState.checked).toBe(true);
   });
 
   it('an add that ends after the screen went away saves and queues the athlete but does not read the list again', async () => {
