@@ -71,7 +71,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   // The states without content keep the band and its back button, so the screen never depends on the system back.
   const withBand = (state: ReactNode) => (
     <View style={[frame, { paddingHorizontal: 0 }]}>
-      <ColorHeader color={profileBandColor}title={name} onBack={onBack} />
+      <ColorHeader color={profileBandColor} title={name} onBack={onBack} />
       <View style={[frame, { paddingVertical: space[4] }]}>{state}</View>
     </View>
   );
