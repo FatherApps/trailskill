@@ -1,0 +1,113 @@
+import { fireEvent, render, screen } from '@testing-library/react-native';
+
+import AppLayout from '../app/(app)/_layout';
+
+// Avoid loading the native PowerSync database.
+jest.mock('../core/sync', () => ({ db: {}, useGlobalSyncSummary: () => ({ lastSyncedAt: null }) }));
+jest.mock('../core/session', () => ({
+  ...jest.requireActual('../core/session'),
+  useSession: () => ({ session: { user: { id: 'guardian-1', email: 'guardian@example.com' } } }),
+}));
+
+const mockNavigate = jest.fn();
+let mockPathname = '/athletes';
+jest.mock('expo-router', () => ({
+  Stack: () => null,
+  useRouter: () => ({ replace: jest.fn(), navigate: mockNavigate }),
+  usePathname: () => mockPathname,
+}));
+
+let mockWidth = 390;
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  default: () => ({ width: mockWidth, height: 844, scale: 1, fontScale: 1 }),
+}));
+
+let mockStaff: 'staff' | 'denied' | 'loading' = 'denied';
+jest.mock('../modules/school-console', () => ({
+  ...jest.requireActual('../modules/school-console'),
+  useStaffSchool: () => ({ status: mockStaff }),
+}));
+
+let mockManaged: { id: string }[] = [{ id: 'a1' }, { id: 'a2' }];
+jest.mock('../modules/athletes', () => ({
+  ...jest.requireActual('../modules/athletes'),
+  useManagedAthletes: () => ({ status: 'ready', athletes: mockManaged }),
+}));
+
+jest.mock('../modules/accounts', () => ({
+  ...jest.requireActual('../modules/accounts'),
+  useFinishRegistration: () => null,
+  usePendingInvitations: jest.fn(),
+}));
+
+describe('app layout phone navigation', () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    mockPathname = '/athletes';
+    mockWidth = 390;
+    mockStaff = 'denied';
+    mockManaged = [{ id: 'a1' }, { id: 'a2' }];
+  });
+
+  it('shows the three destinations to a guardian on a phone', async () => {
+    await render(<AppLayout />);
+
+    expect(screen.getByRole('tab', { name: 'Deportistas' })).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: 'Entreno' })).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: 'Historial' })).toBeOnTheScreen();
+  });
+
+  it.each([
+    ['school staff', 'staff', 390],
+    ['a lookup that has not answered', 'loading', 390],
+    ['a tablet', 'denied', 768],
+  ] as const)('shows no bar to %s', async (_label, staff, width) => {
+    mockStaff = staff;
+    mockWidth = width;
+    await render(<AppLayout />);
+
+    expect(screen.queryByRole('tab')).toBeNull();
+  });
+
+  it('marks the destination of the current route as selected', async () => {
+    mockPathname = '/today';
+    await render(<AppLayout />);
+
+    expect(screen.getByRole('tab', { name: 'Entreno' })).toBeSelected();
+    expect(screen.getByRole('tab', { name: 'Deportistas' })).not.toBeSelected();
+  });
+
+  it('marks Historial on an athlete profile', async () => {
+    mockPathname = '/athletes/a1';
+    await render(<AppLayout />);
+
+    expect(screen.getByRole('tab', { name: 'Historial' })).toBeSelected();
+  });
+
+  it('opens the existing screens', async () => {
+    await render(<AppLayout />);
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Entreno' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/today');
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Deportistas' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/athletes');
+  });
+
+  it('opens the profile of the only athlete from Historial', async () => {
+    mockManaged = [{ id: 'a1' }];
+    await render(<AppLayout />);
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Historial' }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/athletes/a1');
+  });
+
+  it('asks which athlete from Historial when there are several', async () => {
+    await render(<AppLayout />);
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Historial' }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/athletes');
+  });
+});

@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import type { GalleryEntry } from '../../core/ui';
 import { historyFixture as h, historyLongTextResults, historyResults } from './__fixtures__/history';
+import { myAthletesFixture, myAthletesLongTextFixture } from './__fixtures__/myAthletes';
 import { profileContentFixture, storedOnFixture } from './__fixtures__/screen';
 import { eventFixture as ev, personalBestFixture as pb, profileFixture as pf } from './__fixtures__/profile';
 import { EventSelector, type EventValue } from './components/EventSelector';
@@ -11,6 +12,7 @@ import { ImportPrompt } from './components/ImportPrompt';
 import { PersonalBest, type PersonalBestProps } from './components/PersonalBest';
 import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHeader';
 import { AthleteProfileScreen, type AthleteProfileContent, type AthleteProfileView } from './screens/AthleteProfileScreen';
+import { MyAthletesScreen, type MyAthletesView } from './screens/MyAthletesScreen';
 
 // The preview box shrinks its children to their content; these components need the full width.
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
@@ -80,6 +82,11 @@ const screenPreview = (view: (content: AthleteProfileContent) => AthleteProfileV
     return <AthleteProfileScreenPreview view={view} />;
   };
 
+const myAthletesPreview = (view: MyAthletesView) =>
+  function MyAthletesPreview() {
+    return <MyAthletesScreen view={view} onOpen={noop} scrollEnabled={false} />;
+  };
+
 const entry = (id: string, title: string, states: Record<string, () => ReactElement>): GalleryEntry => ({
   id,
   title,
@@ -143,5 +150,11 @@ export const galleryEntries: GalleryEntry[] = [
       kind: 'data',
       content: { ...content, importPrompt: { ...prompt, sourceName: h.sourceName, imported: false } },
     })),
+  }),
+  entry('myAthletesScreen', 'MyAthletesScreen', {
+    'with-data': myAthletesPreview({ kind: 'data', athletes: myAthletesFixture }),
+    'long-text': myAthletesPreview({ kind: 'data', athletes: myAthletesLongTextFixture }),
+    empty: myAthletesPreview({ kind: 'empty' }),
+    loading: myAthletesPreview({ kind: 'loading' }),
   }),
 ];

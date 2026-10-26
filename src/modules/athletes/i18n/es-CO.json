@@ -84,6 +84,13 @@
       "action": "Pedir acceso a la escuela"
     }
   },
+  "my": {
+    "title": "Deportistas",
+    "empty": {
+      "title": "Aún no hay deportistas",
+      "message": "Los deportistas que administras aparecerán aquí."
+    }
+  },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",
