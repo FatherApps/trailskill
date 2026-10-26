@@ -1,6 +1,13 @@
+import { formatNumber } from '../components/formatNumber';
 import { planSummary } from '../components/planVolume';
 
 const block = (repetitions: number, distance: number) => ({ repetitions, distance });
+
+// Rows read from the database are not checked at runtime: they can hold null, undefined or strings where the type says number.
+const row = (repetitions: unknown, distance: unknown) => ({ repetitions, distance });
+const summaryOfRows = (rows: { repetitions: unknown; distance: unknown }[]) =>
+  // @ts-expect-error the production type says number: this test feeds it what the database can hand over
+  planSummary(rows);
 
 describe('planSummary', () => {
   it('keeps "metres · blocks" when every block adds metres', () => {
@@ -63,18 +70,42 @@ describe('planSummary', () => {
     expect(planSummary([block(8, 50), block(1e-200, 1e-200), block(1, 200)])).toBe('600 m + 1 bloque sin distancia');
   });
 
-  it('counts a block that would overflow the total as without distance and never shows Infinity', () => {
-    const summary = planSummary([block(1e154, 1e154), block(1e154, 1e154)]);
-    expect(summary).not.toMatch(/Infinity|∞/);
-    expect(summary).toMatch(/ \+ 1 bloque sin distancia$/);
-    expect(planSummary([block(8, 50), block(1e154, 1e154), block(1e154, 1e154), block(1, 200)])).not.toMatch(/Infinity|∞/);
+  it('drops the biggest block that would overflow the total, whatever the order of the blocks', () => {
+    // 1.5e308 + 1e308 overflows; 4e307 + 1e308 does not. The same blocks give the same total and count in any order.
+    const small = block(4e153, 1e154);
+    const medium = block(1e154, 1e154);
+    const big = block(1.5e154, 1e154);
+    const expected = `${formatNumber(1.4e308)} m + 1 bloque sin distancia`;
+    for (const blocks of [
+      [small, medium, big],
+      [big, medium, small],
+      [medium, big, small],
+      [small, big, medium],
+    ]) {
+      expect(planSummary(blocks)).toBe(expected);
+    }
   });
 
-  it('counts null and numeric strings (as PowerSync/SQLite may hand them over) as without distance', () => {
-    const raw = (repetitions: unknown, distance: unknown) => ({ repetitions, distance }) as ReturnType<typeof block>;
-    expect(planSummary([raw(null, 50), raw(8, null)])).toBe('2 bloques');
-    expect(planSummary([raw('8', 50), raw(8, '50')])).toBe('2 bloques');
-    expect(planSummary([block(8, 50), raw('8', '50'), raw(null, null)])).toBe('400 m + 2 bloques sin distancia');
+  it('leaves out only one of two blocks that overflow the total together', () => {
+    expect(planSummary([block(1e154, 1e154), block(1e154, 1e154)])).toBe(`${formatNumber(1e308)} m + 1 bloque sin distancia`);
+    expect(planSummary([block(8, 50), block(1e154, 1e154), block(1e154, 1e154), block(1, 200)])).toBe(
+      `${formatNumber(1e308)} m + 1 bloque sin distancia`,
+    );
+  });
+
+  // Blocks are added from the smallest, so each one is still bigger than the rounding step of the total when it is added: a counted block always enters the sum.
+  // The final total is the sum rounded to a double: 600 m next to 1e308 is lost in that rounding, as in any double sum, and the block still counts as measured.
+  it('counts a small block next to a huge total as measured, in any order', () => {
+    const expected = `${formatNumber(1e308)} m · 2 bloques`;
+    expect(planSummary([block(1e154, 1e154), block(1, 600)])).toBe(expected);
+    expect(planSummary([block(1, 600), block(1e154, 1e154)])).toBe(expected);
+  });
+
+  it('counts null, undefined and numeric strings (as PowerSync/SQLite may hand them over) as without distance', () => {
+    expect(summaryOfRows([row(null, 50), row(8, null)])).toBe('2 bloques');
+    expect(summaryOfRows([row(undefined, 50), row(8, undefined)])).toBe('2 bloques');
+    expect(summaryOfRows([row('8', 50), row(8, '50')])).toBe('2 bloques');
+    expect(summaryOfRows([block(8, 50), row('8', '50'), row(null, null), row(undefined, undefined)])).toBe('400 m + 3 bloques sin distancia');
   });
 
   it('has no summary without blocks', () => {
