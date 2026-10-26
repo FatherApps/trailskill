@@ -84,7 +84,10 @@ export function CoachCard({ coach, basis, deactivateAvailable, onDeactivate }: C
           <Text style={[typography.caption, { color: colors[coachCardColors.pendingDetail] }]}>{detail}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
             <Initials initials={coach.initials} background={coachCardColors.pendingDot} />
-            <Tag label={t('schoolConsole.coaches.status.pending')} variant="warn" icon="schedule" />
+            {/* Tag aligns itself to the start of its row; the wrapper centres it with the initials. */}
+            <View style={{ alignSelf: 'center' }}>
+              <Tag label={t('schoolConsole.coaches.status.pending')} variant="warn" icon="schedule" />
+            </View>
           </View>
         </View>
       </View>
@@ -97,7 +100,9 @@ export function CoachCard({ coach, basis, deactivateAvailable, onDeactivate }: C
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
             <Initials initials={coach.initials} background={coachCardColors.dot} />
-            <Tag label={t('schoolConsole.coaches.status.active')} variant="ok" />
+            <View style={{ alignSelf: 'center' }}>
+              <Tag label={t('schoolConsole.coaches.status.active')} variant="ok" />
+            </View>
           </View>
           <Button
             variant="ghost"
