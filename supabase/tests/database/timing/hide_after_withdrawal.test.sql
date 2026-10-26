@@ -6,7 +6,7 @@
 -- hides anything. Measurements from before the withdrawal do not change. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(76);
+select plan(78);
 
 -- Users: coach C, school admin S, guardian G, platform admin P, and X, a coach
 -- of another school who has nothing to do with these athletes.
@@ -547,6 +547,38 @@ select ok(
     and not has_function_privilege('anon', 'app.hidden_measurement_written_back(uuid)', 'execute'),
   'clients can neither read nor write the write-backs, and anon cannot execute the write-back check'
 );
+
+-- Issue #324: an UPDATE that reaches a row already hidden must not unlock it.
+-- The author's UPDATE policy reaches their hidden rows, so one statement could
+-- update them in a CTE and read them in another CTE that runs afterwards.
+-- The SET list and RETURNING reference no column, so the select policy does not
+-- filter the rows the UPDATE reaches.
+create function pg_temp.update_writes_back(target uuid)
+returns boolean
+language sql
+as $$
+  with touched as (
+    update public.measurements set edit_reason = null returning 1
+  ),
+  done as (select count(*) as n from touched)
+  select app.hidden_measurement_written_back(target) from done
+$$;
+create temp table leaked_measurements (id uuid);
+grant insert, select on leaked_measurements to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "58000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select is(
+  pg_temp.update_writes_back('58000000-0000-4000-8000-0000000000d7'),
+  false, 'an UPDATE of a row that is already hidden does not register a write-back'
+);
+with leak as (insert into pg_temp.leaked_measurements select id from public.measurements where hidden),
+     touch as (update public.measurements set edit_reason = null returning 1)
+select count(*) from touch;
+select is(
+  (select count(*) from pg_temp.leaked_measurements),
+  0::bigint, 'a CTE that updates the author''s hidden rows does not let the same statement read them'
+);
+reset role;
 
 -- A write must unlock only the rows it really writes. PostgREST runs an upload
 -- with an embed as ONE statement; emulate it: the upload proposes an id that is
