@@ -46,9 +46,12 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
   const [stored, setStored] = useState<string | null>(null);
   // The plan being edited; a new plan gets its id and school on load, and keeps them after its first save.
   const plan = useRef({ id: '', schoolId: '', isTemplate: false });
-  // The plan whose save is running. State updates land after the render, so a ref blocks a second press made before the
-  // loading state shows; keeping the plan, not a flag, means a plan opened during a save does not inherit it.
-  const busy = useRef<object | null>(null);
+  // The id of the plan whose save is running. State updates land after the render, so a ref blocks a second press made before
+  // the loading state shows; keeping the id, not a flag, means a plan opened during a save does not inherit it, and not the
+  // object, because reopening the same plan replaces the object while its save is still running.
+  const busy = useRef<string | null>(null);
+  // Counts the times the screen started moving to another plan; a save is live only while it has not changed.
+  const moves = useRef(0);
   // A save that ends after the screen closed must not touch it.
   const mounted = useRef(true);
   // The draft in the form it is compared with `stored`, rebuilt only when it changes.
@@ -65,6 +68,8 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
     // The route swaps /plans/new for the saved id: the draft in memory is already that plan.
     if (planId !== null && planId === plan.current.id) return;
     let cancelled = false;
+    // From here the screen no longer shows the plan of a running save, even before the next plan has loaded or if it fails.
+    moves.current += 1;
     setLoad({ kind: 'loading' });
     (async () => {
       try {
@@ -155,11 +160,12 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
 
   async function run(kind: 'plan' | 'template') {
     const started = plan.current;
-    if (busy.current === started) return;
-    busy.current = started;
+    const move = moves.current;
+    if (busy.current === started.id) return;
+    busy.current = started.id;
     setSaving(kind);
     setMessage(undefined);
-    const live = () => mounted.current && plan.current === started;
+    const live = () => mounted.current && moves.current === move;
     try {
       const result = await persist(live);
       if (result === 'failed') return;
@@ -175,7 +181,7 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
         if (live()) setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
       }
     } finally {
-      if (busy.current === started) busy.current = null;
+      if (busy.current === started.id) busy.current = null;
       if (live()) setSaving(null);
     }
   }

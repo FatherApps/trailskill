@@ -388,8 +388,8 @@ describe('PlanEditorScreen', () => {
       return hold;
     };
 
-    // Two stored plans; the editor opens the first, edited and with its save held, and then moves to the second.
-    async function saveFirstThenOpenSecond(ctx: ReturnType<typeof setup>, button: string) {
+    // Two stored plans; the editor opens the first, edited and with its save held and running.
+    async function saveFirst(ctx: ReturnType<typeof setup>, button: string) {
       const first = await createPlan(ctx, 'Primero', [everyField[0]]);
       await screen.unmount();
       await render(ctx.element(null));
@@ -406,10 +406,15 @@ describe('PlanEditorScreen', () => {
       await nameIt('Primero editado');
       const hold = holdNextSave(ctx);
       await startSave(button);
-
-      await screen.rerender(ctx.element(second));
-      await screen.findByDisplayValue('Segundo');
       return { first, second, hold };
+    }
+
+    // The same, and then the editor moves to the second plan.
+    async function saveFirstThenOpenSecond(ctx: ReturnType<typeof setup>, button: string) {
+      const started = await saveFirst(ctx, button);
+      await screen.rerender(ctx.element(started.second));
+      await screen.findByDisplayValue('Segundo');
+      return started;
     }
 
     it('is enabled after changing a block and putting it back', async () => {
@@ -480,6 +485,76 @@ describe('PlanEditorScreen', () => {
       await settle();
 
       expect(error).not.toHaveBeenCalled();
+    });
+
+    it('does not start a second save of a plan whose save is running when it is opened again', async () => {
+      const ctx = setup();
+      const { first, hold } = await saveFirstThenOpenSecond(ctx, 'Guardar plan');
+      await screen.rerender(ctx.element(first));
+      await screen.findByDisplayValue('Primero');
+      await nameIt('Primero otra vez');
+      const saves = jest.mocked(ctx.repository.save).mock.calls.length;
+
+      await press('Guardar plan');
+      await settle();
+
+      expect(ctx.repository.save).toHaveBeenCalledTimes(saves);
+      await act(async () => hold.finish());
+      await settle();
+    });
+
+    it('does not start a second save of a plan whose save is running when it is read again', async () => {
+      const ctx = setup();
+      const { first, hold } = await saveFirstThenOpenSecond(ctx, 'Guardar plan');
+      jest.spyOn(ctx.repository, 'get').mockRejectedValueOnce(new Error('offline'));
+      await screen.rerender(ctx.element(first));
+      await screen.findByText('No pudimos cargar el plan');
+      await press('Intentar de nuevo');
+      await screen.findByLabelText('Nombre del plan');
+      await nameIt('Primero otra vez');
+      const saves = jest.mocked(ctx.repository.save).mock.calls.length;
+
+      await press('Guardar plan');
+      await settle();
+
+      expect(ctx.repository.save).toHaveBeenCalledTimes(saves);
+      await act(async () => hold.finish());
+      await settle();
+    });
+
+    describe('a save that ends while the plan opened next is loading', () => {
+      it('does not report the plan as saved', async () => {
+        const ctx = setup();
+        const { second, hold } = await saveFirst(ctx, 'Guardar plan');
+        ctx.onSaved.mockClear();
+        let loaded!: () => void;
+        const get = ctx.repository.get.bind(ctx.repository);
+        jest.spyOn(ctx.repository, 'get').mockImplementationOnce((id) => new Promise((resolve) => (loaded = () => resolve(get(id)))));
+        await screen.rerender(ctx.element(second));
+
+        await act(async () => hold.finish());
+        await settle();
+        await act(async () => loaded());
+
+        expect(await screen.findByDisplayValue('Segundo')).toBeOnTheScreen();
+        expect(ctx.onSaved).not.toHaveBeenCalled();
+      });
+
+      it('does not report the plan as saved when the plan opened next fails to load', async () => {
+        const ctx = setup();
+        const { second, hold } = await saveFirst(ctx, 'Guardar plan');
+        ctx.onSaved.mockClear();
+        let fail!: () => void;
+        jest.spyOn(ctx.repository, 'get').mockImplementationOnce(() => new Promise((_, reject) => (fail = () => reject(new Error('offline')))));
+        await screen.rerender(ctx.element(second));
+
+        await act(async () => hold.finish());
+        await settle();
+        await act(async () => fail());
+
+        expect(await screen.findByText('No pudimos cargar el plan')).toBeOnTheScreen();
+        expect(ctx.onSaved).not.toHaveBeenCalled();
+      });
     });
 
     describe('a template requested for a plan the screen moved on from', () => {
