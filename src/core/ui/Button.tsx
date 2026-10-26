@@ -15,6 +15,8 @@ export type ButtonProps = {
   // Only for `stop` on the dark stopwatch card, where it turns coral (design-system Button README).
   onClock?: boolean;
   icon?: ReactNode;
+  // After the label, for example an arrow that moves on.
+  trailingIcon?: ReactNode;
   loading?: boolean;
   loadingLabel?: string;
   disabledReason?: string;
@@ -59,6 +61,7 @@ export function Button({
   size: buttonSize = 'standard',
   onClock = false,
   icon,
+  trailingIcon,
   loading = false,
   loadingLabel,
   disabledReason,
@@ -132,6 +135,7 @@ export function Button({
             >
               {shownLabel}
             </Text>
+            {!loading && !unavailable && trailingIcon}
           </>
         );
       }}

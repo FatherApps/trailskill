@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet, useColorScheme } from 'react-native';
+import { StyleSheet, Text, useColorScheme } from 'react-native';
 
 import { colors, contrastRatio, darken, size, type ThemeName } from '../../theme';
 import { ThemeProvider } from '../../theme/ThemeProvider';
@@ -118,6 +118,20 @@ describe('Button', () => {
 
       expect(lockPaths()).toHaveLength(0);
       expect(screen.container.queryAll((node) => node.type === 'ActivityIndicator')).toHaveLength(1);
+    });
+  });
+
+  describe('trailing icon', () => {
+    it('draws after the label, and not on an unavailable or loading button', async () => {
+      const { rerender } = await render(<Button label="Terminar" trailingIcon={<Text>→</Text>} onPress={jest.fn()} />);
+      const children = screen.getByRole('button').children.map((node) => (typeof node === 'string' ? node : node.props?.children));
+      expect(children.flat()).toEqual(['Terminar', '→']);
+
+      await rerender(<Button label="Terminar" trailingIcon={<Text>→</Text>} disabledReason="Falta algo" onPress={jest.fn()} />);
+      expect(screen.queryByText('→', { includeHiddenElements: true })).toBeNull();
+
+      await rerender(<Button label="Terminar" trailingIcon={<Text>→</Text>} loading onPress={jest.fn()} />);
+      expect(screen.queryByText('→', { includeHiddenElements: true })).toBeNull();
     });
   });
 

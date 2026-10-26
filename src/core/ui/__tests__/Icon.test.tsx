@@ -54,6 +54,9 @@ describe('Icon', () => {
         'person_add',
         'incomplete_circle',
         'close',
+        'undo',
+        'arrow_forward',
+        'person_search',
       ].sort(),
     );
   });
