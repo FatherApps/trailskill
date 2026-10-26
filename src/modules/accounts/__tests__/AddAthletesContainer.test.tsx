@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { BackHandler } from 'react-native';
 
 import { createInMemoryAthleteRepository } from '../../athletes';
@@ -262,8 +262,12 @@ describe('AddAthletesContainer', () => {
       expect(subscriptions[0].remove).toHaveBeenCalledTimes(1);
     });
 
-    // The handler the container currently has subscribed: the last one not yet removed, or undefined when the press goes to the navigator.
-    const live = (subscriptions: ReturnType<typeof spyOnBack>) => subscriptions.filter((s) => s.remove.mock.calls.length === 0).at(-1);
+    // The handler the container has subscribed. While the block holds there is exactly one active subscription: more than one means a handler leaked.
+    const live = (subscriptions: ReturnType<typeof spyOnBack>) => {
+      const active = subscriptions.filter((s) => s.remove.mock.calls.length === 0);
+      expect(active).toHaveLength(1);
+      return active[0];
+    };
 
     it('while Continuar is failing, back runs onBack instead of being swallowed, and is swallowed again after a retry', async () => {
       const subscriptions = spyOnBack();
@@ -284,7 +288,8 @@ describe('AddAthletesContainer', () => {
       failing.mockRestore();
       await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
       await waitFor(() => expect(screen.queryByText('No pudimos guardar el avance. Inténtalo de nuevo.')).toBeNull());
-      live(subscriptions)!.handler(undefined as never);
+      // After the retry the press is handled and swallowed again, not left to the navigator.
+      expect(live(subscriptions).handler(undefined as never)).toBe(true);
       expect(onBack).toHaveBeenCalledTimes(1);
     });
 
@@ -318,6 +323,161 @@ describe('AddAthletesContainer', () => {
       expect(await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeOnTheScreen();
       live(subscriptions)!.handler(undefined as never);
       expect(onBack).not.toHaveBeenCalled();
+    });
+
+    // A list that could not be read says nothing about who is added: a missing datum is not zero.
+    it('when the list cannot be read and adding fails, back stays swallowed: someone may already be added', async () => {
+      const subscriptions = spyOnBack();
+      const { mount, profiles, athletes, onBack } = setup();
+      await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
+      jest.spyOn(athletes, 'listManaged').mockRejectedValue(new Error('read failed'));
+      jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValue(new Error('write failed'));
+      await mount({ blockSystemBack: true });
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+
+      expect(await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeOnTheScreen();
+      expect(live(subscriptions).handler(undefined as never)).toBe(true);
+      expect(onBack).not.toHaveBeenCalled();
+    });
+
+    it('once the list reads again and nobody is added, a failed add lets back leave', async () => {
+      const subscriptions = spyOnBack();
+      const { mount, profiles, athletes, onBack } = setup();
+      const reading = jest.spyOn(athletes, 'listManaged').mockRejectedValueOnce(new Error('read failed'));
+      jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValueOnce(new Error('write failed'));
+      await mount({ blockSystemBack: true });
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.');
+      expect(live(subscriptions).handler(undefined as never)).toBe(true);
+      expect(onBack).not.toHaveBeenCalled();
+
+      // The retry saves (nothing was lost) and its read works: the list is known again.
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await screen.findByText('Lucía R.');
+      reading.mockRestore();
+      jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValue(new Error('write failed'));
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Gil');
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+      await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.');
+
+      // Lucía is added, so Continuar is the way out and back stays swallowed.
+      live(subscriptions).handler(undefined as never);
+      expect(onBack).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Continuar when the list cannot be read', () => {
+    it('stays available and goes on: a list that could not be read is not an empty one', async () => {
+      const { mount, onContinue, athletes, profiles } = setup();
+      await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
+      jest.spyOn(athletes, 'listManaged').mockRejectedValue(new Error('read failed'));
+      await mount();
+
+      const button = await screen.findByRole('button', { name: 'Continuar' });
+      expect(button.props.accessibilityState.disabled).toBeFalsy();
+      await fireEvent.press(button);
+
+      await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
+    });
+
+    it('stays disabled when the list reads fine and nobody is added', async () => {
+      const { mount, onContinue } = setup();
+      await mount();
+
+      const button = await screen.findByRole('button', { name: /^Continuar/ });
+      await waitFor(() => expect(button.props.accessibilityState.disabled).toBe(true));
+      await fireEvent.press(button);
+
+      expect(onContinue).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('an add in flight and Continuar block each other', () => {
+    it('Continuar does nothing while an add is saving', async () => {
+      const { mount, onContinue, drafts, profiles } = setup();
+      await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
+      const create = profiles.createManagedAthlete.bind(profiles);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
+        await gate;
+        return create(input);
+      });
+      await mount();
+      await screen.findByText('Mateo G.');
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+      const save = jest.spyOn(drafts, 'save');
+      save.mockClear();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(true));
+      await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+      release();
+      await screen.findByText('Lucía R.');
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+
+      expect(onContinue).not.toHaveBeenCalled();
+      expect(save).not.toHaveBeenCalledWith(expect.objectContaining({ step: 'authorizations' }));
+    });
+
+    it('Agregar does nothing while Continuar is saving', async () => {
+      const { mount, onContinue, drafts, profiles } = setup();
+      await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
+      const create = jest.spyOn(profiles, 'createManagedAthlete');
+      await mount();
+      await screen.findByText('Mateo G.');
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const real = drafts.save.bind(drafts);
+      jest.spyOn(drafts, 'save').mockImplementation(async (d) => {
+        await gate;
+        return real(d);
+      });
+
+      fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Continuar' }).props.accessibilityState.busy).toBe(true));
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+      release();
+
+      await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('a double tap on Agregar saves the athlete once', async () => {
+      const { mount, profiles } = setup();
+      const create = profiles.createManagedAthlete.bind(profiles);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const spy = jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
+        await gate;
+        return create(input);
+      });
+      await mount();
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+
+      // Both taps land in the same tick, before the card shows it is busy.
+      const button = screen.getByRole('button', { name: 'Agregar deportista' });
+      await act(async () => {
+        void fireEvent.press(button);
+        void fireEvent.press(button);
+      });
+      release();
+      await screen.findByText('Lucía R.');
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+
+      expect(spy).toHaveBeenCalledTimes(1);
     });
   });
 
