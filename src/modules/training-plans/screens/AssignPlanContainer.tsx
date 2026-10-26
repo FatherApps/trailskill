@@ -20,7 +20,8 @@ export type AssignPlanContainerProps = {
   // The day shown first (YYYY-MM-DD); today when omitted.
   initialDay?: string;
   // The plan selected first, for example the one just saved in the editor; none when omitted or not in the school's list.
-  initialPlanId?: string;
+  // A repeated route parameter (`?plan=a&plan=b`) arrives as an array: the first value wins.
+  initialPlanId?: string | string[];
   // Opens the fulfillment grid of an assignment of the day shown.
   onOpenFulfillment?: (assignmentId: string, day: string) => void;
 };
@@ -58,7 +59,14 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
   const [attempt, setAttempt] = useState(0);
   const [day, setDay] = useState(initialDay ?? todayText());
   const [rows, setRows] = useState<AssignedRow[]>([]);
-  const [planId, setPlanId] = useState<string | null>(initialPlanId ?? null);
+  const preselected = (Array.isArray(initialPlanId) ? initialPlanId[0] : initialPlanId) ?? null;
+  const [planId, setPlanId] = useState<string | null>(preselected);
+  // A new route parameter replaces the selection even when the screen stays mounted.
+  const [seenPreselected, setSeenPreselected] = useState(preselected);
+  if (seenPreselected !== preselected) {
+    setSeenPreselected(preselected);
+    setPlanId(preselected);
+  }
   const [kind, setKind] = useState<AssignmentKind>('group');
   const [optionId, setOptionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -88,6 +96,8 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
   }, [userId, attempt]);
 
   const ready = typeof loaded === 'object' ? loaded : null;
+  // Shown and saved: only a plan of the school's list counts as chosen.
+  const chosenPlanId = ready?.plans.some((p) => p.id === planId) ? planId : null;
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
@@ -117,12 +127,12 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
 
   async function save() {
     const target = targetOf(kind, optionId);
-    if (busy.current || !ready || !planId || !target) return;
+    if (busy.current || !ready || !chosenPlanId || !target) return;
     busy.current = true;
     setFailure(undefined);
     setSaving(true);
     try {
-      await assignPlan(assignments, ready.scope, { planId, sessionDate: day, target });
+      await assignPlan(assignments, ready.scope, { planId: chosenPlanId, sessionDate: day, target });
       setOptionId(null);
     } catch (error) {
       const denied = error instanceof PlanNotAssignableError || error instanceof TargetNotInChargeError || error instanceof TargetOutsideSchoolError;
@@ -164,7 +174,7 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
       content: {
         dateLabel: dayLabel(day),
         plans: ready.plans,
-        selectedPlanId: ready.plans.some((p) => p.id === planId) ? planId : null,
+        selectedPlanId: chosenPlanId,
         kinds,
         kind,
         options: optionsOf(scope, kind),
