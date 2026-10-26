@@ -29,6 +29,9 @@ const settle = () =>
     for (let i = 0; i < 20; i += 1) await Promise.resolve();
   });
 
+// The bodies of the notes on the screen, in a fixed order.
+const noteBodies = () => (shown.view.kind === 'data' ? (shown.view.content.notes ?? []).map((note) => note.body).sort() : []);
+
 const showsPlan = (planName: string) => waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { planName } }));
 
 // `synced` is the state of the first render; the first sync is the change from false to true.
@@ -60,7 +63,8 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
   const storedNotices = createInMemoryNoticeRepository();
   // Saving a note waits for `hold.promise` while it is set; the next `hold.listing.remaining` listings wait for `hold.listing.promise`.
   // The next `hold.failListings` listings are rejected.
-  const hold: { promise?: Promise<void>; listing?: { promise: Promise<void>; remaining: number }; failListings?: number } = {};
+  // The next `hold.stale.remaining` listings read the notes at once but answer only when `hold.stale.promise` resolves, so they can be older than the ones that answer before.
+  const hold: { promise?: Promise<void>; listing?: { promise: Promise<void>; remaining: number }; stale?: { promise: Promise<void>; remaining: number }; failListings?: number } = {};
   const notices = {
     ...storedNotices,
     add: async (...args: Parameters<typeof storedNotices.add>) => (await hold.promise, storedNotices.add(...args)),
@@ -73,7 +77,10 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
         hold.failListings -= 1;
         throw new Error('list failed');
       }
-      return storedNotices.list(...args);
+      const late = hold.stale && hold.stale.remaining > 0 ? ((hold.stale.remaining -= 1), hold.stale.promise) : undefined;
+      const listed = await storedNotices.list(...args);
+      await late;
+      return listed;
     },
   };
   const fulfillment = createInMemoryFulfillmentRepository({}, plans);
@@ -136,10 +143,23 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
     hold.listing = { promise: new Promise<void>((resolve) => (release = resolve)), remaining: count };
     return release;
   };
-  return { one, other, stored, fulfillment, notices: storedNotices, reads, update, sendHeld, startHeld, startOpen, holdListings, failListings };
+  // The next `count` listings take the notes now and answer when the returned function is called.
+  const holdStaleListings = (count: number) => {
+    let release!: () => void;
+    hold.stale = { promise: new Promise<void>((resolve) => (release = resolve)), remaining: count };
+    return () => act(async () => release());
+  };
+  return { one, other, stored, fulfillment, notices: storedNotices, reads, update, sendHeld, startHeld, startOpen, holdListings, holdStaleListings, failListings };
 }
 
 describe('TodayContainer races', () => {
+  // A rejected listing is reported with a warning; the tests that reject one keep the output clean.
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => warn.mockRestore());
+
   it('keeps the plan of the athlete picked while a note of another one is being saved, and the note stays with the first athlete', async () => {
     const { one, other, notices, sendHeld } = await setup();
     await showsPlan('Plan p1');
@@ -380,6 +400,81 @@ describe('TodayContainer races', () => {
     expect(reads.count).toBe(before + 1);
     await showsPlan('Plan p1');
     await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } }));
+  });
+
+  it('keeps the newer note when the listing of an earlier save answers after the one of a later save', async () => {
+    const { startOpen, holdStaleListings } = await setup();
+    await showsPlan('Plan p1');
+
+    // The first listing took the notes before the second note was added, and answers last.
+    const releaseFirst = holdStaleListings(1);
+    const first = await startOpen('Test note 1');
+    const second = await startOpen('Test note 2');
+    await settle();
+    expect(noteBodies()).toEqual(['Test note 1', 'Test note 2']);
+
+    await releaseFirst();
+    await act(async () => {
+      await Promise.all([first.sending, second.sending]);
+    });
+
+    expect(noteBodies()).toEqual(['Test note 1', 'Test note 2']);
+  });
+
+  it('reports a rejected listing after a save, and still reads again to show the note', async () => {
+    const { startOpen, failListings } = await setup();
+    await showsPlan('Plan p1');
+
+    failListings(1);
+    await startOpen('Test note 1');
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('[training-plans]'), expect.objectContaining({ message: 'list failed' }));
+    await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } }));
+  });
+
+  it('shows every note when coming back to the athlete after the save that finishes last ended while another athlete was shown', async () => {
+    const { startHeld, startOpen, failListings } = await setup();
+    await showsPlan('Plan p1');
+    const first = await startHeld('Test note 1');
+    // The listing of the second save fails while the first is still open, so the athlete's answer may lack its note.
+    failListings(1);
+    await startOpen('Test note 2');
+
+    await act(async () => shown.onSelectAthlete?.('a3'));
+    await showsPlan('Plan del otro');
+    await first.release();
+    await act(async () => {
+      await first.sending;
+    });
+    await act(async () => shown.onSelectAthlete?.('a1'));
+
+    await showsPlan('Plan p1');
+    await waitFor(() => expect(noteBodies()).toEqual(['Test note 1', 'Test note 2']));
+  });
+
+  it('keeps the data on screen when the save that finishes last fails to add its note while an older read is open', async () => {
+    const { reads, update, startHeld } = await setup({ synced: false });
+    await showsPlan('Plan p1');
+    // The first sync completing reads again; the data shown stays until that read arrives, and it is still open.
+    let openRead!: () => void;
+    reads.gate = new Promise<void>((resolve) => (openRead = resolve));
+    await update(['a1', 'a3'], DAY, true);
+    const first = await startHeld('Test note 1');
+    const second = await startHeld('Test note 2', { rejected: true });
+
+    await first.release();
+    await settle();
+    await second.release();
+    await act(async () => {
+      await first.sending;
+      await expect(second.sending).rejects.toThrow('add failed');
+    });
+
+    // Reading again must not replace the data with loading, which would also hide the error of the note that failed.
+    expect(shown.view).toMatchObject({ kind: 'data', content: { planName: 'Plan p1', notes: [{ body: 'Test note 1' }] } });
+    openRead();
+    await settle();
+    expect(shown.view).toMatchObject({ kind: 'data', content: { planName: 'Plan p1', notes: [{ body: 'Test note 1' }] } });
   });
 
   it('shows the error view with a retry when the read after a rejected listing fails too', async () => {
