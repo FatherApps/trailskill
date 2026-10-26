@@ -145,6 +145,15 @@ describe('athlete profile container', () => {
     expect(await screen.findByText('Esta información es privada')).toBeOnTheScreen();
   });
 
+  it('gives the states without the athlete the same back action', async () => {
+    const onBack = jest.fn();
+    await show({ athleteId: 'someone-else', onBack });
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Volver' }));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the error with a retry when the history cannot be read', async () => {
     const history: HistoryRepository = {
       listByEvent: jest.fn().mockRejectedValueOnce(new Error('db')).mockResolvedValue([measurement({ id: 'm1' })]),

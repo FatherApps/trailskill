@@ -175,9 +175,9 @@ export function AthleteProfileContainer({
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const retryOtherSchool = useCallback(() => setOtherAttempt((n) => n + 1), []);
 
-  if (loaded.kind === 'loading') return <AthleteProfileScreen name="" view={{ kind: 'loading' }} />;
-  if (loaded.kind === 'denied') return <AthleteProfileScreen name="" view={{ kind: 'denied' }} />;
-  if (loaded.kind === 'error') return <AthleteProfileScreen name="" view={{ kind: 'error', onRetry: retry }} />;
+  if (loaded.kind === 'loading') return <AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={onBack} />;
+  if (loaded.kind === 'denied') return <AthleteProfileScreen name="" view={{ kind: 'denied' }} onBack={onBack} />;
+  if (loaded.kind === 'error') return <AthleteProfileScreen name="" view={{ kind: 'error', onRetry: retry }} onBack={onBack} />;
 
   const { athlete, authorized, measurements, schools } = loaded;
   // A choice that is no longer among the athlete's schools falls back to the first one.

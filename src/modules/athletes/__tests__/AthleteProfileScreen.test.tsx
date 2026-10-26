@@ -186,7 +186,28 @@ describe('AthleteProfileScreen', () => {
 
       await act(() => jest.advanceTimersByTime(1));
       expect(screen.getByText('Cargando')).toBeOnTheScreen();
-      expect(screen.queryByText(name)).toBeNull();
+      // The short name in the band is the only thing about the athlete.
+      expect(screen.getAllByText(name)).toHaveLength(1);
+    });
+  });
+
+  describe('back in the states without content', () => {
+    const views: [string, AthleteProfileView][] = [
+      ['loading', { kind: 'loading' }],
+      ['error', { kind: 'error', onRetry: jest.fn() }],
+      ['offline-empty', { kind: 'offline-empty' }],
+      ['other-school-offline', { kind: 'other-school-offline' }],
+      ['denied', { kind: 'denied' }],
+    ];
+
+    it.each(views)('the %s view shows the band with a "Volver" button that calls onBack', async (_, view) => {
+      const onBack = jest.fn();
+      await render(<AthleteProfileScreen name={name} view={view} onBack={onBack} />);
+
+      expect(screen.getByRole('header', { name })).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+
+      expect(onBack).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -282,7 +303,7 @@ describe('AthleteProfileScreen', () => {
 
       expect(screen.getByText('Esta información es privada')).toBeOnTheScreen();
       expect(screen.getByText('Solo el acudiente de Lucía R. y su escuela pueden verla.')).toBeOnTheScreen();
-      expect(screen.queryByRole('button')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Pedir acceso a la escuela' })).toBeNull();
       expect(screen.queryByText('Infantil B', { exact: false })).toBeNull();
     });
 
