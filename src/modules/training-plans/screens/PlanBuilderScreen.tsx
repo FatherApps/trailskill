@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -15,8 +15,6 @@ export type PlanBuilderScreenProps = {
   planName: string;
   // Shows the "write a name" error on the name field.
   nameError?: boolean;
-  // Pass a stable array (state, or memoised): the metres in the header are memoised by reference, so an array built inline
-  // on every render recomputes them every time, and one mutated in place keeps the old total.
   blocks: DraftBlock[];
   vocabulary: PlanVocabulary;
   // The block shown with the inline editor instead of its actions.
@@ -80,7 +78,7 @@ export function PlanBuilderScreen({
   const [removingId, setRemovingId] = useState(defaultRemovingId);
   const removingPosition = blocks.findIndex((block) => block.id === removingId) + 1;
   const editingIndex = blocks.findIndex((block) => block.id === editingId);
-  const meters = useMemo(() => blocks.reduce((sum, block) => sum + block.repetitions * block.distance, 0), [blocks]);
+  const meters = blocks.reduce((sum, block) => sum + block.repetitions * block.distance, 0);
 
   const editor = (block: DraftBlock) => (
     <BlockEditor block={block} vocabulary={vocabulary} errors={editingErrors} onChange={onChangeBlock} onDone={onDoneEditing} />
