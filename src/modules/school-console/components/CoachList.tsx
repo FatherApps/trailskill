@@ -49,6 +49,7 @@ export function CoachList({ coaches, deactivateAvailable = false, onDeactivate }
   return (
     // Hidden until measured: before that the last odd card cannot be capped and would be drawn stretched for a frame.
     <View
+      key={oneColumn ? 'one-column' : 'grid'}
       testID="coach-list"
       onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
       style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3], opacity: width === null ? 0 : 1 }}

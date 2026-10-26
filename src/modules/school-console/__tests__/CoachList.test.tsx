@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
-import { space } from '../../../core/theme';
+import { space, ThemeProvider } from '../../../core/theme';
 import { coachesFixture, pendingCoachFixture } from '../__fixtures__/coaches';
 import { CoachList, type CoachRow } from '../components/CoachList';
 
@@ -67,6 +67,25 @@ describe('CoachList', () => {
       await measure(1000);
 
       expect(maxWidths()).toEqual([(1000 - space[3]) / 2]);
+    });
+  });
+
+  describe('when the text grows while the list is on screen', () => {
+    // The gallery control at 200 %, or the system font changing live: native layout can keep the grid's narrow
+    // cards when the cell style changes in place, so the list is rebuilt.
+    it('rebuilds the list when it goes from the grid to one column', async () => {
+      const list = (fontScale: number) => (
+        <ThemeProvider fontScale={fontScale}>
+          <CoachList coaches={coachesFixture} onDeactivate={jest.fn()} />
+        </ThemeProvider>
+      );
+      const { rerender } = await render(list(1));
+      await measure(400);
+      const before = screen.getByTestId('coach-list');
+
+      await rerender(list(2));
+
+      expect(screen.getByTestId('coach-list')).not.toBe(before);
     });
   });
 
