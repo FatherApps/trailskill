@@ -40,6 +40,24 @@ describe('planSummary', () => {
     expect(planSummary([block(8, 50), block(NaN, 100), block(-2, 50), block(4, 0), block(1, 200)])).toBe('600 m + 3 bloques sin distancia');
   });
 
+  it('counts a block with two negative factors as without distance: the product is not what is checked', () => {
+    expect(planSummary([block(-2, -25)])).toBe('1 bloque');
+    expect(planSummary([block(8, 50), block(-2, -25), block(1, 200)])).toBe('600 m + 1 bloque sin distancia');
+  });
+
+  it('counts an Infinity factor as without distance and never shows "Infinity m"', () => {
+    expect(planSummary([block(Infinity, 50)])).toBe('1 bloque');
+    expect(planSummary([block(8, Infinity)])).toBe('1 bloque');
+    expect(planSummary([block(-Infinity, -25)])).toBe('1 bloque');
+    expect(planSummary([block(8, 50), block(Infinity, 100), block(1, 200)])).toBe('600 m + 1 bloque sin distancia');
+    expect(planSummary([block(8, 50), block(Infinity, 100), block(-2, -25), block(NaN, 50)])).toBe('400 m + 3 bloques sin distancia');
+  });
+
+  it('counts two finite factors whose product overflows as without distance', () => {
+    expect(planSummary([block(1e200, 1e200)])).toBe('1 bloque');
+    expect(planSummary([block(8, 50), block(1e200, 1e200), block(1, 200)])).toBe('600 m + 1 bloque sin distancia');
+  });
+
   it('has no summary without blocks', () => {
     expect(planSummary([])).toBeUndefined();
   });
