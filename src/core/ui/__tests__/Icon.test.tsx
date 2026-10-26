@@ -57,6 +57,7 @@ describe('Icon', () => {
         'undo',
         'arrow_forward',
         'person_search',
+        'chat_bubble',
       ].sort(),
     );
   });

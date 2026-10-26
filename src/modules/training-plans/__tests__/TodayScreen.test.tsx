@@ -181,11 +181,14 @@ describe('TodayScreen blocks card', () => {
     expect(screen.getByRole('button', { name: 'Avisar algo al entrenador' })).toBeOnTheScreen();
   });
 
-  it('draws no icon in the report button: the info glyph belongs to the plan-changed banner', async () => {
+  it('draws the chat bubble in the report button, decorative and without the info glyph of the plan-changed banner', async () => {
     await render(setup({ kind: 'data', content }).ui);
 
-    const drawn = screen.container.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
+    const button = screen.getByRole('button', { name: 'Avisar algo al entrenador' });
+    const drawn = button.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
+    expect(drawn).toEqual([iconPaths.chat_bubble]);
     expect(drawn).not.toContain(iconPaths.info);
+    expect(screen.queryByRole('image')).toBeNull();
   });
 });
 
