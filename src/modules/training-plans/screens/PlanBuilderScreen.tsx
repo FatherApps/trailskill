@@ -7,6 +7,7 @@ import { Banner, Button, ConfirmSheet, Icon, StateView, TextField } from '../../
 import '../i18n';
 import { BlockCard } from '../components/BlockCard';
 import { BlockEditor } from '../components/BlockEditor';
+import { formatNumber } from '../components/formatNumber';
 import type { BlockErrors, DraftBlock } from '../draft';
 import type { PlanVocabulary } from '../types';
 
@@ -44,9 +45,6 @@ export type PlanBuilderScreenProps = {
   // The width in dp this screen can use; defaults to the window. From bp-expanded the list and the editing panel sit side by side.
   width?: number;
 };
-
-// 2000 → "2.000" (es-CO); Intl drops the separator of four-digit numbers in Spanish.
-const withThousands = (value: number) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
 // Presentational: the caller owns the plan and handles every event; only the open remove confirmation is local.
 export function PlanBuilderScreen({
@@ -159,7 +157,7 @@ export function PlanBuilderScreen({
     />
   );
   const summary = expanded
-    ? t('training_plans.today.summary', { meters: withThousands(meters), count: blocks.length })
+    ? t('training_plans.today.summary', { meters: formatNumber(meters), count: blocks.length })
     : t('training_plans.builder.count', { count: blocks.length });
 
   return (
