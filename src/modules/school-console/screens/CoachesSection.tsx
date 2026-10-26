@@ -35,16 +35,27 @@ type Answer = { schoolId: string; attempt: number; result: Loaded | 'error' };
 const MINUTE_MS = 60_000;
 const defaultNow = () => new Date();
 
-function toRow(coach: Coach, { groups, athletes, assignments }: Loaded): CoachRow {
-  const assigned = new Set(assignments.filter((a) => a.coachId === coach.id && a.groupId !== null).map((a) => a.groupId));
+// The group ids and the athlete count of each coach, built once per read.
+function indexByCoach({ athletes, assignments }: Loaded) {
+  const groupIds = new Map<string, Set<string | null>>();
+  for (const { coachId, groupId } of assignments) {
+    if (groupId !== null) groupIds.set(coachId, (groupIds.get(coachId) ?? new Set()).add(groupId));
+  }
+  const athleteCounts = new Map<string, number>();
+  for (const athlete of athletes) for (const coachId of athlete.coachIds) athleteCounts.set(coachId, (athleteCounts.get(coachId) ?? 0) + 1);
+  return { groupIds, athleteCounts };
+}
+
+function toRow(coach: Coach, groups: SchoolGroup[], { groupIds, athleteCounts }: ReturnType<typeof indexByCoach>): CoachRow {
+  const assigned = groupIds.get(coach.id);
   return {
     id: coach.id,
     name: coach.name,
     // Without a readable name there is nothing to take initials from.
     initials: '',
     color: colorOf(coach.id),
-    groups: groups.filter((group) => assigned.has(group.id)).map((group) => group.name),
-    athleteCount: athletes.filter((athlete) => athlete.coachIds.includes(coach.id)).length,
+    groups: groups.filter((group) => assigned?.has(group.id)).map((group) => group.name),
+    athleteCount: athleteCounts.get(coach.id) ?? 0,
   };
 }
 
@@ -70,10 +81,18 @@ export function CoachesSection({
   useEffect(() => {
     let active = true;
     const settle = (result: Answer['result']) => active && setAnswer({ schoolId, attempt, result });
-    Promise.all([repository.listCoaches(schoolId), structure.listGroups(schoolId), athletes.listAthletes(schoolId)])
+    Promise.all([
+      repository.listCoaches(schoolId),
+      structure.listGroups(schoolId),
+      athletes.listAthletes(schoolId),
       // No athlete ids: only the assignments to the school's groups, which are what the list shows.
-      .then(async ([coaches, groups, list]) => settle({ coaches, groups, athletes: list, assignments: await structure.listCoachAssignments(schoolId, []) }))
-      .catch(() => settle('error'));
+      structure.listCoachAssignments(schoolId, []),
+    ])
+      .then(([coaches, groups, list, assignments]) => settle({ coaches, groups, athletes: list, assignments }))
+      .catch((error: unknown) => {
+        if (__DEV__) console.warn('[school-console] Coaches could not be loaded', error);
+        settle('error');
+      });
     return () => {
       active = false;
     };
@@ -82,21 +101,25 @@ export function CoachesSection({
   const loaded = answer?.schoolId === schoolId && answer.attempt === attempt ? answer.result : undefined;
 
   let view: CoachesView;
-  // Empty before the first sync arrives is not "no coaches": the data may still be on its way.
-  if (loaded === undefined || (connection === 'connecting' && lastSyncedAt === null && loaded !== 'error' && loaded.coaches.length === 0)) {
+  if (loaded === undefined) {
     view = { kind: 'loading' };
   } else if (loaded === 'error') {
     view = { kind: 'error', onRetry: () => setAttempt((n) => n + 1) };
   } else if (loaded.coaches.length === 0) {
-    view = connection === 'offline' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
+    // Never synced and still not connected: nothing is stored yet, and the list fills in when the first sync arrives.
+    view = connection !== 'connected' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
   } else {
+    const byCoach = indexByCoach(loaded);
     const content: CoachesContent = {
       updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.floor((now().getTime() - lastSyncedAt.getTime()) / MINUTE_MS)) : null,
-      coaches: loaded.coaches.map((coach) => toRow(coach, loaded)),
+      coaches: loaded.coaches.map((coach) => toRow(coach, loaded.groups, byCoach)),
     };
     // Without a connection the list is what the device stored; with no sync date the banner leaves the date out.
     view = connection !== 'offline' ? { kind: 'data', content } : { kind: 'offline', storedOn: lastSyncedAt ? localDate(lastSyncedAt) : '', content };
   }
 
-  return <CoachesScreen width={width} schoolName={schoolName} view={view} onNavigate={onNavigate} onInvite={onInvite} onDeactivate={onDeactivate} />;
+  // The groups feed the invite sheet's chips; «Desactivar» stays disabled (the screen's default) until issue 220.
+  const groups = loaded !== undefined && loaded !== 'error' ? loaded.groups : undefined;
+
+  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onInvite={onInvite} onDeactivate={onDeactivate} />;
 }

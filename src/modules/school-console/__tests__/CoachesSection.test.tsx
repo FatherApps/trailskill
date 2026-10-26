@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
@@ -149,14 +149,38 @@ describe('CoachesSection', () => {
     expect(await screen.findByText('No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
   });
 
-  it('keeps loading, not "no coaches", while connecting and never synced', async () => {
-    const real = coachRepository();
-    const listCoaches = jest.fn().mockImplementation(real.listCoaches);
-    await show({ listCoaches }, { schoolId: 'school-z', connection: 'connecting', lastSyncedAt: null });
-    await waitFor(() => expect(listCoaches).toHaveBeenCalled());
-    await act(async () => {});
+  it('does not load forever while connecting, never synced and without coaches: it says nothing is stored yet', async () => {
+    await show(coachRepository(), { schoolId: 'school-z', connection: 'connecting', lastSyncedAt: null });
 
-    expect(screen.getByTestId('state-view')).toHaveProp('accessibilityState', { busy: true });
-    expect(screen.queryByText('Aún no hay entrenadores')).toBeNull();
+    expect(await screen.findByText('No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
+    expect(screen.queryByTestId('state-view')).not.toHaveProp('accessibilityState', { busy: true });
+  });
+
+  it('logs the failed read and keeps showing the error', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const failure = new Error('boom');
+    await show({ listCoaches: jest.fn().mockRejectedValue(failure) });
+
+    expect(await screen.findByText('No pudimos cargar los entrenadores')).toBeOnTheScreen();
+    expect(warn).toHaveBeenCalledWith('[school-console] Coaches could not be loaded', failure);
+  });
+
+  it('reads the group assignments together with the rest, not after them', async () => {
+    const listCoachAssignments = jest.spyOn(structure, 'listCoachAssignments');
+    // Never settles: whatever is called now was started in parallel with it.
+    await show({ listCoaches: () => new Promise(() => {}) });
+
+    await waitFor(() => expect(listCoachAssignments).toHaveBeenCalledWith('school-a', []));
+  });
+
+  it('offers the groups of the school, and only those, in the invite sheet', async () => {
+    await show(coachRepository());
+    await rows();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+
+    expect(screen.getByRole('radio', { name: 'Group A' })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Group B' })).toBeOnTheScreen();
+    expect(screen.queryByRole('radio', { name: 'Other group' })).toBeNull();
   });
 });
