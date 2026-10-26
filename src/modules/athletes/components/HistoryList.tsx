@@ -4,10 +4,10 @@ import { FlatList, PixelRatio, StyleSheet, Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { distances, strokes, type DistanceCode, type StrokeCode } from '../../../core/sport';
 import type { RecordSyncState } from '../../../core/sync';
-import { typography as baseTypography, useTheme, type ColorToken } from '../../../core/theme';
+import { space as spaceTokens, typography as baseTypography, useTheme, type ColorToken } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
 import { spokenTime } from '../../../core/time';
-import { SyncStatus, Tag, TimeValue, type IconName } from '../../../core/ui';
+import { Icon, SyncStatus, TimeValue, type IconName } from '../../../core/ui';
 import '../i18n';
 import { formatDate } from './formatDate';
 
@@ -48,6 +48,8 @@ export type HistoryListProps = {
   // whole screen is this one virtualized list instead of a list inside a ScrollView.
   header?: ReactNode;
   footer?: ReactNode;
+  // Space between the rows and the left and right edges; the header and footer keep their own. Default 0.
+  inset?: number;
 };
 
 export const historyListColors: { card: ColorToken; separator: ColorToken; title: ColorToken; meta: ColorToken } = {
@@ -57,13 +59,32 @@ export const historyListColors: { card: ColorToken; separator: ColorToken; title
   meta: 'ink-muted',
 };
 
+// Where the origin shows by colour: the dot, with its icon, never by colour alone (the origin text sits beside it).
+// Own results follow the context; the rest follow the origin. `surface-2` takes `ink`, the others `on-color`.
+const dotOf = (result: HistoryResult): { color: ColorToken; ink: ColorToken; icon: IconName } => {
+  switch (result.origin) {
+    case 'own':
+      return result.context === 'competition'
+        ? { color: 'lime', ink: 'on-color', icon: 'emoji_events' }
+        : { color: 'sky', ink: 'on-color', icon: 'timer' };
+    case 'import':
+      return { color: 'surface-2', ink: 'ink', icon: 'cloud_download' };
+    case 'external_timer':
+      return { color: 'lilac', ink: 'on-color', icon: 'link' };
+    case 'other_school':
+      return { color: 'coral', ink: 'on-color', icon: 'group' };
+  }
+};
+
+const dotSize = spaceTokens[8];
+
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   // Large text: the time goes below the text, each at the full row width, so no word is split.
   rowLarge: { flexDirection: 'column', alignItems: 'stretch' },
   // The text block shrinks (minWidth 0) and the time keeps its own width, so the two never overlap.
   text: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-  tag: { alignSelf: 'flex-start', maxWidth: '100%' },
+  dot: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   trailing: { alignItems: 'flex-end', flexShrink: 0 },
   trailingLarge: { alignItems: 'flex-start' },
 });
@@ -77,21 +98,18 @@ const hidden = { importantForAccessibility: 'no-hide-descendants', accessibility
 const nameOf = (catalog: readonly { code: string; nameKey: string }[], code: string) =>
   t(catalog.find((entry) => entry.code === code)?.nameKey ?? code);
 
-const originTag = (result: HistoryResult): { label: string; icon: IconName } | null => {
+const originLabel = (result: HistoryResult): string | null => {
   switch (result.origin) {
     case 'own':
       return null;
     case 'import':
-      return { label: result.sourceName || t('athletes.history.origin.import'), icon: 'cloud_download' };
+      return result.sourceName || t('athletes.history.origin.import');
     case 'external_timer':
-      return { label: t('athletes.history.origin.external_timer'), icon: 'link' };
+      return t('athletes.history.origin.external_timer');
     case 'other_school':
-      return {
-        label: result.sourceName
-          ? t('athletes.history.origin.other_school_named', { source: result.sourceName })
-          : t('athletes.history.origin.other_school'),
-        icon: 'group',
-      };
+      return result.sourceName
+        ? t('athletes.history.origin.other_school_named', { source: result.sourceName })
+        : t('athletes.history.origin.other_school');
   }
 };
 
@@ -109,7 +127,7 @@ const valueLabel = (value: HistoryValue): string | null => {
 };
 
 function HistoryRow({ result }: { result: HistoryResult }) {
-  const { colors, space, size, typography } = useTheme();
+  const { colors, space, size, radius, typography } = useTheme();
   // The gallery preview scale (theme) and the system scale both apply.
   const large =
     (typography.caption.fontSize / baseTypography.caption.fontSize) * PixelRatio.getFontScale() >= largeTextScale;
@@ -117,7 +135,8 @@ function HistoryRow({ result }: { result: HistoryResult }) {
   const title = `${nameOf(strokes, result.stroke)} ${nameOf(distances, result.distance)}`;
   const context = t(`athletes.history.context.${result.context}`);
   const value = valueLabel(result.value);
-  const origin = originTag(result);
+  const origin = originLabel(result);
+  const dot = dotOf(result);
   const shortDate = formatDate(result.date, 'short');
   const longDate = formatDate(result.date, 'long');
 
@@ -134,7 +153,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
     longDate,
     context,
     value,
-    origin?.label,
+    origin,
     spokenResult,
     result.time !== null && result.isPersonalBest ? t('time_value.pb_spoken') : null,
     result.syncState ? t(`sync.${result.syncState}`) : t('athletes.history.online_only'),
@@ -157,14 +176,20 @@ function HistoryRow({ result }: { result: HistoryResult }) {
         },
       ]}
     >
+      <View
+        {...hidden}
+        testID="history-dot"
+        style={[
+          styles.dot,
+          { width: dotSize, height: dotSize, borderRadius: radius.full, backgroundColor: colors[dot.color] },
+        ]}
+      >
+        <Icon name={dot.icon} size="icon-sm" color={dot.ink} />
+      </View>
       <View {...hidden} style={[large ? undefined : styles.text, { gap: space[1] }]}>
         <Text style={[typography['body-strong'], { color: colors[historyListColors.title] }]}>{title}</Text>
         <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{meta}</Text>
-        {origin && (
-          <View style={styles.tag}>
-            <Tag variant="outline" icon={origin.icon} label={origin.label} />
-          </View>
-        )}
+        {origin && <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{origin}</Text>}
       </View>
       <View {...hidden} style={[styles.trailing, large && styles.trailingLarge, { gap: space[1] }]}>
         <TimeValue
@@ -184,7 +209,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
 }
 
 // Presentational: the caller supplies the results (newest first) and each one's real sync state.
-export function HistoryList({ results, scrollEnabled = true, header, footer }: HistoryListProps) {
+export function HistoryList({ results, scrollEnabled = true, header, footer, inset = 0 }: HistoryListProps) {
   const { colors, radius } = useTheme();
 
   if (results.length === 0 && header === undefined && footer === undefined) return null;
@@ -204,6 +229,7 @@ export function HistoryList({ results, scrollEnabled = true, header, footer }: H
         renderItem={({ item, index }) => (
           <View
             style={{
+              marginHorizontal: inset,
               backgroundColor: colors[historyListColors.card],
               borderTopLeftRadius: index === 0 ? radius.md : 0,
               borderTopRightRadius: index === 0 ? radius.md : 0,
@@ -216,7 +242,9 @@ export function HistoryList({ results, scrollEnabled = true, header, footer }: H
           </View>
         )}
         ItemSeparatorComponent={() => (
-          <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors[historyListColors.separator] }} />
+          <View
+            style={{ height: StyleSheet.hairlineWidth, marginHorizontal: inset, backgroundColor: colors[historyListColors.separator] }}
+          />
         )}
       />
     </View>

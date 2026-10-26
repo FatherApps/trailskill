@@ -130,35 +130,41 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true }: Athle
   const empty = view.kind === 'empty';
   const storedOn = view.kind === 'offline' ? formatDate(view.storedOn, 'long') : null;
 
+  const padded = { paddingHorizontal: space[4] };
+
+  // The band runs edge to edge with the event chips inside it; everything else keeps the screen margins.
   const header = (
-    <View style={{ gap: space[4], paddingTop: space[4] }}>
-      {view.kind === 'offline' && (
-        <Banner variant="warn" icon="wifi_off">
-          <Text style={typography['body-strong']}>{t('athletes.screen.offline.title')}</Text>{' '}
-          {/* A malformed date is left out rather than shown wrong. */}
-          {storedOn
-            ? t('athletes.screen.offline.banner_dated', { date: storedOn })
-            : t('athletes.screen.offline.banner_undated')}
-        </Banner>
-      )}
-      <ProfileHeader {...content.header} />
-      <EventSelector {...content.event} />
-      {!empty && <PersonalBest {...content.personalBest} />}
-      {!empty && content.chart}
-      {!empty && content.history.length > 0 && (
-        <Text
-          accessibilityRole="header"
-          style={[typography.subtitle, { color: colors[athleteProfileScreenColors.title] }]}
-        >
-          {t('athletes.screen.history_title')}
-        </Text>
-      )}
+    <View style={{ gap: space[4] }}>
+      <ProfileHeader {...content.header}>
+        <EventSelector {...content.event} />
+      </ProfileHeader>
+      <View style={[padded, { gap: space[4] }]}>
+        {view.kind === 'offline' && (
+          <Banner variant="warn" icon="wifi_off">
+            <Text style={typography['body-strong']}>{t('athletes.screen.offline.title')}</Text>{' '}
+            {/* A malformed date is left out rather than shown wrong. */}
+            {storedOn
+              ? t('athletes.screen.offline.banner_dated', { date: storedOn })
+              : t('athletes.screen.offline.banner_undated')}
+          </Banner>
+        )}
+        {!empty && <PersonalBest {...content.personalBest} />}
+        {!empty && content.chart}
+        {!empty && content.history.length > 0 && (
+          <Text
+            accessibilityRole="header"
+            style={[typography.subtitle, { color: colors[athleteProfileScreenColors.title] }]}
+          >
+            {t('athletes.screen.history_title')}
+          </Text>
+        )}
+      </View>
     </View>
   );
 
   const footer =
     empty || content.importPrompt || content.otherSchoolOffline || content.otherSchoolError ? (
-      <View style={{ gap: space[4], paddingVertical: space[4] }}>
+      <View style={[padded, { gap: space[4], paddingVertical: space[4] }]}>
         {empty && (
           <StateView
             kind="empty"
@@ -189,11 +195,12 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true }: Athle
     ) : undefined;
 
   return (
-    <View style={frame}>
+    <View style={[frame, { paddingHorizontal: 0 }]}>
       {/* One virtualized list holds the whole screen, so the history is never a list inside a ScrollView. */}
       <HistoryList
         results={empty ? [] : content.history}
         scrollEnabled={scrollEnabled}
+        inset={space[4]}
         header={header}
         footer={footer}
       />

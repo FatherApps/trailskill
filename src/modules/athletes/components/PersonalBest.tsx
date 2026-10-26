@@ -2,9 +2,9 @@ import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import type { DistanceCode, PoolCode, StrokeCode } from '../../../core/sport';
-import { fontFamily, useTheme, type ColorToken } from '../../../core/theme';
+import { useTheme, type ColorToken } from '../../../core/theme';
 import { formatTime, spokenTime, type Hundredths } from '../../../core/time';
-import { Icon, TimeValue } from '../../../core/ui';
+import { Tag, TimeValue } from '../../../core/ui';
 import '../i18n';
 import { formatDate } from './formatDate';
 import { distanceLabel, poolLabel, strokeLabel } from './sportLabel';
@@ -22,6 +22,7 @@ export type PersonalBestProps = {
 };
 
 export const personalBestColors: { background: ColorToken; caption: ColorToken; time: ColorToken; delta: ColorToken } =
+  // The improvement is an `ok` Tag: success on success-bg.
   { background: 'surface-1', caption: 'ink-muted', time: 'ink', delta: 'success' };
 
 // The label already says everything its children show.
@@ -67,42 +68,32 @@ export function PersonalBest({ stroke, distance, pool, best, improvement, kind, 
       style={{
         backgroundColor: colors[personalBestColors.background],
         borderRadius: radius.md,
-        // The reference draws 14/20; 14 is not a space token, so the vertical padding is space[3] (12).
-        paddingVertical: space[3],
-        paddingHorizontal: space[5],
+        padding: space[4],
       }}
     >
       <View {...hidden} style={{ gap: space[1] }}>
-        <Text style={[typography.caption, { color: colors[personalBestColors.caption] }]}>
-          {t('athletes.personal_best.caption', {
-            stroke: strokeLabel(stroke),
-            distance: distanceLabel(distance),
-            pool: poolText,
-          })}
-        </Text>
-        <TimeValue size="time-lg" value={best} />
-        {shown && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[1] }}>
-            <Icon name="arrow_upward" size="icon-sm" color={personalBestColors.delta} />
-            <Text
-              style={[
-                // Same mono semibold caption as the TimeValue delta.
-                typography.caption,
-                {
-                  fontFamily: fontFamily.monoSemiBold,
-                  fontWeight: '600',
-                  fontVariant: ['tabular-nums'],
-                  color: colors[personalBestColors.delta],
-                },
-              ]}
-            >
-              {t('athletes.personal_best.improvement', {
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: space[2] }}>
+          <View style={{ flexShrink: 1, gap: space[1] }}>
+            <Text style={[typography.caption, { color: colors[personalBestColors.caption] }]}>
+              {t('athletes.personal_best.caption', {
+                stroke: strokeLabel(stroke),
+                distance: distanceLabel(distance),
+                pool: poolText,
+              })}
+            </Text>
+            <TimeValue size="time-lg" value={best} />
+          </View>
+          {shown && (
+            <Tag
+              variant="ok"
+              icon="arrow_upward"
+              label={t('athletes.personal_best.improvement', {
                 time: formatTime(shown.hundredths),
                 count: shown.months,
               })}
-            </Text>
-          </View>
-        )}
+            />
+          )}
+        </View>
         {footer && <Text style={[typography.caption, { color: colors[personalBestColors.caption] }]}>{footer}</Text>}
       </View>
     </View>

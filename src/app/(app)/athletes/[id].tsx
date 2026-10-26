@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useSession } from '../../../core/session';
 import { useGlobalSyncSummary } from '../../../core/sync';
@@ -28,6 +28,7 @@ const otherSchoolResults = createSupabaseOtherSchoolResultsRepository();
 
 export default function AthleteProfileRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { session } = useSession();
   const summary = useGlobalSyncSummary();
   const lastSyncedAt = summary.lastSyncedAt ?? null;
@@ -48,6 +49,7 @@ export default function AthleteProfileRoute() {
       lastSyncedAt={lastSyncedAt}
       otherSchoolResults={isStaff ? otherSchoolResults : undefined}
       online={summary.connection === 'connected'}
+      onBack={router.back}
     />
   );
 }

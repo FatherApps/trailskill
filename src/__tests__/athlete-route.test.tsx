@@ -27,7 +27,7 @@ jest.mock('../modules/school-console', () => ({
   createPowerSyncStaffSchoolRepository: () => ({}),
   useStaffSchool: () => ({ status: mockStaff ? 'staff' : 'none' }),
 }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: 'a1' }) }));
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: 'a1' }), useRouter: () => ({ back: jest.fn() }) }));
 
 describe('athlete profile route', () => {
   it('shows the profile of the athlete in the address', async () => {

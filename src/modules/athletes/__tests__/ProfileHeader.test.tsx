@@ -1,11 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
-import { colors, contrastRatio, type ThemeName } from '../../../core/theme';
+import { colors } from '../../../core/theme';
 import { profileFixture as p } from '../__fixtures__/profile';
 import { ProfileHeader, profileHeaderColors, type ProfileHeaderProps } from '../components/ProfileHeader';
-
-const themes: ThemeName[] = ['light', 'dark'];
 
 const base: ProfileHeaderProps = {
   name: p.name,
@@ -30,7 +28,29 @@ describe('ProfileHeader', () => {
     expect(screen.getByText('Infantil B')).toBeOnTheScreen();
   });
 
-  it('says the authorization is valid or pending', async () => {
+  it("paints the band with the athlete's colour", async () => {
+    await render(<ProfileHeader {...base} color="athlete-2" />);
+
+    const band = screen.getByRole('header', { name: 'Lucía R.' }).parent!;
+    expect(StyleSheet.flatten(band.props.style).backgroundColor).toBe(colors.light['athlete-2']);
+  });
+
+  it('has a round back button named "Volver" that calls onBack', async () => {
+    const onBack = jest.fn();
+    await render(<ProfileHeader {...base} onBack={onBack} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the back button on screen without a handler', async () => {
+    await render(<ProfileHeader {...base} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+  });
+
+  it('says the authorization is valid or pending, in text', async () => {
     await render(<ProfileHeader {...base} />);
     expect(screen.getByLabelText('Autorización vigente')).toBeOnTheScreen();
     expect(screen.queryByLabelText('Autorización pendiente')).toBeNull();
@@ -43,28 +63,36 @@ describe('ProfileHeader', () => {
     [5, 'Actualizado hace 5 min'],
     [1, 'Actualizado hace 1 min'],
     [0, 'Actualizado hace un momento'],
-  ])('says %s minutes ago as "%s"', async (minutes, text) => {
+  ])('says %s minutes ago as "%s" in a sync tag', async (minutes, text) => {
     await render(<ProfileHeader {...base} updatedMinutesAgo={minutes} />);
 
-    expect(screen.getByText(text)).toBeOnTheScreen();
+    expect(screen.getByLabelText(text)).toBeOnTheScreen();
   });
 
   it('says nothing about the update when it is unknown', async () => {
     await render(<ProfileHeader {...base} updatedMinutesAgo={null} />);
 
-    expect(screen.queryByText(/Actualizado/)).toBeNull();
+    expect(screen.queryByLabelText(/Actualizado/)).toBeNull();
   });
 
-  it('lays the tag and the update time out in a wrapping row', async () => {
+  it('draws the decorative ring with the nearest opaque token, hidden from screen readers', async () => {
     await render(<ProfileHeader {...base} />);
 
-    const row = screen.getByText('Actualizado hace 5 min').parent!;
-    expect(StyleSheet.flatten(row.props.style)).toMatchObject({
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      flexWrap: 'wrap',
-    });
+    const ring = screen.getByTestId('profile-ring', { includeHiddenElements: true });
+    expect(profileHeaderColors.ring).toBe('surface-1');
+    expect(StyleSheet.flatten(ring.props.style)).toMatchObject({ borderColor: colors.light['surface-1'], zIndex: -1 });
+    expect(ring.props.importantForAccessibility).toBe('no-hide-descendants');
+    expect(ring.props.pointerEvents).toBe('none');
+  });
+
+  it('shows what the screen puts in the band, such as the event chips', async () => {
+    await render(
+      <ProfileHeader {...base}>
+        <Text>Selector de prueba</Text>
+      </ProfileHeader>,
+    );
+
+    expect(screen.getByText('Selector de prueba')).toBeOnTheScreen();
   });
 
   it('has no school selector with a single school', async () => {
@@ -106,17 +134,5 @@ describe('ProfileHeader', () => {
       .join(' ');
     expect(rendered).not.toMatch(/\d{6,}/);
     expect(rendered).not.toMatch(/\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4}/);
-  });
-
-  describe.each(themes)('%s theme contrast', (theme) => {
-    const c = colors[theme];
-
-    it.each([
-      [profileHeaderColors.title, profileHeaderColors.background],
-      [profileHeaderColors.subtitle, profileHeaderColors.background],
-      [profileHeaderColors.updated, profileHeaderColors.background],
-    ] as const)('%s on %s is at least 4.5:1', (text, background) => {
-      expect(contrastRatio(c[text], c[background])).toBeGreaterThanOrEqual(4.5);
-    });
   });
 });

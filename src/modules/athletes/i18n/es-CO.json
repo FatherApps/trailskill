@@ -7,8 +7,7 @@
     "updated_now": "Actualizado hace un momento"
   },
   "event_selector": {
-    "stroke": "Estilo",
-    "distance": "Distancia",
+    "event": "Prueba",
     "pool": "Piscina"
   },
   "personal_best": {

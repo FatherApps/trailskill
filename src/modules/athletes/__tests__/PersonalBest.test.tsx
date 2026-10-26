@@ -60,6 +60,14 @@ describe('PersonalBest', () => {
     expect(screen.container.queryAll((node) => node.type === 'RNSVGPath')).toHaveLength(1);
   });
 
+  it('shows the improvement as a success tag beside the time', async () => {
+    await render(<PersonalBest {...base} />);
+
+    const tag = screen.getByLabelText('−2,28 en 6 meses', hidden);
+    expect(style(tag).backgroundColor).toBe(colors.light['success-bg']);
+    expect(style(tag.parent!).flexDirection).toBe('row');
+  });
+
   it('shows no improvement when there is none', async () => {
     await render(<PersonalBest {...base} improvement={undefined} />);
 
@@ -107,8 +115,7 @@ describe('PersonalBest', () => {
     expect(style(screen.getByLabelText(/^Marca personal/))).toMatchObject({
       backgroundColor: colors.light['surface-1'],
       borderRadius: radius.md,
-      paddingVertical: space[3],
-      paddingHorizontal: space[5],
+      padding: space[4],
     });
   });
 
@@ -117,7 +124,7 @@ describe('PersonalBest', () => {
 
     it.each([
       [personalBestColors.caption, personalBestColors.background],
-      [personalBestColors.delta, personalBestColors.background],
+      [personalBestColors.delta, 'success-bg'],
       [personalBestColors.time, personalBestColors.background],
     ] as const)('%s on %s is at least 4.5:1', (text, background) => {
       expect(contrastRatio(c[text], c[background])).toBeGreaterThanOrEqual(4.5);

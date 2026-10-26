@@ -8,6 +8,8 @@ const noop = () => {};
 export const profileContentFixture: AthleteProfileContent = {
   header: {
     name: pf.name,
+    color: 'athlete-3',
+    onBack: noop,
     category: pf.category,
     schools: pf.schools.slice(0, 1),
     schoolId: pf.schools[0].id,

@@ -1,11 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
-import { ThemeProvider } from '../../../core/theme';
+import { StyleSheet } from 'react-native';
+
+import { colors, ThemeProvider } from '../../../core/theme';
 import { spokenTime } from '../../../core/time';
 import { createInMemorySchoolNameRepository, createInMemorySchoolStructureRepository } from '../../school-console';
 import {
   AthleteProfileContainer,
+  athleteDisplay,
   createInMemoryAthleteSchoolRepository,
   createInMemoryHistoryRepository,
   createInMemoryOtherSchoolResultsRepository,
@@ -20,8 +23,9 @@ jest.mock('../../../core/sync', () => ({
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 // Synthetic data only.
+const athlete = { id: 'a1', firstName: 'Ana', lastName: 'Marin' };
 const athletes = createInMemorySchoolAthleteRepository({
-  athletes: [{ id: 'a1', firstName: 'Ana', lastName: 'Marin' }],
+  athletes: [athlete],
   athleteSchools: [],
   athleteGroups: [],
 });
@@ -160,6 +164,17 @@ describe('athlete profile container', () => {
     expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
     // Only the history row shows it: the personal best card has no time.
     expect(screen.getAllByText('10,00', { includeHiddenElements: true })).toHaveLength(1);
+  });
+
+  it("paints the band with the athlete's colour from their id and goes back through onBack", async () => {
+    const onBack = jest.fn();
+    await show({ onBack });
+
+    const title = await screen.findByRole('header', { name: 'Ana Marin' });
+    expect(StyleSheet.flatten(title.parent!.props.style).backgroundColor).toBe(colors.light[athleteDisplay(athlete).color]);
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it('shows the category and the school, and no school selector with a single school', async () => {
@@ -302,7 +317,7 @@ describe('athlete profile container', () => {
       await show({ otherSchoolResults: results, history, online: true });
       await screen.findAllByLabelText(/Otra escuela/);
 
-      const rows = screen.getAllByLabelText(/^Libre 50 m/);
+      const rows = screen.getAllByLabelText(/^Libre 50 m, /);
 
       expect(rows).toHaveLength(4);
       // z9 (other school), m5 and a1 share the instant: id descending. c3 is older.
@@ -330,7 +345,7 @@ describe('athlete profile container', () => {
       await show({ otherSchoolResults: results, online: true });
       await waitFor(() => expect(listByEvent).toHaveBeenCalled());
 
-      const rows = await screen.findAllByLabelText(/^Libre 50 m/);
+      const rows = await screen.findAllByLabelText(/^Libre 50 m, /);
 
       expect(rows).toHaveLength(1);
       expect(rows[0]).toHaveProp('accessibilityLabel', expect.not.stringContaining('Otra escuela'));
