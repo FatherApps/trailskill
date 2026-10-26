@@ -1,4 +1,4 @@
-import { router, Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { View } from 'react-native';
 
 import { useSession } from '../../core/session';
@@ -24,10 +24,11 @@ const managedProfiles = createPowerSyncManagedAthleteProfileRepository(
   createPowerSyncAthleteRepository(createPowerSyncManagedAthleteRepository(), createPowerSyncSchoolAthleteRepository()),
 );
 const invitation = { pending: createSecureStorePendingInvitationRepository(), invitations: createSupabaseInvitationRepository() };
-const openNext = (step: RegistrationStep) => router.replace(step === 'add_athletes' ? '/athletes/add' : '/athletes/authorizations');
 
 export default function Layout() {
+  const router = useRouter();
   const { session } = useSession();
+  const openNext = (step: RegistrationStep) => router.replace(step === 'add_athletes' ? '/athletes/add' : '/athletes/authorizations');
   // A person who just registered gets the profile typed in the draft stored once the account exists; a guardian goes on to add the athletes and an adult to the authorizations.
   const offer = useFinishRegistration(session?.user.id, session?.user.email, drafts, profiles, managedProfiles, openNext, invitation);
   // The school invitation of an athlete is accepted once the athlete reached the server, so it is tried again after each sync.

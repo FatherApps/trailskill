@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { useSession } from '../../../core/session';
 import { useGlobalSyncSummary } from '../../../core/sync';
@@ -17,6 +17,7 @@ const drafts = createSecureStoreRegistrationDraftRepository();
 
 // Last step of registration: authorize each purpose for each athlete, or continue without authorizing.
 export default function RegistrationAuthorizations() {
+  const router = useRouter();
   const { session } = useSession();
   const userId = session?.user.id;
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();

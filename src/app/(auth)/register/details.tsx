@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { useSession } from '../../../core/session';
 import { AccountDetailsContainer, createSecureStoreRegistrationDraftRepository, createSupabaseInvitationRepository } from '../../../modules/accounts';
@@ -8,6 +8,7 @@ const invitations = createSupabaseInvitationRepository();
 
 // Step 2 of registration. Once the code checks out the session gate leaves the auth group on its own.
 export default function RegisterDetails() {
+  const router = useRouter();
   const { requestCode, verifyCode } = useSession();
   return (
     <AccountDetailsContainer

@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { useSession } from '../../../core/session';
 import { createPowerSyncSchoolAthleteRepository } from '../../../modules/athletes';
@@ -16,6 +16,7 @@ const structure = createPowerSyncSchoolStructureRepository();
 const schools = createPowerSyncStaffSchoolRepository();
 
 export default function AssignPlanRoute() {
+  const router = useRouter();
   const { session } = useSession();
   if (!session) return null;
   return (

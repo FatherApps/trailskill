@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { useSession } from '../../../core/session';
 import { RecordSyncStatus } from '../../../core/sync';
@@ -19,6 +19,7 @@ const pending = createSecureStorePendingInvitationRepository();
 const profiles = createPowerSyncManagedAthleteProfileRepository(athletes);
 
 export default function AddAthletesRoute() {
+  const router = useRouter();
   const { session } = useSession();
 
   if (!session) return null;

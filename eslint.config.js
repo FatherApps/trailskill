@@ -24,6 +24,15 @@ module.exports = defineConfig([
   {
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     rules: {
+      // The module-level router is unbound after Android recreates the Activity (expo/expo#51859) and the next call crashes release builds.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { name: 'expo-router', importNames: ['router'], message: "Use the useRouter() hook instead of the module-level 'router' from expo-router." },
+          ],
+        },
+      ],
       'import/no-restricted-paths': [
         'error',
         {

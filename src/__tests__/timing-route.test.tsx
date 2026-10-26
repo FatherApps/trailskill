@@ -55,9 +55,10 @@ jest.mock('../modules/timing', () => {
     },
   };
 });
+const mockRouter = { back: jest.fn(), replace: jest.fn(), canGoBack: () => false };
 jest.mock('expo-router', () => {
   const { Text: RNText } = jest.requireActual('react-native');
-  return { useLocalSearchParams: () => mockParams, Redirect: ({ href }: { href: string }) => <RNText>{`redirected to ${href}`}</RNText>, router: { back: jest.fn(), replace: jest.fn(), canGoBack: () => false } };
+  return { useLocalSearchParams: () => mockParams, Redirect: ({ href }: { href: string }) => <RNText>{`redirected to ${href}`}</RNText>, useRouter: () => mockRouter };
 });
 
 beforeEach(() => {

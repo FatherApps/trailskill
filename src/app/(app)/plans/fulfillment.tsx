@@ -1,4 +1,4 @@
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useSession } from '../../../core/session';
@@ -25,6 +25,7 @@ const series = createPowerSyncSeriesRepository();
 
 // "/plans/fulfillment?assignment=<id>&day=YYYY-MM-DD": the grid of one assignment, reached from the assigned plans of the day.
 export default function FulfillmentRoute() {
+  const router = useRouter();
   const { assignment, day } = useLocalSearchParams<{ assignment?: string; day?: string }>();
   const { session } = useSession();
   const [deviceId, setDeviceId] = useState<string>();

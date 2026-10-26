@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { createSecureStoreRegistrationDraftRepository, createSupabaseInvitationRepository, WhoSwimsContainer } from '../../../modules/accounts';
 
@@ -7,6 +7,7 @@ const invitations = createSupabaseInvitationRepository();
 
 // Step 1 of registration. Issues #42 and #43 add the next steps as sibling routes in this folder.
 export default function RegisterWhoSwims() {
+  const router = useRouter();
   return (
     <WhoSwimsContainer
       drafts={drafts}

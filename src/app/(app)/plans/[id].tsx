@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 
 import { useSession } from '../../../core/session';
@@ -14,6 +14,7 @@ const schools = createPowerSyncStaffSchoolRepository();
 
 // "new" opens an empty plan; any other id opens that plan.
 export default function PlanEditorRoute() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useSession();
   const vocabulary = useMemo(() => planVocabulary(), []);
