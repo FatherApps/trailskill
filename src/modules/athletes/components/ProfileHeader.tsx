@@ -28,10 +28,8 @@ export type ProfileHeaderProps = {
 // The board draws the ring white at 50 %; that is not a token, so it takes the nearest opaque one (maintainer decision).
 export const profileHeaderColors: { ring: ColorToken } = { ring: 'surface-1' };
 
-// Smaller than the board's 170/20: a children slot cannot go behind the title, so the ring stays in the corner,
-// over the sync row, and clear of the name and the subtitle.
-const ringSize = 130;
-const ringStroke = 16;
+// The ring of VibPerfil (170 wide): decoration only, so it is a local constant, not a token (maintainer decision).
+const DECORATIVE_RING_SIZE = 170;
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
@@ -53,7 +51,7 @@ export function ProfileHeader({
   onBack = noop,
   children,
 }: ProfileHeaderProps) {
-  const { colors, space, size } = useTheme();
+  const { colors, space, size, radius } = useTheme();
   const school = schools.find((item) => item.id === schoolId);
   const valid = authorization === 'valid';
 
@@ -64,23 +62,36 @@ export function ProfileHeader({
       subtitle={[category, school?.name].filter(Boolean).join(' · ')}
       onBack={onBack}
     >
-      {/* Decorative: first child, so the sync tag and everything after it draw over it. */}
+      {/* Decorative and out of the layout. A children slot cannot go behind the title, so the box shows only the strip
+          of the ring beside the back button (the title starts below it); the sync tag draws over it. */}
       <View
-        testID="profile-ring"
+        testID="profile-ring-clip"
         pointerEvents="none"
         importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden
         style={{
           position: 'absolute',
           top: 0,
-          right: -space[8],
-          width: ringSize,
-          height: ringSize,
-          borderRadius: ringSize,
-          borderWidth: ringStroke,
-          borderColor: colors[profileHeaderColors.ring],
+          right: 0,
+          width: DECORATIVE_RING_SIZE,
+          height: space[4] + size['target-min'] + space[2],
+          overflow: 'hidden',
         }}
-      />
+      >
+        <View
+          testID="profile-ring"
+          style={{
+            position: 'absolute',
+            top: -space[5],
+            right: -space[8],
+            width: DECORATIVE_RING_SIZE,
+            height: DECORATIVE_RING_SIZE,
+            borderRadius: radius.full,
+            borderWidth: space[5],
+            borderColor: colors[profileHeaderColors.ring],
+          }}
+        />
+      </View>
       {updatedMinutesAgo !== null && (
         <View
           style={[

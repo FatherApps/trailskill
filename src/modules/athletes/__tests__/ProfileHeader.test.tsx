@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 
-import { colors } from '../../../core/theme';
+import { colors, radius, size, space } from '../../../core/theme';
 import { profileFixture as p } from '../__fixtures__/profile';
 import { ProfileHeader, profileHeaderColors, type ProfileHeaderProps } from '../components/ProfileHeader';
 
@@ -78,11 +78,29 @@ describe('ProfileHeader', () => {
   it('draws the decorative ring with the nearest opaque token, hidden from screen readers', async () => {
     await render(<ProfileHeader {...base} />);
 
-    const ring = screen.getByTestId('profile-ring', { includeHiddenElements: true });
+    const hidden = { includeHiddenElements: true };
+    const clip = screen.getByTestId('profile-ring-clip', hidden);
+    const ring = screen.getByTestId('profile-ring', hidden);
     expect(profileHeaderColors.ring).toBe('surface-1');
-    expect(StyleSheet.flatten(ring.props.style)).toMatchObject({ borderColor: colors.light['surface-1'] });
-    expect(ring.props.importantForAccessibility).toBe('no-hide-descendants');
-    expect(ring.props.pointerEvents).toBe('none');
+    expect(StyleSheet.flatten(ring.props.style)).toMatchObject({
+      borderColor: colors.light['surface-1'],
+      borderWidth: space[5],
+      borderRadius: radius.full,
+      width: 170,
+      height: 170,
+    });
+    expect(clip.props.importantForAccessibility).toBe('no-hide-descendants');
+    expect(clip.props.accessibilityElementsHidden).toBe(true);
+    expect(clip.props.pointerEvents).toBe('none');
+  });
+
+  it('clips the ring to the top strip of the band, so it never takes layout nor covers the name', async () => {
+    await render(<ProfileHeader {...base} />);
+
+    const clip = StyleSheet.flatten(screen.getByTestId('profile-ring-clip', { includeHiddenElements: true }).props.style);
+    // Absolute, hiding what falls outside, and no taller than the back-button row (the title starts below it).
+    expect(clip).toMatchObject({ position: 'absolute', overflow: 'hidden', top: 0, right: 0 });
+    expect(clip.height).toBeLessThanOrEqual(space[4] + size['target-min'] + space[3]);
   });
 
   it('shows what the screen puts in the band, such as the event chips', async () => {
