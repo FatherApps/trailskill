@@ -32,10 +32,11 @@ jest.mock('../modules/school-console', () => ({
   createPowerSyncCategoriesRepository: () => ({
     list: (...args: unknown[]) => mockListCategories(...args),
   }),
-  ...jest.requireActual('../modules/school-console/screens/CoachesScreen'),
+  ...jest.requireActual('../modules/school-console/screens/CoachesSection'),
+  createPowerSyncCoachRepository: () => ({ listCoaches: () => Promise.resolve([]) }),
   ...jest.requireActual('../modules/school-console/screens/RecordsSection'),
   createPowerSyncCategoryRecordsRepository: () => ({ list: (...args: unknown[]) => mockListRecords(...args) }),
-  createPowerSyncSchoolStructureRepository: () => ({ listGroups: () => Promise.resolve([]) }),
+  createPowerSyncSchoolStructureRepository: () => ({ listGroups: () => Promise.resolve([]), listCoachAssignments: () => Promise.resolve([]) }),
   ...jest.requireActual('../modules/school-console/screens/MeasurementsSection'),
   createPowerSyncMeasurementLogRepository: () => ({ list: () => Promise.resolve([]) }),
   ...jest.requireActual('../modules/school-console/screens/AuthorizationsSection'),
