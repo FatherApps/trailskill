@@ -164,14 +164,10 @@ export function AddAthletesContainer({
   }
 
   // A person's choice: it counts as an edit, so an add in flight leaves it for the next athlete.
+  // Every choice counts, even one that undoes the previous: 9-10, 11-12, 9-10 while an add saves leaves 9-10 chosen for the next athlete.
   function chooseCategory(next: string) {
     edits.current.category++;
     setCategoryId(next);
-  }
-
-  // Starting over after an add is not a choice, so it must not count as an edit: this is the one other place that sets the category.
-  function resetCategory() {
-    setCategoryId('');
   }
 
   function change(field: AddAthleteField, value: string) {
@@ -189,7 +185,7 @@ export function AddAthletesContainer({
     setFailed(false);
     const saving = typed.current;
     const savingEdits = { ...edits.current };
-    // The category of the render this tap came from, read before any await. Safe without a ref: React flushes discrete events (a tap) synchronously, so that render is the latest committed one.
+    // The category of the render this tap came from, read before any await. Safe without a ref while add() is only called from a tap: React flushes discrete events synchronously, so that render is the latest committed one. A caller that is not a discrete event (a timer, a retry, a promise continuation) could read a stale category: mirror categoryId in a ref set by chooseCategory then.
     const savingCategory = categoryId;
     try {
       let athleteId: string;
@@ -207,7 +203,8 @@ export function AddAthletesContainer({
       };
       ifMounted(() => {
         show(left);
-        if (edits.current.category === savingEdits.category) resetCategory();
+        // Starting over after an add is not a choice, so it does not count as an edit.
+        if (edits.current.category === savingEdits.category) setCategoryId('');
       });
       // Also after the screen went away: the saved names must leave the draft or the next launch would add them again.
       void persist(keep(left));

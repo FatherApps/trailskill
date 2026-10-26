@@ -651,32 +651,73 @@ describe('AddAthletesContainer', () => {
         await gate;
         return create(input);
       });
-      await mount();
-      await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
-      // The categories are loaded; from here the acceptances stay queued, so what was saved can be read.
-      invitations.offline = true;
-      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-      fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
-      await fireEvent.press(screen.getByRole('radio', { name: '11-12' }));
-      release();
-      await screen.findByText('Lucía R.');
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+      try {
+        await mount();
+        await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
+        // The categories are loaded; from here the acceptances stay queued, so what was saved can be read.
+        invitations.offline = true;
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+        await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+        fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+        await fireEvent.press(screen.getByRole('radio', { name: '11-12' }));
+        release();
+        await screen.findByText('Lucía R.');
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+        expect(screen.getByRole('radio', { name: '11-12' }).props.accessibilityState.checked).toBe(true);
 
-      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
-      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-      await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
-      await screen.findByText('Mateo R.');
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+        await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+        await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+        await screen.findByText('Mateo R.');
 
-      expect(rows.map((row) => row.athleteId)).toHaveLength(2);
-      await waitFor(async () =>
-        expect(await pending.list()).toEqual([
-          { userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1', queuedAt: expect.any(Number) },
-          { userId: 'guardian-1', token: 'tok-1', athleteId: rows[1].athleteId, categoryId: 'cat-2', queuedAt: expect.any(Number) },
-        ]),
-      );
-      expect(invitations.accepted).toEqual([]);
+        expect(rows).toHaveLength(2);
+        await waitFor(async () =>
+          expect(await pending.list()).toEqual([
+            { userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1', queuedAt: expect.any(Number) },
+            { userId: 'guardian-1', token: 'tok-1', athleteId: rows[1].athleteId, categoryId: 'cat-2', queuedAt: expect.any(Number) },
+          ]),
+        );
+        expect(invitations.accepted).toEqual([]);
+      } finally {
+        // An assertion that fails above must not leave the held add hanging.
+        release();
+      }
+    });
+
+    it('choosing 9-10, 11-12 and 9-10 again while the add is pending: every choice counts as an edit, so 9-10 stays for the next athlete', async () => {
+      const { mount, profiles, pending, invitations } = setup('tok-1');
+      const create = profiles.createManagedAthlete.bind(profiles);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      jest.spyOn(profiles, 'createManagedAthlete').mockImplementationOnce(async (input) => {
+        await gate;
+        return create(input);
+      });
+      try {
+        await mount();
+        await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
+        invitations.offline = true;
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+        await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+        fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+        await fireEvent.press(screen.getByRole('radio', { name: '11-12' }));
+        await fireEvent.press(screen.getByRole('radio', { name: '9-10' }));
+        release();
+        await screen.findByText('Lucía R.');
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+        expect(screen.getByRole('radio', { name: '9-10' }).props.accessibilityState.checked).toBe(true);
+
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+        await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+        await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+        await screen.findByText('Mateo R.');
+
+        await waitFor(async () => expect((await pending.list()).map((item) => item.categoryId)).toEqual(['cat-1', 'cat-1']));
+      } finally {
+        release();
+      }
     });
   });
 
