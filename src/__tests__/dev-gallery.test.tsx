@@ -1,5 +1,4 @@
-import { router } from 'expo-router';
-import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
 
 import Home from '../app/(app)/index';
@@ -170,7 +169,7 @@ describe('development gallery', () => {
     await openButtonEntry();
     await fireEvent.press(screen.getByRole('radio', { name: 'loading' }));
 
-    await act(() => router.setParams({ id: 'tag' }));
+    await act(() => testRouter.setParams({ id: 'tag' }));
 
     expect(screen.getByRole('header', { name: 'Tag' })).toBeOnTheScreen();
     expect(screen.getByRole('radio', { name: 'neutral' })).toBeChecked();

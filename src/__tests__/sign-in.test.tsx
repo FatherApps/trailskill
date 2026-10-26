@@ -1,7 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
-import { router } from 'expo-router';
-
 import SignIn from '../app/(auth)/sign-in';
 import { CodeMismatchError } from '../core/session';
 
@@ -25,14 +23,15 @@ const mockLoadDraft = jest.fn();
 jest.mock('../modules/accounts', () => ({
   createSecureStoreRegistrationDraftRepository: () => ({ load: () => mockLoadDraft() }),
 }));
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 
 const email = 'ana@example.com';
 
 beforeEach(() => {
   mockSession.configError = null;
   mockLoadDraft.mockReset().mockResolvedValue(null);
-  jest.mocked(router.push).mockClear();
+  mockPush.mockClear();
   mockSession.requestCode.mockReset().mockResolvedValue(undefined);
   mockSession.verifyCode.mockReset().mockResolvedValue(undefined);
 });
@@ -50,7 +49,7 @@ describe('sign-in screen', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Crear cuenta' }));
 
-    expect(router.push).toHaveBeenCalledWith('/register');
+    expect(mockPush).toHaveBeenCalledWith('/register');
   });
 
   it('never redirects to the registration nor mentions the draft left on the phone', async () => {
@@ -60,7 +59,7 @@ describe('sign-in screen', () => {
     expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
     expect(screen.queryByText(/Retomar|Empezar de nuevo|ana@example/)).not.toBeOnTheScreen();
     expect(mockLoadDraft).not.toHaveBeenCalled();
-    expect(router.push).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it('replaces the form with a not-ready notice when the server is not configured', async () => {

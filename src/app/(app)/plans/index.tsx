@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import { useSession } from '../../../core/session';
@@ -9,6 +9,7 @@ const repository = createPowerSyncTrainingPlanRepository();
 const schools = createPowerSyncStaffSchoolRepository();
 
 export default function PlansRoute() {
+  const router = useRouter();
   const { session } = useSession();
   const [refreshKey, setRefreshKey] = useState(0);
   // Coming back from the editor reloads the list, so new and renamed plans show.
