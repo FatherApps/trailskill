@@ -25,7 +25,7 @@ const importPrompt: ImportPromptProps = {
 };
 
 const show = (view: AthleteProfileView, wrap: (node: ReactElement) => ReactElement = (node) => node) =>
-  render(wrap(<AthleteProfileScreen name={name} view={view} />));
+  render(wrap(<AthleteProfileScreen name={name} view={view} onBack={jest.fn()} />));
 
 // Host element types and accessibility labels and texts, in render order.
 type Json = {
@@ -125,7 +125,7 @@ describe('AthleteProfileScreen', () => {
     });
 
     it('does not claim a height when a parent scrolls instead', async () => {
-      await render(<AthleteProfileScreen name={name} view={{ kind: 'data', content }} scrollEnabled={false} />);
+      await render(<AthleteProfileScreen name={name} view={{ kind: 'data', content }} scrollEnabled={false} onBack={jest.fn()} />);
 
       expect(rootStyle()?.flex).toBeUndefined();
     });
@@ -195,7 +195,7 @@ describe('AthleteProfileScreen', () => {
     it('shows a skeleton only after 300 ms and nothing about the athlete', async () => {
       jest.useFakeTimers();
       // The container has no athlete yet, so it passes an empty name: the band must stay empty.
-      await render(<AthleteProfileScreen name="" view={{ kind: 'loading' }} />);
+      await render(<AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={jest.fn()} />);
 
       expect(screen.getByTestId('state-view')).toBeOnTheScreen();
       await act(() => jest.advanceTimersByTime(299));
@@ -325,7 +325,7 @@ describe('AthleteProfileScreen', () => {
     });
 
     it.each(['', '   '])('does not leave a gap in the sentence when the name is blank (%j)', async (blank) => {
-      await render(<AthleteProfileScreen name={blank} view={{ kind: 'denied' }} />);
+      await render(<AthleteProfileScreen name={blank} view={{ kind: 'denied' }} onBack={jest.fn()} />);
 
       expect(screen.getByText('Solo el acudiente del deportista y su escuela pueden verla.')).toBeOnTheScreen();
     });

@@ -45,7 +45,9 @@ describe('ProfileHeader', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it('cannot show a back button without a destination: onBack is required', () => {
+  // A type check: jest does not type-check, so this passes at runtime whatever the props say. The @ts-expect-error below is what
+  // fails `npm run typecheck` when onBack becomes optional again.
+  it('requires onBack at compile time, so the header never shows a "Volver" that does nothing', () => {
     const { onBack, ...withoutBack } = base;
     // @ts-expect-error a header without onBack would show a "Volver" that does nothing
     const element = <ProfileHeader {...withoutBack} />;

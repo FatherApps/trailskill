@@ -223,5 +223,5 @@ export function AthleteProfileContainer({
     ...(other === null ? { otherSchoolError: { onRetry: retryOtherSchool } } : {}),
   };
   const view: AthleteProfileView = content.history.length === 0 ? { kind: 'empty', content } : { kind: 'data', content };
-  return <AthleteProfileScreen name={athlete.firstName} view={view} />;
+  return <AthleteProfileScreen name={athlete.firstName} view={view} onBack={onBack} />;
 }
