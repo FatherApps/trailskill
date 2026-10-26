@@ -103,7 +103,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         <StateView
           kind="offline"
           title={t('athletes.screen.offline.title')}
-          message={t('athletes.screen.offline.message', values)}
+          message={trimmed ? t('athletes.screen.offline.message', values) : t('athletes.screen.offline.message_no_name')}
         />
       );
     case 'other-school-offline':

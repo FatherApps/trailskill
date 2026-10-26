@@ -247,6 +247,18 @@ describe('AthleteProfileScreen', () => {
     });
   });
 
+  describe('offline without stored data and a blank name', () => {
+    it.each(['', '   '])('does not leave a gap in the sentence (%j)', async (blank) => {
+      await render(<AthleteProfileScreen name={blank} view={{ kind: 'offline-empty' }} onBack={jest.fn()} />);
+
+      expect(
+        screen.getByText('No hay datos guardados del deportista en este teléfono. Aparecerán cuando vuelva la conexión.', {
+          normalizer: (text) => text,
+        }),
+      ).toBeOnTheScreen();
+    });
+  });
+
   describe('back in the states without content', () => {
     const views: [string, AthleteProfileView][] = [
       ['loading', { kind: 'loading' }],
