@@ -4,6 +4,7 @@ import { useSession } from '../../core/session';
 import { RecordSyncStatus, useGlobalSyncSummary } from '../../core/sync';
 import { createPowerSyncManagedAthleteRepository } from '../../modules/accounts';
 import { createPowerSyncAthleteSchoolRepository, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
+import { createPowerSyncStaffSchoolRepository, useStaffSchool } from '../../modules/school-console';
 import { createPowerSyncSeriesRepository } from '../../modules/timing';
 import {
   createPowerSyncAssignmentRepository,
@@ -13,6 +14,7 @@ import {
   TodayContainer,
 } from '../../modules/training-plans';
 
+const staffSchools = createPowerSyncStaffSchoolRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const schoolLinks = createPowerSyncAthleteSchoolRepository();
@@ -31,6 +33,9 @@ export default function TodayRoute() {
   // Managed athletes arrive with a sync, so the lookup runs again when one completes.
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, session?.user.id, summary.lastSyncedAt?.getTime());
 
+  // "Mis deportistas" is a destination of guardians and adult athletes only; school staff (admin or coach) navigate elsewhere, whatever the screen size.
+  const staff = useStaffSchool(staffSchools, session?.user.id, summary.lastSyncedAt?.getTime());
+
   if (!session || managed.status !== 'ready') return null;
   return (
     <TodayContainer
@@ -44,7 +49,7 @@ export default function TodayRoute() {
       athletes={managed.athletes}
       initialAthleteId={athlete}
       synced={summary.lastSyncedAt != null}
-      onOpenAthletes={() => router.push('/athletes')}
+      onOpenAthletes={staff.status === 'denied' ? () => router.push('/athletes') : undefined}
       renderNoticeStatus={(id) => <RecordSyncStatus table="training_plan_notices" id={id} />}
     />
   );
