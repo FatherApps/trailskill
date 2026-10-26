@@ -14,12 +14,14 @@ import {
 } from '../../modules/accounts';
 import { athleteDisplay, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useAdminSchool, useStaffSchool } from '../../modules/school-console';
+import { createSupabaseConflictReviewRepository, usePlatformAdmin } from '../../modules/timing';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 const pendingInvitations = createSecureStorePendingInvitationRepository();
+const conflictReview = createSupabaseConflictReviewRepository();
 
 export default function Home() {
   const { syncConnectFailed, signOut, session } = useSession();
@@ -36,6 +38,7 @@ export default function Home() {
   const isStaff = useStaffSchool(staffSchools, userId, lastSyncedAt).status === 'staff';
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, lastSyncedAt);
   const isAdmin = useAdminSchool(staffSchools, userId, lastSyncedAt).status === 'admin';
+  const isPlatformAdmin = usePlatformAdmin(conflictReview, userId);
   const [blocked, setBlocked] = useState<{ unsent: number; rejected: number }>();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
@@ -101,6 +104,7 @@ export default function Home() {
       {isStaff && <Button label={t('home.timing_completed')} onPress={() => router.push('/timing?mode=completed')} />}
       {isStaff && <Button label={t('home.plans')} onPress={() => router.push('/plans')} />}
       {isAdmin && <Button label={t('home.console')} onPress={() => router.push('/console')} />}
+      {isPlatformAdmin && <Button label={t('home.review_conflicts')} onPress={() => router.push('/review-conflicts')} />}
       <Button variant="secondary" label={t('session.sign_out')} onPress={() => signOutWith(false)} loading={signingOut} />
       {signOutFailed && <Text accessibilityLiveRegion="polite">{t('session.sign_out_failed')}</Text>}
       {__DEV__ && <Link href="/gallery">{t('dev.gallery.open')}</Link>}
