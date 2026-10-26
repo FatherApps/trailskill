@@ -20,6 +20,8 @@ jest.mock('../screens/TodayScreen', () => ({
 
 const DAY = '2026-11-02';
 const NEXT_DAY = '2026-11-03';
+// A day with no assignment yet.
+const LATE_DAY = '2026-11-04';
 
 const showsPlan = (planName: string) => waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { planName } }));
 
@@ -33,7 +35,9 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'] } = {}) {
   const one = await stored.create({ planId: 'p1', schoolId: 's1', sessionDate: DAY, target: { kind: 'group', groupId: 'g1' } });
   const other = await stored.create({ planId: 'p2', schoolId: 's1', sessionDate: DAY, target: { kind: 'group', groupId: 'g2' } });
   await stored.create({ planId: 'p3', schoolId: 's1', sessionDate: NEXT_DAY, target: { kind: 'group', groupId: 'g1' } });
-  const reads: { count: number; failNext: boolean; gate?: Promise<void> } = { count: 0, failNext: failFirstRead };
+  // `gate` stops a read before it starts; `listed` stops it after its notes were listed, so it can still miss a note saved meanwhile.
+  const reads: { count: number; failNext: boolean; gate?: Promise<void>; listed?: Promise<void> } = { count: 0, failNext: failFirstRead };
+  const readPlans = { ...plans, get: async (...args: Parameters<typeof plans.get>) => (await reads.listed, plans.get(...args)) };
   const assignments = {
     ...stored,
     list: async (...args: Parameters<typeof stored.list>) => {
@@ -50,24 +54,26 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'] } = {}) {
   // Saving a note waits for `hold.promise` while it is set.
   const hold: { promise?: Promise<void> } = {};
   const notices = { ...storedNotices, add: async (...args: Parameters<typeof storedNotices.add>) => (await hold.promise, storedNotices.add(...args)) };
-  const container = async (ids: string[], day = DAY) => (
+  const fulfillment = createInMemoryFulfillmentRepository({}, plans);
+  const container = async (shown: string[], day = DAY, synced = true) => (
     <TodayContainer
-      plans={plans}
+      plans={readPlans}
       assignments={assignments}
       schoolLinks={createInMemoryAthleteSchoolRepository([
         { athleteId: 'a1', schoolId: 's1', categoryId: 'c1' },
         { athleteId: 'a3', schoolId: 's1', categoryId: 'c2' },
       ])}
-      fulfillment={createInMemoryFulfillmentRepository({}, plans)}
+      fulfillment={fulfillment}
       notices={notices}
       series={{ listArrivals: async () => [] } as never}
       userId="guardian-1"
-      athletes={await athletes.listByIds(ids)}
+      athletes={await athletes.listByIds(shown)}
       day={day}
+      synced={synced}
     />
   );
   const view = await render(await container(ids));
-  const update = async (ids: string[], day = DAY) => view.rerender(await container(ids, day));
+  const update = async (shown: string[], day = DAY, synced = true) => view.rerender(await container(shown, day, synced));
   // Starts a save that stays open until the returned function is called.
   const sendHeld = async (body: string) => {
     let release!: () => void;
@@ -83,7 +89,7 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'] } = {}) {
       });
     };
   };
-  return { one, other, notices: storedNotices, reads, update, sendHeld };
+  return { one, other, stored, fulfillment, notices: storedNotices, reads, update, sendHeld };
 }
 
 describe('TodayContainer races', () => {
@@ -118,13 +124,60 @@ describe('TodayContainer races', () => {
     const { reads } = await setup();
     await showsPlan('Plan p1');
     const before = reads.count;
-    // A read started now would stay in loading until the end of the test.
-    reads.gate = new Promise(() => {});
+    // A read started now would stay in loading until the gate opens.
+    let openGate!: () => void;
+    reads.gate = new Promise<void>((resolve) => (openGate = resolve));
 
     await act(async () => shown.onSelectAthlete?.('a1'));
 
     expect(shown.view).toMatchObject({ kind: 'data', content: { planName: 'Plan p1' } });
     expect(reads.count).toBe(before);
+    openGate();
+  });
+
+  it('reads again when the first sync completes, so a plan that arrived with it is not "no plan"', async () => {
+    const { stored, update } = await setup();
+    await showsPlan('Plan p1');
+    // Before the first sync nothing was found for the day: still connecting, so loading.
+    await update(['a1', 'a3'], LATE_DAY, false);
+    await waitFor(() => expect(shown.view.kind).toBe('loading'));
+
+    await stored.create({ planId: 'p3', schoolId: 's1', sessionDate: LATE_DAY, target: { kind: 'group', groupId: 'g1' } });
+    await update(['a1', 'a3'], LATE_DAY, true);
+
+    await showsPlan('Plan de mañana');
+  });
+
+  it('keeps the newer marks of a read that finishes while a note is being saved, and adds the note', async () => {
+    const { one, fulfillment, update, sendHeld } = await setup();
+    await showsPlan('Plan p1');
+    const finish = await sendHeld('Test note 1');
+
+    await fulfillment.mark({ assignmentId: one, versionId: 'p1-v1', blockId: 'b1', athleteId: 'a1', status: 'done', authorId: 'k1', deviceId: 'tablet-1' });
+    // The first sync completing reads again; the data shown stays until the new read arrives.
+    await update(['a1', 'a3'], DAY, false);
+    await update(['a1', 'a3'], DAY, true);
+    await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { blocks: [{ status: 'done' }] } }));
+    await finish();
+
+    expect(shown.view).toMatchObject({ kind: 'data', content: { blocks: [{ status: 'done' }], notes: [{ body: 'Test note 1' }] } });
+  });
+
+  it('shows a note whose save finishes while the athlete is being read again, in the read that arrives', async () => {
+    const { reads, sendHeld } = await setup();
+    await showsPlan('Plan p1');
+    const finish = await sendHeld('Test note 1');
+
+    // Coming back to a1 reads it again; that read listed its notes before the note was saved and is still open.
+    let openRead!: () => void;
+    reads.listed = new Promise<void>((resolve) => (openRead = resolve));
+    await act(async () => shown.onSelectAthlete?.('a3'));
+    await act(async () => shown.onSelectAthlete?.('a1'));
+    await finish();
+    openRead();
+
+    await showsPlan('Plan p1');
+    expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } });
   });
 
   it('does not turn the first athlete into an explicit choice when the read is retried', async () => {
