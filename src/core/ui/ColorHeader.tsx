@@ -63,7 +63,7 @@ export function ColorHeader({ color, title, subtitle, onBack, children }: ColorH
       <Text accessibilityRole="header" style={[typography['title-lg'], text]}>
         {title}
       </Text>
-      {subtitle && <Text style={[typography.body, text]}>{subtitle}</Text>}
+      {subtitle ? <Text style={[typography.body, text]}>{subtitle}</Text> : null}
       {children}
     </View>
   );
