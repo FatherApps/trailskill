@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -22,7 +23,7 @@ const MIN_CARD_WIDTH = 240;
 // Over a third of the row, so three never fit; under half, so two always do. The cards then grow to share the row.
 const TWO_COLUMN_BASIS = '34%';
 
-export const coachCardColors: {
+const coachCardColors: {
   dot: ColorToken;
   dotText: ColorToken;
   pendingDot: ColorToken;
@@ -64,18 +65,32 @@ function Initials({ initials, background }: { initials: string; background: Colo
   );
 }
 
+// The initials next to the state tag; Tag aligns itself to the start of its row, so the wrapper centres it with the initials.
+function InitialsWithTag({ initials, background, children }: { initials: string; background: ColorToken; children: ReactNode }) {
+  const { space } = useTheme();
+
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
+      <Initials initials={initials} background={background} />
+      <View style={{ alignSelf: 'center' }}>{children}</View>
+    </View>
+  );
+}
+
 // One coach: a colour card (stable colour per coach) for an active one, a dashed outline for a pending invitation.
 export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate }: CoachCardProps) {
   const { colors, space, radius, typography } = useTheme();
   const cell = oneColumn ? { flexBasis: '100%' as const } : { flexGrow: 1, flexBasis: TWO_COLUMN_BASIS, minWidth: MIN_CARD_WIDTH };
   const name = coach.name ?? t('schoolConsole.common.no_data');
-  const detail = `${coach.groups.length > 0 ? coach.groups.join(' · ') : t('schoolConsole.coaches.no_groups')} · ${t('schoolConsole.coaches.athletes', { count: coach.athleteCount })}`;
+  const groups = coach.groups.length > 0 ? coach.groups.join(' · ') : t('schoolConsole.coaches.no_groups');
 
   if (coach.status === 'pending') {
     return (
       <View testID="coach-card" style={cell}>
         <View
           testID="pending-card"
+          accessible
+          accessibilityLabel={t('schoolConsole.coaches.pending_card', { name, status: t('schoolConsole.coaches.status.pending'), groups })}
           style={{
             gap: space[1],
             padding: space[4],
@@ -88,29 +103,24 @@ export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate 
           }}
         >
           <Text style={[typography.title, { color: colors[coachCardColors.pendingTitle] }]}>{name}</Text>
-          <Text style={[typography.caption, { color: colors[coachCardColors.pendingDetail] }]}>{detail}</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
-            <Initials initials={coach.initials} background={coachCardColors.pendingDot} />
-            {/* Tag aligns itself to the start of its row; the wrapper centres it with the initials. */}
-            <View style={{ alignSelf: 'center' }}>
-              <Tag label={t('schoolConsole.coaches.status.pending')} variant="warn" icon="schedule" />
-            </View>
-          </View>
+          <Text style={[typography.caption, { color: colors[coachCardColors.pendingDetail] }]}>{groups}</Text>
+          <InitialsWithTag initials={coach.initials} background={coachCardColors.pendingDot}>
+            <Tag label={t('schoolConsole.coaches.status.pending')} variant="warn" icon="schedule" />
+          </InitialsWithTag>
         </View>
       </View>
     );
   }
 
+  const detail = `${groups} · ${t('schoolConsole.coaches.athletes', { count: coach.athleteCount })}`;
+
   return (
     <View testID="coach-card" style={cell}>
       <ColorCard color={coach.color} title={name} detail={detail}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
-            <Initials initials={coach.initials} background={coachCardColors.dot} />
-            <View style={{ alignSelf: 'center' }}>
-              <Tag label={t('schoolConsole.coaches.status.active')} variant="ok" />
-            </View>
-          </View>
+          <InitialsWithTag initials={coach.initials} background={coachCardColors.dot}>
+            <Tag label={t('schoolConsole.coaches.status.active')} variant="ok" />
+          </InitialsWithTag>
           <Button
             variant="ghost"
             label={t('schoolConsole.coaches.deactivate')}
