@@ -130,15 +130,48 @@ describe('CoachesSection', () => {
     expect(screen.queryByText('No pudimos cargar los entrenadores')).toBeNull();
   });
 
-  it('counts the athletes of each coach with the light read, not with the full athletes list', async () => {
+  it('counts the athletes of each coach with the light read of the athletes, not with the full athletes list', async () => {
     const listAthletes = jest.fn().mockRejectedValue(new Error('not needed'));
-    const countAthletesByCoach = jest.fn().mockResolvedValue(new Map([['coach-2', 4]]));
-    await show(coachRepository(), { athletes: { ...athletes, listAthletes, countAthletesByCoach } });
+    const listAthleteGroups = jest.fn().mockResolvedValue(['a1', 'a2', 'a3', 'a4'].map((id) => ({ id, groupIds: ['g2'] })));
+    await show(coachRepository(), { athletes: { ...athletes, listAthletes, listAthleteGroups } });
 
     expect(await rows()).toHaveLength(3);
     expect(screen.getByText('Group B · 4 deportistas')).toBeOnTheScreen();
     expect(listAthletes).not.toHaveBeenCalled();
-    expect(countAthletesByCoach).toHaveBeenCalledWith('school-a');
+    expect(listAthleteGroups).toHaveBeenCalledWith('school-a');
+  });
+
+  it('counts from the groups and assignments it shows: each is read once per load, not again for the count', async () => {
+    const listGroups = jest.spyOn(structure, 'listGroups');
+    const listCoachAssignments = jest.spyOn(structure, 'listCoachAssignments');
+    await show(coachRepository());
+
+    expect(await rows()).toHaveLength(3);
+    expect(listGroups).toHaveBeenCalledTimes(1);
+    expect(listCoachAssignments).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists the coaches with their groups and no count when the athletes read fails, never as 0 deportistas', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await show(coachRepository(), { athletes: { ...athletes, listAthleteGroups: jest.fn().mockRejectedValue(new Error('boom')) } });
+
+    expect(await rows()).toHaveLength(3);
+    expect(screen.getByText('Group A · Group B')).toBeOnTheScreen();
+    expect(screen.getByText('Group B')).toBeOnTheScreen();
+    expect(screen.getByText('Sin grupos')).toBeOnTheScreen();
+    expect(screen.queryByText(/deportista/)).toBeNull();
+    expect(screen.queryByText('No pudimos cargar los entrenadores')).toBeNull();
+  });
+
+  it('lists the coaches with no groups text and no count when the assignments read fails, never as «Sin grupos» or 0 deportistas', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await show(coachRepository(), { structure: { ...structure, listCoachAssignments: jest.fn().mockRejectedValue(new Error('boom')) } });
+
+    expect(await rows()).toHaveLength(3);
+    expect(screen.queryByText(/Sin grupos/)).toBeNull();
+    expect(screen.queryByText(/Group A|Group B/)).toBeNull();
+    expect(screen.queryByText(/deportista/)).toBeNull();
+    expect(screen.queryByText('No pudimos cargar los entrenadores')).toBeNull();
   });
 
   // Reproduced: coaches synced and athletes not yet, every card says «0 deportistas» instead of a missing count. Needs a maintainer decision on the wording (#444).
@@ -206,29 +239,83 @@ describe('CoachesSection', () => {
     expect(screen.queryByTestId('state-view')).not.toHaveProp('accessibilityState', { busy: true });
   });
 
-  it('keeps showing the error, whole, when only one of the reads fails', async () => {
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+  it('keeps showing the error, whole, when the coaches or the groups cannot be read', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
     await show(coachRepository(), { structure: { ...structure, listGroups: jest.fn().mockRejectedValue(new Error('boom')) } });
 
     expect(await screen.findByText('No pudimos cargar los entrenadores')).toBeOnTheScreen();
     expect(screen.queryAllByTestId('coach-card')).toHaveLength(0);
   });
 
-  describe('trace of a failed read', () => {
+  describe('trace of failed reads', () => {
     const originalDev = (global as { __DEV__?: boolean }).__DEV__;
     afterEach(() => {
       (global as { __DEV__?: boolean }).__DEV__ = originalDev;
     });
 
-    it.each([true, false])('names the read that failed and the kind of the error, never its message (__DEV__ %s)', async (dev) => {
-      (global as { __DEV__?: boolean }).__DEV__ = dev;
-      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
-      await show(coachRepository(), { structure: { ...structure, listGroups: jest.fn().mockRejectedValue(new Error('rosa@example.com')) } });
+    const failing = (read: 'groups' | 'athleteCounts' | 'assignments', reason: unknown): [CoachRepository, Extra] => {
+      const rejected = jest.fn().mockRejectedValue(reason);
+      if (read === 'groups') return [coachRepository(), { structure: { ...structure, listGroups: rejected } }];
+      if (read === 'assignments') return [coachRepository(), { structure: { ...structure, listCoachAssignments: rejected } }];
+      return [coachRepository(), { athletes: { ...athletes, listAthleteGroups: rejected } }];
+    };
+    const settled = (read: string) => (read === 'groups' ? screen.findByText('No pudimos cargar los entrenadores') : rows());
 
-      expect(await screen.findByText('No pudimos cargar los entrenadores')).toBeOnTheScreen();
-      expect(error).toHaveBeenCalledTimes(1);
-      expect(error).toHaveBeenCalledWith('[school-console] Coaches could not be loaded: groups read failed', 'Error');
-      expect(JSON.stringify(error.mock.calls)).not.toMatch(/rosa|example\.com/i);
+    it.each([
+      ['groups', true],
+      ['athleteCounts', false],
+      ['assignments', true],
+      ['assignments', false],
+    ] as const)('warns once, naming the %s read and the kind of the error, never its message (__DEV__ %s)', async (read, dev) => {
+      (global as { __DEV__?: boolean }).__DEV__ = dev;
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      await show(...failing(read, new Error('rosa@example.com')));
+
+      await settled(read);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(`[school-console] Coaches could not be loaded: ${read}=Error`);
+      expect(JSON.stringify(warn.mock.calls)).not.toMatch(/rosa|example\.com/i);
+    });
+
+    it.each([
+      ['an Error with a code', Object.assign(new Error('rosa@example.com'), { code: '42501' }), 'Error 42501'],
+      ['a rejection with a code that is not an Error', { code: 'PGRST301', message: 'rosa@example.com' }, 'object PGRST301'],
+      ['a rejection with a status', { status: 503, message: 'rosa@example.com' }, 'object 503'],
+      ['a string', 'rosa@example.com', 'string'],
+      ['a code that is not a plain token', { code: 'rosa@example.com' }, 'object'],
+    ])('tells %s apart without its message', async (_label, reason, kind) => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      await show(...failing('groups', reason));
+
+      await settled('groups');
+      expect(warn).toHaveBeenCalledWith(`[school-console] Coaches could not be loaded: groups=${kind}`);
+      expect(JSON.stringify(warn.mock.calls)).not.toMatch(/rosa|example\.com/i);
+    });
+
+    it('writes one line when several reads fail in the same load', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      await show(coachRepository(), {
+        structure: { ...structure, listGroups: jest.fn().mockRejectedValue(new Error('boom')), listCoachAssignments: jest.fn().mockRejectedValue('boom') },
+        athletes: { ...athletes, listAthleteGroups: jest.fn().mockRejectedValue(new Error('boom')) },
+      });
+
+      await settled('groups');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith('[school-console] Coaches could not be loaded: groups=Error, athleteCounts=Error, assignments=string');
+    });
+
+    it('writes nothing when the effect was cleaned up before the read failed (school changed or screen gone)', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      let fail: (reason: unknown) => void = () => {};
+      const listGroups = jest.fn().mockReturnValue(new Promise((_resolve, reject) => (fail = reject)));
+      const view = await show(coachRepository(), { structure: { ...structure, listGroups } });
+
+      await view.unmount();
+      fail(new Error('boom'));
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(warn).not.toHaveBeenCalled();
     });
   });
 
@@ -237,7 +324,7 @@ describe('CoachesSection', () => {
     // Never settles: whatever is called now was started in parallel with it.
     await show({ listCoaches: () => new Promise(() => {}) });
 
-    await waitFor(() => expect(listCoachAssignments).toHaveBeenCalledWith('school-a', []));
+    await waitFor(() => expect(listCoachAssignments).toHaveBeenCalledWith('school-a', expect.any(Array)));
   });
 
   it('offers the groups of the school, and only those, in the invite sheet', async () => {
