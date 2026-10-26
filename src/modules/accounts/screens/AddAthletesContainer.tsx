@@ -55,7 +55,6 @@ export function AddAthletesContainer({
   const [added, setAdded] = useState<AddedAthlete[]>([]);
   const { categories } = useInvitation(drafts, invitations);
   const [categoryId, setCategoryId] = useState('');
-  const chosenCategory = useRef('');
   const mounted = useRef(true);
   // Reads and saves that end after the screen went away must not touch its state: every such step goes through here.
   const ifMounted = useCallback(<T,>(run: () => T) => (mounted.current ? run() : undefined), []);
@@ -147,7 +146,6 @@ export function AddAthletesContainer({
 
   function chooseCategory(next: string) {
     edits.current.category++;
-    chosenCategory.current = next;
     setCategoryId(next);
   }
 
@@ -166,7 +164,8 @@ export function AddAthletesContainer({
     setFailed(false);
     const saving = typed.current;
     const savingEdits = { ...edits.current };
-    const savingCategory = chosenCategory.current;
+    // Read before any await, so the render this tap came from is the current one.
+    const savingCategory = categoryId;
     try {
       let athleteId: string;
       try {
@@ -183,7 +182,8 @@ export function AddAthletesContainer({
       };
       ifMounted(() => {
         show(left);
-        if (edits.current.category === savingEdits.category) chooseCategory('');
+        // Starting over is not a choice: it must not count as an edit.
+        if (edits.current.category === savingEdits.category) setCategoryId('');
       });
       // Also after the screen went away: the saved names must leave the draft or the next launch would add them again.
       void persist(keep(left));
