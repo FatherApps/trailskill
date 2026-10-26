@@ -364,17 +364,23 @@ describe('CoachesScreen', () => {
       coaches: Array.from({ length: count }, (_, index) => ({ ...coachesFixture[0]!, id: `c${index}` })),
     });
 
-    // Jest has no layout engine: what makes a wrapped row even is that every card has the same minimum width
-    // (which decides where the row breaks) and grows into what is left, so none stays at a fixed share of the row.
-    it.each([1, 2, 3, 5])('with %i coaches every card has the same minimum width and grows into the free space', async (count) => {
+    // Jest has no layout engine, so this pins the contract that makes a wrapped row even and at most two wide:
+    // the same base for every card, more than a third of the row (three never fit) and at most half (two always do),
+    // growth into what is left, and the same numeric minimum width that sends a narrow list to one column.
+    it.each([1, 2, 3, 5])('with %i coaches every card has the same two-column base, grows, and has the same minimum width', async (count) => {
       await show({ kind: 'data', content: coachesOf(count) });
 
       const styles = cardStyles();
       expect(styles).toHaveLength(count);
       for (const style of styles) {
+        const share = parseFloat(String(style.flexBasis));
+        expect(String(style.flexBasis)).toMatch(/^\d+(\.\d+)?%$/);
+        expect(share).toBeGreaterThan(100 / 3);
+        expect(share).toBeLessThanOrEqual(50);
         expect(style.flexGrow).toBeGreaterThanOrEqual(1);
-        expect(typeof style.flexBasis).toBe('number');
+        expect(typeof style.minWidth).toBe('number');
         expect(style.flexBasis).toBe(styles[0]!.flexBasis);
+        expect(style.minWidth).toBe(styles[0]!.minWidth);
       }
     });
 

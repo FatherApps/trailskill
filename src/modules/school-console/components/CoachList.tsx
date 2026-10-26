@@ -27,8 +27,9 @@ export type CoachListProps = {
   onDeactivate: (id: string) => void;
 };
 
-// A grid of cards that wrap by themselves: each is at least as wide as CoachCard's minimum and grows into what is
-// left of its row, so the cards of a row are even and a lone card fills it. With large text it is one column.
+// A grid of cards that wrap by themselves, two columns at most: each card has a base just over a third of the row
+// and grows into what is left, so the cards of a row are even and a lone card fills it. A row narrower than twice
+// CoachCard's minimum width, or large text, gives one column.
 export function CoachList({ coaches, deactivateAvailable = false, onDeactivate }: CoachListProps) {
   const { space } = useTheme();
   const oneColumn = useTextScale() >= LARGE_TEXT_SCALE;

@@ -17,8 +17,10 @@ export type CoachCardProps = {
 };
 
 // Narrowest card that keeps the name and the actions readable at normal text size; it is not a token.
-// Two fit side by side from about twice this width, and the cards then grow to share the row.
+// A row narrower than twice this wraps to one column.
 const MIN_CARD_WIDTH = 240;
+// Over a third of the row, so three never fit; under half, so two always do. The cards then grow to share the row.
+const TWO_COLUMN_BASIS = '34%';
 
 export const coachCardColors: {
   dot: ColorToken;
@@ -65,7 +67,7 @@ function Initials({ initials, background }: { initials: string; background: Colo
 // One coach: a colour card (stable colour per coach) for an active one, a dashed outline for a pending invitation.
 export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate }: CoachCardProps) {
   const { colors, space, radius, typography } = useTheme();
-  const cell = oneColumn ? { flexBasis: '100%' as const } : { flexGrow: 1, flexBasis: MIN_CARD_WIDTH };
+  const cell = oneColumn ? { flexBasis: '100%' as const } : { flexGrow: 1, flexBasis: TWO_COLUMN_BASIS, minWidth: MIN_CARD_WIDTH };
   const name = coach.name ?? t('schoolConsole.common.no_data');
   const detail = `${coach.groups.length > 0 ? coach.groups.join(' · ') : t('schoolConsole.coaches.no_groups')} · ${t('schoolConsole.coaches.athletes', { count: coach.athleteCount })}`;
 
