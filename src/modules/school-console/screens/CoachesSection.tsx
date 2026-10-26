@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { SyncConnection } from '../../../core/sync';
 import '../i18n';
 import type { CoachRow } from '../components/CoachList';
+import { kindOf } from '../components/errorKind';
 import { localDate } from '../components/formatDate';
 import type { CoachInvitation, InviteGroups } from '../components/InviteCoachSheet';
 import type { Coach, CoachRepository } from '../data/coaches';
@@ -48,17 +49,6 @@ function indexByCoach({ assignments }: Loaded) {
   return groupIds;
 }
 
-// Only plain tokens (a PostgREST or PowerSync code, an HTTP status) pass as a discriminator: never free text.
-const TOKEN = /^[\w.:-]{1,40}$/;
-
-// The kind of a failure: the error name (or typeof) plus its code or status when it has a plain one. Never its message, which can carry stored data.
-function kindOf(error: unknown) {
-  const kind = error instanceof Error ? error.name : typeof error;
-  const { code, status } = (typeof error === 'object' && error !== null ? error : {}) as { code?: unknown; status?: unknown };
-  const detail = [code, status].find((value) => (typeof value === 'string' || typeof value === 'number') && TOKEN.test(String(value)));
-  return detail === undefined ? kind : `${kind} ${detail}`;
-}
-
 type Read<T> = { ok: true; value: T } | { ok: false };
 const READS = ['coaches', 'groups', 'athleteCounts', 'assignments'];
 
@@ -93,6 +83,8 @@ export function CoachesSection({
 }: CoachesSectionProps) {
   const [answer, setAnswer] = useState<Answer>();
   const [attempt, setAttempt] = useState(0);
+  // The groups read again from the invite sheet alone, stored with the load it answers: any other load drops it.
+  const [retried, setRetried] = useState<{ base: Answer | undefined; groups: SchoolGroup[] | 'error' }>();
 
   useEffect(() => {
     let active = true;
@@ -160,7 +152,18 @@ export function CoachesSection({
   }
 
   // The groups feed the invite sheet's chips; while they are read or failed the sheet is told so, not given an empty list. «Desactivar» stays disabled (the screen's default) until issue 220.
-  const groups: InviteGroups = loaded === undefined ? 'loading' : loaded === 'error' ? 'error' : loaded.groups;
+  const groups: InviteGroups = loaded === undefined ? 'loading' : retried !== undefined && retried.base === answer ? retried.groups : loaded === 'error' ? 'error' : loaded.groups;
+  // Only the groups: the coaches, the athletes and the assignments are not read again.
+  const retryGroups = () => {
+    const base = answer;
+    structure.listGroups(schoolId).then(
+      (read) => setRetried({ base, groups: read }),
+      (error: unknown) => {
+        console.warn(`[school-console] Coaches could not be loaded: groups=${kindOf(error)}`);
+        setRetried({ base, groups: 'error' });
+      },
+    );
+  };
 
-  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onRetryGroups={() => setAttempt((n) => n + 1)} onInvite={onInvite} onDeactivate={onDeactivate} />;
+  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onRetryGroups={retryGroups} onInvite={onInvite} onDeactivate={onDeactivate} />;
 }

@@ -210,7 +210,28 @@ describe('CoachesSection', () => {
 
     expect(await screen.findByRole('radio', { name: 'Group A' })).toBeOnTheScreen();
     expect(screen.getByLabelText('Nombre')).toHaveDisplayValue('Rosa Londoño');
-    expect(listCoaches).toHaveBeenCalledTimes(3);
+  });
+
+  it('reads only the groups again when the sheet retries them: not the coaches, the athletes or the assignments', async () => {
+    const real = coachRepository();
+    const listCoaches = jest.fn(real.listCoaches);
+    const listAthleteGroups = jest.fn(athletes.listAthleteGroups);
+    const listCoachAssignments = jest.fn(structure.listCoachAssignments);
+    const listGroups = jest.fn().mockImplementationOnce(structure.listGroups).mockRejectedValueOnce(new Error('boom')).mockImplementation(structure.listGroups);
+    const props = { structure: { ...structure, listGroups, listCoachAssignments }, athletes: { ...athletes, listAthleteGroups } };
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const view = await show({ listCoaches }, props);
+    await rows();
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+    await view.rerender(tree({ listCoaches }, { ...props, refreshKey: 1 }));
+    expect(await screen.findByText('No pudimos cargar los grupos.')).toBeOnTheScreen();
+    const before = [listCoaches, listAthleteGroups, listCoachAssignments].map((read) => read.mock.calls.length);
+
+    await fireEvent.press(within(screen.getByTestId('side-sheet')).getByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(await screen.findByRole('radio', { name: 'Group A' })).toBeOnTheScreen();
+    expect(listGroups).toHaveBeenCalledTimes(3);
+    expect([listCoaches, listAthleteGroups, listCoachAssignments].map((read) => read.mock.calls.length)).toEqual(before);
   });
 
   it('shows the stored list under a dated banner without network', async () => {

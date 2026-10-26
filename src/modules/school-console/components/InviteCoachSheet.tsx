@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -26,6 +26,8 @@ export type InviteCoachSheetProps = {
   onSubmit: (invitation: CoachInvitation) => void | Promise<void>;
   // Reads the groups again; offered next to the error when they failed to load.
   onRetryGroups?: () => void;
+  // Something the caller needs the person to see while the sheet is open, shown above the form (for example an earlier invitation that failed).
+  notice?: ReactNode;
   onClose: () => void;
 };
 
@@ -33,7 +35,7 @@ export type InviteCoachSheetProps = {
 const EMAIL = /^\S+@\S+\.\S+$/;
 
 // The invitation form in a side sheet. It keeps its own typing, so it is mounted anew each time it opens.
-export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGroups, onClose }: InviteCoachSheetProps) {
+export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGroups, notice, onClose }: InviteCoachSheetProps) {
   const { colors, space, typography } = useTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -80,6 +82,7 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
 
   return (
     <SideSheet label={t('schoolConsole.coaches.invite_sheet.label')} titleKey="schoolConsole.coaches.invite" onClose={onClose}>
+      {notice}
       <TextField label={t('schoolConsole.coaches.invite_sheet.name')} value={name} onChangeText={(text) => edit(() => setName(text))} readOnly={busy} autoComplete="name" />
       <TextField
         label={t('schoolConsole.coaches.invite_sheet.email')}
@@ -96,7 +99,7 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
           {t('schoolConsole.coaches.invite_sheet.groups_failed')}
         </Banner>
       )}
-      {groups === 'error' && onRetryGroups && <Button variant="secondary" label={t('schoolConsole.screen.retry')} onPress={onRetryGroups} />}
+      {groups === 'error' && onRetryGroups && <Button variant="secondary" label={t('schoolConsole.screen.retry')} loading={busy} onPress={onRetryGroups} />}
       {groups === 'loading' && <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('schoolConsole.coaches.invite_sheet.groups_loading')}</Text>}
       {available.length > 0 && (
         <View style={{ gap: space[2] }}>

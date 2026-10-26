@@ -138,7 +138,8 @@
       "groups_missing": "Faltan los grupos de la escuela",
       "send": "Enviar invitación",
       "incomplete": "Escribe el nombre y un correo válido",
-      "failed": "No pudimos enviar la invitación. Inténtalo de nuevo."
+      "failed": "No pudimos enviar la invitación. Inténtalo de nuevo.",
+      "failed_to": "No pudimos enviar la invitación a {{email}}. Inténtalo de nuevo."
     },
     "status": {
       "active": "Activo",
