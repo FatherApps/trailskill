@@ -124,6 +124,7 @@
     "athletes_other": "{{count}} deportistas",
     "no_groups": "Sin grupos",
     "invite": "Invitar entrenador",
+    "invite_unavailable": "Próximamente",
     "deactivate": "Desactivar",
     "deactivate_hint": "Desactivar a {{name}}",
     "cancel": "Cancelar",

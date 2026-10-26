@@ -24,6 +24,8 @@ export type CoachesScreenProps = ConsoleSectionProps & {
   onInvite: (invitation: CoachInvitation) => void | Promise<void>;
   // Fires only after the ConfirmSheet is confirmed; the real deactivation belongs to the caller.
   onDeactivate: (id: string) => void;
+  // False until an invitation can really be delivered: the action is shown disabled as «Próximamente», not hidden, and opens nothing.
+  inviteAvailable?: boolean;
   // False (the default) until deactivating really works (issue 220): the action is shown disabled and opens nothing.
   deactivateAvailable?: boolean;
   // The groups of the school, offered as chips in the invite sheet; [] (the default) is a school with none, so the sheet asks only name and email.
@@ -48,6 +50,7 @@ export function CoachesScreen({
   onNavigate,
   onInvite,
   onDeactivate,
+  inviteAvailable = true,
   deactivateAvailable = false,
   groups = [],
   onRetryGroups,
@@ -153,7 +156,7 @@ export function CoachesScreen({
         count: t('schoolConsole.coaches.count', { count: coaches.length }),
         updatedMinutesAgo,
       })}
-      action={{ label: t('schoolConsole.coaches.invite'), icon: 'person_add', onPress: () => {
+      action={{ label: t('schoolConsole.coaches.invite'), icon: 'person_add', disabledReason: inviteAvailable ? undefined : t('schoolConsole.coaches.invite_unavailable'), onPress: () => {
           setLateFailures([]);
           setPending({ kind: 'invite', opening: ++openings.current });
         },

@@ -31,7 +31,7 @@ const measurementLog = createPowerSyncMeasurementLogRepository();
 const schoolStructure = createPowerSyncSchoolStructureRepository();
 const coaches = createPowerSyncCoachRepository();
 
-// Inviting and deactivating coaches is not connected yet: the confirmed events do nothing.
+// Deactivating a coach waits for issue 220; the button is shown disabled, so this is never called.
 const noop = () => {};
 
 export default function ConsoleRoute() {
@@ -53,7 +53,7 @@ export default function ConsoleRoute() {
       onOpenPlans={() => router.push('/plans')}
       sections={{
         coaches: (props) => (
-          <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} onInvite={noop} onDeactivate={noop} />
+          <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} onDeactivate={noop} />
         ),
         athletes: (props) => (
           <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
