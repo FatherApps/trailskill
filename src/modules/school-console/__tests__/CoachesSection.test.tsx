@@ -101,17 +101,17 @@ const show = (repository: CoachRepository, extra: Extra = {}) =>
     </ThemeProvider>,
   );
 
-const rows = () => screen.findAllByLabelText(/^Sin dato, /);
+const rows = () => screen.findAllByTestId('coach-card');
 
 describe('CoachesSection', () => {
   it('lists the coaches of the school with Sin dato as name, their groups and their athletes, and no other school or admin', async () => {
     await show(coachRepository());
 
-    expect((await rows()).map((row) => row.props.accessibilityLabel.split(',').slice(0, 3).join(','))).toEqual([
-      'Sin dato, Group A · Group B, 3 deportistas',
-      'Sin dato, Group B, 1 deportista',
-      'Sin dato, Sin grupos, 0 deportistas',
-    ]);
+    expect(await rows()).toHaveLength(3);
+    expect(screen.getAllByText('Sin dato')).toHaveLength(3);
+    expect(screen.getByText('Group A · Group B · 3 deportistas')).toBeOnTheScreen();
+    expect(screen.getByText('Group B · 1 deportista')).toBeOnTheScreen();
+    expect(screen.getByText('Sin grupos · 0 deportistas')).toBeOnTheScreen();
     expect(screen.getByText('3 entrenadores · Actualizado hace 5 min')).toBeOnTheScreen();
     expect(screen.queryByText(/Other group/, { includeHiddenElements: true })).toBeNull();
   });

@@ -1,14 +1,16 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
+import { View } from 'react-native';
 
 import type { PoolCode } from '../../core/sport';
 import type { GalleryEntry } from '../../core/ui';
 import { schoolNameFixture, storedOnFixture } from './__fixtures__/athletes';
 import { authorizationsFixture, longTextAuthorizationFixture, sharingRequestsFixture } from './__fixtures__/authorizations';
-import { coachesFixture, longTextCoachFixture } from './__fixtures__/coaches';
+import { coachesFixture, inviteGroupsFixture, longTextCoachFixture, pendingCoachFixture } from './__fixtures__/coaches';
 import { longTextMeasurementFixture, measurementsFixture, measurementsUpdatedMinutesAgo } from './__fixtures__/measurements';
 import { longTextRecordFixture, recordCategoryFixture, recordsFixture, recordsUpdatedMinutesAgo } from './__fixtures__/records';
 import { AuthorizationList, SharingRequestList } from './components/AuthorizationList';
 import { CoachList } from './components/CoachList';
+import { InviteCoachSheet } from './components/InviteCoachSheet';
 import { MeasurementLog } from './components/MeasurementLog';
 import { RecordTable } from './components/RecordTable';
 import type { SectionView } from './components/SectionFrame';
@@ -46,7 +48,10 @@ function sectionStates<Content>(
 
 const entry = (id: string, title: string, states: Record<string, () => ReactElement>): GalleryEntry => ({ id, title, states });
 
-const coachesContent: CoachesContent = { updatedMinutesAgo: 2, coaches: coachesFixture };
+// A side sheet fills the layout that holds it: give it a stage tall enough for its fields.
+const SheetStage = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch', height: 640 }}>{children}</View>;
+
+const coachesContent: CoachesContent = { updatedMinutesAgo: 2, coaches: [...coachesFixture, pendingCoachFixture] };
 
 // The pool and the category chip are the caller's: the preview holds the pool, so the segments change the table.
 function RecordsPreview({ view, width }: { view: SectionView<RecordsContent>; width: number }) {
@@ -114,17 +119,48 @@ export const gallerySectionEntries: GalleryEntry[] = [
         <CoachList coaches={coachesFixture} onDeactivate={noop} />
       </FullWidth>
     ),
+    'with-pending-invitation': () => (
+      <FullWidth>
+        <CoachList coaches={[...coachesFixture, pendingCoachFixture]} onDeactivate={noop} />
+      </FullWidth>
+    ),
+    'deactivate-available': () => (
+      <FullWidth>
+        <CoachList coaches={coachesFixture} deactivateAvailable onDeactivate={noop} />
+      </FullWidth>
+    ),
     'long-text': () => (
       <FullWidth>
         <CoachList coaches={[...coachesFixture.slice(0, 1), longTextCoachFixture]} onDeactivate={noop} />
       </FullWidth>
     ),
   }),
+  entry('inviteCoachSheet', 'InviteCoachSheet', {
+    default: () => (
+      <SheetStage>
+        <InviteCoachSheet groups={inviteGroupsFixture} onSubmit={noop} onClose={noop} />
+      </SheetStage>
+    ),
+    'group-from-context': () => (
+      <SheetStage>
+        <InviteCoachSheet groups={inviteGroupsFixture} initialGroupId="g2" onSubmit={noop} onClose={noop} />
+      </SheetStage>
+    ),
+  }),
   entry(
     'coachesScreen',
     'CoachesScreen',
     sectionStates(coachesContent, (view, width) => (
-      <CoachesScreen width={width} schoolName={schoolNameFixture} view={view} scrollEnabled={false} onNavigate={noop} onInvite={noop} onDeactivate={noop} />
+      <CoachesScreen
+        width={width}
+        schoolName={schoolNameFixture}
+        view={view}
+        scrollEnabled={false}
+        groups={inviteGroupsFixture}
+        onNavigate={noop}
+        onInvite={noop}
+        onDeactivate={noop}
+      />
     )),
   ),
   entry('recordTable', 'RecordTable', {
