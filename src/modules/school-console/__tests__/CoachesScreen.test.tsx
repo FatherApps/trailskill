@@ -11,6 +11,9 @@ const content: CoachesContent = { updatedMinutesAgo: 2, coaches: coachesFixture 
 const show = async (view: CoachesView, extra: Partial<CoachesScreenProps> = {}) => {
   const actions = { onNavigate: jest.fn(), onInvite: jest.fn(), onDeactivate: jest.fn() };
   await render(<CoachesScreen width={1280} schoolName={schoolNameFixture} view={view} {...actions} {...extra} />);
+  // Jest has no layout engine: the first measure that the list waits for (it is out of reach until then) is given here.
+  const list = screen.queryByTestId('coach-list', { includeHiddenElements: true });
+  if (list) await act(() => fireEvent(list, 'layout', { nativeEvent: { layout: { width: 1000, height: 400, x: 0, y: 0 } } }));
   return actions;
 };
 

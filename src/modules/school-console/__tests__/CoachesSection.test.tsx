@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
@@ -106,7 +106,12 @@ const tree = (repository: CoachRepository, extra: Extra = {}) => (
 
 const show = (repository: CoachRepository, extra: Extra = {}) => render(tree(repository, extra));
 
-const rows = () => screen.findAllByTestId('coach-card');
+// Jest has no layout engine: the list is out of reach until its first measure, which is given here once the cards are drawn.
+const rows = async () => {
+  const cards = await screen.findAllByTestId('coach-card', { includeHiddenElements: true });
+  await act(() => fireEvent(screen.getByTestId('coach-list', { includeHiddenElements: true }), 'layout', { nativeEvent: { layout: { width: 1000, height: 400, x: 0, y: 0 } } }));
+  return cards;
+};
 
 describe('CoachesSection', () => {
   it('lists the coaches of the school with Sin dato as name, their groups and their athletes, and no other school or admin', async () => {

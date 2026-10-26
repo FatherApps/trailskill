@@ -4,13 +4,18 @@ import { Dimensions, StyleSheet } from 'react-native';
 import { space, ThemeProvider } from '../../../core/theme';
 import { coachesFixture, pendingCoachFixture } from '../__fixtures__/coaches';
 import { CoachList, type CoachRow } from '../components/CoachList';
+import { MEASURE_TIMEOUT_MS } from '../components/coachGrid';
 
 const show = (coaches = coachesFixture) => render(<CoachList coaches={coaches} onDeactivate={jest.fn()} />);
 
-const measure = (width: number) =>
-  act(() => fireEvent(screen.getByTestId('coach-list'), 'layout', { nativeEvent: { layout: { width, height: 400, x: 0, y: 0 } } }));
+// The list is hidden from the accessibility tree before it is measured, so the queries must include hidden elements.
+const coachList = () => screen.getByTestId('coach-list', { includeHiddenElements: true });
+const coachCards = () => screen.getAllByTestId('coach-card', { includeHiddenElements: true });
 
-const maxWidths = () => screen.getAllByTestId('coach-card').map((card) => StyleSheet.flatten(card.props.style).maxWidth);
+const measure = (width: number) =>
+  act(() => fireEvent(coachList(), 'layout', { nativeEvent: { layout: { width, height: 400, x: 0, y: 0 } } }));
+
+const maxWidths = () => coachCards().map((card) => StyleSheet.flatten(card.props.style).maxWidth);
 
 // The React Native jest setup reports a system font scale of 2: these tests start from 100 %.
 const realGet = Dimensions.get.bind(Dimensions);
@@ -21,14 +26,125 @@ afterEach(() => jest.restoreAllMocks());
 
 describe('CoachList', () => {
   describe('before the first layout', () => {
+    const list = () => StyleSheet.flatten(coachList().props.style);
+
     it('does not draw the cards until the row is measured, so the last odd card is never drawn stretched', async () => {
       await show();
 
-      expect(StyleSheet.flatten(screen.getByTestId('coach-list').props.style).opacity).toBe(0);
+      expect(list().opacity).toBe(0);
 
       await measure(1000);
 
-      expect(StyleSheet.flatten(screen.getByTestId('coach-list').props.style).opacity).toBe(1);
+      expect(list().opacity).toBe(1);
+    });
+
+    it('keeps the cards out of touch and out of the accessibility tree until the row is measured', async () => {
+      await show();
+
+      expect(coachList().props.pointerEvents).toBe('none');
+      expect(coachList().props.importantForAccessibility).toBe('no-hide-descendants');
+      expect(coachList().props.accessibilityElementsHidden).toBe(true);
+
+      await measure(1000);
+
+      expect(coachList().props.pointerEvents).toBe('auto');
+      expect(coachList().props.importantForAccessibility).toBe('auto');
+      expect(coachList().props.accessibilityElementsHidden).toBe(false);
+    });
+
+    describe('when there is nothing to measure, the list is visible and reachable from the start', () => {
+      const reachable = () => {
+        expect(list().opacity).toBe(1);
+        expect(coachList().props.pointerEvents).toBe('auto');
+        expect(coachList().props.importantForAccessibility).toBe('auto');
+      };
+
+      it('with an even count', async () => {
+        await show(coachesFixture.slice(0, 2));
+
+        reachable();
+      });
+
+      it('with an empty list', async () => {
+        await show([]);
+
+        reachable();
+      });
+
+      it('with one column (large text), even with an odd count', async () => {
+        jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 2 }));
+        await show();
+
+        reachable();
+      });
+    });
+  });
+
+  describe('when onLayout does not arrive', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const opacity = () => StyleSheet.flatten(coachList().props.style).opacity;
+    const wait = (ms: number) => act(() => jest.advanceTimersByTime(ms));
+
+    it('shows the list uncapped once the deadline passes, and reachable', async () => {
+      await show();
+
+      await wait(MEASURE_TIMEOUT_MS - 1);
+      expect(opacity()).toBe(0);
+
+      await wait(1);
+      expect(opacity()).toBe(1);
+      expect(coachList().props.pointerEvents).toBe('auto');
+      expect(coachList().props.importantForAccessibility).toBe('auto');
+      expect(maxWidths()).toEqual([undefined, undefined, undefined]);
+    });
+
+    it('caps the last card when the measure arrives after the deadline: it does not stay stretched', async () => {
+      await show();
+      await wait(MEASURE_TIMEOUT_MS);
+
+      await measure(1000);
+
+      expect(opacity()).toBe(1);
+      expect(maxWidths()).toEqual([undefined, undefined, (1000 - space[3]) / 2]);
+    });
+
+    // The measure deadline is the only timer set with this delay; the cards set others of their own.
+    const deadlines = (spy: jest.SpyInstance) =>
+      spy.mock.calls.flatMap((call, i) => (call[1] === MEASURE_TIMEOUT_MS ? [spy.mock.results[i].value] : []));
+
+    it('clears the timer when the measure arrives in time', async () => {
+      const set = jest.spyOn(globalThis, 'setTimeout');
+      const clear = jest.spyOn(globalThis, 'clearTimeout');
+      await show();
+      const [deadline] = deadlines(set);
+
+      await measure(1000);
+
+      expect(clear).toHaveBeenCalledWith(deadline);
+      await wait(MEASURE_TIMEOUT_MS * 2);
+      expect(opacity()).toBe(1);
+      expect(maxWidths()).toEqual([undefined, undefined, (1000 - space[3]) / 2]);
+    });
+
+    it('clears the timer when the list is unmounted', async () => {
+      const set = jest.spyOn(globalThis, 'setTimeout');
+      const clear = jest.spyOn(globalThis, 'clearTimeout');
+      const { unmount } = await show();
+      const [deadline] = deadlines(set);
+
+      await unmount();
+
+      expect(deadline).toBeDefined();
+      expect(clear).toHaveBeenCalledWith(deadline);
+    });
+
+    it('sets no timer when there is nothing to measure', async () => {
+      const set = jest.spyOn(globalThis, 'setTimeout');
+      await show(coachesFixture.slice(0, 2));
+
+      expect(deadlines(set)).toEqual([]);
     });
   });
 
@@ -70,22 +186,57 @@ describe('CoachList', () => {
     });
   });
 
-  describe('when the text grows while the list is on screen', () => {
+  describe('when the text scale changes while the list is on screen', () => {
+    const list = (fontScale: number) => (
+      <ThemeProvider fontScale={fontScale}>
+        <CoachList coaches={coachesFixture} onDeactivate={jest.fn()} />
+      </ThemeProvider>
+    );
+    const cellBases = () => coachCards().map((card) => StyleSheet.flatten(card.props.style).flexBasis);
+
     // The gallery control at 200 %, or the system font changing live: native layout can keep the grid's narrow
-    // cards when the cell style changes in place, so the list is rebuilt.
-    it('rebuilds the list when it goes from the grid to one column', async () => {
-      const list = (fontScale: number) => (
-        <ThemeProvider fontScale={fontScale}>
-          <CoachList coaches={coachesFixture} onDeactivate={jest.fn()} />
-        </ThemeProvider>
-      );
+    // cards when the cell style changes in place, so the list is rebuilt (and measured again, see below).
+    it('gives one column at 200 % and goes back to the grid at 100 %', async () => {
       const { rerender } = await render(list(1));
-      await measure(400);
-      const before = screen.getByTestId('coach-list');
+      await measure(1000);
+      expect(cellBases()).toEqual(['34%', '34%', '34%']);
+      expect(maxWidths()).toEqual([undefined, undefined, (1000 - space[3]) / 2]);
 
       await rerender(list(2));
+      await measure(1000);
+      expect(cellBases()).toEqual(['100%', '100%', '100%']);
+      expect(maxWidths()).toEqual([undefined, undefined, undefined]);
 
-      expect(screen.getByTestId('coach-list')).not.toBe(before);
+      await rerender(list(1));
+      await measure(1000);
+      expect(cellBases()).toEqual(['34%', '34%', '34%']);
+      expect(maxWidths()).toEqual([undefined, undefined, (1000 - space[3]) / 2]);
+    });
+
+    it('does not draw a frame with the measure of the previous scale: the list waits for a new one', async () => {
+      const { rerender } = await render(list(2));
+      await measure(1000);
+      await rerender(list(1));
+
+      expect(StyleSheet.flatten(coachList().props.style).opacity).toBe(0);
+      expect(coachList().props.pointerEvents).toBe('none');
+      expect(maxWidths()).toEqual([undefined, undefined, undefined]);
+    });
+  });
+
+  describe('when the row changes width at the same text scale', () => {
+    it('measures again: the cap follows the row without rebuilding the list', async () => {
+      await show();
+      await measure(1000);
+      const list = coachList();
+      expect(maxWidths()).toEqual([undefined, undefined, (1000 - space[3]) / 2]);
+
+      await measure(400);
+      expect(maxWidths()).toEqual([undefined, undefined, undefined]);
+
+      await measure(800);
+      expect(maxWidths()).toEqual([undefined, undefined, (800 - space[3]) / 2]);
+      expect(coachList()).toBe(list);
     });
   });
 
