@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -42,7 +42,8 @@ export type PlanBuilderScreenProps = {
   onAssign?: () => void;
   // The plan has changes that are not saved: the assign button stays visible but disabled, and says why.
   assignBlocked?: boolean;
-  // The width in dp this screen can use; defaults to the window. From bp-expanded the list and the editing panel sit side by side.
+  // The width in dp this screen can use; defaults to the window, which is all the app passes. Only the dev gallery and the tests set it, to
+  // simulate a layout whatever the window. From bp-expanded the list and the editing panel sit side by side.
   width?: number;
 };
 
@@ -77,7 +78,7 @@ export function PlanBuilderScreen({
   const [removingId, setRemovingId] = useState(defaultRemovingId);
   const removingPosition = blocks.findIndex((block) => block.id === removingId) + 1;
   const editingIndex = blocks.findIndex((block) => block.id === editingId);
-  const meters = blocks.reduce((sum, block) => sum + block.repetitions * block.distance, 0);
+  const meters = useMemo(() => blocks.reduce((sum, block) => sum + block.repetitions * block.distance, 0), [blocks]);
 
   const editor = (block: DraftBlock) => (
     <BlockEditor block={block} vocabulary={vocabulary} errors={editingErrors} onChange={onChangeBlock} onDone={onDoneEditing} />
@@ -162,6 +163,7 @@ export function PlanBuilderScreen({
       onPress={onSaveTemplate}
     />
   );
+  // Intentional: the wide layout has room for the metres next to the count, the single column keeps the short count.
   const summary = expanded
     ? t('training_plans.today.summary', { meters: formatNumber(meters), count: blocks.length })
     : t('training_plans.builder.count', { count: blocks.length });

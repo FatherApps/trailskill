@@ -112,6 +112,16 @@ describe('PlanBuilderScreen', () => {
       expect(screen.getByText('950 m · 5 bloques')).toBeOnTheScreen();
     });
 
+    it('adds up the metres once per change of blocks, not on every render', async () => {
+      const list = [...blocks];
+      const reduce = jest.spyOn(list, 'reduce');
+      const { rerender } = await render(setup({ ...wide, blocks: list }).ui);
+      await rerender(setup({ ...wide, blocks: list, planName: 'Otro nombre' }).ui);
+
+      expect(screen.getByText('950 m · 5 bloques')).toBeOnTheScreen();
+      expect(reduce).toHaveBeenCalledTimes(1);
+    });
+
     it('asks to pick a block while none is being edited', async () => {
       await render(setup(wide).ui);
 
