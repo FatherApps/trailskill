@@ -8,7 +8,7 @@
 -- what concerns their own athletes. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(132);
+select plan(134);
 
 -- Users: school admin S, coach C1 (group g1 and direct e2), coach C2 (direct
 -- e1), coach N (school 1, assigned to nobody), coach F (school 2), guardian G
@@ -673,6 +673,43 @@ select ok(
     and not has_function_privilege('anon', 'app.hidden_fulfillment_written_back(uuid)', 'execute'),
   'clients can neither read nor write the mark write-backs, and anon cannot execute the write-back check'
 );
+
+-- Issue #324: an UPDATE that reaches a mark already hidden must not unlock it.
+-- Clients cannot update fulfillments today; this rolled-back test grants an
+-- author UPDATE only to prove the trigger would not leak if that ever changes.
+-- The SET list and RETURNING reference no column, so the select policy does not
+-- filter the rows the UPDATE reaches.
+grant update on public.training_plan_fulfillments to authenticated;
+create policy test_324_author_update on public.training_plan_fulfillments
+  for update to authenticated using (created_by = (select auth.uid()));
+create function pg_temp.update_mark_writes_back(target uuid)
+returns boolean
+language sql
+as $$
+  with touched as (
+    update public.training_plan_fulfillments set device_id = 'device-324' returning 1
+  ),
+  done as (select count(*) as n from touched)
+  select app.hidden_fulfillment_written_back(target) from done
+$$;
+create temp table leaked_marks (id uuid);
+grant insert, select on leaked_marks to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "70000000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select is(
+  pg_temp.update_mark_writes_back('70000000-0000-4000-8000-000000000048'),
+  false, 'an UPDATE of a mark that is already hidden does not register a write-back'
+);
+with leak as (insert into pg_temp.leaked_marks select id from public.training_plan_fulfillments where hidden),
+     touch as (update public.training_plan_fulfillments set device_id = 'device-324' returning 1)
+select count(*) from touch;
+select is(
+  (select count(*) from pg_temp.leaked_marks),
+  0::bigint, 'a CTE that updates the author''s hidden marks does not let the same statement read them'
+);
+reset role;
+drop policy test_324_author_update on public.training_plan_fulfillments;
+revoke update on public.training_plan_fulfillments from authenticated;
 set local role authenticated;
 
 -- Plans for guardians: the assigned plan, the assigned version and its blocks.
