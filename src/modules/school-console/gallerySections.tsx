@@ -26,8 +26,6 @@ import { RecordsScreen, type RecordsContent } from './screens/RecordsScreen';
 function sectionStates<Content>(
   content: Content,
   screen: (view: SectionView<Content>, width: number) => ReactNode,
-  // Only the sections whose texts include `connecting_empty` can show the first-sync state.
-  { connectingEmpty = false }: { connectingEmpty?: boolean } = {},
 ): Record<string, () => ReactElement> {
   const preview = (view: SectionView<Content>, fixedWidth?: number) =>
     function SectionPreview() {
@@ -41,7 +39,7 @@ function sectionStates<Content>(
     error: preview({ kind: 'error', onRetry: noop }),
     'offline-with-data': preview({ kind: 'offline', storedOn: storedOnFixture, content }),
     'offline-no-data': preview({ kind: 'offline-empty' }),
-    ...(connectingEmpty && { 'connecting-no-data': preview({ kind: 'connecting-empty' }) }),
+    'connecting-no-data': preview({ kind: 'connecting-empty' }),
     denied: preview({ kind: 'denied' }),
     'expanded-1280': preview(data, 1280),
     'medium-800': preview(data, 800),
@@ -164,7 +162,7 @@ export const gallerySectionEntries: GalleryEntry[] = [
         onInvite={noop}
         onDeactivate={noop}
       />
-    ), { connectingEmpty: true }),
+    )),
   ),
   entry('recordTable', 'RecordTable', {
     default: () => (

@@ -88,10 +88,14 @@ const setup = async (
 };
 
 describe('AuthorizationsSection', () => {
-  it('does not load forever while connecting, never synced and without athletes: it says nothing is stored yet', async () => {
+  it('does not load forever while connecting, never synced and without athletes: it says the first sync is running, not that the connection is missing', async () => {
     await setup({ connection: 'connecting', neverSyncedEmpty: true });
 
-    expect(await screen.findByText('No hay autorizaciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
+    expect(await screen.findByText('Estamos sincronizando')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Todavía no hay autorizaciones guardadas en este dispositivo. Aparecerán cuando termine la primera sincronización.'),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('Estás sin conexión')).toBeNull();
     expect(screen.queryByTestId('state-view')).not.toHaveProp('accessibilityState', { busy: true });
   });
 

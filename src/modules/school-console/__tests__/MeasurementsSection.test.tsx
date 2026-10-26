@@ -90,10 +90,14 @@ const hidden = { includeHiddenElements: true };
 const entries = () => screen.queryAllByTestId('measurement-entry');
 
 describe('MeasurementsSection', () => {
-  it('does not load forever while connecting, never synced and without measurements: it says nothing is stored yet', async () => {
+  it('does not load forever while connecting, never synced and without measurements: it says the first sync is running, not that the connection is missing', async () => {
     await render(section(await repositoryWith([]), { connection: 'connecting', lastSyncedAt: null }));
 
-    expect(await screen.findByText('No hay mediciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
+    expect(await screen.findByText('Estamos sincronizando')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Todavía no hay mediciones guardadas en este dispositivo. Aparecerán cuando termine la primera sincronización.'),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('Estás sin conexión')).toBeNull();
     expect(screen.queryByTestId('state-view')).not.toHaveProp('accessibilityState', { busy: true });
   });
 

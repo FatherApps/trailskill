@@ -94,7 +94,13 @@ export function AuthorizationsSection({
     view = { kind: 'error', onRetry: () => setAttempt((n) => n + 1) };
   } else if (rows.length === 0) {
     // Never synced and still not connected: nothing is stored yet, and the list fills in when the first sync arrives.
-    view = connection !== 'connected' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
+    // Never synced: 'connecting' is not 'offline', the first sync is already on its way.
+    view =
+      lastSyncedAt !== null || connection === 'connected'
+        ? { kind: 'empty' }
+        : connection === 'connecting'
+          ? { kind: 'connecting-empty' }
+          : { kind: 'offline-empty' };
   } else {
     const content: AuthorizationsContent = {
       updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.floor((now().getTime() - lastSyncedAt.getTime()) / MINUTE_MS)) : null,

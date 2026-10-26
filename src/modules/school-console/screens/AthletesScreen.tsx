@@ -37,6 +37,8 @@ export type AthletesView =
   // Offline with stored data: the content under a dated banner. `storedOn` is the ISO date (YYYY-MM-DD) it was saved.
   | { kind: 'offline'; storedOn: string; content: AthletesContent }
   | { kind: 'offline-empty' }
+  // Never synced, still reaching the backend: the first sync is running, so nothing says the connection is missing.
+  | { kind: 'connecting-empty' }
   | { kind: 'denied' };
 
 // The options of the filter whose chip was pressed, shown in a side sheet over the screen.
@@ -168,6 +170,16 @@ export function AthletesScreen({
           kind="offline"
           title={t('schoolConsole.screen.offline.title')}
           message={t('schoolConsole.screen.offline.message')}
+        />
+      );
+      break;
+    case 'connecting-empty':
+      body = (
+        <StateView
+          kind="empty"
+          icon="cloud_download"
+          title={t('schoolConsole.screen.connecting.title')}
+          message={t('schoolConsole.screen.connecting.message')}
         />
       );
       break;

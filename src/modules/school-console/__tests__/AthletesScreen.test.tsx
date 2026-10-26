@@ -238,6 +238,16 @@ describe('AthletesScreen', () => {
       expect(screen.queryByTestId('banner')).toBeNull();
     });
 
+    it('connecting without data says the first sync is running and never mentions the connection', async () => {
+      await show({ kind: 'connecting-empty' });
+
+      expect(screen.getByText('Estamos sincronizando')).toBeOnTheScreen();
+      expect(
+        screen.getByText('Todavía no hay deportistas guardados en este dispositivo. Aparecerán cuando termine la primera sincronización.'),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText('Estás sin conexión')).toBeNull();
+    });
+
     it('denied says only that it is private, with no data and no invite', async () => {
       await show({ kind: 'denied' });
 
@@ -252,6 +262,7 @@ describe('AthletesScreen', () => {
       ['empty', { kind: 'empty' }],
       ['error', { kind: 'error', onRetry: () => {} }],
       ['offline-empty', { kind: 'offline-empty' }],
+      ['connecting-empty', { kind: 'connecting-empty' }],
       ['denied', { kind: 'denied' }],
     ])('keeps the console navigation in the %s state', async (_, view) => {
       await show(view);

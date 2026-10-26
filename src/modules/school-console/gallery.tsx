@@ -324,6 +324,7 @@ export const galleryEntries: GalleryEntry[] = [
     error: screenPreview(() => ({ kind: 'error', onRetry: noop })),
     'offline-with-data': screenPreview((content) => ({ kind: 'offline', storedOn: storedOnFixture, content })),
     'offline-no-data': screenPreview(() => ({ kind: 'offline-empty' })),
+    'connecting-no-data': screenPreview(() => ({ kind: 'connecting-empty' })),
     denied: screenPreview(() => ({ kind: 'denied' })),
     // The three layouts at a fixed width, on any device.
     'expanded-1280': screenPreview((content) => ({ kind: 'data', content }), { fixedWidth: 1280, initialSelected: 'a1' }),
