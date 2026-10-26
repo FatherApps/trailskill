@@ -18,10 +18,10 @@ jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 const DAY = '2026-11-02';
 const timed: PlanBlock = { id: 'b2', phase: 'main', repetitions: 3, distance: 50, activity: 'FR', equipment: ['fins'], sendOffSeconds: null, recording: 'per_repetition' };
-// The blocks of plans p1 and p2 as setup() saves them; the heading summary is derived from them, not typed by hand.
+// The blocks of plan p1 as setup() saves them. The heading summaries are fixed from the fixture (4 × 50 m + 3 × 50 m in p1, 4 × 50 m in p2), not computed with planSummary's formula.
 const p1Blocks = [...plan('p1').blocks, timed];
-const p2Blocks = plan('p2').blocks;
-const summaryOf = (blocks: PlanBlock[]) => `${blocks.reduce((sum, { repetitions, distance }) => sum + repetitions * distance, 0)} m · ${blocks.length} ${blocks.length === 1 ? 'bloque' : 'bloques'}`;
+const P1_SUMMARY = '350 m · 2 bloques';
+const P2_SUMMARY = '200 m · 1 bloque';
 const schoolLinks = createInMemoryAthleteSchoolRepository([
   { athleteId: 'a1', schoolId: 's1', categoryId: 'c1' },
   { athleteId: 'a3', schoolId: 's1', categoryId: 'c2' },
@@ -31,6 +31,8 @@ type SetupOptions = {
   ids?: string[];
   initialAthleteId?: string;
   changePlan?: boolean;
+  // Id of a block that reaches the screen without a distance, as stored data the editor would not accept today can (the repository validates on save).
+  noDistanceBlockId?: string;
   onOpenAthletes?: () => void;
   synced?: boolean;
   offline?: boolean;
@@ -39,7 +41,7 @@ type SetupOptions = {
 };
 
 async function setup(options: SetupOptions = {}) {
-  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes, synced, offline, actionPending, onRetryAction } = options;
+  const { ids = ['a1'], initialAthleteId, changePlan = false, noDistanceBlockId, onOpenAthletes, synced, offline, actionPending, onRetryAction } = options;
   const plans = createInMemoryTrainingPlanRepository();
   // Plan p1 (an untimed and a timed block) goes to group g1, which has a1; plan p2 goes to group g2, which has a3.
   await plans.save({ ...plan('p1'), blocks: p1Blocks });
@@ -59,9 +61,16 @@ async function setup(options: SetupOptions = {}) {
     { athleteId: 'a1', hundredths: null },
   ];
   const notices = createInMemoryNoticeRepository();
+  const readPlans: typeof plans = {
+    ...plans,
+    get: async (...args) => {
+      const found = await plans.get(...args);
+      return found && { ...found, blocks: found.blocks.map((block) => (block.id === noDistanceBlockId ? { ...block, distance: 0 } : block)) };
+    },
+  };
   const container = async (shown: string[], isSynced = synced, initial = initialAthleteId) => (
     <TodayContainer
-      plans={plans}
+      plans={readPlans}
       assignments={assignments}
       schoolLinks={schoolLinks}
       fulfillment={fulfillment}
@@ -90,7 +99,7 @@ describe('TodayContainer', () => {
     await setup();
 
     expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: `Hoy · Plan p1, A1 S., ${summaryOf(p1Blocks)}` })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Plan p1, A1 S., ${P1_SUMMARY}` })).toBeOnTheScreen();
     expect(screen.getAllByLabelText('Aletas').filter((node) => node.props.accessibilityRole === 'text')).toHaveLength(1);
     expect(screen.getByLabelText('Sin marcar')).toBeOnTheScreen();
     expect(screen.getByLabelText('Parcial · 2 de 3')).toBeOnTheScreen();
@@ -99,6 +108,13 @@ describe('TodayContainer', () => {
     expect(screen.getAllByText('—')).toHaveLength(2);
     expect(screen.queryByText(/29,99/)).toBeNull();
     expect(screen.queryByText(/0,00/)).toBeNull();
+  });
+
+  it('shows the blocks without distance apart in the heading, and never a plan total of 0 m', async () => {
+    await setup({ noDistanceBlockId: 'b2' });
+
+    expect(await screen.findByRole('header', { name: 'Hoy · Plan p1, A1 S., 200 m + 1 bloque sin distancia' })).toBeOnTheScreen();
+    expect(screen.queryByText(/^0 m/)).toBeNull();
   });
 
   it('shows the short name only, never the last name', async () => {
@@ -126,7 +142,7 @@ describe('TodayContainer', () => {
     expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('radio', { name: 'A3 S.' }));
     expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: `Hoy · Plan del otro, A3 S., ${summaryOf(p2Blocks)}` })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Plan del otro, A3 S., ${P2_SUMMARY}` })).toBeOnTheScreen();
     expect(screen.queryByText(/Plan p1/)).toBeNull();
   });
 
@@ -187,7 +203,7 @@ describe('TodayContainer', () => {
     await update(['a1']);
 
     expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: `Hoy · Plan p1, A1 S., ${summaryOf(p1Blocks)}` })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Plan p1, A1 S., ${P1_SUMMARY}` })).toBeOnTheScreen();
     expect(screen.queryByText('Plan del otro')).toBeNull();
   });
 
