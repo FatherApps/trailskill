@@ -1,12 +1,20 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
-import { colors, typography } from '../../../core/theme';
+import { colors, ThemeProvider, typography } from '../../../core/theme';
 import { accountsFixture as fx } from '../__fixtures__/accounts';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from '../screens/WhoSwimsScreen';
 
 const CHILD = /^Mi hijo o hija/;
 const ADULT = /^Yo,/;
+
+// The Jest default OS text scale is 2: tests set the one they mean.
+const realGet = Dimensions.get.bind(Dimensions);
+const setOsFontScale = (fontScale: number) =>
+  jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale }));
+
+beforeEach(() => setOsFontScale(1));
+afterEach(() => jest.restoreAllMocks());
 
 async function renderScreen(props: Partial<WhoSwimsScreenProps> = {}) {
   const onSelect = jest.fn();
@@ -46,10 +54,24 @@ describe('WhoSwimsScreen', () => {
     const [group] = screen.container.queryAll((node) => node.props.accessibilityRole === 'radiogroup');
     expect(StyleSheet.flatten(group.props.style).flexDirection).toBe('row');
     for (const radio of screen.getAllByRole('radio')) {
-      expect(StyleSheet.flatten(radio.props.style).flexGrow).toBe(1);
+      expect(StyleSheet.flatten(radio.props.style).flex).toBe(1);
     }
     const button = screen.getByRole('button', { name: 'Continuar' });
     expect(StyleSheet.flatten(button.props.style).backgroundColor).toBe(colors.light.action);
+  });
+
+  it('large text: stacks the cards so each takes the full width and no word breaks', async () => {
+    await render(
+      <ThemeProvider fontScale={2}>
+        <WhoSwimsScreen onSelect={jest.fn()} onBack={jest.fn()} />
+      </ThemeProvider>,
+    );
+
+    const [group] = screen.container.queryAll((node) => node.props.accessibilityRole === 'radiogroup');
+    expect(StyleSheet.flatten(group.props.style).flexDirection).toBe('column');
+    for (const radio of screen.getAllByRole('radio')) {
+      expect(StyleSheet.flatten(radio.props.style).flex).toBeUndefined();
+    }
   });
 
   it('child: explains that minors do not create their own account', async () => {

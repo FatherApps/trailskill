@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { useTheme } from '../../../core/theme';
+import { typography as baseTypography, useTheme } from '../../../core/theme';
 import { Banner, Button, Icon, StepHeader } from '../../../core/ui';
 import { ChoiceCard } from '../components/ChoiceCard';
 import { InvalidInvitationBanner, InvitationBanner, type Invitation } from '../components/notices';
@@ -22,8 +22,9 @@ export type WhoSwimsScreenProps = {
   onBack: () => void;
 };
 
+const largeTextScale = 1.5;
+
 const styles = StyleSheet.create({
-  cards: { flexDirection: 'row', flexWrap: 'wrap' },
   error: { flexDirection: 'row', alignItems: 'flex-start' },
   errorText: { flexShrink: 1 },
 });
@@ -31,6 +32,9 @@ const styles = StyleSheet.create({
 // Step 1 of registration. A guardian goes through four steps, an adult through three (no athlete details).
 export function WhoSwimsScreen({ initialChoice, invitation, invalidInvitation, onSelect, onBack }: WhoSwimsScreenProps) {
   const { colors, space, typography } = useTheme();
+  // The gallery preview scale (theme) and the system scale both apply: side by side no longer fits with large text.
+  const { fontScale } = useWindowDimensions();
+  const stacked = (typography.caption.fontSize / baseTypography.caption.fontSize) * fontScale >= largeTextScale;
   const [choice, setChoice] = useState(initialChoice);
   const [missing, setMissing] = useState(false);
 
@@ -60,7 +64,7 @@ export function WhoSwimsScreen({ initialChoice, invitation, invalidInvitation, o
       <View
         accessibilityRole="radiogroup"
         accessibilityLabel={t('accounts.who.title')}
-        style={[styles.cards, { gap: space[2] }]}
+        style={{ flexDirection: stacked ? 'column' : 'row', gap: space[2] }}
       >
         <ChoiceCard
           title={t('accounts.who.child_title')}
@@ -68,6 +72,7 @@ export function WhoSwimsScreen({ initialChoice, invitation, invalidInvitation, o
           icon="family_restroom"
           color="sky"
           selected={choice === 'child'}
+          stacked={stacked}
           onPress={() => choose('child')}
         />
         <ChoiceCard
@@ -76,6 +81,7 @@ export function WhoSwimsScreen({ initialChoice, invitation, invalidInvitation, o
           icon="person"
           color="lilac"
           selected={choice === 'adult'}
+          stacked={stacked}
           onPress={() => choose('adult')}
         />
       </View>
