@@ -30,10 +30,11 @@ type SetupOptions = {
   onOpenAthletes?: () => void;
   synced?: boolean;
   offline?: boolean;
+  actionPending?: boolean;
 };
 
 async function setup(options: SetupOptions = {}) {
-  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes, synced, offline } = options;
+  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes, synced, offline, actionPending } = options;
   const plans = createInMemoryTrainingPlanRepository();
   // Plan p1 (an untimed and a timed block) goes to group g1, which has a1; plan p2 goes to group g2, which has a3.
   await plans.save({ ...plan('p1'), blocks: [...plan('p1').blocks, timed] });
@@ -68,6 +69,7 @@ async function setup(options: SetupOptions = {}) {
       synced={isSynced}
       offline={offline}
       onOpenAthletes={onOpenAthletes}
+      actionPending={actionPending}
       renderNoticeStatus={(id) => <Text>{`sync:${id}`}</Text>}
     />
   );
@@ -142,6 +144,14 @@ describe('TodayContainer', () => {
     expect(screen.queryByText('Hoy no hay plan')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Ir a Mis deportistas' }));
     expect(onOpenAthletes).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows loading, not the message without an exit, while the action of the message is still being decided', async () => {
+    await setup({ ids: [], actionPending: true });
+
+    expect(await screen.findByTestId('state-view')).toBeOnTheScreen();
+    expect(screen.queryByText('Aún no hay un deportista vinculado')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ir a Mis deportistas' })).toBeNull();
   });
 
   it('follows the athletes when the list was empty at first and the sync brings one', async () => {

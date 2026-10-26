@@ -73,7 +73,7 @@ export default function TimingRoute() {
 
   if (access.status === 'loading') return null;
   // Only a hidden button is not protection: the backend enforces who may record times.
-  if (access.status === 'denied' || !session) return <Redirect href="/" />;
+  if (access.status === 'denied' || access.status === 'error' || !session) return <Redirect href="/" />;
   if (!deviceId) return null;
   const school = access.schools.length === 1 ? access.schools[0] : access.schools.find(({ id }) => id === chosenSchoolId);
   if (!school) return <SchoolChoiceScreen schools={access.schools} onChoose={setChosenSchoolId} onBack={leave} />;

@@ -68,8 +68,8 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
   const staff = useStaffSchool(staffSchools, userId, lastSyncedAt?.getTime());
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, lastSyncedAt?.getTime());
   // shortcut: before the first sync the memberships of a coach or admin may not be on the device and look like a guardian, and
-  // `useStaffSchool` reports a failed lookup as 'denied'; the bar waits for the first sync. Upgrade with an 'unknown' status there.
-  if (!lastSyncedAt || staff.status !== 'denied') return null;
+  // A failed lookup ('error') keeps the bar, as it did when it counted as 'denied'; the bar waits for the first sync.
+  if (!lastSyncedAt || (staff.status !== 'denied' && staff.status !== 'error')) return null;
 
   // The design says only "Historial = perfil": with one athlete it opens that profile, with several the person picks one.
   const only = managed.status === 'ready' && managed.athletes.length === 1 ? managed.athletes[0] : undefined;

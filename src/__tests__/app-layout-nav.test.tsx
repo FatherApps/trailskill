@@ -23,7 +23,7 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
   default: () => ({ width: mockWidth, height: 844, scale: 1, fontScale: 1 }),
 }));
 
-let mockStaff: 'staff' | 'denied' | 'loading' = 'denied';
+let mockStaff: 'staff' | 'denied' | 'loading' | 'error' = 'denied';
 const mockUseStaffSchool = jest.fn(() => ({ status: mockStaff }));
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console'),
@@ -61,6 +61,13 @@ describe('app layout phone navigation', () => {
     expect(screen.getByRole('tab', { name: 'Deportistas' })).toBeOnTheScreen();
     expect(screen.getByRole('tab', { name: 'Entreno' })).toBeOnTheScreen();
     expect(screen.getByRole('tab', { name: 'Historial' })).toBeOnTheScreen();
+  });
+
+  it('keeps the bar when the staff lookup failed, as before the failure had a status of its own', async () => {
+    mockStaff = 'error';
+    await render(<AppLayout />);
+
+    expect(screen.getByRole('tab', { name: 'Deportistas' })).toBeOnTheScreen();
   });
 
   it.each([

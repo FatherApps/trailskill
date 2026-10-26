@@ -34,6 +34,7 @@ export default function TodayRoute() {
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, session?.user.id, summary.lastSyncedAt?.getTime());
 
   // "Mis deportistas" is a destination of guardians and adult athletes only; school staff (admin or coach) navigate elsewhere, whatever the screen size.
+  // shortcut: when the lookup fails the role is unknown, so the action shows (nobody is left without an exit; staff get the shortcut declared in #442); upgrade with a retry view.
   const staff = useStaffSchool(staffSchools, session?.user.id, summary.lastSyncedAt?.getTime());
 
   if (!session || managed.status !== 'ready') return null;
@@ -50,7 +51,8 @@ export default function TodayRoute() {
       initialAthleteId={athlete}
       synced={summary.lastSyncedAt != null}
       offline={summary.connection === 'offline'}
-      onOpenAthletes={staff.status === 'denied' ? () => router.push('/athletes') : undefined}
+      actionPending={staff.status === 'loading'}
+      onOpenAthletes={staff.status === 'denied' || staff.status === 'error' ? () => router.push('/athletes') : undefined}
       renderNoticeStatus={(id) => <RecordSyncStatus table="training_plan_notices" id={id} />}
     />
   );

@@ -4,27 +4,29 @@ import type { StaffSchool, StaffSchoolRepository } from './staffSchools';
 
 export type AdminSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'admin'; school: StaffSchool };
 // `school` is the first school by name (the console shows that one); `schools` are all of them, for the timing to ask which one when there are several.
-export type StaffSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'staff'; school: StaffSchool; schools: StaffSchool[] };
+// 'error': the lookup itself failed, so nothing is known about the user; callers decide what that means for them.
+export type StaffSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'error' } | { status: 'staff'; school: StaffSchool; schools: StaffSchool[] };
+type Settled = { status: 'denied' } | { status: 'error' } | FoundSchools;
 type FoundSchools = { status: 'found'; school: StaffSchool; schools: StaffSchool[] };
 
-// Looks up the schools of a user: the first one and the whole list. Fails closed: no user or a failed lookup is a denial.
+// Looks up the schools of a user: the first one and the whole list. No user is a denial; a failed lookup is an error, which admin access treats as a denial.
 // The answer is stored with the user who asked, so another user never inherits it while their own lookup runs.
 function useFirstSchool(
   list: (userId: string) => Promise<StaffSchool[]>,
   repository: StaffSchoolRepository,
   userId: string | undefined,
   refreshKey: unknown,
-): { status: 'loading' } | { status: 'denied' } | FoundSchools {
-  const [answer, setAnswer] = useState<{ userId: string; result: { status: 'denied' } | FoundSchools }>();
+): { status: 'loading' } | Settled {
+  const [answer, setAnswer] = useState<{ userId: string; result: Settled }>();
   useEffect(() => {
     let active = true;
     if (userId) {
-      const settle = (result: { status: 'denied' } | FoundSchools) =>
+      const settle = (result: Settled) =>
         active && setAnswer({ userId, result });
       list(userId)
         // shortcut: `school` is the first by name, with no picker in the console; the timing asks among `schools`. Upgrade when the console needs a school picker.
         .then((schools) => settle(schools[0] ? { status: 'found', school: schools[0], schools } : { status: 'denied' }))
-        .catch(() => settle({ status: 'denied' }));
+        .catch(() => settle({ status: 'error' }));
     }
     return () => {
       active = false;
@@ -43,6 +45,7 @@ export function useAdminSchool(
   refreshKey?: unknown,
 ): AdminSchoolResult {
   const result = useFirstSchool((id) => repository.listAdminSchools(id), repository, userId, refreshKey);
+  if (result.status === 'error') return { status: 'denied' };
   return result.status === 'found' ? { status: 'admin', school: result.school } : result;
 }
 
