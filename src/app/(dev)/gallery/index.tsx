@@ -3,12 +3,14 @@ import { Fragment } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
+import { useGoBack } from '../../../core/navigation';
 import { useTheme } from '../../../core/theme';
 import { Button } from '../../../core/ui';
 import { galleryGroups } from '../_layout';
 
 export default function GalleryIndex() {
   const router = useRouter();
+  const goBack = useGoBack();
   const { colors, space, typography } = useTheme();
 
   return (
@@ -23,7 +25,7 @@ export default function GalleryIndex() {
         <Button
           variant="ghost"
           label={t('common.back')}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          onPress={goBack}
         />
       </View>
       <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>

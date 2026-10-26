@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 
+import { useGoBack } from '../../../core/navigation';
 import { useSession } from '../../../core/session';
 import { useGlobalSyncSummary } from '../../../core/sync';
 import {
@@ -18,6 +19,7 @@ const drafts = createSecureStoreRegistrationDraftRepository();
 // Last step of registration: authorize each purpose for each athlete, or continue without authorizing.
 export default function RegistrationAuthorizations() {
   const router = useRouter();
+  const goBack = useGoBack();
   const { session } = useSession();
   const userId = session?.user.id;
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();
@@ -33,7 +35,7 @@ export default function RegistrationAuthorizations() {
       mode="registration"
       drafts={drafts}
       // Reached with replace, so back may have no history: it goes home.
-      onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      onBack={goBack}
       onDone={() => router.replace('/')}
     />
   );
