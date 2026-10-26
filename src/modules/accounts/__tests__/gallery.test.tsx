@@ -29,6 +29,9 @@ describe('accounts gallery entries', () => {
       'required',
       'noSignal',
       'sending',
+      'verifying',
+      'requestFailed',
+      'verifyFailed',
       'invitation',
     ]);
     expect(statesOf('signIn')).toEqual(['initial', 'codeSent', 'codeMismatch', 'sending', 'offline']);

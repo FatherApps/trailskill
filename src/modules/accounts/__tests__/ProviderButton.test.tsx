@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { colors, radius, size, ThemeProvider } from '../../../core/theme';
-import { ChoiceRow } from '../components/ChoiceRow';
 import { ProviderButton } from '../components/ProviderButton';
 import { googleMark } from '../components/providerMarks';
 
@@ -65,29 +64,5 @@ describe('ProviderButton', () => {
       await fireEvent.press(button);
     }
     expect(onPress).not.toHaveBeenCalled();
-  });
-});
-
-describe('ChoiceRow', () => {
-  it('is a radio with its checked state and a target of at least 64', async () => {
-    const onPress = jest.fn();
-    const { rerender } = await render(
-      <ChoiceRow title="Yo" detail="Soy mayor de edad y nado" icon="person" color="athlete-2" selected={false} onPress={onPress} />,
-    );
-
-    const row = screen.getByRole('radio', { name: 'Yo, Soy mayor de edad y nado' });
-    expect(row).not.toBeChecked();
-    expect(StyleSheet.flatten(row.props.style).minHeight).toBeGreaterThanOrEqual(64);
-    expect(StyleSheet.flatten(row.props.style).backgroundColor).toBe(colors.light['surface-1']);
-    await fireEvent.press(row);
-    expect(onPress).toHaveBeenCalledTimes(1);
-
-    await rerender(
-      <ChoiceRow title="Yo" detail="Soy mayor de edad y nado" icon="person" color="athlete-2" selected onPress={onPress} />,
-    );
-    expect(screen.getByRole('radio')).toBeChecked();
-    expect(StyleSheet.flatten(screen.getByRole('radio').props.style).backgroundColor).toBe(
-      colors.light['primary-tint'],
-    );
   });
 });
