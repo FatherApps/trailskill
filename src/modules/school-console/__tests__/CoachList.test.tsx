@@ -20,6 +20,18 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('CoachList', () => {
+  describe('before the first layout', () => {
+    it('does not draw the cards until the row is measured, so the last odd card is never drawn stretched', async () => {
+      await show();
+
+      expect(StyleSheet.flatten(screen.getByTestId('coach-list').props.style).opacity).toBe(0);
+
+      await measure(1000);
+
+      expect(StyleSheet.flatten(screen.getByTestId('coach-list').props.style).opacity).toBe(1);
+    });
+  });
+
   describe('the last card of an odd count in two columns', () => {
     it('is capped to the width of a card that shares its row, instead of stretching over the row', async () => {
       await show();
