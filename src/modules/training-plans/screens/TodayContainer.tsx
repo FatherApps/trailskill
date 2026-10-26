@@ -28,6 +28,8 @@ export type TodayContainerProps = {
   day?: string;
   // Whether the first sync completed; before it an empty list only means "not arrived yet". True when omitted.
   synced?: boolean;
+  // Whether the device cannot reach the backend; before the first sync an empty list then means "no connection yet", not "still arriving".
+  offline?: boolean;
   // Opens "Mis deportistas", offered when the user manages no athlete yet.
   onOpenAthletes?: () => void;
   renderNoticeStatus?: (noticeId: string) => ReactNode;
@@ -49,9 +51,12 @@ function timesOf(recording: string, repetitions: number, mark: FulfillmentMark |
 const notesOf = (list: Notice[]) =>
   list.map((n) => ({ id: n.id, body: n.body, blockId: n.blockId, dateLabel: new Date(n.createdAt).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) }));
 
-function viewOf(athletes: SchoolAthlete[], synced: boolean, selected: SchoolAthlete | undefined, loaded: Loaded | null | 'loading' | 'error', actions: { onOpenAthletes?: () => void; onRetry: () => void }): TodayView {
-  if (athletes.length === 0) return synced ? { kind: 'no-athletes', onOpenAthletes: actions.onOpenAthletes } : { kind: 'loading' };
-  if (!selected || loaded === null) return { kind: 'empty' };
+function viewOf(athletes: SchoolAthlete[], synced: boolean, offline: boolean, loaded: Loaded | null | 'loading' | 'error', actions: { onOpenAthletes?: () => void; onRetry: () => void }): TodayView {
+  if (athletes.length === 0) {
+    if (synced) return { kind: 'no-athletes', onOpenAthletes: actions.onOpenAthletes };
+    return offline ? { kind: 'offline-empty' } : { kind: 'loading' };
+  }
+  if (loaded === null) return { kind: 'empty' };
   if (loaded === 'loading') return { kind: 'loading' };
   if (loaded === 'error') return { kind: 'error', onRetry: actions.onRetry };
   return { kind: 'data', content: loaded.content };
@@ -61,13 +66,26 @@ function viewOf(athletes: SchoolAthlete[], synced: boolean, selected: SchoolAthl
 export function TodayContainer(props: TodayContainerProps) {
   const { plans, assignments, schoolLinks, fulfillment, notices, series, userId, athletes, initialAthleteId, renderNoticeStatus } = props;
   const day = props.day ?? todayText();
-  // Only the person's choice is kept; the athlete shown is derived, so it follows `athletes`: the chosen one while it is in the list, else the first.
+  // Only the choice is kept; the athlete shown is derived, so it follows `athletes`: the chosen one while it is in the list, else the first.
   const [chosenId, setChosenId] = useState(initialAthleteId);
+  // The athlete of the link is a choice too: when it changes with the route mounted, it replaces the previous one.
+  const [linkedId, setLinkedId] = useState(initialAthleteId);
+  if (linkedId !== initialAthleteId) {
+    setLinkedId(initialAthleteId);
+    setChosenId(initialAthleteId);
+  }
   const [answer, setAnswer] = useState<Answer>();
   const [attempt, setAttempt] = useState(0);
   const selected = athletes.find((a) => a.id === chosenId) ?? athletes[0];
   const selectedId = selected?.id;
-  const loaded = answer && answer.athleteId === selectedId ? answer.value : 'loading';
+  // An answer belongs to one athlete, day and attempt: under any other, even one seen before, the screen starts from loading.
+  const readKey = `${selectedId}|${day}|${attempt}`;
+  const [answeredKey, setAnsweredKey] = useState(readKey);
+  if (answeredKey !== readKey) {
+    setAnsweredKey(readKey);
+    setAnswer(undefined);
+  }
+  const loaded = answer ? answer.value : 'loading';
   // The short name only, never the document or the birth date.
   const names = athletes.map((athlete) => {
     const { shortName, initials, color } = athleteDisplay(athlete);
@@ -135,17 +153,18 @@ export function TodayContainer(props: TodayContainerProps) {
     // The note is saved on the device first, so it never waits for the network.
     await notices.add({ athleteId: selected.id, assignmentId: loaded.assignmentId, versionId: loaded.versionId, blockId, body, authorId: userId });
     const list = await notices.list(selected.id, loaded.assignmentId);
-    setAnswer({ athleteId: selected.id, value: { ...loaded, content: { ...loaded.content, notes: notesOf(list) } } });
+    // The person may have moved to another athlete while this saved: only the answer of this athlete takes the note.
+    setAnswer((current) => (current?.athleteId === selected.id ? { athleteId: selected.id, value: { ...loaded, content: { ...loaded.content, notes: notesOf(list) } } } : current));
   }
 
-  // The shown data is dropped at once, so the plan of the previous athlete never stays under the new name.
-  function reload(id = selectedId) {
-    setAnswer(undefined);
+  // Reading again drops the shown data at once (the key changes), so the plan of the previous athlete never stays under the new name.
+  const reload = () => setAttempt((n) => n + 1);
+  const select = (id: string) => {
     setChosenId(id);
-    setAttempt((n) => n + 1);
-  }
+    reload();
+  };
 
-  const view = viewOf(athletes, props.synced ?? true, selected, loaded, { onOpenAthletes: props.onOpenAthletes, onRetry: () => reload() });
+  const view = viewOf(athletes, props.synced ?? true, props.offline ?? false, loaded, { onOpenAthletes: props.onOpenAthletes, onRetry: reload });
 
   return (
     <TodayScreen
@@ -153,7 +172,7 @@ export function TodayContainer(props: TodayContainerProps) {
       view={view}
       athletes={names}
       selectedAthleteId={selectedId}
-      onSelectAthlete={reload}
+      onSelectAthlete={select}
       onSendNotice={sendNotice}
       renderNoticeStatus={renderNoticeStatus}
     />

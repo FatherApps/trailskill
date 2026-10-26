@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
 import { createInMemoryAthleteSchoolRepository } from '../../athletes';
@@ -23,15 +23,27 @@ const schoolLinks = createInMemoryAthleteSchoolRepository([
   { athleteId: 'a3', schoolId: 's1', categoryId: 'c2' },
 ]);
 
-async function setup(options: { ids?: string[]; initialAthleteId?: string; changePlan?: boolean; onOpenAthletes?: () => void; synced?: boolean } = {}) {
-  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes, synced } = options;
+type SetupOptions = {
+  ids?: string[];
+  initialAthleteId?: string;
+  changePlan?: boolean;
+  onOpenAthletes?: () => void;
+  synced?: boolean;
+  offline?: boolean;
+  // Reading the assignments waits for `holdReads.promise` while it is set.
+};
+
+async function setup(options: SetupOptions = {}) {
+  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes, synced, offline } = options;
   const plans = createInMemoryTrainingPlanRepository();
   // Plan p1 (an untimed and a timed block) goes to group g1, which has a1; plan p2 goes to group g2, which has a3.
   await plans.save({ ...plan('p1'), blocks: [...plan('p1').blocks, timed] });
   await plans.save({ ...plan('p2'), name: 'Plan del otro' });
-  const assignments = createInMemoryAssignmentRepository(plans);
-  const one = await assignments.create({ planId: 'p1', schoolId: 's1', sessionDate: DAY, target: { kind: 'group', groupId: 'g1' } });
-  await assignments.create({ planId: 'p2', schoolId: 's1', sessionDate: DAY, target: { kind: 'group', groupId: 'g2' } });
+  const stored = createInMemoryAssignmentRepository(plans);
+  const holdReads: { promise?: Promise<void> } = {};
+  const assignments = { ...stored, list: async (...args: Parameters<typeof stored.list>) => (await holdReads.promise, stored.list(...args)) };
+  const one = await stored.create({ planId: 'p1', schoolId: 's1', sessionDate: DAY, target: { kind: 'group', groupId: 'g1' } });
+  await stored.create({ planId: 'p2', schoolId: 's1', sessionDate: DAY, target: { kind: 'group', groupId: 'g2' } });
   if (changePlan) await plans.save({ ...plan('p1'), blocks: [...plan('p1').blocks, timed] });
   const fulfillment = createInMemoryFulfillmentRepository({}, plans);
   await fulfillment.mark({ assignmentId: one, versionId: 'p1-v1', blockId: 'b2', athleteId: 'a1', status: 'partial', completedRepetitions: 2, seriesId: 'series-1', authorId: 'k1', deviceId: 'tablet-1' });
@@ -42,7 +54,7 @@ async function setup(options: { ids?: string[]; initialAthleteId?: string; chang
     { athleteId: 'a1', hundredths: null },
   ];
   const notices = createInMemoryNoticeRepository();
-  const container = async (shown: string[], isSynced = synced) => (
+  const container = async (shown: string[], isSynced = synced, initial = initialAthleteId) => (
     <TodayContainer
       plans={plans}
       assignments={assignments}
@@ -52,17 +64,18 @@ async function setup(options: { ids?: string[]; initialAthleteId?: string; chang
       series={{ listArrivals: async () => arrivals } as never}
       userId="guardian-1"
       athletes={await athletes.listByIds(shown)}
-      initialAthleteId={initialAthleteId}
+      initialAthleteId={initial}
       day={DAY}
       synced={isSynced}
+      offline={offline}
       onOpenAthletes={onOpenAthletes}
       renderNoticeStatus={(id) => <Text>{`sync:${id}`}</Text>}
     />
   );
   const view = await render(await container(ids));
   // The same screen, with the athletes (and the first sync) that arrived later.
-  const update = async (shown: string[], isSynced = synced) => view.rerender(await container(shown, isSynced));
-  return { one, notices, update };
+  const update = async (shown: string[], isSynced = synced, initial = initialAthleteId) => view.rerender(await container(shown, isSynced, initial));
+  return { one, notices, update, holdReads };
 }
 
 describe('TodayContainer', () => {
@@ -188,5 +201,36 @@ describe('TodayContainer', () => {
     expect(await notices.list('a1', one)).toMatchObject([{ authorId: 'guardian-1', athleteId: 'a1', assignmentId: one, versionId: 'p1-v1', blockId: 'b2', body: 'Test note 1' }]);
     expect(screen.getByText(/^sync:/)).toBeOnTheScreen();
     expect(screen.getByText(/· Bloque 2$/)).toBeOnTheScreen();
+  });
+
+  it('says the device is offline, not loading, when it never synced, is offline and the user manages nobody', async () => {
+    await setup({ ids: [], synced: false, offline: true });
+
+    expect(await screen.findByText('Estás sin conexión')).toBeOnTheScreen();
+    expect(screen.queryByText('Aún no hay un deportista vinculado')).toBeNull();
+  });
+
+  it('does not show the old plan of an athlete who left the list and came back before the new one is read', async () => {
+    const { update, holdReads } = await setup({ ids: ['a1', 'a3'], initialAthleteId: 'a3' });
+    expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
+    let release!: () => void;
+    holdReads.promise = new Promise<void>((resolve) => (release = resolve));
+
+    await update(['a1']);
+    await update(['a1', 'a3']);
+
+    expect(screen.queryByText('Plan del otro')).toBeNull();
+    await act(async () => release());
+    expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
+  });
+
+  it('follows the athlete of the link when it changes while the screen stays open', async () => {
+    const { update } = await setup({ ids: ['a1', 'a3'], initialAthleteId: 'a1' });
+    expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
+
+    await update(['a1', 'a3'], undefined, 'a3');
+
+    expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
+    expect(screen.queryByText('Plan p1')).toBeNull();
   });
 });

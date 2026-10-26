@@ -49,6 +49,7 @@ export default function TodayRoute() {
       athletes={managed.athletes}
       initialAthleteId={athlete}
       synced={summary.lastSyncedAt != null}
+      offline={summary.connection === 'offline'}
       onOpenAthletes={staff.status === 'denied' ? () => router.push('/athletes') : undefined}
       renderNoticeStatus={(id) => <RecordSyncStatus table="training_plan_notices" id={id} />}
     />
