@@ -1,28 +1,6 @@
-import { planSummary, planVolume } from '../components/planVolume';
+import { planSummary } from '../components/planVolume';
 
 const block = (repetitions: number, distance: number) => ({ repetitions, distance });
-
-describe('planVolume', () => {
-  it('adds repetitions × distance and counts the blocks that add no metres', () => {
-    expect(planVolume([block(8, 50), block(4, 0), block(0, 100), block(1, 200)])).toEqual({ meters: 600, unmeasured: 2, count: 4 });
-  });
-
-  it('counts a NaN product as unmeasured and keeps it out of the total', () => {
-    expect(planVolume([block(NaN, 50)])).toEqual({ meters: 0, unmeasured: 1, count: 1 });
-    expect(planVolume([block(8, NaN)])).toEqual({ meters: 0, unmeasured: 1, count: 1 });
-    expect(planVolume([block(8, 50), block(NaN, 100), block(1, 200)])).toEqual({ meters: 600, unmeasured: 1, count: 3 });
-  });
-
-  it('counts a negative product as unmeasured and never subtracts it from the total', () => {
-    expect(planVolume([block(-2, 50)])).toEqual({ meters: 0, unmeasured: 1, count: 1 });
-    expect(planVolume([block(4, -25)])).toEqual({ meters: 0, unmeasured: 1, count: 1 });
-    expect(planVolume([block(8, 50), block(-2, 100), block(1, 200)])).toEqual({ meters: 600, unmeasured: 1, count: 3 });
-  });
-
-  it('keeps the total of the valid blocks when NaN and negative products come together', () => {
-    expect(planVolume([block(8, 50), block(NaN, 100), block(-2, 50), block(4, 0), block(1, 200)])).toEqual({ meters: 600, unmeasured: 3, count: 5 });
-  });
-});
 
 describe('planSummary', () => {
   it('keeps "metres · blocks" when every block adds metres', () => {
@@ -40,9 +18,26 @@ describe('planSummary', () => {
     expect(planSummary([block(4, 0)])).toBe('1 bloque');
   });
 
+  it('adds repetitions × distance and counts the blocks that add no metres', () => {
+    expect(planSummary([block(8, 50), block(4, 0), block(0, 100), block(1, 200)])).toBe('600 m + 2 bloques sin distancia');
+  });
+
+  it('counts a NaN product as without distance and keeps it out of the total', () => {
+    expect(planSummary([block(NaN, 50)])).toBe('1 bloque');
+    expect(planSummary([block(8, NaN)])).toBe('1 bloque');
+    expect(planSummary([block(8, 50), block(NaN, 100), block(1, 200)])).toBe('600 m + 1 bloque sin distancia');
+  });
+
+  it('counts a negative product as without distance and never subtracts it from the total', () => {
+    expect(planSummary([block(-2, 50)])).toBe('1 bloque');
+    expect(planSummary([block(4, -25)])).toBe('1 bloque');
+    expect(planSummary([block(8, 50), block(-2, 100), block(1, 200)])).toBe('600 m + 1 bloque sin distancia');
+  });
+
   it('never shows NaN or a lowered total for invalid blocks: they read as "sin distancia"', () => {
     expect(planSummary([block(8, 50), block(NaN, 100), block(-2, 50)])).toBe('400 m + 2 bloques sin distancia');
     expect(planSummary([block(NaN, 100), block(-2, 50)])).toBe('2 bloques');
+    expect(planSummary([block(8, 50), block(NaN, 100), block(-2, 50), block(4, 0), block(1, 200)])).toBe('600 m + 3 bloques sin distancia');
   });
 
   it('has no summary without blocks', () => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { i18n } from '../../../core/i18n';
@@ -247,10 +247,11 @@ describe('TodayScreen blocks card', () => {
     await render(setup({ kind: 'data', content }).ui);
 
     const button = screen.getByRole('button', { name: 'Avisar algo al entrenador' });
-    // The only SVG path in the button is the chat bubble: the icon drawn, not a node that merely hides from screen readers.
+    // The chat bubble is drawn, not a node that merely hides from screen readers; the info glyph of the banner is not.
     const drawn = button.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
-    expect(drawn).toEqual([iconPaths.chat_bubble]);
-    expect(screen.queryByRole('image')).toBeNull();
+    expect(drawn).toContain(iconPaths.chat_bubble);
+    expect(drawn).not.toContain(iconPaths.info);
+    expect(within(button).queryByRole('image')).toBeNull();
   });
 });
 
