@@ -647,6 +647,16 @@ describe('CoachesScreen', () => {
       expect(screen.getByText('No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
     });
 
+    it('connecting without data says the first sync is running and never mentions the connection', async () => {
+      await show({ kind: 'connecting-empty' });
+
+      expect(screen.getByText('Estamos sincronizando')).toBeOnTheScreen();
+      expect(
+        screen.getByText('Todavía no hay entrenadores guardados en este dispositivo. Aparecerán cuando termine la primera sincronización.'),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText('Estás sin conexión')).toBeNull();
+    });
+
     it('denied says only that it is private, with no data and no invite', async () => {
       await show({ kind: 'denied' });
 

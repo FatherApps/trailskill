@@ -18,6 +18,8 @@ export type SectionView<Content> =
   // Offline with stored data: the content under a dated banner. `storedOn` is the ISO date (YYYY-MM-DD) it was saved.
   | { kind: 'offline'; storedOn: string; content: Content }
   | { kind: 'offline-empty' }
+  // Never synced, still reaching the backend: the first sync is running, so nothing says the connection is missing.
+  | { kind: 'connecting-empty' }
   | { kind: 'denied' };
 
 // The caption under the title: how many records, and how long ago they were updated (`null` when it is not known).
@@ -133,6 +135,16 @@ export function SectionFrame<Content>({
           kind="offline"
           title={t('schoolConsole.screen.offline.title')}
           message={t(`schoolConsole.${section}.offline_empty`)}
+        />
+      );
+      break;
+    case 'connecting-empty':
+      body = (
+        <StateView
+          kind="empty"
+          icon="cloud_download"
+          title={t('schoolConsole.screen.connecting.title')}
+          message={t(`schoolConsole.${section}.connecting_empty`)}
         />
       );
       break;
