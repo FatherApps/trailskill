@@ -112,7 +112,7 @@ describe('school console gallery entries', () => {
     expect(stateKeys('recordTable')).toEqual(['default', 'other-pool', 'long-text', 'compact', 'pool-empty']);
     expect(stateKeys('measurementLog')).toEqual(['default', 'long-text', 'no-results']);
     expect(stateKeys('authorizationList')).toEqual(['default', 'long-text', 'sharing-requests', 'read-error']);
-    for (const id of sectionScreens) expect(stateKeys(id)).toEqual(sectionScreenStates);
+    for (const id of sectionScreens) expect(stateKeys(id)).toEqual(id === 'coachesScreen' ? [...sectionScreenStates, 'invite-unavailable'] : sectionScreenStates);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, key, theme, scale) => {
@@ -413,6 +413,16 @@ describe('school console gallery entries', () => {
     await fireEvent.press(button);
 
     expect(screen.queryByText(/^¿Desactivar a/)).toBeNull();
+  });
+
+  it('coachesScreen / invite-unavailable shows Invitar disabled as Próximamente and opens nothing', async () => {
+    await render(<ThemeProvider>{state('coachesScreen', 'invite-unavailable')}</ThemeProvider>);
+
+    const button = screen.getByRole('button', { name: 'Invitar entrenador · Próximamente' });
+    expect(button).toBeDisabled();
+    await fireEvent.press(button);
+
+    expect(screen.queryByTestId('side-sheet')).toBeNull();
   });
 
   it('coachList / with-pending-invitation shows the dashed card with its text', async () => {
