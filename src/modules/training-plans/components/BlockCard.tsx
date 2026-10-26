@@ -38,16 +38,17 @@ export function BlockCard({ block, vocabulary, children, variant = 'card', trail
 
     return (
       <View testID="block-row" style={{ flexDirection: 'row', alignItems: 'stretch', gap: space[3], paddingVertical: space[3] }}>
+        {/* The board draws 6; the closest theme step is space[1] (4). */}
         <View
           testID="phase-bar"
-          style={{ width: 6, borderRadius: radius.full, backgroundColor: colors[phaseColors[block.phase].background] }}
+          style={{ width: space[1], borderRadius: radius.full, backgroundColor: colors[phaseColors[block.phase].background] }}
         />
         <View style={{ flex: 1, gap: space[1] }}>
           <Text style={[typography['body-strong'], { color: colors.ink }]}>{blockSummary(block, vocabulary)}</Text>
           <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{caption}</Text>
           {children}
         </View>
-        {trailing && <View style={{ alignSelf: 'flex-start' }}>{trailing}</View>}
+        {trailing ? <View style={{ alignSelf: 'flex-start' }}>{trailing}</View> : null}
       </View>
     );
   }

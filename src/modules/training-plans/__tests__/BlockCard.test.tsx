@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
-import { colors, contrastRatio, type ThemeName } from '../../../core/theme';
+import { colors, contrastRatio, space, type ThemeName } from '../../../core/theme';
 import { phaseColors } from '../components/PhaseTag';
 import { BlockCard } from '../components/BlockCard';
 import { plansFixture } from '../__fixtures__/plans';
@@ -84,7 +84,7 @@ describe('BlockCard row', () => {
 
     expect(screen.getByText('8 × 50 m Libre')).toBeOnTheScreen();
     expect(screen.getByText('Principal · Salida cada 1:00 · Implementos: Paletas')).toBeOnTheScreen();
-    expect(screen.getByTestId('phase-bar')).toHaveStyle({ backgroundColor: colors.light[phaseColors.main.background] });
+    expect(screen.getByTestId('phase-bar')).toHaveStyle({ width: space[1], backgroundColor: colors.light[phaseColors.main.background] });
   });
 
   it('leaves out the send-off and the equipment of a block without them', async () => {
