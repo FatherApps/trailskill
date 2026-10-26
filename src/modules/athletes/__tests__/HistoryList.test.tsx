@@ -244,6 +244,38 @@ describe('HistoryList', () => {
       expect(parts[0].children).toHaveLength(2);
     });
 
+    it('keeps the text sharing the row with the dot, wrapping at the row width minus the dot, at 200 %', async () => {
+      await render(
+        <ThemeProvider fontScale={2}>
+          <HistoryList results={[byId('import')]} />
+        </ThemeProvider>,
+      );
+
+      // Jest has no layout engine, so the wrapping itself cannot be measured: the styles that produce it are pinned.
+      // The head fills the row (stretch) and holds the dot and the text; the text takes what the dot leaves (basis 0,
+      // shrinkable) instead of the full row width.
+      const row = screen.getAllByLabelText(/^Mariposa 100 m/)[0];
+      expect(flat(row.props.style).alignItems).toBe('stretch');
+      const [head] = row.children as unknown as Part[];
+      const [dot, text] = head.children;
+      expect(flat(head.props.style).flexDirection).toBe('row');
+      expect(flat(head.props.style).flexGrow).toBeUndefined();
+      expect(flat(dot.props.style).flexShrink).toBe(0);
+      expect(flat(text.props.style)).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 });
+    });
+
+    it.each([1, 2])('hides the head from screen readers: the row label says it, at font scale %s', async (fontScale) => {
+      await render(
+        <ThemeProvider fontScale={fontScale}>
+          <HistoryList results={[byId('import')]} />
+        </ThemeProvider>,
+      );
+
+      const [head] = screen.getAllByTestId('history-head', { includeHiddenElements: true });
+      expect(head.props.importantForAccessibility).toBe('no-hide-descendants');
+      expect(head.props.accessibilityElementsHidden).toBe(true);
+    });
+
     it('keeps the time beside the text at normal size', async () => {
       await render(<HistoryList results={[byId('race-pb')]} />);
 

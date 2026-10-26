@@ -80,7 +80,8 @@ const dotSize = spaceTokens[8];
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
-  // Large text: the time goes below the dot and text, each at the full row width, so no word is split.
+  // Large text: the time goes below the head (dot and text), which takes the full row width. The text keeps sharing the
+  // row with the dot, so it wraps at the row width minus the dot and no word is split.
   rowLarge: { flexDirection: 'column', alignItems: 'stretch' },
   // The dot and the text share one row at every size, so the origin dot never adds a row of its own.
   head: { flexDirection: 'row', alignItems: 'center' },
@@ -179,7 +180,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
         },
       ]}
     >
-      <View {...hidden} style={[styles.head, !large && styles.headFill, { gap: space[3] }]}>
+      <View testID="history-head" {...hidden} style={[styles.head, !large && styles.headFill, { gap: space[3] }]}>
         <View
           testID="history-dot"
           style={[
@@ -232,6 +233,7 @@ export function HistoryList({ results, scrollEnabled = true, header, footer, ins
         // The card is drawn row by row, so the header and footer sit outside it.
         renderItem={({ item, index }) => (
           <View
+            testID="history-card"
             style={{
               marginHorizontal: inset,
               backgroundColor: colors[historyListColors.card],

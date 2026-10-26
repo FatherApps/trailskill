@@ -134,16 +134,20 @@ describe('AthleteProfileScreen', () => {
       await show({ kind: 'data', content });
 
       expect(rootStyle()?.paddingHorizontal).toBeUndefined();
-      const card = screen.getAllByLabelText(/Enviado$/)[0].parent!;
-      expect(StyleSheet.flatten(card.props.style).marginHorizontal).toBe(space[4]);
+      expect(StyleSheet.flatten(screen.getAllByTestId('history-card')[0].props.style).marginHorizontal).toBe(space[4]);
     });
 
-    it('keeps the same margin in the states without content', async () => {
-      await show({ kind: 'loading' });
+    it.each<[string, AthleteProfileView]>([
+      ['loading', { kind: 'loading' }],
+      ['error', { kind: 'error', onRetry: jest.fn() }],
+      ['offline-empty', { kind: 'offline-empty' }],
+      ['other-school-offline', { kind: 'other-school-offline' }],
+      ['denied', { kind: 'denied' }],
+    ])('keeps the same margin in the %s state', async (_state, view) => {
+      await show(view);
 
       expect(rootStyle()?.paddingHorizontal).toBeUndefined();
-      const body = screen.toJSON() as unknown as { children: { props: { style: StyleProp<ViewStyle> } }[] };
-      expect(StyleSheet.flatten(body.children.at(-1)!.props.style)?.paddingHorizontal).toBe(space[4]);
+      expect(StyleSheet.flatten(screen.getByTestId('profile-content').props.style)?.paddingHorizontal).toBe(space[4]);
     });
 
     it.each(['light', 'dark'] as ThemeName[])('keeps the history title readable in the %s theme', (theme) => {
