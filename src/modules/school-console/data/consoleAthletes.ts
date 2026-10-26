@@ -15,7 +15,7 @@ import type { SwimmerRowProps } from '../../../core/ui';
 import { createPowerSyncMeasurementRepository, type MeasurementRepository } from '../../timing';
 import type { AthleteAuthorization, AthleteBest } from '../components/athleteTypes';
 import { eventLabel } from '../components/eventLabel';
-import { createPowerSyncSchoolStructureRepository, type SchoolStructureRepository } from './schoolStructure';
+import { createPowerSyncSchoolStructureRepository, type CoachAssignment, type SchoolStructureRepository } from './schoolStructure';
 
 // PROVISIONAL (S10, issue 204): the personal best column shows this event only.
 export const CONSOLE_BEST_EVENT = { stroke: 'FR', distance: '50m', pool: 'SCM' } as const;
@@ -43,6 +43,8 @@ export type ConsoleAthlete = {
 export interface ConsoleAthletesRepository {
   /** Athletes of the school, in the order of SchoolAthleteRepository. Local database only. */
   listAthletes(schoolId: string): Promise<ConsoleAthlete[]>;
+  /** How many athletes each coach has, by group or directly. Reads only athletes and assignments, and a coach without athletes is absent. */
+  countAthletesByCoach(schoolId: string): Promise<Map<string, number>>;
   /** Measurements of the athletes captured at or after `since` (ISO 8601). */
   countMeasurementsSince(athleteIds: readonly string[], since: string): Promise<number>;
   /** One personal best per event, ordered by the sport catalogs (stroke, distance, pool). */
@@ -63,6 +65,16 @@ export const colorOf = (id: string) => colors[[...id].reduce((sum, char) => sum 
 
 export const initialsOf =(firstName: string, lastName: string) => `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 const position = (catalog: readonly { code: string }[], code: string) => catalog.findIndex((entry) => entry.code === code);
+
+// The coaches of an athlete: those of the school groups it belongs to and the ones assigned to it directly, sorted and without duplicates.
+const coachIdsOf = (athleteId: string, schoolGroupIds: ReadonlySet<string>, assignments: CoachAssignment[]) =>
+  [
+    ...new Set(
+      assignments
+        .filter((a) => (a.groupId !== null && schoolGroupIds.has(a.groupId)) || a.athleteId === athleteId)
+        .map((a) => a.coachId),
+    ),
+  ].sort();
 
 export function createConsoleAthletesRepository({ athletes, authorizations, history, measurements, structure }: Dependencies): ConsoleAthletesRepository {
   return {
@@ -90,11 +102,6 @@ export function createConsoleAthletesRepository({ athletes, authorizations, hist
           .flatMap((id) => groupById.get(id) ?? [])
           .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
         const groupIds = new Set(schoolGroups.map((g) => g.id));
-        const coachIds = new Set(
-          assignments
-            .filter((a) => (a.groupId !== null && groupIds.has(a.groupId)) || a.athleteId === athlete.id)
-            .map((a) => a.coachId),
-        );
         const best = personalBest(timesByAthlete.get(athlete.id) ?? []);
         return {
           id: athlete.id,
@@ -106,11 +113,25 @@ export function createConsoleAthletesRepository({ athletes, authorizations, hist
           categorySortOrder: category?.sortOrder ?? null,
           groupIds: schoolGroups.map((g) => g.id),
           groups: schoolGroups.map((g) => g.name),
-          coachIds: [...coachIds].sort(),
+          coachIds: coachIdsOf(athlete.id, groupIds, assignments),
           authorization: grantedIds.has(athlete.id) ? 'valid' : 'pending',
           bestTime: best?.hundredths ?? null,
         };
       });
+    },
+    async countAthletesByCoach(schoolId) {
+      const listed = await athletes.listBySchool(schoolId);
+      const [groups, assignments] = await Promise.all([
+        structure.listGroups(schoolId),
+        structure.listCoachAssignments(schoolId, listed.map((a) => a.id)),
+      ]);
+      const schoolGroupIds = new Set(groups.map((g) => g.id));
+      const counts = new Map<string, number>();
+      for (const athlete of listed) {
+        const inSchool = new Set(athlete.groupIds.filter((id) => schoolGroupIds.has(id)));
+        for (const coachId of coachIdsOf(athlete.id, inSchool, assignments)) counts.set(coachId, (counts.get(coachId) ?? 0) + 1);
+      }
+      return counts;
     },
     countMeasurementsSince(athleteIds, since) {
       return measurements.countCapturedSince(athleteIds, since);

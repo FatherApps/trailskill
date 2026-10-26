@@ -48,6 +48,12 @@ const measurements: HistoryMeasurement[] = [
 
 const setup = () => {
   const countCapturedSince = jest.fn().mockResolvedValue(7);
+  const authorizations = createInMemoryAuthorizationStatusRepository([
+    { athleteId: 'a1', purpose: 'record_times', isGranted: true },
+    { athleteId: 'a2', purpose: 'record_times', isGranted: false },
+    { athleteId: 'a3', purpose: 'import_official_results', isGranted: true },
+  ]);
+  const history = createInMemoryHistoryRepository(measurements);
   const repository: ConsoleAthletesRepository = createConsoleAthletesRepository({
     athletes: createInMemorySchoolAthleteRepository({
       athletes: [
@@ -72,12 +78,8 @@ const setup = () => {
         { athleteId: 'a4', groupId: 'g1' },
       ],
     }),
-    authorizations: createInMemoryAuthorizationStatusRepository([
-      { athleteId: 'a1', purpose: 'record_times', isGranted: true },
-      { athleteId: 'a2', purpose: 'record_times', isGranted: false },
-      { athleteId: 'a3', purpose: 'import_official_results', isGranted: true },
-    ]),
-    history: createInMemoryHistoryRepository(measurements),
+    authorizations,
+    history,
     measurements: { countCapturedSince },
     structure: createInMemorySchoolStructureRepository({
       categories: [
@@ -106,7 +108,7 @@ const setup = () => {
       ],
     }),
   });
-  return { repository, countCapturedSince };
+  return { repository, countCapturedSince, authorizations, history };
 };
 
 const byId = async (id: string) => (await setup().repository.listAthletes('school-a')).find((a) => a.id === id)!;
@@ -153,6 +155,23 @@ describe('console athletes repository', () => {
     expect((await byId('a2')).coachIds).toEqual(['k1']);
     expect((await byId('a3')).coachIds).toEqual(['k4']);
     expect((await byId('a5')).coachIds).toEqual([]);
+  });
+
+  it('counts the athletes of each coach from the groups and the direct assignments, once per athlete', async () => {
+    const counts = await setup().repository.countAthletesByCoach('school-a');
+
+    expect(Object.fromEntries(counts)).toEqual({ k1: 2, k2: 1, k3: 1, k4: 1 });
+    expect(await setup().repository.countAthletesByCoach('school-z')).toEqual(new Map());
+  });
+
+  it('counts the athletes of each coach without reading authorizations or history', async () => {
+    const { repository, authorizations, history } = setup();
+    const granted = jest.spyOn(authorizations, 'listGrantedAthleteIds').mockRejectedValue(new Error('boom'));
+    const bests = jest.spyOn(history, 'listByAthletesEvent').mockRejectedValue(new Error('boom'));
+
+    await expect(repository.countAthletesByCoach('school-a')).resolves.toHaveProperty('size', 4);
+    expect(granted).not.toHaveBeenCalled();
+    expect(bests).not.toHaveBeenCalled();
   });
 
   it('marks the authorization valid only when record_times is granted', async () => {
