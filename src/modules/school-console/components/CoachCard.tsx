@@ -89,7 +89,11 @@ export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate,
         <View
           testID="pending-card"
           accessible
-          accessibilityLabel={[coach.name, status, groups].filter(Boolean).join(', ')}
+          accessibilityLabel={
+            groups === null
+              ? t('schoolConsole.coaches.pending_label_without_groups', { name, status })
+              : t('schoolConsole.coaches.pending_label', { name, status, groups })
+          }
           style={{
             gap: space[1],
             padding: space[4],

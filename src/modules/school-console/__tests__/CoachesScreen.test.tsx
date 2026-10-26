@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
+import { i18n } from '../../../core/i18n';
 import { coachesFixture, inviteGroupsFixture, pendingCoachFixture } from '../__fixtures__/coaches';
 import { schoolNameFixture, storedOnFixture } from '../__fixtures__/athletes';
 import { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from '../screens/CoachesScreen';
@@ -97,14 +98,40 @@ describe('CoachesScreen', () => {
       expect(pending.queryByText(/deportista/)).not.toBeOnTheScreen();
     });
 
-    it('starts the announcement with the state, not the placeholder, when the name is not readable', async () => {
+    it('announces Sin dato, as the card shows it, when the name is not readable', async () => {
       await show({ kind: 'data', content: { ...withPending, coaches: [{ ...pendingCoachFixture, name: null }] } });
 
-      expect(screen.getByTestId('pending-card').props.accessibilityLabel).toBe('Invitación enviada, Grupo B');
+      expect(screen.getByTestId('pending-card').props.accessibilityLabel).toBe('Sin dato, Invitación enviada, Grupo B');
     });
 
-    it('keeps the colour table private to the card', () => {
-      expect(jest.requireActual('../components/CoachCard')).not.toHaveProperty('coachCardColors');
+    it('leaves the groups out of the announcement when they could not be read', async () => {
+      await show({ kind: 'data', content: { ...withPending, coaches: [{ ...pendingCoachFixture, groups: null }] } });
+
+      expect(screen.getByTestId('pending-card').props.accessibilityLabel).toBe('Julio Castaño, Invitación enviada');
+    });
+
+    it('builds the announcement from a translation, so another language can reorder the phrase', async () => {
+      const key = 'schoolConsole.coaches.pending_label';
+      const original = i18n.t(key);
+      i18n.addResourceBundle('es-CO', 'translation', { schoolConsole: { coaches: { pending_label: '{{status}}: {{name}} ({{groups}})' } } }, true, true);
+      try {
+        await show({ kind: 'data', content: withPending });
+
+        expect(screen.getByTestId('pending-card').props.accessibilityLabel).toBe('Invitación enviada: Julio Castaño (Grupo B)');
+      } finally {
+        i18n.addResourceBundle('es-CO', 'translation', { schoolConsole: { coaches: { pending_label: original } } }, true, true);
+      }
+    });
+
+    it('has no accidental export besides the card, so the colour table stays private', () => {
+      expect(Object.keys(jest.requireActual('../components/CoachCard'))).toEqual(['CoachCard']);
+    });
+
+    it('shows no athletes for an invitation even if a count slips past the types', async () => {
+      const slipped = { ...pendingCoachFixture, athleteCount: 0 } as unknown as CoachesContent['coaches'][number];
+      await show({ kind: 'data', content: { ...withPending, coaches: [slipped] } });
+
+      expect(within(screen.getByTestId('pending-card')).queryByText(/deportista/)).not.toBeOnTheScreen();
     });
 
     it('keeps the initials and the tag on one row, so the tag never moves the actions below it', async () => {

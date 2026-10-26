@@ -91,10 +91,15 @@ describe('CoachList', () => {
 
   describe('the model of a pending invitation', () => {
     it('has no athlete count: a count that is missing cannot be given as a number', () => {
+      // The type refuses the zero; the runtime check that does not depend on typecheck covering the tests is in CoachesScreen.test.
       // @ts-expect-error a pending invitation has no count, and a zero would read as "no athletes"
       const zero: CoachRow = { ...pendingCoachFixture, athleteCount: 0 };
 
       expect(zero.status).toBe('pending');
     });
+  });
+
+  it('has no accidental export besides the list', () => {
+    expect(Object.keys(jest.requireActual('../components/CoachList'))).toEqual(['CoachList']);
   });
 });

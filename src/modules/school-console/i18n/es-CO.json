@@ -123,6 +123,8 @@
     "athletes_one": "{{count}} deportista",
     "athletes_other": "{{count}} deportistas",
     "no_groups": "Sin grupos",
+    "pending_label": "{{name}}, {{status}}, {{groups}}",
+    "pending_label_without_groups": "{{name}}, {{status}}",
     "invite": "Invitar entrenador",
     "deactivate": "Desactivar",
     "deactivate_hint": "Desactivar a {{name}}",
