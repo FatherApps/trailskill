@@ -539,7 +539,7 @@ describe('AthletesSection', () => {
       }));
       const repository: ConsoleAthletesRepository = {
         listAthletes: async () => big,
-        countAthletesByCoach: async () => new Map(),
+        listAthleteGroups: async () => [],
         countMeasurementsSince: async () => 0,
         listBests: async () => [],
       };

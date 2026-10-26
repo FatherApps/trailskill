@@ -1,6 +1,6 @@
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import { createInMemorySchoolAthleteRepository, createInMemoryHistoryRepository, type HistoryMeasurement } from '../../athletes';
-import { CONSOLE_BEST_EVENT, createConsoleAthletesRepository, type ConsoleAthletesRepository } from '../data/consoleAthletes';
+import { CONSOLE_BEST_EVENT, countAthletesByCoach, createConsoleAthletesRepository, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import { createInMemorySchoolStructureRepository } from '../data/schoolStructure';
 
 // Importing the module indexes loads the PowerSync repositories, which need the sync layer mocked.
@@ -54,6 +54,32 @@ const setup = () => {
     { athleteId: 'a3', purpose: 'import_official_results', isGranted: true },
   ]);
   const history = createInMemoryHistoryRepository(measurements);
+  const structure = createInMemorySchoolStructureRepository({
+    categories: [
+      { id: 'c1', schoolId: 'school-a', name: 'Infantil B', sortOrder: 2 },
+      { id: 'c9', schoolId: 'school-b', name: 'Other school category', sortOrder: 1 },
+    ],
+    groups: [
+      { id: 'g1', schoolId: 'school-a', name: 'Group B' },
+      { id: 'g2', schoolId: 'school-a', name: 'Group A' },
+      { id: 'g9', schoolId: 'school-b', name: 'Other school group' },
+    ],
+    groupAssignments: [
+      { coachId: 'k2', groupId: 'g1' },
+      { coachId: 'k1', groupId: 'g2' },
+      { coachId: 'k9', groupId: 'g9' },
+    ],
+    athleteAssignments: [
+      { coachId: 'k1', athleteId: 'a1', schoolId: 'school-a' },
+      { coachId: 'k3', athleteId: 'a1', schoolId: 'school-a' },
+      { coachId: 'k4', athleteId: 'a3', schoolId: 'school-a' },
+      { coachId: 'k5', athleteId: 'a3', schoolId: 'school-a' }, // no membership in school-a
+    ],
+    coachMemberships: [
+      { coachId: 'k3', schoolId: 'school-a' },
+      { coachId: 'k4', schoolId: 'school-a' },
+    ],
+  });
   const repository: ConsoleAthletesRepository = createConsoleAthletesRepository({
     athletes: createInMemorySchoolAthleteRepository({
       athletes: [
@@ -81,34 +107,9 @@ const setup = () => {
     authorizations,
     history,
     measurements: { countCapturedSince },
-    structure: createInMemorySchoolStructureRepository({
-      categories: [
-        { id: 'c1', schoolId: 'school-a', name: 'Infantil B', sortOrder: 2 },
-        { id: 'c9', schoolId: 'school-b', name: 'Other school category', sortOrder: 1 },
-      ],
-      groups: [
-        { id: 'g1', schoolId: 'school-a', name: 'Group B' },
-        { id: 'g2', schoolId: 'school-a', name: 'Group A' },
-        { id: 'g9', schoolId: 'school-b', name: 'Other school group' },
-      ],
-      groupAssignments: [
-        { coachId: 'k2', groupId: 'g1' },
-        { coachId: 'k1', groupId: 'g2' },
-        { coachId: 'k9', groupId: 'g9' },
-      ],
-      athleteAssignments: [
-        { coachId: 'k1', athleteId: 'a1', schoolId: 'school-a' },
-        { coachId: 'k3', athleteId: 'a1', schoolId: 'school-a' },
-        { coachId: 'k4', athleteId: 'a3', schoolId: 'school-a' },
-        { coachId: 'k5', athleteId: 'a3', schoolId: 'school-a' }, // no membership in school-a
-      ],
-      coachMemberships: [
-        { coachId: 'k3', schoolId: 'school-a' },
-        { coachId: 'k4', schoolId: 'school-a' },
-      ],
-    }),
+    structure,
   });
-  return { repository, countCapturedSince, authorizations, history };
+  return { repository, countCapturedSince, authorizations, history, structure };
 };
 
 const byId = async (id: string) => (await setup().repository.listAthletes('school-a')).find((a) => a.id === id)!;
@@ -157,19 +158,42 @@ describe('console athletes repository', () => {
     expect((await byId('a5')).coachIds).toEqual([]);
   });
 
-  it('counts the athletes of each coach from the groups and the direct assignments, once per athlete', async () => {
-    const counts = await setup().repository.countAthletesByCoach('school-a');
+  // The groups and assignments are the ones the caller already read: the count rereads neither.
+  const readFor = async (schoolId: string) => {
+    const { repository, structure } = setup();
+    const athleteGroups = await repository.listAthleteGroups(schoolId);
+    const [groups, assignments] = await Promise.all([structure.listGroups(schoolId), structure.listCoachAssignments(schoolId, athleteGroups.map((a) => a.id))]);
+    return { repository, athleteGroups, groups, assignments };
+  };
 
-    expect(Object.fromEntries(counts)).toEqual({ k1: 2, k2: 1, k3: 1, k4: 1 });
-    expect(await setup().repository.countAthletesByCoach('school-z')).toEqual(new Map());
+  it('counts the athletes of each coach from the groups and the direct assignments already read, once per athlete', async () => {
+    const { athleteGroups, groups, assignments } = await readFor('school-a');
+
+    expect(Object.fromEntries(countAthletesByCoach(athleteGroups, groups, assignments))).toEqual({ k1: 2, k2: 1, k3: 1, k4: 1 });
+    const none = await readFor('school-z');
+    expect(countAthletesByCoach(none.athleteGroups, none.groups, none.assignments)).toEqual(new Map());
   });
 
-  it('counts the athletes of each coach without reading authorizations or history', async () => {
+  it('counts with the same school-membership rule that listAthletes uses for coachIds', async () => {
+    const { repository, athleteGroups, groups, assignments } = await readFor('school-a');
+    const fromList = new Map<string, number>();
+    for (const athlete of await repository.listAthletes('school-a')) {
+      for (const coachId of athlete.coachIds) fromList.set(coachId, (fromList.get(coachId) ?? 0) + 1);
+    }
+
+    // a1 also belongs to g9, a group of another school: neither side counts its coach (k9).
+    expect(countAthletesByCoach(athleteGroups, groups, assignments)).toEqual(fromList);
+    expect(fromList.has('k9')).toBe(false);
+  });
+
+  it('lists the group ids of the athletes of the school without reading authorizations or history', async () => {
     const { repository, authorizations, history } = setup();
     const granted = jest.spyOn(authorizations, 'listGrantedAthleteIds').mockRejectedValue(new Error('boom'));
     const bests = jest.spyOn(history, 'listByAthletesEvent').mockRejectedValue(new Error('boom'));
 
-    await expect(repository.countAthletesByCoach('school-a')).resolves.toHaveProperty('size', 4);
+    const listed = await repository.listAthleteGroups('school-a');
+    expect(listed.map((a) => a.id)).toEqual(['a2', 'a3', 'a1', 'a5']);
+    expect(listed.find((a) => a.id === 'a1')?.groupIds.sort()).toEqual(['g1', 'g2', 'g9']);
     expect(granted).not.toHaveBeenCalled();
     expect(bests).not.toHaveBeenCalled();
   });

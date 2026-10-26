@@ -14,7 +14,7 @@ jest.mock('../core/sync', () => ({
 const mockListAdminSchools = jest.fn();
 const mockConsoleAthletes = {
   listAthletes: jest.fn(),
-  countAthletesByCoach: jest.fn(),
+  listAthleteGroups: jest.fn(),
   countMeasurementsSince: jest.fn(),
   listBests: jest.fn(),
 };
@@ -26,7 +26,7 @@ jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/screens/AthletesSection'),
   createPowerSyncConsoleAthletesRepository: () => ({
     listAthletes: (...args: unknown[]) => mockConsoleAthletes.listAthletes(...args),
-    countAthletesByCoach: (...args: unknown[]) => mockConsoleAthletes.countAthletesByCoach(...args),
+    listAthleteGroups: (...args: unknown[]) => mockConsoleAthletes.listAthleteGroups(...args),
     countMeasurementsSince: (...args: unknown[]) => mockConsoleAthletes.countMeasurementsSince(...args),
     listBests: (...args: unknown[]) => mockConsoleAthletes.listBests(...args),
   }),
@@ -66,7 +66,7 @@ beforeEach(() => {
   mockUserId = 'user-1';
   mockListAdminSchools.mockReset().mockResolvedValue([]);
   mockConsoleAthletes.listAthletes.mockReset().mockResolvedValue([]);
-  mockConsoleAthletes.countAthletesByCoach.mockReset().mockResolvedValue(new Map());
+  mockConsoleAthletes.listAthleteGroups.mockReset().mockResolvedValue([]);
   mockConsoleAthletes.countMeasurementsSince.mockReset().mockResolvedValue(0);
   mockConsoleAthletes.listBests.mockReset().mockResolvedValue([]);
   mockListCategories.mockReset().mockResolvedValue([]);
