@@ -69,6 +69,18 @@ describe('CoachesScreen', () => {
       expect(screen.queryByText('¿Desactivar a Andrés Mejía?')).toBeNull();
     });
 
+    it('shows Sin dato, never an invented name, when the name is not readable', async () => {
+      const { onDeactivate } = await show({ kind: 'data', content: { updatedMinutesAgo: 2, coaches: [{ ...coachesFixture[0]!, name: null, initials: '' }] } });
+
+      expect(screen.getByLabelText(/^Sin dato, Grupo A · Grupo B, 24 deportistas/)).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Desactivar' })).toHaveProp('accessibilityHint', 'Desactivar a Sin dato');
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Desactivar' }));
+      expect(screen.getByText('¿Desactivar a Sin dato?')).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Desactivar entrenador' }));
+      expect(onDeactivate).toHaveBeenCalledWith('c1');
+    });
+
     it('does not deactivate when the ConfirmSheet is cancelled', async () => {
       const { onDeactivate } = await show({ kind: 'data', content });
 

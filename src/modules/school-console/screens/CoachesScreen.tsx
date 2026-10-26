@@ -52,12 +52,13 @@ export function CoachesScreen({ width, schoolName, view, onNavigate, onInvite, o
       />
     );
   } else if (coach) {
+    const name = coach.name ?? t('schoolConsole.common.no_data');
     sheet = (
       <ConfirmSheet
         visible
         destructive
-        title={t('schoolConsole.coaches.deactivate_confirm.title', { name: coach.name })}
-        message={t('schoolConsole.coaches.deactivate_confirm.message', { name: coach.name })}
+        title={t('schoolConsole.coaches.deactivate_confirm.title', { name })}
+        message={t('schoolConsole.coaches.deactivate_confirm.message', { name })}
         confirmLabel={t('schoolConsole.coaches.deactivate_confirm.confirm')}
         cancelLabel={t('schoolConsole.coaches.cancel')}
         onConfirm={() => {

@@ -7,9 +7,10 @@ import {
   AthletesSection,
   AuthorizationsSection,
   CategoriesSection,
-  CoachesScreen,
+  CoachesSection,
   ConsoleScreen,
   createPowerSyncAuthorizationsRepository,
+  createPowerSyncCoachRepository,
   createPowerSyncCategoryRecordsRepository,
   createPowerSyncConsoleAthletesRepository,
   createPowerSyncMeasurementLogRepository,
@@ -19,7 +20,6 @@ import {
   MeasurementsSection,
   RecordsSection,
   useAdminSchool,
-  type ConsoleScreenProps,
 } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
@@ -29,13 +29,10 @@ const authorizations = createPowerSyncAuthorizationsRepository();
 const categoryRecords = createPowerSyncCategoryRecordsRepository();
 const measurementLog = createPowerSyncMeasurementLogRepository();
 const schoolStructure = createPowerSyncSchoolStructureRepository();
+const coaches = createPowerSyncCoachRepository();
 
+// Inviting and deactivating coaches is not connected yet: the confirmed events do nothing.
 const noop = () => {};
-
-// The section whose data is not connected yet (task 5.3): it shows its empty state and its events do nothing.
-const sections: ConsoleScreenProps['sections'] = {
-  coaches: (props) => <CoachesScreen {...props} view={{ kind: 'empty' }} onInvite={noop} onDeactivate={noop} />,
-};
 
 export default function ConsoleRoute() {
   const router = useRouter();
@@ -55,7 +52,9 @@ export default function ConsoleRoute() {
       schoolName={access.school.name}
       onOpenPlans={() => router.push('/plans')}
       sections={{
-        ...sections,
+        coaches: (props) => (
+          <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} onInvite={noop} onDeactivate={noop} />
+        ),
         athletes: (props) => (
           <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),

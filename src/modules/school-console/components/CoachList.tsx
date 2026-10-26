@@ -10,8 +10,8 @@ import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 // One coach of the school: groups and number of athletes, never contact or document data.
 export type CoachRow = {
   id: string;
-  // Full name.
-  name: string;
+  // Full name; null while coach names are not readable (issue 220), shown as "Sin dato".
+  name: string | null;
   initials: string;
   color: SwimmerRowProps['color'];
   groups: string[];
@@ -37,6 +37,7 @@ const MIN_INLINE_WIDTH = 480;
 // A list of SwimmerRow (the design system's row for a person) with the deactivate action beside each one.
 export function CoachList({ coaches, onDeactivate }: CoachListProps) {
   const { colors, space, radius } = useTheme();
+  const noData = t('schoolConsole.common.no_data');
   const [width, setWidth] = useState<number | null>(null);
   // Large text or a narrow list: the action goes below the row instead of squeezing the name.
   const stacked = useTextScale() >= LARGE_TEXT_SCALE || (width !== null && width < MIN_INLINE_WIDTH);
@@ -59,7 +60,7 @@ export function CoachList({ coaches, onDeactivate }: CoachListProps) {
         >
           <View style={{ flex: stacked ? undefined : 1 }}>
             <SwimmerRow
-              name={coach.name}
+              name={coach.name ?? noData}
               initials={coach.initials}
               color={coach.color}
               detail={coach.groups.length > 0 ? coach.groups.join(' · ') : t('schoolConsole.coaches.no_groups')}
@@ -70,7 +71,7 @@ export function CoachList({ coaches, onDeactivate }: CoachListProps) {
             <Button
               variant="ghost"
               label={t('schoolConsole.coaches.deactivate')}
-              accessibilityHint={t('schoolConsole.coaches.deactivate_hint', { name: coach.name })}
+              accessibilityHint={t('schoolConsole.coaches.deactivate_hint', { name: coach.name ?? noData })}
               onPress={() => onDeactivate(coach.id)}
             />
           </View>
