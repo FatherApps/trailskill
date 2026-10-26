@@ -14,7 +14,11 @@ jest.mock('../../../core/sync', () => ({ db: {}, writeBatch: jest.fn() }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 // Synthetic school, group, categories and token only.
-const invitation = { school: 'Escuela Delfines', group: 'Infantil B', categories: [{ id: 'cat-1', name: '9-10' }] };
+const invitation = { school: 'Escuela Delfines', group: 'Infantil B', categories: [
+    { id: 'cat-1', name: '9-10' },
+    { id: 'cat-2', name: '11-12' },
+  ],
+};
 
 function setup(invitationToken?: string) {
   const rows: ManagedAthleteRow[] = [];
@@ -262,11 +266,11 @@ describe('AddAthletesContainer', () => {
       expect(subscriptions[0].remove).toHaveBeenCalledTimes(1);
     });
 
-    // The handler the container subscribed last and has not removed: how many were made before is the hook's business, not these tests'.
+    // The one handler the container has subscribed and not removed: a second live one is a leak, and BackHandler would run both.
     const live = (subscriptions: ReturnType<typeof spyOnBack>) => {
       const active = subscriptions.filter((s) => s.remove.mock.calls.length === 0);
-      expect(active.length).toBeGreaterThan(0);
-      return active[active.length - 1];
+      expect(active).toHaveLength(1);
+      return active[0];
     };
 
     it('while Continuar is failing, back runs onBack instead of being swallowed, and is swallowed again after a retry', async () => {
@@ -511,7 +515,7 @@ describe('AddAthletesContainer', () => {
   });
 
   describe('what was typed while a profile was saving', () => {
-    async function addWhileTyping(next: { firstName: string; lastName: string }) {
+    async function addWhileTyping(next: { firstName?: string; lastName?: string }) {
       const { mount, drafts, profiles } = setup();
       const create = profiles.createManagedAthlete.bind(profiles);
       let release!: () => void;
@@ -525,8 +529,8 @@ describe('AddAthletesContainer', () => {
       await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
       fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
       await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
-      await fireEvent.changeText(screen.getByLabelText('Nombre'), next.firstName);
-      await fireEvent.changeText(screen.getByLabelText('Apellido'), next.lastName);
+      if (next.firstName !== undefined) await fireEvent.changeText(screen.getByLabelText('Nombre'), next.firstName);
+      if (next.lastName !== undefined) await fireEvent.changeText(screen.getByLabelText('Apellido'), next.lastName);
       release();
       await screen.findByText('Lucía R.');
       await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
@@ -541,12 +545,44 @@ describe('AddAthletesContainer', () => {
       await waitFor(async () => expect((await drafts.load())?.athlete).toEqual({ firstName: 'Mateo', lastName: 'Gil' }));
     });
 
-    it('a field left untouched is cleared and a field that changed is kept', async () => {
-      const { drafts } = await addWhileTyping({ firstName: 'Mateo', lastName: 'Rojas' });
+    it('a field left untouched is cleared and a field that was typed is kept', async () => {
+      const { drafts } = await addWhileTyping({ firstName: 'Mateo' });
 
       expect(screen.getByDisplayValue('Mateo')).toBeOnTheScreen();
       expect(screen.getByLabelText('Apellido').props.value).toBe('');
       await waitFor(async () => expect((await drafts.load())?.athlete).toEqual({ firstName: 'Mateo', lastName: '' }));
+    });
+
+    it('a last name typed again with the same value (a sibling) is kept, not cleared as if untouched', async () => {
+      const { drafts } = await addWhileTyping({ firstName: 'Mateo', lastName: 'Rojas' });
+
+      expect(screen.getByDisplayValue('Mateo')).toBeOnTheScreen();
+      expect(screen.getByDisplayValue('Rojas')).toBeOnTheScreen();
+      await waitFor(async () => expect((await drafts.load())?.athlete).toEqual({ firstName: 'Mateo', lastName: 'Rojas' }));
+    });
+
+    it('the category chosen meanwhile is kept for the next athlete and the saved one goes with the saved athlete', async () => {
+      const { mount, profiles, rows, invitations } = setup('tok-1');
+      const create = profiles.createManagedAthlete.bind(profiles);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
+        await gate;
+        return create(input);
+      });
+      await mount();
+      await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+      fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+      await fireEvent.press(screen.getByRole('radio', { name: '11-12' }));
+      release();
+      await screen.findByText('Lucía R.');
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+
+      expect(screen.getByRole('radio', { name: '11-12' }).props.accessibilityState.checked).toBe(true);
+      await waitFor(() => expect(invitations.accepted).toEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
     });
   });
 
@@ -608,5 +644,71 @@ describe('AddAthletesContainer', () => {
     await waitFor(() => expect(onContinue).toHaveBeenCalled());
     expect(save).toHaveBeenCalledTimes(1);
     expect(onContinue).toHaveBeenCalledTimes(1);
+  });
+
+  it('Continuar keeps the names typed for the next athlete in the draft', async () => {
+    const { mount, onContinue, drafts, profiles } = setup();
+    await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Lucía', lastName: 'Rojas', relation: 'guardian' });
+    await mount();
+    await screen.findByText('Lucía R.');
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(onContinue).toHaveBeenCalled());
+    expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: '', step: 'authorizations', athlete: { firstName: 'Mateo', lastName: 'Rojas' } });
+  });
+
+  it('a draft that loads late never overwrites what the person already typed', async () => {
+    const { mount, drafts } = setup();
+    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Anterior', lastName: 'Guardado' } });
+    const real = drafts.load.bind(drafts);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    // The reads while the screen starts are slow and answer with the draft as it was before typing.
+    jest.spyOn(drafts, 'load').mockImplementation(async () => {
+      const snapshot = await real();
+      await gate;
+      return snapshot;
+    });
+    await mount();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+
+    await act(async () => {
+      release();
+      await gate;
+    });
+
+    expect(screen.getByLabelText('Nombre').props.value).toBe('Lucía');
+    expect(screen.getByLabelText('Apellido').props.value).toBe('');
+  });
+
+  it('an add that ends after the screen went away saves and queues the athlete but does not read the list again', async () => {
+    const { mount, athletes, drafts, profiles } = setup('tok-1');
+    const create = profiles.createManagedAthlete.bind(profiles);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
+      await gate;
+      return create(input);
+    });
+    const list = jest.spyOn(athletes, 'listManaged');
+    const view = await mount();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+    const reads = list.mock.calls.length;
+    await view.unmount();
+
+    await act(async () => {
+      release();
+      await gate;
+    });
+
+    // The saved names leave the draft, or the next launch would offer to add the same athlete again.
+    await waitFor(async () => expect((await drafts.load())?.athlete).toBeUndefined());
+    expect(list).toHaveBeenCalledTimes(reads);
   });
 });

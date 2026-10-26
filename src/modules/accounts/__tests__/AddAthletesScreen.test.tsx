@@ -101,6 +101,17 @@ describe('AddAthletesScreen dashed add card', () => {
     expect(onContinue).not.toHaveBeenCalled();
   });
 
+  it('with nobody added, Continuar shows its reason and no spinner while the first profile saves: waiting is not the same as not allowed', async () => {
+    const { onContinue } = await renderScreen({ athletes: [], busy: true });
+
+    // The reason is part of the button label.
+    const next = screen.getByRole('button', { name: 'Continuar · Agrega al menos un deportista' });
+    expect(next).not.toBeBusy();
+    expect(next).toBeDisabled();
+    await fireEvent.press(next);
+    expect(onContinue).not.toHaveBeenCalled();
+  });
+
   it('shows the add card busy and ignores presses while Continuar keeps the step', async () => {
     const { onAdd } = await renderScreen({ values: { firstName: 'Lucía', lastName: 'Rojas' }, continuing: true });
 
