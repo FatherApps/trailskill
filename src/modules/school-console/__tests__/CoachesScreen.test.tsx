@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
-import { coachesFixture } from '../__fixtures__/coaches';
+import { coachesFixture, inviteGroupsFixture, pendingCoachFixture } from '../__fixtures__/coaches';
 import { schoolNameFixture, storedOnFixture } from '../__fixtures__/athletes';
 import { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from '../screens/CoachesScreen';
 
@@ -22,72 +22,34 @@ afterEach(() => jest.restoreAllMocks());
 
 describe('CoachesScreen', () => {
   describe('with data', () => {
-    it('shows the title, the caption, each coach with groups and number of athletes, in the coaches section', async () => {
+    it('shows the title, the caption, and a card per coach with state, groups and number of athletes', async () => {
       await show({ kind: 'data', content });
 
       expect(screen.getByRole('header', { name: 'Entrenadores' })).toBeOnTheScreen();
       expect(screen.getByText('3 entrenadores · Actualizado hace 2 min')).toBeOnTheScreen();
       expect(screen.getByRole('tab', { name: 'Entrenadores' })).toBeSelected();
-      expect(screen.getByLabelText(/^Paula Gutiérrez, Grupo A · Grupo B, 24 deportistas/)).toBeOnTheScreen();
-      expect(screen.getByLabelText(/^Andrés Mejía, Grupo C, 1 deportista/)).toBeOnTheScreen();
-      expect(screen.getByLabelText(/^Camila Ruiz, Sin grupos, 0 deportistas/)).toBeOnTheScreen();
-    });
-
-    it('invites only after the ConfirmSheet is confirmed', async () => {
-      const { onInvite } = await show({ kind: 'data', content });
-      expect(screen.queryByText('¿Invitar a un entrenador?')).toBeNull();
-
-      await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
-      expect(screen.getByText('¿Invitar a un entrenador?')).toBeOnTheScreen();
-      expect(onInvite).not.toHaveBeenCalled();
-
-      await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
-      expect(onInvite).toHaveBeenCalledTimes(1);
-      expect(screen.queryByText('¿Invitar a un entrenador?')).toBeNull();
-    });
-
-    it('does not invite when the ConfirmSheet is cancelled', async () => {
-      const { onInvite } = await show({ kind: 'data', content });
-
-      await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
-      await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
-
-      expect(onInvite).not.toHaveBeenCalled();
-      expect(screen.queryByText('¿Invitar a un entrenador?')).toBeNull();
-    });
-
-    it('deactivates a coach only after the destructive ConfirmSheet names them and is confirmed', async () => {
-      const { onDeactivate } = await show({ kind: 'data', content });
-
-      await fireEvent.press(screen.getAllByRole('button', { name: 'Desactivar' })[1]);
-      expect(screen.getByText('¿Desactivar a Andrés Mejía?')).toBeOnTheScreen();
-      expect(onDeactivate).not.toHaveBeenCalled();
-
-      await fireEvent.press(screen.getByRole('button', { name: 'Desactivar entrenador' }));
-      expect(onDeactivate).toHaveBeenCalledTimes(1);
-      expect(onDeactivate).toHaveBeenCalledWith('c2');
-      expect(screen.queryByText('¿Desactivar a Andrés Mejía?')).toBeNull();
+      expect(screen.getAllByTestId('coach-card')).toHaveLength(3);
+      expect(screen.getByText('Paula Gutiérrez')).toBeOnTheScreen();
+      // The initials are decoration: the name is read already.
+      expect(screen.getByText('PG', { includeHiddenElements: true })).toBeOnTheScreen();
+      expect(screen.getByText('Grupo A · Grupo B · 24 deportistas')).toBeOnTheScreen();
+      expect(screen.getByText('Grupo C · 1 deportista')).toBeOnTheScreen();
+      expect(screen.getByText('Sin grupos · 0 deportistas')).toBeOnTheScreen();
+      expect(screen.getAllByLabelText('Activo')).toHaveLength(3);
     });
 
     it('shows Sin dato, never an invented name, when the name is not readable', async () => {
-      const { onDeactivate } = await show({ kind: 'data', content: { updatedMinutesAgo: 2, coaches: [{ ...coachesFixture[0]!, name: null, initials: '' }] } });
+      await show({ kind: 'data', content: { updatedMinutesAgo: 2, coaches: [{ ...coachesFixture[0]!, name: null, initials: '' }] } });
 
-      expect(screen.getByLabelText(/^Sin dato, Grupo A · Grupo B, 24 deportistas/)).toBeOnTheScreen();
-      expect(screen.getByRole('button', { name: 'Desactivar' })).toHaveProp('accessibilityHint', 'Desactivar a Sin dato');
-
-      await fireEvent.press(screen.getByRole('button', { name: 'Desactivar' }));
-      expect(screen.getByText('¿Desactivar a Sin dato?')).toBeOnTheScreen();
-      await fireEvent.press(screen.getByRole('button', { name: 'Desactivar entrenador' }));
-      expect(onDeactivate).toHaveBeenCalledWith('c1');
+      expect(screen.getByText('Sin dato')).toBeOnTheScreen();
+      expect(screen.queryByText('PG', { includeHiddenElements: true })).toBeNull();
     });
 
-    it('does not deactivate when the ConfirmSheet is cancelled', async () => {
-      const { onDeactivate } = await show({ kind: 'data', content });
+    it('shows no contact, document, code, SMS or inherited-permissions text', async () => {
+      await show({ kind: 'data', content }, { groups: inviteGroupsFixture });
+      await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
 
-      await fireEvent.press(screen.getAllByRole('button', { name: 'Desactivar' })[0]);
-      await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
-
-      expect(onDeactivate).not.toHaveBeenCalled();
+      expect(screen.queryByText(/TS-|Copiar|SMS|Hereda|celular/i)).toBeNull();
     });
 
     it('passes the navigation to the caller', async () => {
@@ -99,6 +61,158 @@ describe('CoachesScreen', () => {
     });
   });
 
+  describe('a pending invitation', () => {
+    const withPending: CoachesContent = { updatedMinutesAgo: 2, coaches: [...coachesFixture, pendingCoachFixture] };
+
+    it('is drawn with a dashed border and the text Invitación enviada, not by the border alone', async () => {
+      await show({ kind: 'data', content: withPending });
+
+      expect(screen.getByText('Julio Castaño')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Invitación enviada')).toBeOnTheScreen();
+      expect(StyleSheet.flatten(screen.getByTestId('pending-card').props.style).borderStyle).toBe('dashed');
+      expect(screen.getAllByLabelText('Activo')).toHaveLength(3);
+    });
+
+    it('has nothing to deactivate', async () => {
+      await show({ kind: 'data', content: withPending }, { deactivateAvailable: true });
+
+      expect(screen.getAllByRole('button', { name: 'Desactivar' })).toHaveLength(3);
+    });
+  });
+
+  describe('the invite sheet', () => {
+    const open = async (extra: Partial<CoachesScreenProps> = {}) => {
+      const actions = await show({ kind: 'data', content }, { groups: inviteGroupsFixture, ...extra });
+      await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+      return actions;
+    };
+
+    it('opens a side sheet with a title, name and email fields and one chip per group of the school', async () => {
+      await open();
+
+      expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
+      expect(screen.getAllByRole('header', { name: 'Invitar entrenador' }).length).toBeGreaterThan(0);
+      expect(screen.getByLabelText('Nombre')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Correo')).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Grupo A' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Grupo B' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Grupo C' })).toBeOnTheScreen();
+    });
+
+    it('does not send until the name and an email are filled', async () => {
+      const { onInvite } = await open();
+
+      expect(screen.getByRole('button', { name: 'Enviar invitación · Escribe el nombre y un correo válido' })).toBeDisabled();
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+      await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa');
+      expect(screen.getByRole('button', { name: /^Enviar invitación/ })).toBeDisabled();
+      expect(onInvite).not.toHaveBeenCalled();
+    });
+
+    it('confirming calls onInvite with the name, the email and the chosen groups, and closes the sheet', async () => {
+      const { onInvite } = await open();
+
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), '  Rosa Londoño ');
+      await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+      await fireEvent.press(screen.getByRole('radio', { name: 'Grupo A' }));
+      await fireEvent.press(screen.getByRole('radio', { name: 'Grupo C' }));
+      await fireEvent.press(screen.getByRole('radio', { name: 'Grupo A' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+      expect(onInvite).toHaveBeenCalledTimes(1);
+      expect(onInvite).toHaveBeenCalledWith({ name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g3'] });
+      expect(screen.queryByTestId('side-sheet')).toBeNull();
+    });
+
+    it('closing the sheet calls nothing', async () => {
+      const { onInvite } = await open();
+
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+      await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+
+      expect(onInvite).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('side-sheet')).toBeNull();
+    });
+
+    it('starts empty each time it opens', async () => {
+      await open();
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+      await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+
+      expect(screen.getByLabelText('Nombre')).toHaveDisplayValue('');
+    });
+
+    it('opens with the group of the context already chosen, and sends it', async () => {
+      const { onInvite } = await open({ contextGroupId: 'g2' });
+
+      expect(screen.getByRole('radio', { name: 'Grupo B' })).toHaveProp('accessibilityState', { checked: true, selected: true });
+      expect(screen.getByRole('radio', { name: 'Grupo A' })).toHaveProp('accessibilityState', { checked: false, selected: false });
+
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+      await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+      await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+      expect(onInvite).toHaveBeenCalledWith({ name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g2'] });
+    });
+
+    it('ignores a context group the school does not have', async () => {
+      await open({ contextGroupId: 'g9' });
+
+      expect(screen.queryAllByRole('radio', { checked: true })).toHaveLength(0);
+    });
+  });
+
+  describe('deactivating', () => {
+    it('is shown disabled on every active card until it is available, and opens nothing', async () => {
+      const { onDeactivate } = await show({ kind: 'data', content });
+
+      const buttons = screen.getAllByRole('button', { name: 'Desactivar · Aún no disponible' });
+      expect(buttons).toHaveLength(3);
+      expect(buttons[0]).toBeDisabled();
+
+      await fireEvent.press(buttons[0]);
+
+      expect(screen.queryByText(/^¿Desactivar a/)).toBeNull();
+      expect(onDeactivate).not.toHaveBeenCalled();
+    });
+
+    it('when available, asks with a destructive ConfirmSheet that names the coach and deactivates on confirm', async () => {
+      const { onDeactivate } = await show({ kind: 'data', content }, { deactivateAvailable: true });
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Desactivar' })[1]);
+      expect(screen.getByText('¿Desactivar a Andrés Mejía?')).toBeOnTheScreen();
+      expect(onDeactivate).not.toHaveBeenCalled();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Desactivar entrenador' }));
+      expect(onDeactivate).toHaveBeenCalledTimes(1);
+      expect(onDeactivate).toHaveBeenCalledWith('c2');
+      expect(screen.queryByText('¿Desactivar a Andrés Mejía?')).toBeNull();
+    });
+
+    it('when available, does not deactivate if the ConfirmSheet is cancelled', async () => {
+      const { onDeactivate } = await show({ kind: 'data', content }, { deactivateAvailable: true });
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Desactivar' })[0]);
+      await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+      expect(onDeactivate).not.toHaveBeenCalled();
+    });
+
+    it('names Sin dato in the ConfirmSheet when the name is not readable', async () => {
+      const { onDeactivate } = await show(
+        { kind: 'data', content: { updatedMinutesAgo: 2, coaches: [{ ...coachesFixture[0]!, name: null, initials: '' }] } },
+        { deactivateAvailable: true },
+      );
+
+      expect(screen.getByRole('button', { name: 'Desactivar' })).toHaveProp('accessibilityHint', 'Desactivar a Sin dato');
+      await fireEvent.press(screen.getByRole('button', { name: 'Desactivar' }));
+      expect(screen.getByText('¿Desactivar a Sin dato?')).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Desactivar entrenador' }));
+      expect(onDeactivate).toHaveBeenCalledWith('c1');
+    });
+  });
+
   describe('by width', () => {
     it('compact: a list under the title, with the top navigation', async () => {
       await show({ kind: 'data', content }, { width: 599 });
@@ -106,8 +220,8 @@ describe('CoachesScreen', () => {
       expect(screen.queryByTestId('console-nav-side')).toBeNull();
       expect(screen.getByTestId('console-layout-compact')).toBeOnTheScreen();
       expect(screen.getByTestId('console-nav-top', { includeHiddenElements: true })).toBeOnTheScreen();
-      expect(screen.getByLabelText(/^Paula Gutiérrez/)).toBeOnTheScreen();
-      expect(screen.getAllByRole('button', { name: 'Desactivar' })).toHaveLength(3);
+      expect(screen.getByText('Paula Gutiérrez')).toBeOnTheScreen();
+      expect(screen.getAllByTestId('coach-card')).toHaveLength(3);
     });
 
     it.each([
@@ -120,20 +234,27 @@ describe('CoachesScreen', () => {
     });
   });
 
-  describe('the deactivate action', () => {
+  describe('the grid', () => {
     const measure = (width: number) =>
       fireEvent(screen.getByTestId('coach-list'), 'layout', { nativeEvent: { layout: { width, height: 400, x: 0, y: 0 } } });
-    const direction = () => StyleSheet.flatten(screen.getAllByTestId('coach-row')[0].props.style).flexDirection;
+    const basis = () => StyleSheet.flatten(screen.getAllByTestId('coach-card')[0].props.style).flexBasis;
 
-    it('sits beside each row when the list is wide enough, and below it when it is narrow', async () => {
+    it('has two columns when the list is wide enough, and one when it is narrow', async () => {
       await show({ kind: 'data', content });
-      expect(direction()).toBe('row');
+      expect(basis()).toBe('48%');
 
       await measure(400);
-      expect(direction()).toBe('column');
+      expect(basis()).toBe('100%');
 
       await measure(700);
-      expect(direction()).toBe('row');
+      expect(basis()).toBe('48%');
+    });
+
+    it('has one column with large text', async () => {
+      jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 2 }));
+      await show({ kind: 'data', content });
+
+      expect(basis()).toBe('100%');
     });
   });
 
@@ -169,7 +290,7 @@ describe('CoachesScreen', () => {
       expect(screen.getByTestId('banner')).toHaveTextContent(
         'Estás sin conexión Mostramos lo guardado en este dispositivo el 23 de octubre de 2026.',
       );
-      expect(screen.getByLabelText(/^Paula Gutiérrez/)).toBeOnTheScreen();
+      expect(screen.getByText('Paula Gutiérrez')).toBeOnTheScreen();
     });
 
     it('offline without data uses the offline state', async () => {
@@ -183,7 +304,7 @@ describe('CoachesScreen', () => {
 
       expect(screen.getByText('Esta información es privada')).toBeOnTheScreen();
       expect(screen.queryByRole('button', { name: 'Invitar entrenador' })).toBeNull();
-      expect(screen.queryByLabelText(/^Paula Gutiérrez/)).toBeNull();
+      expect(screen.queryByText('Paula Gutiérrez')).toBeNull();
     });
   });
 });

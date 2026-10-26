@@ -74,6 +74,7 @@ describe('school console gallery entries', () => {
       'categoriesScreen',
       'consoleScreen',
       'coachList',
+      'inviteCoachSheet',
       'coachesScreen',
       'recordTable',
       'recordsScreen',
@@ -104,7 +105,8 @@ describe('school console gallery entries', () => {
       'no-match',
       'sin-dato',
     ]);
-    expect(stateKeys('coachList')).toEqual(['default', 'long-text']);
+    expect(stateKeys('coachList')).toEqual(['default', 'with-pending-invitation', 'deactivate-available', 'long-text']);
+    expect(stateKeys('inviteCoachSheet')).toEqual(['default', 'group-from-context']);
     expect(stateKeys('recordTable')).toEqual(['default', 'other-pool', 'long-text', 'compact', 'pool-empty']);
     expect(stateKeys('measurementLog')).toEqual(['default', 'long-text', 'no-results']);
     expect(stateKeys('authorizationList')).toEqual(['default', 'long-text', 'sharing-requests', 'read-error']);
@@ -401,12 +403,27 @@ describe('school console gallery entries', () => {
     expect(screen.getByRole('button', { name: 'Entrenador' })).not.toBeSelected();
   });
 
-  it('coachesScreen / expanded-1280 asks for confirmation before deactivating', async () => {
+  it('coachesScreen / expanded-1280 shows Desactivar disabled and opens nothing', async () => {
     await render(<ThemeProvider>{state('coachesScreen', 'expanded-1280')}</ThemeProvider>);
 
-    await fireEvent.press(screen.getAllByRole('button', { name: 'Desactivar' })[0]);
+    const button = screen.getAllByRole('button', { name: 'Desactivar · Aún no disponible' })[0];
+    expect(button).toBeDisabled();
+    await fireEvent.press(button);
 
-    expect(screen.getByText('¿Desactivar a Paula Gutiérrez?')).toBeOnTheScreen();
+    expect(screen.queryByText(/^¿Desactivar a/)).toBeNull();
+  });
+
+  it('coachList / with-pending-invitation shows the dashed card with its text', async () => {
+    await render(<ThemeProvider>{state('coachList', 'with-pending-invitation')}</ThemeProvider>);
+
+    expect(screen.getByLabelText('Invitación enviada')).toBeOnTheScreen();
+    expect(screen.getByTestId('pending-card')).toBeOnTheScreen();
+  });
+
+  it('inviteCoachSheet / group-from-context opens with the group chosen', async () => {
+    await render(<ThemeProvider>{state('inviteCoachSheet', 'group-from-context')}</ThemeProvider>);
+
+    expect(screen.getByRole('radio', { name: 'Grupo B' })).toHaveProp('accessibilityState', { checked: true, selected: true });
   });
 
   it('athleteFilters / with-filter turns a chip on and off in place', async () => {
