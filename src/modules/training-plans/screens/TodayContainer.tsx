@@ -117,7 +117,7 @@ export function TodayContainer(props: TodayContainerProps) {
   // Per assignment, what its saves left in flight; the entry goes away when its last save finishes, unless a read is open (it compares against `saved`).
   const flights = useRef(new Map<string, Flight>());
   // Listings are numbered as they start; per assignment, the number of the last one shown. A listing that answers after a newer one was shown is older, so it is dropped.
-  // Like `flights`, the entry of an assignment goes away when its last save finishes: the maps only hold what is in flight.
+  // The entry of `shownListing` always goes away when the last save of its assignment finishes; the one of `flights` stays while a read is open.
   const listingSeq = useRef(0);
   const shownListing = useRef(new Map<string, number>());
   // The short name only, never the document or the birth date.
