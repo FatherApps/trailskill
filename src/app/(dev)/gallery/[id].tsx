@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Fragment, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
@@ -91,6 +91,7 @@ function Body({
   onTheme: (value: ThemeName) => void;
   onFontScale: (value: '1' | '2') => void;
 }) {
+  const router = useRouter();
   const { colors, space, typography } = useTheme();
   const [stateKey, setStateKey] = useState(() => Object.keys(entry?.states ?? {})[0]);
 

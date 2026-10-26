@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Fragment } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
@@ -8,6 +8,7 @@ import { Button } from '../../../core/ui';
 import { galleryGroups } from '../_layout';
 
 export default function GalleryIndex() {
+  const router = useRouter();
   const { colors, space, typography } = useTheme();
 
   return (

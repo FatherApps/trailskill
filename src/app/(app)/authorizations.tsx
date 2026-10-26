@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
@@ -15,6 +15,7 @@ const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 
 // Management: accept more purposes or withdraw one, for each athlete the person manages.
 export default function Authorizations() {
+  const router = useRouter();
   const { session } = useSession();
   const userId = session?.user.id;
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();

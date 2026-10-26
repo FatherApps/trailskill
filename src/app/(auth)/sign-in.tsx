@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -10,6 +10,7 @@ import { Button, StateView, StepHeader, TextField } from '../../core/ui';
 const CODE_LENGTH = 6;
 
 export default function SignIn() {
+  const router = useRouter();
   const { requestCode, verifyCode, configError } = useSession();
   const { colors, space, typography } = useTheme();
   const [step, setStep] = useState<'email' | 'code'>('email');

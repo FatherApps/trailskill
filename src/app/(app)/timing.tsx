@@ -1,4 +1,4 @@
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useSession } from '../../core/session';
@@ -36,10 +36,14 @@ async function loadSchoolRoster(schoolId: string): Promise<RosterAthlete[]> {
 // The best time on this device for the event, shown against the time just stopped.
 const loadBestTime = (athleteId: string, event: MeasurementEvent) => personalBestTime(history, athleteId, event);
 
-const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
+function useLeave() {
+  const router = useRouter();
+  return useCallback(() => (router.canGoBack() ? router.back() : router.replace('/')), [router]);
+}
 
 // The flow of the school every time is written for.
 function SchoolTiming({ school, mode, userId, deviceId, lastSyncedAt }: { school: StaffSchool; mode?: string; userId: string; deviceId: string; lastSyncedAt?: number }) {
+  const leave = useLeave();
   // The flow loads the roster again whenever this function changes: new per school and after each sync, so a withdrawal that arrives
   // marks the athlete "se omitirá" at once. The sync time is not read by the loader: it is only what makes the function new.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,6 +57,7 @@ function SchoolTiming({ school, mode, userId, deviceId, lastSyncedAt }: { school
 // "/timing" times one athlete at a time; "/timing?mode=series" times a group that starts together;
 // "/timing?mode=completed" records that the work was done, without a time.
 export default function TimingRoute() {
+  const leave = useLeave();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const { session } = useSession();
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();

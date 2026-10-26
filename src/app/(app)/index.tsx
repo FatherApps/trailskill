@@ -1,4 +1,4 @@
-import { Link, router } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -24,6 +24,7 @@ const pendingInvitations = createSecureStorePendingInvitationRepository();
 const conflictReview = createSupabaseConflictReviewRepository();
 
 export default function Home() {
+  const router = useRouter();
   const { syncConnectFailed, signOut, session } = useSession();
   const userId = session?.user.id;
   const { space } = useTheme();

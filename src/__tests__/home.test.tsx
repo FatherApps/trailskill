@@ -1,7 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
-import { router } from 'expo-router';
-
 import Home from '../app/(app)/index';
 import { t } from '../core/i18n';
 
@@ -41,7 +39,8 @@ jest.mock('../modules/athletes', () => ({
   ...jest.requireActual('../modules/athletes/athleteDisplay'),
   createPowerSyncSchoolAthleteRepository: () => ({ listByIds: (...args: unknown[]) => mockListByIds(...args) }),
 }));
-jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), router: { push: jest.fn() } }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ ...jest.requireActual('expo-router'), useRouter: () => ({ push: mockPush }) }));
 jest.mock('@powersync/react', () => ({}));
 jest.mock('../core/sync/db', () => ({ db: {} }));
 
@@ -55,7 +54,7 @@ beforeEach(() => {
   mockListAdminSchools.mockReset().mockResolvedValue([]);
   mockListManagedAthleteIds.mockReset().mockResolvedValue([]);
   mockListByIds.mockReset().mockResolvedValue([]);
-  (router.push as jest.Mock).mockClear();
+  mockPush.mockClear();
 });
 
 // Lives outside src/app: Expo Router would treat a test file there as a route.
@@ -125,7 +124,7 @@ describe('training plans button', () => {
 
     await fireEvent.press(await screen.findByRole('button', plans));
 
-    expect(router.push).toHaveBeenCalledWith('/plans');
+    expect(mockPush).toHaveBeenCalledWith('/plans');
   });
 
   it('appears once memberships arrive with a later sync', async () => {
@@ -165,7 +164,7 @@ describe('console button', () => {
 
     await fireEvent.press(await screen.findByRole('button', consoleButton));
 
-    expect(router.push).toHaveBeenCalledWith('/console');
+    expect(mockPush).toHaveBeenCalledWith('/console');
   });
 });
 
@@ -299,7 +298,7 @@ describe('home by role', () => {
 
     await fireEvent.press(await screen.findByRole('button', { name: /Ana M\./ }));
 
-    expect(router.push).toHaveBeenCalledWith('/athletes/a1');
+    expect(mockPush).toHaveBeenCalledWith('/athletes/a1');
   });
 
   it('shows a guardian neither the timing, the plans nor the console', async () => {
@@ -320,9 +319,9 @@ describe('home by role', () => {
 
     await fireEvent.press(await screen.findByRole('button', { name: 'Toma de tiempos' }));
 
-    expect(router.push).toHaveBeenCalledWith('/timing');
+    expect(mockPush).toHaveBeenCalledWith('/timing');
     await fireEvent.press(screen.getByRole('button', { name: 'Toma en serie' }));
-    expect(router.push).toHaveBeenCalledWith('/timing?mode=series');
+    expect(mockPush).toHaveBeenCalledWith('/timing?mode=series');
     expect(screen.getByRole('button', { name: 'Planes de entrenamiento' })).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Consola' })).toBeNull();
   });
