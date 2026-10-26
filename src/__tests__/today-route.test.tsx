@@ -19,8 +19,8 @@ jest.mock('../modules/athletes', () => ({
 }));
 jest.mock('../modules/timing', () => ({ createPowerSyncSeriesRepository: () => ({}) }));
 jest.mock('../modules/training-plans', () => ({
-  // Only the container: the barrel pulls in every screen of the module.
-  ...jest.requireActual('../modules/training-plans/screens/TodayContainer'),
+  // The real barrel, so any export `today.tsx` takes from it exists; only the repositories that open the database are replaced.
+  ...jest.requireActual('../modules/training-plans'),
   createPowerSyncAssignmentRepository: () => ({}),
   createPowerSyncFulfillmentRepository: () => ({}),
   createPowerSyncNoticeRepository: () => ({}),
