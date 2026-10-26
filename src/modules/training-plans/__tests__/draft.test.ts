@@ -1,4 +1,4 @@
-import { blockErrors, newDraftBlock, toPlanBlock, type DraftBlock } from '../draft';
+import { blockErrors, newDraftBlock, snapshot, toPlanBlock, type DraftBlock } from '../draft';
 import { MAX_DRILL_LENGTH } from '../data/plans';
 import { planVocabulary } from '../vocabulary';
 
@@ -61,5 +61,25 @@ describe('toPlanBlock', () => {
 
   it('refuses a block without what is recorded', () => {
     expect(() => toPlanBlock({ ...complete, recording: null })).toThrow();
+  });
+});
+
+describe('snapshot', () => {
+  it('is the same whatever order the keys of a block come in', () => {
+    const reversed = Object.fromEntries(Object.entries(complete).reverse()) as DraftBlock;
+
+    expect(snapshot('Plan', [reversed])).toBe(snapshot('Plan', [complete]));
+  });
+
+  it('trims the name, as it is saved', () => {
+    expect(snapshot('  Plan  ', [complete])).toBe(snapshot('Plan', [complete]));
+  });
+
+  it('tells apart plans that differ in a name, a block or the order of the blocks', () => {
+    const other = { ...complete, id: 'b2' };
+
+    expect(snapshot('Plan', [complete])).not.toBe(snapshot('Otro', [complete]));
+    expect(snapshot('Plan', [complete])).not.toBe(snapshot('Plan', [{ ...complete, repetitions: 2 }]));
+    expect(snapshot('Plan', [complete, other])).not.toBe(snapshot('Plan', [other, complete]));
   });
 });

@@ -40,3 +40,12 @@ export function toPlanBlock(block: DraftBlock): PlanBlock {
   if (block.recording === null) throw new Error('A block needs what is recorded before it is saved');
   return { ...block, recording: block.recording };
 }
+
+// Key order does not matter: the same plan read from storage or built by editing gives the same text.
+const sortKeys = (_key: string, value: unknown) =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+    : value;
+
+// The draft as it is compared with what is stored; the name is trimmed because that is how it is saved.
+export const snapshot = (name: string, blocks: DraftBlock[]) => JSON.stringify({ name: name.trim(), blocks }, sortKeys);
