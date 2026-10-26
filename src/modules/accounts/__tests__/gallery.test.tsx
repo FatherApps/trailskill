@@ -41,6 +41,17 @@ describe('accounts gallery entries', () => {
     expect(statesOf('resumeRegistration')).toEqual(['initial']);
   });
 
+  it.each(statesOf('accountDetails'))(
+    'accountDetails %s hides the provider buttons, as the real registration does',
+    async (state) => {
+      const entry = galleryEntries.find((candidate) => candidate.id === 'accountDetails')!;
+      await render(entry.states[state]());
+
+      expect(screen.queryByRole('button', { name: 'Continuar con Google' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Continuar con Microsoft' })).toBeNull();
+    },
+  );
+
   it.each(galleryEntries.flatMap((entry) => Object.keys(entry.states).map((state) => [entry.id, state] as const)))(
     'renders %s %s',
     async (id, state) => {

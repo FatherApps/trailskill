@@ -57,8 +57,7 @@ function AccountDetailsPreview(props: Partial<AccountDetailsScreenProps>) {
       <AccountDetailsScreen
         step={2}
         total={4}
-        onGoogle={noop}
-        onMicrosoft={noop}
+        providers={false}
         onRequestCode={noop}
         onSubmitCode={noop}
         onSignIn={noop}
