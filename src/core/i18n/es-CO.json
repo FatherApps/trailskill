@@ -5,7 +5,8 @@
     "timing_series": "Toma en serie",
     "timing_completed": "Registrar completado",
     "plans": "Planes de entrenamiento",
-    "console": "Consola"
+    "console": "Consola",
+    "review_conflicts": "Revisar conflictos"
   },
   "logo": {
     "label": "TrailSkill"

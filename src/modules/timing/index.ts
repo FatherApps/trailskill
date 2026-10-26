@@ -49,3 +49,9 @@ export {
 export { CompletedFlow, type CompletedFlowProps } from './screens/CompletedFlow';
 export { CompletedScreen, type CompletedAthlete, type CompletedScreenProps } from './screens/CompletedScreen';
 export { SchoolChoiceScreen, type SchoolChoiceScreenProps } from './screens/SchoolChoiceScreen';
+export {
+  createSupabaseConflictReviewRepository,
+  type ConflictReviewRepository,
+} from './data/conflictReview';
+export { usePlatformAdmin } from './data/usePlatformAdmin';
+export { ReviewConflictsFlow, type ReviewConflictsFlowProps } from './screens/ReviewConflictsFlow';

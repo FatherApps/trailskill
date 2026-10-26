@@ -3,6 +3,7 @@ import { useWindowDimensions, View } from 'react-native';
 
 import { space } from '../../core/theme';
 import type { GalleryEntry } from '../../core/ui';
+import { conflictsFixture } from './__fixtures__/conflicts';
 import { seriesFixture } from './__fixtures__/series';
 import { fixture } from './__fixtures__/timing';
 import { ArrivalList } from './components/ArrivalList';
@@ -10,6 +11,7 @@ import { NameCard } from './components/NameCard';
 import { arrivalClockTime, formatClockTime } from './domain/clockTime';
 import { arrivals as arrivalsOf, assignHighlighted, press, readySeries, reopen, type Series } from './domain/series';
 import { CompletedScreen } from './screens/CompletedScreen';
+import { ReviewConflictsScreen, type ReviewConflictsScreenProps } from './screens/ReviewConflictsScreen';
 import { SeriesAssignmentScreen, type AssignmentAthlete } from './screens/SeriesAssignmentScreen';
 import { SeriesTimingScreen } from './screens/SeriesTimingScreen';
 import { t } from '../../core/i18n';
@@ -242,6 +244,22 @@ function CompletedPreview({ completed = [], empty }: { completed?: string[]; emp
   );
 }
 
+function ReviewConflictsPreview(props: Partial<ReviewConflictsScreenProps>) {
+  return (
+    <FullScreen>
+      <ReviewConflictsScreen
+        view="ready"
+        conflicts={conflictsFixture.list}
+        offline={false}
+        onResolve={noop}
+        onRetry={noop}
+        onBack={noop}
+        {...props}
+      />
+    </FullScreen>
+  );
+}
+
 // The three arrivals of the reference screen, with the wall-clock time of each touch.
 const mockupArrivals = seriesFixture.mockup.times.slice(0, 3).map((time, index) => ({
   id: `arrival-${index + 1}`,
@@ -384,6 +402,20 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       completed: () => <CompletedPreview completed={['a1', 'a3']} />,
       'completed-empty': () => <CompletedPreview empty />,
+    },
+  },
+  {
+    id: 'reviewConflicts',
+    title: 'ReviewConflictsScreen',
+    states: {
+      list: () => <ReviewConflictsPreview />,
+      detail: () => <ReviewConflictsPreview initialConflictId="conflict-1" />,
+      'detail-unknown-author': () => <ReviewConflictsPreview initialConflictId="conflict-2" />,
+      'detail-offline': () => <ReviewConflictsPreview initialConflictId="conflict-1" offline />,
+      'detail-stale': () => <ReviewConflictsPreview initialConflictId="conflict-1" failure="stale" />,
+      empty: () => <ReviewConflictsPreview view="empty" conflicts={[]} />,
+      loading: () => <ReviewConflictsPreview view="loading" conflicts={[]} />,
+      error: () => <ReviewConflictsPreview view="error" conflicts={[]} />,
     },
   },
 ] satisfies { id: string; title: string; states: Record<string, () => ReactElement> }[];
