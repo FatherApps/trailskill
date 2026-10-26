@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { typography } from '../../../core/theme';
+import { colors, typography } from '../../../core/theme';
 import { accountsFixture as fx } from '../__fixtures__/accounts';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from '../screens/WhoSwimsScreen';
 
@@ -32,13 +32,24 @@ describe('WhoSwimsScreen', () => {
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeOnTheScreen();
   });
 
-  it('uses the title token for the screen title, like the timing header', async () => {
+  it('uses the display title token for the screen title (LRegistroUsuario1)', async () => {
     await renderScreen();
 
     const style = StyleSheet.flatten(screen.getByRole('header', { name: 'Crear cuenta' }).props.style);
-    expect(style.fontSize).toBe(typography.title.fontSize);
-    expect(style.fontFamily).toBe(typography.title.fontFamily);
-    expect(style.fontSize).not.toBe(typography['title-lg'].fontSize);
+    expect(style.fontSize).toBe(typography['title-lg'].fontSize);
+    expect(style.fontFamily).toBe(typography['title-lg'].fontFamily);
+  });
+
+  it('shows the two options as cards side by side and the primary action in lime', async () => {
+    await renderScreen();
+
+    const [group] = screen.container.queryAll((node) => node.props.accessibilityRole === 'radiogroup');
+    expect(StyleSheet.flatten(group.props.style).flexDirection).toBe('row');
+    for (const radio of screen.getAllByRole('radio')) {
+      expect(StyleSheet.flatten(radio.props.style).flexGrow).toBe(1);
+    }
+    const button = screen.getByRole('button', { name: 'Continuar' });
+    expect(StyleSheet.flatten(button.props.style).backgroundColor).toBe(colors.light.action);
   });
 
   it('child: explains that minors do not create their own account', async () => {
