@@ -33,6 +33,8 @@ export default function AddAthletesRoute() {
       pending={pending}
       // The account exists already: back must not drop the person on a half-done registration.
       blockSystemBack
+      // Reached with replace, so back may have no history: it goes home.
+      onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
       renderStatus={(id) => <RecordSyncStatus table="athletes" id={id} />}
       onContinue={() => router.replace('/athletes/authorizations')}
     />

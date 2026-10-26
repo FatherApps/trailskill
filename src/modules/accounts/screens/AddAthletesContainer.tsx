@@ -22,6 +22,8 @@ export type AddAthletesContainerProps = {
   renderStatus?: (athleteId: string) => ReactNode;
   // Opt-in: the route that makes "Continuar" the only way out asks to ignore the system back button.
   blockSystemBack?: boolean;
+  // Where back goes once "Continuar" is not a way out (see `blockSystemBack`). The route reached this screen with `replace`, so it decides where there is no history.
+  onBack?: () => void;
   onContinue: () => void;
 };
 
@@ -40,6 +42,7 @@ export function AddAthletesContainer({
   pending,
   renderStatus,
   blockSystemBack = false,
+  onBack,
   onContinue,
 }: AddAthletesContainerProps) {
   const [values, setValues] = useState(empty);
@@ -47,6 +50,8 @@ export function AddAthletesContainer({
   const { categories } = useInvitation(drafts, invitations);
   const [categoryId, setCategoryId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const finishingRef = useRef(false);
   const [failed, setFailed] = useState<false | 'add' | 'continue'>(false);
 
   const refresh = useCallback(
@@ -57,9 +62,9 @@ export function AddAthletesContainer({
     [athletes, userId],
   );
 
-  // The route asked for it because "Continuar" is the only way out of this step. When saving the step fails there is no other way out, so back works again.
-  const blockBack = blockSystemBack && failed !== 'continue';
-  useHardwareBack(blockBack ? swallowBack : undefined);
+  // The route asked for it because "Continuar" is the only way out of this step. When that way is shut (the step cannot be kept, or adding failed and nobody is added yet to continue with), back leaves through `onBack`.
+  const noWayOut = failed === 'continue' || (failed === 'add' && added.length === 0);
+  useHardwareBack(blockSystemBack ? (noWayOut ? onBack : swallowBack) : undefined);
 
   useEffect(() => {
     // A failed read shows an empty form and nobody added: the person can still add.
@@ -117,8 +122,15 @@ export function AddAthletesContainer({
   // The profiles are saved, so the typed names have nothing left to keep; the swimmer choice and the reached step stay until the authorizations step ends.
   // If the step cannot be kept the person stays here: going on would bring them back to this screen on the next launch.
   async function finish() {
+    // A second tap while the first one still saves would continue twice.
+    if (finishingRef.current) return;
+    finishingRef.current = true;
+    setFinishing(true);
     setFailed(false);
-    if (!(await persist(undefined, 'authorizations'))) return setFailed('continue');
+    const kept = await persist(undefined, 'authorizations');
+    finishingRef.current = false;
+    setFinishing(false);
+    if (!kept) return setFailed('continue');
     onContinue();
   }
 
@@ -129,6 +141,7 @@ export function AddAthletesContainer({
       values={values}
       athletes={added}
       busy={busy}
+      continuing={finishing}
       failed={failed}
       categories={categories}
       categoryId={categoryId}
