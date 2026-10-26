@@ -119,6 +119,7 @@
     "athletes_one": "{{count}} deportista",
     "athletes_other": "{{count}} deportistas",
     "no_groups": "Sin grupos",
+    "pending_card": "{{name}}, {{status}}, {{groups}}",
     "invite": "Invitar entrenador",
     "deactivate": "Desactivar",
     "deactivate_hint": "Desactivar a {{name}}",

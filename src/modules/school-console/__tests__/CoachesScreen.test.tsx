@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
 import { coachesFixture, inviteGroupsFixture, pendingCoachFixture } from '../__fixtures__/coaches';
@@ -71,6 +71,34 @@ describe('CoachesScreen', () => {
       expect(screen.getByLabelText('Invitación enviada')).toBeOnTheScreen();
       expect(StyleSheet.flatten(screen.getByTestId('pending-card').props.style).borderStyle).toBe('dashed');
       expect(screen.getAllByLabelText('Activo')).toHaveLength(3);
+    });
+
+    it('is announced as one element with the name, the state and the groups', async () => {
+      await show({ kind: 'data', content: withPending });
+
+      const card = screen.getByLabelText('Julio Castaño, Invitación enviada, Grupo B');
+      expect(card).toBeOnTheScreen();
+      expect(card.props.accessible).toBe(true);
+    });
+
+    it('never shows a number of athletes: the count of an invitation is missing, not zero', async () => {
+      await show({ kind: 'data', content: withPending });
+
+      const pending = within(screen.getByTestId('pending-card'));
+      expect(pending.getByText('Grupo B')).toBeOnTheScreen();
+      expect(pending.queryByText(/deportista/)).not.toBeOnTheScreen();
+    });
+
+    it('says Sin grupos when the invitation has no groups', async () => {
+      await show({ kind: 'data', content: { ...withPending, coaches: [{ ...pendingCoachFixture, groups: [] }] } });
+
+      const pending = within(screen.getByTestId('pending-card'));
+      expect(pending.getByText('Sin grupos')).toBeOnTheScreen();
+      expect(pending.queryByText(/deportista/)).not.toBeOnTheScreen();
+    });
+
+    it('keeps the colour table private to the card', () => {
+      expect(Object.keys(jest.requireActual('../components/CoachCard'))).toEqual(['CoachCard']);
     });
 
     it('has nothing to deactivate', async () => {
