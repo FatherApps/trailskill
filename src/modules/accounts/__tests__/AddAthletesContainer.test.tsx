@@ -73,6 +73,21 @@ async function slowStartDraft(drafts: ReturnType<typeof setup>['drafts']) {
   };
 }
 
+// Waits for the first read the screen starts after `reads` calls, and for the code that was waiting for it: its continuation was queued on that promise before ours, so by the time we resume it has either saved or left.
+async function afterNextRead(drafts: ReturnType<typeof setup>['drafts'], reads: number) {
+  const load = jest.mocked(drafts.load);
+  await waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(reads));
+  await load.mock.results[reads].value;
+}
+
+// Every read waits until the test lets it go, and answers with the draft in force at that instant, as a slow store does.
+function heldReads(drafts: ReturnType<typeof setup>['drafts']) {
+  const real = drafts.load.bind(drafts);
+  const releases: (() => void)[] = [];
+  jest.spyOn(drafts, 'load').mockImplementation(() => new Promise((resolve) => releases.push(() => resolve(real()))));
+  return releases;
+}
+
 describe('AddAthletesContainer', () => {
   it('requires both names, then adds the profile to the list showing only the short name', async () => {
     const { mount } = setup();
@@ -813,10 +828,74 @@ describe('AddAthletesContainer', () => {
     await slow.open();
 
     // The write-back looked at the draft in force and left it alone.
-    await waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(reads));
-    await act(async () => {});
+    await afterNextRead(drafts, reads);
     expect(save).toHaveBeenCalledTimes(saves);
     expect(await slow.real()).toEqual(another);
+  });
+
+  it('a registration started after the screen went away is left alone even when no read ended while the screen was there', async () => {
+    const { mount, drafts } = setup();
+    const save = jest.spyOn(drafts, 'save');
+    const releases = heldReads(drafts);
+    const view = await mount();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    // Three reads wait: the invitation hook's, the one the screen starts with and the one of the keystroke save.
+    await waitFor(() => expect(releases).toHaveLength(3));
+    await view.unmount();
+    const another = { swimmer: 'adult' as const, firstName: 'Nuevo', lastName: 'Registro', email: 'nuevo@example.com' };
+    await drafts.clear();
+    await drafts.save(another);
+    const saves = save.mock.calls.length;
+    const load = jest.mocked(drafts.load);
+
+    // The keystroke save reads the new registration first: with no origin known it is not this screen's.
+    releases[2]();
+    await load.mock.results[2].value;
+    // Then the screen's first read ends: it is no origin either, so nothing is written back from it.
+    releases[1]();
+    await load.mock.results[1].value;
+
+    expect(save).toHaveBeenCalledTimes(saves);
+  });
+
+  // The limit of telling registrations apart by their fields (issue 611): a registration started again with the same data cannot be told from the one the screen belonged to.
+  it('a registration restarted with the same fields still receives the late write-back (known limit)', async () => {
+    const { mount, drafts } = setup();
+    const slow = await slowStartDraft(drafts);
+    const save = jest.spyOn(drafts, 'save');
+    const view = await mount();
+    slow.fast();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    await view.unmount();
+    // Discarded and started again with the very same data.
+    const first = (await slow.real())!;
+    await drafts.clear();
+    await drafts.save({ swimmer: first.swimmer, firstName: first.firstName, lastName: first.lastName, email: first.email, invitationToken: first.invitationToken });
+    const reads = jest.mocked(drafts.load).mock.calls.length;
+
+    await slow.open();
+    await afterNextRead(drafts, reads);
+
+    expect((await slow.real())?.athlete).toEqual({ firstName: 'Lucía', lastName: 'Guardado' });
+  });
+
+  it('a draft that loads late writes nothing back when the keystroke saves already left it as the form shows it', async () => {
+    const { mount, drafts } = setup();
+    const slow = await slowStartDraft(drafts);
+    const save = jest.spyOn(drafts, 'save');
+    await mount();
+    slow.fast();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    const reads = jest.mocked(drafts.load).mock.calls.length;
+
+    await slow.open();
+    await afterNextRead(drafts, reads);
+
+    expect(save).toHaveBeenCalledTimes(2);
+    expect((await slow.real())?.athlete).toEqual({ firstName: 'Lucía', lastName: 'Rojas' });
   });
 
   // Pins the issue edge of a slow draft after a whole add: it cannot happen today (an add needs both fields typed, and the edit counters never reset), so the late draft always loses to what was typed.
@@ -830,15 +909,16 @@ describe('AddAthletesContainer', () => {
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
     await waitFor(async () => expect((await slow.real())?.athlete).toEqual({ firstName: 'Mateo', lastName: '' }));
     const before = save.mock.calls.length;
+    const reads = jest.mocked(drafts.load).mock.calls.length;
 
     await slow.open();
 
     expect(rows).toHaveLength(1);
     expect(screen.getByLabelText('Nombre').props.value).toBe('Mateo');
     expect(screen.getByLabelText('Apellido').props.value).toBe('');
-    // The late draft is written back, and only with what is in the form: nothing from the draft the screen started with ('Anterior', 'Guardado') or from the saved athlete ('Lucía', 'Rojas').
-    await waitFor(() => expect(save.mock.calls.length).toBeGreaterThan(before));
-    expect(save.mock.calls.slice(before).map(([draft]) => draft.athlete)).toEqual([{ firstName: 'Mateo', lastName: '' }]);
+    // The late draft writes nothing back: the keystroke save already left only what is in the form, with nothing from the draft the screen started with ('Anterior', 'Guardado') or from the saved athlete ('Lucía', 'Rojas').
+    await afterNextRead(drafts, reads);
+    expect(save).toHaveBeenCalledTimes(before);
     expect((await slow.real())?.athlete).toEqual({ firstName: 'Mateo', lastName: '' });
   });
 

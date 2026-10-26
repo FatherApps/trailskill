@@ -31,6 +31,8 @@ const empty = { firstName: '', lastName: '' };
 // Nothing typed is no draft: the screen keeps a draft only while there is something to keep.
 const keep = (names: typeof empty) => (names.firstName || names.lastName ? names : undefined);
 // Same registration: the fields the registration was started with. The athlete and the step are what this screen writes, so they do not tell registrations apart.
+// shortcut: registrations are told apart by these fields only, so (1) one started again with the same data is not told apart and (2) an edit of these fields in the same registration skips the late write-back;
+// move to a stable key in the draft (id or createdAt) if the draft outlives a session or another flow rewrites it.
 const sameRegistration = (a: RegistrationDraft, b: RegistrationDraft) =>
   a.swimmer === b.swimmer && a.firstName === b.firstName && a.lastName === b.lastName && a.email === b.email && a.invitationToken === b.invitationToken;
 // Stable, so the back subscription is made once while the block holds.
@@ -115,13 +117,18 @@ export function AddAthletesContainer({
   const origin = useRef<RegistrationDraft | null>(null);
   // Losing a draft must not block typing. A missing draft stays missing: this screen only continues one the registration started.
   // Once the screen went away the draft may be another registration's (discarded and started again meanwhile): it is left alone.
+  // A read that ends after that cannot be trusted to name the origin, so with none known the draft is left alone too: the last keystrokes of a screen left before any read ended are lost.
+  // Known limits (issue 611): the read, the comparison and the save are not one step, so another flow's clear+save in between is overwritten (the queue only orders this screen's writes);
+  // and while the screen is there the draft is not compared, since nothing but this screen is expected to restart the registration.
   const persist = useCallback(
     (athlete: typeof empty | undefined, step?: 'authorizations') =>
       enqueue(async () => {
         const current = await drafts.load();
         if (!current) return;
-        origin.current ??= current;
-        if (!mounted.current && !sameRegistration(origin.current, current)) return;
+        if (mounted.current) origin.current ??= current;
+        else if (!origin.current || !sameRegistration(origin.current, current)) return;
+        // Nothing to change: the keystroke saves already left the draft as the form shows it.
+        if (!step && current.athlete?.firstName === athlete?.firstName && current.athlete?.lastName === athlete?.lastName) return;
         await drafts.save({ ...current, athlete, ...(step && { step }) });
       }),
     [drafts, enqueue],
@@ -132,7 +139,7 @@ export function AddAthletesContainer({
     drafts
       .load()
       .then((saved) => {
-        if (saved) origin.current ??= saved;
+        if (saved && mounted.current) origin.current ??= saved;
         if (!saved?.athlete) return;
         const draft = saved.athlete;
         // A draft that took longer than the person did to start typing is older than what is on the screen, but only for the fields they edited.
