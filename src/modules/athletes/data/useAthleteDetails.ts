@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AthleteSchoolRepository } from './athleteSchools';
 import type { SchoolAthlete } from './schoolAthletes';
@@ -43,7 +43,8 @@ export async function readAthleteDetails(
 
 const noAthletes: SchoolAthlete[] = [];
 
-// The details of the athletes shown, empty until they are read. Reads again only when their ids or groups change, and keeps the previous details meanwhile and when a read fails.
+// The details of the athletes shown, empty until they are read. Reads again only when their ids, categories or groups change, and keeps the previous details meanwhile and when a read fails.
+// Each successful read replaces the whole map, so athletes no longer shown drop out; a failed read keeps the last map, harmless because it is looked up by athlete id.
 export function useAthleteDetails(
   athletes: SchoolAthlete[] | undefined,
   links: AthleteSchoolRepository,
@@ -51,12 +52,15 @@ export function useAthleteDetails(
 ): Record<string, string> {
   const [details, setDetails] = useState<Record<string, string>>({});
   const list = athletes ?? noAthletes;
-  // Every sync hands over a new array: the content, not its identity, decides when to read again.
-  const key = JSON.stringify(list.map((athlete) => [athlete.id, athlete.groupIds]));
+  // Every sync hands over a new array: the content, not its identity, decides when to read again. Built once per array, with the groups sorted so their order does not matter.
+  const key = useMemo(
+    () => list.map((athlete) => `${athlete.id}:${athlete.categoryId ?? ''}:${[...athlete.groupIds].sort().join(',')}`).join('|'),
+    [list],
+  );
   const latest = useRef(list);
   useEffect(() => {
     latest.current = list;
-  });
+  }, [list]);
   useEffect(() => {
     let active = true;
     readAthleteDetails(latest.current, links, structure).then(

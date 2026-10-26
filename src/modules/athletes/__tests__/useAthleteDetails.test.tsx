@@ -28,6 +28,8 @@ const renderAthleteDetails = (links: AthleteSchoolRepository) =>
   });
 
 describe('useAthleteDetails', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   it('keeps the details and does not read again when the athletes arrive as a new array with the same content', async () => {
     const links = createInMemoryAthleteSchoolRepository(rows);
     const listByAthlete = jest.spyOn(links, 'listByAthlete');
@@ -62,6 +64,43 @@ describe('useAthleteDetails', () => {
     await waitFor(() => expect(result.current).toEqual({ a1: 'Under 12 · Group A · Group B' }));
   });
 
+  it('reads again when the category of an athlete changes and the groups stay the same', async () => {
+    let categoryId = 'c1';
+    const links: AthleteSchoolRepository = { listByAthlete: async () => [{ schoolId: 's1', categoryId }] };
+    const withTwoCategories: AthleteStructure = {
+      ...structure,
+      listCategories: async () => [
+        { id: 'c1', name: 'Under 12' },
+        { id: 'c2', name: 'Under 14' },
+      ],
+    };
+    const { result, rerender } = await renderHook(
+      ({ athletes }: { athletes: SchoolAthlete[] }) => useAthleteDetails(athletes, links, withTwoCategories),
+      { initialProps: { athletes: [ana] } },
+    );
+    await waitFor(() => expect(result.current).toEqual({ a1: 'Under 12 · Group A' }));
+
+    categoryId = 'c2';
+    await rerender({ athletes: [{ ...ana, categoryId: 'c2' }] });
+
+    await waitFor(() => expect(result.current).toEqual({ a1: 'Under 14 · Group A' }));
+  });
+
+  it('does not read again when the groups of an athlete arrive in another order', async () => {
+    const links = createInMemoryAthleteSchoolRepository(rows);
+    const listByAthlete = jest.spyOn(links, 'listByAthlete');
+    const { result, rerender } = await renderHook(
+      ({ athletes }: { athletes: SchoolAthlete[] }) => useAthleteDetails(athletes, links, structure),
+      { initialProps: { athletes: [{ ...ana, groupIds: ['g1', 'g2'] }] } },
+    );
+    await waitFor(() => expect(result.current).toEqual({ a1: 'Under 12 · Group A · Group B' }));
+    const reads = listByAthlete.mock.calls.length;
+
+    await rerender({ athletes: [{ ...ana, groupIds: ['g2', 'g1'] }] });
+
+    expect(listByAthlete).toHaveBeenCalledTimes(reads);
+  });
+
   it('does not throw when a read fails, keeps the previous details and logs the failure in development', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const error = new Error('db');
@@ -79,8 +118,7 @@ describe('useAthleteDetails', () => {
     failing = true;
     await rerender({ athletes: [ana, ben] });
 
-    await waitFor(() => expect(warn).toHaveBeenCalledWith(expect.any(String), error));
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('[athletes] Athlete details lookup failed', error));
     expect(result.current).toEqual({ a1: 'Under 12 · Group A' });
-    warn.mockRestore();
   });
 });
