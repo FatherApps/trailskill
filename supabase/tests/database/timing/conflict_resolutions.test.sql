@@ -1,12 +1,14 @@
 -- Resolving measurement conflicts (issue #56, server side). The platform admin
 -- chooses one of the two versions or enters the correct time, always with a
--- reason. resolve_measurement_conflict applies the decision, marks the conflict
--- resolved and writes the audit row in one transaction; only the service role
--- (the timing-resolve-conflict Edge function) runs it. Nothing is deleted. All
--- users and data here are synthetic.
+-- reason. resolve_measurement_conflict is an RPC the platform admin calls as an
+-- authenticated user: it checks the admin on the server, rejects a decision made
+-- on a stale measurement version (expected_version, error PT409) without writing
+-- anything, and otherwise applies the decision, marks the conflict resolved and
+-- writes the audit row in one transaction. Nothing is deleted. All users and
+-- data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(48);
+select plan(64);
 
 -- Users: coaches C1 and C2 of e1 and e2, platform admin P.
 insert into auth.users (id, email) values
@@ -93,77 +95,73 @@ select ok(
   'clients can only select measurement_conflict_resolutions'
 );
 select has_function(
-  'public', 'resolve_measurement_conflict', array['uuid', 'uuid', 'text', 'integer', 'text'],
+  'public', 'resolve_measurement_conflict', array['uuid', 'integer', 'text', 'integer', 'text'],
   'resolve_measurement_conflict exists'
 );
 select ok(
-  not has_function_privilege('anon', 'public.resolve_measurement_conflict(uuid, uuid, text, integer, text)', 'execute')
-    and not has_function_privilege('authenticated', 'public.resolve_measurement_conflict(uuid, uuid, text, integer, text)', 'execute')
-    and has_function_privilege('service_role', 'public.resolve_measurement_conflict(uuid, uuid, text, integer, text)', 'execute'),
-  'only the service role can execute resolve_measurement_conflict'
+  not has_function_privilege('anon', 'public.resolve_measurement_conflict(uuid, integer, text, integer, text)', 'execute'),
+  'anon cannot execute resolve_measurement_conflict'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.resolve_measurement_conflict(uuid, integer, text, integer, text)', 'execute'),
+  'authenticated can execute resolve_measurement_conflict'
 );
 
--- A signed-in client cannot call it, not even the platform admin: it trusts the
--- resolver id it is given, which only the Edge function takes from a verified JWT.
-set local role authenticated;
-set local request.jwt.claims = '{"sub": "56000000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
+-- Anyone not signed in is refused before the function runs.
+set local role anon;
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', '56000000-0000-4000-8000-0000000000a6',
-       'incoming', null, 'Video review') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 1, 'incoming', null, 'Video review') $$,
   '42501', null,
-  'a signed-in client cannot execute resolve_measurement_conflict'
+  'anon cannot call resolve_measurement_conflict'
 );
 reset role;
 
--- From here on, the Edge function: the service role, no signed-in user.
-set local role service_role;
-set local request.jwt.claims = '{"role": "service_role"}';
-
+-- A signed-in user who is not a platform admin, or has no user id, is refused.
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "56000000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', '56000000-0000-4000-8000-0000000000a1',
-       'incoming', null, 'Video review') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 1, 'incoming', null, 'Video review') $$,
   '42501', 'only a platform admin resolves a conflict',
   'a coach cannot resolve a conflict'
 );
+set local request.jwt.claims = '{"sub": "56000000-0000-4000-8000-0000000000ff", "role": "authenticated"}';
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', '56000000-0000-4000-8000-0000000000ff',
-       'incoming', null, 'Video review') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 1, 'incoming', null, 'Video review') $$,
   '42501', 'only a platform admin resolves a conflict',
   'an unknown user cannot resolve a conflict'
 );
+set local request.jwt.claims = '{"role": "authenticated"}';
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', null,
-       'incoming', null, 'Video review') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 1, 'incoming', null, 'Video review') $$,
   '42501', 'only a platform admin resolves a conflict',
-  'a missing user cannot resolve a conflict'
+  'a call without a user id cannot resolve a conflict'
 );
+
+-- From here on, the platform admin P, signed in.
+set local request.jwt.claims = '{"sub": "56000000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
+
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', '56000000-0000-4000-8000-0000000000a6',
-       'incoming', null, '   ') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 1, 'incoming', null, '   ') $$,
   '23514', 'a resolution needs a reason',
   'a blank reason is refused'
 );
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', '56000000-0000-4000-8000-0000000000a6',
-       'incoming', null, null) $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 1, 'incoming', null, null) $$,
   '23514', 'a resolution needs a reason',
   'a missing reason is refused'
 );
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', '56000000-0000-4000-8000-0000000000a6',
-       'newest', null, 'Video review') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 1, 'newest', null, 'Video review') $$,
   '22023', 'decision must be current, incoming or value',
   'an unknown decision is refused'
 );
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', '56000000-0000-4000-8000-0000000000a6',
-       'incoming', 3333, 'Video review') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 1, 'incoming', 3333, 'Video review') $$,
   '22023', 'only a value decision takes a time',
   'choosing a version takes no time'
 );
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000fe', '56000000-0000-4000-8000-0000000000a6',
-       'incoming', null, 'Video review') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000fe', 1, 'incoming', null, 'Video review') $$,
   'P0002', 'conflict not found',
   'an unknown conflict is refused'
 );
@@ -177,18 +175,55 @@ select is(
 );
 select is((select count(*)::int from public.measurement_conflict_resolutions), 0, 'a refused resolution writes no audit row');
 
+-- A decision on a version the admin did not see is rejected with its own code,
+-- whatever the decision, and writes nothing.
+select throws_ok(
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 2, 'incoming', null, 'Video review') $$,
+  'PT409', 'the measurement changed, review it again',
+  'a stale expected version rejects incoming'
+);
+select throws_ok(
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 2, 'current', null, 'Video review') $$,
+  'PT409', 'the measurement changed, review it again',
+  'a stale expected version rejects current'
+);
+select throws_ok(
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 2, 'value', 3333, 'Video review') $$,
+  'PT409', 'the measurement changed, review it again',
+  'a stale expected version rejects an entered value'
+);
+select throws_ok(
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', null, 'incoming', null, 'Video review') $$,
+  'PT409', 'the measurement changed, review it again',
+  'a missing expected version is rejected'
+);
+select is(
+  (select hundredths || '|' || version || '|' || (edit_reason is null) from public.measurements where id = '56000000-0000-4000-8000-0000000000d1'),
+  '3500|1|true', 'a rejected resolution leaves the measurement untouched'
+);
+select is(
+  (select status from public.measurement_conflicts where id = '56000000-0000-4000-8000-0000000000f1'),
+  'open', 'a rejected resolution leaves the conflict open'
+);
+select is((select count(*)::int from public.measurement_conflict_resolutions), 0, 'a rejected resolution writes no audit row');
+select is((select count(*)::int from public.measurement_conflicts), 8, 'a rejected resolution creates no conflict');
+
 -- Choosing the edit that was not applied (incoming) applies it.
 select isnt(
-  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', '56000000-0000-4000-8000-0000000000a6',
-    'incoming', null, '  Video review  '),
+  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 1, 'incoming', null, '  Video review  '),
   null, 'resolving returns the audit row id'
 );
+select is(auth.uid(), '56000000-0000-4000-8000-0000000000a6'::uuid, 'the signed-in user is the same after a resolution');
 select is(
   (select hundredths || '|' || athlete_id || '|' || version || '|' || (edited_by is null) || '|' || (edited_device_id is null)
           || '|' || edit_reason || '|' || (edited_at is not null)
    from public.measurements where id = '56000000-0000-4000-8000-0000000000d1'),
   '3400|56000000-0000-4000-8000-0000000000e1|2|true|true|Video review|true',
   'choosing incoming writes its time as a new version, with the reason and no editor (the admin is in the audit row)'
+);
+select is(
+  (select count(*)::int from public.measurement_conflicts), 8,
+  'applying a resolution creates no new conflict'
 );
 select is(
   (select status from public.measurement_conflicts where id = '56000000-0000-4000-8000-0000000000f1'),
@@ -207,8 +242,7 @@ select is(
   'the audit row says who, when, the decision, the values applied and the reason'
 );
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', '56000000-0000-4000-8000-0000000000a6',
-       'current', null, 'Second thoughts') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f1', 2, 'current', null, 'Second thoughts') $$,
   '55000', 'the conflict is already resolved',
   'a resolved conflict cannot be resolved again'
 );
@@ -219,8 +253,7 @@ select is(
 
 -- Choosing the stored version (current) keeps it: no new version.
 select isnt(
-  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f2', '56000000-0000-4000-8000-0000000000a6',
-    'current', null, 'Stopwatch was right'),
+  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f2', 1, 'current', null, 'Stopwatch was right'),
   null, 'choosing current resolves'
 );
 select is(
@@ -240,8 +273,7 @@ select is(
 
 -- A version that moved the record to another athlete moves it.
 select isnt(
-  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f3', '56000000-0000-4000-8000-0000000000a6',
-    'incoming', null, 'Wrong lane'),
+  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f3', 1, 'incoming', null, 'Wrong lane'),
   null, 'choosing an athlete change resolves'
 );
 select is(
@@ -251,8 +283,7 @@ select is(
 
 -- Entering the correct time keeps the stored athlete.
 select isnt(
-  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f4', '56000000-0000-4000-8000-0000000000a6',
-    'value', 3333, 'Checked the video'),
+  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f4', 1, 'value', 3333, 'Checked the video'),
   null, 'entering a time resolves'
 );
 select is(
@@ -268,8 +299,7 @@ select is(
 
 -- A missing time is stored as null, never 0.
 select isnt(
-  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f5', '56000000-0000-4000-8000-0000000000a6',
-    'value', null, 'No valid time'),
+  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f5', 1, 'value', null, 'No valid time'),
   null, 'entering a missing time resolves'
 );
 select ok(
@@ -282,8 +312,7 @@ select ok(
   'the audit row records a missing time as null'
 );
 select throws_ok(
-  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f6', '56000000-0000-4000-8000-0000000000a6',
-       'value', 0, 'Zero') $$,
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f6', 1, 'value', 0, 'Zero') $$,
   '23514', null,
   'a time of 0 is refused'
 );
@@ -294,8 +323,7 @@ select is(
 
 -- Resolving one conflict of a measurement leaves its other open conflicts open.
 select isnt(
-  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f7', '56000000-0000-4000-8000-0000000000a6',
-    'incoming', null, 'First edit'),
+  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f7', 1, 'incoming', null, 'First edit'),
   null, 'one of two conflicts of a measurement resolves'
 );
 select is(
@@ -303,15 +331,37 @@ select is(
   'open', 'the other conflict of the same measurement stays open'
 );
 
+-- The admin saw version 1 of d7 when opening its second conflict, but the first
+-- resolution made version 2: the old expected version is rejected and the value
+-- stays 2900; the new one applies.
+select throws_ok(
+  $$ select public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f8', 1, 'incoming', null, 'Second edit') $$,
+  'PT409', 'the measurement changed, review it again',
+  'the second conflict is rejected with the version the admin saw before the first resolution'
+);
+select is(
+  (select hundredths || '|' || version from public.measurements where id = '56000000-0000-4000-8000-0000000000d7'),
+  '2900|2', 'the value stays 2900 after the rejection'
+);
+select is(
+  (select status from public.measurement_conflicts where id = '56000000-0000-4000-8000-0000000000f8'),
+  'open', 'the rejected second conflict stays open'
+);
+select isnt(
+  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f8', 2, 'incoming', null, 'Second edit'),
+  null, 'the second conflict resolves with the new expected version'
+);
+select is(
+  (select hundredths || '|' || version || '|' || (edited_by is null) from public.measurements where id = '56000000-0000-4000-8000-0000000000d7'),
+  '2800|3|true', 'the new expected version applies the second decision as another version'
+);
+
 -- Nothing is deleted.
 select is((select count(*)::int from public.measurement_conflicts), 8, 'every conflict row is kept');
-select is((select count(*)::int from public.measurement_conflict_resolutions), 6, 'one audit row per resolution');
-reset role;
+select is((select count(*)::int from public.measurement_conflict_resolutions), 7, 'one audit row per resolution');
 
 -- Only the platform admin reads the audit; no client writes it.
-set local role authenticated;
-set local request.jwt.claims = '{"sub": "56000000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
-select is((select count(*)::int from public.measurement_conflict_resolutions), 6, 'the platform admin reads every audit row');
+select is((select count(*)::int from public.measurement_conflict_resolutions), 7, 'the platform admin reads every audit row');
 select throws_ok(
   $$ insert into public.measurement_conflict_resolutions (conflict_id, decision, hundredths, reason, resolved_by)
      values ('56000000-0000-4000-8000-0000000000f6', 'value', 3000, 'Direct write', '56000000-0000-4000-8000-0000000000a6') $$,
