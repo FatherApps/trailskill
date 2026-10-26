@@ -8,7 +8,7 @@
 -- data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(64);
+select plan(68);
 
 -- Users: coaches C1 and C2 of e1 and e2, platform admin P.
 insert into auth.users (id, email) values
@@ -356,12 +356,55 @@ select is(
   '2800|3|true', 'the new expected version applies the second decision as another version'
 );
 
+-- Keeping the stored version keeps the live one, not the snapshot taken when the
+-- conflict was detected: g1 and g2 are two open conflicts of d8 (stored 3570);
+-- the first resolves as incoming (2700, version 2), the second as current.
+reset role;
+insert into public.measurements
+  (id, kind, athlete_id, series_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, created_by)
+values
+  ('56000000-0000-4000-8000-0000000000d8', 'repetition', '56000000-0000-4000-8000-0000000000e1', '56000000-0000-4000-8000-0000000000c1',
+   3570, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-1', '2026-10-02 08:00:00+00', '56000000-0000-4000-8000-0000000000a1');
+insert into public.measurement_conflicts (
+  id, measurement_id, base_version,
+  current_values, current_by, current_device, current_at,
+  incoming_values, incoming_by, incoming_device
+)
+select k, '56000000-0000-4000-8000-0000000000d8', 0,
+       jsonb_build_object('hundredths', 3570, 'athlete_id', '56000000-0000-4000-8000-0000000000e1', 'version', 1),
+       '56000000-0000-4000-8000-0000000000a1', 'dev-1', '2026-10-02 08:00:00+00',
+       jsonb_build_object('hundredths', ih, 'athlete_id', '56000000-0000-4000-8000-0000000000e1', 'edit_reason', null),
+       '56000000-0000-4000-8000-0000000000a2', 'dev-2'
+from (values
+  ('56000000-0000-4000-8000-0000000000f9'::uuid, 2700),
+  ('56000000-0000-4000-8000-0000000000fa', 2600)
+) as v(k, ih);
+set local role authenticated;
+
+select isnt(
+  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000f9', 1, 'incoming', null, 'First edit'),
+  null, 'the first conflict of d8 resolves as incoming'
+);
+select isnt(
+  public.resolve_measurement_conflict('56000000-0000-4000-8000-0000000000fa', 2, 'current', null, 'Keep what is stored'),
+  null, 'the second conflict of d8 resolves as current'
+);
+select is(
+  (select hundredths || '|' || version from public.measurements where id = '56000000-0000-4000-8000-0000000000d8'),
+  '2700|2', 'current keeps the live value and version instead of reverting to the snapshot'
+);
+select is(
+  (select decision || '|' || hundredths from public.measurement_conflict_resolutions
+   where conflict_id = '56000000-0000-4000-8000-0000000000fa'),
+  'current|2700', 'the audit row records the live value as the current decision'
+);
+
 -- Nothing is deleted.
-select is((select count(*)::int from public.measurement_conflicts), 8, 'every conflict row is kept');
-select is((select count(*)::int from public.measurement_conflict_resolutions), 7, 'one audit row per resolution');
+select is((select count(*)::int from public.measurement_conflicts), 10, 'every conflict row is kept');
+select is((select count(*)::int from public.measurement_conflict_resolutions), 9, 'one audit row per resolution');
 
 -- Only the platform admin reads the audit; no client writes it.
-select is((select count(*)::int from public.measurement_conflict_resolutions), 7, 'the platform admin reads every audit row');
+select is((select count(*)::int from public.measurement_conflict_resolutions), 9, 'the platform admin reads every audit row');
 select throws_ok(
   $$ insert into public.measurement_conflict_resolutions (conflict_id, decision, hundredths, reason, resolved_by)
      values ('56000000-0000-4000-8000-0000000000f6', 'value', 3000, 'Direct write', '56000000-0000-4000-8000-0000000000a6') $$,

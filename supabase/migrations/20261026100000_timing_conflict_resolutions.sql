@@ -88,15 +88,18 @@ begin
     raise exception 'the measurement changed, review it again' using errcode = 'PT409';
   end if;
 
-  if resolve_measurement_conflict.decision = 'value' then
-    new_hundredths := resolve_measurement_conflict.hundredths;
-    select m.athlete_id into new_athlete_id from public.measurements m where m.id = conflict.measurement_id;
+  if resolve_measurement_conflict.decision = 'incoming' then
+    -- The snapshot of the edit that was not applied; a missing time stays null.
+    new_hundredths := (conflict.incoming_values ->> 'hundredths')::int;
+    new_athlete_id := (conflict.incoming_values ->> 'athlete_id')::uuid;
   else
-    -- The chosen version's snapshot; a missing time stays null.
-    new_hundredths := ((case when resolve_measurement_conflict.decision = 'current'
-      then conflict.current_values else conflict.incoming_values end) ->> 'hundredths')::int;
-    new_athlete_id := ((case when resolve_measurement_conflict.decision = 'current'
-      then conflict.current_values else conflict.incoming_values end) ->> 'athlete_id')::uuid;
+    -- Current keeps the live row, which may have moved on since the conflict was
+    -- detected; value replaces the time and keeps the live athlete.
+    select case when resolve_measurement_conflict.decision = 'value'
+                then resolve_measurement_conflict.hundredths else m.hundredths end,
+           m.athlete_id
+    into new_hundredths, new_athlete_id
+    from public.measurements m where m.id = conflict.measurement_id;
   end if;
 
   -- The measurement triggers treat a signed-in user as a client edit (checks,
