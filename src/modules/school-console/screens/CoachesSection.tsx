@@ -6,7 +6,7 @@ import type { CoachRow } from '../components/CoachList';
 import { localDate } from '../components/formatDate';
 import type { CoachInvitation, InviteGroups } from '../components/InviteCoachSheet';
 import type { Coach, CoachRepository } from '../data/coaches';
-import { colorOf, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
+import { colorOf, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import type { CoachAssignment, SchoolGroup, SchoolStructureRepository } from '../data/schoolStructure';
 import { CoachesScreen, type CoachesContent, type CoachesView } from './CoachesScreen';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -30,25 +30,23 @@ export type CoachesSectionProps = ConsoleSectionProps & {
   onDeactivate: (id: string) => void;
 };
 
-type Loaded = { coaches: Coach[]; groups: SchoolGroup[]; athletes: ConsoleAthlete[]; assignments: CoachAssignment[] };
+type Loaded = { coaches: Coach[]; groups: SchoolGroup[]; athleteCounts: Map<string, number>; assignments: CoachAssignment[] };
 // The answer is stored with what it answers, so another school or a retry never inherits it while its own read runs.
 type Answer = { schoolId: string; attempt: number; result: Loaded | 'error' };
 
 const MINUTE_MS = 60_000;
 const defaultNow = () => new Date();
 
-// The group ids and the athlete count of each coach, built once per read.
-function indexByCoach({ athletes, assignments }: Loaded) {
+// The group ids of each coach, built once per read.
+function indexByCoach({ assignments }: Loaded) {
   const groupIds = new Map<string, Set<string | null>>();
   for (const { coachId, groupId } of assignments) {
     if (groupId !== null) groupIds.set(coachId, (groupIds.get(coachId) ?? new Set()).add(groupId));
   }
-  const athleteCounts = new Map<string, number>();
-  for (const athlete of athletes) for (const coachId of athlete.coachIds) athleteCounts.set(coachId, (athleteCounts.get(coachId) ?? 0) + 1);
-  return { groupIds, athleteCounts };
+  return groupIds;
 }
 
-function toRow(coach: Coach, groups: SchoolGroup[], { groupIds, athleteCounts }: ReturnType<typeof indexByCoach>): CoachRow {
+function toRow(coach: Coach, groups: SchoolGroup[], athleteCounts: Map<string, number>, groupIds: ReturnType<typeof indexByCoach>): CoachRow {
   const assigned = groupIds.get(coach.id);
   return {
     id: coach.id,
@@ -86,11 +84,11 @@ export function CoachesSection({
     Promise.all([
       repository.listCoaches(schoolId),
       structure.listGroups(schoolId),
-      athletes.listAthletes(schoolId),
+      athletes.countAthletesByCoach(schoolId),
       // No athlete ids: only the assignments to the school's groups, which are what the list shows.
       structure.listCoachAssignments(schoolId, []),
     ])
-      .then(([coaches, groups, list, assignments]) => settle({ coaches, groups, athletes: list, assignments }))
+      .then(([coaches, groups, athleteCounts, assignments]) => settle({ coaches, groups, athleteCounts, assignments }))
       .catch((error: unknown) => {
         if (__DEV__) console.warn('[school-console] Coaches could not be loaded', error);
         settle('error');
@@ -111,10 +109,10 @@ export function CoachesSection({
     // Never synced and still not connected: nothing is stored yet, and the list fills in when the first sync arrives.
     view = connection !== 'connected' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
   } else {
-    const byCoach = indexByCoach(loaded);
+    const groupIds = indexByCoach(loaded);
     const content: CoachesContent = {
       updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.floor((now().getTime() - lastSyncedAt.getTime()) / MINUTE_MS)) : null,
-      coaches: loaded.coaches.map((coach) => toRow(coach, loaded.groups, byCoach)),
+      coaches: loaded.coaches.map((coach) => toRow(coach, loaded.groups, loaded.athleteCounts, groupIds)),
     };
     // Without a connection the list is what the device stored; with no sync date the banner leaves the date out.
     view = connection !== 'offline' ? { kind: 'data', content } : { kind: 'offline', storedOn: lastSyncedAt ? localDate(lastSyncedAt) : '', content };

@@ -42,6 +42,9 @@ const structure = createInMemorySchoolStructureRepository({
   coachMemberships: [],
 });
 
+const authorizations = createInMemoryAuthorizationStatusRepository([]);
+const history = createInMemoryHistoryRepository([]);
+
 const athletes = createConsoleAthletesRepository({
   athletes: createInMemorySchoolAthleteRepository({
     athletes: [
@@ -63,8 +66,8 @@ const athletes = createConsoleAthletesRepository({
       { athleteId: 'a4', groupId: 'g9' },
     ],
   }),
-  authorizations: createInMemoryAuthorizationStatusRepository([]),
-  history: createInMemoryHistoryRepository([]),
+  authorizations,
+  history,
   measurements: { countCapturedSince: jest.fn().mockResolvedValue(0) },
   structure,
 });
@@ -116,6 +119,30 @@ describe('CoachesSection', () => {
     expect(screen.getByText('3 entrenadores · Actualizado hace 5 min')).toBeOnTheScreen();
     expect(screen.queryByText(/Other group/, { includeHiddenElements: true })).toBeNull();
   });
+
+  it('still lists the coaches with their athlete counts when a read only the athletes list needs fails', async () => {
+    jest.spyOn(authorizations, 'listGrantedAthleteIds').mockRejectedValue(new Error('boom'));
+    jest.spyOn(history, 'listByAthletesEvent').mockRejectedValue(new Error('boom'));
+    await show(coachRepository());
+
+    expect(await rows()).toHaveLength(3);
+    expect(screen.getByText('Group A · Group B · 3 deportistas')).toBeOnTheScreen();
+    expect(screen.queryByText('No pudimos cargar los entrenadores')).toBeNull();
+  });
+
+  it('counts the athletes of each coach with the light read, not with the full athletes list', async () => {
+    const listAthletes = jest.fn().mockRejectedValue(new Error('not needed'));
+    const countAthletesByCoach = jest.fn().mockResolvedValue(new Map([['coach-2', 4]]));
+    await show(coachRepository(), { athletes: { ...athletes, listAthletes, countAthletesByCoach } });
+
+    expect(await rows()).toHaveLength(3);
+    expect(screen.getByText('Group B · 4 deportistas')).toBeOnTheScreen();
+    expect(listAthletes).not.toHaveBeenCalled();
+    expect(countAthletesByCoach).toHaveBeenCalledWith('school-a');
+  });
+
+  // Reproduced: coaches synced and athletes not yet, every card says «0 deportistas» instead of a missing count. Needs a maintainer decision on the wording (#444).
+  it.todo('does not show a missing athlete count as 0 deportistas while the athletes have not synced');
 
   it('shows the empty state for a school without coaches', async () => {
     await show(coachRepository(), { schoolId: 'school-z' });
