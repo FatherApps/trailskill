@@ -4,7 +4,7 @@ import { Text } from 'react-native';
 import AppLayout from '../app/(app)/_layout';
 
 // Avoid loading the native PowerSync database and the ESM-only @powersync/react.
-jest.mock('../core/sync', () => ({ db: {} }));
+jest.mock('../core/sync', () => ({ db: {}, useGlobalSyncSummary: () => ({ lastSyncedAt: null }) }));
 jest.mock('@powersync/react', () => ({ PowerSyncContext: { Provider: ({ children }: { children: unknown }) => children } }));
 jest.mock('../core/session', () => ({ useSession: () => ({ session: { user: { id: 'user-1', email: 'camila@example.test' } } }) }));
 
@@ -14,8 +14,11 @@ let mockOffer: { email: string; resume: () => void; startOver: () => void } | un
 jest.mock('../modules/accounts', () => ({
   createPowerSyncManagedAthleteProfileRepository: () => ({}),
   createPowerSyncManagedAthleteRepository: () => ({}),
+  createSecureStorePendingInvitationRepository: () => ({}),
   createSecureStoreRegistrationDraftRepository: () => ({}),
   createSupabaseAdultProfileRepository: () => ({}),
+  createSupabaseInvitationRepository: () => ({}),
+  usePendingInvitations: () => {},
   useFinishRegistration: (...args: unknown[]) => {
     mockOnNext = args[5] as typeof mockOnNext;
     return mockOffer;

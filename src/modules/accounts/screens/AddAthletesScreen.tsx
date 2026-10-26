@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, StepHeader, SwimmerRow, TextField } from '../../../core/ui';
+import { Banner, Button, Segmented, StepHeader, SwimmerRow, TextField } from '../../../core/ui';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { t } from '../i18n';
 
@@ -27,6 +27,10 @@ export type AddAthletesScreenProps = {
   // The last add did not work: nothing was saved and the typed names are still there.
   // 'add': the profile was not saved; 'continue': the reached step was not saved.
   failed?: false | 'add' | 'continue';
+  // The categories of the school invitation, when it brings some: choosing one is optional ('' is no category).
+  categories?: { id: string; name: string }[];
+  categoryId?: string;
+  onCategoryChange?: (categoryId: string) => void;
   // The sync state of one profile, supplied by the caller (src/core/sync owns it).
   renderStatus?: (athleteId: string) => ReactNode;
   onChange: (field: AddAthleteField, value: string) => void;
@@ -45,6 +49,9 @@ export function AddAthletesScreen({
   athletes,
   busy = false,
   failed = false,
+  categories = [],
+  categoryId = '',
+  onCategoryChange,
   renderStatus,
   onChange,
   onAdd,
@@ -115,6 +122,14 @@ export function AddAthletesScreen({
         autoComplete="family-name"
         textContentType="familyName"
       />
+      {categories.length > 0 && (
+        <Segmented
+          accessibilityLabel={t('accounts.athletes.category_label')}
+          options={[{ value: '', label: t('accounts.athletes.category_none') }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+          value={categoryId}
+          onChange={(next) => onCategoryChange?.(next)}
+        />
+      )}
       <Button
         variant="secondary"
         label={t(athletes.length === 0 ? 'accounts.athletes.add' : 'accounts.athletes.add_another')}

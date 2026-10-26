@@ -1,5 +1,7 @@
 import { createInMemoryAthleteRepository } from '../../athletes';
 import { createInMemoryAdultProfileRepository } from '../data/adultProfiles';
+import { createInMemoryInvitationRepository } from '../data/invitations';
+import { createInMemoryPendingInvitationRepository } from '../data/pendingInvitations';
 import { createInMemoryManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
 import { createInMemoryManagedAthleteRepository, type ManagedAthleteRow } from '../data/managedAthletes';
 import {
@@ -113,6 +115,28 @@ describe('finishRegistration', () => {
     const { drafts } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer, invitationToken: 'tok-1' }));
 
     expect((await drafts.load())?.invitationToken).toBe('tok-1');
+  });
+
+  it('adult: queues the invitation for the own athlete profile, so it survives the draft being cleared', async () => {
+    const links: ManagedAthleteRow[] = [];
+    const athletes = createInMemoryAthleteRepository(createInMemoryManagedAthleteRepository(links));
+    const pending = createInMemoryPendingInvitationRepository();
+    const invitations = createInMemoryInvitationRepository();
+    invitations.offline = true;
+    const drafts = createInMemoryRegistrationDraftRepository({ ...draft, swimmer: 'adult', invitationToken: 'tok-1' });
+
+    await finishRegistration({
+      userId: 'user-1',
+      email: 'camila@example.test',
+      drafts,
+      profiles: createInMemoryAdultProfileRepository(),
+      managedProfiles: createInMemoryManagedAthleteProfileRepository(athletes, links),
+      pending,
+      invitations,
+    });
+    await drafts.clear();
+
+    expect(await pending.list()).toEqual([{ userId: 'user-1', token: 'tok-1', athleteId: links[0].athleteId }]);
   });
 
   it('child: keeps only the swimmer choice, creates no athlete and asks to open the add screen', async () => {
