@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { colors, contrastRatio, space, type ThemeName } from '../../../core/theme';
 import { phaseColors } from '../components/PhaseTag';
@@ -8,6 +8,7 @@ import { plansFixture } from '../__fixtures__/plans';
 import type { BlockPhase, BlockRecording } from '../types';
 
 const { vocabulary, blocks } = plansFixture;
+const PHASE_LABEL: Record<BlockPhase, string> = { warm_up: 'Calentamiento', main: 'Principal', technique: 'Técnica', cool_down: 'Enfriamiento' };
 
 describe('BlockCard', () => {
   it('shows the repetitions, distance and activity label', async () => {
@@ -129,4 +130,20 @@ describe('phaseColors', () => {
       expect(contrastRatio(colors[theme][text], colors[theme][background])).toBeGreaterThanOrEqual(4.5);
     },
   );
+});
+
+describe('PhaseTag on its card', () => {
+  it.each<BlockPhase>(['warm_up', 'main', 'technique', 'cool_down'])('keeps the %s tag a chip: its own fill and border, apart from the card fill', async (phase) => {
+    await render(<BlockCard block={{ ...blocks[0], phase }} vocabulary={vocabulary} />);
+
+    const tag = StyleSheet.flatten(screen.getByLabelText(PHASE_LABEL[phase]).props.style);
+    expect(tag.backgroundColor).not.toBe(colors.light[phaseColors[phase].background]);
+    expect(tag.backgroundColor).toBe(colors.light['surface-1']);
+    expect(tag.borderWidth).toBeGreaterThan(0);
+    expect(tag.borderColor).toBe(colors.light['border-strong']);
+  });
+
+  it.each<ThemeName>(['light', 'dark'])('keeps 4.5:1 contrast for the tag text on its surface-1 fill in %s theme', (theme) => {
+    expect(contrastRatio(colors[theme].ink, colors[theme]['surface-1'])).toBeGreaterThanOrEqual(4.5);
+  });
 });
