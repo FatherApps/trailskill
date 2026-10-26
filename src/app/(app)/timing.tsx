@@ -38,7 +38,7 @@ const loadBestTime = (athleteId: string, event: MeasurementEvent) => personalBes
 
 function useLeave() {
   const router = useRouter();
-  return () => (router.canGoBack() ? router.back() : router.replace('/'));
+  return useCallback(() => (router.canGoBack() ? router.back() : router.replace('/')), [router]);
 }
 
 // The flow of the school every time is written for.
