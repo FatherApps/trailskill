@@ -94,7 +94,10 @@ function BuilderPreview({
         onMoveBlock={move}
         onChangeBlock={(changed) => setCurrent((list) => list.map((block) => (block.id === changed.id ? changed : block)))}
         onDoneEditing={() => setEditingId(null)}
-        onRemoveBlock={(id) => setCurrent((list) => list.filter((block) => block.id !== id))}
+        onRemoveBlock={(id) => {
+          setCurrent((list) => list.filter((block) => block.id !== id));
+          if (editingId === id) setEditingId(null);
+        }}
         onSave={() => setMessage(t('training_plans.builder.saved'))}
         onSaveTemplate={() => setMessage(t('training_plans.builder.template_saved'))}
       />

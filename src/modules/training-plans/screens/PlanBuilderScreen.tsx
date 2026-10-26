@@ -88,7 +88,7 @@ export function PlanBuilderScreen({
     const position = t('training_plans.builder.block_position', { position: index + 1 });
     const isEditing = block.id === editingId;
     return (
-      <BlockCard key={block.id} block={block} vocabulary={vocabulary}>
+      <BlockCard key={block.id} block={block} vocabulary={vocabulary} selected={isEditing}>
         {isEditing && !expanded ? (
           // The editor texts are ink on surface-1; on the phase fill they would lose contrast (coral, lilac and sky in the dark theme).
           <View

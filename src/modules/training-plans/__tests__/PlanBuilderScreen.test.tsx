@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, contrastRatio, type ColorToken, type ThemeName } from '../../../core/theme';
 import { PlanBuilderScreen, type PlanBuilderScreenProps } from '../screens/PlanBuilderScreen';
@@ -145,6 +145,89 @@ describe('PlanBuilderScreen', () => {
       const list = within(screen.getByTestId('builder-list'));
       expect(list.getByText('Calentamiento', { includeHiddenElements: true })).toBeOnTheScreen();
       expect(list.getAllByTestId('block-card')[1]).toHaveStyle({ backgroundColor: colors.light.coral });
+    });
+
+    it('titles the panel with the position of the block being edited, following it when it moves', async () => {
+      const [first, second, ...rest] = blocks;
+      const { rerender } = await render(setup({ ...wide, editingId: 'b2' }).ui);
+      const panel = within(screen.getByTestId('builder-panel'));
+      expect(panel.getByRole('header', { name: 'Editando el bloque 2' })).toBeOnTheScreen();
+
+      await rerender(setup({ ...wide, blocks: [second, first, ...rest], editingId: 'b2' }).ui);
+
+      expect(panel.getByRole('header', { name: 'Editando el bloque 1' })).toBeOnTheScreen();
+      expect(panel.queryByRole('header', { name: 'Editando el bloque 2' })).toBeNull();
+      // The panel still edits the same block: its phase is the one selected.
+      expect(panel.getByRole('radio', { name: 'Principal', checked: true })).toBeOnTheScreen();
+    });
+
+    it('shows the no-selection state, not an empty panel, when the block being edited is gone', async () => {
+      const { rerender } = await render(setup({ ...wide, editingId: 'b2' }).ui);
+
+      await rerender(setup({ ...wide, blocks: blocks.filter((block) => block.id !== 'b2'), editingId: 'b2' }).ui);
+
+      const panel = within(screen.getByTestId('builder-panel'));
+      expect(panel.getByText('Elige un bloque para editarlo')).toBeOnTheScreen();
+      expect(panel.queryByRole('header')).toBeNull();
+      expect(panel.queryByLabelText('Fase')).toBeNull();
+    });
+  });
+
+  describe('the block being edited', () => {
+    const outline = (node: { props: { style?: unknown } }) => StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>);
+
+    it.each([400, 1024])('is outlined with the ink token and no other card is at %i dp', async (width) => {
+      await render(setup({ width, editingId: 'b2' }).ui);
+
+      const cards = screen.getAllByTestId('block-card');
+      expect(outline(cards[1])).toMatchObject({ borderWidth: 2, borderColor: colors.light.ink });
+      expect(outline(cards[0])).toMatchObject({ borderWidth: 2, borderColor: 'transparent' });
+      expect(outline(cards[2])).toMatchObject({ borderWidth: 2, borderColor: 'transparent' });
+    });
+
+    it('keeps the same card height and padding with or without the outline', async () => {
+      await render(setup({ width: 1024 }).ui);
+      const idle = outline(screen.getAllByTestId('block-card')[1]);
+      await screen.unmount();
+
+      await render(setup({ width: 1024, editingId: 'b2' }).ui);
+      const editing = outline(screen.getAllByTestId('block-card')[1]);
+
+      expect({ ...editing, borderColor: undefined }).toEqual({ ...idle, borderColor: undefined });
+    });
+
+    it('moves the outline with the block', async () => {
+      const [first, second, ...rest] = blocks;
+      const { rerender } = await render(setup({ width: 1024, editingId: 'b2' }).ui);
+
+      await rerender(setup({ width: 1024, blocks: [second, first, ...rest], editingId: 'b2' }).ui);
+
+      const cards = screen.getAllByTestId('block-card');
+      expect(outline(cards[0])).toMatchObject({ borderColor: colors.light.ink });
+      expect(outline(cards[1])).toMatchObject({ borderColor: 'transparent' });
+    });
+
+    it('keeps the ink border and the 2 dp focus ring of a control inside the card as two separate styles', async () => {
+      await render(setup({ width: 1024, editingId: 'b2' }).ui);
+      const card = screen.getAllByTestId('block-card')[1];
+
+      await fireEvent(within(card).getByRole('button', { name: 'Subir' }), 'focus');
+
+      // The ring is an outline on the focused button, 2 dp off its edge, inside the card padding; the card keeps its border and gets no outline.
+      expect(outline(within(screen.getAllByTestId('block-card')[1]).getByRole('button', { name: 'Subir' }))).toMatchObject({
+        outlineColor: colors.light.focus,
+        outlineWidth: 2,
+        outlineOffset: 2,
+      });
+      const flat = outline(screen.getAllByTestId('block-card')[1]);
+      expect(flat).toMatchObject({ borderWidth: 2, borderColor: colors.light.ink });
+      expect(flat).not.toHaveProperty('outlineWidth');
+    });
+
+    it('has no outlined card when nothing is being edited', async () => {
+      await render(setup({ width: 1024 }).ui);
+
+      for (const card of screen.getAllByTestId('block-card')) expect(outline(card)).toMatchObject({ borderColor: 'transparent' });
     });
   });
 
