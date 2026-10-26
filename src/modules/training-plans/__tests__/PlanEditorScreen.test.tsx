@@ -445,7 +445,7 @@ describe('PlanEditorScreen', () => {
 
     it('lets the plan opened next be saved while the previous one is still saving', async () => {
       const ctx = setup();
-      const { second } = await saveFirstThenOpenSecond(ctx, 'Guardar plan');
+      const { second, hold } = await saveFirstThenOpenSecond(ctx, 'Guardar plan');
       expect(screen.getByRole('button', { name: 'Guardar plan' })).not.toBeBusy();
       await nameIt('Segundo editado');
 
@@ -453,6 +453,8 @@ describe('PlanEditorScreen', () => {
 
       expect(await screen.findByText('Plan guardado.')).toBeOnTheScreen();
       expect(ctx.repository.save).toHaveBeenLastCalledWith(expect.objectContaining({ id: second, name: 'Segundo editado' }));
+      await act(async () => hold.finish());
+      await settle();
     });
 
     it('keeps the saving state of the plan opened next when the previous save ends', async () => {
