@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../../core/theme';
+import { colors, contrastRatio, space, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { historyFixture, historyResults } from '../__fixtures__/history';
 import { profileContentFixture as content, storedOnFixture } from '../__fixtures__/screen';
 import type { ImportPromptProps } from '../components/ImportPrompt';
@@ -128,6 +128,22 @@ describe('AthleteProfileScreen', () => {
       await render(<AthleteProfileScreen name={name} view={{ kind: 'data', content }} scrollEnabled={false} />);
 
       expect(rootStyle()?.flex).toBeUndefined();
+    });
+
+    it('puts no horizontal padding on the frame: the margin is set once, on the content', async () => {
+      await show({ kind: 'data', content });
+
+      expect(rootStyle()?.paddingHorizontal).toBeUndefined();
+      const card = screen.getAllByLabelText(/Enviado$/)[0].parent!;
+      expect(StyleSheet.flatten(card.props.style).marginHorizontal).toBe(space[4]);
+    });
+
+    it('keeps the same margin in the states without content', async () => {
+      await show({ kind: 'loading' });
+
+      expect(rootStyle()?.paddingHorizontal).toBeUndefined();
+      const body = screen.toJSON() as unknown as { children: { props: { style: StyleProp<ViewStyle> } }[] };
+      expect(StyleSheet.flatten(body.children.at(-1)!.props.style)?.paddingHorizontal).toBe(space[4]);
     });
 
     it.each(['light', 'dark'] as ThemeName[])('keeps the history title readable in the %s theme', (theme) => {
