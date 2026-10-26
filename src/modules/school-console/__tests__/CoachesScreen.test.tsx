@@ -164,7 +164,7 @@ describe('CoachesScreen', () => {
 
     describe('when the groups or the context change with the sheet open', () => {
       const [groupA, groupB, groupC] = inviteGroupsFixture;
-      const props =(extra: Partial<CoachesScreenProps> = {}) => ({
+      const props = (extra: Partial<CoachesScreenProps> = {}) => ({
         width: 1280,
         schoolName: schoolNameFixture,
         view: { kind: 'data', content } as CoachesView,
