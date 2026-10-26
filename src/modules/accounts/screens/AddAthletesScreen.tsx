@@ -23,6 +23,8 @@ export type AddAthletesScreenProps = {
   // The profiles added so far: only names, never a document number or a birth date.
   athletes: AddedAthlete[];
   busy?: boolean;
+  // "Continuar" is keeping the reached step: it cannot be pressed again.
+  continuing?: boolean;
   // The last add did not work: nothing was saved and the typed names are still there.
   // 'add': the profile was not saved; 'continue': the reached step was not saved.
   failed?: false | 'add' | 'continue';
@@ -47,6 +49,7 @@ export function AddAthletesScreen({
   values,
   athletes,
   busy = false,
+  continuing = false,
   failed = false,
   categories = [],
   categoryId = '',
@@ -74,6 +77,7 @@ export function AddAthletesScreen({
       footer={
         <Button
           label={t('accounts.athletes.continue')}
+          loading={continuing}
           disabledReason={athletes.length === 0 ? t('accounts.athletes.add_first') : undefined}
           onPress={onContinue}
         />
