@@ -376,9 +376,20 @@ describe('PlanEditorScreen', () => {
 
     // Makes the next `save` wait until `finish` or `fail` is called; `finish` stores the plan, `fail` rejects.
     // A hold a test left open is finished after it, so a failed assertion cannot leave a save running into the next test.
+    // That happens after the test body, and maybe after the screen unmounted, so a warning (a state update on an unmounted
+    // screen, say) would go unnoticed: the console is watched and checked once the holds are finished.
     const holds: (() => void)[] = [];
+    const consoleSpies = {} as { error: jest.SpyInstance; warn: jest.SpyInstance };
+    beforeEach(() => {
+      consoleSpies.error = jest.spyOn(console, 'error');
+      consoleSpies.warn = jest.spyOn(console, 'warn');
+    });
     afterEach(async () => {
       await act(async () => holds.splice(0).forEach((release) => release()));
+      const logged = [...consoleSpies.error.mock.calls, ...consoleSpies.warn.mock.calls];
+      consoleSpies.error.mockRestore();
+      consoleSpies.warn.mockRestore();
+      expect(logged).toEqual([]);
     });
     const holdNextSave = (ctx: ReturnType<typeof setup>) => {
       const hold = {} as { finish: () => void; fail: () => void };
@@ -672,6 +683,26 @@ describe('PlanEditorScreen', () => {
         await act(async () => fail());
 
         expect(await screen.findByText('No pudimos cargar el plan')).toBeOnTheScreen();
+        expect(ctx.onSaved).not.toHaveBeenCalled();
+      });
+
+      it('leaves the plan it saved ready, not busy and not reported when that same plan is the one loading', async () => {
+        const ctx = setup();
+        const { first, hold } = await saveFirstThenOpenSecond(ctx, 'Guardar plan');
+        ctx.onSaved.mockClear();
+        let loaded!: () => void;
+        const get = ctx.repository.get.bind(ctx.repository);
+        jest.spyOn(ctx.repository, 'get').mockImplementationOnce((id) => new Promise((resolve) => (loaded = () => resolve(get(id)))));
+        await screen.rerender(ctx.element(first));
+
+        await act(async () => hold.finish());
+        await settle();
+        await act(async () => loaded());
+
+        expect(await screen.findByDisplayValue('Primero editado')).toBeOnTheScreen();
+        expect(screen.getByRole('button', { name: 'Guardar plan' })).not.toBeBusy();
+        expect(screen.getByRole('button', { name: 'Asignar' })).toBeEnabled();
+        expect(screen.queryByText('Plan guardado.')).toBeNull();
         expect(ctx.onSaved).not.toHaveBeenCalled();
       });
     });
