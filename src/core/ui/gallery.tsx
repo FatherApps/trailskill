@@ -6,6 +6,9 @@ import type { RecordSyncState } from '../sync';
 import { space, typography, useTheme } from '../theme';
 import { bannerFixture as bn } from './__fixtures__/banner';
 import { buttonFixture as b } from './__fixtures__/button';
+import { chipFixture as ch } from './__fixtures__/chip';
+import { colorCardFixture as cc } from './__fixtures__/colorCard';
+import { colorHeaderFixture as chd } from './__fixtures__/colorHeader';
 import { confirmSheetFixture as cs } from './__fixtures__/confirmSheet';
 import { navBarFixture as nb } from './__fixtures__/navBar';
 import { segmentedFixture as sg } from './__fixtures__/segmented';
@@ -17,6 +20,10 @@ import { textFieldFixture as tf } from './__fixtures__/textField';
 import { timeValueFixture as tv } from './__fixtures__/timeValue';
 import { Banner } from './Banner';
 import { Button } from './Button';
+import { Chip } from './Chip';
+import { ChipRow, type ChipRowOption } from './ChipRow';
+import { ColorCard } from './ColorCard';
+import { ColorHeader } from './ColorHeader';
 import { ConfirmSheet } from './ConfirmSheet';
 import { Icon } from './Icon';
 import { iconPaths, type IconName } from './icons';
@@ -96,6 +103,17 @@ function SegmentedPreview<T extends string>({
   return (
     <FullWidth>
       <Segmented accessibilityLabel={label} options={options} value={value} onChange={setValue} />
+    </FullWidth>
+  );
+}
+
+// Holds the choice, so tapping a chip changes it in the gallery.
+function ChipRowPreview<T extends string>({ label, options }: { label: string; options: readonly ChipRowOption<T>[] }) {
+  const [value, setValue] = useState(options[0].value);
+
+  return (
+    <FullWidth>
+      <ChipRow accessibilityLabel={label} options={[...options]} value={value} onChange={setValue} />
     </FullWidth>
   );
 }
@@ -340,6 +358,64 @@ export const galleryEntries: GalleryEntry[] = [
       'home-active': () => <NavBarPreview items={nb.items} initialId="home" />,
       'times-active': () => <NavBarPreview items={nb.items} initialId="times" />,
       'long-labels': () => <NavBarPreview items={nb.longItems} initialId="swimmers" />,
+    },
+  },
+  {
+    id: 'colorCard',
+    title: 'ColorCard',
+    states: {
+      'athlete-1': () => <FullWidth><ColorCard color="athlete-1" {...cc.lilac} /></FullWidth>,
+      'athlete-2': () => <FullWidth><ColorCard color="athlete-2" {...cc.coral} /></FullWidth>,
+      'athlete-3': () => <FullWidth><ColorCard color="athlete-3" {...cc.sky} /></FullWidth>,
+      'athlete-4': () => <FullWidth><ColorCard color="athlete-4" {...cc.lime} /></FullWidth>,
+      'long-text': () => <FullWidth><ColorCard color="athlete-1" {...cc.longText} /></FullWidth>,
+    },
+  },
+  {
+    id: 'colorHeader',
+    title: 'ColorHeader',
+    states: {
+      default: () => (
+        <FullWidth>
+          <ColorHeader color="athlete-1" title={chd.title} subtitle={chd.subtitle} onBack={noop} />
+        </FullWidth>
+      ),
+      'with-chips': () => (
+        <FullWidth>
+          <ColorHeader color="athlete-3" title={chd.title} subtitle={chd.subtitle} onBack={noop}>
+            <ChipRowPreview label="Prueba" options={ch.events} />
+          </ColorHeader>
+        </FullWidth>
+      ),
+      'long-text': () => (
+        <FullWidth>
+          <ColorHeader color="athlete-2" title={chd.longTitle} subtitle={chd.longSubtitle} onBack={noop} />
+        </FullWidth>
+      ),
+    },
+  },
+  {
+    id: 'chip',
+    title: 'Chip',
+    states: {
+      rest: () => <Chip label={ch.rest} onPress={noop} />,
+      selected: () => <Chip label={ch.selected} selected onPress={noop} />,
+      'with-dot': () => <Chip label={ch.rest} dot={ch.tomas} onPress={noop} />,
+      'selected-with-dot': () => <Chip label={ch.selected} dot={ch.lucia} selected onPress={noop} />,
+      'long-text': () => (
+        <FullWidth>
+          <Chip label={ch.longText} dot={ch.lucia} onPress={noop} />
+        </FullWidth>
+      ),
+    },
+  },
+  {
+    id: 'chipRow',
+    title: 'ChipRow',
+    states: {
+      athletes: () => <ChipRowPreview label="Deportista" options={ch.athletes} />,
+      events: () => <ChipRowPreview label="Prueba" options={ch.events} />,
+      'long-list': () => <ChipRowPreview label="Deportista" options={ch.longList} />,
     },
   },
 ];
