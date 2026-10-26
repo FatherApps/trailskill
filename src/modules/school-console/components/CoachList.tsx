@@ -47,7 +47,12 @@ export function CoachList({ coaches, deactivateAvailable = false, onDeactivate }
   const loneWidth = !oneColumn && coaches.length % 2 === 1 && width !== null ? twoColumnWidth(width, space[3]) : null;
 
   return (
-    <View testID="coach-list" onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3] }}>
+    // Hidden until measured: before that the last odd card cannot be capped and would be drawn stretched for a frame.
+    <View
+      testID="coach-list"
+      onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
+      style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3], opacity: width === null ? 0 : 1 }}
+    >
       {coaches.map((coach, index) => (
         <CoachCard
           key={coach.id}
