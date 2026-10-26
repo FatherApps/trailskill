@@ -1,4 +1,4 @@
-import { Stack, usePathname, useRouter } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { useCallback } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
@@ -40,28 +40,36 @@ const navItems: (NavBarItem & { id: Destination })[] = [
   { id: 'history', label: t('home.nav.history'), icon: 'leaderboard' },
 ];
 
-// "/athletes/<id>" is a profile; the other routes under /athletes are the registration flows, which have no tab.
-const profileRoute = /^\/athletes\/(?!add$|authorizations$)[^/]+$/;
-
-function destinationOf(pathname: string): Destination | '' {
-  if (pathname === '/athletes') return 'athletes';
-  if (pathname === '/today') return 'today';
-  return profileRoute.test(pathname) ? 'history' : '';
+// Route segments of the three destinations: "/athletes", "/today" and "/athletes/[id]" (the profile). Every other route,
+// the registration flows included, has no tab and no bar; a static route added under /athletes is not a profile.
+function destinationOf(segments: string[]): Destination | '' {
+  const [, first, second, ...rest] = segments;
+  if (rest.length > 0) return '';
+  if (first === 'athletes') return second === undefined ? 'athletes' : second === '[id]' ? 'history' : '';
+  return first === 'today' && second === undefined ? 'today' : '';
 }
 
-// The floating phone bar of guardians and adult athletes. School staff and tablets use other navigation, so a lookup
-// that has not answered yet shows nothing rather than a bar that would flash away.
+// The floating phone bar of guardians and adult athletes. School staff and tablets use other navigation. Only the width
+// and the route are checked here: the lookups live in the child, so a tablet or a route without a tab never runs them.
 function PhoneNavBar() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const { session } = useSession();
+  const segments = useSegments();
   const { width } = useWindowDimensions();
   const { breakpoint } = useTheme();
+  const destination = destinationOf(segments);
+  if (width >= breakpoint['bp-medium'] || !destination) return null;
+  return <PhoneNavBarContent destination={destination} />;
+}
+
+function PhoneNavBarContent({ destination }: { destination: Destination }) {
+  const router = useRouter();
+  const { session } = useSession();
   const { lastSyncedAt } = useGlobalSyncSummary();
   const userId = session?.user.id;
   const staff = useStaffSchool(staffSchools, userId, lastSyncedAt?.getTime());
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, lastSyncedAt?.getTime());
-  if (width >= breakpoint['bp-medium'] || staff.status !== 'denied') return null;
+  // shortcut: before the first sync the memberships of a coach or admin may not be on the device and look like a guardian, and
+  // `useStaffSchool` reports a failed lookup as 'denied'; the bar waits for the first sync. Upgrade with an 'unknown' status there.
+  if (!lastSyncedAt || staff.status !== 'denied') return null;
 
   // The design says only "Historial = perfil": with one athlete it opens that profile, with several the person picks one.
   const only = managed.status === 'ready' && managed.athletes.length === 1 ? managed.athletes[0] : undefined;
@@ -70,7 +78,7 @@ function PhoneNavBar() {
     today: '/today',
     history: only ? `/athletes/${only.id}` : '/athletes',
   };
-  return <NavBar items={navItems} activeId={destinationOf(pathname)} onSelect={(id) => router.navigate(href[id as Destination])} />;
+  return <NavBar items={navItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
 }
 
 export default function Layout() {
