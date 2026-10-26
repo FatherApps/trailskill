@@ -18,6 +18,9 @@ const otherModules = modules.flatMap((target) =>
     })),
 );
 
+const expoRouterOnly = { name: 'expo-router', importNames: ['router'], message: "Use the useRouter() hook instead of the module-level 'router' from expo-router." };
+const noBackHandler = { name: 'react-native', importNames: ['BackHandler'], message: 'Use useHardwareBack from src/core/ui instead of importing BackHandler.' };
+
 module.exports = defineConfig([
   expoConfig,
   { ignores: ['dist/*', 'deploy/**'] },
@@ -27,11 +30,7 @@ module.exports = defineConfig([
       // The module-level router is unbound after Android recreates the Activity (expo/expo#51859) and the next call crashes release builds.
       'no-restricted-imports': [
         'error',
-        {
-          paths: [
-            { name: 'expo-router', importNames: ['router'], message: "Use the useRouter() hook instead of the module-level 'router' from expo-router." },
-          ],
-        },
+        { paths: [expoRouterOnly, noBackHandler] },
       ],
       'import/no-restricted-paths': [
         'error',
@@ -49,5 +48,10 @@ module.exports = defineConfig([
         },
       ],
     },
+  },
+  {
+    // The hook owns BackHandler; tests spy on it to press the back button by hand.
+    files: ['src/core/ui/useHardwareBack.ts', 'src/**/__tests__/**'],
+    rules: { 'no-restricted-imports': ['error', { paths: [expoRouterOnly] }] },
   },
 ]);
