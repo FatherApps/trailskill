@@ -284,6 +284,167 @@ describe('CoachesScreen', () => {
         expect(screen.queryByTestId('side-sheet')).toBeNull();
       });
     });
+
+    describe('when the groups are not available', () => {
+      const fill = async () => {
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+      };
+
+      it('while they load, says so instead of showing no groups, and does not invite', async () => {
+        const { onInvite } = await open({ groups: 'loading' });
+        await fill();
+
+        expect(screen.getByText('Cargando grupos…')).toBeOnTheScreen();
+        expect(screen.queryByRole('radio')).toBeNull();
+        const send = screen.getByRole('button', { name: 'Enviar invitación · Espera a que carguen los grupos' });
+        expect(send).toBeDisabled();
+        await fireEvent.press(send);
+        expect(onInvite).not.toHaveBeenCalled();
+      });
+
+      it('when they fail to load, shows an error in the groups area and does not invite', async () => {
+        const { onInvite } = await open({ groups: 'error' });
+        await fill();
+
+        expect(screen.getByText('No pudimos cargar los grupos.')).toBeOnTheScreen();
+        expect(screen.queryByRole('radio')).toBeNull();
+        const send = screen.getByRole('button', { name: 'Enviar invitación · Faltan los grupos de la escuela' });
+        expect(send).toBeDisabled();
+        await fireEvent.press(send);
+        expect(onInvite).not.toHaveBeenCalled();
+      });
+
+      it('lets the invitation go once they arrive, with what was typed', async () => {
+        const base = { width: 1280, schoolName: schoolNameFixture, view: { kind: 'data', content } as CoachesView, onNavigate: jest.fn(), onInvite: jest.fn(), onDeactivate: jest.fn() };
+        const view = await render(<CoachesScreen {...base} groups="loading" />);
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fill();
+
+        await view.rerender(<CoachesScreen {...base} groups={inviteGroupsFixture} />);
+
+        expect(screen.queryByText('Cargando grupos…')).toBeNull();
+        expect(screen.getByRole('radio', { name: 'Grupo A' })).toBeOnTheScreen();
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+        expect(base.onInvite).toHaveBeenCalledWith({ name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: [] });
+      });
+
+      it('still invites when the school really has no groups', async () => {
+        const { onInvite } = await open({ groups: [] });
+        await fill();
+
+        expect(screen.queryByText('Cargando grupos…')).toBeNull();
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+        expect(onInvite).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('while sending', () => {
+      const sendSlow = async () => {
+        let finish!: () => void;
+        const onInvite = jest.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+        return { onInvite, finish: () => act(async () => finish()) };
+      };
+
+      it('shows the button busy and does not take edits or closes', async () => {
+        await sendSlow();
+
+        const send = screen.getByRole('button', { name: 'Enviar invitación' });
+        expect(send).toBeBusy();
+        expect(send).toBeDisabled();
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Otro');
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo B' }));
+        expect(screen.getByLabelText('Nombre')).toHaveDisplayValue('Rosa Londoño');
+        expect(screen.getByRole('radio', { name: 'Grupo B' })).not.toBeChecked();
+        await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+        await fireEvent.press(screen.getByTestId('side-sheet-scrim'));
+        expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
+      });
+
+      it('takes edits and closes again once the invitation fails', async () => {
+        const onInvite = jest.fn().mockRejectedValue(new Error('offline'));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Otro');
+        expect(screen.getByLabelText('Nombre')).toHaveDisplayValue('Otro');
+        await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+        expect(screen.queryByTestId('side-sheet')).toBeNull();
+      });
+
+      it('sends once even when the button is pressed twice before the sheet draws again', async () => {
+        const onInvite = jest.fn(() => new Promise<void>(() => {}));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+        const send = screen.getByRole('button', { name: 'Enviar invitación' });
+
+        await act(async () => {
+          void fireEvent.press(send);
+          void fireEvent.press(send);
+        });
+
+        expect(onInvite).toHaveBeenCalledTimes(1);
+      });
+
+      it('does not let an invitation from a previous opening close the sheet opened afterwards', async () => {
+        const { onInvite, finish } = await sendSlow();
+
+        // The sheet is opened again from the action (hidden from screen readers behind the sheet) while the first invitation is still running.
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador', includeHiddenElements: true }));
+        expect(screen.getByLabelText('Nombre')).toHaveDisplayValue('');
+        await finish();
+
+        expect(onInvite).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
+        expect(screen.getByRole('button', { name: /^Enviar invitación/ })).not.toBeBusy();
+      });
+    });
+
+    describe('the invitation error', () => {
+      const failOnce = async () => {
+        const error = new Error('offline');
+        const onInvite = jest.fn().mockRejectedValue(error);
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+        await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+        return error;
+      };
+      const banner = 'No pudimos enviar la invitación. Inténtalo de nuevo.';
+
+      it('is logged with its cause', async () => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const error = await failOnce();
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('[school-console]'), error);
+      });
+
+      it.each([
+        ['the name', () => fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa')],
+        ['the email', () => fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.org')],
+        ['the groups', () => fireEvent.press(screen.getByRole('radio', { name: 'Grupo B' }))],
+      ])('goes away when %s is edited', async (_edited, edit) => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        await failOnce();
+        expect(screen.getByText(banner)).toBeOnTheScreen();
+
+        await edit();
+
+        expect(screen.queryByText(banner)).toBeNull();
+      });
+    });
   });
 
   describe('deactivating', () => {

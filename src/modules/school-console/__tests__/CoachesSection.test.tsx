@@ -80,8 +80,7 @@ const coachRepository = () =>
 
 type Extra = Partial<React.ComponentProps<typeof CoachesSection>>;
 
-const show = (repository: CoachRepository, extra: Extra = {}) =>
-  render(
+const tree = (repository: CoachRepository, extra: Extra = {}) => (
     <ThemeProvider>
       <CoachesSection
         width={1280}
@@ -98,8 +97,10 @@ const show = (repository: CoachRepository, extra: Extra = {}) =>
         now={now}
         {...extra}
       />
-    </ThemeProvider>,
-  );
+    </ThemeProvider>
+);
+
+const show = (repository: CoachRepository, extra: Extra = {}) => render(tree(repository, extra));
 
 const rows = () => screen.findAllByTestId('coach-card');
 
@@ -182,5 +183,36 @@ describe('CoachesSection', () => {
     expect(screen.getByRole('radio', { name: 'Group A' })).toBeOnTheScreen();
     expect(screen.getByRole('radio', { name: 'Group B' })).toBeOnTheScreen();
     expect(screen.queryByRole('radio', { name: 'Other group' })).toBeNull();
+  });
+
+  it('does not take the groups for none while those of another school are read with the sheet open', async () => {
+    const groups = await structure.listGroups('school-a');
+    const reread = { ...structure, listGroups: jest.fn().mockResolvedValueOnce(groups).mockReturnValue(new Promise(() => {})) };
+    const view = await show(coachRepository(), { structure: reread });
+    await rows();
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa');
+    await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+
+    await view.rerender(tree(coachRepository(), { structure: reread, schoolId: 'school-b' }));
+
+    expect(await screen.findByText('Cargando grupos…')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Enviar invitación · Espera a que carguen los grupos' })).toBeDisabled();
+  });
+
+  it('keeps the sheet open and shows the error when the invitation of the caller rejects', async () => {
+    const onInvite = jest.fn().mockRejectedValue(new Error('offline'));
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await show(coachRepository(), { onInvite });
+    await rows();
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa');
+    await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+    expect(onInvite).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
+    expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
   });
 });

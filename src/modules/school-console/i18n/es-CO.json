@@ -128,6 +128,10 @@
       "name": "Nombre",
       "email": "Correo",
       "groups": "Grupos a cargo",
+      "groups_loading": "Cargando grupos…",
+      "groups_failed": "No pudimos cargar los grupos.",
+      "groups_wait": "Espera a que carguen los grupos",
+      "groups_missing": "Faltan los grupos de la escuela",
       "send": "Enviar invitación",
       "incomplete": "Escribe el nombre y un correo válido",
       "failed": "No pudimos enviar la invitación. Inténtalo de nuevo."

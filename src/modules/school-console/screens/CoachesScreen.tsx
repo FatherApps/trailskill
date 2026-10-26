@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { t } from '../../../core/i18n';
 import { ConfirmSheet } from '../../../core/ui';
 import '../i18n';
 import { CoachList, type CoachRow } from '../components/CoachList';
-import { InviteCoachSheet, type CoachInvitation, type InviteGroup } from '../components/InviteCoachSheet';
+import { InviteCoachSheet, type CoachInvitation, type InviteGroups } from '../components/InviteCoachSheet';
 import { SectionFrame, type SectionView } from '../components/SectionFrame';
 import type { ConsoleSectionProps } from './ConsoleScreen';
 
@@ -19,14 +19,15 @@ export type CoachesView = SectionView<CoachesContent>;
 export type CoachesScreenProps = ConsoleSectionProps & {
   view: CoachesView;
   // Fires when the invite sheet is confirmed with a name and an email; the real invitation belongs to the caller.
-  // The sheet closes only once this finishes: if it throws or rejects, the sheet stays open with what was typed.
+  // The sheet closes only once this resolves: it must reject (or throw) when the invitation fails, and then the sheet stays open with what was typed.
   onInvite: (invitation: CoachInvitation) => void | Promise<void>;
   // Fires only after the ConfirmSheet is confirmed; the real deactivation belongs to the caller.
   onDeactivate: (id: string) => void;
   // False (the default) until deactivating really works (issue 220): the action is shown disabled and opens nothing.
   deactivateAvailable?: boolean;
-  // The groups of the school, offered as chips in the invite sheet; without them the sheet asks only name and email.
-  groups?: InviteGroup[];
+  // The groups of the school, offered as chips in the invite sheet; [] (the default) is a school with none, so the sheet asks only name and email.
+  // 'loading' and 'error' say the groups are not known yet: the sheet shows that and does not send.
+  groups?: InviteGroups;
   // The group an invitation link came from; its chip starts chosen.
   contextGroupId?: string;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
@@ -34,7 +35,7 @@ export type CoachesScreenProps = ConsoleSectionProps & {
 };
 
 // The sheet that is open: inviting, or deactivating the coach with this id.
-type Pending = { kind: 'invite' } | { kind: 'deactivate'; id: string };
+type Pending = { kind: 'invite'; opening: number } | { kind: 'deactivate'; id: string };
 
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
 export function CoachesScreen({
@@ -53,17 +54,24 @@ export function CoachesScreen({
 
   const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
   const coach = pending?.kind === 'deactivate' ? content?.coaches.find((row) => row.id === pending.id) : undefined;
-  const close = () => setPending(null);
+  // Counts the openings of the invite sheet; an invitation settles only the opening it was sent from.
+  const openings = useRef(0);
+  const close = () => {
+    openings.current += 1;
+    setPending(null);
+  };
 
   let sheet = null;
   if (pending?.kind === 'invite') {
     sheet = (
       <InviteCoachSheet
+        key={pending.opening}
         groups={groups}
         initialGroupId={contextGroupId}
         onSubmit={async (invitation) => {
+          const { opening } = pending;
           await onInvite(invitation);
-          close();
+          if (opening === openings.current) close();
         }}
         onClose={close}
       />
@@ -99,7 +107,7 @@ export function CoachesScreen({
         count: t('schoolConsole.coaches.count', { count: coaches.length }),
         updatedMinutesAgo,
       })}
-      action={{ label: t('schoolConsole.coaches.invite'), icon: 'person_add', onPress: () => setPending({ kind: 'invite' }) }}
+      action={{ label: t('schoolConsole.coaches.invite'), icon: 'person_add', onPress: () => setPending({ kind: 'invite', opening: ++openings.current }) }}
       overlay={sheet}
     >
       {({ coaches }) => <CoachList coaches={coaches} deactivateAvailable={deactivateAvailable} onDeactivate={(id) => setPending({ kind: 'deactivate', id })} />}

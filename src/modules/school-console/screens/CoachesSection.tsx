@@ -4,6 +4,7 @@ import type { SyncConnection } from '../../../core/sync';
 import '../i18n';
 import type { CoachRow } from '../components/CoachList';
 import { localDate } from '../components/formatDate';
+import type { CoachInvitation, InviteGroups } from '../components/InviteCoachSheet';
 import type { Coach, CoachRepository } from '../data/coaches';
 import { colorOf, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import type { CoachAssignment, SchoolGroup, SchoolStructureRepository } from '../data/schoolStructure';
@@ -23,8 +24,9 @@ export type CoachesSectionProps = ConsoleSectionProps & {
   connection: SyncConnection;
   // The clock. A stable function: the caption is computed again when it changes.
   now?: () => Date;
-  // Both only report the press once the ConfirmSheet is confirmed; the real invitation and deactivation belong to the caller.
-  onInvite: () => void;
+  // The real invitation and deactivation belong to the caller; deactivating only reports the press once the ConfirmSheet is confirmed.
+  // `onInvite` goes to the sheet as it is: it must reject when the invitation fails, or the sheet closes as if it had been sent.
+  onInvite: (invitation: CoachInvitation) => void | Promise<void>;
   onDeactivate: (id: string) => void;
 };
 
@@ -118,8 +120,8 @@ export function CoachesSection({
     view = connection !== 'offline' ? { kind: 'data', content } : { kind: 'offline', storedOn: lastSyncedAt ? localDate(lastSyncedAt) : '', content };
   }
 
-  // The groups feed the invite sheet's chips; «Desactivar» stays disabled (the screen's default) until issue 220.
-  const groups = loaded !== undefined && loaded !== 'error' ? loaded.groups : undefined;
+  // The groups feed the invite sheet's chips; while they are read or failed the sheet is told so, not given an empty list. «Desactivar» stays disabled (the screen's default) until issue 220.
+  const groups: InviteGroups = loaded === undefined ? 'loading' : loaded === 'error' ? 'error' : loaded.groups;
 
   return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onInvite={onInvite} onDeactivate={onDeactivate} />;
 }
