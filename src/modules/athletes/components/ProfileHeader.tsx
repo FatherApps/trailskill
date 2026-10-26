@@ -25,6 +25,9 @@ export type ProfileHeaderProps = {
   children?: ReactNode;
 };
 
+// The neutral brand colour of the band when no athlete colour applies; the screen's states without content share it.
+export const profileBandColor: ColorCardColor = 'sky';
+
 // The board draws the ring white at 50 %; that is not a token, so it takes the nearest opaque one (maintainer decision).
 export const profileHeaderColors: { ring: ColorToken } = { ring: 'surface-1' };
 
@@ -47,7 +50,7 @@ export function ProfileHeader({
   onSchoolChange,
   authorization,
   updatedMinutesAgo,
-  color = 'sky',
+  color = profileBandColor,
   onBack = noop,
   children,
 }: ProfileHeaderProps) {

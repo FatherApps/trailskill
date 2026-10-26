@@ -178,7 +178,8 @@ describe('AthleteProfileScreen', () => {
   describe('loading', () => {
     it('shows a skeleton only after 300 ms and nothing about the athlete', async () => {
       jest.useFakeTimers();
-      await show({ kind: 'loading' });
+      // The container has no athlete yet, so it passes an empty name: the band must stay empty.
+      await render(<AthleteProfileScreen name="" view={{ kind: 'loading' }} />);
 
       expect(screen.getByTestId('state-view')).toBeOnTheScreen();
       await act(() => jest.advanceTimersByTime(299));
@@ -186,8 +187,7 @@ describe('AthleteProfileScreen', () => {
 
       await act(() => jest.advanceTimersByTime(1));
       expect(screen.getByText('Cargando')).toBeOnTheScreen();
-      // The short name in the band is the only thing about the athlete.
-      expect(screen.getAllByText(name)).toHaveLength(1);
+      expect(screen.getByRole('header')).toBeEmptyElement();
     });
   });
 
@@ -303,8 +303,15 @@ describe('AthleteProfileScreen', () => {
 
       expect(screen.getByText('Esta información es privada')).toBeOnTheScreen();
       expect(screen.getByText('Solo el acudiente de Lucía R. y su escuela pueden verla.')).toBeOnTheScreen();
-      expect(screen.queryByRole('button', { name: 'Pedir acceso a la escuela' })).toBeNull();
+      // Without a way to ask, the only button is the band's back button.
+      expect(screen.getAllByRole('button').map((button) => button.props.accessibilityLabel)).toEqual(['Volver']);
       expect(screen.queryByText('Infantil B', { exact: false })).toBeNull();
+    });
+
+    it.each(['', '   '])('does not leave a gap in the sentence when the name is blank (%j)', async (blank) => {
+      await render(<AthleteProfileScreen name={blank} view={{ kind: 'denied' }} />);
+
+      expect(screen.getByText('Solo el acudiente del deportista y su escuela pueden verla.')).toBeOnTheScreen();
     });
 
     it('offers to ask the school for access', async () => {
