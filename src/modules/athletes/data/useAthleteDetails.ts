@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { AthleteSchoolRepository } from './athleteSchools';
 import type { SchoolAthlete } from './schoolAthletes';
@@ -12,7 +12,7 @@ export type AthleteStructure = {
 type Named = { id: string; name: string };
 
 // "Categoría · Grupo" for each athlete the device knows the names of, by athlete id. A failed lookup leaves that part out.
-// shortcut: an athlete in several schools shows the first one by school id, with no picker. Upgrade when the product decides which school a guardian sees.
+// shortcut: an athlete in several schools shows the first link by school id and ignores the rest, with no picker. Upgrade when the product decides which school a guardian sees.
 export async function readAthleteDetails(
   athletes: SchoolAthlete[],
   links: AthleteSchoolRepository,
@@ -43,24 +43,31 @@ export async function readAthleteDetails(
 
 const noAthletes: SchoolAthlete[] = [];
 
-// The details of the athletes shown, empty until they are read. Changing the athletes reads them again.
+// The details of the athletes shown, empty until they are read. Reads again only when their ids or groups change, and keeps the previous details meanwhile and when a read fails.
 export function useAthleteDetails(
   athletes: SchoolAthlete[] | undefined,
   links: AthleteSchoolRepository,
   structure: AthleteStructure,
 ): Record<string, string> {
-  const [details, setDetails] = useState<{ athletes: SchoolAthlete[]; byId: Record<string, string> }>();
+  const [details, setDetails] = useState<Record<string, string>>({});
   const list = athletes ?? noAthletes;
+  // Every sync hands over a new array: the content, not its identity, decides when to read again.
+  const key = JSON.stringify(list.map((athlete) => [athlete.id, athlete.groupIds]));
+  const latest = useRef(list);
+  useEffect(() => {
+    latest.current = list;
+  });
   useEffect(() => {
     let active = true;
-    readAthleteDetails(list, links, structure).then(
-      (byId) => active && setDetails({ athletes: list, byId }),
-      () => {},
+    readAthleteDetails(latest.current, links, structure).then(
+      (read) => active && setDetails(read),
+      (error) => {
+        if (__DEV__) console.warn('[athletes] Athlete details lookup failed', error);
+      },
     );
     return () => {
       active = false;
     };
-  }, [list, links, structure]);
-  // Details read for other athletes are not shown for these.
-  return details?.athletes === list ? details.byId : {};
+  }, [key, links, structure]);
+  return details;
 }

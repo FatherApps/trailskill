@@ -31,6 +31,7 @@ function setup(memberships = [{ schoolId: SCHOOL, schoolName: 'Escuela Sintétic
   const repository = createInMemoryTrainingPlanRepository();
   const schools = createInMemoryStaffSchoolRepository(memberships);
   const onSaved = jest.fn();
+  const onAssign = jest.fn();
   const element = (planId: string | null) => (
     <PlanEditorScreen
       planId={planId}
@@ -39,9 +40,10 @@ function setup(memberships = [{ schoolId: SCHOOL, schoolName: 'Escuela Sintétic
       userId="coach-1"
       vocabulary={vocabulary}
       onSaved={onSaved}
+      onAssign={onAssign}
     />
   );
-  return { repository, onSaved, element };
+  return { repository, onSaved, onAssign, element };
 }
 
 const press = (name: string) => fireEvent.press(screen.getByRole('button', { name }));
@@ -285,6 +287,19 @@ describe('PlanEditorScreen', () => {
       await screen.findByLabelText('Nombre del plan');
 
       expect(screen.queryByRole('button', { name: 'Guardar como plantilla' })).toBeNull();
+    });
+  });
+
+  describe('assigning', () => {
+    it('hands over to the assign flow without saving or assigning anything itself', async () => {
+      const ctx = setup();
+      await render(ctx.element(null));
+      await screen.findByLabelText('Nombre del plan');
+
+      await press('Asignar');
+
+      expect(ctx.onAssign).toHaveBeenCalledTimes(1);
+      expect(ctx.onSaved).not.toHaveBeenCalled();
     });
   });
 

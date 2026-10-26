@@ -2,7 +2,7 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../core/i18n';
-import { space } from '../../core/theme';
+import { breakpoint, space } from '../../core/theme';
 import type { GalleryEntry } from '../../core/ui';
 import { BlockCard } from './components/BlockCard';
 import { cellKey, type FulfillmentCell, type FulfillmentContent } from './components/fulfillment';
@@ -37,6 +37,8 @@ type BuilderPreviewProps = {
   // Shows the field errors as after a failed save.
   showErrors?: boolean;
   savedMessage?: boolean;
+  // Forces the layout width in dp; the expanded states pass bp-expanded so they show the two zones whatever the window.
+  width?: number;
 };
 
 // Holds the blocks, so adding, moving, editing and removing really work in the gallery.
@@ -47,6 +49,7 @@ function BuilderPreview({
   initialRemovingId = null,
   showErrors = false,
   savedMessage = false,
+  width,
 }: BuilderPreviewProps) {
   const [current, setCurrent] = useState(initial);
   const [name, setName] = useState(initialName);
@@ -81,6 +84,8 @@ function BuilderPreview({
         editingErrors={errors}
         message={message ? { kind: 'success', text: message } : undefined}
         defaultRemovingId={initialRemovingId}
+        width={width}
+        onAssign={noop}
         onChangeName={setName}
         onAddBlock={add}
         onEditBlock={setEditingId}
@@ -227,6 +232,9 @@ export const galleryEntries: GalleryEntry[] = [
       drill: () => <BuilderPreview initial={blocks} initialEditingId={blocks[2].id} />,
       removing: () => <BuilderPreview initial={blocks} initialRemovingId={blocks[1].id} />,
       saved: () => <BuilderPreview initial={blocks} savedMessage />,
+      // The tablet layout: the block list and the editing panel side by side.
+      expanded: () => <BuilderPreview initial={blocks} initialEditingId={blocks[1].id} width={breakpoint['bp-expanded']} />,
+      'expanded-no-selection': () => <BuilderPreview initial={blocks} width={breakpoint['bp-expanded']} />,
     },
   },
   {
@@ -260,6 +268,7 @@ export const galleryEntries: GalleryEntry[] = [
       'several-athletes': () => <TodayPreview withPicker view={{ kind: 'data', content: today }} />,
       loading: () => <TodayPreview view={{ kind: 'loading' }} />,
       empty: () => <TodayPreview view={{ kind: 'empty' }} />,
+      'no-athletes': () => <TodayPreview view={{ kind: 'no-athletes', onOpenAthletes: noop }} />,
       error: () => <TodayPreview view={{ kind: 'error', onRetry: noop }} />,
       offline: () => <TodayPreview view={{ kind: 'offline', storedOnLabel, content: today }} />,
       'offline-empty': () => <TodayPreview view={{ kind: 'offline-empty' }} />,

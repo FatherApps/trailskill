@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useSession } from '../../core/session';
 import { RecordSyncStatus, useGlobalSyncSummary } from '../../core/sync';
@@ -25,6 +25,7 @@ const series = createPowerSyncSeriesRepository();
 // "/today?athlete=<id>": today's plan of a managed athlete; the athlete picker shows when the user manages several.
 export default function TodayRoute() {
   const { athlete } = useLocalSearchParams<{ athlete?: string }>();
+  const router = useRouter();
   const { session } = useSession();
   const summary = useGlobalSyncSummary();
   // Managed athletes arrive with a sync, so the lookup runs again when one completes.
@@ -42,6 +43,7 @@ export default function TodayRoute() {
       userId={session.user.id}
       athletes={managed.athletes}
       initialAthleteId={athlete}
+      onOpenAthletes={() => router.push('/athletes')}
       renderNoticeStatus={(id) => <RecordSyncStatus table="training_plan_notices" id={id} />}
     />
   );

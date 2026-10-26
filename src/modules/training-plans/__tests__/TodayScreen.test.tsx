@@ -29,6 +29,17 @@ describe('TodayScreen states', () => {
     expect(screen.getByText('Lucía R.')).toBeOnTheScreen();
   });
 
+  it('says there is no linked athlete and leads to "Mis deportistas" when the user manages nobody', async () => {
+    const onOpenAthletes = jest.fn();
+    await render(setup({ kind: 'no-athletes', onOpenAthletes }).ui);
+
+    expect(screen.getByText('Aún no hay un deportista vinculado')).toBeOnTheScreen();
+    expect(screen.getByText('Agrega o vincula un deportista desde «Mis deportistas» para ver aquí su plan de entrenamiento.')).toBeOnTheScreen();
+    expect(screen.queryByText('Hoy no hay plan')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Ir a Mis deportistas' }));
+    expect(onOpenAthletes).toHaveBeenCalledTimes(1);
+  });
+
   it('offers a retry on error', async () => {
     const onRetry = jest.fn();
     await render(setup({ kind: 'error', onRetry }).ui);

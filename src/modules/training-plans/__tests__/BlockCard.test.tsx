@@ -67,6 +67,13 @@ describe('BlockCard', () => {
     expect(screen.getByLabelText(text)).toBeOnTheScreen();
   });
 
+  it.each<BlockPhase>(['warm_up', 'main', 'technique', 'cool_down'])('fills the card with the %s phase colour and its text colour', async (phase) => {
+    await render(<BlockCard block={{ ...blocks[0], phase }} vocabulary={vocabulary} />);
+
+    expect(screen.getByTestId('block-card')).toHaveStyle({ backgroundColor: colors.light[phaseColors[phase].background] });
+    expect(screen.getByText('1 × 200 m Libre')).toHaveStyle({ color: colors.light[phaseColors[phase].text] });
+  });
+
   it('renders the footer slot', async () => {
     await render(
       <BlockCard block={blocks[0]} vocabulary={vocabulary}>

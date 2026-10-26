@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
@@ -37,7 +37,14 @@ export type PlanBuilderScreenProps = {
   onSaveTemplate?: () => void;
   // Set to false when a parent ScrollView scrolls instead.
   scrollEnabled?: boolean;
+  // Without a handler there is no assign button; the caller opens its assign flow, this screen never assigns.
+  onAssign?: () => void;
+  // The width in dp this screen can use; defaults to the window. From bp-expanded the list and the editing panel sit side by side.
+  width?: number;
 };
+
+// 2000 → "2.000" (es-CO); Intl drops the separator of four-digit numbers in Spanish.
+const withThousands = (value: number) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
 // Presentational: the caller owns the plan and handles every event; only the open remove confirmation is local.
 export function PlanBuilderScreen({
@@ -60,10 +67,90 @@ export function PlanBuilderScreen({
   onSave,
   onSaveTemplate,
   scrollEnabled = true,
+  onAssign,
+  width,
 }: PlanBuilderScreenProps) {
-  const { colors, space, typography } = useTheme();
+  const { colors, space, radius, breakpoint, typography } = useTheme();
+  const window = useWindowDimensions();
+  const expanded = (width ?? window.width) >= breakpoint['bp-expanded'];
   const [removingId, setRemovingId] = useState(defaultRemovingId);
   const removingPosition = blocks.findIndex((block) => block.id === removingId) + 1;
+  const editingIndex = blocks.findIndex((block) => block.id === editingId);
+  const meters = blocks.reduce((sum, block) => sum + block.repetitions * block.distance, 0);
+
+  const editor = (block: DraftBlock) => (
+    <BlockEditor block={block} vocabulary={vocabulary} errors={editingErrors} onChange={onChangeBlock} onDone={onDoneEditing} />
+  );
+
+  // The card footer: the editor itself in the single column, otherwise the actions. In the wide layout the editor lives in the panel.
+  const card = (block: DraftBlock, index: number) => {
+    const position = t('training_plans.builder.block_position', { position: index + 1 });
+    const isEditing = block.id === editingId;
+    return (
+      <BlockCard key={block.id} block={block} vocabulary={vocabulary}>
+        {isEditing && !expanded ? (
+          editor(block)
+        ) : (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
+            {!isEditing && (
+              <Button
+                variant="secondary"
+                label={t('training_plans.builder.edit')}
+                accessibilityHint={position}
+                onPress={() => onEditBlock(block.id)}
+              />
+            )}
+            {/* An action that never applies is hidden, not disabled. */}
+            {index > 0 && (
+              <Button
+                variant="secondary"
+                label={t('training_plans.builder.move_up')}
+                accessibilityHint={position}
+                icon={<Icon name="arrow_upward" size="icon-sm" />}
+                onPress={() => onMoveBlock(block.id, 'up')}
+              />
+            )}
+            {index < blocks.length - 1 && (
+              <Button
+                variant="secondary"
+                label={t('training_plans.builder.move_down')}
+                accessibilityHint={position}
+                icon={<Icon name="arrow_downward" size="icon-sm" />}
+                onPress={() => onMoveBlock(block.id, 'down')}
+              />
+            )}
+            <Button
+              variant="secondary"
+              label={t('training_plans.builder.remove')}
+              accessibilityHint={position}
+              onPress={() => setRemovingId(block.id)}
+            />
+          </View>
+        )}
+      </BlockCard>
+    );
+  };
+
+  const empty = blocks.length === 0 && (
+    <StateView kind="empty" title={t('training_plans.builder.empty_title')} message={t('training_plans.builder.empty_message')} />
+  );
+  const add = <Button variant="secondary" label={t('training_plans.builder.add')} onPress={onAddBlock} />;
+
+  const save = (
+    <Button variant="primary" label={t('training_plans.builder.save')} loading={saving === 'plan'} onPress={onSave} />
+  );
+  const assign = onAssign && <Button variant="secondary" label={t('training_plans.builder.assign')} onPress={onAssign} />;
+  const template = blocks.length > 0 && onSaveTemplate && (
+    <Button
+      variant="secondary"
+      label={t('training_plans.builder.save_template')}
+      loading={saving === 'template'}
+      onPress={onSaveTemplate}
+    />
+  );
+  const summary = expanded
+    ? t('training_plans.today.summary', { meters: withThousands(meters), count: blocks.length })
+    : t('training_plans.builder.count', { count: blocks.length });
 
   return (
     // Android needs nestedScrollEnabled for this list to scroll when hosted inside another ScrollView (e.g. the dev gallery preview).
@@ -78,9 +165,7 @@ export function PlanBuilderScreen({
         <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
           {planName.trim() || t('training_plans.builder.untitled')}
         </Text>
-        <Text style={[typography.caption, { color: colors['ink-muted'] }]}>
-          {t('training_plans.builder.count', { count: blocks.length })}
-        </Text>
+        <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{summary}</Text>
       </View>
       <TextField
         label={t('training_plans.builder.name')}
@@ -96,78 +181,39 @@ export function PlanBuilderScreen({
           </Banner>
         )}
       </View>
-      {blocks.length === 0 && (
-        <StateView
-          kind="empty"
-          title={t('training_plans.builder.empty_title')}
-          message={t('training_plans.builder.empty_message')}
-        />
-      )}
-      {blocks.map((block, index) => {
-        const position = t('training_plans.builder.block_position', { position: index + 1 });
-        return (
-          <BlockCard key={block.id} block={block} vocabulary={vocabulary}>
-            {block.id === editingId ? (
-              <BlockEditor
-                block={block}
-                vocabulary={vocabulary}
-                errors={editingErrors}
-                onChange={onChangeBlock}
-                onDone={onDoneEditing}
-              />
+      {expanded ? (
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space[4] }}>
+          <View testID="builder-list" style={{ flex: 1, gap: space[4] }}>
+            {empty}
+            {blocks.map(card)}
+            {add}
+          </View>
+          <View
+            testID="builder-panel"
+            style={{ flex: 1, gap: space[4], padding: space[5], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}
+          >
+            {editingIndex >= 0 ? (
+              <>
+                <Text accessibilityRole="header" style={[typography.subtitle, { color: colors.ink }]}>
+                  {t('training_plans.builder.editing_block', { position: editingIndex + 1 })}
+                </Text>
+                {editor(blocks[editingIndex])}
+              </>
             ) : (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
-                <Button
-                  variant="secondary"
-                  label={t('training_plans.builder.edit')}
-                  accessibilityHint={position}
-                  onPress={() => onEditBlock(block.id)}
-                />
-                {/* An action that never applies is hidden, not disabled. */}
-                {index > 0 && (
-                  <Button
-                    variant="secondary"
-                    label={t('training_plans.builder.move_up')}
-                    accessibilityHint={position}
-                    icon={<Icon name="arrow_upward" size="icon-sm" />}
-                    onPress={() => onMoveBlock(block.id, 'up')}
-                  />
-                )}
-                {index < blocks.length - 1 && (
-                  <Button
-                    variant="secondary"
-                    label={t('training_plans.builder.move_down')}
-                    accessibilityHint={position}
-                    icon={<Icon name="arrow_downward" size="icon-sm" />}
-                    onPress={() => onMoveBlock(block.id, 'down')}
-                  />
-                )}
-                <Button
-                  variant="secondary"
-                  label={t('training_plans.builder.remove')}
-                  accessibilityHint={position}
-                  onPress={() => setRemovingId(block.id)}
-                />
-              </View>
+              <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('training_plans.builder.pick_block')}</Text>
             )}
-          </BlockCard>
-        );
-      })}
-      <Button variant="secondary" label={t('training_plans.builder.add')} onPress={onAddBlock} />
-      <Button
-        variant="primary"
-        label={t('training_plans.builder.save')}
-        loading={saving === 'plan'}
-        onPress={onSave}
-      />
-      {blocks.length > 0 && onSaveTemplate && (
-        <Button
-          variant="secondary"
-          label={t('training_plans.builder.save_template')}
-          loading={saving === 'template'}
-          onPress={onSaveTemplate}
-        />
+          </View>
+        </View>
+      ) : (
+        <>
+          {empty}
+          {blocks.map(card)}
+          {add}
+        </>
       )}
+      {save}
+      {assign}
+      {template}
       <ConfirmSheet
         visible={removingId !== null && removingPosition > 0}
         title={t('training_plans.builder.remove_title')}
