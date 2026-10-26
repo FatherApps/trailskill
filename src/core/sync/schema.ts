@@ -120,6 +120,18 @@ export const AppSchema = new Schema({
     },
     { indexes: { assignment: ['assignment_id'], block: ['block_id'] } },
   ),
+  // Append-only notes of a guardian or adult athlete about an assignment's plan (block_id null) or one of its blocks.
+  training_plan_notices: new Table(
+    {
+      ...audit,
+      athlete_id: column.text,
+      assignment_id: column.text,
+      version_id: column.text,
+      block_id: column.text,
+      body: column.text,
+    },
+    { indexes: { athlete: ['athlete_id'], assignment: ['assignment_id'] } },
+  ),
   authorization_texts: new Table({
     ...audit,
     purpose: column.text,

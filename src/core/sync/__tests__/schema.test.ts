@@ -46,6 +46,7 @@ describe('AppSchema', () => {
         'training_plan_assignments',
         'training_plan_blocks',
         'training_plan_fulfillments',
+        'training_plan_notices',
         'training_plan_versions',
         'training_plans',
       ].sort(),
@@ -71,6 +72,6 @@ describe('AppSchema', () => {
     expect(byName.get('pending_writes')?.localOnly).toBe(true);
     expect(byName.get('upload_failures')?.localOnly).toBe(true);
     expect(byName.get('uploaded_ops')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(25);
+    expect(AppSchema.tables).toHaveLength(26);
   });
 });

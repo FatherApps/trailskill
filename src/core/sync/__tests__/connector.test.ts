@@ -729,6 +729,21 @@ describe('SupabaseConnector.uploadData', () => {
       });
     });
 
+    describe('a training plan notice', () => {
+      const notice = () =>
+        entry('PUT', 'n1', { created_at: '2026-10-25T10:00:00.000Z', created_by: 'u1', athlete_id: 'at1', assignment_id: 'a1', version_id: 'v1', block_id: null, body: 'Test note 1' }, 'training_plan_notices');
+
+      it('a retry inserts with ignore-duplicates and is confirmed against the stored row without created_at and created_by, which the server sets', async () => {
+        const t = setup({ upsert: empty, readBack: ok });
+        await t.connector.uploadData(t.database([notice()]));
+
+        expect(t.upsert.mock.calls[0][1]).toEqual({ onConflict: 'id', ignoreDuplicates: true });
+        expect(t.readQueries).toEqual([[['id', 'n1'], ['athlete_id', 'at1'], ['assignment_id', 'a1'], ['version_id', 'v1'], ['body', 'Test note 1']]]);
+        expect(failureInserts(t.committed)).toHaveLength(0);
+        expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['training_plan_notices', 'n1']]);
+      });
+    });
+
     describe('a measurement hidden after a withdrawal (issue 206)', () => {
       // Stored hidden, the author cannot read it back: the insert returns no row and the read-back finds nothing.
       const hidden = () =>
