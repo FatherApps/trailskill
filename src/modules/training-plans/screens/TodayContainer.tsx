@@ -107,6 +107,8 @@ export function TodayContainer(props: TodayContainerProps) {
   const readingSince = useRef<Map<string, number> | null>(null);
   // How many saves of each assignment have not finished: only the last one to finish reads again, so overlapping saves share one read.
   const saving = useRef(new Map<string, number>());
+  // The assignments with a note saved whose listing failed: the answer shown may lack it, and the save that finishes last reads again, even if it failed itself.
+  const unlisted = useRef(new Set<string>());
   // The short name only, never the document or the birth date.
   const names = athletes.map((athlete) => {
     const { shortName, initials, color } = athleteDisplay(athlete);
@@ -177,8 +179,6 @@ export function TodayContainer(props: TodayContainerProps) {
     if (!selected || typeof loaded !== 'object' || loaded === null) return;
     const { assignmentId } = loaded;
     const count = (map: Map<string, number>) => map.get(assignmentId) ?? 0;
-    // A listing that failed after the note was saved: the answer shown may lack the note.
-    let listingFailed = false;
     saving.current.set(assignmentId, count(saving.current) + 1);
     try {
       // The note is saved on the device first, so it never waits for the network.
@@ -195,17 +195,20 @@ export function TodayContainer(props: TodayContainerProps) {
         });
       } catch {
         // The note is saved; the read below shows it, or the error view with its retry.
-        listingFailed = true;
+        unlisted.current.add(assignmentId);
       }
     } finally {
       saving.current.set(assignmentId, count(saving.current) - 1);
       // The same athlete and day are being read, and that read started before a note was saved: it may have listed its notes without it, so it reads once more and shows it.
       // A read that started after the saves is left alone: reading again would only show loading. Without an open read, only a failed listing needs one.
       // Saves that overlap read once, when the last of them finishes, after all their notes were added.
-      const { selectedId: shownId, day: shownDay } = latest.current;
-      const since = readingSince.current;
-      const stale = since === null ? listingFailed : count(since) < count(saved.current);
-      if (stale && count(saving.current) === 0 && shownId === selected.id && shownDay === day) reload();
+      if (count(saving.current) === 0) {
+        const listingFailed = unlisted.current.delete(assignmentId);
+        const { selectedId: shownId, day: shownDay } = latest.current;
+        const since = readingSince.current;
+        const stale = since === null ? listingFailed : count(since) < count(saved.current);
+        if (stale && shownId === selected.id && shownDay === day) reload();
+      }
     }
   }
 

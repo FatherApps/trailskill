@@ -97,9 +97,10 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
   const view = await render(await container(ids));
   const update = async (shown: string[], day = DAY, synced = true) => view.rerender(await container(shown, day, synced));
   // Starts a save whose note is not added until `release` is called; `sending` is the save itself. Only this save waits: the next ones are not held.
-  const startHeld = async (body: string) => {
+  const startHeld = async (body: string, { rejected = false } = {}) => {
     let release!: () => void;
-    hold.promise = new Promise<void>((resolve) => (release = resolve));
+    // `rejected`: releasing it makes the adding of the note fail.
+    hold.promise = new Promise<void>((resolve, reject) => (release = rejected ? () => reject(new Error('add failed')) : resolve));
     let sending!: void | Promise<void>;
     await act(async () => {
       sending = shown.onSendNotice({ blockId: null, body });
@@ -353,6 +354,29 @@ describe('TodayContainer races', () => {
     const { sending } = await startOpen('Test note 1');
 
     await expect(sending).resolves.toBeUndefined();
+    expect(reads.count).toBe(before + 1);
+    await showsPlan('Plan p1');
+    await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } }));
+  });
+
+  it('still reads again for a rejected listing when the save that finishes last fails to add its note', async () => {
+    const { reads, startHeld, failListings } = await setup();
+    await showsPlan('Plan p1');
+    const first = await startHeld('Test note 1');
+    const second = await startHeld('Test note 2', { rejected: true });
+    const before = reads.count;
+
+    // The listing of the first save is rejected while the second is still open; then the second fails.
+    failListings(1);
+    await first.release();
+    await act(async () => {
+      await first.sending;
+    });
+    await second.release();
+    await act(async () => {
+      await expect(second.sending).rejects.toThrow('add failed');
+    });
+
     expect(reads.count).toBe(before + 1);
     await showsPlan('Plan p1');
     await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } }));
