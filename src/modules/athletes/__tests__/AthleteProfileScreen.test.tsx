@@ -43,6 +43,14 @@ const flatten = (node: unknown): string[] => {
   return [kind, ...(props.accessibilityLabel ? [props.accessibilityLabel] : []), ...flatten(children)];
 };
 const order = () => flatten(screen.toJSON());
+// Only what a person reads or hears: texts and accessibility labels, not the element types around them.
+const shownStrings = (node: unknown): string[] => {
+  if (node === null || node === undefined) return [];
+  if (Array.isArray(node)) return node.flatMap(shownStrings);
+  if (typeof node === 'string') return node ? [node] : [];
+  const { props, children } = node as Json;
+  return [...(props.accessibilityLabel ? [props.accessibilityLabel] : []), ...shownStrings(children)];
+};
 const at = (flat: string[], start: string) => flat.findIndex((item) => item.startsWith(start));
 
 describe('AthleteProfileScreen', () => {
@@ -207,7 +215,35 @@ describe('AthleteProfileScreen', () => {
 
       await act(() => jest.advanceTimersByTime(1));
       expect(screen.getByText('Cargando')).toBeOnTheScreen();
-      expect(screen.getByRole('header')).toBeEmptyElement();
+      // Every text and label that reaches the screen, wherever the band keeps them: only the spinner's copy and Back.
+      expect(shownStrings(screen.toJSON()).sort()).toEqual(['Cargando', 'Volver']);
+    });
+  });
+
+  describe('a name with stray spaces', () => {
+    // The default matcher collapses spaces, which would hide the very defect these tests are after.
+    const verbatim = (text: string) => text;
+    const padded = 'Lucía ';
+    const showPadded = (view: AthleteProfileView) =>
+      render(<AthleteProfileScreen name={padded} view={view} onBack={jest.fn()} />);
+
+    it.each([
+      ['denied', { kind: 'denied' }, 'Solo el acudiente de Lucía y su escuela pueden verla.'],
+      [
+        'offline-empty',
+        { kind: 'offline-empty' },
+        'No hay datos guardados de Lucía en este teléfono. Aparecerán cuando vuelva la conexión.',
+      ],
+    ] as [string, AthleteProfileView, string][])('is trimmed once in the %s message', async (_, view, message) => {
+      await showPadded(view);
+
+      expect(screen.getByText(message, { normalizer: verbatim })).toBeOnTheScreen();
+    });
+
+    it('is trimmed in the band title of the states without content', async () => {
+      await showPadded({ kind: 'error', onRetry: jest.fn() });
+
+      expect(screen.getByText('Lucía', { normalizer: verbatim })).toBeOnTheScreen();
     });
   });
 
