@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
@@ -412,16 +412,11 @@ describe('AthletesSection', () => {
       expect(screen.queryByText('Estás sin conexión')).toBeNull();
     });
 
-    it('keeps loading, not "no athletes" or offline, when it never synced and the list is empty', async () => {
-      const { repository, countCapturedSince } = setup();
-      await show(repository, { schoolId: 'school-z', connection: 'connecting', lastSyncedAt: null });
-      // The read has finished: the screen holds back its answer on purpose.
-      await waitFor(() => expect(countCapturedSince).toHaveBeenCalled());
-      await act(async () => {});
+    it('does not load forever when it never synced and the list is empty: it says nothing is stored yet', async () => {
+      await show(setup().repository, { schoolId: 'school-z', connection: 'connecting', lastSyncedAt: null });
 
-      expect(screen.getByTestId('state-view')).toHaveProp('accessibilityState', { busy: true });
-      expect(screen.queryByText('Aún no hay deportistas')).toBeNull();
-      expect(screen.queryByText(/No hay deportistas guardados/)).toBeNull();
+      expect(await screen.findByText('No hay deportistas guardados en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
+      expect(screen.queryByTestId('state-view')).not.toHaveProp('accessibilityState', { busy: true });
     });
 
     it('shows the empty state when it synced before and the school has no athletes', async () => {

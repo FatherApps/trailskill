@@ -88,13 +88,13 @@ export function AuthorizationsSection({
   const rows = loaded === undefined || loaded === 'error' ? undefined : loaded;
 
   let view: AuthorizationsView;
-  // Empty before the first sync arrives is not "no athletes": the data may still be on its way.
-  if (loaded === undefined || (connection === 'connecting' && lastSyncedAt === null && rows?.length === 0)) {
+  if (loaded === undefined) {
     view = { kind: 'loading' };
   } else if (rows === undefined) {
     view = { kind: 'error', onRetry: () => setAttempt((n) => n + 1) };
   } else if (rows.length === 0) {
-    view = connection === 'offline' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
+    // Never synced and still not connected: nothing is stored yet, and the list fills in when the first sync arrives.
+    view = connection !== 'connected' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
   } else {
     const content: AuthorizationsContent = {
       updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.floor((now().getTime() - lastSyncedAt.getTime()) / MINUTE_MS)) : null,

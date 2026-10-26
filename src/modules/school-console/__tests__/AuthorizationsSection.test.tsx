@@ -42,7 +42,9 @@ const setup = async (
     statuses?: AuthorizationStatusRow[];
     failing?: boolean;
     requests?: SharingRequest[] | Error | Promise<SharingRequest[]>;
-    connection?: 'connected' | 'offline';
+    connection?: 'connected' | 'connecting' | 'offline';
+    // No athletes and never synced.
+    neverSyncedEmpty?: boolean;
   } = {},
 ) => {
   const invitations = createInMemoryInvitationRepository({
@@ -50,7 +52,7 @@ const setup = async (
   });
   const repository = createAuthorizationsRepository({
     athletes: {
-      listAthletes: jest.fn().mockResolvedValue([athlete('a1', 'Lucía Ramírez', options.groupIds ?? ['g1'])]),
+      listAthletes: jest.fn().mockResolvedValue(options.neverSyncedEmpty ? [] : [athlete('a1', 'Lucía Ramírez', options.groupIds ?? ['g1'])]),
     },
     statuses: createInMemoryAuthorizationStatusRepository(options.statuses ?? [{ athleteId: 'a1', purpose: 'record_times', isGranted: true }]),
     invitations,
@@ -76,7 +78,7 @@ const setup = async (
       onNavigate={jest.fn()}
       schoolId="school-1"
       repository={repository}
-      lastSyncedAt={new Date('2026-10-25T10:00:00')}
+      lastSyncedAt={options.neverSyncedEmpty ? null : new Date('2026-10-25T10:00:00')}
       connection={options.connection ?? 'connected'}
       now={() => new Date('2026-10-25T10:03:00')}
       share={share}
@@ -86,6 +88,13 @@ const setup = async (
 };
 
 describe('AuthorizationsSection', () => {
+  it('does not load forever while connecting, never synced and without athletes: it says nothing is stored yet', async () => {
+    await setup({ connection: 'connecting', neverSyncedEmpty: true });
+
+    expect(await screen.findByText('No hay autorizaciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
+    expect(screen.queryByTestId('state-view')).not.toHaveProp('accessibilityState', { busy: true });
+  });
+
   it('shows each purpose of the school athletes from the local data and the guardian as not known', async () => {
     await setup();
 
