@@ -87,7 +87,9 @@
   "today": {
     "title": "Hoy",
     "caption": "{{title}} · {{name}}",
+    "caption_no_athlete": "{{title}}",
     "heading": "{{title}} · {{plan}}",
+    "heading_join": "{{first}}, {{second}}",
     "summary_one": "{{meters}} m · {{count}} bloque",
     "summary_other": "{{meters}} m · {{count}} bloques",
     "summary_partial_one": "{{meters}} m + {{count}} bloque sin distancia",

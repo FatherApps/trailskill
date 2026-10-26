@@ -83,7 +83,7 @@ describe('TodayContainer', () => {
     await setup();
 
     expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: /^Hoy · Plan p1, A1 S\./ })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · Plan p1, A1 S., 350 m · 2 bloques' })).toBeOnTheScreen();
     expect(screen.getAllByLabelText('Aletas').filter((node) => node.props.accessibilityRole === 'text')).toHaveLength(1);
     expect(screen.getByLabelText('Sin marcar')).toBeOnTheScreen();
     expect(screen.getByLabelText('Parcial · 2 de 3')).toBeOnTheScreen();
@@ -119,7 +119,7 @@ describe('TodayContainer', () => {
     expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('radio', { name: 'A3 S.' }));
     expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: /^Hoy · Plan del otro, A3 S\./ })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · Plan del otro, A3 S., 200 m · 1 bloque' })).toBeOnTheScreen();
     expect(screen.queryByText(/Plan p1/)).toBeNull();
   });
 
@@ -162,7 +162,7 @@ describe('TodayContainer', () => {
     await update(['a1']);
 
     expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: /^Hoy · Plan p1, A1 S\./ })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · Plan p1, A1 S., 350 m · 2 bloques' })).toBeOnTheScreen();
     expect(screen.queryByText('Plan del otro')).toBeNull();
   });
 

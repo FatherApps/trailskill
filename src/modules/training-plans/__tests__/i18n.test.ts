@@ -28,6 +28,18 @@ describe('training-plans i18n', () => {
     );
   });
 
+  it('builds the heading label from keys, so the title, the separator and the order are translatable', () => {
+    const head = t('training_plans.today.heading', { title: t('training_plans.today.title'), plan: 'Resistencia aeróbica' });
+
+    expect(esCO.today.heading).not.toContain('Hoy');
+    expect(head).toBe('Hoy · Resistencia aeróbica');
+    expect(t('training_plans.today.heading_join', { first: head, second: 'Lucía R.' })).toBe('Hoy · Resistencia aeróbica, Lucía R.');
+  });
+
+  it('has a caption without the athlete, with no separator left hanging', () => {
+    expect(t('training_plans.today.caption_no_athlete', { title: t('training_plans.today.title') })).toBe('Hoy');
+  });
+
   it('keeps registration harmless when the module loads twice and leaves core copy untouched', () => {
     i18n.addResourceBundle('es-CO', 'translation', { training_plans: esCO }, true, true);
     i18n.addResourceBundle('es-CO', 'translation', { training_plans: esCO }, true, true);
