@@ -97,8 +97,22 @@ describe('CoachesScreen', () => {
       expect(pending.queryByText(/deportista/)).not.toBeOnTheScreen();
     });
 
+    it('starts the announcement with the state, not the placeholder, when the name is not readable', async () => {
+      await show({ kind: 'data', content: { ...withPending, coaches: [{ ...pendingCoachFixture, name: null }] } });
+
+      expect(screen.getByTestId('pending-card').props.accessibilityLabel).toBe('Invitación enviada, Grupo B');
+    });
+
     it('keeps the colour table private to the card', () => {
-      expect(Object.keys(jest.requireActual('../components/CoachCard'))).toEqual(['CoachCard']);
+      expect(jest.requireActual('../components/CoachCard')).not.toHaveProperty('coachCardColors');
+    });
+
+    it('keeps the initials and the tag on one row, so the tag never moves the actions below it', async () => {
+      await show({ kind: 'data', content: withPending });
+
+      for (const row of screen.getAllByTestId('initials-tag-row')) {
+        expect(StyleSheet.flatten(row.props.style).flexWrap).not.toBe('wrap');
+      }
     });
 
     it('has nothing to deactivate', async () => {

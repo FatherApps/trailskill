@@ -25,7 +25,6 @@ export const pendingCoachFixture: CoachRow = {
   color: 'athlete-1',
   status: 'pending',
   groups: ['Grupo B'],
-  athleteCount: 0,
 };
 
 // The groups of the school offered as chips in the invite sheet.

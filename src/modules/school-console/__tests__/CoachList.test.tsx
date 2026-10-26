@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
 import { space } from '../../../core/theme';
-import { coachesFixture } from '../__fixtures__/coaches';
-import { CoachList } from '../components/CoachList';
+import { coachesFixture, pendingCoachFixture } from '../__fixtures__/coaches';
+import { CoachList, type CoachRow } from '../components/CoachList';
 
 const show = (coaches = coachesFixture) => render(<CoachList coaches={coaches} onDeactivate={jest.fn()} />);
 
@@ -55,6 +55,15 @@ describe('CoachList', () => {
       await measure(1000);
 
       expect(maxWidths()).toEqual([(1000 - space[3]) / 2]);
+    });
+  });
+
+  describe('the model of a pending invitation', () => {
+    it('has no athlete count: a count that is missing cannot be given as a number', () => {
+      // @ts-expect-error a pending invitation has no count, and a zero would read as "no athletes"
+      const zero: CoachRow = { ...pendingCoachFixture, athleteCount: 0 };
+
+      expect(zero.status).toBe('pending');
     });
   });
 });
