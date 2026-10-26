@@ -154,6 +154,12 @@ Before writing a new function, hook, or component, search for an existing one in
 - If a second module needs code that lives in another module, propose moving it to `src/core/`; the maintainer must approve the move ([ADR 0003](docs/decisions/0003-modular-architecture.md)).
 - The pull request description says what was reused, or why nothing existing fit.
 
+### Navigation
+
+Navigate with the `useRouter()` hook from `expo-router`, never the module-level `router`: after Android recreates the Activity the module-level router is unbound and the next tap crashes ([expo/expo#51859](https://github.com/expo/expo/issues/51859)). Lint blocks the import.
+
+- Wrap a handler in `useCallback` with `[router]` when a route passes it to a hook or child that uses it in effect dependencies (for example `openNext` in `src/app/(app)/_layout.tsx`), so a new function on every render does not re-run the effect.
+
 ### Visual fidelity
 
 Issues labeled `area: front-mobile` or `area: front-tablet` are checked against their design-system reference: the component's README or the matching `Pantalla*` reference screen.
