@@ -24,7 +24,7 @@ function setup(invitationToken?: string) {
   const pending = createInMemoryPendingInvitationRepository();
   const invitations = createInMemoryInvitationRepository({ invitations: { 'tok-1': invitation } });
   const onContinue = jest.fn();
-  const mount = () =>
+  const mount = (props: { blockSystemBack?: boolean } = {}) =>
     render(
       <AddAthletesContainer
         userId="guardian-1"
@@ -34,6 +34,7 @@ function setup(invitationToken?: string) {
         invitations={invitations}
         pending={pending}
         onContinue={onContinue}
+        {...props}
       />,
     );
   return { mount, onContinue, drafts, profiles, athletes, rows, pending, invitations };
@@ -221,21 +222,60 @@ describe('AddAthletesContainer', () => {
     expect(screen.queryByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeNull();
   });
 
-  it('the Android back button does nothing here and stops listening when the screen goes away', async () => {
-    const remove = jest.fn();
-    let handler: Parameters<typeof BackHandler.addEventListener>[1] | undefined;
-    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_, listener) => {
-      handler = listener;
-      return { remove };
+  describe('Android back button', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    // Records the subscriptions the container makes, so a test can press back and count removals.
+    function spyOnBack() {
+      const subscriptions: { event: string; handler: Parameters<typeof BackHandler.addEventListener>[1]; remove: jest.Mock }[] = [];
+      jest.spyOn(BackHandler, 'addEventListener').mockImplementation((event, handler) => {
+        const remove = jest.fn();
+        subscriptions.push({ event, handler, remove });
+        return { remove };
+      });
+      return subscriptions;
+    }
+
+    it('is left to the navigator unless the route asks to block it', async () => {
+      const subscriptions = spyOnBack();
+      const { mount } = setup();
+
+      await mount();
+
+      expect(subscriptions).toEqual([]);
     });
-    const { mount, onContinue } = setup();
-    const view = await mount();
 
-    // Handled (true) means the navigator never sees the press; Continuar stays the only way out.
-    expect(handler?.(undefined as never)).toBe(true);
-    expect(onContinue).not.toHaveBeenCalled();
+    it('does nothing when the route blocks it, and stops listening when the screen goes away', async () => {
+      const subscriptions = spyOnBack();
+      const { mount, onContinue } = setup();
+      const view = await mount({ blockSystemBack: true });
 
-    await view.unmount();
-    expect(remove).toHaveBeenCalledTimes(1);
+      // Handled (true) means the navigator never sees the press; Continuar stays the only way out.
+      expect(subscriptions).toHaveLength(1);
+      expect(subscriptions[0].event).toBe('hardwareBackPress');
+      expect(subscriptions[0].handler(undefined as never)).toBe(true);
+      expect(onContinue).not.toHaveBeenCalled();
+
+      await view.unmount();
+      expect(subscriptions[0].remove).toHaveBeenCalledTimes(1);
+    });
+
+    it('is released while Continuar is failing, so the error state is not a dead end, and blocked again after a retry', async () => {
+      const subscriptions = spyOnBack();
+      const { mount, drafts, profiles } = setup();
+      await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Lucía', lastName: 'Rojas', relation: 'guardian' });
+      await mount({ blockSystemBack: true });
+      await screen.findByText('Lucía R.');
+      const failing = jest.spyOn(drafts, 'save').mockRejectedValue(new Error('store failed'));
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+      expect(await screen.findByText('No pudimos guardar el avance. Inténtalo de nuevo.')).toBeOnTheScreen();
+      expect(subscriptions.every((s) => s.remove.mock.calls.length === 1)).toBe(true);
+
+      failing.mockRestore();
+      await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+      await waitFor(() => expect(subscriptions.filter((s) => s.remove.mock.calls.length === 0)).toHaveLength(1));
+    });
   });
 });
