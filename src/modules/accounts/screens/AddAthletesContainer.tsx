@@ -4,7 +4,7 @@ import { useHardwareBack } from '../../../core/ui';
 import { athleteDisplay, type AthleteRepository } from '../../athletes';
 import type { InvitationRepository } from '../data/invitations';
 import { queueInvitation, type PendingInvitationRepository } from '../data/pendingInvitations';
-import type { RegistrationDraftRepository } from '../data/registrationDraft';
+import type { RegistrationDraft, RegistrationDraftRepository } from '../data/registrationDraft';
 import type { ManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
 import { useInvitation } from './useInvitation';
 import { AddAthletesScreen, type AddAthleteField, type AddedAthlete } from './AddAthletesScreen';
@@ -30,6 +30,9 @@ export type AddAthletesContainerProps = {
 const empty = { firstName: '', lastName: '' };
 // Nothing typed is no draft: the screen keeps a draft only while there is something to keep.
 const keep = (names: typeof empty) => (names.firstName || names.lastName ? names : undefined);
+// Same registration: the fields the registration was started with. The athlete and the step are what this screen writes, so they do not tell registrations apart.
+const sameRegistration = (a: RegistrationDraft, b: RegistrationDraft) =>
+  a.swimmer === b.swimmer && a.firstName === b.firstName && a.lastName === b.lastName && a.email === b.email && a.invitationToken === b.invitationToken;
 // Stable, so the back subscription is made once while the block holds.
 const swallowBack = () => {};
 
@@ -108,12 +111,18 @@ export function AddAthletesContainer({
     queue.current = run.then(() => {});
     return run;
   }, []);
+  // The first draft this screen saw: the registration it belongs to.
+  const origin = useRef<RegistrationDraft | null>(null);
   // Losing a draft must not block typing. A missing draft stays missing: this screen only continues one the registration started.
+  // Once the screen went away the draft may be another registration's (discarded and started again meanwhile): it is left alone.
   const persist = useCallback(
     (athlete: typeof empty | undefined, step?: 'authorizations') =>
       enqueue(async () => {
         const current = await drafts.load();
-        if (current) await drafts.save({ ...current, athlete, ...(step && { step }) });
+        if (!current) return;
+        origin.current ??= current;
+        if (!mounted.current && !sameRegistration(origin.current, current)) return;
+        await drafts.save({ ...current, athlete, ...(step && { step }) });
       }),
     [drafts, enqueue],
   );
@@ -123,6 +132,7 @@ export function AddAthletesContainer({
     drafts
       .load()
       .then((saved) => {
+        if (saved) origin.current ??= saved;
         if (!saved?.athlete) return;
         const draft = saved.athlete;
         // A draft that took longer than the person did to start typing is older than what is on the screen, but only for the fields they edited.
@@ -130,10 +140,12 @@ export function AddAthletesContainer({
           firstName: edits.current.firstName ? typed.current.firstName : draft.firstName,
           lastName: edits.current.lastName ? typed.current.lastName : draft.lastName,
         };
+        // Safe after the screen went away: refs and the draft write.
         typed.current = next;
-        ifMounted(() => setValues(next));
-        // The keystroke saves wrote only what was typed: write back what was kept, also after the screen went away or the draft would lose it.
+        // The keystroke saves wrote only what was typed: write back what was kept, or the draft would lose it.
         if (edits.current.firstName + edits.current.lastName > 0) void persist(keep(next));
+        // Needs the screen.
+        ifMounted(() => setValues(next));
       })
       .catch(() => {});
     refresh().catch(() => {});

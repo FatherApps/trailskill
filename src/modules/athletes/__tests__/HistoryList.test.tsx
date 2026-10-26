@@ -217,17 +217,31 @@ describe('HistoryList', () => {
           .at(-1)?.props?.style as never,
       );
 
+    type Part = { props: { style: unknown }; children: Part[] };
+    const flat = (style: unknown) => StyleSheet.flatten(style as never);
+
     it('lets the text block shrink and keeps the time width at normal size', async () => {
       await render(<HistoryList results={[byId('import')]} />);
 
-      const [, text, trailing] = screen.getAllByLabelText(/^Mariposa 100 m/)[0].children as unknown as {
-        props: { style: unknown };
-        children: { props: { style: unknown } }[];
-      }[];
-      const flat = (style: unknown) => StyleSheet.flatten(style as never);
+      const [head, trailing] = screen.getAllByLabelText(/^Mariposa 100 m/)[0].children as unknown as Part[];
+      const [, text] = head.children;
       expect(flat(text.props.style).flexShrink).toBe(1);
       expect(flat(text.props.style).minWidth).toBe(0);
       expect(flat(trailing.props.style).flexShrink).toBe(0);
+    });
+
+    it.each([1, 2])('keeps the origin dot in the same row as the text at font scale %s', async (fontScale) => {
+      await render(
+        <ThemeProvider fontScale={fontScale}>
+          <HistoryList results={[byId('import')]} />
+        </ThemeProvider>,
+      );
+
+      // The dot and the text share one row, so the origin never adds a row of its own: the time is the only other part.
+      const parts = screen.getAllByLabelText(/^Mariposa 100 m/)[0].children as unknown as Part[];
+      expect(parts).toHaveLength(2);
+      expect(flat(parts[0].props.style).flexDirection).toBe('row');
+      expect(parts[0].children).toHaveLength(2);
     });
 
     it('keeps the time beside the text at normal size', async () => {
