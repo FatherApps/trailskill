@@ -80,9 +80,12 @@ const dotSize = spaceTokens[8];
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
-  // Large text: the time goes below the text, each at the full row width, so no word is split.
+  // Large text: the time goes below the dot and text, each at the full row width, so no word is split.
   rowLarge: { flexDirection: 'column', alignItems: 'stretch' },
-  // The text block shrinks (minWidth 0) and the time keeps its own width, so the two never overlap.
+  // The dot and the text share one row at every size, so the origin dot never adds a row of its own.
+  head: { flexDirection: 'row', alignItems: 'center' },
+  // Beside the time the head shrinks (minWidth 0) and the time keeps its own width, so the two never overlap.
+  headFill: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   text: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   dot: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   trailing: { alignItems: 'flex-end', flexShrink: 0 },
@@ -176,20 +179,21 @@ function HistoryRow({ result }: { result: HistoryResult }) {
         },
       ]}
     >
-      <View
-        {...hidden}
-        testID="history-dot"
-        style={[
-          styles.dot,
-          { width: dotSize, height: dotSize, borderRadius: radius.full, backgroundColor: colors[dot.color] },
-        ]}
-      >
-        <Icon name={dot.icon} size="icon-sm" color={dot.ink} />
-      </View>
-      <View {...hidden} style={[large ? undefined : styles.text, { gap: space[1] }]}>
-        <Text style={[typography['body-strong'], { color: colors[historyListColors.title] }]}>{title}</Text>
-        <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{meta}</Text>
-        {origin && <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{origin}</Text>}
+      <View {...hidden} style={[styles.head, !large && styles.headFill, { gap: space[3] }]}>
+        <View
+          testID="history-dot"
+          style={[
+            styles.dot,
+            { width: dotSize, height: dotSize, borderRadius: radius.full, backgroundColor: colors[dot.color] },
+          ]}
+        >
+          <Icon name={dot.icon} size="icon-sm" color={dot.ink} />
+        </View>
+        <View style={[styles.text, { gap: space[1] }]}>
+          <Text style={[typography['body-strong'], { color: colors[historyListColors.title] }]}>{title}</Text>
+          <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{meta}</Text>
+          {origin && <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{origin}</Text>}
+        </View>
       </View>
       <View {...hidden} style={[styles.trailing, large && styles.trailingLarge, { gap: space[1] }]}>
         <TimeValue

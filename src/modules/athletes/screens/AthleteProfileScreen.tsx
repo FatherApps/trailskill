@@ -66,13 +66,15 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   const frame = {
     alignSelf: 'stretch',
     flex: scrollEnabled ? 1 : undefined,
-    paddingHorizontal: space[4],
   } as const;
+  // The one place of the screen margins: the band runs edge to edge, everything else keeps them.
+  const margin = space[4];
+  const padded = { paddingHorizontal: margin };
   // The states without content keep the band and its back button, so the screen never depends on the system back.
   const withBand = (state: ReactNode) => (
-    <View style={[frame, { paddingHorizontal: 0 }]}>
+    <View style={frame}>
       <ColorHeader color={profileBandColor} title={name} onBack={onBack} />
-      <View style={[frame, { paddingVertical: space[4] }]}>{state}</View>
+      <View style={[frame, padded, { paddingVertical: space[4] }]}>{state}</View>
     </View>
   );
 
@@ -133,9 +135,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   const empty = view.kind === 'empty';
   const storedOn = view.kind === 'offline' ? formatDate(view.storedOn, 'long') : null;
 
-  const padded = { paddingHorizontal: space[4] };
-
-  // The band runs edge to edge with the event chips inside it; everything else keeps the screen margins.
+  // The band runs edge to edge with the event chips inside it.
   const header = (
     <View style={{ gap: space[4] }}>
       <ProfileHeader {...content.header}>
@@ -198,12 +198,12 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
     ) : undefined;
 
   return (
-    <View style={[frame, { paddingHorizontal: 0 }]}>
+    <View style={frame}>
       {/* One virtualized list holds the whole screen, so the history is never a list inside a ScrollView. */}
       <HistoryList
         results={empty ? [] : content.history}
         scrollEnabled={scrollEnabled}
-        inset={space[4]}
+        inset={margin}
         header={header}
         footer={footer}
       />
