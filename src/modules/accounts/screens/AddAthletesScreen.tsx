@@ -22,6 +22,8 @@ export type AddAthletesScreenProps = {
   values: Record<AddAthleteField, string>;
   // The profiles added so far: only names, never a document number or a birth date.
   athletes: AddedAthlete[];
+  // Whether "Continuar" can be pressed. Defaults to "at least one profile is listed"; the caller says otherwise when the list could not be read (somebody may be added).
+  canContinue?: boolean;
   busy?: boolean;
   // "Continuar" is keeping the reached step: it cannot be pressed again.
   continuing?: boolean;
@@ -48,6 +50,7 @@ export function AddAthletesScreen({
   total,
   values,
   athletes,
+  canContinue = athletes.length > 0,
   busy = false,
   continuing = false,
   failed = false,
@@ -78,7 +81,7 @@ export function AddAthletesScreen({
         <Button
           label={t('accounts.athletes.continue')}
           loading={continuing}
-          disabledReason={athletes.length === 0 ? t('accounts.athletes.add_first') : undefined}
+          disabledReason={canContinue ? undefined : t('accounts.athletes.add_first')}
           onPress={onContinue}
         />
       }

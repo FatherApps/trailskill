@@ -160,6 +160,7 @@ export function AddAthletesContainer({
       total={total}
       values={values}
       athletes={added}
+      canContinue={added.length > 0 || unreadable}
       busy={busy}
       continuing={finishing}
       failed={failed}

@@ -372,6 +372,32 @@ describe('AddAthletesContainer', () => {
     });
   });
 
+  describe('Continuar when the list cannot be read', () => {
+    it('stays available and goes on: a list that could not be read is not an empty one', async () => {
+      const { mount, onContinue, athletes, profiles } = setup();
+      await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
+      jest.spyOn(athletes, 'listManaged').mockRejectedValue(new Error('read failed'));
+      await mount();
+
+      const button = await screen.findByRole('button', { name: 'Continuar' });
+      expect(button.props.accessibilityState.disabled).toBeFalsy();
+      await fireEvent.press(button);
+
+      await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
+    });
+
+    it('stays disabled when the list reads fine and nobody is added', async () => {
+      const { mount, onContinue } = setup();
+      await mount();
+
+      const button = await screen.findByRole('button', { name: /^Continuar/ });
+      await waitFor(() => expect(button.props.accessibilityState.disabled).toBe(true));
+      await fireEvent.press(button);
+
+      expect(onContinue).not.toHaveBeenCalled();
+    });
+  });
+
   describe('an add in flight and Continuar block each other', () => {
     it('Continuar does nothing while an add is saving', async () => {
       const { mount, onContinue, drafts, profiles } = setup();
