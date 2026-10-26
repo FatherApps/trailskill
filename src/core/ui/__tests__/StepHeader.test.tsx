@@ -21,6 +21,14 @@ describe('StepHeader', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  it('has no Back button when it is not given one, and still shows the step and title', async () => {
+    await render(<StepHeader step={3} total={4} title="Agregar deportista" />);
+
+    expect(screen.queryByRole('button', { name: 'Volver' })).toBeNull();
+    expect(screen.getByRole('text', { name: 'Paso 3 de 4' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Agregar deportista' })).toBeOnTheScreen();
+  });
+
   it('draws one decorative segment per step, filled up to the current one', async () => {
     await render(<StepHeader step={2} total={4} title="Datos del nadador" onBack={jest.fn()} />);
 

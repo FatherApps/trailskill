@@ -33,8 +33,6 @@ export default function AddAthletesRoute() {
       pending={pending}
       renderStatus={(id) => <RecordSyncStatus table="athletes" id={id} />}
       onContinue={() => router.replace('/athletes/authorizations')}
-      // Reached with replace, so back has no history: it goes home.
-      onBack={() => router.replace('/')}
     />
   );
 }

@@ -97,6 +97,7 @@
       "relation_guardian": "Hijo o hija",
       "category_label": "Categoría",
       "category_none": "Sin categoría",
+      "name_limit": "Hasta {{max}} caracteres.",
       "add_failed": "No pudimos guardar el deportista. Inténtalo de nuevo.",
       "continue_failed": "No pudimos guardar el avance. Inténtalo de nuevo."
     }

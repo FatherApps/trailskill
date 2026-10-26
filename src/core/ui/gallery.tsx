@@ -244,6 +244,8 @@ export const galleryEntries: GalleryEntry[] = [
       first: () => <FullWidth><StepHeader step={1} total={sh.total} title={sh.first} onBack={noop} /></FullWidth>,
       middle: () => <FullWidth><StepHeader step={2} total={sh.total} title={sh.middle} onBack={noop} /></FullWidth>,
       last: () => <FullWidth><StepHeader step={4} total={sh.total} title={sh.last} onBack={noop} /></FullWidth>,
+      // No Back button: the step comes after something that cannot be undone.
+      withoutBack: () => <FullWidth><StepHeader step={3} total={sh.total} title={sh.middle} /></FullWidth>,
     },
   },
   {

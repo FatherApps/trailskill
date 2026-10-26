@@ -9,8 +9,9 @@ export type StepHeaderProps = {
   step: number;
   total: number;
   title: string;
-  // Back is always on screen: the flow never depends on the system back button.
-  onBack: () => void;
+  // Back shows whenever the person can go back without losing data already saved; the flow never depends on the system back button.
+  // Without it the step has no Back button (for example, once the account exists).
+  onBack?: () => void;
 };
 
 export const stepHeaderColors: Record<'background' | 'step' | 'title' | 'done' | 'todo', ColorToken> = {
@@ -33,9 +34,11 @@ export function StepHeader({ step, total, title, onBack }: StepHeaderProps) {
 
   return (
     <View style={{ gap: space[2], backgroundColor: colors[stepHeaderColors.background] }}>
-      <View style={styles.topBar}>
-        <Button variant="ghost" label={t('common.back')} onPress={onBack} />
-      </View>
+      {onBack && (
+        <View style={styles.topBar}>
+          <Button variant="ghost" label={t('common.back')} onPress={onBack} />
+        </View>
+      )}
       <Text accessibilityRole="text" style={[typography.caption, { color: colors[stepHeaderColors.step] }]}>
         {progress}
       </Text>
