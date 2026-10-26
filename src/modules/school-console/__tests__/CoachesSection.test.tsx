@@ -195,20 +195,41 @@ describe('CoachesSection', () => {
     expect(await screen.findByText('No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
   });
 
-  it('does not load forever while connecting, never synced and without coaches: it says nothing is stored yet', async () => {
+  it('does not load forever while connecting, never synced and without coaches: it says the first sync is running, not that the connection is missing', async () => {
     await show(coachRepository(), { schoolId: 'school-z', connection: 'connecting', lastSyncedAt: null });
 
-    expect(await screen.findByText('No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
+    expect(await screen.findByText('Estamos sincronizando')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Todavía no hay entrenadores guardados en este dispositivo. Aparecerán cuando termine la primera sincronización.'),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('Estás sin conexión')).toBeNull();
     expect(screen.queryByTestId('state-view')).not.toHaveProp('accessibilityState', { busy: true });
   });
 
-  it('logs the failed read and keeps showing the error', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const failure = new Error('boom');
-    await show({ listCoaches: jest.fn().mockRejectedValue(failure) });
+  it('keeps showing the error, whole, when only one of the reads fails', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    await show(coachRepository(), { structure: { ...structure, listGroups: jest.fn().mockRejectedValue(new Error('boom')) } });
 
     expect(await screen.findByText('No pudimos cargar los entrenadores')).toBeOnTheScreen();
-    expect(warn).toHaveBeenCalledWith('[school-console] Coaches could not be loaded', failure);
+    expect(screen.queryAllByTestId('coach-card')).toHaveLength(0);
+  });
+
+  describe('trace of a failed read', () => {
+    const originalDev = (global as { __DEV__?: boolean }).__DEV__;
+    afterEach(() => {
+      (global as { __DEV__?: boolean }).__DEV__ = originalDev;
+    });
+
+    it.each([true, false])('names the read that failed and the kind of the error, never its message (__DEV__ %s)', async (dev) => {
+      (global as { __DEV__?: boolean }).__DEV__ = dev;
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      await show(coachRepository(), { structure: { ...structure, listGroups: jest.fn().mockRejectedValue(new Error('rosa@example.com')) } });
+
+      expect(await screen.findByText('No pudimos cargar los entrenadores')).toBeOnTheScreen();
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(error).toHaveBeenCalledWith('[school-console] Coaches could not be loaded: groups read failed', 'Error');
+      expect(JSON.stringify(error.mock.calls)).not.toMatch(/rosa|example\.com/i);
+    });
   });
 
   it('reads the group assignments together with the rest, not after them', async () => {

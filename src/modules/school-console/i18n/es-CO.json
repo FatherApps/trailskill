@@ -97,6 +97,9 @@
       "title": "No pudimos cargar los deportistas",
       "message": "Revisa tu conexión e inténtalo de nuevo."
     },
+    "connecting": {
+      "title": "Estamos sincronizando"
+    },
     "offline": {
       "title": "Estás sin conexión",
       "banner_dated": "Mostramos lo guardado en este dispositivo el {{date}}.",
@@ -119,7 +122,6 @@
     "athletes_one": "{{count}} deportista",
     "athletes_other": "{{count}} deportistas",
     "no_groups": "Sin grupos",
-    "pending_card": "{{name}}, {{status}}, {{groups}}",
     "invite": "Invitar entrenador",
     "deactivate": "Desactivar",
     "deactivate_hint": "Desactivar a {{name}}",
@@ -154,7 +156,8 @@
     "error": {
       "title": "No pudimos cargar los entrenadores"
     },
-    "offline_empty": "No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
+    "offline_empty": "No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión.",
+    "connecting_empty": "Todavía no hay entrenadores guardados en este dispositivo. Aparecerán cuando termine la primera sincronización."
   },
   "records": {
     "title": "Marcas de la escuela",

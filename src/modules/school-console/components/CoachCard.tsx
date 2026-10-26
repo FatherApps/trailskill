@@ -63,11 +63,12 @@ function Initials({ initials, background }: { initials: string; background: Colo
 }
 
 // The initials next to the state tag; Tag aligns itself to the start of its row, so the wrapper centres it with the initials.
+// The row never wraps, so the tag cannot fall below the initials and push the actions around.
 function InitialsWithTag({ initials, background, children }: { initials: string; background: ColorToken; children: ReactNode }) {
   const { space } = useTheme();
 
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
+    <View testID="initials-tag-row" style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
       <Initials initials={initials} background={background} />
       <View style={{ alignSelf: 'center' }}>{children}</View>
     </View>
@@ -82,12 +83,13 @@ export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate,
   const groups = coach.groups.length > 0 ? coach.groups.join(' · ') : t('schoolConsole.coaches.no_groups');
 
   if (coach.status === 'pending') {
+    const status = t('schoolConsole.coaches.status.pending');
     return (
       <View testID="coach-card" style={cell}>
         <View
           testID="pending-card"
           accessible
-          accessibilityLabel={t('schoolConsole.coaches.pending_card', { name, status: t('schoolConsole.coaches.status.pending'), groups })}
+          accessibilityLabel={[coach.name, status, groups].filter(Boolean).join(', ')}
           style={{
             gap: space[1],
             padding: space[4],
@@ -102,7 +104,7 @@ export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate,
           <Text style={[typography.title, { color: colors[coachCardColors.pendingTitle] }]}>{name}</Text>
           <Text style={[typography.caption, { color: colors[coachCardColors.pendingDetail] }]}>{groups}</Text>
           <InitialsWithTag initials={coach.initials} background={coachCardColors.pendingDot}>
-            <Tag label={t('schoolConsole.coaches.status.pending')} variant="warn" icon="schedule" />
+            <Tag label={status} variant="warn" icon="schedule" />
           </InitialsWithTag>
         </View>
       </View>

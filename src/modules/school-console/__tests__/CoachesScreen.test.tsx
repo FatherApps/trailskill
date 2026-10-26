@@ -97,8 +97,22 @@ describe('CoachesScreen', () => {
       expect(pending.queryByText(/deportista/)).not.toBeOnTheScreen();
     });
 
+    it('starts the announcement with the state, not the placeholder, when the name is not readable', async () => {
+      await show({ kind: 'data', content: { ...withPending, coaches: [{ ...pendingCoachFixture, name: null }] } });
+
+      expect(screen.getByTestId('pending-card').props.accessibilityLabel).toBe('Invitación enviada, Grupo B');
+    });
+
     it('keeps the colour table private to the card', () => {
-      expect(Object.keys(jest.requireActual('../components/CoachCard'))).toEqual(['CoachCard']);
+      expect(jest.requireActual('../components/CoachCard')).not.toHaveProperty('coachCardColors');
+    });
+
+    it('keeps the initials and the tag on one row, so the tag never moves the actions below it', async () => {
+      await show({ kind: 'data', content: withPending });
+
+      for (const row of screen.getAllByTestId('initials-tag-row')) {
+        expect(StyleSheet.flatten(row.props.style).flexWrap).not.toBe('wrap');
+      }
     });
 
     it('has nothing to deactivate', async () => {
@@ -752,6 +766,16 @@ describe('CoachesScreen', () => {
       await show({ kind: 'offline-empty' });
 
       expect(screen.getByText('No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
+    });
+
+    it('connecting without data says the first sync is running and never mentions the connection', async () => {
+      await show({ kind: 'connecting-empty' });
+
+      expect(screen.getByText('Estamos sincronizando')).toBeOnTheScreen();
+      expect(
+        screen.getByText('Todavía no hay entrenadores guardados en este dispositivo. Aparecerán cuando termine la primera sincronización.'),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText('Estás sin conexión')).toBeNull();
     });
 
     it('denied says only that it is private, with no data and no invite', async () => {
