@@ -7,7 +7,7 @@ type Volumetric = Pick<PlanBlock, 'repetitions' | 'distance'>;
 
 // A block with no distance or no repetitions (a drill, completion only) adds nothing: it is counted apart, never as 0 m.
 // A NaN or negative product is invalid data: it is counted apart too and never enters or lowers the total.
-export function planVolume(blocks: Volumetric[]): { meters: number; unmeasured: number; count: number } {
+function planVolume(blocks: Volumetric[]): { meters: number; unmeasured: number; count: number } {
   const measured = blocks.map(({ repetitions, distance }) => repetitions * distance).filter((m) => m > 0);
   return { meters: measured.reduce((sum, m) => sum + m, 0), unmeasured: blocks.length - measured.length, count: blocks.length };
 }
