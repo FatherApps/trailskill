@@ -35,10 +35,11 @@ type SetupOptions = {
   synced?: boolean;
   offline?: boolean;
   actionPending?: boolean;
+  onRetryAction?: () => void;
 };
 
 async function setup(options: SetupOptions = {}) {
-  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes, synced, offline, actionPending } = options;
+  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes, synced, offline, actionPending, onRetryAction } = options;
   const plans = createInMemoryTrainingPlanRepository();
   // Plan p1 (an untimed and a timed block) goes to group g1, which has a1; plan p2 goes to group g2, which has a3.
   await plans.save({ ...plan('p1'), blocks: p1Blocks });
@@ -74,6 +75,7 @@ async function setup(options: SetupOptions = {}) {
       offline={offline}
       onOpenAthletes={onOpenAthletes}
       actionPending={actionPending}
+      onRetryAction={onRetryAction}
       renderNoticeStatus={(id) => <Text>{`sync:${id}`}</Text>}
     />
   );
@@ -156,6 +158,16 @@ describe('TodayContainer', () => {
     expect(await screen.findByTestId('state-view')).toBeOnTheScreen();
     expect(screen.queryByText('Aún no hay un deportista vinculado')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Ir a Mis deportistas' })).toBeNull();
+  });
+
+  it('shows the error view with the retry of the caller, not the message with its action, when the caller could not decide the action', async () => {
+    const onRetryAction = jest.fn();
+    await setup({ ids: [], onOpenAthletes: jest.fn(), onRetryAction });
+
+    expect(await screen.findByText('No pudimos cargar el plan de hoy')).toBeOnTheScreen();
+    expect(screen.queryByText('Aún no hay un deportista vinculado')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+    expect(onRetryAction).toHaveBeenCalledTimes(1);
   });
 
   it('follows the athletes when the list was empty at first and the sync brings one', async () => {
