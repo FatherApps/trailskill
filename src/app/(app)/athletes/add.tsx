@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 
+import { useGoBack } from '../../../core/navigation';
 import { useSession } from '../../../core/session';
 import { RecordSyncStatus } from '../../../core/sync';
 import {
@@ -20,6 +21,7 @@ const profiles = createPowerSyncManagedAthleteProfileRepository(athletes);
 
 export default function AddAthletesRoute() {
   const router = useRouter();
+  const goBack = useGoBack();
   const { session } = useSession();
 
   if (!session) return null;
@@ -34,7 +36,7 @@ export default function AddAthletesRoute() {
       // The account exists already: back must not drop the person on a half-done registration.
       blockSystemBack
       // Reached with replace, so back may have no history: it goes home.
-      onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      onBack={goBack}
       renderStatus={(id) => <RecordSyncStatus table="athletes" id={id} />}
       onContinue={() => router.replace('/athletes/authorizations')}
     />

@@ -1,8 +1,9 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { Fragment, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
+import { useGoBack } from '../../../core/navigation';
 import { ThemeProvider, useTheme, type ThemeName } from '../../../core/theme';
 import { Button, StateView, type GalleryEntry } from '../../../core/ui';
 import { findGalleryEntry } from '../_layout';
@@ -91,7 +92,7 @@ function Body({
   onTheme: (value: ThemeName) => void;
   onFontScale: (value: '1' | '2') => void;
 }) {
-  const router = useRouter();
+  const goBack = useGoBack();
   const { colors, space, typography } = useTheme();
   const [stateKey, setStateKey] = useState(() => Object.keys(entry?.states ?? {})[0]);
 
@@ -99,7 +100,7 @@ function Body({
     <Button
       variant="ghost"
       label={t('common.back')}
-      onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      onPress={goBack}
     />
   );
 

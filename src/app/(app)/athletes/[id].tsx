@@ -1,5 +1,6 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 
+import { useGoBack } from '../../../core/navigation';
 import { useSession } from '../../../core/session';
 import { useGlobalSyncSummary } from '../../../core/sync';
 import { createPowerSyncAuthorizationStatusRepository } from '../../../modules/accounts';
@@ -28,7 +29,7 @@ const otherSchoolResults = createSupabaseOtherSchoolResultsRepository();
 
 export default function AthleteProfileRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
+  const goBack = useGoBack();
   const { session } = useSession();
   const summary = useGlobalSyncSummary();
   const lastSyncedAt = summary.lastSyncedAt ?? null;
@@ -50,7 +51,7 @@ export default function AthleteProfileRoute() {
       otherSchoolResults={isStaff ? otherSchoolResults : undefined}
       online={summary.connection === 'connected'}
       // Deep links and cold starts leave no screen to go back to.
-      onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      onBack={goBack}
     />
   );
 }
