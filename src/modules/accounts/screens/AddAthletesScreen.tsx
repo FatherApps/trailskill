@@ -80,8 +80,8 @@ export function AddAthletesScreen({
       footer={
         <Button
           label={t('accounts.athletes.continue')}
-          // Busy also while a profile saves: the tap is not ignored in silence.
-          loading={continuing || busy}
+          // Busy also while another profile saves: the tap is not ignored in silence. With nobody added the button is not allowed rather than waiting, so it shows its reason, not a spinner.
+          loading={continuing || (busy && canContinue)}
           disabledReason={canContinue ? undefined : t('accounts.athletes.add_first')}
           onPress={onContinue}
         />
