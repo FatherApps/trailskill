@@ -26,12 +26,16 @@ export type TodayContainerProps = {
   initialAthleteId?: string;
   // Today as YYYY-MM-DD; the device's today when omitted.
   day?: string;
+  // Whether the first sync completed; before it an empty list only means "not arrived yet". True when omitted.
+  synced?: boolean;
   // Opens "Mis deportistas", offered when the user manages no athlete yet.
   onOpenAthletes?: () => void;
   renderNoticeStatus?: (noticeId: string) => ReactNode;
 };
 
 type Loaded = { content: TodayContent; assignmentId: string; versionId: string };
+// What was read for one athlete: the answer is stored with it, so it never shows under another athlete's name.
+type Answer = { athleteId: string; value: Loaded | null | 'error' };
 
 type SeriesArrivals = Awaited<ReturnType<TodayContainerProps['series']['listArrivals']>>;
 
@@ -45,14 +49,25 @@ function timesOf(recording: string, repetitions: number, mark: FulfillmentMark |
 const notesOf = (list: Notice[]) =>
   list.map((n) => ({ id: n.id, body: n.body, blockId: n.blockId, dateLabel: new Date(n.createdAt).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) }));
 
+function viewOf(athletes: SchoolAthlete[], synced: boolean, selected: SchoolAthlete | undefined, loaded: Loaded | null | 'loading' | 'error', actions: { onOpenAthletes?: () => void; onRetry: () => void }): TodayView {
+  if (athletes.length === 0) return synced ? { kind: 'no-athletes', onOpenAthletes: actions.onOpenAthletes } : { kind: 'loading' };
+  if (!selected || loaded === null) return { kind: 'empty' };
+  if (loaded === 'loading') return { kind: 'loading' };
+  if (loaded === 'error') return { kind: 'error', onRetry: actions.onRetry };
+  return { kind: 'data', content: loaded.content };
+}
+
 // Container: reads the plan of the day of one athlete from the local database and saves the user's notes to the coach on the device at once.
 export function TodayContainer(props: TodayContainerProps) {
   const { plans, assignments, schoolLinks, fulfillment, notices, series, userId, athletes, initialAthleteId, renderNoticeStatus } = props;
   const day = props.day ?? todayText();
-  const [selectedId, setSelectedId] = useState(() => (athletes.some((a) => a.id === initialAthleteId) ? initialAthleteId! : athletes[0]?.id));
-  const [loaded, setLoaded] = useState<Loaded | null | 'loading' | 'error'>('loading');
+  // Only the person's choice is kept; the athlete shown is derived, so it follows `athletes`: the chosen one while it is in the list, else the first.
+  const [chosenId, setChosenId] = useState(initialAthleteId);
+  const [answer, setAnswer] = useState<Answer>();
   const [attempt, setAttempt] = useState(0);
-  const selected = athletes.find((a) => a.id === selectedId);
+  const selected = athletes.find((a) => a.id === chosenId) ?? athletes[0];
+  const selectedId = selected?.id;
+  const loaded = answer && answer.athleteId === selectedId ? answer.value : 'loading';
   // The short name only, never the document or the birth date.
   const names = athletes.map((athlete) => {
     const { shortName, initials, color } = athleteDisplay(athlete);
@@ -105,8 +120,8 @@ export function TodayContainer(props: TodayContainerProps) {
     if (!selected) return;
     let cancelled = false;
     load(selected).then(
-      (next) => !cancelled && setLoaded(next),
-      () => !cancelled && setLoaded('error'),
+      (value) => !cancelled && setAnswer({ athleteId: selected.id, value }),
+      () => !cancelled && setAnswer({ athleteId: selected.id, value: 'error' }),
     );
     return () => {
       cancelled = true;
@@ -120,26 +135,17 @@ export function TodayContainer(props: TodayContainerProps) {
     // The note is saved on the device first, so it never waits for the network.
     await notices.add({ athleteId: selected.id, assignmentId: loaded.assignmentId, versionId: loaded.versionId, blockId, body, authorId: userId });
     const list = await notices.list(selected.id, loaded.assignmentId);
-    setLoaded({ ...loaded, content: { ...loaded.content, notes: notesOf(list) } });
+    setAnswer({ athleteId: selected.id, value: { ...loaded, content: { ...loaded.content, notes: notesOf(list) } } });
   }
 
   // The shown data is dropped at once, so the plan of the previous athlete never stays under the new name.
   function reload(id = selectedId) {
-    setLoaded('loading');
-    setSelectedId(id);
+    setAnswer(undefined);
+    setChosenId(id);
     setAttempt((n) => n + 1);
   }
 
-  const view: TodayView =
-    athletes.length === 0
-      ? { kind: 'no-athletes', onOpenAthletes: props.onOpenAthletes }
-      : !selected || loaded === null
-        ? { kind: 'empty' }
-        : loaded === 'loading'
-        ? { kind: 'loading' }
-        : loaded === 'error'
-          ? { kind: 'error', onRetry: () => reload() }
-          : { kind: 'data', content: loaded.content };
+  const view = viewOf(athletes, props.synced ?? true, selected, loaded, { onOpenAthletes: props.onOpenAthletes, onRetry: () => reload() });
 
   return (
     <TodayScreen
