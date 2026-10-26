@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { colors } from '../../../core/theme';
+import { colors, contrastRatio } from '../../../core/theme';
 import { ChoiceCard } from '../components/ChoiceCard';
 
 const props = { title: 'Yo', detail: 'Soy mayor de edad y nado', icon: 'person', color: 'lilac', onPress: jest.fn() } as const;
@@ -29,5 +29,11 @@ describe('ChoiceCard', () => {
     expect(after.backgroundColor).toBe(colors.light.lilac);
     expect(after.borderColor).toBe(colors.light.primary);
     expect(after.borderWidth).toBe(before.borderWidth);
+  });
+
+  it.each(['light', 'dark'] as const)('keeps the text readable on both chosen colors in the %s theme', (theme) => {
+    for (const color of ['sky', 'lilac'] as const) {
+      expect(contrastRatio(colors[theme]['on-color'], colors[theme][color])).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

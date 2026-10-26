@@ -15,7 +15,8 @@ export type ChoiceCardProps = {
 
 const styles = StyleSheet.create({
   // Equal share of the row; the basis wraps the cards onto two lines when large text no longer fits side by side.
-  card: { flexGrow: 1, flexBasis: 140, borderWidth: 2.5 },
+  // Border 2: the board's chosen card has a thicker outline than the 1.5 line of the others; 2 is the house value for emphasis.
+  card: { flexGrow: 1, flexBasis: 140, borderWidth: 2 },
 });
 
 // The card is one radio: its parts are hidden from screen readers and the label says both lines.
