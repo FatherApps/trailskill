@@ -91,12 +91,12 @@ describe('ConsoleLayout', () => {
     });
   });
 
-  it.each([360, 599])('compact at %s dp shows the six destinations and reports the one pressed', async (width) => {
+  it.each([360, 599])('compact at %s dp shows the seven destinations and reports the one pressed', async (width) => {
     const onSelect = jest.fn();
     await show(width, { onSelect });
 
     expect(screen.getByTestId('console-nav-top')).toBeOnTheScreen();
-    expect(screen.getAllByRole('tab')).toHaveLength(6);
+    expect(screen.getAllByRole('tab')).toHaveLength(7);
     expect(screen.getByText('Contenido principal')).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('tab', { name: 'Mediciones' }));

@@ -262,6 +262,14 @@ export const galleryEntries: GalleryEntry[] = [
         </SideSheet>
       </View>
     ),
+    // The title is optional: the caller passes the translation key (the invite sheet of the coaches section will).
+    titled: () => (
+      <View style={{ alignSelf: 'stretch', height: 560 }}>
+        <SideSheet label={detailFixture.name} titleKey="schoolConsole.nav.athletes" onClose={noop}>
+          <AthleteDetail athlete={detailFixture} onViewProfile={noop} />
+        </SideSheet>
+      </View>
+    ),
   }),
   entry('athleteIndicators', 'AthleteIndicators', {
     default: () => (

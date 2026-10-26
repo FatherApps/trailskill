@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useWindowDimensions } from 'react-native';
 
 import { useSession } from '../../core/session';
@@ -38,6 +38,7 @@ const sections: ConsoleScreenProps['sections'] = {
 };
 
 export default function ConsoleRoute() {
+  const router = useRouter();
   const { session } = useSession();
   const { width } = useWindowDimensions();
   // Memberships arrive with a sync, so the lookup runs again when one completes.
@@ -52,6 +53,7 @@ export default function ConsoleRoute() {
     <ConsoleScreen
       width={width}
       schoolName={access.school.name}
+      onOpenPlans={() => router.push('/plans')}
       sections={{
         ...sections,
         athletes: (props) => (

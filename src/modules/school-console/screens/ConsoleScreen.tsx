@@ -17,20 +17,23 @@ export type ConsoleScreenProps = {
   sections?: Partial<Record<ConsoleDestinationId, (props: ConsoleSectionProps) => ReactNode>>;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
+  // "Planes" is not a section: it opens the plan routes that already exist and leaves the active section as it is.
+  onOpenPlans?: () => void;
 };
 
 // Holds the active section above the layout, so it survives a change of width (rotation, split screen).
-export function ConsoleScreen({ width, schoolName, sections, scrollEnabled }: ConsoleScreenProps) {
+export function ConsoleScreen({ width, schoolName, sections, scrollEnabled, onOpenPlans }: ConsoleScreenProps) {
   const [activeId, setActiveId] = useState<ConsoleDestinationId>('athletes');
+  const navigate = (id: ConsoleDestinationId) => (id === 'plans' ? onOpenPlans?.() : setActiveId(id));
   const render = sections?.[activeId];
   return render ? (
-    render({ width, schoolName, onNavigate: setActiveId })
+    render({ width, schoolName, onNavigate: navigate })
   ) : (
     <EmptySectionScreen
       width={width}
       schoolName={schoolName}
       sectionId={activeId}
-      onNavigate={setActiveId}
+      onNavigate={navigate}
       scrollEnabled={scrollEnabled}
     />
   );

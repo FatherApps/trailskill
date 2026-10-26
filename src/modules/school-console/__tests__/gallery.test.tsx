@@ -83,7 +83,7 @@ describe('school console gallery entries', () => {
       'authorizationsScreen',
     ]);
     expect(stateKeys('consoleNav')).toEqual(['side', 'top']);
-    expect(stateKeys('sideSheet')).toEqual(['open']);
+    expect(stateKeys('sideSheet')).toEqual(['open', 'titled']);
     expect(stateKeys('athleteIndicators')).toEqual(['default', 'large-numbers']);
     expect(stateKeys('athleteFilters')).toEqual(['empty', 'with-filter', 'all-filters']);
     expect(stateKeys('athleteTable')).toEqual(['default', 'selected', 'long-text', 'compact']);

@@ -25,6 +25,23 @@ describe('SideSheet', () => {
     expect(screen.getByTestId('side-sheet-overlay').props.accessibilityViewIsModal).toBe(true);
   });
 
+  it('shows the title next to Cerrar when the caller passes its translation key', async () => {
+    await render(
+      <SideSheet label="Invitar entrenador" titleKey="schoolConsole.nav.coaches" onClose={() => {}}>
+        <Text>Contenido del detalle</Text>
+      </SideSheet>,
+    );
+
+    expect(screen.getByRole('header', { name: 'Entrenadores' })).toBeOnTheScreen();
+    expect(screen.getByTestId('side-sheet').props.accessibilityLabel).toBe('Invitar entrenador');
+  });
+
+  it('shows no title when none is passed', async () => {
+    await show();
+
+    expect(screen.queryByRole('header')).toBeNull();
+  });
+
   it('closes from the Cerrar button', async () => {
     const onClose = jest.fn();
     await show(onClose);

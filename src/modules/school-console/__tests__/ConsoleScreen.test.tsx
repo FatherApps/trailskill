@@ -57,11 +57,45 @@ describe('ConsoleScreen sections', () => {
   it('compact: shows the destinations and switches section when "Récords" is pressed', async () => {
     await render(show(360));
 
-    expect(screen.getAllByRole('tab')).toHaveLength(6);
+    expect(screen.getAllByRole('tab')).toHaveLength(7);
     await fireEvent.press(screen.getByRole('tab', { name: 'Récords' }));
 
     expect(screen.getByRole('header', { name: 'Récords' })).toBeOnTheScreen();
     expect(screen.getByRole('tab', { name: 'Récords' })).toBeSelected();
+  });
+
+  it('opens the plans through onOpenPlans without leaving the active section', async () => {
+    const onOpenPlans = jest.fn();
+    await render(
+      <ThemeProvider>
+        <ConsoleScreen width={1280} schoolName="Escuela Delfines" onOpenPlans={onOpenPlans} />
+      </ThemeProvider>,
+    );
+    await fireEvent.press(screen.getByRole('tab', { name: 'Récords' }));
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Planes' }));
+
+    expect(onOpenPlans).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('header', { name: 'Récords' })).toBeOnTheScreen();
+    expect(screen.getByRole('tab', { name: 'Récords' })).toBeSelected();
+    expect(screen.getByRole('tab', { name: 'Planes' })).not.toBeSelected();
+  });
+
+  it('lets a section open the plans too', async () => {
+    const onOpenPlans = jest.fn();
+    const sections = {
+      athletes: ({ onNavigate }: ConsoleSectionProps) => <Text onPress={() => onNavigate('plans')}>Abrir planes</Text>,
+    };
+    await render(
+      <ThemeProvider>
+        <ConsoleScreen width={1280} schoolName="Escuela Delfines" sections={sections} onOpenPlans={onOpenPlans} />
+      </ThemeProvider>,
+    );
+
+    await fireEvent.press(screen.getByText('Abrir planes'));
+
+    expect(onOpenPlans).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Abrir planes')).toBeOnTheScreen();
   });
 
   it('keeps the active section when the width changes between layouts', async () => {

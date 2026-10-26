@@ -1,17 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../../core/theme';
+import { colors, contrastRatio, radius, space, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { ConsoleNav, consoleNavColors, type ConsoleNavProps } from '../components/ConsoleNav';
 
 const themes: ThemeName[] = ['light', 'dark'];
-const labels = ['Deportistas', 'Entrenadores', 'Récords', 'Mediciones', 'Autorizaciones', 'Ajustes'];
+const labels = ['Deportistas', 'Entrenadores', 'Récords', 'Planes', 'Mediciones', 'Autorizaciones', 'Ajustes'];
 const base: ConsoleNavProps = { variant: 'side', activeId: 'athletes', onSelect: () => {}, schoolName: 'Escuela Delfines' };
 
 const style = (testID: string) => StyleSheet.flatten(screen.getByTestId(testID).props.style);
 
 describe('ConsoleNav', () => {
-  it('lists the six destinations in order as tabs, with the active one selected', async () => {
+  it('lists the seven destinations in order as tabs, with Planes between Récords and Mediciones', async () => {
     await render(<ConsoleNav {...base} activeId="records" />);
 
     expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(labels);
@@ -28,6 +28,15 @@ describe('ConsoleNav', () => {
     expect(onSelect).toHaveBeenCalledWith('authorizations');
   });
 
+  it('reports Planes as a destination of its own', async () => {
+    const onSelect = jest.fn();
+    await render(<ConsoleNav {...base} onSelect={onSelect} />);
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Planes' }));
+
+    expect(onSelect).toHaveBeenCalledWith('plans');
+  });
+
   it('shows the logo and the school name passed by props', async () => {
     await render(<ConsoleNav {...base} />);
 
@@ -35,9 +44,15 @@ describe('ConsoleNav', () => {
     expect(screen.getByText('Escuela Delfines')).toBeOnTheScreen();
   });
 
-  it('stacks the pills in a white panel on the side and lays them in a wrapping row on top', async () => {
+  it('floats as a 236 dp card on the side and lays the pills in a wrapping row on top', async () => {
     await render(<ConsoleNav {...base} variant="side" />);
-    expect(style('console-nav-side')).toMatchObject({ width: 240, backgroundColor: colors.light['surface-1'] });
+    expect(style('console-nav-side')).toMatchObject({
+      width: 236,
+      borderRadius: radius.lg,
+      margin: space[5],
+      backgroundColor: colors.light['surface-1'],
+    });
+    expect(style('console-nav-side').borderRightWidth).toBeUndefined();
     expect(style('console-nav-tabs')).toMatchObject({ flexDirection: 'column' });
 
     await screen.unmount();
