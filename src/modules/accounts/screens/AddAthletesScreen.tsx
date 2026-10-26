@@ -1,8 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
 
-import { useTheme } from '../../../core/theme';
-import { Banner, Button, Segmented, StepHeader, SwimmerRow, TextField } from '../../../core/ui';
+import { Banner, Button, ColorCard, Segmented, StepHeader, TextField } from '../../../core/ui';
+import { AddAthleteCard } from '../components/AddAthleteCard';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { t } from '../i18n';
 
@@ -36,10 +35,10 @@ export type AddAthletesScreenProps = {
   onChange: (field: AddAthleteField, value: string) => void;
   onAdd: () => void;
   onContinue: () => void;
-  onBack: () => void;
 };
 
-const styles = StyleSheet.create({ list: { overflow: 'hidden' }, separator: { height: StyleSheet.hairlineWidth } });
+// The server rejects a name longer than this (accounts_adult_profiles and the managed profiles check constraints).
+const NAME_MAX_LENGTH = 100;
 
 // Step 3 of registration for a guardian: only first and last name. Category and group are assigned by the school.
 export function AddAthletesScreen({
@@ -56,9 +55,7 @@ export function AddAthletesScreen({
   onChange,
   onAdd,
   onContinue,
-  onBack,
 }: AddAthletesScreenProps) {
-  const { colors, space, radius } = useTheme();
   const [submitted, setSubmitted] = useState(false);
   const missing = (field: AddAthleteField) => submitted && values[field].trim() === '';
 
@@ -82,23 +79,13 @@ export function AddAthletesScreen({
         />
       }
     >
-      <StepHeader step={step} total={total} title={t('accounts.athletes.title')} onBack={onBack} />
-      {athletes.length > 0 && (
-        <View style={[styles.list, { paddingVertical: space[1], borderRadius: radius.md, backgroundColor: colors['surface-1'] }]}>
-          {athletes.map((athlete, index) => (
-            <View key={athlete.id}>
-              {index > 0 && <View style={[styles.separator, { backgroundColor: colors.border }]} />}
-              <SwimmerRow
-                name={athlete.name}
-                initials={athlete.initials}
-                color={athlete.color}
-                detail={t('accounts.athletes.relation_guardian')}
-                status={renderStatus?.(athlete.id)}
-              />
-            </View>
-          ))}
-        </View>
-      )}
+      {/* No Back button: the account already exists, so going back would leave the registration half done. */}
+      <StepHeader step={step} total={total} title={t('accounts.athletes.title')} />
+      {athletes.map((athlete) => (
+        <ColorCard key={athlete.id} color={athlete.color} title={athlete.name} detail={t('accounts.athletes.relation_guardian')}>
+          {renderStatus?.(athlete.id)}
+        </ColorCard>
+      ))}
       {failed && (
         <Banner variant="warn" icon="error">
           {t(failed === 'add' ? 'accounts.athletes.add_failed' : 'accounts.athletes.continue_failed')}
@@ -107,7 +94,9 @@ export function AddAthletesScreen({
       <TextField
         label={t('accounts.athletes.first_name_label')}
         value={values.firstName}
+        help={t('accounts.athletes.name_limit', { max: NAME_MAX_LENGTH })}
         error={missing('firstName') ? t('accounts.athletes.first_name_required') : undefined}
+        maxLength={NAME_MAX_LENGTH}
         onChangeText={(text) => onChange('firstName', text)}
         autoCapitalize="words"
         autoComplete="given-name"
@@ -116,7 +105,9 @@ export function AddAthletesScreen({
       <TextField
         label={t('accounts.athletes.last_name_label')}
         value={values.lastName}
+        help={t('accounts.athletes.name_limit', { max: NAME_MAX_LENGTH })}
         error={missing('lastName') ? t('accounts.athletes.last_name_required') : undefined}
+        maxLength={NAME_MAX_LENGTH}
         onChangeText={(text) => onChange('lastName', text)}
         autoCapitalize="words"
         autoComplete="family-name"
@@ -130,10 +121,9 @@ export function AddAthletesScreen({
           onChange={(next) => onCategoryChange?.(next)}
         />
       )}
-      <Button
-        variant="secondary"
+      <AddAthleteCard
         label={t(athletes.length === 0 ? 'accounts.athletes.add' : 'accounts.athletes.add_another')}
-        loading={busy}
+        busy={busy}
         onPress={add}
       />
     </ScreenFrame>

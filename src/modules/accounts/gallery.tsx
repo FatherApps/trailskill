@@ -38,7 +38,6 @@ function AddAthletesPreview(props: Partial<AddAthletesScreenProps>) {
         athletes={[]}
         onAdd={noop}
         onContinue={noop}
-        onBack={noop}
         {...props}
         values={values}
         categoryId={categoryId}
@@ -214,11 +213,21 @@ export const galleryEntries: GalleryEntry[] = [
     id: 'addAthletes',
     title: 'AddAthletesScreen',
     states: {
+      // Nothing added yet: no cards, the continue button explains why it is unavailable.
+      empty: () => <AddAthletesPreview />,
       // Two profiles already added, both still on the phone (not yet sent), and empty name fields.
       withData: () => (
         <AddAthletesPreview
           athletes={[...fx.addedAthletes]}
           renderStatus={() => <SyncStatus state="on_device" />}
+        />
+      ),
+      // The add did not work: nothing was saved and the typed names are still there.
+      error: () => (
+        <AddAthletesPreview
+          athletes={[...fx.addedAthletes]}
+          failed="add"
+          values={{ firstName: fx.person.firstName, lastName: fx.person.lastName }}
         />
       ),
       // The school invitation brings categories: choosing one is optional.

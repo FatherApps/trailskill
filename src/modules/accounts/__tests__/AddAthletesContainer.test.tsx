@@ -33,7 +33,6 @@ function setup(invitationToken?: string) {
         invitations={invitations}
         pending={pending}
         onContinue={onContinue}
-        onBack={jest.fn()}
       />,
     );
   return { mount, onContinue, drafts, profiles, athletes, rows, pending, invitations };
@@ -52,7 +51,7 @@ describe('AddAthletesContainer', () => {
     await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
 
-    expect(await screen.findByLabelText('Lucía R., Hijo o hija')).toBeOnTheScreen();
+    expect(await screen.findByText('Lucía R.')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Agregar otro deportista' })).toBeOnTheScreen();
     expect(screen.queryByText(/documento|nacimiento/i)).toBeNull();
   });
@@ -61,7 +60,7 @@ describe('AddAthletesContainer', () => {
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
     await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
-    await screen.findByLabelText('Lucía R., Hijo o hija');
+    await screen.findByText('Lucía R.');
   }
 
   it('with an invitation, the category is optional: adding without choosing accepts it with no category', async () => {
@@ -131,7 +130,7 @@ describe('AddAthletesContainer', () => {
     const { mount, onContinue, drafts, profiles } = setup();
     await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Lucía', lastName: 'Rojas', relation: 'guardian' });
     await mount();
-    await screen.findByLabelText('Lucía R., Hijo o hija');
+    await screen.findByText('Lucía R.');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
 
@@ -143,7 +142,7 @@ describe('AddAthletesContainer', () => {
     const { mount, onContinue, drafts, profiles } = setup();
     await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Lucía', lastName: 'Rojas', relation: 'guardian' });
     await mount();
-    await screen.findByLabelText('Lucía R., Hijo o hija');
+    await screen.findByText('Lucía R.');
     const failing = jest.spyOn(drafts, 'save').mockRejectedValue(new Error('store failed'));
 
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
@@ -163,7 +162,7 @@ describe('AddAthletesContainer', () => {
     await drafts.clear();
     await mount();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
-    await screen.findByLabelText('Lucía R., Hijo o hija');
+    await screen.findByText('Lucía R.');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
 
@@ -201,7 +200,7 @@ describe('AddAthletesContainer', () => {
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
     await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
-    await screen.findByLabelText('Lucía R., Hijo o hija');
+    await screen.findByText('Lucía R.');
     release();
 
     await waitFor(async () => expect((await drafts.load())?.athlete).toBeUndefined());

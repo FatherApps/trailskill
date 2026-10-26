@@ -20,7 +20,6 @@ export type AddAthletesContainerProps = {
   pending: PendingInvitationRepository;
   renderStatus?: (athleteId: string) => ReactNode;
   onContinue: () => void;
-  onBack: () => void;
 };
 
 const empty = { firstName: '', lastName: '' };
@@ -36,7 +35,6 @@ export function AddAthletesContainer({
   pending,
   renderStatus,
   onContinue,
-  onBack,
 }: AddAthletesContainerProps) {
   const [values, setValues] = useState(empty);
   const [added, setAdded] = useState<AddedAthlete[]>([]);
@@ -129,7 +127,6 @@ export function AddAthletesContainer({
       onChange={change}
       onAdd={() => void add()}
       onContinue={() => void finish()}
-      onBack={onBack}
     />
   );
 }
