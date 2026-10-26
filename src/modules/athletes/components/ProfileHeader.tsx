@@ -28,8 +28,10 @@ export type ProfileHeaderProps = {
 // The board draws the ring white at 50 %; that is not a token, so it takes the nearest opaque one (maintainer decision).
 export const profileHeaderColors: { ring: ColorToken } = { ring: 'surface-1' };
 
-const ringSize = 170;
-const ringStroke = 20;
+// Smaller than the board's 170/20: a children slot cannot go behind the title, so the ring stays in the corner,
+// over the sync row, and clear of the name and the subtitle.
+const ringSize = 130;
+const ringStroke = 16;
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
@@ -62,7 +64,7 @@ export function ProfileHeader({
       subtitle={[category, school?.name].filter(Boolean).join(' · ')}
       onBack={onBack}
     >
-      {/* Behind the text: a negative zIndex keeps it above the band's own background but under its children. */}
+      {/* Decorative: first child, so the sync tag and everything after it draw over it. */}
       <View
         testID="profile-ring"
         pointerEvents="none"
@@ -77,7 +79,6 @@ export function ProfileHeader({
           borderRadius: ringSize,
           borderWidth: ringStroke,
           borderColor: colors[profileHeaderColors.ring],
-          zIndex: -1,
         }}
       />
       {updatedMinutesAgo !== null && (

@@ -73,16 +73,13 @@ export function PersonalBest({ stroke, distance, pool, best, improvement, kind, 
     >
       <View {...hidden} style={{ gap: space[1] }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: space[2] }}>
-          <View style={{ flexShrink: 1, gap: space[1] }}>
-            <Text style={[typography.caption, { color: colors[personalBestColors.caption] }]}>
-              {t('athletes.personal_best.caption', {
-                stroke: strokeLabel(stroke),
-                distance: distanceLabel(distance),
-                pool: poolText,
-              })}
-            </Text>
-            <TimeValue size="time-lg" value={best} />
-          </View>
+          <Text style={[typography.caption, { flexShrink: 1, color: colors[personalBestColors.caption] }]}>
+            {t('athletes.personal_best.caption', {
+              stroke: strokeLabel(stroke),
+              distance: distanceLabel(distance),
+              pool: poolText,
+            })}
+          </Text>
           {shown && (
             <Tag
               variant="ok"
@@ -94,6 +91,8 @@ export function PersonalBest({ stroke, distance, pool, best, improvement, kind, 
             />
           )}
         </View>
+        {/* Full width: beside the tag the time would not fit and would wrap. */}
+        <TimeValue size="time-lg" value={best} />
         {footer && <Text style={[typography.caption, { color: colors[personalBestColors.caption] }]}>{footer}</Text>}
       </View>
     </View>

@@ -80,7 +80,7 @@ describe('ProfileHeader', () => {
 
     const ring = screen.getByTestId('profile-ring', { includeHiddenElements: true });
     expect(profileHeaderColors.ring).toBe('surface-1');
-    expect(StyleSheet.flatten(ring.props.style)).toMatchObject({ borderColor: colors.light['surface-1'], zIndex: -1 });
+    expect(StyleSheet.flatten(ring.props.style)).toMatchObject({ borderColor: colors.light['surface-1'] });
     expect(ring.props.importantForAccessibility).toBe('no-hide-descendants');
     expect(ring.props.pointerEvents).toBe('none');
   });
