@@ -43,6 +43,7 @@ export default function TodayRoute() {
       userId={session.user.id}
       athletes={managed.athletes}
       initialAthleteId={athlete}
+      synced={summary.lastSyncedAt != null}
       onOpenAthletes={() => router.push('/athletes')}
       renderNoticeStatus={(id) => <RecordSyncStatus table="training_plan_notices" id={id} />}
     />

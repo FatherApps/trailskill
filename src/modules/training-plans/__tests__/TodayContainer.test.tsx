@@ -23,8 +23,8 @@ const schoolLinks = createInMemoryAthleteSchoolRepository([
   { athleteId: 'a3', schoolId: 's1', categoryId: 'c2' },
 ]);
 
-async function setup(options: { ids?: string[]; initialAthleteId?: string; changePlan?: boolean; onOpenAthletes?: () => void } = {}) {
-  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes } = options;
+async function setup(options: { ids?: string[]; initialAthleteId?: string; changePlan?: boolean; onOpenAthletes?: () => void; synced?: boolean } = {}) {
+  const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes, synced } = options;
   const plans = createInMemoryTrainingPlanRepository();
   // Plan p1 (an untimed and a timed block) goes to group g1, which has a1; plan p2 goes to group g2, which has a3.
   await plans.save({ ...plan('p1'), blocks: [...plan('p1').blocks, timed] });
@@ -42,7 +42,7 @@ async function setup(options: { ids?: string[]; initialAthleteId?: string; chang
     { athleteId: 'a1', hundredths: null },
   ];
   const notices = createInMemoryNoticeRepository();
-  await render(
+  const container = async (shown: string[], isSynced = synced) => (
     <TodayContainer
       plans={plans}
       assignments={assignments}
@@ -51,14 +51,18 @@ async function setup(options: { ids?: string[]; initialAthleteId?: string; chang
       notices={notices}
       series={{ listArrivals: async () => arrivals } as never}
       userId="guardian-1"
-      athletes={await athletes.listByIds(ids)}
+      athletes={await athletes.listByIds(shown)}
       initialAthleteId={initialAthleteId}
       day={DAY}
+      synced={isSynced}
       onOpenAthletes={onOpenAthletes}
       renderNoticeStatus={(id) => <Text>{`sync:${id}`}</Text>}
-    />,
+    />
   );
-  return { one, notices };
+  const view = await render(await container(ids));
+  // The same screen, with the athletes (and the first sync) that arrived later.
+  const update = async (shown: string[], isSynced = synced) => view.rerender(await container(shown, isSynced));
+  return { one, notices, update };
 }
 
 describe('TodayContainer', () => {
@@ -126,6 +130,49 @@ describe('TodayContainer', () => {
     expect(screen.queryByText('Hoy no hay plan')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Ir a Mis deportistas' }));
     expect(onOpenAthletes).toHaveBeenCalledTimes(1);
+  });
+
+  it('follows the athletes when the list was empty at first and the sync brings one', async () => {
+    const { update } = await setup({ ids: [], synced: false });
+    expect(await screen.findByTestId('state-view')).toBeOnTheScreen();
+
+    await update(['a1'], true);
+
+    expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
+    expect(screen.queryByText('Hoy no hay plan')).toBeNull();
+  });
+
+  it('goes back to the first athlete when the selected one disappears', async () => {
+    const { update } = await setup({ ids: ['a1', 'a3'], initialAthleteId: 'a3' });
+    expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
+
+    await update(['a1']);
+
+    expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · A1 S.' })).toBeOnTheScreen();
+    expect(screen.queryByText('Plan del otro')).toBeNull();
+  });
+
+  it('keeps the choice of the person when the list changes and the chosen athlete stays', async () => {
+    const { update } = await setup({ ids: ['a1', 'a3'] });
+    await screen.findByText('Plan p1');
+    await fireEvent.press(screen.getByRole('radio', { name: 'A3 S.' }));
+    expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
+
+    await update(['a3', 'a1']);
+
+    expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
+  });
+
+  it('shows loading, not "no linked athlete", before the first sync, and the message once it completed', async () => {
+    const { update } = await setup({ ids: [], synced: false });
+
+    expect(await screen.findByTestId('state-view')).toBeOnTheScreen();
+    expect(screen.queryByText('Aún no hay un deportista vinculado')).toBeNull();
+
+    await update([], true);
+
+    expect(await screen.findByText('Aún no hay un deportista vinculado')).toBeOnTheScreen();
   });
 
   it('saves a note with author, athlete, assignment, version and block, and lists it with its sync status', async () => {
