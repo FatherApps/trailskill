@@ -696,6 +696,7 @@ describe('AddAthletesContainer', () => {
       await gate;
       return snapshot;
     });
+    const save = jest.spyOn(drafts, 'save');
     await mount();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
 
@@ -708,6 +709,82 @@ describe('AddAthletesContainer', () => {
     expect(screen.getByLabelText('Apellido').props.value).toBe('Guardado');
     // The keystroke save wrote only the edited field: the kept one must be written back or a restart loses it.
     await waitFor(async () => expect((await real())?.athlete).toEqual({ firstName: 'Lucía', lastName: 'Guardado' }));
+    // One save per write, in order: the keystroke, then the write-back of the kept field.
+    expect(save.mock.calls.map(([draft]) => draft.athlete)).toEqual([
+      { firstName: 'Lucía', lastName: '' },
+      { firstName: 'Lucía', lastName: 'Guardado' },
+    ]);
+  });
+
+  it('a draft that loads after the screen went away still gets the field the person did not edit written back', async () => {
+    const { mount, drafts } = setup();
+    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Anterior', lastName: 'Guardado' } });
+    const real = drafts.load.bind(drafts);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    // Only the reads the screen starts with are slow; the saves after typing read the draft at once.
+    let slow = true;
+    jest.spyOn(drafts, 'load').mockImplementation(async () => {
+      const wait = slow;
+      const snapshot = await real();
+      if (wait) await gate;
+      return snapshot;
+    });
+    const save = jest.spyOn(drafts, 'save');
+    const view = await mount();
+    slow = false;
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    await view.unmount();
+
+    await act(async () => {
+      release();
+      await gate;
+    });
+
+    // The draft the person left must keep the field they did not edit, mounted or not.
+    await waitFor(async () => expect((await real())?.athlete).toEqual({ firstName: 'Lucía', lastName: 'Guardado' }));
+    expect(save.mock.calls.map(([draft]) => draft.athlete)).toEqual([
+      { firstName: 'Lucía', lastName: '' },
+      { firstName: 'Lucía', lastName: 'Guardado' },
+    ]);
+  });
+
+  // Pins the issue edge of a slow draft after a whole add: it cannot happen today (an add needs both fields typed, and the edit counters never reset), so the late draft always loses to what was typed.
+  it('a draft that loads after a whole add never brings back a field of the athlete already saved', async () => {
+    const { mount, drafts, rows } = setup();
+    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Anterior', lastName: 'Guardado' } });
+    const real = drafts.load.bind(drafts);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let slow = true;
+    jest.spyOn(drafts, 'load').mockImplementation(async () => {
+      const wait = slow;
+      const snapshot = await real();
+      if (wait) await gate;
+      return snapshot;
+    });
+    const save = jest.spyOn(drafts, 'save');
+    await mount();
+    slow = false;
+    await addLucia();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+    await waitFor(async () => expect((await real())?.athlete).toEqual({ firstName: 'Mateo', lastName: '' }));
+    const before = save.mock.calls.length;
+
+    await act(async () => {
+      release();
+      await gate;
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(screen.getByLabelText('Nombre').props.value).toBe('Mateo');
+    expect(screen.getByLabelText('Apellido').props.value).toBe('');
+    // Nothing from the draft the screen started with ('Anterior', 'Guardado') or from the saved athlete ('Rojas') is written again.
+    const written = save.mock.calls.slice(before).map(([draft]) => draft.athlete);
+    expect(written.flatMap((athlete) => Object.values(athlete ?? {}))).not.toEqual(expect.arrayContaining(['Anterior']));
+    expect(written.flatMap((athlete) => Object.values(athlete ?? {}))).not.toEqual(expect.arrayContaining(['Guardado']));
+    expect((await real())?.athlete).toEqual({ firstName: 'Mateo', lastName: '' });
   });
 
   it("a category that goes A, B, A while the athlete saves is the next athlete's choice and is not cleared", async () => {
