@@ -27,7 +27,7 @@ export default function Authorizations() {
       repository={authorizations}
       userId={userId}
       refreshKey={lastSyncedAt}
-      athletes={managed.athletes.map((athlete, index) => ({ id: athlete.id, name: athleteDisplay(athlete, index).shortName }))}
+      athletes={managed.athletes.map((athlete) => ({ id: athlete.id, name: athleteDisplay(athlete).shortName }))}
       mode="manage"
       onDone={() => router.back()}
     />

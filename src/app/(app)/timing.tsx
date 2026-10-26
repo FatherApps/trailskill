@@ -30,7 +30,7 @@ const sessionSetups = createSecureStoreSessionSetupRepository();
 // whose athlete is not in the time's school. Without a granted record_times the flow skips the athlete for the same reason.
 async function loadSchoolRoster(schoolId: string): Promise<RosterAthlete[]> {
   const [athletes, granted] = await Promise.all([schoolAthletes.listBySchool(schoolId), authorizations.listGrantedAthleteIds('record_times')]);
-  return athletes.map((athlete, index) => ({ id: athlete.id, ...athleteDisplay(athlete, index), authorized: granted.includes(athlete.id) }));
+  return athletes.map((athlete) => ({ id: athlete.id, ...athleteDisplay(athlete), authorized: granted.includes(athlete.id) }));
 }
 
 // The best time on this device for the event, shown against the time just stopped.
