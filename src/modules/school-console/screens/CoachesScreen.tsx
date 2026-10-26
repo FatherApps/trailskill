@@ -42,6 +42,9 @@ export type CoachesScreenProps = ConsoleSectionProps & {
 // The sheet that is open: inviting, or deactivating the coach with this id.
 type Pending = { kind: 'invite'; opening: number } | { kind: 'deactivate'; id: string };
 
+// One way to compare emails: the sheet already trims what was typed, and a mailbox is not case sensitive here.
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
 export function CoachesScreen({
   width,
@@ -71,13 +74,17 @@ export function CoachesScreen({
   const closeDeactivate = () => setPending(null);
   // The invitations whose sheet was closed before they failed, by the email they went to: nothing else would tell the person.
   const [lateFailures, setLateFailures] = useState<string[]>([]);
-  // The invitations still on their way by email, so the same one is not sent twice from another opening; a second send waits for the first.
-  const sends = useRef(new Map<string, Promise<void>>());
-  const send = (invitation: CoachInvitation) => {
-    const key = invitation.email.toLowerCase();
+  // The invitations still on their way, so the same one (same email and same groups) is not sent twice from another opening; a second send waits for the first.
+  // `waiting` are the openings that sent it: one that failed is told once, by the sheet that is open or else by the screen.
+  const sends = useRef(new Map<string, { promise: Promise<void>; waiting: Set<number> }>());
+  const send = (invitation: CoachInvitation, opening: number) => {
+    const key = JSON.stringify([normalizeEmail(invitation.email), [...invitation.groupIds].sort()]);
     const running = sends.current.get(key);
-    if (running) return running;
-    const started = (async () => {
+    if (running) {
+      running.waiting.add(opening);
+      return running;
+    }
+    const promise = (async () => {
       try {
         await onInvite(invitation);
       } catch (error) {
@@ -86,9 +93,10 @@ export function CoachesScreen({
         throw error;
       }
     })();
+    const started = { promise, waiting: new Set([opening]) };
     sends.current.set(key, started);
     const settled = () => sends.current.delete(key);
-    started.then(settled, settled);
+    promise.then(settled, settled);
     return started;
   };
   const lateNotice = lateFailures.length > 0 && (
@@ -112,12 +120,16 @@ export function CoachesScreen({
         notice={lateNotice || undefined}
         onSubmit={async (invitation) => {
           const { opening } = pending;
+          const sent = send(invitation, opening);
           try {
-            await send(invitation);
+            await sent.promise;
           } catch (error) {
             if (opening === openings.current) throw error;
+            // The sheet that is open says it already.
+            if (sent.waiting.has(openings.current)) return;
             const email = invitation.email;
-            setLateFailures((current) => (current.includes(email) ? current : [...current, email]));
+            const key = normalizeEmail(email);
+            setLateFailures((current) => (current.some((late) => normalizeEmail(late) === key) ? current : [...current, email]));
             return;
           }
           if (opening === openings.current) closeInvite();

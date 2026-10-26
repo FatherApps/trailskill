@@ -613,6 +613,90 @@ describe('CoachesScreen', () => {
         expect(screen.queryByTestId('side-sheet')).toBeNull();
       });
 
+      describe('two invitations to the same email', () => {
+        // Every call of onInvite stays pending until the test settles it, in order.
+        const setup = async () => {
+          jest.spyOn(console, 'warn').mockImplementation(() => {});
+          const rejects: ((error: Error) => void)[] = [];
+          const onInvite = jest.fn(() => new Promise<void>((_resolve, reject) => rejects.push(reject)));
+          await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+          const submit = async (email: string, group: string) => {
+            await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador', includeHiddenElements: true }));
+            await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+            await fireEvent.changeText(screen.getByLabelText('Correo'), email);
+            await fireEvent.press(screen.getByRole('radio', { name: group }));
+            await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+          };
+          const close = () => fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+          const fail = (index: number) => act(async () => rejects[index]!(new Error('offline')));
+          return { onInvite, submit, close, fail };
+        };
+        const rosa = /No pudimos enviar la invitación a /;
+
+        it('sends both when the second one is for another group, and keeps its sheet open until it answers', async () => {
+          const { onInvite, submit, close } = await setup();
+          await submit('rosa@example.com', 'Grupo A');
+          await close();
+
+          await submit('rosa@example.com', 'Grupo B');
+
+          expect(onInvite).toHaveBeenCalledTimes(2);
+          expect(onInvite).toHaveBeenNthCalledWith(1, { name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g1'] });
+          expect(onInvite).toHaveBeenNthCalledWith(2, { name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g2'] });
+          expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
+        });
+
+        it('tells once, in the open sheet, when the same invitation sent again fails', async () => {
+          const { onInvite, submit, close, fail } = await setup();
+          await submit('rosa@example.com', 'Grupo A');
+          await close();
+          await submit('Rosa@Example.com', 'Grupo A');
+          expect(onInvite).toHaveBeenCalledTimes(1);
+
+          await fail(0);
+
+          expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
+          expect(screen.queryByText(rosa, { includeHiddenElements: true })).toBeNull();
+        });
+
+        it('tells once, on the screen, when the same invitation sent again fails after both sheets were closed', async () => {
+          const { submit, close, fail } = await setup();
+          await submit('rosa@example.com', 'Grupo A');
+          await close();
+          await submit('Rosa@Example.com', 'Grupo A');
+          await close();
+
+          await fail(0);
+
+          expect(screen.getAllByText(rosa)).toHaveLength(1);
+        });
+
+        it('names the person once when Rosa@x and rosa@x fail from two closed sheets', async () => {
+          const { submit, close, fail } = await setup();
+          await submit('Rosa@Example.com', 'Grupo A');
+          await close();
+          await submit('rosa@example.com', 'Grupo B');
+          await close();
+
+          await fail(0);
+          await fail(1);
+
+          expect(screen.getAllByText(rosa)).toHaveLength(1);
+        });
+
+        it('does not repeat in the frame what the open sheet says to a screen reader', async () => {
+          const { submit, close, fail } = await setup();
+          await submit('rosa@example.com', 'Grupo A');
+          await close();
+          await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+
+          await fail(0);
+
+          expect(screen.getAllByText(rosa)).toHaveLength(1);
+          expect(within(screen.getByTestId('side-sheet')).getByText(rosa)).toBeOnTheScreen();
+        });
+      });
+
       it('shows the failure of the invitation of a closed sheet, saying which one, even while another sheet is open', async () => {
         jest.spyOn(console, 'warn').mockImplementation(() => {});
         let fail!: (error: Error) => void;
