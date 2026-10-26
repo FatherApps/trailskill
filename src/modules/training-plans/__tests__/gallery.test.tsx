@@ -14,7 +14,7 @@ describe('training-plans gallery entries', () => {
   it('cover the block card, the plan builder, the plan list, the today view and the fulfillment grid', () => {
     expect(galleryEntries.map((e) => e.id)).toEqual(['blockCard', 'planBuilder', 'planList', 'assignPlan', 'today', 'fulfillment']);
     expect(Object.keys(entry('blockCard').states)).toEqual(['phases', 'recordings', 'rows']);
-    expect(Object.keys(entry('planBuilder').states)).toEqual(['empty', 'blocks', 'editing', 'errors', 'drill', 'removing', 'saved']);
+    expect(Object.keys(entry('planBuilder').states)).toEqual(['empty', 'blocks', 'editing', 'errors', 'drill', 'removing', 'saved', 'expanded', 'expanded-no-selection']);
     expect(Object.keys(entry('planList').states)).toEqual(['data', 'empty', 'loading', 'error', 'no-school']);
     expect(Object.keys(entry('today').states)).toEqual([
       'today',

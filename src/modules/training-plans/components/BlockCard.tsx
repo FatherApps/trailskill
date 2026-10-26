@@ -23,7 +23,10 @@ export type BlockCardProps = {
 
 export function BlockCard({ block, vocabulary, children, variant = 'card', trailing }: BlockCardProps) {
   const { colors, space, radius, typography } = useTheme();
-  const muted = [typography.body, { color: colors['ink-muted'] }];
+  // The card is filled with the colour of its phase, so its text takes the phase's text colour (contrast is pinned in the tests).
+  const { background, text } = phaseColors[block.phase];
+  const textColor = colors[text];
+  const muted = [typography.body, { color: textColor }];
 
   if (variant === 'row') {
     // The phase is text in the caption, never the bar colour alone.
@@ -54,9 +57,12 @@ export function BlockCard({ block, vocabulary, children, variant = 'card', trail
   }
 
   return (
-    <View style={{ gap: space[2], padding: space[5], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
+    <View
+      testID="block-card"
+      style={{ gap: space[2], padding: space[5], borderRadius: radius.md, backgroundColor: colors[background] }}
+    >
       <PhaseTag phase={block.phase} />
-      <Text style={[typography.subtitle, { color: colors.ink }]}>
+      <Text style={[typography.subtitle, { color: textColor }]}>
         {blockSummary(block, vocabulary)}
       </Text>
       {block.equipment.length > 0 && (

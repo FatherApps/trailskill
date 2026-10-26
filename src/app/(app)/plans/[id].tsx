@@ -30,6 +30,7 @@ export default function PlanEditorRoute() {
       onSaved={(planId) => {
         if (id === 'new') router.replace(`/plans/${planId}`);
       }}
+      onAssign={() => router.push('/plans/assign')}
     />
   );
 }

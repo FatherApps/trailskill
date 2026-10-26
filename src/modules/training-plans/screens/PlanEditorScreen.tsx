@@ -20,6 +20,8 @@ export type PlanEditorScreenProps = {
   userId: string;
   vocabulary: PlanVocabulary;
   onSaved?: (planId: string) => void;
+  // Opens the assign flow; the editor never assigns by itself. Without it there is no assign button.
+  onAssign?: () => void;
 };
 
 type Load =
@@ -30,7 +32,7 @@ type Load =
   | { kind: 'ready' };
 
 // Container: loads the plan from the local repository, holds the draft, validates and saves.
-export function PlanEditorScreen({ planId, repository, schools, userId, vocabulary, onSaved }: PlanEditorScreenProps) {
+export function PlanEditorScreen({ planId, repository, schools, userId, vocabulary, onSaved, onAssign }: PlanEditorScreenProps) {
   const { colors, space } = useTheme();
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -186,6 +188,7 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
       }}
       onSave={() => run('plan')}
       onSaveTemplate={() => run('template')}
+      onAssign={onAssign}
     />
   );
 }
