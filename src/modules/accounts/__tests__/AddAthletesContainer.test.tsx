@@ -626,6 +626,43 @@ describe('AddAthletesContainer', () => {
       expect(screen.getByRole('radio', { name: '11-12' }).props.accessibilityState.checked).toBe(true);
       await waitFor(() => expect(invitations.accepted).toEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
     });
+
+    it('changing the category while the add is pending: the first athlete is saved and queued with the original, the next one with the new', async () => {
+      const { mount, profiles, rows, pending, invitations } = setup('tok-1');
+      const create = profiles.createManagedAthlete.bind(profiles);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      jest.spyOn(profiles, 'createManagedAthlete').mockImplementationOnce(async (input) => {
+        await gate;
+        return create(input);
+      });
+      await mount();
+      await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
+      // The categories are loaded; from here the acceptances stay queued, so what was saved can be read.
+      invitations.offline = true;
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+      fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+      await fireEvent.press(screen.getByRole('radio', { name: '11-12' }));
+      release();
+      await screen.findByText('Lucía R.');
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+      await screen.findByText('Mateo R.');
+
+      expect(rows.map((row) => row.athleteId)).toHaveLength(2);
+      await waitFor(async () =>
+        expect(await pending.list()).toEqual([
+          { userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1', queuedAt: expect.any(Number) },
+          { userId: 'guardian-1', token: 'tok-1', athleteId: rows[1].athleteId, categoryId: 'cat-2', queuedAt: expect.any(Number) },
+        ]),
+      );
+      expect(invitations.accepted).toEqual([]);
+    });
   });
 
   it('after Continuar fails, Continuar and Agregar both work again: nothing stays blocked', async () => {
