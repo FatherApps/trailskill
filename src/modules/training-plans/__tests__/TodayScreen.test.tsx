@@ -114,6 +114,7 @@ describe('TodayScreen header', () => {
   });
 
   it('never shows "0 m", in the card or the heading, when no block adds metres', async () => {
+    expect(content.blocks).toHaveLength(5);
     const none = { ...content, blocks: content.blocks.slice(0, 2).map((entry) => ({ ...entry, block: { ...entry.block, distance: 0 } })) };
     await render(setup({ kind: 'data', content: none }).ui);
 
