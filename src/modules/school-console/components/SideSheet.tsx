@@ -1,8 +1,9 @@
 import { useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
-import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
+import { useHardwareBack } from '../../../core/ui';
 import '../i18n';
 import { IconButton } from './IconButton';
 
@@ -35,13 +36,7 @@ export function SideSheet({ label, titleKey, onClose, children }: SideSheetProps
     if (closeRef.current) AccessibilityInfo.sendAccessibilityEvent(closeRef.current, 'focus');
   }, []);
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onClose();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [onClose]);
+  useHardwareBack(onClose);
 
   return (
     <View testID="side-sheet-overlay" accessibilityViewIsModal style={[StyleSheet.absoluteFill, { flexDirection: 'row' }]}>
