@@ -364,8 +364,8 @@ select throws_ok(
      values
        ('29100000-0000-4000-8000-0000000000d5', 'repetition', '29100000-0000-4000-8000-0000000000e3', 3300,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-a', '2026-10-24 11:00:00+00') $$,
-  '23502', null,
-  'an individual mark without school_id of an athlete with no school in common with the author is rejected'
+  '42501', 'new row violates row-level security policy for table "measurements"',
+  'an individual mark without school_id of an athlete with no school in common with the author is rejected: RLS refuses its null school'
 );
 select throws_ok(
   $$ insert into public.measurements
@@ -389,8 +389,8 @@ select throws_ok(
      values
        ('29100000-0000-4000-8000-0000000000d6', 'repetition', '29100000-0000-4000-8000-0000000000e1', 3300,
         'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-w', '2026-10-24 11:00:00+00') $$,
-  '23502', null,
-  'an individual mark without school_id of an athlete in two of the author''s schools is rejected'
+  '42501', 'new row violates row-level security policy for table "measurements"',
+  'an individual mark without school_id of an athlete in two of the author''s schools is rejected: RLS refuses its null school'
 );
 reset role;
 set local request.jwt.claims = '';
