@@ -31,7 +31,7 @@ describe('athletes gallery entries', () => {
   it('have unique ids and the expected states', () => {
     expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'importPrompt', 'athleteProfileScreen', 'myAthletesScreen']);
     expect(stateKeys('myAthletesScreen')).toEqual(['with-data', 'long-text', 'empty', 'loading']);
-    expect(stateKeys('profileHeader')).toEqual(['one-school', 'several-schools', 'pending-authorization', 'long-text']);
+    expect(stateKeys('profileHeader')).toEqual(['one-school', 'several-schools', 'pending-authorization', 'with-event-chips', 'no-sync-info', 'long-text']);
     expect(stateKeys('eventSelector')).toEqual(['one-pool', 'two-pools']);
     expect(stateKeys('personalBest')).toEqual(['with-improvement', 'no-improvement', 'missing', 'training']);
     expect(stateKeys('historyList')).toEqual(['mixed', 'long-text']);
@@ -80,11 +80,11 @@ describe('athletes gallery entries', () => {
   it('eventSelector / two-pools keeps the selection', async () => {
     await render(<ThemeProvider>{entryById('eventSelector').states['two-pools']()}</ThemeProvider>);
 
-    await fireEvent.press(screen.getByRole('radio', { name: 'Espalda' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
     await fireEvent.press(screen.getByRole('radio', { name: 'Piscina de 50 m' }));
 
-    expect(screen.getByRole('radio', { name: 'Espalda' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Libre' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Libre 50 m' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Piscina de 50 m' })).toBeChecked();
   });
 
@@ -104,12 +104,12 @@ describe('athletes gallery entries', () => {
   it('athleteProfileScreen / with-data keeps the event selection while it is shown and starts fresh when mounted again', async () => {
     const { unmount } = await render(<ThemeProvider>{entryById('athleteProfileScreen').states['with-data']()}</ThemeProvider>);
 
-    await fireEvent.press(screen.getByRole('radio', { name: 'Espalda' }));
-    expect(screen.getByRole('radio', { name: 'Espalda' })).toBeChecked();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+    expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
 
     await unmount();
     await render(<ThemeProvider>{entryById('athleteProfileScreen').states['with-data']()}</ThemeProvider>);
-    expect(screen.getByRole('radio', { name: 'Libre' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
   });
 
   it('athleteProfileScreen / with-import-prompt shows the prompt and with-data does not', async () => {

@@ -1,9 +1,10 @@
-import { StyleSheet, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import type { ColorToken } from '../../../core/theme';
 import { useTheme } from '../../../core/theme';
-import { Segmented, Tag } from '../../../core/ui';
+import { ColorHeader, Segmented, Tag, type ColorCardColor } from '../../../core/ui';
 import '../i18n';
 
 export type ProfileHeaderProps = {
@@ -16,18 +17,27 @@ export type ProfileHeaderProps = {
   authorization: 'valid' | 'pending';
   // Minutes since the last sync; `null` when unknown.
   updatedMinutesAgo: number | null;
+  // The athlete's colour (same on every screen); a neutral brand colour when the caller has none.
+  color?: ColorCardColor;
+  // Back is always on screen; a caller without a destination leaves the button inert.
+  onBack?: () => void;
+  // Below the school and authorization rows, inside the band: the event chips.
+  children?: ReactNode;
 };
 
-export const profileHeaderColors: {
-  background: ColorToken;
-  title: ColorToken;
-  subtitle: ColorToken;
-  updated: ColorToken;
-} = { background: 'surface-0', title: 'ink', subtitle: 'ink-muted', updated: 'ink-muted' };
+// The board draws the ring white at 50 %; that is not a token, so it takes the nearest opaque one (maintainer decision).
+export const profileHeaderColors: { ring: ColorToken } = { ring: 'surface-1' };
+
+// The ring of VibPerfil (170 wide): decoration only, so it is a local constant, not a token (maintainer decision).
+const DECORATIVE_RING_SIZE = 170;
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' },
+  row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  // Over the back-button row: the sync tag sits at the right of the button.
+  sync: { position: 'absolute', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
 });
+
+const noop = () => {};
 
 export function ProfileHeader({
   name,
@@ -37,21 +47,72 @@ export function ProfileHeader({
   onSchoolChange,
   authorization,
   updatedMinutesAgo,
+  color = 'sky',
+  onBack = noop,
+  children,
 }: ProfileHeaderProps) {
-  const { colors, space, typography } = useTheme();
+  const { colors, space, size, radius } = useTheme();
   const school = schools.find((item) => item.id === schoolId);
   const valid = authorization === 'valid';
 
   return (
-    <View style={{ gap: space[2] }}>
-      <View>
-        <Text accessibilityRole="header" style={[typography.title, { color: colors[profileHeaderColors.title] }]}>
-          {name}
-        </Text>
-        <Text style={[typography.caption, { color: colors[profileHeaderColors.subtitle] }]}>
-          {[category, school?.name].filter(Boolean).join(' · ')}
-        </Text>
+    <ColorHeader
+      color={color}
+      title={name}
+      subtitle={[category, school?.name].filter(Boolean).join(' · ')}
+      onBack={onBack}
+    >
+      {/* Decorative and out of the layout. A children slot cannot go behind the title, so the box shows only the strip
+          of the ring beside the back button (the title starts below it); the sync tag draws over it. */}
+      <View
+        testID="profile-ring-clip"
+        pointerEvents="none"
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: DECORATIVE_RING_SIZE,
+          height: space[4] + size['target-min'] + space[2],
+          overflow: 'hidden',
+        }}
+      >
+        <View
+          testID="profile-ring"
+          style={{
+            position: 'absolute',
+            top: -space[5],
+            right: -space[8],
+            width: DECORATIVE_RING_SIZE,
+            height: DECORATIVE_RING_SIZE,
+            borderRadius: radius.full,
+            borderWidth: space[5],
+            borderColor: colors[profileHeaderColors.ring],
+          }}
+        />
       </View>
+      {updatedMinutesAgo !== null && (
+        <View
+          style={[
+            styles.sync,
+            // Stops at the back button, so a long label wraps instead of covering it.
+            { top: space[4], left: space[4] + size['target-min'] + space[2], right: space[4], height: size['target-min'] },
+          ]}
+        >
+          <View>
+            <Tag
+              variant="neutral"
+              icon="cloud_done"
+              label={
+                updatedMinutesAgo === 0
+                  ? t('athletes.profile.updated_now')
+                  : t('athletes.profile.updated', { count: updatedMinutesAgo })
+              }
+            />
+          </View>
+        </View>
+      )}
       {schools.length > 1 && (
         <Segmented
           accessibilityLabel={t('athletes.profile.school')}
@@ -67,14 +128,8 @@ export function ProfileHeader({
           icon={valid ? 'verified_user' : 'schedule'}
           label={t(valid ? 'athletes.profile.authorization_valid' : 'athletes.profile.authorization_pending')}
         />
-        {updatedMinutesAgo !== null && (
-          <Text style={[typography.caption, { color: colors[profileHeaderColors.updated] }]}>
-            {updatedMinutesAgo === 0
-              ? t('athletes.profile.updated_now')
-              : t('athletes.profile.updated', { count: updatedMinutesAgo })}
-          </Text>
-        )}
       </View>
-    </View>
+      {children}
+    </ColorHeader>
   );
 }

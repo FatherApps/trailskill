@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react-native';
 import { PixelRatio, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors, contrastRatio, size, ThemeProvider, type ThemeName } from '../../../core/theme';
+import { colors, contrastRatio, size, space, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { historyFixture, historyResults } from '../__fixtures__/history';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 
@@ -94,12 +94,40 @@ describe('HistoryList', () => {
     expect(hiddenText('11 oct 2026 · Competencia · Parcial 25 m')).toHaveLength(1);
   });
 
-  it('shows the origin as text in a Tag for each origin but the own one', async () => {
+  it('shows the origin as text for each origin but the own one', async () => {
     await render(<HistoryList results={['race-pb', 'import', 'external-timer', 'other-school'].map(byId)} />);
 
     expect(hiddenText(historyFixture.sourceName)).toHaveLength(1);
     expect(hiddenText('Botón externo')).toHaveLength(1);
     expect(hiddenText(`Otra escuela: ${historyFixture.otherSchool}`)).toHaveLength(1);
+  });
+
+  it.each([
+    ['race-pb', 'lime'],
+    ['repetition', 'sky'],
+    ['import', 'surface-2'],
+    ['external-timer', 'lilac'],
+    ['other-school', 'coral'],
+  ] as const)('draws the %s row with a %s dot and an icon, from the theme tokens', async (id, token) => {
+    await render(<HistoryList results={[byId(id)]} />);
+
+    const [dot] = screen.getAllByTestId('history-dot', { includeHiddenElements: true });
+    expect(StyleSheet.flatten(dot.props.style).backgroundColor).toBe(colors.light[token]);
+    expect(dot.queryAll((node) => node.type === 'RNSVGPath')).toHaveLength(1);
+  });
+
+  it('has a dot on every row, so no row shows the origin by colour alone', async () => {
+    await render(<HistoryList results={['race-pb', 'import', 'external-timer', 'other-school'].map(byId)} />);
+
+    expect(screen.getAllByTestId('history-dot', { includeHiddenElements: true })).toHaveLength(4);
+    expect(hiddenText(historyFixture.sourceName)).toHaveLength(1);
+  });
+
+  it('insets the rows from the edges when asked, so a full-bleed header can sit above', async () => {
+    await render(<HistoryList results={[byId('race-pb')]} inset={space[4]} />);
+
+    const card = screen.getAllByLabelText(/^Libre 50 m/)[0].parent!;
+    expect(StyleSheet.flatten(card.props.style).marginHorizontal).toBe(space[4]);
   });
 
   it('shows no origin for an own result', async () => {
@@ -189,17 +217,16 @@ describe('HistoryList', () => {
           .at(-1)?.props?.style as never,
       );
 
-    it('lets the text block shrink, bounds the tag to it and keeps the time width at normal size', async () => {
+    it('lets the text block shrink and keeps the time width at normal size', async () => {
       await render(<HistoryList results={[byId('import')]} />);
 
-      const [text, trailing] = screen.getAllByLabelText(/^Mariposa 100 m/)[0].children as unknown as {
+      const [, text, trailing] = screen.getAllByLabelText(/^Mariposa 100 m/)[0].children as unknown as {
         props: { style: unknown };
         children: { props: { style: unknown } }[];
       }[];
       const flat = (style: unknown) => StyleSheet.flatten(style as never);
       expect(flat(text.props.style).flexShrink).toBe(1);
       expect(flat(text.props.style).minWidth).toBe(0);
-      expect(flat(text.children.at(-1)!.props.style).maxWidth).toBe('100%');
       expect(flat(trailing.props.style).flexShrink).toBe(0);
     });
 
@@ -262,6 +289,16 @@ describe('HistoryList', () => {
       const c = colors[theme];
       expect(contrastRatio(c.ink, c['surface-1'])).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(c['ink-muted'], c['surface-1'])).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it.each([
+      ['on-color', 'lime'],
+      ['on-color', 'sky'],
+      ['on-color', 'lilac'],
+      ['on-color', 'coral'],
+      ['ink', 'surface-2'],
+    ] as const)('keeps the %s icon on the %s dot at 3:1 or more', (icon, dot) => {
+      expect(contrastRatio(colors[theme][icon], colors[theme][dot])).toBeGreaterThanOrEqual(3);
     });
   });
 });

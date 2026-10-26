@@ -17,8 +17,12 @@ import { MyAthletesScreen, type MyAthletesView } from './screens/MyAthletesScree
 // The preview box shrinks its children to their content; these components need the full width.
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
 
+const noop = () => {};
+
 const headerBase: ProfileHeaderProps = {
   name: pf.name,
+  color: 'athlete-3',
+  onBack: noop,
   category: pf.category,
   schools: pf.schools.slice(0, 1),
   schoolId: pf.schools[0].id,
@@ -27,12 +31,14 @@ const headerBase: ProfileHeaderProps = {
 };
 
 // Holds the school, so tapping an option changes it in the gallery.
-function ProfileHeaderPreview(props: ProfileHeaderProps) {
+function ProfileHeaderPreview({ children, ...props }: ProfileHeaderProps) {
   const [schoolId, setSchoolId] = useState(props.schoolId);
 
   return (
     <FullWidth>
-      <ProfileHeader {...props} schoolId={schoolId} onSchoolChange={setSchoolId} />
+      <ProfileHeader {...props} schoolId={schoolId} onSchoolChange={setSchoolId}>
+        {children}
+      </ProfileHeader>
     </FullWidth>
   );
 }
@@ -63,8 +69,6 @@ const PersonalBestPreview = (props: PersonalBestProps) => (
     <PersonalBest {...props} />
   </FullWidth>
 );
-
-const noop = () => {};
 
 const prompt = { athleteName: h.athleteName, onDismiss: noop, onRefresh: noop, onLearnMore: noop };
 
@@ -98,6 +102,12 @@ export const galleryEntries: GalleryEntry[] = [
     'one-school': () => <ProfileHeaderPreview {...headerBase} />,
     'several-schools': () => <ProfileHeaderPreview {...headerBase} schools={pf.schools} />,
     'pending-authorization': () => <ProfileHeaderPreview {...headerBase} authorization="pending" />,
+    'with-event-chips': () => (
+      <ProfileHeaderPreview {...headerBase}>
+        <EventSelectorPreview pools={ev.pools.slice(0, 1)} />
+      </ProfileHeaderPreview>
+    ),
+    'no-sync-info': () => <ProfileHeaderPreview {...headerBase} updatedMinutesAgo={null} color="athlete-4" />,
     'long-text': () => (
       <ProfileHeaderPreview
         {...headerBase}

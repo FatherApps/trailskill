@@ -9,6 +9,7 @@ import type { AthleteSchoolRepository } from '../data/athleteSchools';
 import type { HistoryMeasurement, HistoryRepository } from '../data/history';
 import type { OtherSchoolResult, OtherSchoolResultsRepository } from '../data/otherSchoolResults';
 import type { SchoolAthlete, SchoolAthleteRepository } from '../data/schoolAthletes';
+import { athleteDisplay } from '../athleteDisplay';
 import { personalBest } from '../personalBest';
 import { AthleteProfileScreen, type AthleteProfileView } from './AthleteProfileScreen';
 
@@ -27,6 +28,8 @@ export type AthleteProfileContainerProps = {
   otherSchoolResults?: OtherSchoolResultsRepository;
   // Whether the device is connected. Without a connection no result of another school is asked for or shown.
   online?: boolean;
+  // Where the band's back button goes; the route decides (the module has no router).
+  onBack?: () => void;
 };
 
 type ProfileSchool = { id: string; name: string; category: string };
@@ -116,6 +119,7 @@ export function AthleteProfileContainer({
   lastSyncedAt,
   otherSchoolResults,
   online = false,
+  onBack,
 }: AthleteProfileContainerProps) {
   const [event, setEvent] = useState<EventValue>(initialEvent);
   const [attempt, setAttempt] = useState(0);
@@ -189,6 +193,8 @@ export function AthleteProfileContainer({
   const content = {
     header: {
       name: `${athlete.firstName} ${athlete.lastName}`.trim(),
+      color: athleteDisplay(athlete).color,
+      onBack,
       category: school?.category ?? '',
       schools: schools.map(({ id, name }) => ({ id, name })),
       schoolId: school?.id ?? '',

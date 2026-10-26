@@ -1,8 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { t } from '../../../core/i18n';
-import { distances, strokes } from '../../../core/sport';
 import { size } from '../../../core/theme';
 import { eventFixture as e } from '../__fixtures__/profile';
 import { EventSelector, type EventSelectorProps } from '../components/EventSelector';
@@ -16,30 +14,28 @@ const base: EventSelectorProps = {
 };
 
 describe('EventSelector', () => {
-  it('shows a group for the stroke and one for the distance, with the sport catalog names', async () => {
+  it('shows one chip per stroke and distance, in a single labelled row', async () => {
     await render(<EventSelector {...base} />);
 
-    const strokeGroup = screen.getByLabelText('Estilo');
-    const distanceGroup = screen.getByLabelText('Distancia');
-    expect(strokeGroup).toBeOnTheScreen();
-    expect(distanceGroup).toBeOnTheScreen();
-
-    for (const { nameKey } of strokes.filter((s) => e.strokes.includes(s.code))) {
-      expect(screen.getByRole('radio', { name: t(nameKey) })).toBeOnTheScreen();
-    }
-    for (const { nameKey } of distances.filter((d) => e.distances.includes(d.code))) {
-      expect(screen.getByRole('radio', { name: t(nameKey) })).toBeOnTheScreen();
-    }
-    expect(screen.getAllByRole('radio')).toHaveLength(e.strokes.length + e.distances.length);
+    expect(screen.getByLabelText('Prueba')).toBeOnTheScreen();
+    expect(screen.getAllByRole('radio')).toHaveLength(e.strokes.length * e.distances.length);
+    expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Mariposa 100 m' })).toBeOnTheScreen();
   });
 
-  it('marks the selected stroke and distance', async () => {
+  it('orders the chips by stroke, then by distance', async () => {
     await render(<EventSelector {...base} />);
 
-    expect(screen.getByRole('radio', { name: 'Libre' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Espalda' })).not.toBeChecked();
-    expect(screen.getByRole('radio', { name: '50 m' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: '25 m' })).not.toBeChecked();
+    const names = screen.getAllByRole('radio').map((radio) => radio.props.accessibilityLabel);
+    expect(names.slice(0, 4)).toEqual(['Libre 25 m', 'Libre 50 m', 'Libre 100 m', 'Espalda 25 m']);
+  });
+
+  it('marks only the chip of the selected stroke and distance', async () => {
+    await render(<EventSelector {...base} />);
+
+    expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Libre 100 m' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).not.toBeChecked();
   });
 
   it('has no pool row with a single pool', async () => {
@@ -57,8 +53,8 @@ describe('EventSelector', () => {
   });
 
   it.each([
-    ['Espalda', { stroke: 'BK', distance: '50m', pool: 'SCM' }],
-    ['100 m', { stroke: 'FR', distance: '100m', pool: 'SCM' }],
+    ['Espalda 50 m', { stroke: 'BK', distance: '50m', pool: 'SCM' }],
+    ['Libre 100 m', { stroke: 'FR', distance: '100m', pool: 'SCM' }],
     ['Piscina de 50 m', { stroke: 'FR', distance: '50m', pool: 'LCM' }],
   ])('chooses %s and reports the full new value', async (label, expected) => {
     const onChange = jest.fn();

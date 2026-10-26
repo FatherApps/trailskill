@@ -58,7 +58,7 @@ describe('AthleteProfileScreen', () => {
       const flat = order();
       const positions = [
         at(flat, 'Lucía R.'),
-        at(flat, 'Estilo'),
+        at(flat, 'Prueba'),
         at(flat, 'Marca personal, Libre 50 m'),
         at(flat, 'Gráfico de progreso'),
         at(flat, 'Historial'),
@@ -108,7 +108,7 @@ describe('AthleteProfileScreen', () => {
 
       // One vertical scroll container only: the history is not a list inside a ScrollView.
       expect(order().filter((item) => item === 'vertical-scroll')).toHaveLength(1);
-      const rows = screen.getAllByLabelText(/^Libre 50 m/);
+      const rows = screen.getAllByLabelText(/^Libre 50 m, /);
       expect(rows.length).toBeGreaterThan(0);
       expect(rows.length).toBeLessThan(many.length);
     });
@@ -199,7 +199,7 @@ describe('AthleteProfileScreen', () => {
         screen.getByText('Cuando el entrenador registre una medición de Lucía R., aparecerá aquí.'),
       ).toBeOnTheScreen();
       expect(screen.getByText(name)).toBeOnTheScreen();
-      expect(screen.getByRole('radio', { name: 'Libre' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeOnTheScreen();
       expect(screen.queryByLabelText(/^Marca personal/)).toBeNull();
       expect(screen.queryByRole('header', { name: 'Historial' })).toBeNull();
       expect(screen.queryAllByText(/0,00/, hidden)).toHaveLength(0);
@@ -227,7 +227,7 @@ describe('AthleteProfileScreen', () => {
   });
 
   describe('offline', () => {
-    it('with stored data shows a dated warning banner above the content', async () => {
+    it('with stored data shows a dated warning banner under the band, above the content', async () => {
       await show({ kind: 'offline', storedOn: storedOnFixture, content });
 
       expect(screen.getByTestId('banner')).toHaveTextContent(
@@ -235,9 +235,10 @@ describe('AthleteProfileScreen', () => {
       );
       const flat = order();
       expect(at(flat, 'Lucía R.')).toBeGreaterThan(-1);
-      expect(flat.indexOf('Mostramos lo guardado en este teléfono el 23 de octubre de 2026.')).toBeLessThan(
-        at(flat, 'Lucía R.'),
-      );
+      // Under the full-width band, above the personal best and the history.
+      const banner = flat.indexOf('Mostramos lo guardado en este teléfono el 23 de octubre de 2026.');
+      expect(banner).toBeGreaterThan(at(flat, 'Lucía R.'));
+      expect(banner).toBeLessThan(at(flat, 'Marca personal, Libre 50 m'));
       expect(screen.getByRole('header', { name: 'Historial' })).toBeOnTheScreen();
       expect(screen.queryByTestId('state-view')).toBeNull();
     });
