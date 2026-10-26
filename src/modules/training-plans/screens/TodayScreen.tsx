@@ -53,7 +53,8 @@ export type TodayView =
   | { kind: 'denied' };
 
 export type TodayScreenProps = {
-  athleteName: string;
+  // A missing name (undefined) shows exactly what an empty one does.
+  athleteName?: string;
   view: TodayView;
   // Choose among several athletes; the picker shows only with more than one.
   athletes?: TodayAthlete[];
@@ -105,11 +106,9 @@ function PlanHeader({ content, athleteName, color }: { content: TodayContent; at
   // A missing name is left out, never filled in: the caption and the label then drop it together.
   const name = athleteName.trim();
   // The card is the heading: one accessible node announced from the same data as the visible text (title, plan, name, summary) so TalkBack reads it whole.
-  // Anything added to the card must be added to this label too. The parts that exist are joined by a translatable key.
-  const heading = [name, summary].filter((part): part is string => Boolean(part)).reduce(
-    (label, part) => t('training_plans.today.heading_join', { first: label, second: part }),
-    t('training_plans.today.heading', { title, plan: content.planName }),
-  );
+  // Anything added to the card must be added to this label too. One key with a context (name, summary or both) lets each language order the parts.
+  const context = [name && 'name', summary && 'summary'].filter(Boolean).join('_');
+  const heading = t('training_plans.today.heading', { title, plan: content.planName, name, summary: summary ?? '', context });
 
   return (
     <View accessible accessibilityRole="header" accessibilityLabel={heading}>
@@ -267,7 +266,7 @@ function TodayContentView({
 }
 
 // Presentational: no network, database or repository; the caller supplies the state and handles the events.
-export function TodayScreen({ athleteName, view, athletes, selectedAthleteId, onSelectAthlete, onSendNotice, renderNoticeStatus, scrollEnabled = true }: TodayScreenProps) {
+export function TodayScreen({ athleteName = '', view, athletes, selectedAthleteId, onSelectAthlete, onSendNotice, renderNoticeStatus, scrollEnabled = true }: TodayScreenProps) {
   const { colors, space, typography } = useTheme();
   const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
 
