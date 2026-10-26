@@ -110,6 +110,7 @@
     "offline_message": "El plan de hoy aparecerá cuando vuelva la señal.",
     "denied_title": "Esta información es privada",
     "denied_message": "Solo {{name}}, sus acudientes y sus entrenadores pueden ver este plan.",
+    "denied_message_no_name": "Solo el deportista, sus acudientes y sus entrenadores pueden ver este plan.",
     "banner_title": "Sin conexión.",
     "banner_dated": "Plan guardado el {{date}}.",
     "bring_title": "Lleva hoy",

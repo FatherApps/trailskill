@@ -75,6 +75,13 @@ describe('TodayScreen states', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it.each(['', '   '])('names "el deportista" instead of leaving a gap when the athlete name is blank (%j)', async (athleteName) => {
+    await render(<TodayScreen athleteName={athleteName} view={{ kind: 'denied' }} onSendNotice={jest.fn()} />);
+
+    expect(screen.getByText('Solo el deportista, sus acudientes y sus entrenadores pueden ver este plan.')).toBeOnTheScreen();
+    expect(screen.queryByText(/Solo ,/)).toBeNull();
+  });
+
   it('shows the plan, the athlete and the blocks with data', async () => {
     await render(setup({ kind: 'data', content }).ui);
 

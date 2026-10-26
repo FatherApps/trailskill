@@ -332,7 +332,7 @@ export function TodayScreen({ athleteName = '', view, athletes, selectedAthleteI
         <StateView
           kind="denied"
           title={t('training_plans.today.denied_title')}
-          message={t('training_plans.today.denied_message', { name: athleteName })}
+          message={athleteName.trim() ? t('training_plans.today.denied_message', { name: athleteName }) : t('training_plans.today.denied_message_no_name')}
         />
       )}
       {view.kind === 'offline' && (
