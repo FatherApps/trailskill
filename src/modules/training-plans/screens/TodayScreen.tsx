@@ -102,14 +102,20 @@ function PlanHeader({ content, athleteName, color }: { content: TodayContent; at
   const summary = planSummary(content.blocks.map(({ block }) => block));
 
   const title = t('training_plans.today.title');
-  // The card is the heading: it is announced with the visible title (the plan) and keeps "Hoy", then the rest of what it shows.
-  const heading = [t('training_plans.today.heading', { title, plan: content.planName }), athleteName, summary].filter(Boolean).join(', ');
+  // A missing name is left out, never filled in: the caption and the label then drop it together.
+  const name = athleteName.trim();
+  // The card is the heading: one accessible node announced from the same data as the visible text (title, plan, name, summary) so TalkBack reads it whole.
+  // Anything added to the card must be added to this label too. The parts that exist are joined by a translatable key.
+  const heading = [name, summary].filter((part): part is string => Boolean(part)).reduce(
+    (label, part) => t('training_plans.today.heading_join', { first: label, second: part }),
+    t('training_plans.today.heading', { title, plan: content.planName }),
+  );
 
   return (
     <View accessible accessibilityRole="header" accessibilityLabel={heading}>
       <ColorCard color={color} title={content.planName} detail={summary}>
         <Text style={[typography.label, { color: colors['on-color'] }]}>
-          {t('training_plans.today.caption', { title, name: athleteName })}
+          {name ? t('training_plans.today.caption', { title, name }) : t('training_plans.today.caption_no_athlete', { title })}
         </Text>
       </ColorCard>
     </View>

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
 import { colors } from '../../../core/theme';
 import { iconPaths } from '../../../core/ui';
@@ -6,6 +7,8 @@ import { TodayScreen, type TodayContent, type TodayView } from '../screens/Today
 import { plansFixture } from '../__fixtures__/plans';
 
 const content: TodayContent = plansFixture.today;
+const realGet = Dimensions.get.bind(Dimensions);
+afterEach(() => jest.restoreAllMocks());
 
 function setup(view: TodayView) {
   const onSendNotice = jest.fn();
@@ -119,6 +122,37 @@ describe('TodayScreen header', () => {
     expect(screen.queryByText(/^0 m/)).toBeNull();
   });
 
+  it('leaves no separator hanging when the athlete has no name: the caption and the label agree', async () => {
+    await render(<TodayScreen athleteName="" view={{ kind: 'data', content }} onSendNotice={jest.fn()} />);
+
+    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, 950 m · 5 bloques' })).toBeOnTheScreen();
+    expect(screen.getByText('Hoy')).toBeOnTheScreen();
+    expect(screen.queryByText(/Hoy ·/)).toBeNull();
+  });
+
+  it('leaves out the summary, with no separator hanging, for a plan without blocks', async () => {
+    await render(<TodayScreen athleteName="Lucía R." view={{ kind: 'data', content: { ...content, blocks: [] } }} onSendNotice={jest.fn()} />);
+
+    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, Lucía R.' })).toBeOnTheScreen();
+  });
+
+  it('treats a blank athlete name as missing', async () => {
+    await render(<TodayScreen athleteName="   " view={{ kind: 'data', content }} onSendNotice={jest.fn()} />);
+
+    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, 950 m · 5 bloques' })).toBeOnTheScreen();
+    expect(screen.getByText('Hoy')).toBeOnTheScreen();
+  });
+
+  it('wraps the card in a plain block that adds no width, margin or padding, so on a tablet it fills the column like the card did', async () => {
+    jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), width: 1024, height: 768 }));
+    await render(setup({ kind: 'data', content }).ui);
+
+    const wrapper = screen.getByRole('header');
+    expect(StyleSheet.flatten(wrapper.props.style) ?? {}).toEqual({});
+    expect(screen.getByText('Resistencia aeróbica')).toBeOnTheScreen();
+    expect(wrapper.children).toHaveLength(1);
+  });
+
   it('invents no schedule or group: the plan has none', async () => {
     await render(setup({ kind: 'data', content }).ui);
 
@@ -185,9 +219,11 @@ describe('TodayScreen blocks card', () => {
     await render(setup({ kind: 'data', content }).ui);
 
     const button = screen.getByRole('button', { name: 'Avisar algo al entrenador' });
-    const drawn = button.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
-    expect(drawn).toEqual([iconPaths.chat_bubble]);
-    expect(drawn).not.toContain(iconPaths.info);
+    // The icon is the node the screen readers skip; it must exist (a missing icon finds no node) and draw only the bubble.
+    const decorative = button.queryAll((node) => node.props.importantForAccessibility === 'no-hide-descendants');
+    expect(decorative.length).toBeGreaterThan(0);
+    const drawn = new Set(decorative.flatMap((icon) => icon.queryAll((node) => typeof node.props.d === 'string').map((node) => node.props.d)));
+    expect([...drawn]).toEqual([iconPaths.chat_bubble]);
     expect(screen.queryByRole('image')).toBeNull();
   });
 });
