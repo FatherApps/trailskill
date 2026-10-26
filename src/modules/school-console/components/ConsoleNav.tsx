@@ -96,9 +96,9 @@ export function ConsoleNav({ variant, activeId, onSelect, schoolName }: ConsoleN
   const side = variant === 'side';
 
   const brand = (
-    <View style={{ gap: space[1], paddingBottom: space[3] }}>
-      {/* Lockup 30 dp high, 8 dp in from the panel edge, at the start of the column (LInvitarEntrenador, LMarcasEscuela). */}
-      <View style={{ alignSelf: 'flex-start', marginHorizontal: space[2] }}>
+    <View style={{ gap: space[2], paddingBottom: space[3], paddingHorizontal: space[2] }}>
+      {/* Lockup 30 dp high, then the school name 8 dp below, both 8 dp in from the panel padding (LInvitarEntrenador, LMarcasEscuela). */}
+      <View style={{ alignSelf: 'flex-start' }}>
         <Logo height={30} />
       </View>
       <Text style={[typography.caption, { color: colors[consoleNavColors.caption] }]}>{schoolName}</Text>
