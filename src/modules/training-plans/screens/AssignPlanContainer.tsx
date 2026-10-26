@@ -62,11 +62,12 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
   const [rows, setRows] = useState<AssignedRow[]>([]);
   // An empty parameter (`?plan=`, or an empty first value of a repeated one) counts as none.
   const preselected = (Array.isArray(initialPlanId) ? initialPlanId.find(Boolean) : initialPlanId) || null;
-  // The person's own choice, made under a parameter value. This is the only place that drops it: the parameter changing, so a value that
-  // comes back is applied again, or the picked plan leaving the list, so it does not come back selected when the list gets it again.
+  // The person's own choice, made under a parameter value. It is dropped from state when the parameter changes, so a value that comes
+  // back is applied again, and when a loaded list lacks the picked plan, so it does not come back selected when a list gets it again.
+  // The parameter check in the derivation covers the render before that cleanup runs.
   const [pick, setPick] = useState<{ param: string | null; id: string } | null>(null);
-  if (pick && (pick.param !== preselected || (ready && !ready.plans.some((p) => p.id === pick.id)))) setPick(null);
-  const planId = pick?.id ?? preselected;
+  useEffect(() => () => setPick(null), [preselected]);
+  const planId = (pick?.param === preselected ? pick.id : null) ?? preselected;
   const [kind, setKind] = useState<AssignmentKind>('group');
   const [optionId, setOptionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -85,6 +86,7 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
         const [scope, all] = await Promise.all([loadAssignScope({ schools, athletes, structure }, userId, school.id), plans.list(school.id)]);
         if (cancelled) return;
         setLoaded({ schoolId: school.id, scope, plans: all });
+        setPick((current) => (current && all.some((p) => p.id === current.id) ? current : null));
       } catch {
         if (!cancelled) setLoaded('error');
       }
