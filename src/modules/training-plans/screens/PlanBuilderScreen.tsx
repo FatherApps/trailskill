@@ -15,6 +15,8 @@ export type PlanBuilderScreenProps = {
   planName: string;
   // Shows the "write a name" error on the name field.
   nameError?: boolean;
+  // Pass a stable array (state, or memoised): the metres in the header are memoised by reference, so an array built inline
+  // on every render recomputes them every time, and one mutated in place keeps the old total.
   blocks: DraftBlock[];
   vocabulary: PlanVocabulary;
   // The block shown with the inline editor instead of its actions.
@@ -42,8 +44,8 @@ export type PlanBuilderScreenProps = {
   onAssign?: () => void;
   // The plan has changes that are not saved: the assign button stays visible but disabled, and says why.
   assignBlocked?: boolean;
-  // The width in dp this screen can use; defaults to the window, which is all the app passes. Only the dev gallery and the tests set it, to
-  // simulate a layout whatever the window. From bp-expanded the list and the editing panel sit side by side.
+  // The width in dp this screen can use; defaults to the window width. The dev gallery and the tests set it to simulate a layout
+  // whatever the window. From bp-expanded the list and the editing panel sit side by side.
   width?: number;
 };
 
@@ -163,7 +165,8 @@ export function PlanBuilderScreen({
       onPress={onSaveTemplate}
     />
   );
-  // Intentional: the wide layout has room for the metres next to the count, the single column keeps the short count.
+  // The wide layout reuses the Today summary key on purpose, so the header reads exactly like the plan summary in Today. Its copy and
+  // the metres format (shared formatNumber, issue 404) change there and follow here; the single column keeps its own short count.
   const summary = expanded
     ? t('training_plans.today.summary', { meters: formatNumber(meters), count: blocks.length })
     : t('training_plans.builder.count', { count: blocks.length });
