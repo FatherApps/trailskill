@@ -9,7 +9,7 @@ export { AthleteTable, type AthleteTableProps } from './components/AthleteTable'
 export { AthleteDetail, type AthleteDetailProps } from './components/AthleteDetail';
 export { AthleteFilterOptions, type AthleteFilterOption, type AthleteFilterOptionsProps } from './components/AthleteFilterOptions';
 export { CoachList, type CoachListProps, type CoachRow } from './components/CoachList';
-export { InviteCoachSheet, type CoachInvitation, type InviteCoachSheetProps, type InviteGroup } from './components/InviteCoachSheet';
+export { InviteCoachSheet, type CoachInvitation, type InviteCoachSheetProps, type InviteGroup, type InviteGroups } from './components/InviteCoachSheet';
 export { AuthorizationList, SharingRequestList, type AthleteAuthorizations, type AuthorizationListProps, type AuthorizationPurpose, type AuthorizationStatus, type SharingRequest, type SharingRequestListProps, type SharingRequestsState } from './components/AuthorizationList';
 export { MeasurementLog, type MeasurementEntry, type MeasurementLogProps, type MeasurementVersion } from './components/MeasurementLog';
 export { RecordTable, type RecordRow, type RecordTableProps } from './components/RecordTable';
