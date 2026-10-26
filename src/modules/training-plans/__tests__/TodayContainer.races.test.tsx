@@ -59,7 +59,8 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
   };
   const storedNotices = createInMemoryNoticeRepository();
   // Saving a note waits for `hold.promise` while it is set; the next `hold.listing.remaining` listings wait for `hold.listing.promise`.
-  const hold: { promise?: Promise<void>; listing?: { promise: Promise<void>; remaining: number } } = {};
+  // The next `hold.failListings` listings are rejected.
+  const hold: { promise?: Promise<void>; listing?: { promise: Promise<void>; remaining: number }; failListings?: number } = {};
   const notices = {
     ...storedNotices,
     add: async (...args: Parameters<typeof storedNotices.add>) => (await hold.promise, storedNotices.add(...args)),
@@ -67,6 +68,10 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
       if (hold.listing && hold.listing.remaining > 0) {
         hold.listing.remaining -= 1;
         await hold.listing.promise;
+      }
+      if (hold.failListings) {
+        hold.failListings -= 1;
+        throw new Error('list failed');
       }
       return storedNotices.list(...args);
     },
@@ -91,20 +96,38 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
   );
   const view = await render(await container(ids));
   const update = async (shown: string[], day = DAY, synced = true) => view.rerender(await container(shown, day, synced));
-  // Starts a save that stays open until the returned function is called.
-  const sendHeld = async (body: string) => {
+  // Starts a save whose note is not added until `release` is called; `sending` is the save itself. Only this save waits: the next ones are not held.
+  const startHeld = async (body: string) => {
     let release!: () => void;
     hold.promise = new Promise<void>((resolve) => (release = resolve));
     let sending!: void | Promise<void>;
     await act(async () => {
       sending = shown.onSendNotice({ blockId: null, body });
     });
+    hold.promise = undefined;
+    return { release: () => act(async () => release()), sending };
+  };
+  // Starts a save that stays open until the returned function is called.
+  const sendHeld = async (body: string) => {
+    const { release, sending } = await startHeld(body);
     return async () => {
+      await release();
       await act(async () => {
-        release();
         await sending;
       });
     };
+  };
+  // Starts a save that adds its note at once; its listing waits if `holdListings` was called.
+  const startOpen = async (body: string) => {
+    let sending!: void | Promise<void>;
+    await act(async () => {
+      sending = shown.onSendNotice({ blockId: null, body });
+    });
+    // Wrapped, so awaiting this does not wait for the save.
+    return { sending };
+  };
+  const failListings = (count: number) => {
+    hold.failListings = count;
   };
   // The listing a save does after adding its note waits (for `count` saves) until the returned function is called.
   const holdListings = (count: number) => {
@@ -112,7 +135,7 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
     hold.listing = { promise: new Promise<void>((resolve) => (release = resolve)), remaining: count };
     return release;
   };
-  return { one, other, stored, fulfillment, notices: storedNotices, reads, update, sendHeld, holdListings };
+  return { one, other, stored, fulfillment, notices: storedNotices, reads, update, sendHeld, startHeld, startOpen, holdListings, failListings };
 }
 
 describe('TodayContainer races', () => {
@@ -262,6 +285,93 @@ describe('TodayContainer races', () => {
     openRead();
     await showsPlan('Plan p1');
     await waitFor(() => expect(shown.view.kind === 'data' && (shown.view.content.notes ?? []).map((note) => note.body).sort()).toEqual(Array.from({ length: saves }, (_, n) => `Test note ${n + 1}`)));
+  });
+
+  it('does not read again the read that started after a note was saved because a note of another athlete finished saving', async () => {
+    const { reads, startHeld, startOpen, holdListings } = await setup();
+    await showsPlan('Plan p1');
+    // The note of a3 is still not added.
+    await act(async () => shown.onSelectAthlete?.('a3'));
+    await showsPlan('Plan del otro');
+    const other = await startHeld('Test note of a3');
+    await act(async () => shown.onSelectAthlete?.('a1'));
+    await showsPlan('Plan p1');
+    // The note of a1 is added, but its listing is still open.
+    const release = holdListings(1);
+    const { sending } = await startOpen('Test note of a1');
+    // a1 is read again after its note was added, and that read stays open.
+    let openRead!: () => void;
+    reads.gate = new Promise<void>((resolve) => (openRead = resolve));
+    await act(async () => shown.onSelectAthlete?.('a3'));
+    await act(async () => shown.onSelectAthlete?.('a1'));
+    await other.release();
+    await settle();
+    const readsOpen = reads.count;
+
+    await act(async () => {
+      release();
+      await sending;
+    });
+    expect(reads.count).toBe(readsOpen);
+
+    openRead();
+    await showsPlan('Plan p1');
+    await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note of a1' }] } }));
+  });
+
+  it('reads once more for two saves that overlap an open read, and shows both notes', async () => {
+    const { reads, startHeld } = await setup();
+    await showsPlan('Plan p1');
+    const first = await startHeld('Test note 1');
+    const second = await startHeld('Test note 2');
+    // The athlete is read again before either note was added, and that read stays open.
+    let openRead!: () => void;
+    reads.gate = new Promise<void>((resolve) => (openRead = resolve));
+    await act(async () => shown.onSelectAthlete?.('a3'));
+    await act(async () => shown.onSelectAthlete?.('a1'));
+    const readsOpen = reads.count;
+
+    await first.release();
+    await second.release();
+    await settle();
+    await act(async () => {
+      await Promise.all([first.sending, second.sending]);
+    });
+    expect(reads.count).toBe(readsOpen + 1);
+
+    openRead();
+    await showsPlan('Plan p1');
+    await waitFor(() => expect(shown.view.kind === 'data' && (shown.view.content.notes ?? []).map((note) => note.body).sort()).toEqual(['Test note 1', 'Test note 2']));
+  });
+
+  it('reads again when the listing after a save is rejected, and shows the note that was saved', async () => {
+    const { reads, startOpen, failListings } = await setup();
+    await showsPlan('Plan p1');
+    const before = reads.count;
+
+    failListings(1);
+    const { sending } = await startOpen('Test note 1');
+
+    await expect(sending).resolves.toBeUndefined();
+    expect(reads.count).toBe(before + 1);
+    await showsPlan('Plan p1');
+    await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } }));
+  });
+
+  it('shows the error view with a retry when the read after a rejected listing fails too', async () => {
+    const { startOpen, failListings } = await setup();
+    await showsPlan('Plan p1');
+
+    // The listing of the save and the one of the read that follows are both rejected.
+    failListings(2);
+    await startOpen('Test note 1');
+    await waitFor(() => expect(shown.view.kind).toBe('error'));
+
+    await act(async () => {
+      if (shown.view.kind === 'error') shown.view.onRetry();
+    });
+    await showsPlan('Plan p1');
+    expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } });
   });
 
   it('does not turn the first athlete into an explicit choice when the read is retried', async () => {
