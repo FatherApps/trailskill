@@ -14,4 +14,8 @@ export { Segmented, segmentedColors, type SegmentedOption, type SegmentedProps }
 export { TimeValue, type TimeValueProps } from './TimeValue';
 export { SwimmerRow, swimmerRowColors, type SwimmerRowProps } from './SwimmerRow';
 export { NavBar, navBarColors, type NavBarItem, type NavBarProps } from './NavBar';
+export { ColorCard, colorCardColors, type ColorCardColor, type ColorCardProps } from './ColorCard';
+export { ColorHeader, colorHeaderColors, type ColorHeaderProps } from './ColorHeader';
+export { Chip, InitialsDot, chipColors, type ChipProps, type InitialsDotProps } from './Chip';
+export { ChipRow, type ChipRowOption, type ChipRowProps } from './ChipRow';
 export { galleryEntries, type GalleryEntry } from './gallery';

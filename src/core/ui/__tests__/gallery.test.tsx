@@ -53,13 +53,17 @@ describe('core/ui gallery entries', () => {
       'time-and-tag',
     ]);
     expect(stateKeys('navBar')).toEqual(['home-active', 'times-active', 'long-labels']);
+    expect(stateKeys('colorCard')).toEqual(['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4', 'long-text']);
+    expect(stateKeys('colorHeader')).toEqual(['default', 'with-chips', 'long-text']);
+    expect(stateKeys('chip')).toEqual(['rest', 'selected', 'with-dot', 'selected-with-dot', 'long-text']);
+    expect(stateKeys('chipRow')).toEqual(['athletes', 'events', 'long-list']);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
     await render(<ThemeProvider name={theme} fontScale={scale}>{entryById(id).states[state]()}</ThemeProvider>);
   });
 
-  it.each(['stepHeader', 'stateView', 'segmented', 'swimmerRow', 'navBar', 'banner'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
+  it.each(['stepHeader', 'stateView', 'segmented', 'swimmerRow', 'navBar', 'banner', 'colorCard', 'colorHeader', 'chipRow'].flatMap((id) => stateKeys(id).map((state) => [id, state])))(
     '%s / %s fills the width of the preview',
     async (id, state) => {
       await render(<ThemeProvider>{entryById(id).states[state]()}</ThemeProvider>);
@@ -150,6 +154,19 @@ describe('core/ui gallery entries', () => {
 
     await render(<ThemeProvider>{entryById('swimmerRow').states.normal()}</ThemeProvider>);
     expect(screen.getByRole('button')).not.toBeSelected();
+  });
+
+  it.each([
+    ['athletes', 'Lucía', 'Tomás'],
+    ['events', 'Libre 50 m', 'Libre 100 m'],
+  ])('chipRow / %s starts on %s and moves the selection to %s when tapped', async (state, first, second) => {
+    await render(<ThemeProvider>{entryById('chipRow').states[state]()}</ThemeProvider>);
+    expect(screen.getByRole('radio', { name: first })).toBeSelected();
+
+    await fireEvent.press(screen.getByRole('radio', { name: second }));
+
+    expect(screen.getByRole('radio', { name: second })).toBeSelected();
+    expect(screen.getByRole('radio', { name: first })).not.toBeSelected();
   });
 
   it.each([

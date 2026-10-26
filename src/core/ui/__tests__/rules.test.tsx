@@ -5,6 +5,10 @@ import { StyleSheet } from 'react-native';
 
 import {
   Button,
+  Chip,
+  ChipRow,
+  ColorCard,
+  ColorHeader,
   Icon,
   NavBar,
   Segmented,
@@ -70,6 +74,18 @@ describe('src/core/ui rules', () => {
           tag={{ label: 'Consentimiento pendiente', variant: 'warn' }}
           chevron
           onPress={jest.fn()}
+        />
+        <ColorCard color="athlete-2" title="Tomás R." detail="Infantil A" />
+        <ColorHeader color="athlete-1" title="Lucía Ramírez" subtitle="Infantil B" onBack={jest.fn()} />
+        <Chip label="Lucía" dot={{ initials: 'LR', color: 'athlete-1' }} selected onPress={jest.fn()} />
+        <ChipRow
+          accessibilityLabel="Deportista"
+          options={[
+            { value: 'a', label: 'Lucía' },
+            { value: 'b', label: 'Tomás' },
+          ]}
+          value="a"
+          onChange={jest.fn()}
         />
         <NavBar
           items={[
