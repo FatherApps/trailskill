@@ -136,7 +136,7 @@ describe('finishRegistration', () => {
     });
     await drafts.clear();
 
-    expect(await pending.list()).toEqual([{ userId: 'user-1', token: 'tok-1', athleteId: links[0].athleteId }]);
+    expect(await pending.list()).toEqual([{ userId: 'user-1', token: 'tok-1', athleteId: links[0].athleteId, queuedAt: expect.any(Number) }]);
   });
 
   it('child: keeps only the swimmer choice, creates no athlete and asks to open the add screen', async () => {

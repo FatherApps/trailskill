@@ -1,5 +1,6 @@
 import { createInMemoryInvitationRepository } from '../data/invitations';
 import { acceptPendingInvitations, createInMemoryPendingInvitationRepository, queueInvitation } from '../data/pendingInvitations';
+import { DRAFT_TTL_MS } from '../data/registrationDraft';
 
 // The pending store is SecureStore-backed next to the in-memory one.
 jest.mock('expo-secure-store', () => ({}));
@@ -85,6 +86,46 @@ describe('pending invitations', () => {
     await pending.add({ userId: 'u1', token, athleteId: 'a1' });
     await pending.add({ userId: 'u1', token, athleteId: 'a1', categoryId: 'c1' });
 
-    expect(await pending.list()).toEqual([{ userId: 'u1', token, athleteId: 'a1' }]);
+    expect(await pending.list()).toEqual([{ userId: 'u1', token, athleteId: 'a1', queuedAt: expect.any(Number) }]);
+  });
+
+  describe('expiry and sign-out', () => {
+    afterEach(() => jest.useRealTimers());
+
+    it('drops an entry queued longer ago than the draft lifetime without calling accept', async () => {
+      jest.useFakeTimers({ now: 1_000_000 });
+      const { pending, invitations } = setup();
+      invitations.rejectWith = '42501';
+      await queueInvitation(pending, invitations, { userId: 'u1', token, athleteId: 'a1' });
+      invitations.rejectWith = undefined;
+      invitations.accepted.length = 0;
+
+      await acceptPendingInvitations('u1', pending, invitations, 1_000_000 + DRAFT_TTL_MS + 1);
+
+      expect(invitations.accepted).toEqual([]);
+      expect(await pending.list()).toEqual([]);
+    });
+
+    it('still accepts an entry queued within the draft lifetime', async () => {
+      jest.useFakeTimers({ now: 1_000_000 });
+      const { pending, invitations } = setup();
+      invitations.rejectWith = '42501';
+      await queueInvitation(pending, invitations, { userId: 'u1', token, athleteId: 'a1' });
+      invitations.rejectWith = undefined;
+
+      await acceptPendingInvitations('u1', pending, invitations, 1_000_000 + DRAFT_TTL_MS);
+
+      expect(invitations.accepted).toEqual([{ token, athleteId: 'a1' }]);
+    });
+
+    it('clear removes the entries of that account and keeps the others', async () => {
+      const { pending } = setup();
+      await pending.add({ userId: 'u1', token, athleteId: 'a1' });
+      await pending.add({ userId: 'u2', token, athleteId: 'a2' });
+
+      await pending.clear('u1');
+
+      expect((await pending.list()).map((item) => item.athleteId)).toEqual(['a2']);
+    });
   });
 });
