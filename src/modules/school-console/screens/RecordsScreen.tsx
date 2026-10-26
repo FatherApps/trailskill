@@ -1,11 +1,11 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
-import { pools, type PoolCode } from '../../../core/sport';
+import type { PoolCode } from '../../../core/sport';
 import { useTheme } from '../../../core/theme';
-import { Segmented, Tag } from '../../../core/ui';
 import '../i18n';
 import { OptionRow } from '../components/AthleteFilterOptions';
+import { RecordFilters } from '../components/RecordFilters';
 import { RecordTable, type RecordRow } from '../components/RecordTable';
 import { SectionFrame, type SectionView } from '../components/SectionFrame';
 import { SideSheet } from '../components/SideSheet';
@@ -46,11 +46,9 @@ export type RecordsScreenProps = ConsoleSectionProps & {
   scrollEnabled?: boolean;
 };
 
-const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
-
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
 export function RecordsScreen({ width, schoolName, view, onNavigate, onCategoryPress, onGroupPress, sheet, onPoolChange, scrollEnabled }: RecordsScreenProps) {
-  const { colors, space, size, typography } = useTheme();
+  const { colors, space, typography } = useTheme();
 
   return (
     <SectionFrame
@@ -81,41 +79,15 @@ export function RecordsScreen({ width, schoolName, view, onNavigate, onCategoryP
     >
       {({ category, group, rows, pool }, compact) => (
         <>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('schoolConsole.records.category_spoken', { value: category })}
-              onPress={onCategoryPress}
-              // The chip is 24 dp high; the touch area is the full 48.
-              style={{ minHeight: size['target-min'], justifyContent: 'center' }}
-            >
-              <View {...hidden}>
-                <Tag label={category} variant="info" icon="expand_more" />
-              </View>
-            </Pressable>
-            {group !== undefined && onGroupPress && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('schoolConsole.records.group_spoken', { value: group })}
-                onPress={onGroupPress}
-                style={{ minHeight: size['target-min'], justifyContent: 'center' }}
-              >
-                <View {...hidden}>
-                  <Tag label={group} variant="info" icon="expand_more" />
-                </View>
-              </Pressable>
-            )}
-            {/* The segments say only the length, so both fit at 200 % text; the group label says what they choose. */}
-            <View style={{ flexGrow: 1, flexBasis: 240, maxWidth: 420, gap: space[1] }}>
-              <Text style={[typography.label, { color: colors['ink-muted'] }]}>{t('schoolConsole.records.pool_filter')}</Text>
-              <Segmented
-                accessibilityLabel={t('schoolConsole.records.pool_filter')}
-                value={pool}
-                onChange={onPoolChange}
-                options={pools.map((entry) => ({ value: entry.code, label: t(`schoolConsole.records.pool.${entry.code}`) }))}
-              />
-            </View>
-          </View>
+          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('schoolConsole.records.subtitle', { school: schoolName })}</Text>
+          <RecordFilters
+            category={category}
+            group={group}
+            pool={pool}
+            onCategoryPress={onCategoryPress}
+            onGroupPress={onGroupPress}
+            onPoolChange={onPoolChange}
+          />
           <RecordTable rows={rows} pool={pool} compact={compact} />
         </>
       )}

@@ -48,7 +48,7 @@ const entry = (id: string, title: string, states: Record<string, () => ReactElem
 
 const coachesContent: CoachesContent = { updatedMinutesAgo: 2, coaches: coachesFixture };
 
-// The pool and the category chip are the caller's: the preview holds the pool, so the segments change the table.
+// The pool and the category chip are the caller's: the preview holds the pool, so the pool chips change the table.
 function RecordsPreview({ view, width }: { view: SectionView<RecordsContent>; width: number }) {
   const [pool, setPool] = useState<PoolCode>('SCM');
   const shown: SectionView<RecordsContent> =

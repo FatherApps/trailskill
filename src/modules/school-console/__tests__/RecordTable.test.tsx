@@ -41,6 +41,20 @@ describe('RecordTable', () => {
     }
   });
 
+  it('orders the columns event, best mark, athlete, date', async () => {
+    await show();
+
+    const headers = screen.getAllByText(/^(Prueba|Mejor marca|Deportista|Fecha)$/, hidden).map((node) => node.props.children);
+    expect(headers).toEqual(['Prueba', 'Mejor marca', 'Deportista', 'Fecha']);
+  });
+
+  it('draws the initials of the athlete before the name', async () => {
+    await show({ rows: [recordsFixture[0], longTextRecordFixture] });
+
+    expect(screen.getByText('MC', hidden)).toBeOnTheScreen();
+    expect(screen.getByText('MV', hidden)).toBeOnTheScreen();
+  });
+
   it('filters by pool: the rows of the other pool are not shown', async () => {
     await show({ pool: 'LCM' });
 
@@ -55,8 +69,8 @@ describe('RecordTable', () => {
     await show();
 
     expect(screen.getByLabelText('Pecho 50, sin marca')).toBeOnTheScreen();
-    // Mark, athlete and date of the empty event.
-    expect(screen.getAllByText('—', hidden)).toHaveLength(3);
+    // Only the mark: an event without a mark has neither athlete nor date.
+    expect(screen.getAllByText('—', hidden)).toHaveLength(1);
     expect(screen.queryByText('0,00', hidden)).toBeNull();
     expect(screen.queryByText('0:00,00', hidden)).toBeNull();
   });
