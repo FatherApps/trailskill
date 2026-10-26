@@ -5,6 +5,7 @@ import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { Button, ColorCard, Tag } from '../../../core/ui';
 import '../i18n';
+import { MIN_CARD_WIDTH, TWO_COLUMN_BASIS } from './coachGrid';
 import type { CoachRow } from './CoachList';
 
 export type CoachCardProps = {
@@ -15,13 +16,9 @@ export type CoachCardProps = {
   deactivateAvailable: boolean;
   // Only reports the press: the confirmation and the deactivation itself belong to the caller.
   onDeactivate: (id: string) => void;
+  // Caps the card so it does not grow past the width of a card that shares its row (see coachGrid).
+  maxWidth?: number;
 };
-
-// Narrowest card that keeps the name and the actions readable at normal text size; it is not a token.
-// A row narrower than twice this wraps to one column.
-const MIN_CARD_WIDTH = 240;
-// Over a third of the row, so three never fit; under half, so two always do. The cards then grow to share the row.
-const TWO_COLUMN_BASIS = '34%';
 
 const coachCardColors: {
   dot: ColorToken;
@@ -78,9 +75,9 @@ function InitialsWithTag({ initials, background, children }: { initials: string;
 }
 
 // One coach: a colour card (stable colour per coach) for an active one, a dashed outline for a pending invitation.
-export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate }: CoachCardProps) {
+export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate, maxWidth }: CoachCardProps) {
   const { colors, space, radius, typography } = useTheme();
-  const cell = oneColumn ? { flexBasis: '100%' as const } : { flexGrow: 1, flexBasis: TWO_COLUMN_BASIS, minWidth: MIN_CARD_WIDTH };
+  const cell = oneColumn ? { flexBasis: '100%' as const } : { flexGrow: 1, flexBasis: TWO_COLUMN_BASIS, minWidth: MIN_CARD_WIDTH, maxWidth };
   const name = coach.name ?? t('schoolConsole.common.no_data');
   const groups = coach.groups.length > 0 ? coach.groups.join(' · ') : t('schoolConsole.coaches.no_groups');
 

@@ -1,9 +1,11 @@
-import { View } from 'react-native';
+import { useState } from 'react';
+import { View, type LayoutChangeEvent } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
 import type { InitialsDotProps } from '../../../core/ui';
 import '../i18n';
 import { CoachCard } from './CoachCard';
+import { twoColumnWidth } from './coachGrid';
 import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 
 // One coach of the school: groups and number of athletes, never contact or document data.
@@ -28,21 +30,26 @@ export type CoachListProps = {
 };
 
 // A grid of cards that wrap by themselves, two columns at most: each card has a base just over a third of the row
-// and grows into what is left, so the cards of a row are even and a lone card fills it. A row narrower than twice
-// CoachCard's minimum width, or large text, gives one column.
+// and grows into what is left, so the cards of a row are even. The last card of an odd count is capped to the width
+// of a card that shares its row, so it does not stretch over the whole row. A row narrower than twice CoachCard's
+// minimum width, or large text, gives one column, where every card fills the row.
 export function CoachList({ coaches, deactivateAvailable = false, onDeactivate }: CoachListProps) {
   const { space } = useTheme();
   const oneColumn = useTextScale() >= LARGE_TEXT_SCALE;
+  const [width, setWidth] = useState<number | null>(null);
+  // Unknown until the first layout: the card is capped as soon as the row is measured.
+  const loneWidth = !oneColumn && coaches.length % 2 === 1 && width !== null ? twoColumnWidth(width, space[3]) : null;
 
   return (
-    <View testID="coach-list" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3] }}>
-      {coaches.map((coach) => (
+    <View testID="coach-list" onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3] }}>
+      {coaches.map((coach, index) => (
         <CoachCard
           key={coach.id}
           coach={coach}
           oneColumn={oneColumn}
           deactivateAvailable={deactivateAvailable}
           onDeactivate={onDeactivate}
+          maxWidth={index === coaches.length - 1 ? (loneWidth ?? undefined) : undefined}
         />
       ))}
     </View>
