@@ -246,7 +246,7 @@ function CompletedPreview({ completed = [], empty }: { completed?: string[]; emp
 
 function ReviewConflictsPreview(props: Partial<ReviewConflictsScreenProps>) {
   return (
-    <ScreenFrame>
+    <FullScreen>
       <ReviewConflictsScreen
         view="ready"
         conflicts={conflictsFixture.list}
@@ -256,7 +256,7 @@ function ReviewConflictsPreview(props: Partial<ReviewConflictsScreenProps>) {
         onBack={noop}
         {...props}
       />
-    </ScreenFrame>
+    </FullScreen>
   );
 }
 

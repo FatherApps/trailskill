@@ -84,7 +84,7 @@ describe('ReviewConflictsScreen', () => {
   it('resolves with the received version', async () => {
     const { onResolve } = await renderScreen();
     await open('Mateo C.');
-    await fireEvent.press(screen.getByRole('radio', { name: 'Usar la recibida' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Recibida' }));
     await fireEvent.changeText(reasonField(), 'Llegó con video');
     await resolve();
 
@@ -94,7 +94,7 @@ describe('ReviewConflictsScreen', () => {
   it('resolves with a typed time', async () => {
     const { onResolve } = await renderScreen();
     await open('Mateo C.');
-    await fireEvent.press(screen.getByRole('radio', { name: 'Escribir otro tiempo' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Otro tiempo' }));
     await fireEvent.changeText(screen.getByLabelText('Tiempo correcto'), '34,05');
     await fireEvent.changeText(reasonField(), 'Revisado en video');
     await resolve();
@@ -105,7 +105,7 @@ describe('ReviewConflictsScreen', () => {
   it('resolves an emptied time field as a missing time, never zero', async () => {
     const { onResolve } = await renderScreen();
     await open('Mateo C.');
-    await fireEvent.press(screen.getByRole('radio', { name: 'Escribir otro tiempo' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Otro tiempo' }));
     await fireEvent.changeText(reasonField(), 'No hubo llegada');
     await resolve();
 
@@ -115,7 +115,7 @@ describe('ReviewConflictsScreen', () => {
   it('does not send a time it cannot read', async () => {
     const { onResolve } = await renderScreen();
     await open('Mateo C.');
-    await fireEvent.press(screen.getByRole('radio', { name: 'Escribir otro tiempo' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Otro tiempo' }));
     await fireEvent.changeText(screen.getByLabelText('Tiempo correcto'), 'abc');
     await fireEvent.changeText(reasonField(), 'Motivo');
     await resolve();

@@ -1,4 +1,5 @@
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useCallback } from 'react';
 
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
@@ -10,13 +11,9 @@ const repository = createSupabaseConflictReviewRepository();
 export default function ReviewConflictsRoute() {
   const { session } = useSession();
   const { connection } = useGlobalSyncSummary();
-  return (
-    <ReviewConflictsFlow
-      repository={repository}
-      userId={session?.user.id}
-      offline={connection === 'offline'}
-      onDenied={() => router.replace('/')}
-      onBack={() => router.back()}
-    />
-  );
+  // The hook's router stays bound after the Activity is recreated; the module-level one does not.
+  const router = useRouter();
+  const onDenied = useCallback(() => router.replace('/'), [router]);
+  const onBack = useCallback(() => router.back(), [router]);
+  return <ReviewConflictsFlow repository={repository} userId={session?.user.id} offline={connection === 'offline'} onDenied={onDenied} onBack={onBack} />;
 }
