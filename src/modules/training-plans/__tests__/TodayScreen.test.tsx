@@ -75,6 +75,13 @@ describe('TodayScreen states', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it.each(['', '   '])('names "el deportista" instead of leaving a gap when the athlete name is blank (%j)', async (athleteName) => {
+    await render(<TodayScreen athleteName={athleteName} view={{ kind: 'denied' }} onSendNotice={jest.fn()} />);
+
+    expect(screen.getByText('Solo el deportista, sus acudientes y sus entrenadores pueden ver este plan.')).toBeOnTheScreen();
+    expect(screen.queryByText(/Solo ,/)).toBeNull();
+  });
+
   it('shows the plan, the athlete and the blocks with data', async () => {
     await render(setup({ kind: 'data', content }).ui);
 
@@ -144,6 +151,7 @@ describe('TodayScreen header', () => {
   });
 
   it('wraps the card in a plain block that adds no width, margin or padding, so the card keeps filling its column', async () => {
+    // No Dimensions mock: the wrapper carries no style at all and TodayScreen reads no window size, so there is no tablet branch to trigger.
     await render(setup({ kind: 'data', content }).ui);
 
     const wrapper = screen.getByRole('header');
@@ -154,14 +162,17 @@ describe('TodayScreen header', () => {
 
   it('builds the heading label from one translatable key, so a language can reorder its parts', async () => {
     const path = 'training_plans.today.heading';
-    const original = i18n.getResource('es-CO', 'translation', `${path}_name_summary`);
-    i18n.addResource('es-CO', 'translation', `${path}_name_summary`, '{{summary}} / {{name}} / {{plan}} / {{title}}');
+    const key = `${path}_name_summary`;
+    const original = i18n.getResource('es-CO', 'translation', key);
+    // The override is only restored, never invented: the key must exist, so the restore below can never write undefined.
+    expect(original).toEqual(expect.any(String));
+    i18n.addResource('es-CO', 'translation', key, '{{summary}} / {{name}} / {{plan}} / {{title}}');
     try {
       await render(setup({ kind: 'data', content }).ui);
 
       expect(screen.getByRole('header', { name: '950 m · 5 bloques / Lucía R. / Resistencia aeróbica / Hoy' })).toBeOnTheScreen();
     } finally {
-      i18n.addResource('es-CO', 'translation', `${path}_name_summary`, original);
+      i18n.addResource('es-CO', 'translation', key, original);
     }
   });
 
@@ -251,6 +262,9 @@ describe('TodayScreen blocks card', () => {
     const drawn = button.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
     expect(drawn).toContain(iconPaths.chat_bubble);
     expect(drawn).not.toContain(iconPaths.info);
+    // The bubble sits under a node that hides its descendants from screen readers: it is decorative, the button label carries the meaning.
+    const hidden = button.queryAll((node) => node.props.importantForAccessibility === 'no-hide-descendants');
+    expect(hidden.flatMap((icon) => icon.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d))).toContain(iconPaths.chat_bubble);
     expect(within(button).queryByRole('image')).toBeNull();
   });
 });
