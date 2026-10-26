@@ -19,7 +19,8 @@ export type CoachesView = SectionView<CoachesContent>;
 export type CoachesScreenProps = ConsoleSectionProps & {
   view: CoachesView;
   // Fires when the invite sheet is confirmed with a name and an email; the real invitation belongs to the caller.
-  onInvite: (invitation: CoachInvitation) => void;
+  // The sheet closes only once this finishes: if it throws or rejects, the sheet stays open with what was typed.
+  onInvite: (invitation: CoachInvitation) => void | Promise<void>;
   // Fires only after the ConfirmSheet is confirmed; the real deactivation belongs to the caller.
   onDeactivate: (id: string) => void;
   // False (the default) until deactivating really works (issue 220): the action is shown disabled and opens nothing.
@@ -60,9 +61,9 @@ export function CoachesScreen({
       <InviteCoachSheet
         groups={groups}
         initialGroupId={contextGroupId}
-        onSubmit={(invitation) => {
+        onSubmit={async (invitation) => {
+          await onInvite(invitation);
           close();
-          onInvite(invitation);
         }}
         onClose={close}
       />

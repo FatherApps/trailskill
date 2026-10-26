@@ -8,13 +8,17 @@ import type { CoachRow } from './CoachList';
 
 export type CoachCardProps = {
   coach: CoachRow;
-  // Width of the card in its row: half of it in two columns, all of it in one.
-  basis: '48%' | '100%';
+  // True for a single column: the card takes the whole row instead of sharing it.
+  oneColumn: boolean;
   // False until a coach can really be deactivated: the action is shown disabled, not hidden.
   deactivateAvailable: boolean;
   // Only reports the press: the confirmation and the deactivation itself belong to the caller.
   onDeactivate: (id: string) => void;
 };
+
+// Narrowest card that keeps the name and the actions readable at normal text size; it is not a token.
+// Two fit side by side from about twice this width, and the cards then grow to share the row.
+const MIN_CARD_WIDTH = 240;
 
 export const coachCardColors: {
   dot: ColorToken;
@@ -59,14 +63,15 @@ function Initials({ initials, background }: { initials: string; background: Colo
 }
 
 // One coach: a colour card (stable colour per coach) for an active one, a dashed outline for a pending invitation.
-export function CoachCard({ coach, basis, deactivateAvailable, onDeactivate }: CoachCardProps) {
+export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate }: CoachCardProps) {
   const { colors, space, radius, typography } = useTheme();
+  const cell = oneColumn ? { flexBasis: '100%' as const } : { flexGrow: 1, flexBasis: MIN_CARD_WIDTH };
   const name = coach.name ?? t('schoolConsole.common.no_data');
   const detail = `${coach.groups.length > 0 ? coach.groups.join(' · ') : t('schoolConsole.coaches.no_groups')} · ${t('schoolConsole.coaches.athletes', { count: coach.athleteCount })}`;
 
   if (coach.status === 'pending') {
     return (
-      <View testID="coach-card" style={{ flexBasis: basis }}>
+      <View testID="coach-card" style={cell}>
         <View
           testID="pending-card"
           style={{
@@ -95,7 +100,7 @@ export function CoachCard({ coach, basis, deactivateAvailable, onDeactivate }: C
   }
 
   return (
-    <View testID="coach-card" style={{ flexBasis: basis }}>
+    <View testID="coach-card" style={cell}>
       <ColorCard color={coach.color} title={name} detail={detail}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
