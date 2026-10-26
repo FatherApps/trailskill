@@ -5,7 +5,7 @@ import { t } from '../../../core/i18n';
 import type { PoolCode } from '../../../core/sport';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime, type Hundredths } from '../../../core/time';
-import { StateView, Tag, TimeValue } from '../../../core/ui';
+import { InitialsDot, StateView, Tag, TimeValue, type InitialsDotProps } from '../../../core/ui';
 import '../i18n';
 import { formatDate } from './formatDate';
 import { useTextScale } from './textScale';
@@ -47,15 +47,25 @@ export const recordTableColors: {
   divider: 'border',
 };
 
-// The four columns: the three text columns share what is left (relative widths); the time keeps its own width, which
-// grows with the text scale, and never shrinks.
-const textFlex = [1.6, 2, 1.8] as const;
+// The four columns, event, best mark, athlete and date: the three text columns share what is left (relative widths); the
+// time keeps its own width, which grows with the text scale, and never shrinks.
+const textFlex = { event: 1.4, athlete: 2, date: 1.8 } as const;
 const TIME_WIDTH = 104;
 
+// The athlete's dot: the rows carry only the name, so the initials are its first and last word and the colour follows the
+// name (the same name, the same colour). shortcut: two athletes with the same name share a colour; give the row the
+// athlete's own colour (as SwimmerRow gets it) if the table must tell them apart.
+const dotColors: InitialsDotProps['color'][] = ['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4'];
+const dotOf = (name: string): InitialsDotProps => {
+  const words = name.trim().split(/\s+/);
+  const initials = `${words[0]!.charAt(0)}${words.length > 1 ? words[words.length - 1]!.charAt(0) : ''}`.toUpperCase();
+  return { initials, color: dotColors[[...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % dotColors.length]! };
+};
+
 // Narrowest the table can be at normal text size without breaking a word or a time: the longest word of each text
-// column (about 85 + 70 + 90 dp) plus the time column (104), their paddings and the row padding, with margin for
-// longer names. Below `MIN_TABLE_WIDTH * text scale` (the width of the table's own box) the list form is used.
-const MIN_TABLE_WIDTH = 520;
+// column (about 85 + 70 + 90 dp, and 36 for the dot) plus the time column (104), their paddings and the row padding,
+// with margin for longer names. Below `MIN_TABLE_WIDTH * text scale` (the width of the table's own box) the list form is used.
+const MIN_TABLE_WIDTH = 560;
 
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
@@ -79,7 +89,7 @@ export function RecordTable({ rows, pool, compact = false }: RecordTableProps) {
     );
   }
 
-  const frame = { borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors[recordTableColors.background] } as const;
+  const frame = { borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors[recordTableColors.background] } as const;
   const divider = { borderBottomWidth: 1, borderBottomColor: colors[recordTableColors.divider] } as const;
   const measured = { testID: 'record-table', onLayout: (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width) };
   const text = { color: colors[recordTableColors.text] };
@@ -102,7 +112,7 @@ export function RecordTable({ rows, pool, compact = false }: RecordTableProps) {
               testID="record-row"
               accessible
               accessibilityLabel={spoken(row, date)}
-              style={[{ gap: space[1], padding: space[3], minHeight: size['target-min'] }, index < shown.length - 1 && divider]}
+              style={[{ gap: space[1], paddingVertical: space[3], paddingHorizontal: space[4], minHeight: size['target-min'] }, index < shown.length - 1 && divider]}
             >
               <View {...hidden} style={{ gap: space[1] }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
@@ -119,31 +129,33 @@ export function RecordTable({ rows, pool, compact = false }: RecordTableProps) {
     );
   }
 
-  // Event, athlete, date and, last and right-aligned, the best mark (the design system's records table).
+  // Event, best mark (right-aligned), athlete and date: the lima records table.
   const header = [
     t('schoolConsole.records.event'),
+    t('schoolConsole.records.best_mark'),
     t('schoolConsole.records.athlete'),
     t('schoolConsole.records.date'),
-    t('schoolConsole.records.best_mark'),
   ];
   const cell = { paddingHorizontal: space[2] } as const;
   const timeColumn = { flexShrink: 0, flexGrow: 0, width: TIME_WIDTH * scale } as const;
-  // Header and rows share one column per index: event, athlete, date, time.
-  const columnStyle = (index: number) => (index === 3 ? timeColumn : { flex: textFlex[index] });
+  // Header and rows share one column per index: event, time, athlete, date.
+  const columns = [{ flex: textFlex.event }, timeColumn, { flex: textFlex.athlete }, { flex: textFlex.date }];
 
   return (
     <View {...measured} style={frame}>
-      <View style={[{ flexDirection: 'row', alignItems: 'flex-end', padding: space[3] }, divider]}>
+      <View style={[{ flexDirection: 'row', alignItems: 'flex-end', paddingVertical: space[3], paddingHorizontal: space[4] }, divider]}>
         {header.map((column, index) => (
           <Text
             key={index}
-            style={[typography.label, cell, columnStyle(index), { color: colors[recordTableColors.header], textAlign: index === 3 ? 'right' : 'left' }]}
+            style={[typography.label, cell, columns[index], { color: colors[recordTableColors.header], textAlign: index === 1 ? 'right' : 'left' }]}
           >
             {column}
           </Text>
         ))}
       </View>
       {shown.map((row, index) => {
+        // An event without a mark has neither athlete nor date: its cells stay empty.
+        const marked = row.time !== null;
         const date = row.date === null ? null : formatDate(row.date, 'short');
         return (
           <View
@@ -151,17 +163,29 @@ export function RecordTable({ rows, pool, compact = false }: RecordTableProps) {
             testID="record-row"
             accessible
             accessibilityLabel={spoken(row, date)}
-            style={[{ flexDirection: 'row', alignItems: 'center', minHeight: size['target-min'], padding: space[3] }, index < shown.length - 1 && divider]}
+            style={[
+              { flexDirection: 'row', alignItems: 'center', minHeight: size['target-min'], paddingVertical: space[3], paddingHorizontal: space[4] },
+              index < shown.length - 1 && divider,
+            ]}
           >
             <View {...hidden} style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={[typography.body, cell, text, columnStyle(0)]}>{row.event}</Text>
-              <Text style={[typography.body, cell, row.athlete ? text : muted, columnStyle(1)]}>{row.athlete ?? t('schoolConsole.records.none')}</Text>
-              <View style={[cell, columnStyle(2), { gap: space[1] }]}>
-                <Text style={[typography.body, date ? text : muted]}>{date ?? t('schoolConsole.records.none')}</Text>
-                {row.source ? <Tag label={row.source} variant="info" icon="cloud_download" /> : null}
-              </View>
-              <View style={[cell, columnStyle(3), { alignItems: 'flex-end' }]}>
+              <Text style={[typography['body-strong'], cell, text, columns[0]]}>{row.event}</Text>
+              <View style={[cell, columns[1], { alignItems: 'flex-end' }]}>
                 <TimeValue value={row.time} size="time-sm" />
+              </View>
+              <View style={[cell, columns[2], { flexDirection: 'row', alignItems: 'center', gap: space[2] }]}>
+                {marked && row.athlete ? (
+                  <>
+                    <InitialsDot {...dotOf(row.athlete)} />
+                    <Text style={[typography.body, text, { flexShrink: 1 }]}>{row.athlete}</Text>
+                  </>
+                ) : marked ? (
+                  <Text style={[typography.body, muted]}>{t('schoolConsole.records.none')}</Text>
+                ) : null}
+              </View>
+              <View style={[cell, columns[3], { gap: space[1] }]}>
+                {marked ? <Text style={[typography.body, date ? text : muted]}>{date ?? t('schoolConsole.records.none')}</Text> : null}
+                {row.source ? <Tag label={row.source} variant="info" icon="cloud_download" /> : null}
               </View>
             </View>
           </View>

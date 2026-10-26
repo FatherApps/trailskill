@@ -26,12 +26,34 @@ describe('RecordsScreen', () => {
     it('shows the title, the caption, the filters and one row per event of the pool, in the records section', async () => {
       await show({ kind: 'data', content });
 
-      expect(screen.getByRole('header', { name: 'Récords' })).toBeOnTheScreen();
+      expect(screen.getByRole('header', { name: 'Marcas de la escuela' })).toBeOnTheScreen();
+      expect(screen.getByText('Mejor marca por prueba de la categoría en Escuela Delfines')).toBeOnTheScreen();
       expect(screen.getByText('4 pruebas · Actualizado hace 2 min')).toBeOnTheScreen();
       expect(screen.getByRole('tab', { name: 'Récords' })).toBeSelected();
       expect(screen.getByRole('button', { name: 'Categoría: Categoría B' })).toBeOnTheScreen();
       expect(screen.getByRole('radio', { name: '25 m' })).toBeChecked();
       expect(screen.getAllByTestId('record-row')).toHaveLength(4);
+    });
+
+    it('puts the pool in the chip row with the category: no separate label above it', async () => {
+      await show({ kind: 'data', content });
+
+      expect(screen.queryByText('Piscina')).toBeNull();
+      expect(screen.getByLabelText('Piscina')).toBeOnTheScreen();
+    });
+
+    it('shows no group chip when the content has no group', async () => {
+      await show({ kind: 'data', content }, { onGroupPress: jest.fn() });
+      expect(screen.queryByRole('button', { name: /^Grupo/ })).toBeNull();
+    });
+
+    it('opens the group options from its chip', async () => {
+      const onGroupPress = jest.fn();
+      await show({ kind: 'data', content: { ...content, group: 'Todos los grupos' } }, { onGroupPress });
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Grupo: Todos los grupos' }));
+
+      expect(onGroupPress).toHaveBeenCalledTimes(1);
     });
 
     it('filters by the pool of the content and counts only its events', async () => {
@@ -63,7 +85,7 @@ describe('RecordsScreen', () => {
     it('shows a dash for an event without a mark', async () => {
       await show({ kind: 'data', content });
 
-      expect(screen.getAllByText('—', hidden)).toHaveLength(3);
+      expect(screen.getAllByText('—', hidden)).toHaveLength(1);
       expect(screen.queryByText('0,00', hidden)).toBeNull();
     });
 
@@ -104,7 +126,7 @@ describe('RecordsScreen', () => {
     it('loading shows the loading state under the title', async () => {
       await show({ kind: 'loading' });
 
-      expect(screen.getByRole('header', { name: 'Récords' })).toBeOnTheScreen();
+      expect(screen.getByRole('header', { name: 'Marcas de la escuela' })).toBeOnTheScreen();
       expect(screen.getByTestId('state-view')).toHaveProp('accessibilityState', { busy: true });
       expect(screen.queryByRole('radio')).toBeNull();
     });

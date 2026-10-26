@@ -151,7 +151,8 @@
     "offline_empty": "No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
   },
   "records": {
-    "title": "Récords",
+    "title": "Marcas de la escuela",
+    "subtitle": "Mejor marca por prueba de la categoría en {{school}}",
     "count_one": "{{count}} prueba",
     "count_other": "{{count}} pruebas",
     "event": "Prueba",
