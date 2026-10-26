@@ -46,12 +46,16 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
   const [stored, setStored] = useState<string | null>(null);
   // The plan being edited; a new plan gets its id and school on load, and keeps them after its first save.
   const plan = useRef({ id: '', schoolId: '', isTemplate: false });
-  // The id of the plan whose save is running. State updates land after the render, so a ref blocks a second press made before
-  // the loading state shows; keeping the id, not a flag, means a plan opened during a save does not inherit it, and not the
-  // object, because reopening the same plan replaces the object while its save is still running.
-  const busy = useRef<string | null>(null);
-  // Counts the times the screen started moving to another plan; a save is live only while it has not changed.
+  // The plan whose save is running and what it saves. State updates land after the render, so a ref blocks a second press made
+  // before the loading state shows; keeping the id, not a flag, means a plan opened during a save does not inherit it, and not
+  // the object, because reopening the same plan replaces the object while its save is still running. The kind lets the plan
+  // reopened during its own save show the right button as busy.
+  const busy = useRef<{ id: string; kind: 'plan' | 'template' } | null>(null);
+  // Counts the loads the screen started, of the same plan too (a reopen, a retry, a new user); a save is live only while it has not changed.
   const moves = useRef(0);
+  // The id of the plan the screen shows, null while it loads or failed to; it lets a save that is no longer live still tell
+  // whether the screen shows its plan again.
+  const shown = useRef<string | null>(null);
   // A save that ends after the screen closed must not touch it.
   const mounted = useRef(true);
   // The draft in the form it is compared with `stored`, rebuilt only when it changes.
@@ -70,6 +74,7 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
     let cancelled = false;
     // From here the screen no longer shows the plan of a running save, even before the next plan has loaded or if it fails.
     moves.current += 1;
+    shown.current = null;
     setLoad({ kind: 'loading' });
     (async () => {
       try {
@@ -94,7 +99,9 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
         setEditingId(null);
         setShowErrors(false);
         setMessage(undefined);
-        setSaving(null);
+        // A save of this plan still running (the plan was left and reopened) keeps its button busy.
+        setSaving(busy.current?.id === plan.current.id ? busy.current.kind : null);
+        shown.current = plan.current.id;
         setLoad({ kind: 'ready' });
       } catch {
         if (!cancelled) setLoad({ kind: 'error' });
@@ -144,15 +151,20 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
       return 'failed';
     }
     const saved = draft;
+    const target = plan.current;
     try {
-      await repository.save({ ...plan.current, name: name.trim(), blocks: blocks.map(toPlanBlock) });
+      await repository.save({ ...target, name: name.trim(), blocks: blocks.map(toPlanBlock) });
     } catch (error) {
       const key = error instanceof BlockHasFulfillmentError ? 'block_has_fulfillment' : 'save_failed';
       if (live()) setMessage({ kind: 'error', text: t(`training_plans.builder.${key}`) });
       return 'failed';
     }
-    // The plan is saved, but the screen moved on: what it shows is no longer this plan.
-    if (!live()) return 'left';
+    // The plan is saved, but the screen moved on, so it says nothing and `onSaved` is not called. If it shows this plan again
+    // (reopened during the save), what is stored is still what this save wrote, and its draft was read before or edited since.
+    if (!live()) {
+      if (mounted.current && shown.current === target.id) setStored(saved);
+      return 'left';
+    }
     setStored(saved);
     onSaved?.(plan.current.id);
     return 'saved';
@@ -160,12 +172,12 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
 
   async function run(kind: 'plan' | 'template') {
     const started = plan.current;
-    const move = moves.current;
-    if (busy.current === started.id) return;
-    busy.current = started.id;
+    const movesAtStart = moves.current;
+    if (busy.current?.id === started.id) return;
+    busy.current = { id: started.id, kind };
     setSaving(kind);
     setMessage(undefined);
-    const live = () => mounted.current && moves.current === move;
+    const live = () => mounted.current && moves.current === movesAtStart;
     try {
       const result = await persist(live);
       if (result === 'failed') return;
@@ -173,16 +185,19 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
         if (result === 'saved') setMessage({ kind: 'success', text: t('training_plans.builder.saved') });
         return;
       }
-      // A template asked for a saved plan is made even if the screen moved on; it says nothing then, there is no screen for it.
+      // A template asked for a saved plan is made even if the screen moved on. It says so only while the screen shows the plan
+      // it was made from, also when that plan was reopened during the save; with another plan on screen it says nothing.
+      const shows = () => mounted.current && shown.current === started.id;
       try {
         await repository.copy(started.id, true);
-        if (live()) setMessage({ kind: 'success', text: t('training_plans.builder.template_saved') });
+        if (shows()) setMessage({ kind: 'success', text: t('training_plans.builder.template_saved') });
       } catch {
-        if (live()) setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
+        if (shows()) setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
       }
     } finally {
-      if (busy.current === started.id) busy.current = null;
-      if (live()) setSaving(null);
+      if (busy.current?.id === started.id) busy.current = null;
+      // Also when the plan was reopened during the save: its button was left busy for this save.
+      if (mounted.current && shown.current === started.id) setSaving(null);
     }
   }
 
