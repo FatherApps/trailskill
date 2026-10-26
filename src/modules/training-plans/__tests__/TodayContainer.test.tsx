@@ -30,7 +30,6 @@ type SetupOptions = {
   onOpenAthletes?: () => void;
   synced?: boolean;
   offline?: boolean;
-  // Reading the assignments waits for `holdReads.promise` while it is set.
 };
 
 async function setup(options: SetupOptions = {}) {
@@ -208,6 +207,30 @@ describe('TodayContainer', () => {
 
     expect(await screen.findByText('Estás sin conexión')).toBeOnTheScreen();
     expect(screen.queryByText('Aún no hay un deportista vinculado')).toBeNull();
+  });
+
+  describe('an athlete without a plan today, by sync and connection', () => {
+    it('says the device is offline when it never synced and is offline', async () => {
+      await setup({ ids: ['a4'], synced: false, offline: true });
+
+      expect(await screen.findByText('Estás sin conexión')).toBeOnTheScreen();
+      expect(screen.queryByText('Hoy no hay plan')).toBeNull();
+    });
+
+    it('keeps loading, not "offline" or "no plan", when it never synced and is only connecting', async () => {
+      await setup({ ids: ['a4'], synced: false, offline: false });
+
+      expect(await screen.findByTestId('state-view')).toBeOnTheScreen();
+      expect(screen.queryByText('Estás sin conexión')).toBeNull();
+      expect(screen.queryByText('Hoy no hay plan')).toBeNull();
+    });
+
+    it('says there is no plan once it synced, even when it is offline now', async () => {
+      await setup({ ids: ['a4'], synced: true, offline: true });
+
+      expect(await screen.findByText('Hoy no hay plan')).toBeOnTheScreen();
+      expect(screen.queryByText('Estás sin conexión')).toBeNull();
+    });
   });
 
   it('does not show the old plan of an athlete who left the list and came back before the new one is read', async () => {

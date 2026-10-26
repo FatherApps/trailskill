@@ -4,6 +4,7 @@ import { Dimensions } from 'react-native';
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository } from '../../athletes';
 import { ThemeProvider } from '../../../core/theme';
+import { createInMemoryCoachInvitationRepository } from '../data/coachInvitations';
 import { createInMemoryCoachRepository, type CoachRepository } from '../data/coaches';
 import { createConsoleAthletesRepository } from '../data/consoleAthletes';
 import { createInMemorySchoolStructureRepository } from '../data/schoolStructure';
@@ -89,7 +90,7 @@ const tree = (repository: CoachRepository, extra: Extra = {}) => (
         width={1280}
         schoolName="Escuela Test"
         onNavigate={jest.fn()}
-        onInvite={jest.fn()}
+        invitations={createInMemoryCoachInvitationRepository()}
         onDeactivate={jest.fn()}
         schoolId="school-a"
         repository={repository}
@@ -375,9 +376,9 @@ describe('CoachesSection', () => {
   });
 
   it('keeps the sheet open and shows the error when the invitation of the caller rejects', async () => {
-    const onInvite = jest.fn().mockRejectedValue(new Error('offline'));
+    const invite = jest.fn().mockRejectedValue(new Error('offline'));
     jest.spyOn(console, 'warn').mockImplementation(() => {});
-    await show(coachRepository(), { onInvite });
+    await show(coachRepository(), { invitations: { invite } });
     await rows();
     await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa');
@@ -385,8 +386,41 @@ describe('CoachesSection', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
 
-    expect(onInvite).toHaveBeenCalledTimes(1);
+    expect(invite).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
     expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
+  });
+
+  it('hands the whole invitation to the invitations repository with the school id, and closes the sheet', async () => {
+    const invitations = createInMemoryCoachInvitationRepository();
+    await show(coachRepository(), { invitations });
+    await rows();
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa');
+    await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+    await fireEvent.press(screen.getByRole('radio', { name: 'Group B' }));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+    await waitFor(() => expect(screen.queryByTestId('side-sheet')).toBeNull());
+    expect(invitations.sent).toEqual([{ schoolId: 'school-a', invitation: { name: 'Rosa', email: 'rosa@example.com', groupIds: ['g2'] } }]);
+  });
+
+  it('shows Invitar disabled as Próximamente, and opens nothing, while there is no invitations repository', async () => {
+    await show(coachRepository(), { invitations: undefined });
+    await rows();
+
+    const invite = screen.getByRole('button', { name: 'Invitar entrenador · Próximamente' });
+    expect(invite).toBeDisabled();
+    await fireEvent.press(invite);
+
+    expect(screen.queryByTestId('side-sheet')).toBeNull();
+  });
+
+  it('keeps Desactivar disabled until issue 220', async () => {
+    await show(coachRepository());
+    await rows();
+
+    expect(screen.getAllByRole('button', { name: 'Desactivar · Aún no disponible' })).toHaveLength(3);
   });
 });

@@ -126,6 +126,7 @@
     "pending_label": "{{name}}, {{status}}, {{groups}}",
     "pending_label_without_groups": "{{name}}, {{status}}",
     "invite": "Invitar entrenador",
+    "invite_unavailable": "Próximamente",
     "deactivate": "Desactivar",
     "deactivate_hint": "Desactivar a {{name}}",
     "cancel": "Cancelar",

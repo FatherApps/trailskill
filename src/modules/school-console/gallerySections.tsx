@@ -47,6 +47,20 @@ function sectionStates<Content>(
   };
 }
 
+const coachesScreen = (view: SectionView<CoachesContent>, width: number, inviteAvailable = true) => (
+  <CoachesScreen
+    width={width}
+    schoolName={schoolNameFixture}
+    view={view}
+    scrollEnabled={false}
+    groups={inviteGroupsFixture}
+    inviteAvailable={inviteAvailable}
+    onNavigate={noop}
+    onInvite={noop}
+    onDeactivate={noop}
+  />
+);
+
 const entry = (id: string, title: string, states: Record<string, () => ReactElement>): GalleryEntry => ({ id, title, states });
 
 // A side sheet fills the layout that holds it: give it a stage tall enough for its fields.
@@ -151,18 +165,13 @@ export const gallerySectionEntries: GalleryEntry[] = [
   entry(
     'coachesScreen',
     'CoachesScreen',
-    sectionStates(coachesContent, (view, width) => (
-      <CoachesScreen
-        width={width}
-        schoolName={schoolNameFixture}
-        view={view}
-        scrollEnabled={false}
-        groups={inviteGroupsFixture}
-        onNavigate={noop}
-        onInvite={noop}
-        onDeactivate={noop}
-      />
-    )),
+    {
+      ...sectionStates(coachesContent, (view, width) => coachesScreen(view, width)),
+      // The real console while no invitations repository exists.
+      'invite-unavailable': function InviteUnavailablePreview() {
+        return <ConsolePreview>{(width) => coachesScreen({ kind: 'data', content: coachesContent }, width, false)}</ConsolePreview>;
+      },
+    },
   ),
   entry('recordTable', 'RecordTable', {
     default: () => (

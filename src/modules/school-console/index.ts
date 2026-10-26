@@ -77,6 +77,7 @@ export {
   type ConsoleAuthorizationRow,
 } from './data/authorizations';
 export { CoachesSection, type CoachesSectionProps } from './screens/CoachesSection';
+export { createInMemoryCoachInvitationRepository, type CoachInvitationRepository, type SentCoachInvitation } from './data/coachInvitations';
 export { createInMemoryCoachRepository, createPowerSyncCoachRepository } from './data/coaches';
 export type { Coach, CoachMembershipRow, CoachRepository } from './data/coaches';
 export { galleryEntries } from './gallery';

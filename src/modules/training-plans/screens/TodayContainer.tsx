@@ -56,7 +56,8 @@ function viewOf(athletes: SchoolAthlete[], synced: boolean, offline: boolean, lo
     if (synced) return { kind: 'no-athletes', onOpenAthletes: actions.onOpenAthletes };
     return offline ? { kind: 'offline-empty' } : { kind: 'loading' };
   }
-  if (loaded === null) return { kind: 'empty' };
+  // Nothing found: after the first sync that is "no plan"; before it, offline says so and anything else is still connecting, so loading.
+  if (loaded === null) return synced ? { kind: 'empty' } : offline ? { kind: 'offline-empty' } : { kind: 'loading' };
   if (loaded === 'loading') return { kind: 'loading' };
   if (loaded === 'error') return { kind: 'error', onRetry: actions.onRetry };
   return { kind: 'data', content: loaded.content };
@@ -153,15 +154,20 @@ export function TodayContainer(props: TodayContainerProps) {
     // The note is saved on the device first, so it never waits for the network.
     await notices.add({ athleteId: selected.id, assignmentId: loaded.assignmentId, versionId: loaded.versionId, blockId, body, authorId: userId });
     const list = await notices.list(selected.id, loaded.assignmentId);
-    // The person may have moved to another athlete while this saved: only the answer of this athlete takes the note.
-    setAnswer((current) => (current?.athleteId === selected.id ? { athleteId: selected.id, value: { ...loaded, content: { ...loaded.content, notes: notesOf(list) } } } : current));
+    // The person may have moved to another athlete, or the read may have been replaced by another assignment of the same one, while this saved: only the answer this note was written under takes it.
+    setAnswer((current) => {
+      const now = current?.value;
+      if (current?.athleteId !== selected.id || !now || now === 'error' || now.assignmentId !== loaded.assignmentId) return current;
+      return { athleteId: selected.id, value: { ...loaded, content: { ...loaded.content, notes: notesOf(list) } } };
+    });
   }
 
   // Reading again drops the shown data at once (the key changes), so the plan of the previous athlete never stays under the new name.
   const reload = () => setAttempt((n) => n + 1);
   const select = (id: string) => {
     setChosenId(id);
-    reload();
+    // The athlete already shown keeps its data: reading again would only flash loading.
+    if (id !== selectedId) reload();
   };
 
   const view = viewOf(athletes, props.synced ?? true, props.offline ?? false, loaded, { onOpenAthletes: props.onOpenAthletes, onRetry: reload });
