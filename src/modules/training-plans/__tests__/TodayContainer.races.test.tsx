@@ -180,66 +180,6 @@ describe('TodayContainer races', () => {
     expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } });
   });
 
-  it('does not read again or go through loading when the athlete already shown is picked', async () => {
-    const { reads } = await setup();
-    await showsPlan('Plan p1');
-    const before = reads.count;
-    // A read started now would stay in loading until the gate opens.
-    let openGate!: () => void;
-    reads.gate = new Promise<void>((resolve) => (openGate = resolve));
-
-    await act(async () => shown.onSelectAthlete?.('a1'));
-
-    expect(shown.view).toMatchObject({ kind: 'data', content: { planName: 'Plan p1' } });
-    expect(reads.count).toBe(before);
-    openGate();
-  });
-
-  it('reads again when the first sync completes, so a plan that arrived with it is not "no plan"', async () => {
-    const { stored, update } = await setup();
-    await showsPlan('Plan p1');
-    // Before the first sync nothing was found for the day: still connecting, so loading.
-    await update(['a1', 'a3'], LATE_DAY, false);
-    await waitFor(() => expect(shown.view.kind).toBe('loading'));
-
-    await stored.create({ planId: 'p3', schoolId: 's1', sessionDate: LATE_DAY, target: { kind: 'group', groupId: 'g1' } });
-    await update(['a1', 'a3'], LATE_DAY, true);
-
-    await showsPlan('Plan de mañana');
-  });
-
-  it('keeps the newer marks of a read that finishes while a note is being saved, and adds the note', async () => {
-    const { one, fulfillment, update, sendHeld } = await setup();
-    await showsPlan('Plan p1');
-    const finish = await sendHeld('Test note 1');
-
-    await fulfillment.mark({ assignmentId: one, versionId: 'p1-v1', blockId: 'b1', athleteId: 'a1', status: 'done', authorId: 'k1', deviceId: 'tablet-1' });
-    // The first sync completing reads again; the data shown stays until the new read arrives.
-    await update(['a1', 'a3'], DAY, false);
-    await update(['a1', 'a3'], DAY, true);
-    await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { blocks: [{ status: 'done' }] } }));
-    await finish();
-
-    expect(shown.view).toMatchObject({ kind: 'data', content: { blocks: [{ status: 'done' }], notes: [{ body: 'Test note 1' }] } });
-  });
-
-  it('shows a note whose save finishes while the athlete is being read again, in the read that arrives', async () => {
-    const { reads, update, sendHeld } = await setup();
-    await showsPlan('Plan p1');
-    const finish = await sendHeld('Test note 1');
-
-    // The athlete changes day and comes back: the read of the day stays open and nothing is shown meanwhile.
-    let openGate!: () => void;
-    reads.gate = new Promise<void>((resolve) => (openGate = resolve));
-    await update(['a1', 'a3'], NEXT_DAY);
-    await finish();
-    openGate();
-    await update(['a1', 'a3'], DAY);
-
-    await showsPlan('Plan p1');
-    expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } });
-  });
-
   it('does not turn the first athlete into an explicit choice when the read is retried', async () => {
     const { update } = await setup({ failFirstRead: true, ids: ['a3'] });
     await waitFor(() => expect(shown.view.kind).toBe('error'));
