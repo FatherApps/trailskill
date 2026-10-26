@@ -1,14 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Dimensions, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
+import { i18n } from '../../../core/i18n';
 import { colors } from '../../../core/theme';
 import { iconPaths } from '../../../core/ui';
 import { TodayScreen, type TodayContent, type TodayView } from '../screens/TodayScreen';
 import { plansFixture } from '../__fixtures__/plans';
 
 const content: TodayContent = plansFixture.today;
-const realGet = Dimensions.get.bind(Dimensions);
-afterEach(() => jest.restoreAllMocks());
 
 function setup(view: TodayView) {
   const onSendNotice = jest.fn();
@@ -144,14 +143,42 @@ describe('TodayScreen header', () => {
     expect(screen.getByText('Hoy')).toBeOnTheScreen();
   });
 
-  it('wraps the card in a plain block that adds no width, margin or padding, so on a tablet it fills the column like the card did', async () => {
-    jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), width: 1024, height: 768 }));
+  it('wraps the card in a plain block that adds no width, margin or padding, so the card keeps filling its column', async () => {
     await render(setup({ kind: 'data', content }).ui);
 
     const wrapper = screen.getByRole('header');
     expect(StyleSheet.flatten(wrapper.props.style) ?? {}).toEqual({});
     expect(screen.getByText('Resistencia aeróbica')).toBeOnTheScreen();
     expect(wrapper.children).toHaveLength(1);
+  });
+
+  it('builds the heading label from one translatable key, so a language can reorder its parts', async () => {
+    const path = 'training_plans.today.heading';
+    const original = i18n.getResource('es-CO', 'translation', `${path}_name_summary`);
+    i18n.addResource('es-CO', 'translation', `${path}_name_summary`, '{{summary}} / {{name}} / {{plan}} / {{title}}');
+    try {
+      await render(setup({ kind: 'data', content }).ui);
+
+      expect(screen.getByRole('header', { name: '950 m · 5 bloques / Lucía R. / Resistencia aeróbica / Hoy' })).toBeOnTheScreen();
+    } finally {
+      i18n.addResource('es-CO', 'translation', `${path}_name_summary`, original);
+    }
+  });
+
+  it('does not break when the athlete name is missing (undefined), and shows what an empty name shows', async () => {
+    const view: TodayView = { kind: 'data', content };
+    await render(<TodayScreen view={view} onSendNotice={jest.fn()} />);
+
+    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, 950 m · 5 bloques' })).toBeOnTheScreen();
+    expect(screen.getByText('Hoy')).toBeOnTheScreen();
+    expect(screen.queryByText(/undefined/)).toBeNull();
+  });
+
+  it.each<TodayView>([{ kind: 'empty' }, { kind: 'denied' }])('does not break or print "undefined" in the $kind state without a name', async (view) => {
+    await render(<TodayScreen view={view} onSendNotice={jest.fn()} />);
+
+    expect(screen.getByText('Hoy')).toBeOnTheScreen();
+    expect(screen.queryByText(/undefined/)).toBeNull();
   });
 
   it('invents no schedule or group: the plan has none', async () => {
@@ -220,11 +247,9 @@ describe('TodayScreen blocks card', () => {
     await render(setup({ kind: 'data', content }).ui);
 
     const button = screen.getByRole('button', { name: 'Avisar algo al entrenador' });
-    // The icon is the node the screen readers skip; it must exist (a missing icon finds no node) and draw only the bubble.
-    const decorative = button.queryAll((node) => node.props.importantForAccessibility === 'no-hide-descendants');
-    expect(decorative.length).toBeGreaterThan(0);
-    const drawn = new Set(decorative.flatMap((icon) => icon.queryAll((node) => typeof node.props.d === 'string').map((node) => node.props.d)));
-    expect([...drawn]).toEqual([iconPaths.chat_bubble]);
+    // The only SVG path in the button is the chat bubble: the icon drawn, not a node that merely hides from screen readers.
+    const drawn = button.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
+    expect(drawn).toEqual([iconPaths.chat_bubble]);
     expect(screen.queryByRole('image')).toBeNull();
   });
 });

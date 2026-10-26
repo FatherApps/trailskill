@@ -62,6 +62,7 @@ function toRow(coach: Coach, groups: SchoolGroup[], athleteCounts: Loaded['athle
     // Without a readable name there is nothing to take initials from.
     initials: '',
     color: colorOf(coach.id),
+    status: 'active',
     groups: groupIds === null ? null : groups.filter((group) => assigned?.has(group.id)).map((group) => group.name),
     athleteCount: athleteCounts === null ? null : (athleteCounts.get(coach.id) ?? 0),
   };

@@ -28,12 +28,14 @@ describe('training-plans i18n', () => {
     );
   });
 
-  it('builds the heading label from keys, so the title, the separator and the order are translatable', () => {
-    const head = t('training_plans.today.heading', { title: t('training_plans.today.title'), plan: 'Resistencia aeróbica' });
+  it('builds the heading label from one key and a context per optional part, so the title, the separator and the order are translatable', () => {
+    const values = { title: t('training_plans.today.title'), plan: 'Resistencia aeróbica', name: 'Lucía R.', summary: '950 m · 5 bloques' };
 
     expect(esCO.today.heading).not.toContain('Hoy');
-    expect(head).toBe('Hoy · Resistencia aeróbica');
-    expect(t('training_plans.today.heading_join', { first: head, second: 'Lucía R.' })).toBe('Hoy · Resistencia aeróbica, Lucía R.');
+    expect(t('training_plans.today.heading', values)).toBe('Hoy · Resistencia aeróbica');
+    expect(t('training_plans.today.heading', { ...values, context: 'name' })).toBe('Hoy · Resistencia aeróbica, Lucía R.');
+    expect(t('training_plans.today.heading', { ...values, context: 'summary' })).toBe('Hoy · Resistencia aeróbica, 950 m · 5 bloques');
+    expect(t('training_plans.today.heading', { ...values, context: 'name_summary' })).toBe('Hoy · Resistencia aeróbica, Lucía R., 950 m · 5 bloques');
   });
 
   it('has a caption without the athlete, with no separator left hanging', () => {

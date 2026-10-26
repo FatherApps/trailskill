@@ -18,11 +18,11 @@ type CoachBase = {
   groups: string[] | null;
 };
 
-// A pending invitation is drawn with a dashed outline; there is no source of those yet, so a missing status is active.
+// A pending invitation is drawn with a dashed outline; there is no source of those yet.
 // It has no athlete count: a count that is missing is not zero, so the model cannot hold one.
-type PendingCoachRow = CoachBase & { status: 'pending'; athleteCount?: null };
-// A count that could not be read is null, never 0.
-type ActiveCoachRow = CoachBase & { status?: 'active'; athleteCount: number | null };
+type PendingCoachRow = CoachBase & { status: 'pending'; athleteCount?: never };
+// A count that could not be read is null, never 0. The status is always set, so narrowing on it cannot be forgotten.
+type ActiveCoachRow = CoachBase & { status: 'active'; athleteCount: number | null };
 
 // One coach of the school: groups and number of athletes, never contact or document data.
 export type CoachRow = ActiveCoachRow | PendingCoachRow;

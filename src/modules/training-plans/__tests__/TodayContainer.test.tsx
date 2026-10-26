@@ -18,6 +18,10 @@ jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 const DAY = '2026-11-02';
 const timed: PlanBlock = { id: 'b2', phase: 'main', repetitions: 3, distance: 50, activity: 'FR', equipment: ['fins'], sendOffSeconds: null, recording: 'per_repetition' };
+// The blocks of plans p1 and p2 as setup() saves them; the heading summary is derived from them, not typed by hand.
+const p1Blocks = [...plan('p1').blocks, timed];
+const p2Blocks = plan('p2').blocks;
+const summaryOf = (blocks: PlanBlock[]) => `${blocks.reduce((sum, { repetitions, distance }) => sum + repetitions * distance, 0)} m · ${blocks.length} ${blocks.length === 1 ? 'bloque' : 'bloques'}`;
 const schoolLinks = createInMemoryAthleteSchoolRepository([
   { athleteId: 'a1', schoolId: 's1', categoryId: 'c1' },
   { athleteId: 'a3', schoolId: 's1', categoryId: 'c2' },
@@ -37,14 +41,14 @@ async function setup(options: SetupOptions = {}) {
   const { ids = ['a1'], initialAthleteId, changePlan = false, onOpenAthletes, synced, offline, actionPending } = options;
   const plans = createInMemoryTrainingPlanRepository();
   // Plan p1 (an untimed and a timed block) goes to group g1, which has a1; plan p2 goes to group g2, which has a3.
-  await plans.save({ ...plan('p1'), blocks: [...plan('p1').blocks, timed] });
+  await plans.save({ ...plan('p1'), blocks: p1Blocks });
   await plans.save({ ...plan('p2'), name: 'Plan del otro' });
   const stored = createInMemoryAssignmentRepository(plans);
   const holdReads: { promise?: Promise<void> } = {};
   const assignments = { ...stored, list: async (...args: Parameters<typeof stored.list>) => (await holdReads.promise, stored.list(...args)) };
   const one = await stored.create({ planId: 'p1', schoolId: 's1', sessionDate: DAY, target: { kind: 'group', groupId: 'g1' } });
   await stored.create({ planId: 'p2', schoolId: 's1', sessionDate: DAY, target: { kind: 'group', groupId: 'g2' } });
-  if (changePlan) await plans.save({ ...plan('p1'), blocks: [...plan('p1').blocks, timed] });
+  if (changePlan) await plans.save({ ...plan('p1'), blocks: p1Blocks });
   const fulfillment = createInMemoryFulfillmentRepository({}, plans);
   await fulfillment.mark({ assignmentId: one, versionId: 'p1-v1', blockId: 'b2', athleteId: 'a1', status: 'partial', completedRepetitions: 2, seriesId: 'series-1', authorId: 'k1', deviceId: 'tablet-1' });
   // Rep 2 has no time; the arrival of another athlete never shows.
@@ -84,7 +88,7 @@ describe('TodayContainer', () => {
     await setup();
 
     expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: 'Hoy · Plan p1, A1 S., 350 m · 2 bloques' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Plan p1, A1 S., ${summaryOf(p1Blocks)}` })).toBeOnTheScreen();
     expect(screen.getAllByLabelText('Aletas').filter((node) => node.props.accessibilityRole === 'text')).toHaveLength(1);
     expect(screen.getByLabelText('Sin marcar')).toBeOnTheScreen();
     expect(screen.getByLabelText('Parcial · 2 de 3')).toBeOnTheScreen();
@@ -120,7 +124,7 @@ describe('TodayContainer', () => {
     expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('radio', { name: 'A3 S.' }));
     expect(await screen.findByText('Plan del otro')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: 'Hoy · Plan del otro, A3 S., 200 m · 1 bloque' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Plan del otro, A3 S., ${summaryOf(p2Blocks)}` })).toBeOnTheScreen();
     expect(screen.queryByText(/Plan p1/)).toBeNull();
   });
 
@@ -171,7 +175,7 @@ describe('TodayContainer', () => {
     await update(['a1']);
 
     expect(await screen.findByText('Plan p1')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: 'Hoy · Plan p1, A1 S., 350 m · 2 bloques' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Plan p1, A1 S., ${summaryOf(p1Blocks)}` })).toBeOnTheScreen();
     expect(screen.queryByText('Plan del otro')).toBeNull();
   });
 
