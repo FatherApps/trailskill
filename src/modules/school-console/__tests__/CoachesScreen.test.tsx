@@ -217,6 +217,31 @@ describe('CoachesScreen', () => {
         expect(screen.getByRole('radio', { name: 'Grupo C' })).toBeChecked();
       });
 
+      it('forgets a chosen group that leaves the list, so it comes back unchosen', async () => {
+        const base = props({ groups: [groupA!, groupB!] });
+        const view = await render(<CoachesScreen {...base} />);
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo A' }));
+        expect(screen.getByRole('radio', { name: 'Grupo A' })).toBeChecked();
+
+        await view.rerender(<CoachesScreen {...base} groups={[groupB!]} />);
+        await view.rerender(<CoachesScreen {...base} groups={[groupA!, groupB!]} />);
+
+        expect(screen.getByRole('radio', { name: 'Grupo A' })).not.toBeChecked();
+      });
+
+      it('keeps what was chosen while the groups are loading again', async () => {
+        const base = props({ groups: [groupA!, groupB!] });
+        const view = await render(<CoachesScreen {...base} />);
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fireEvent.press(screen.getByRole('radio', { name: 'Grupo A' }));
+
+        await view.rerender(<CoachesScreen {...base} groups="loading" />);
+        await view.rerender(<CoachesScreen {...base} groups={[groupA!, groupB!]} />);
+
+        expect(screen.getByRole('radio', { name: 'Grupo A' })).toBeChecked();
+      });
+
       it('chooses the context group when the groups arrive after the sheet opened', async () => {
         const base = props({ contextGroupId: 'g2' });
         const view = await render(<CoachesScreen {...base} />);

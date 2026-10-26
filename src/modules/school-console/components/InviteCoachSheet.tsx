@@ -42,6 +42,16 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onClose }: 
   const [failed, setFailed] = useState(false);
 
   const available = Array.isArray(groups) ? groups : [];
+  // A group that left the list is forgotten, so it does not come back chosen; while the list is 'loading' or failed nothing is known, so nothing is dropped.
+  // Adjusting during render (not in an effect) keeps the pruned state from ever being drawn.
+  const [seen, setSeen] = useState(groups);
+  if (groups !== seen) {
+    setSeen(groups);
+    if (Array.isArray(groups)) {
+      const kept = Object.entries(picked).filter(([id]) => groups.some((group) => group.id === id));
+      if (kept.length !== Object.keys(picked).length) setPicked(Object.fromEntries(kept));
+    }
+  }
   const isChosen = (id: string) => picked[id] ?? id === initialGroupId;
   const complete = name.trim() !== '' && EMAIL.test(email.trim());
   const disabledReason =
