@@ -80,6 +80,7 @@
     "denied": {
       "title": "Esta información es privada",
       "message": "Solo el acudiente de {{name}} y su escuela pueden verla.",
+      "message_no_name": "Solo el acudiente del deportista y su escuela pueden verla.",
       "action": "Pedir acceso a la escuela"
     }
   },

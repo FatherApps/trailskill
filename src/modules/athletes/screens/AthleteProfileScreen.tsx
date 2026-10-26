@@ -3,14 +3,14 @@ import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { Banner, ColorHeader, StateView, type ColorCardColor } from '../../../core/ui';
+import { Banner, ColorHeader, StateView } from '../../../core/ui';
 import '../i18n';
 import { EventSelector, type EventSelectorProps } from '../components/EventSelector';
 import { formatDate } from '../components/formatDate';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 import { ImportPrompt, type ImportPromptProps } from '../components/ImportPrompt';
 import { PersonalBest, type PersonalBestProps } from '../components/PersonalBest';
-import { ProfileHeader, type ProfileHeaderProps } from '../components/ProfileHeader';
+import { ProfileHeader, profileBandColor, type ProfileHeaderProps } from '../components/ProfileHeader';
 
 export type AthleteProfileContent = {
   header: ProfileHeaderProps;
@@ -56,9 +56,6 @@ export const athleteProfileScreenColors: { title: ColorToken } = {
   title: 'ink',
 };
 
-// No athlete is loaded in these states, so the band takes the neutral brand colour, like ProfileHeader without one.
-const stateBandColor: ColorCardColor = 'sky';
-
 const noop = () => {};
 
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
@@ -74,7 +71,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   // The states without content keep the band and its back button, so the screen never depends on the system back.
   const withBand = (state: ReactNode) => (
     <View style={[frame, { paddingHorizontal: 0 }]}>
-      <ColorHeader color={stateBandColor} title={name} onBack={onBack} />
+      <ColorHeader color={profileBandColor}title={name} onBack={onBack} />
       <View style={[frame, { paddingVertical: space[4] }]}>{state}</View>
     </View>
   );
@@ -117,7 +114,9 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         <StateView
           kind="denied"
           title={t('athletes.screen.denied.title')}
-          message={t('athletes.screen.denied.message', values)}
+          message={
+            name.trim() ? t('athletes.screen.denied.message', values) : t('athletes.screen.denied.message_no_name')
+          }
           action={
             view.onRequestAccess
               ? {
