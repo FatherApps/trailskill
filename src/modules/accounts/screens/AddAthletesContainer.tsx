@@ -126,17 +126,15 @@ export function AddAthletesContainer({
       .then((saved) => {
         if (!saved?.athlete) return;
         const draft = saved.athlete;
-        ifMounted(() => {
-          // A draft that took longer than the person did to start typing is older than what is on the screen, but only for the fields they edited.
-          const next = {
-            firstName: edits.current.firstName ? typed.current.firstName : draft.firstName,
-            lastName: edits.current.lastName ? typed.current.lastName : draft.lastName,
-          };
-          typed.current = next;
-          setValues(next);
-          // The keystroke saves wrote only what was typed: write back what was kept.
-          if (edits.current.firstName + edits.current.lastName > 0) void persist(keep(next));
-        });
+        // A draft that took longer than the person did to start typing is older than what is on the screen, but only for the fields they edited.
+        const next = {
+          firstName: edits.current.firstName ? typed.current.firstName : draft.firstName,
+          lastName: edits.current.lastName ? typed.current.lastName : draft.lastName,
+        };
+        typed.current = next;
+        ifMounted(() => setValues(next));
+        // The keystroke saves wrote only what was typed: write back what was kept, also after the screen went away or the draft would lose it.
+        if (edits.current.firstName + edits.current.lastName > 0) void persist(keep(next));
       })
       .catch(() => {});
     refresh().catch(() => {});
