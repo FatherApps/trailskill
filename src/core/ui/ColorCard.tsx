@@ -22,7 +22,7 @@ export function ColorCard({ color, title, detail, children }: ColorCardProps) {
   return (
     <View style={{ gap: space[1], padding: space[4], borderRadius: radius.md, backgroundColor: colors[color] }}>
       <Text style={[typography.title, text]}>{title}</Text>
-      {detail && <Text style={[typography.caption, text]}>{detail}</Text>}
+      {detail ? <Text style={[typography.caption, text]}>{detail}</Text> : null}
       {children}
     </View>
   );

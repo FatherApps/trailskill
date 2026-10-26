@@ -4,6 +4,23 @@ import { StyleSheet } from 'react-native';
 import { colors, contrastRatio, radius, ThemeProvider, type ThemeName } from '../../theme';
 import { ColorCard, colorCardColors, type ColorCardColor } from '../ColorCard';
 
+// The test renderer drops '' before it reaches the tree; React Native's renderer throws on it. Record what each View is given instead.
+const mockStrayStrings: string[] = [];
+jest.mock('react-native', () => {
+  const actual = jest.requireActual('react-native');
+  const React = jest.requireActual('react');
+  const RecordingView = (props: { children?: unknown }) => {
+    const children = Array.isArray(props.children) ? props.children : [props.children];
+    for (const child of children) if (typeof child === 'string') mockStrayStrings.push(child);
+    return React.createElement(actual.View, props);
+  };
+  return new Proxy(actual, { get: (target, key) => (key === 'View' ? RecordingView : target[key]) });
+});
+
+beforeEach(() => {
+  mockStrayStrings.length = 0;
+});
+
 const themes: ThemeName[] = ['light', 'dark'];
 const fills: ColorCardColor[] = ['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4', 'lime', 'coral', 'lilac', 'sky'];
 
@@ -33,6 +50,16 @@ describe('ColorCard', () => {
     );
 
     for (const text of ['Tomás R.', 'Infantil A', 'Dentro']) expect(screen.getByText(text)).toBeOnTheScreen();
+  });
+
+  it('draws nothing besides the title when the detail is an empty string', async () => {
+    await render(
+      <ThemeProvider>
+        <ColorCard color="athlete-1" title="Lucía R." detail="" />
+      </ThemeProvider>,
+    );
+
+    expect(mockStrayStrings).toEqual([]);
   });
 
   it('prints its text in on-color', async () => {
