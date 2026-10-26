@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { Dimensions } from 'react-native';
 
 import { createInMemoryStaffSchoolRepository } from '../../school-console';
 import { BlockHasFulfillmentError } from '../data/plans';
@@ -419,6 +420,53 @@ describe('PlanEditorScreen', () => {
 
       await press('Guardar plan');
       expect(await screen.findByText('Plan guardado.')).toBeOnTheScreen();
+    });
+  });
+
+  describe('on a tablet, with a block open in the editing panel', () => {
+    const realGet = Dimensions.get.bind(Dimensions);
+    afterEach(() => jest.restoreAllMocks());
+
+    async function openFirstOfTwo() {
+      jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), width: 1024, height: 768 }));
+      const ctx = setup();
+      await render(ctx.element(null));
+      await screen.findByLabelText('Nombre del plan');
+      await addBlock(everyField[0]);
+      await addBlock(everyField[1]);
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Editar' })[0]);
+      expect(screen.getByRole('header', { name: 'Editando el bloque 1' })).toBeOnTheScreen();
+    }
+
+    it('keeps editing the same block, under its new position, when it moves', async () => {
+      await openFirstOfTwo();
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Bajar' })[0]);
+
+      expect(summaries()).toEqual(['4 × 50 m Espalda', '2 × 100 m Libre']);
+      expect(screen.getByRole('header', { name: 'Editando el bloque 2' })).toBeOnTheScreen();
+      expect(within(screen.getByTestId('builder-panel')).getByRole('radio', { name: 'Calentamiento', checked: true })).toBeOnTheScreen();
+    });
+
+    it('shows the no-selection state when the block being edited is removed', async () => {
+      await openFirstOfTwo();
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Quitar' })[0]);
+      await press('Quitar bloque');
+
+      expect(summaries()).toEqual(['4 × 50 m Espalda']);
+      const panel = within(screen.getByTestId('builder-panel'));
+      expect(panel.getByText('Elige un bloque para editarlo')).toBeOnTheScreen();
+      expect(panel.queryByRole('header')).toBeNull();
+    });
+
+    it('keeps the open block when another block is removed', async () => {
+      await openFirstOfTwo();
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Quitar' })[1]);
+      await press('Quitar bloque');
+
+      expect(screen.getByRole('header', { name: 'Editando el bloque 1' })).toBeOnTheScreen();
     });
   });
 });

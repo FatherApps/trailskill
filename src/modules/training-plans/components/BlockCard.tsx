@@ -19,9 +19,11 @@ export type BlockCardProps = {
   // 'row' is a line inside a card the caller draws: a bar in the colour of the phase, the text, and `trailing` on the right (for example a status).
   variant?: 'card' | 'row';
   trailing?: ReactNode;
+  // Only the builder passes it: the card gets a 2 dp border, ink when selected and transparent otherwise, so selecting never moves the content. Without it the card has no border.
+  selected?: boolean;
 };
 
-export function BlockCard({ block, vocabulary, children, variant = 'card', trailing }: BlockCardProps) {
+export function BlockCard({ block, vocabulary, children, variant = 'card', trailing, selected }: BlockCardProps) {
   const { colors, space, radius, typography } = useTheme();
   // The card is filled with the colour of its phase, so its text takes the phase's text colour (contrast is pinned in the tests).
   const { background, text } = phaseColors[block.phase];
@@ -59,7 +61,10 @@ export function BlockCard({ block, vocabulary, children, variant = 'card', trail
   return (
     <View
       testID="block-card"
-      style={{ gap: space[2], padding: space[5], borderRadius: radius.md, backgroundColor: colors[background] }}
+      style={[
+        { gap: space[2], padding: space[5], borderRadius: radius.md, backgroundColor: colors[background] },
+        selected !== undefined && { borderWidth: 2, borderColor: selected ? colors.ink : 'transparent' },
+      ]}
     >
       <PhaseTag phase={block.phase} />
       <Text style={[typography.subtitle, { color: textColor }]}>
