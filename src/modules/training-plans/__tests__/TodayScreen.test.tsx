@@ -101,6 +101,24 @@ describe('TodayScreen header', () => {
     expect(screen.getByText('2.000 m · 1 bloque')).toBeOnTheScreen();
   });
 
+  it('shows the blocks without distance apart, in the card and the heading', async () => {
+    const [first, main] = content.blocks;
+    const drills = { ...content, blocks: [first, { ...main, block: { ...main.block, distance: 0 } }] };
+    await render(setup({ kind: 'data', content: drills }).ui);
+
+    expect(screen.getByText('200 m + 1 bloque sin distancia')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, Lucía R., 200 m + 1 bloque sin distancia' })).toBeOnTheScreen();
+  });
+
+  it('never shows "0 m", in the card or the heading, when no block adds metres', async () => {
+    const none = { ...content, blocks: content.blocks.slice(0, 2).map((entry) => ({ ...entry, block: { ...entry.block, distance: 0 } })) };
+    await render(setup({ kind: 'data', content: none }).ui);
+
+    expect(screen.getByText('2 bloques')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, Lucía R., 2 bloques' })).toBeOnTheScreen();
+    expect(screen.queryByText(/^0 m/)).toBeNull();
+  });
+
   it('invents no schedule or group: the plan has none', async () => {
     await render(setup({ kind: 'data', content }).ui);
 
