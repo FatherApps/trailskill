@@ -58,6 +58,25 @@ describe('planSummary', () => {
     expect(planSummary([block(8, 50), block(1e200, 1e200), block(1, 200)])).toBe('600 m + 1 bloque sin distancia');
   });
 
+  it('counts a block whose product underflows to 0 as without distance and never adds a 0 m block to the total', () => {
+    expect(planSummary([block(1e-200, 1e-200)])).toBe('1 bloque');
+    expect(planSummary([block(8, 50), block(1e-200, 1e-200), block(1, 200)])).toBe('600 m + 1 bloque sin distancia');
+  });
+
+  it('counts a block that would overflow the total as without distance and never shows Infinity', () => {
+    const summary = planSummary([block(1e154, 1e154), block(1e154, 1e154)]);
+    expect(summary).not.toMatch(/Infinity|∞/);
+    expect(summary).toMatch(/ \+ 1 bloque sin distancia$/);
+    expect(planSummary([block(8, 50), block(1e154, 1e154), block(1e154, 1e154), block(1, 200)])).not.toMatch(/Infinity|∞/);
+  });
+
+  it('counts null and numeric strings (as PowerSync/SQLite may hand them over) as without distance', () => {
+    const raw = (repetitions: unknown, distance: unknown) => ({ repetitions, distance }) as ReturnType<typeof block>;
+    expect(planSummary([raw(null, 50), raw(8, null)])).toBe('2 bloques');
+    expect(planSummary([raw('8', 50), raw(8, '50')])).toBe('2 bloques');
+    expect(planSummary([block(8, 50), raw('8', '50'), raw(null, null)])).toBe('400 m + 2 bloques sin distancia');
+  });
+
   it('has no summary without blocks', () => {
     expect(planSummary([])).toBeUndefined();
   });
