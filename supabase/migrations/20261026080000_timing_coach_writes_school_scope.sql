@@ -4,8 +4,10 @@
 -- marks in A. Measurement writes and plan fulfillments now ask
 -- app.coach_has_athlete_in_school with the row's school instead. This realizes
 -- the "callers add their own school filter" of
--- 20261026010000_school-console_coach_assignment_school.sql. Rejection codes and
--- texts are unchanged.
+-- 20261026010000_school-console_coach_assignment_school.sql. The trigger keeps
+-- its rejection codes and texts. A measurement whose school stays null now
+-- fails the insert policy (42501) before the not-null rule (23502) runs; it is
+-- rejected either way.
 
 -- RLS policies and public.measurements_check_update() (not security definer)
 -- run as the caller, so signed-in users may now execute the function. It only
