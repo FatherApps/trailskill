@@ -6,13 +6,13 @@ import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
-import { Button, ConfirmSheet, SwimmerRow, SyncStatus } from '../../core/ui';
+import { Button, ConfirmSheet, SyncStatus } from '../../core/ui';
 import {
   createPowerSyncManagedAthleteRepository,
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
 } from '../../modules/accounts';
-import { athleteDisplay, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
+import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useAdminSchool, useStaffSchool } from '../../modules/school-console';
 import { createSupabaseConflictReviewRepository, usePlatformAdmin } from '../../modules/timing';
 
@@ -81,21 +81,8 @@ export default function Home() {
       <Text>{t('home.title')}</Text>
       <SyncStatus state={state} />
       {syncConnectFailed && <Text accessibilityLiveRegion="polite">{t('sync.connect_failed')}</Text>}
-      {managed.status === 'ready' &&
-        managed.athletes.map((athlete) => {
-          const { shortName, initials, color } = athleteDisplay(athlete);
-          return (
-            <SwimmerRow
-              key={athlete.id}
-              name={shortName}
-              initials={initials}
-              color={color}
-              detail=""
-              chevron
-              onPress={() => router.push(`/athletes/${athlete.id}`)}
-            />
-          );
-        })}
+      {/* The list of athletes moved to "Mis deportistas"; staff who also manage athletes have no navigation bar, so they reach it from here. */}
+      {managed.status === 'ready' && managed.athletes.length > 0 && <Button label={t('home.nav.athletes')} onPress={() => router.push('/athletes')} />}
       {managed.status === 'ready' && managed.athletes.length > 0 && <Button label={t('training_plans.today.title')} onPress={() => router.push('/today')} />}
       {managed.status === 'ready' && managed.athletes.length > 0 && (
         <Button variant="secondary" label={t('accounts.authorizations.title')} onPress={() => router.push('/authorizations')} />
