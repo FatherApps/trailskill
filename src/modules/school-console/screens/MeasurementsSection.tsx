@@ -108,7 +108,13 @@ export function MeasurementsSection({
     view = { kind: 'error', onRetry: () => setAttempt((n) => n + 1) };
   } else if (loaded.measurements.length === 0) {
     // Never synced and still not connected: nothing is stored yet, and the list fills in when the first sync arrives.
-    view = connection !== 'connected' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
+    // Never synced: 'connecting' is not 'offline', the first sync is already on its way.
+    view =
+      lastSyncedAt !== null || connection === 'connected'
+        ? { kind: 'empty' }
+        : connection === 'connecting'
+          ? { kind: 'connecting-empty' }
+          : { kind: 'offline-empty' };
   } else {
     const matching = filterMeasurements(loaded.measurements, query, filters, now());
     const shown = matching.slice(0, pages * PAGE_SIZE);

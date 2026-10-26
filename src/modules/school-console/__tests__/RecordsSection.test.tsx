@@ -78,7 +78,16 @@ const structure = createInMemorySchoolStructureRepository({
 
 const categories = () => createInMemoryCategoriesRepository({ categories: categoriesFixture, athleteSchools: [] });
 
-const section = (over: { repository?: CategoryRecordsRepository; categories?: CategoriesRepository } = {}) => (
+const noCategories = () => createInMemoryCategoriesRepository({ categories: [], athleteSchools: [] });
+
+const section = (
+  over: {
+    repository?: CategoryRecordsRepository;
+    categories?: CategoriesRepository;
+    connection?: 'connected' | 'connecting' | 'offline';
+    lastSyncedAt?: Date | null;
+  } = {},
+) => (
   <ThemeProvider>
     <RecordsSection
       width={1280}
@@ -89,8 +98,8 @@ const section = (over: { repository?: CategoryRecordsRepository; categories?: Ca
       repository={over.repository ?? records()}
       categories={over.categories ?? categories()}
       structure={structure}
-      lastSyncedAt={new Date('2026-10-25T12:00:00Z')}
-      connection="connected"
+      lastSyncedAt={over.lastSyncedAt === undefined ? new Date('2026-10-25T12:00:00Z') : over.lastSyncedAt}
+      connection={over.connection ?? 'connected'}
       now={() => new Date('2026-10-25T12:02:00Z')}
     />
   </ThemeProvider>
@@ -152,6 +161,22 @@ describe('RecordsSection', () => {
     await render(section({ categories: createInMemoryCategoriesRepository({ categories: [], athleteSchools: [] }) }));
 
     expect(await screen.findByText('Aún no hay récords')).toBeOnTheScreen();
+  });
+
+  it('says the first sync is running, not that the connection is missing, while connecting, never synced and without categories', async () => {
+    await render(section({ categories: noCategories(), connection: 'connecting', lastSyncedAt: null }));
+
+    expect(await screen.findByText('Estamos sincronizando')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Todavía no hay récords guardados en este dispositivo. Aparecerán cuando termine la primera sincronización.'),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('Estás sin conexión')).toBeNull();
+  });
+
+  it('keeps the offline state when offline, never synced and without categories', async () => {
+    await render(section({ categories: noCategories(), connection: 'offline', lastSyncedAt: null }));
+
+    expect(await screen.findByText('No hay récords guardados en este dispositivo. Aparecerán cuando vuelva la conexión.')).toBeOnTheScreen();
   });
 
   it('shows the error state when the records cannot be read', async () => {

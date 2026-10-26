@@ -22,6 +22,7 @@ const sectionScreenStates = [
   'error',
   'offline-with-data',
   'offline-no-data',
+  'connecting-no-data',
   'denied',
   'expanded-1280',
   'medium-800',
@@ -96,6 +97,7 @@ describe('school console gallery entries', () => {
       'error',
       'offline-with-data',
       'offline-no-data',
+      'connecting-no-data',
       'denied',
       'expanded-1280',
       'medium-800',
@@ -110,11 +112,7 @@ describe('school console gallery entries', () => {
     expect(stateKeys('recordTable')).toEqual(['default', 'other-pool', 'long-text', 'compact', 'pool-empty']);
     expect(stateKeys('measurementLog')).toEqual(['default', 'long-text', 'no-results']);
     expect(stateKeys('authorizationList')).toEqual(['default', 'long-text', 'sharing-requests', 'read-error']);
-    for (const id of sectionScreens) {
-      // Only the coaches screen has the first-sync state so far.
-      const expected = id === 'coachesScreen' ? sectionScreenStates.flatMap((key) => (key === 'offline-no-data' ? [key, 'connecting-no-data'] : [key])) : sectionScreenStates;
-      expect(stateKeys(id)).toEqual(expected);
-    }
+    for (const id of sectionScreens) expect(stateKeys(id)).toEqual(sectionScreenStates);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, key, theme, scale) => {

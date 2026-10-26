@@ -98,7 +98,8 @@
       "message": "Revisa tu conexión e inténtalo de nuevo."
     },
     "connecting": {
-      "title": "Estamos sincronizando"
+      "title": "Estamos sincronizando",
+      "message": "Todavía no hay deportistas guardados en este dispositivo. Aparecerán cuando termine la primera sincronización."
     },
     "offline": {
       "title": "Estás sin conexión",
@@ -194,7 +195,8 @@
     "error": {
       "title": "No pudimos cargar los récords"
     },
-    "offline_empty": "No hay récords guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
+    "offline_empty": "No hay récords guardados en este dispositivo. Aparecerán cuando vuelva la conexión.",
+    "connecting_empty": "Todavía no hay récords guardados en este dispositivo. Aparecerán cuando termine la primera sincronización."
   },
   "measurements": {
     "title": "Mediciones",
@@ -221,6 +223,7 @@
       "title": "No pudimos cargar las mediciones"
     },
     "offline_empty": "No hay mediciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.",
+    "connecting_empty": "Todavía no hay mediciones guardadas en este dispositivo. Aparecerán cuando termine la primera sincronización.",
     "more": "Mostrar más",
     "kind": {
       "repetition": "Repetición",
@@ -294,6 +297,7 @@
       "title": "No pudimos cargar las autorizaciones"
     },
     "offline_empty": "No hay autorizaciones guardadas en este dispositivo. Aparecerán cuando vuelva la conexión.",
+    "connecting_empty": "Todavía no hay autorizaciones guardadas en este dispositivo. Aparecerán cuando termine la primera sincronización.",
     "resend_error": "No pudimos crear la invitación. Revisa la conexión e inténtalo de nuevo.",
     "sharing_error": "No pudimos actualizar la solicitud. Revisa la conexión e inténtalo de nuevo.",
     "share_message": "{{school}} te invita a TrailSkill para responder las autorizaciones de tu deportista. Código de invitación: {{token}}. Vence el {{date}}.",

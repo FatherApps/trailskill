@@ -101,7 +101,13 @@ export function RecordsSection({
   if (known === 'error' || records === 'error') {
     view = { kind: 'error', onRetry: () => setAttempt((n) => n + 1) };
   } else if (options && options.categories.length === 0) {
-    view = connection === 'offline' && lastSyncedAt === null ? { kind: 'offline-empty' } : { kind: 'empty' };
+    // Never synced: 'connecting' is not 'offline', the first sync is already on its way.
+    view =
+      lastSyncedAt !== null || connection === 'connected'
+        ? { kind: 'empty' }
+        : connection === 'connecting'
+          ? { kind: 'connecting-empty' }
+          : { kind: 'offline-empty' };
   } else if (!options || !category || records === undefined) {
     view = { kind: 'loading' };
   } else {

@@ -17,6 +17,20 @@ describe('school console i18n', () => {
     expect(t('schoolConsole.categories.confirm.title', { name: 'Categoría A' })).toBe('¿Desactivar Categoría A?');
   });
 
+  // SectionFrame reads `schoolConsole.<section>.connecting_empty`; a missing key would show the raw key on screen.
+  it.each(['coaches', 'records', 'measurements', 'authorizations'])('has the first-sync text of the %s section', (section) => {
+    const key = `schoolConsole.${section}.connecting_empty`;
+
+    expect(t(key)).not.toBe(key);
+    expect(t(key)).toMatch(/^Todavía no hay .+ en este dispositivo\. Aparecerán cuando termine la primera sincronización\.$/);
+  });
+
+  it('has the first-sync text of the athletes screen', () => {
+    expect(t('schoolConsole.screen.connecting.message')).toBe(
+      'Todavía no hay deportistas guardados en este dispositivo. Aparecerán cuando termine la primera sincronización.',
+    );
+  });
+
   it('keeps the shared vocabulary', () => {
     expect(t('common.back')).toBe('Volver');
     expect(t('sport.stroke.FR')).toBe('Libre');
