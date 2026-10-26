@@ -79,6 +79,14 @@ describe('timing route', () => {
     expect(screen.queryByText(/timing flow/)).toBeNull();
   });
 
+  it('sends the user back to the home when the staff lookup fails', async () => {
+    mockListStaffSchools.mockRejectedValue(new Error('db'));
+    await render(<TimingRoute />);
+
+    expect(await screen.findByText('redirected to /')).toBeOnTheScreen();
+    expect(screen.queryByText(/timing flow/)).toBeNull();
+  });
+
   it('sends a signed-out user back to the home', async () => {
     mockUserId = undefined;
     await render(<TimingRoute />);

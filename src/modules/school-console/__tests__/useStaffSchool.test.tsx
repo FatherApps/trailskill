@@ -37,10 +37,10 @@ describe('useStaffSchool', () => {
     await waitFor(() => expect(result.current).toEqual({ status: 'denied' }));
   });
 
-  it('denies when the lookup fails', async () => {
+  it('reports an error of its own, not a denial, when the lookup fails', async () => {
     const failing: StaffSchoolRepository = { ...repository, listStaffSchools: () => Promise.reject(new Error('db')) };
     const { result } = await renderHook(() => useStaffSchool(failing, 'coach-1'));
 
-    await waitFor(() => expect(result.current).toEqual({ status: 'denied' }));
+    await waitFor(() => expect(result.current).toEqual({ status: 'error' }));
   });
 });

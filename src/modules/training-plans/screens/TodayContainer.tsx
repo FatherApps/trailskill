@@ -32,6 +32,8 @@ export type TodayContainerProps = {
   offline?: boolean;
   // Opens "Mis deportistas", offered when the user manages no athlete yet.
   onOpenAthletes?: () => void;
+  // Whether the caller is still deciding `onOpenAthletes`; the message without athletes waits for it, so it never shows without an exit and then gains one.
+  actionPending?: boolean;
   renderNoticeStatus?: (noticeId: string) => ReactNode;
 };
 
@@ -51,9 +53,9 @@ function timesOf(recording: string, repetitions: number, mark: FulfillmentMark |
 const notesOf = (list: Notice[]) =>
   list.map((n) => ({ id: n.id, body: n.body, blockId: n.blockId, dateLabel: new Date(n.createdAt).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) }));
 
-function viewOf(athletes: SchoolAthlete[], synced: boolean, offline: boolean, loaded: Loaded | null | 'loading' | 'error', actions: { onOpenAthletes?: () => void; onRetry: () => void }): TodayView {
+function viewOf(athletes: SchoolAthlete[], synced: boolean, offline: boolean, loaded: Loaded | null | 'loading' | 'error', actions: { onOpenAthletes?: () => void; actionPending: boolean; onRetry: () => void }): TodayView {
   if (athletes.length === 0) {
-    if (synced) return { kind: 'no-athletes', onOpenAthletes: actions.onOpenAthletes };
+    if (synced) return actions.actionPending ? { kind: 'loading' } : { kind: 'no-athletes', onOpenAthletes: actions.onOpenAthletes };
     return offline ? { kind: 'offline-empty' } : { kind: 'loading' };
   }
   // Nothing found: after the first sync that is "no plan"; before it, offline says so and anything else is still connecting, so loading.
@@ -170,7 +172,7 @@ export function TodayContainer(props: TodayContainerProps) {
     if (id !== selectedId) reload();
   };
 
-  const view = viewOf(athletes, props.synced ?? true, props.offline ?? false, loaded, { onOpenAthletes: props.onOpenAthletes, onRetry: reload });
+  const view = viewOf(athletes, props.synced ?? true, props.offline ?? false, loaded, { onOpenAthletes: props.onOpenAthletes, actionPending: props.actionPending ?? false, onRetry: reload });
 
   return (
     <TodayScreen
