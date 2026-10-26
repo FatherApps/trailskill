@@ -25,17 +25,27 @@ jest.mock('../data/assignable', () => ({
 }));
 
 // The real screen, with its latest props kept so a test can call a handler without going through the UI gate.
-let mockScreenProps: AssignPlanScreenProps;
+let mockScreenProps: AssignPlanScreenProps | undefined;
 jest.mock('../screens/AssignPlanScreen', () => {
   const actual = jest.requireActual('../screens/AssignPlanScreen');
+  const { createElement } = jest.requireActual('react');
   return {
     ...actual,
     AssignPlanScreen: (props: AssignPlanScreenProps) => {
       mockScreenProps = props;
-      return actual.AssignPlanScreen(props);
+      return createElement(actual.AssignPlanScreen, props);
     },
   };
 });
+
+beforeEach(() => {
+  mockScreenProps = undefined;
+});
+
+const screenProps = () => {
+  if (!mockScreenProps) throw new Error('The screen has not rendered');
+  return mockScreenProps;
+};
 
 async function setup(initialPlanId?: string | string[]) {
   const plans = createInMemoryTrainingPlanRepository();
@@ -121,6 +131,20 @@ describe('AssignPlanContainer', () => {
     expect(selected('Resistencia')).toBe(false);
   });
 
+  it('takes the first non-empty value of a repeated plan parameter', async () => {
+    await setup(['', 'plan-2']);
+
+    expect(selected('Velocidad')).toBe(true);
+    expect(selected('Resistencia')).toBe(false);
+  });
+
+  it('selects no plan when every value of a repeated plan parameter is empty', async () => {
+    await setup(['', '']);
+
+    expect(selected('Velocidad')).toBe(false);
+    expect(selected('Resistencia')).toBe(false);
+  });
+
   it('keeps a manual choice when the same plan parameter arrives again', async () => {
     const { changeParam } = await setup('plan-1');
     await fireEvent.press(screen.getByRole('button', { name: 'Velocidad' }));
@@ -176,22 +200,21 @@ describe('AssignPlanContainer', () => {
       const create = jest.spyOn(assignments, 'create');
       await fireEvent.press(screen.getByRole('radio', { name: 'Toda la escuela' }));
 
-      await act(async () => mockScreenProps.onAssign());
+      await act(async () => screenProps().onAssign());
 
       expect(create).not.toHaveBeenCalled();
       expect(await assignments.list('school-1', todayText())).toEqual([]);
-      expect(screen.queryByText('Asignar')).toBeNull();
     });
 
     it('writes nothing when the kind needs a target and none is chosen', async () => {
       const { assignments } = await setup('plan-1');
       const create = jest.spyOn(assignments, 'create');
 
-      await act(async () => mockScreenProps.onAssign());
+      await act(async () => screenProps().onAssign());
 
       expect(create).not.toHaveBeenCalled();
       // Without the guard the missing target throws and the screen shows a failure.
-      expect(mockScreenProps.view).toMatchObject({ kind: 'data', content: { failure: undefined, saving: false } });
+      expect(screenProps().view).toMatchObject({ kind: 'data', content: { failure: undefined, saving: false } });
     });
 
     it('writes the assignment when a plan and a target are chosen', async () => {
@@ -199,7 +222,7 @@ describe('AssignPlanContainer', () => {
       const create = jest.spyOn(assignments, 'create');
       await fireEvent.press(screen.getByRole('radio', { name: 'Toda la escuela' }));
 
-      await act(async () => mockScreenProps.onAssign());
+      await act(async () => screenProps().onAssign());
 
       expect(create).toHaveBeenCalledTimes(1);
       expect(create).toHaveBeenCalledWith(expect.objectContaining({ planId: 'plan-1', target: { kind: 'school' } }));

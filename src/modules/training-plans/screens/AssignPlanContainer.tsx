@@ -20,7 +20,7 @@ export type AssignPlanContainerProps = {
   // The day shown first (YYYY-MM-DD); today when omitted.
   initialDay?: string;
   // The plan selected first, for example the one just saved in the editor; none when omitted or not in the school's list.
-  // A repeated route parameter (`?plan=a&plan=b`) arrives as an array: the first value wins.
+  // A repeated route parameter (`?plan=a&plan=b`) arrives as an array: the first non-empty value wins.
   initialPlanId?: string | string[];
   // Opens the fulfillment grid of an assignment of the day shown.
   onOpenFulfillment?: (assignmentId: string, day: string) => void;
@@ -57,13 +57,15 @@ function targetLabel(scope: AssignScope, target: AssignmentTarget): string {
 export function AssignPlanContainer({ plans, assignments, athletes, structure, schools, userId, initialDay, initialPlanId, onOpenFulfillment }: AssignPlanContainerProps) {
   const [loaded, setLoaded] = useState<Loaded | 'loading' | 'error' | 'no_school'>('loading');
   const [attempt, setAttempt] = useState(0);
+  const ready = typeof loaded === 'object' ? loaded : null;
   const [day, setDay] = useState(initialDay ?? todayText());
   const [rows, setRows] = useState<AssignedRow[]>([]);
-  // An empty parameter (`?plan=`) counts as none.
-  const preselected = (Array.isArray(initialPlanId) ? initialPlanId[0] : initialPlanId) || null;
-  // The person's own choice, made under a parameter value; the parameter changing drops it, so a value that comes back is applied again.
+  // An empty parameter (`?plan=`, or an empty first value of a repeated one) counts as none.
+  const preselected = (Array.isArray(initialPlanId) ? initialPlanId.find(Boolean) : initialPlanId) || null;
+  // The person's own choice, made under a parameter value. This is the only place that drops it: the parameter changing, so a value that
+  // comes back is applied again, or the picked plan leaving the list, so it does not come back selected when the list gets it again.
   const [pick, setPick] = useState<{ param: string | null; id: string } | null>(null);
-  if (pick && pick.param !== preselected) setPick(null);
+  if (pick && (pick.param !== preselected || (ready && !ready.plans.some((p) => p.id === pick.id)))) setPick(null);
   const planId = pick?.id ?? preselected;
   const [kind, setKind] = useState<AssignmentKind>('group');
   const [optionId, setOptionId] = useState<string | null>(null);
@@ -82,8 +84,6 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
         if (!school) return setLoaded('no_school');
         const [scope, all] = await Promise.all([loadAssignScope({ schools, athletes, structure }, userId, school.id), plans.list(school.id)]);
         if (cancelled) return;
-        // A picked plan that left the list does not come back selected when the list gets it again.
-        setPick((current) => (current && all.some((p) => p.id === current.id) ? current : null));
         setLoaded({ schoolId: school.id, scope, plans: all });
       } catch {
         if (!cancelled) setLoaded('error');
@@ -96,7 +96,6 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, attempt]);
 
-  const ready = typeof loaded === 'object' ? loaded : null;
   // Shown and saved: only a plan of the school's list counts as chosen.
   const chosenPlanId = ready?.plans.some((p) => p.id === planId) ? planId : null;
   useEffect(() => {

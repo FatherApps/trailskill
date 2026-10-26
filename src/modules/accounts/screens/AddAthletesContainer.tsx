@@ -28,6 +28,8 @@ export type AddAthletesContainerProps = {
 };
 
 const empty = { firstName: '', lastName: '' };
+// Nothing typed is no draft: the screen keeps a draft only while there is something to keep.
+const keep = (names: typeof empty) => (names.firstName || names.lastName ? names : undefined);
 // Stable, so the back subscription is made once while the block holds.
 const swallowBack = () => {};
 
@@ -48,13 +50,15 @@ export function AddAthletesContainer({
   const [values, setValues] = useState(empty);
   // What is in the form right now, also for code that resumes after an await with a stale `values`.
   const typed = useRef(empty);
-  // How many times each field was edited: a field edited while something saved is the next athlete's even when it ends up with the same text (siblings share a last name).
-  const edits = useRef({ firstName: 0, lastName: 0 });
+  // How many times each field, and the category, was edited: one edited while something saved is the next athlete's even when it ends up with the same value (siblings share a last name; a category can go A, B, A).
+  const edits = useRef({ firstName: 0, lastName: 0, category: 0 });
   const [added, setAdded] = useState<AddedAthlete[]>([]);
   const { categories } = useInvitation(drafts, invitations);
   const [categoryId, setCategoryId] = useState('');
   const chosenCategory = useRef('');
   const mounted = useRef(true);
+  // Reads and saves that end after the screen went away must not touch its state: every such step goes through here.
+  const ifMounted = useCallback(<T,>(run: () => T) => (mounted.current ? run() : undefined), []);
   const [busy, setBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const finishingRef = useRef(false);
@@ -69,23 +73,24 @@ export function AddAthletesContainer({
     const read = ++reads.current;
     return athletes.listManaged(userId).then(
       (found) => {
-        if (!mounted.current || read !== reads.current) return;
-        setUnreadable(false);
-        setAdded(found.map((a) => ({ id: a.id, ...pick(athleteDisplay(a)) })));
+        if (read !== reads.current) return;
+        ifMounted(() => {
+          setUnreadable(false);
+          setAdded(found.map((a) => ({ id: a.id, ...pick(athleteDisplay(a)) })));
+        });
       },
       (error: unknown) => {
-        if (!mounted.current || read !== reads.current) return;
-        setUnreadable(true);
+        if (read !== reads.current) return;
+        ifMounted(() => setUnreadable(true));
         throw error;
       },
     );
-  }, [athletes, userId]);
+  }, [athletes, userId, ifMounted]);
 
   // The route asked for it because "Continuar" is the only way out of this step. When that way is shut (the step cannot be kept, or adding failed and nobody is known to be added to continue with), back leaves through `onBack`.
   const noWayOut = failed === 'continue' || (failed === 'add' && !unreadable && added.length === 0);
   useHardwareBack(blockSystemBack ? (noWayOut ? onBack : swallowBack) : undefined);
 
-  // Reads and saves that end after the screen went away must not touch its state.
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -93,38 +98,49 @@ export function AddAthletesContainer({
     };
   }, []);
 
-  useEffect(() => {
-    // A failed read shows an empty form and nobody added: the person can still add.
-    drafts
-      .load()
-      .then((saved) => {
-        // A draft that took longer than the person did to start typing is older than what is on the screen.
-        const typing = edits.current.firstName + edits.current.lastName > 0;
-        if (!mounted.current || typing || !saved?.athlete) return;
-        typed.current = saved.athlete;
-        setValues(saved.athlete);
-      })
-      .catch(() => {});
-    refresh().catch(() => {});
-  }, [drafts, refresh]);
-
   // Draft writes run one after another, so a slow keystroke save can never land after a later add or clear.
   const queue = useRef<Promise<void>>(Promise.resolve());
   // Resolves whether the write landed; it never rejects.
-  const enqueue = (write: () => Promise<void>): Promise<boolean> => {
+  const enqueue = useCallback((write: () => Promise<void>): Promise<boolean> => {
     const run = queue.current.then(write).then(
       () => true,
       () => false,
     );
     queue.current = run.then(() => {});
     return run;
-  };
+  }, []);
   // Losing a draft must not block typing. A missing draft stays missing: this screen only continues one the registration started.
-  const persist = (athlete: typeof empty | undefined, step?: 'authorizations') =>
-    enqueue(async () => {
-      const current = await drafts.load();
-      if (current) await drafts.save({ ...current, athlete, ...(step && { step }) });
-    });
+  const persist = useCallback(
+    (athlete: typeof empty | undefined, step?: 'authorizations') =>
+      enqueue(async () => {
+        const current = await drafts.load();
+        if (current) await drafts.save({ ...current, athlete, ...(step && { step }) });
+      }),
+    [drafts, enqueue],
+  );
+
+  useEffect(() => {
+    // A failed read shows an empty form and nobody added: the person can still add.
+    drafts
+      .load()
+      .then((saved) => {
+        if (!saved?.athlete) return;
+        const draft = saved.athlete;
+        ifMounted(() => {
+          // A draft that took longer than the person did to start typing is older than what is on the screen, but only for the fields they edited.
+          const next = {
+            firstName: edits.current.firstName ? typed.current.firstName : draft.firstName,
+            lastName: edits.current.lastName ? typed.current.lastName : draft.lastName,
+          };
+          typed.current = next;
+          setValues(next);
+          // The keystroke saves wrote only what was typed: write back what was kept.
+          if (edits.current.firstName + edits.current.lastName > 0) void persist(keep(next));
+        });
+      })
+      .catch(() => {});
+    refresh().catch(() => {});
+  }, [drafts, refresh, ifMounted, persist]);
 
   function show(next: typeof empty) {
     typed.current = next;
@@ -132,12 +148,10 @@ export function AddAthletesContainer({
   }
 
   function chooseCategory(next: string) {
+    edits.current.category++;
     chosenCategory.current = next;
     setCategoryId(next);
   }
-
-  // Nothing typed is no draft: the screen keeps a draft only while there is something to keep.
-  const keep = (names: typeof empty) => (names.firstName || names.lastName ? names : undefined);
 
   function change(field: AddAthleteField, value: string) {
     edits.current[field]++;
@@ -161,7 +175,7 @@ export function AddAthletesContainer({
         athleteId = await profiles.createManagedAthlete({ userId, relation: 'guardian', ...saving });
       } catch {
         // Nothing was saved: the names stay in the form and the person can try again.
-        if (mounted.current) setFailed('add');
+        ifMounted(() => setFailed('add'));
         return;
       }
       // Only what was saved goes: a field or a category the person touched while it saved is the next athlete's.
@@ -169,20 +183,20 @@ export function AddAthletesContainer({
         firstName: edits.current.firstName === savingEdits.firstName ? '' : typed.current.firstName,
         lastName: edits.current.lastName === savingEdits.lastName ? '' : typed.current.lastName,
       };
-      if (mounted.current) {
+      ifMounted(() => {
         show(left);
-        if (chosenCategory.current === savingCategory) chooseCategory('');
-      }
+        if (edits.current.category === savingEdits.category) chooseCategory('');
+      });
       // Also after the screen went away: the saved names must leave the draft or the next launch would add them again.
       void persist(keep(left));
       // The athlete only exists on this device so far: queue the acceptance, which retries until the server knows them. It never blocks the registration.
       const token = (await drafts.load().catch(() => null))?.invitationToken;
       if (token) void queueInvitation(pending, invitations, { userId, token, athleteId, ...(savingCategory && { categoryId: savingCategory }) }).catch(() => {});
       // Saved already: a failed list read must not look like a failed save.
-      if (mounted.current) await refresh().catch(() => {});
+      await ifMounted(() => refresh().catch(() => {}));
     } finally {
       addingRef.current = false;
-      if (mounted.current) setBusy(false);
+      ifMounted(() => setBusy(false));
     }
   }
 
