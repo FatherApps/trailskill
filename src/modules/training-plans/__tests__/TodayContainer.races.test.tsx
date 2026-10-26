@@ -23,9 +23,16 @@ const NEXT_DAY = '2026-11-03';
 // A day with no assignment yet.
 const LATE_DAY = '2026-11-04';
 
+// Lets the pending reads and saves, which only wait on promises, finish.
+const settle = () =>
+  act(async () => {
+    for (let i = 0; i < 20; i += 1) await Promise.resolve();
+  });
+
 const showsPlan = (planName: string) => waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { planName } }));
 
-async function setup({ failFirstRead = false, ids = ['a1', 'a3'] } = {}) {
+// `synced` is the state of the first render; the first sync is the change from false to true.
+async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstSynced = true } = {}) {
   const plans = createInMemoryTrainingPlanRepository();
   await plans.save(plan('p1'));
   await plans.save({ ...plan('p2'), name: 'Plan del otro' });
@@ -51,11 +58,21 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'] } = {}) {
     },
   };
   const storedNotices = createInMemoryNoticeRepository();
-  // Saving a note waits for `hold.promise` while it is set.
-  const hold: { promise?: Promise<void> } = {};
-  const notices = { ...storedNotices, add: async (...args: Parameters<typeof storedNotices.add>) => (await hold.promise, storedNotices.add(...args)) };
+  // Saving a note waits for `hold.promise` while it is set; the next `hold.listing.remaining` listings wait for `hold.listing.promise`.
+  const hold: { promise?: Promise<void>; listing?: { promise: Promise<void>; remaining: number } } = {};
+  const notices = {
+    ...storedNotices,
+    add: async (...args: Parameters<typeof storedNotices.add>) => (await hold.promise, storedNotices.add(...args)),
+    list: async (...args: Parameters<typeof storedNotices.list>) => {
+      if (hold.listing && hold.listing.remaining > 0) {
+        hold.listing.remaining -= 1;
+        await hold.listing.promise;
+      }
+      return storedNotices.list(...args);
+    },
+  };
   const fulfillment = createInMemoryFulfillmentRepository({}, plans);
-  const container = async (shown: string[], day = DAY, synced = true) => (
+  const container = async (shown: string[], day = DAY, synced = firstSynced) => (
     <TodayContainer
       plans={readPlans}
       assignments={assignments}
@@ -89,7 +106,13 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'] } = {}) {
       });
     };
   };
-  return { one, other, stored, fulfillment, notices: storedNotices, reads, update, sendHeld };
+  // The listing a save does after adding its note waits (for `count` saves) until the returned function is called.
+  const holdListings = (count: number) => {
+    let release!: () => void;
+    hold.listing = { promise: new Promise<void>((resolve) => (release = resolve)), remaining: count };
+    return release;
+  };
+  return { one, other, stored, fulfillment, notices: storedNotices, reads, update, sendHeld, holdListings };
 }
 
 describe('TodayContainer races', () => {
@@ -136,7 +159,7 @@ describe('TodayContainer races', () => {
   });
 
   it('reads again when the first sync completes, so a plan that arrived with it is not "no plan"', async () => {
-    const { stored, update } = await setup();
+    const { stored, update } = await setup({ synced: false });
     await showsPlan('Plan p1');
     // Before the first sync nothing was found for the day: still connecting, so loading.
     await update(['a1', 'a3'], LATE_DAY, false);
@@ -149,13 +172,12 @@ describe('TodayContainer races', () => {
   });
 
   it('keeps the newer marks of a read that finishes while a note is being saved, and adds the note', async () => {
-    const { one, fulfillment, update, sendHeld } = await setup();
+    const { one, fulfillment, update, sendHeld } = await setup({ synced: false });
     await showsPlan('Plan p1');
     const finish = await sendHeld('Test note 1');
 
     await fulfillment.mark({ assignmentId: one, versionId: 'p1-v1', blockId: 'b1', athleteId: 'a1', status: 'done', authorId: 'k1', deviceId: 'tablet-1' });
     // The first sync completing reads again; the data shown stays until the new read arrives.
-    await update(['a1', 'a3'], DAY, false);
     await update(['a1', 'a3'], DAY, true);
     await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { blocks: [{ status: 'done' }] } }));
     await finish();
@@ -178,6 +200,68 @@ describe('TodayContainer races', () => {
 
     await showsPlan('Plan p1');
     expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [{ body: 'Test note 1' }] } });
+  });
+
+  it('shows a note saved while the read of the first sync is open, once that read arrives', async () => {
+    const { reads, update, sendHeld } = await setup({ synced: false });
+    await showsPlan('Plan p1');
+
+    // The first sync completing reads again; that read listed the notes before the note was saved and is still open.
+    let openRead!: () => void;
+    reads.listed = new Promise<void>((resolve) => (openRead = resolve));
+    await update(['a1', 'a3'], DAY, true);
+    const finish = await sendHeld('Test note 1');
+    await finish();
+    openRead();
+    await settle();
+
+    await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { planName: 'Plan p1', notes: [{ body: 'Test note 1' }] } }));
+  });
+
+  it('reads again when the first sync completes, not each time the connection comes back', async () => {
+    const { reads, update } = await setup({ synced: false });
+    await showsPlan('Plan p1');
+    const beforeSync = reads.count;
+
+    await update(['a1', 'a3'], DAY, true);
+    await settle();
+    expect(reads.count).toBeGreaterThan(beforeSync);
+
+    const afterSync = reads.count;
+    await update(['a1', 'a3'], DAY, false);
+    await update(['a1', 'a3'], DAY, true);
+    await settle();
+    expect(reads.count).toBe(afterSync);
+  });
+
+  it.each([1, 2])('does not read again the read that started after %i saves finished, and shows their notes', async (saves) => {
+    const { reads, holdListings } = await setup();
+    await showsPlan('Plan p1');
+
+    // The notes are added, but the listing each save does next is still open.
+    const release = holdListings(saves);
+    const sending: (void | Promise<void>)[] = [];
+    for (let n = 1; n <= saves; n += 1) {
+      await act(async () => {
+        sending.push(shown.onSendNotice({ blockId: null, body: `Test note ${n}` }));
+      });
+    }
+    // The athlete is read again after all of them were added, and that read stays open.
+    let openRead!: () => void;
+    reads.gate = new Promise<void>((resolve) => (openRead = resolve));
+    await act(async () => shown.onSelectAthlete?.('a3'));
+    await act(async () => shown.onSelectAthlete?.('a1'));
+    const readsOpen = reads.count;
+
+    await act(async () => {
+      release();
+      await Promise.all(sending);
+    });
+    expect(reads.count).toBe(readsOpen);
+
+    openRead();
+    await showsPlan('Plan p1');
+    await waitFor(() => expect(shown.view.kind === 'data' && (shown.view.content.notes ?? []).map((note) => note.body).sort()).toEqual(Array.from({ length: saves }, (_, n) => `Test note ${n + 1}`)));
   });
 
   it('does not turn the first athlete into an explicit choice when the read is retried', async () => {
