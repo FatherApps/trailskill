@@ -74,6 +74,8 @@ const measurement = (over: Partial<HistoryMeasurement> & { id: string }): Histor
     ...over,
   }) as HistoryMeasurement;
 
+const noop = () => {};
+
 const show = (props: Partial<Parameters<typeof AthleteProfileContainer>[0]> = {}) =>
   render(
     <ThemeProvider>
@@ -86,6 +88,7 @@ const show = (props: Partial<Parameters<typeof AthleteProfileContainer>[0]> = {}
         schoolNames={schoolNames}
         categories={categories}
         lastSyncedAt={null}
+        onBack={noop}
         {...props}
       />
     </ThemeProvider>,
@@ -114,6 +117,7 @@ describe('athlete profile container', () => {
           schoolNames={schoolNames}
           categories={categories}
           lastSyncedAt={null}
+          onBack={noop}
           online={online}
         />
       </ThemeProvider>
@@ -236,6 +240,7 @@ describe('athlete profile container', () => {
           schoolNames={schoolNames}
           categories={categories}
           lastSyncedAt={null}
+          onBack={noop}
           {...props}
         />
       </ThemeProvider>

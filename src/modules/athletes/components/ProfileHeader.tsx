@@ -19,8 +19,8 @@ export type ProfileHeaderProps = {
   updatedMinutesAgo: number | null;
   // The athlete's colour (same on every screen); a neutral brand colour when the caller has none.
   color?: ColorCardColor;
-  // Back is always on screen; a caller without a destination leaves the button inert.
-  onBack?: () => void;
+  // Back is always on screen, so the caller must say where it goes.
+  onBack: () => void;
   // Below the school and authorization rows, inside the band: the event chips.
   children?: ReactNode;
 };
@@ -40,8 +40,6 @@ const styles = StyleSheet.create({
   sync: { position: 'absolute', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
 });
 
-const noop = () => {};
-
 export function ProfileHeader({
   name,
   category,
@@ -51,7 +49,7 @@ export function ProfileHeader({
   authorization,
   updatedMinutesAgo,
   color = profileBandColor,
-  onBack = noop,
+  onBack,
   children,
 }: ProfileHeaderProps) {
   const { colors, space, size, radius } = useTheme();
