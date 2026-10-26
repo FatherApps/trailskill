@@ -96,7 +96,7 @@ describe('AddAthletesContainer', () => {
     await addLucia();
     await drafts.clear();
 
-    expect(await pending.list()).toEqual([{ userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId }]);
+    expect(await pending.list()).toEqual([{ userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, queuedAt: expect.any(Number) }]);
     invitations.offline = false;
     await acceptPendingInvitations('guardian-1', pending, invitations);
     expect(invitations.accepted).toHaveLength(1);

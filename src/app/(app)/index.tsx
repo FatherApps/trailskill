@@ -7,7 +7,11 @@ import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, ConfirmSheet, SwimmerRow, SyncStatus } from '../../core/ui';
-import { createPowerSyncManagedAthleteRepository, createSecureStoreRegistrationDraftRepository } from '../../modules/accounts';
+import {
+  createPowerSyncManagedAthleteRepository,
+  createSecureStorePendingInvitationRepository,
+  createSecureStoreRegistrationDraftRepository,
+} from '../../modules/accounts';
 import { athleteDisplay, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useAdminSchool, useStaffSchool } from '../../modules/school-console';
 
@@ -15,6 +19,7 @@ const staffSchools = createPowerSyncStaffSchoolRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const registrationDrafts = createSecureStoreRegistrationDraftRepository();
+const pendingInvitations = createSecureStorePendingInvitationRepository();
 
 export default function Home() {
   const { syncConnectFailed, signOut, session } = useSession();
@@ -47,8 +52,8 @@ export default function Home() {
     try {
       const result = await (force ? signOut({ force }) : signOut());
       if (result.status === 'blocked_pending') setBlocked(result);
-      // The next person on this phone must not find a registration someone left half done.
-      else await registrationDrafts.clear().catch(() => {});
+      // The next person on this phone must not find a registration someone left half done, nor an invitation token queued for it.
+      else await Promise.all([registrationDrafts.clear(), userId ? pendingInvitations.clear(userId) : undefined].map((cleared) => cleared?.catch(() => {})));
     } catch {
       setSignOutFailed(true);
     } finally {

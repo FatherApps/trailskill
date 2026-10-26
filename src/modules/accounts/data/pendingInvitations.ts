@@ -2,15 +2,25 @@ import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
 
 import type { InvitationRepository } from './invitations';
+import { DRAFT_TTL_MS } from './registrationDraft';
 
 // An invitation waiting to be accepted for one athlete. It keeps its own token: the registration draft is cleared by the authorizations step.
-export type PendingInvitation = { userId: string; token: string; athleteId: string; categoryId?: string };
+export type PendingInvitation = {
+  userId: string;
+  token: string;
+  athleteId: string;
+  categoryId?: string;
+  // Stamped by the repository when the entry is queued; never set by callers.
+  queuedAt?: number;
+};
 
 export interface PendingInvitationRepository {
   list(): Promise<PendingInvitation[]>;
   /** One entry per athlete: adding again replaces nothing. */
   add(item: PendingInvitation): Promise<void>;
   remove(athleteId: string): Promise<void>;
+  /** Forgets every entry of the account, on sign-out. */
+  clear(userId: string): Promise<void>;
 }
 
 const KEY = 'trailskill-pending-invitations';
@@ -22,10 +32,13 @@ export function createInMemoryPendingInvitationRepository(): PendingInvitationRe
       return items;
     },
     async add(item) {
-      if (!items.some((own) => own.athleteId === item.athleteId)) items = [...items, item];
+      if (!items.some((own) => own.athleteId === item.athleteId)) items = [...items, { ...item, queuedAt: Date.now() }];
     },
     async remove(athleteId) {
       items = items.filter((item) => item.athleteId !== athleteId);
+    },
+    async clear(userId) {
+      items = items.filter((item) => item.userId !== userId);
     },
   };
 }
@@ -55,9 +68,10 @@ export function createSecureStorePendingInvitationRepository(): PendingInvitatio
     add: (item) =>
       serialized(async () => {
         const items = await read();
-        if (!items.some((own) => own.athleteId === item.athleteId)) await write([...items, item]);
+        if (!items.some((own) => own.athleteId === item.athleteId)) await write([...items, { ...item, queuedAt: Date.now() }]);
       }),
     remove: (athleteId) => serialized(async () => write((await read()).filter((item) => item.athleteId !== athleteId))),
+    clear: (userId) => serialized(async () => write((await read()).filter((item) => item.userId !== userId))),
   };
 }
 
@@ -69,10 +83,15 @@ const INACTIVE_CATEGORY = '23514';
 /**
  * Accepts the account's queued invitations. An athlete the server does not know yet is rejected as not managed by the caller (42501), and a missing
  * network throws: both stay queued for the next run. Accepting is idempotent on the server, so overlapping runs are harmless.
- * Shortcut: an entry for an athlete that never reaches the server stays queued, until the account's data is cleared.
+ * An entry queued more than DRAFT_TTL_MS ago is dropped without calling the server: for an athlete that never arrives the server only says 42501,
+ * so it would never reveal an expired or revoked token. An entry with no stamp predates the expiry and is dropped too, like an unstamped draft.
  */
-export async function acceptPendingInvitations(userId: string, pending: PendingInvitationRepository, invitations: InvitationRepository): Promise<void> {
-  for (const { token, athleteId, categoryId } of (await pending.list()).filter((item) => item.userId === userId)) {
+export async function acceptPendingInvitations(userId: string, pending: PendingInvitationRepository, invitations: InvitationRepository, now = Date.now()): Promise<void> {
+  for (const { token, athleteId, categoryId, queuedAt } of (await pending.list()).filter((item) => item.userId === userId)) {
+    if (queuedAt === undefined || now - queuedAt > DRAFT_TTL_MS) {
+      await pending.remove(athleteId);
+      continue;
+    }
     try {
       await invitations.accept({ token, athleteId, ...(categoryId && { categoryId }) }).catch((error) => {
         if (!categoryId || (error as { code?: string }).code !== INACTIVE_CATEGORY) throw error;
