@@ -59,14 +59,12 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
   const [attempt, setAttempt] = useState(0);
   const [day, setDay] = useState(initialDay ?? todayText());
   const [rows, setRows] = useState<AssignedRow[]>([]);
-  const preselected = (Array.isArray(initialPlanId) ? initialPlanId[0] : initialPlanId) ?? null;
-  const [planId, setPlanId] = useState<string | null>(preselected);
-  // A new route parameter replaces the selection even when the screen stays mounted.
-  const [seenPreselected, setSeenPreselected] = useState(preselected);
-  if (seenPreselected !== preselected) {
-    setSeenPreselected(preselected);
-    setPlanId(preselected);
-  }
+  // An empty parameter (`?plan=`) counts as none.
+  const preselected = (Array.isArray(initialPlanId) ? initialPlanId[0] : initialPlanId) || null;
+  // The person's own choice, made under a parameter value; the parameter changing drops it, so a value that comes back is applied again.
+  const [pick, setPick] = useState<{ param: string | null; id: string } | null>(null);
+  if (pick && pick.param !== preselected) setPick(null);
+  const planId = pick?.id ?? preselected;
   const [kind, setKind] = useState<AssignmentKind>('group');
   const [optionId, setOptionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -83,7 +81,10 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
         if (cancelled) return;
         if (!school) return setLoaded('no_school');
         const [scope, all] = await Promise.all([loadAssignScope({ schools, athletes, structure }, userId, school.id), plans.list(school.id)]);
-        if (!cancelled) setLoaded({ schoolId: school.id, scope, plans: all });
+        if (cancelled) return;
+        // A picked plan that left the list does not come back selected when the list gets it again.
+        setPick((current) => (current && all.some((p) => p.id === current.id) ? current : null));
+        setLoaded({ schoolId: school.id, scope, plans: all });
       } catch {
         if (!cancelled) setLoaded('error');
       }
@@ -191,7 +192,7 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
       view={view}
       onPreviousDay={() => setDay((d) => shiftDay(d, -1))}
       onNextDay={() => setDay((d) => shiftDay(d, 1))}
-      onSelectPlan={setPlanId}
+      onSelectPlan={(id) => setPick({ param: preselected, id })}
       onSelectKind={(next) => {
         setKind(next);
         setOptionId(null);
