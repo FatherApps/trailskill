@@ -39,11 +39,19 @@ const defaultNow = () => new Date();
 
 // The group ids of each coach, built once per read.
 function indexByCoach({ assignments }: Loaded) {
-  const groupIds = new Map<string, Set<string | null>>();
+  const groupIds = new Map<string, Set<string>>();
   for (const { coachId, groupId } of assignments) {
-    if (groupId !== null) groupIds.set(coachId, (groupIds.get(coachId) ?? new Set()).add(groupId));
+    if (groupId !== null) groupIds.set(coachId, (groupIds.get(coachId) ?? new Set<string>()).add(groupId));
   }
   return groupIds;
+}
+
+// Names the read that failed. Not behind __DEV__: in release this is the only trace. Only the kind of the error, never its message, which can carry stored data.
+function traced<T>(read: string, pending: Promise<T>) {
+  return pending.catch((error: unknown) => {
+    console.error(`[school-console] Coaches could not be loaded: ${read} read failed`, error instanceof Error ? error.name : typeof error);
+    throw error;
+  });
 }
 
 function toRow(coach: Coach, groups: SchoolGroup[], athleteCounts: Map<string, number>, groupIds: ReturnType<typeof indexByCoach>): CoachRow {
@@ -81,18 +89,16 @@ export function CoachesSection({
   useEffect(() => {
     let active = true;
     const settle = (result: Answer['result']) => active && setAnswer({ schoolId, attempt, result });
+    // All or nothing, for now: if one read fails the list is not shown with the rest, since what is missing would read as zero athletes or no groups.
     Promise.all([
-      repository.listCoaches(schoolId),
-      structure.listGroups(schoolId),
-      athletes.countAthletesByCoach(schoolId),
+      traced('coaches', repository.listCoaches(schoolId)),
+      traced('groups', structure.listGroups(schoolId)),
+      traced('athleteCounts', athletes.countAthletesByCoach(schoolId)),
       // No athlete ids: only the assignments to the school's groups, which are what the list shows.
-      structure.listCoachAssignments(schoolId, []),
+      traced('assignments', structure.listCoachAssignments(schoolId, [])),
     ])
       .then(([coaches, groups, athleteCounts, assignments]) => settle({ coaches, groups, athleteCounts, assignments }))
-      .catch((error: unknown) => {
-        if (__DEV__) console.warn('[school-console] Coaches could not be loaded', error);
-        settle('error');
-      });
+      .catch(() => settle('error'));
     return () => {
       active = false;
     };
