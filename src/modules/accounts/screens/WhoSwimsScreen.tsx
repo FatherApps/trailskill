@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../../core/theme';
 import { Banner, Button, Icon, StepHeader } from '../../../core/ui';
 import { ChoiceRow } from '../components/ChoiceRow';
-import { InvitationBanner, type Invitation } from '../components/notices';
+import { InvalidInvitationBanner, InvitationBanner, type Invitation } from '../components/notices';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { t } from '../i18n';
 
@@ -15,6 +15,8 @@ export type WhoSwimsScreenProps = {
   initialChoice?: SwimmerChoice;
   // Present when a school invited the person: shows who invited and the group.
   invitation?: Invitation;
+  // The link was unknown, expired or revoked.
+  invalidInvitation?: boolean;
   onSelect: (choice: SwimmerChoice) => void;
   // Goes back to the welcome screen.
   onBack: () => void;
@@ -28,7 +30,7 @@ const styles = StyleSheet.create({
 });
 
 // Step 1 of registration. A guardian goes through four steps, an adult through three (no athlete details).
-export function WhoSwimsScreen({ initialChoice, invitation, onSelect, onBack }: WhoSwimsScreenProps) {
+export function WhoSwimsScreen({ initialChoice, invitation, invalidInvitation, onSelect, onBack }: WhoSwimsScreenProps) {
   const { colors, space, radius, typography } = useTheme();
   const [choice, setChoice] = useState(initialChoice);
   const [missing, setMissing] = useState(false);
@@ -54,6 +56,7 @@ export function WhoSwimsScreen({ initialChoice, invitation, onSelect, onBack }: 
     >
       <StepHeader step={1} total={choice === 'adult' ? 3 : 4} title={t('accounts.who.title')} onBack={onBack} />
       {invitation && <InvitationBanner {...invitation} />}
+      {invalidInvitation && <InvalidInvitationBanner />}
       <View
         accessibilityRole="radiogroup"
         accessibilityLabel={t('accounts.who.title')}

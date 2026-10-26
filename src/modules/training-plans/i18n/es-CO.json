@@ -64,6 +64,7 @@
     "remove_cancel": "Conservar bloque",
     "save": "Guardar plan",
     "saved": "Plan guardado.",
+    "block_has_fulfillment": "Este bloque ya tiene cumplimiento registrado y no se puede quitar del plan.",
     "save_failed": "No pudimos guardar el plan. Inténtalo de nuevo.",
     "template_saved": "Plantilla guardada.",
     "template_failed": "No pudimos guardar la plantilla. Inténtalo de nuevo.",
@@ -104,7 +105,16 @@
     },
     "rep": "Rep. {{n}}",
     "series_total": "Total serie",
-    "report": "Avisar algo al entrenador"
+    "report": "Avisar algo al entrenador",
+    "plan_changed": "El entrenador cambió el plan de hoy.",
+    "athlete_picker": "Deportista",
+    "note_about": "Sobre qué quieres avisar",
+    "note_whole_plan": "Todo el plan",
+    "note_label": "Tu aviso",
+    "note_send": "Enviar aviso",
+    "note_empty": "Escribe tu aviso antes de enviarlo.",
+    "note_error": "No pudimos guardar el aviso. Inténtalo de nuevo.",
+    "notes_title": "Tus avisos"
   },
   "fulfillment": {
     "caption": "Cumplimiento · {{date}}",
@@ -116,6 +126,10 @@
     "cell_label": "{{athlete}} · {{position}}, {{summary}}: {{status}}",
     "cell_extra": ", {{text}}",
     "cell_hint": "Toca para cambiar a {{next}}",
+    "skipped": "Se omitirá",
+    "open_timing": "Cronometrar {{summary}}",
+    "partial_title": "¿Cuántas repeticiones hizo {{athlete}}?",
+    "partial_cancel": "Cancelar",
     "empty_athletes_title": "Aún no hay deportistas en este plan",
     "empty_athletes_message": "Asigna el plan a un grupo o a deportistas para marcar el cumplimiento.",
     "empty_blocks_title": "Este plan no tiene bloques",
@@ -139,6 +153,45 @@
     "edit": "Editar",
     "empty_title": "Aún no hay planes",
     "empty_message": "Crea el primer plan o usa una plantilla.",
-    "copy_failed": "No pudimos crear el plan. Inténtalo de nuevo."
+    "copy_failed": "No pudimos crear el plan. Inténtalo de nuevo.",
+    "assign": "Asignar plan"
+  },
+  "assign": {
+    "title": "Asignar plan",
+    "date": "Fecha",
+    "previous_day": "Día anterior",
+    "next_day": "Día siguiente",
+    "plan": "Plan",
+    "template": "Plantilla",
+    "target": "Para",
+    "kind": {
+      "athlete": "Deportista",
+      "group": "Grupo",
+      "category": "Categoría",
+      "school": "Toda la escuela"
+    },
+    "none": {
+      "athlete": "No tienes deportistas a tu cargo.",
+      "group": "No tienes grupos a tu cargo.",
+      "category": "La escuela aún no tiene categorías."
+    },
+    "school_all": "Se asigna a todos los deportistas de la escuela.",
+    "save": "Asignar",
+    "not_ready": "Elige un plan y un destino.",
+    "assigned": "Asignado para este día",
+    "assigned_empty": "Aún no hay asignaciones para este día.",
+    "reaches_one": "Llega a {{count}} deportista",
+    "reaches_other": "Llega a {{count}} deportistas",
+    "open_fulfillment": "Marcar cumplimiento",
+    "withdraw": "Quitar asignación",
+    "withdraw_title": "¿Quitar esta asignación?",
+    "withdraw_message": "{{plan}} deja de estar asignado a {{target}} para este día.",
+    "withdraw_confirm": "Quitar del día",
+    "withdraw_cancel": "Conservar asignación",
+    "failure": {
+      "denied": "No puedes asignar este plan a ese destino.",
+      "save": "No pudimos guardar la asignación. Inténtalo de nuevo.",
+      "withdraw": "No pudimos quitar la asignación. Inténtalo de nuevo."
+    }
   }
 }

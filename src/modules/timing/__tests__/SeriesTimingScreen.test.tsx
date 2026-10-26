@@ -1,4 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { impactAsync } from 'expo-haptics';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { StyleSheet } from 'react-native';
 
 import { SeriesTimingScreen } from '../screens/SeriesTimingScreen';
@@ -10,6 +12,7 @@ async function renderScreen(props: Partial<Parameters<typeof SeriesTimingScreen>
   const callbacks = {
     onArrival: jest.fn(),
     onUndoLast: jest.fn(),
+    onAssignNames: jest.fn(),
     onBack: jest.fn(),
     onUseOnScreenStopwatch: jest.fn(),
   };
@@ -106,5 +109,77 @@ describe('SeriesTimingScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
 
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers "Asignar nombres" once there are arrivals', async () => {
+    const { onAssignNames } = await renderScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Asignar nombres' }));
+
+    expect(onAssignNames).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables "Asignar nombres" and says why while there are no arrivals', async () => {
+    const { onAssignNames } = await renderScreen({ arrivals: [] });
+
+    const button = screen.getByRole('button', { name: /Asignar nombres/ });
+    await fireEvent.press(button);
+
+    expect(button).toBeDisabled();
+    expect(screen.getByText('Asignar nombres · Registra una llegada primero', hidden)).toBeOnTheScreen();
+    expect(onAssignNames).not.toHaveBeenCalled();
+  });
+
+  it('gives a light haptic tap on each arrival and still reports it', async () => {
+    (impactAsync as jest.Mock).mockClear();
+    const { onArrival } = await renderScreen();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Llegada' }));
+
+    expect(onArrival).toHaveBeenCalledTimes(1);
+    expect(impactAsync).toHaveBeenCalledWith('light');
+  });
+
+  it('keeps the screen awake only while the series runs', async () => {
+    (activateKeepAwakeAsync as jest.Mock).mockClear();
+    (deactivateKeepAwake as jest.Mock).mockClear();
+    const idle = await renderScreen();
+    expect(activateKeepAwakeAsync).not.toHaveBeenCalled();
+    await idle.view.unmount();
+
+    const running = await renderScreen({ running: true });
+    expect(activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
+    await running.view.unmount();
+    expect(deactivateKeepAwake).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the sync state of each arrival beside its time, reachable apart from the row', async () => {
+    await renderScreen({
+      arrivals: [
+        { id: 'arrival-1', time: 3100, syncState: 'on_device' },
+        { id: 'arrival-2', time: 3400, syncState: 'synced' },
+      ],
+    });
+
+    expect(screen.getByLabelText('En el teléfono')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Enviado')).toBeOnTheScreen();
+  });
+
+  it('shows no pill for an arrival without a known state', async () => {
+    await renderScreen({ arrivals: [{ id: 'arrival-1', time: 3100 }] });
+
+    expect(screen.queryByLabelText('En el teléfono')).toBeNull();
+  });
+
+  it('shows why the arrivals could not be named, in a notice that is read out', async () => {
+    await renderScreen({ error: 'No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.' });
+
+    expect(screen.getByText('No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.')).toBeOnTheScreen();
+  });
+
+  it('shows no notice without an error', async () => {
+    await renderScreen();
+
+    expect(screen.queryByText(/No pudimos guardar/)).toBeNull();
   });
 });

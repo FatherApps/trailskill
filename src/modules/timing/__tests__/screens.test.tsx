@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { impactAsync } from 'expo-haptics';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { BackHandler, Text } from 'react-native';
 
 import { TimingHeader } from '../components/TimingHeader';
@@ -137,6 +139,49 @@ describe('StopwatchScreen', () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
+  it('gives a light haptic tap on Start, Split and Stop and still calls the container', async () => {
+    (impactAsync as jest.Mock).mockClear();
+    const ready = await renderStopwatchScreen({ state: 'ready' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Iniciar' }));
+    expect(ready.onStart).toHaveBeenCalledTimes(1);
+
+    const running = await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391 });
+    await fireEvent.press(screen.getByRole('button', { name: 'Parcial' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Detener' }));
+    expect(running.onSplit).toHaveBeenCalledTimes(1);
+    expect(running.onStop).toHaveBeenCalledTimes(1);
+    expect(impactAsync).toHaveBeenCalledTimes(3);
+    expect(impactAsync).toHaveBeenCalledWith('light');
+  });
+
+  describe('screen awake', () => {
+    const props = { ...fixture.stopwatchScreen, onBack: jest.fn(), onConfirmExit: jest.fn(), onCancelExit: jest.fn(), onStart: jest.fn(), onSplit: jest.fn(), onStop: jest.fn(), onSave: jest.fn(), onDiscard: jest.fn(), exitConfirmVisible: false };
+    beforeEach(() => {
+      (activateKeepAwakeAsync as jest.Mock).mockClear();
+      (deactivateKeepAwake as jest.Mock).mockClear();
+    });
+
+    it('stays off while ready, turns on when the clock starts and off when it stops', async () => {
+      const view = await render(<StopwatchScreen {...props} state="ready" />);
+      expect(activateKeepAwakeAsync).not.toHaveBeenCalled();
+
+      await view.rerender(<StopwatchScreen {...props} state="running" elapsedHundredths={100} />);
+      expect(activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
+      expect(deactivateKeepAwake).not.toHaveBeenCalled();
+
+      await view.rerender(<StopwatchScreen {...props} state="stopped" elapsedHundredths={3391} />);
+      expect(deactivateKeepAwake).toHaveBeenCalledTimes(1);
+    });
+
+    it('turns off when the screen is left while running', async () => {
+      const view = await render(<StopwatchScreen {...props} state="running" elapsedHundredths={100} />);
+      await view.unmount();
+
+      expect(activateKeepAwakeAsync).toHaveBeenCalledTimes(1);
+      expect(deactivateKeepAwake).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('shows no exit sheet unless the container asks for it', async () => {
     await renderStopwatchScreen({ state: 'running', elapsedHundredths: 3391 });
 
@@ -250,6 +295,26 @@ describe('TimingSetupScreen', () => {
     expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['Volver', 'Elegir', 'Empezar toma']);
   });
 
+  it('offers the arrivals still without a name, above the questions', async () => {
+    const onOpen = jest.fn();
+    await renderSetup({ pending: { count: 2, event: 'Libre 50 m · Entrenamiento', onOpen } });
+
+    expect(screen.getByText('2 llegadas sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Asignar nombres' }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('says one arrival in the singular and offers nothing without pending ones', async () => {
+    await renderSetup({ pending: { count: 1, event: 'Libre 50 m · Entrenamiento', onOpen: jest.fn() } });
+    expect(screen.getByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+  });
+
+  it('shows no pending notice without pending arrivals', async () => {
+    await renderSetup();
+    expect(screen.queryByText(/sin nombre de/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Asignar nombres' })).toBeNull();
+  });
+
   it('asks the container to choose athletes', async () => {
     const { onChooseAthletes } = await renderSetup();
 
@@ -318,13 +383,33 @@ describe('TimingSummaryScreen', () => {
     expect(onRetry).toHaveBeenCalledWith('r2');
   });
 
-  it('offers correct and finish', async () => {
+  it('asks which time to correct, then reports the chosen record', async () => {
     const { onCorrect, onFinish } = await renderSummary();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Corregir un tiempo' }));
+    expect(onCorrect).not.toHaveBeenCalled();
+    expect(screen.getByText('Elige el tiempo que quieres corregir.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Tomás V., Tiempo 31,05' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Terminar' }));
-    expect(onCorrect).toHaveBeenCalledTimes(1);
+
+    expect(onCorrect).toHaveBeenCalledWith('r3');
     expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not make the rows pressable before correcting is chosen', async () => {
+    await renderSummary();
+
+    expect(screen.queryByRole('button', { name: 'Tomás V., Tiempo 31,05' })).toBeNull();
+  });
+
+  it('corrects the only record without asking', async () => {
+    const { onCorrect } = await renderSummary({
+      records: [{ id: 'r1', shortName: 'Mateo C.', initials: 'MC', color: 'athlete-1', time: 3391, syncState: 'synced' }],
+    });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Corregir un tiempo' }));
+
+    expect(onCorrect).toHaveBeenCalledWith('r1');
   });
 
   const record = (id: string, syncState: 'on_device' | 'synced' | 'sending', time: number | null = 3391) => ({
@@ -369,15 +454,13 @@ describe('TimingSummaryScreen', () => {
   });
 
   it('shows the offline banner above the success banner and blocks nothing', async () => {
-    const { onCorrect, onFinish, onRetry } = await renderSummary({ offline: true });
+    const { onFinish, onRetry } = await renderSummary({ offline: true });
 
     const [first, second] = screen.getAllByTestId('banner');
     expect(first).toHaveTextContent('Sin conexión. Se guarda en el teléfono.');
     expect(second).toHaveTextContent(/^3 tiempos guardados/);
-    await fireEvent.press(screen.getByRole('button', { name: 'Corregir un tiempo' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Terminar' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
-    expect(onCorrect).toHaveBeenCalledTimes(1);
     expect(onFinish).toHaveBeenCalledTimes(1);
     expect(onRetry).toHaveBeenCalledWith('r2');
   });

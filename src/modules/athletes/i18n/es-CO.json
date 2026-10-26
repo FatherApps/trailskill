@@ -30,6 +30,7 @@
       "training": "Entrenamiento",
       "competition": "Competencia"
     },
+    "online_only": "Solo en línea",
     "meta": "{{date}} · {{context}}",
     "meta_with_value": "{{date}} · {{context}} · {{value}}",
     "value": {
@@ -72,6 +73,10 @@
     "online_only": {
       "title": "Disponible con conexión",
       "message": "Los resultados de otra escuela se ven solo con conexión. No guardamos copias en este teléfono."
+    },
+    "other_school_error": {
+      "title": "No pudimos cargar los resultados de otra escuela",
+      "message": "El resto del perfil se muestra igual. Inténtalo de nuevo en un momento."
     },
     "denied": {
       "title": "Esta información es privada",

@@ -20,11 +20,14 @@ function failureCode(result: Pick<Result, 'error' | 'status'>): string | null {
 // authorizations are evidence: a withdrawal goes up as a PATCH. A measurement is edited as a PATCH carrying its base_version (issue #55);
 // a stale edit from another user or device comes back as the unchanged stored row, which is a success: the server keeps the conflict.
 // A PUT that would change an existing row is recorded as insert_only_changed, never ignored.
-const INSERT_ONLY_TABLES = new Set(['measurements', 'timing_series', 'authorizations', 'school_invitations']);
+const INSERT_ONLY_TABLES = new Set(['measurements', 'training_plan_fulfillments', 'training_plan_notices', 'timing_series', 'authorizations', 'school_invitations']);
 
 // Columns the server assigns or rewrites on insert (clamps, replaced tokens): a retry from the device never carries their stored value, so they are not compared.
 const SERVER_SET_COLUMNS: Record<string, string[]> = {
   measurements: ['created_at', 'hidden', 'version', 'base_version', 'edited_by', 'edited_at', 'edited_device_id', 'edit_reason'],
+  training_plan_fulfillments: ['created_at', 'hidden'],
+  // shortcut: if the guardian stops managing the athlete between the upload and a retry, the note stays saved on the server but the device records it in upload_failures; upgrade with a server-side confirm function.
+  training_plan_notices: ['created_at', 'created_by'],
   school_invitations: ['token', 'expires_at', 'revoked_at', 'created_at'],
   authorizations: ['accepted_at', 'received_at', 'withdrawal_received_at', 'withdrawn_at'],
 };
@@ -33,7 +36,10 @@ const NULLNESS_ONLY_COLUMNS: Record<string, string[]> = { authorizations: ['with
 
 // Tables whose rows their author may no longer read once stored (a measurement hidden after a withdrawal, #54):
 // a server function confirms a re-sent insert and answers only 'stored', 'changed' or 'absent', never the row.
-const CONFIRM_INSERT_FUNCTIONS: Record<string, string> = { measurements: 'confirm_measurement_insert' };
+const CONFIRM_INSERT_FUNCTIONS: Record<string, string> = {
+  measurements: 'confirm_measurement_insert',
+  training_plan_fulfillments: 'confirm_training_plan_fulfillment_insert',
+};
 
 // Columns that are JSON text on the device (PowerSync syncs a Postgres array as JSON text) but arrays on the server: they are parsed before upload.
 const JSON_ARRAY_COLUMNS: Record<string, string[]> = { training_plan_blocks: ['equipment'] };
@@ -52,6 +58,17 @@ function toServerValues(table: string, values: Record<string, unknown> | undefin
     }
   }
   return sent;
+}
+
+/** Pairs, by index in both directions, each athletes PUT with the athlete_managers PUT that links it. */
+function pairManagedAthletes(crud: CrudEntry[]): Map<number, number> {
+  const pairs = new Map<number, number>();
+  crud.forEach((athlete, i) => {
+    if (athlete.op !== 'PUT' || athlete.table !== 'athletes') return;
+    const j = crud.findIndex((op, k) => !pairs.has(k) && op.op === 'PUT' && op.table === 'athlete_managers' && op.opData?.athlete_id === athlete.id);
+    if (j >= 0) pairs.set(i, j).set(j, i);
+  });
+  return pairs;
 }
 
 /** Refresh a session that expires within this window, so a skewed device clock does not send an expired token. */
@@ -134,9 +151,18 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
 
     // Every op is sent before any bookkeeping: a thrown network error must leave local state untouched for the retry.
     const codes: (string | null)[] = [];
-    for (const op of transaction.crud) {
+    // An athlete and its manager link created together only reach the server atomically, as one call; both ops get its outcome.
+    const pairs = pairManagedAthletes(transaction.crud);
+    for (const [i, op] of transaction.crud.entries()) {
       if (signal.aborted) throw new Error('Upload canceled');
-      codes.push(await this.sendLimited(op));
+      if (i in codes) continue;
+      const j = pairs.get(i);
+      if (j === undefined) {
+        codes[i] = await this.sendLimited(op);
+      } else {
+        const [athlete, manager] = op.table === 'athletes' ? [op, transaction.crud[j]] : [transaction.crud[j], op];
+        codes[i] = codes[j] = await this.sendLimited(op, () => this.createManagedAthlete(athlete, manager));
+      }
     }
     // An answer that arrived after the session ended was sent without the user's token: recording it would mark valid records "No enviado".
     if (signal.aborted) throw new Error('Upload canceled');
@@ -186,11 +212,11 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
    * An error without a code (network), a JWT/auth error (AUTH_ERROR_CODES), a transient server error (isTransientCode) or a gateway status (502/503/504)
    * is also retried with a growing wait but never counted toward giving up: offline, an expired session or an overloaded server never gives up.
    */
-  private async sendLimited(op: CrudEntry): Promise<string | null> {
+  private async sendLimited(op: CrudEntry, send: () => Promise<string | null> = () => this.send(op)): Promise<string | null> {
     // Captured before the request: a cancelWaits() while it is in flight must still abort the wait that follows.
     const signal = this.waitController.signal;
     try {
-      const code = await this.send(op);
+      const code = await send();
       this.forget(op);
       return code;
     } catch (error) {
@@ -209,6 +235,15 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   private forget(op: CrudEntry): void {
     this.attempts.delete(op.clientId);
     this.waits.delete(op.clientId);
+  }
+
+  /** Creates an athlete and its manager link in one server transaction (public.create_managed_athlete): 'changed' means the same ids exist with other values. */
+  private async createManagedAthlete(athlete: CrudEntry, manager: CrudEntry): Promise<string | null> {
+    const payload = { athlete: { id: athlete.id, ...athlete.opData }, manager: { id: manager.id, ...manager.opData } };
+    const result = await this.client.rpc('create_managed_athlete', { payload });
+    const failure = failureCode(result);
+    if (failure !== null) return failure;
+    return result.data === 'stored' ? null : result.data === 'changed' ? 'insert_only_changed' : 'no_rows_affected';
   }
 
   /** Sends one op. Returns a failure code for a permanent rejection, throws on any other error. */

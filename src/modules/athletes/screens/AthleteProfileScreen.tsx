@@ -22,6 +22,10 @@ export type AthleteProfileContent = {
   chart?: ReactNode;
   // Only guardians and adults get it: the caller decides by passing it or not.
   importPrompt?: ImportPromptProps;
+  // Another school's results are online only: set while offline to explain why none show, in place of them.
+  otherSchoolOffline?: boolean;
+  // Connected, but the server failed or did not answer: an error for this section only, with its own retry.
+  otherSchoolError?: { onRetry: () => void };
 };
 
 // Which of the view states the caller is in. Only the states that show the profile carry its content.
@@ -153,13 +157,31 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true }: Athle
   );
 
   const footer =
-    empty || content.importPrompt ? (
+    empty || content.importPrompt || content.otherSchoolOffline || content.otherSchoolError ? (
       <View style={{ gap: space[4], paddingVertical: space[4] }}>
         {empty && (
           <StateView
             kind="empty"
             title={t('athletes.screen.empty.title')}
             message={t('athletes.screen.empty.message', values)}
+          />
+        )}
+        {content.otherSchoolOffline && (
+          <StateView
+            kind="offline"
+            title={t('athletes.screen.online_only.title')}
+            message={t('athletes.screen.online_only.message')}
+          />
+        )}
+        {content.otherSchoolError && (
+          <StateView
+            kind="error"
+            title={t('athletes.screen.other_school_error.title')}
+            message={t('athletes.screen.other_school_error.message')}
+            action={{
+              label: t('athletes.screen.retry'),
+              onPress: content.otherSchoolError.onRetry,
+            }}
           />
         )}
         {content.importPrompt && <ImportPrompt {...content.importPrompt} />}

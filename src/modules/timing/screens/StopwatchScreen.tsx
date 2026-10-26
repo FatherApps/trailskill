@@ -9,6 +9,8 @@ import { ConfirmSheet, SyncStatus } from '../../../core/ui';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { Stopwatch, type StopwatchProps } from '../components/Stopwatch';
 import { TimingHeader } from '../components/TimingHeader';
+import { useAwakeWhile } from '../components/useAwakeWhile';
+import { withTap } from '../components/withTap';
 import '../i18n';
 
 export type StopwatchScreenProps = StopwatchProps & {
@@ -51,6 +53,8 @@ export function StopwatchScreen({
   const { colors, space } = useTheme();
   const running = stopwatch.state === 'running';
 
+  useAwakeWhile(running);
+
   useEffect(() => {
     if (!running) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -73,7 +77,12 @@ export function StopwatchScreen({
           <OfflineBanner />
         </View>
       )}
-      <Stopwatch {...stopwatch} />
+      <Stopwatch
+        {...stopwatch}
+        onStart={withTap(stopwatch.onStart)}
+        onSplit={withTap(stopwatch.onSplit)}
+        onStop={withTap(stopwatch.onStop)}
+      />
       <ConfirmSheet
         visible={exitConfirmVisible}
         destructive

@@ -7,8 +7,8 @@ import { plansFixture } from '../__fixtures__/plans';
 const content: TodayContent = plansFixture.today;
 
 function setup(view: TodayView) {
-  const onReportToCoach = jest.fn();
-  return { onReportToCoach, ui: <TodayScreen athleteName="Lucía R." view={view} onReportToCoach={onReportToCoach} /> };
+  const onSendNotice = jest.fn();
+  return { onSendNotice, ui: <TodayScreen athleteName="Lucía R." view={view} onSendNotice={onSendNotice} /> };
 }
 
 describe('TodayScreen states', () => {
@@ -146,13 +146,31 @@ describe('TodayScreen content', () => {
     expect(screen.getByText('1:38,40')).toBeOnTheScreen();
   });
 
-  it('lets the athlete report something to the coach', async () => {
-    const { onReportToCoach, ui } = setup({ kind: 'data', content });
+  it('lets the athlete report something to the coach, about the whole plan or one block', async () => {
+    const { onSendNotice, ui } = setup({ kind: 'data', content });
     await render(ui);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Avisar algo al entrenador' }));
+    await fireEvent.changeText(screen.getByLabelText('Tu aviso'), 'Test note 1');
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar aviso' }));
+    expect(onSendNotice).toHaveBeenCalledWith({ blockId: null, body: 'Test note 1' });
 
-    expect(onReportToCoach).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Avisar algo al entrenador' }));
+    await fireEvent.press(screen.getByText('Bloque 2'));
+    await fireEvent.changeText(screen.getByLabelText('Tu aviso'), 'Test note 2');
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar aviso' }));
+    expect(onSendNotice).toHaveBeenLastCalledWith({ blockId: content.blocks[1].block.id, body: 'Test note 2' });
+  });
+
+  it('asks for a text before sending and shows a note whose block is gone as a whole-plan note', async () => {
+    const { onSendNotice, ui } = setup({ kind: 'data', content: { ...content, notes: [{ id: 'n1', body: 'Test note 1', dateLabel: '2 nov', blockId: 'gone' }] } });
+    await render(ui);
+
+    expect(screen.getByText('2 nov · Todo el plan')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Avisar algo al entrenador' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar aviso' }));
+    expect(screen.getByText('Escribe tu aviso antes de enviarlo.')).toBeOnTheScreen();
+    expect(onSendNotice).not.toHaveBeenCalled();
   });
 
   it('nests its ScrollView so it scrolls inside a parent ScrollView on Android', async () => {

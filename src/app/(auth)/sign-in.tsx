@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -92,6 +93,7 @@ export default function SignIn() {
             <StateView kind="error" title={t('auth.request_failed_title')} message={t('auth.request_failed_message')} />
           )}
           <Button label={t('auth.send_code')} onPress={sendCode} loading={sending} />
+          <Button variant="ghost" label={t('auth.create_account')} onPress={() => router.push('/register')} />
         </>
       ) : (
         <>

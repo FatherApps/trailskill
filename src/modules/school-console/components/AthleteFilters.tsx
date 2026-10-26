@@ -8,13 +8,15 @@ import '../i18n';
 import type { AthleteFilterId } from './athleteTypes';
 import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 
-export type AthleteFiltersProps = {
+export type AthleteFiltersProps<Id extends string = AthleteFilterId> = {
   query: string;
   onQueryChange: (query: string) => void;
   // The chosen value of each active filter; a missing key is an inactive chip.
-  filters: Partial<Record<AthleteFilterId, string>>;
+  filters: Partial<Record<Id, string>>;
   // Only reports the press: the selector a chip would open is not part of this component.
-  onFilterPress: (id: AthleteFilterId) => void;
+  onFilterPress: (id: Id) => void;
+  // The chips to show, in order. The athletes' filters when absent.
+  chips?: readonly Id[];
 };
 
 export const athleteFiltersColors: {
@@ -31,7 +33,7 @@ export const athleteFiltersColors: {
   placeholder: 'ink-muted',
 };
 
-const filterIds: AthleteFilterId[] = ['category', 'group', 'coach'];
+const athleteChips = ['category', 'group', 'coach'] as const;
 
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
@@ -86,16 +88,16 @@ function SearchField({ query, onQueryChange, stacked }: Pick<AthleteFiltersProps
   );
 }
 
-function FilterChip({
+function FilterChip<Id extends string>({
   id,
   name,
   value,
   onPress,
 }: {
-  id: AthleteFilterId;
+  id: Id;
   name: string;
   value: string | undefined;
-  onPress: (id: AthleteFilterId) => void;
+  onPress: (id: Id) => void;
 }) {
   const { size } = useTheme();
   const { focusProps, ring } = useFocusRing();
@@ -118,13 +120,13 @@ function FilterChip({
 }
 
 // The search field and the filter chips. Presentational: the query and the active filters arrive by props.
-export function AthleteFilters({ query, onQueryChange, filters, onFilterPress }: AthleteFiltersProps) {
+export function AthleteFilters<Id extends string = AthleteFilterId>({ query, onQueryChange, filters, onFilterPress, chips: chipIds = athleteChips as unknown as readonly Id[] }: AthleteFiltersProps<Id>) {
   const { space } = useTheme();
   const scale = useTextScale();
   const [width, setWidth] = useState<number | null>(null);
   const stacked = scale >= LARGE_TEXT_SCALE || (width !== null && width < MIN_INLINE_WIDTH);
 
-  const chips = filterIds.map((id) => {
+  const chips = chipIds.map((id) => {
     const name = t(`schoolConsole.filters.${id}`);
     const value = filters[id];
     return <FilterChip key={id} id={id} name={name} value={value} onPress={onFilterPress} />;

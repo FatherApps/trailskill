@@ -6,7 +6,7 @@ import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { StateView } from '../../../core/ui';
 import type { StaffSchoolRepository } from '../../school-console';
-import type { TrainingPlanRepository } from '../data/plans';
+import { BlockHasFulfillmentError, type TrainingPlanRepository } from '../data/plans';
 import { blockErrors, hasErrors, newDraftBlock, toPlanBlock, type DraftBlock } from '../draft';
 import '../i18n';
 import type { PlanVocabulary } from '../types';
@@ -119,8 +119,9 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
     }
     try {
       await repository.save({ ...plan.current, name: name.trim(), blocks: blocks.map(toPlanBlock) });
-    } catch {
-      setMessage({ kind: 'error', text: t('training_plans.builder.save_failed') });
+    } catch (error) {
+      const key = error instanceof BlockHasFulfillmentError ? 'block_has_fulfillment' : 'save_failed';
+      setMessage({ kind: 'error', text: t(`training_plans.builder.${key}`) });
       return false;
     }
     onSaved?.(plan.current.id);

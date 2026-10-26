@@ -10,7 +10,8 @@ export type AthleteIndicatorsProps = {
   active: number;
   pendingAuthorization: number;
   measurementsThisWeek: number;
-  toReview: number;
+  // `null` when it cannot be known: the card says "Sin dato", never 0.
+  toReview: number | null;
 };
 
 export const athleteIndicatorsColors: { card: ColorToken; label: ColorToken; value: ColorToken } = {
@@ -48,11 +49,12 @@ export function AthleteIndicators({ active, pendingAuthorization, measurementsTh
     >
       {items.map(([key, value]) => {
         const label = t(`schoolConsole.indicators.${key}`);
+        const shown = value ?? t('schoolConsole.common.no_data');
         return (
           <View
             key={key}
             accessible
-            accessibilityLabel={t('schoolConsole.indicators.spoken', { label, value })}
+            accessibilityLabel={t('schoolConsole.indicators.spoken', { label, value: shown })}
             style={{
               // Until the width is known the cards share the row and wrap.
               ...(cardWidth === null ? { flexGrow: 1, flexBasis: MIN_CARD_WIDTH } : { width: cardWidth }),
@@ -65,9 +67,9 @@ export function AthleteIndicators({ active, pendingAuthorization, measurementsTh
             <Text {...hidden} style={[typography.caption, { color: colors[athleteIndicatorsColors.label] }]}>
               {label}
             </Text>
-            {/* Gap: the reference uses 28/32 display; the closest token is title-lg (32/36). */}
-            <Text {...hidden} style={[typography['title-lg'], { color: colors[athleteIndicatorsColors.value] }]}>
-              {value}
+            {/* Gap: the reference uses 28/32 display; the closest token is title-lg (32/36). The words "Sin dato" use the smaller title so they fit the card. */}
+            <Text {...hidden} style={[typography[value === null ? 'title' : 'title-lg'], { color: colors[athleteIndicatorsColors.value] }]}>
+              {shown}
             </Text>
           </View>
         );

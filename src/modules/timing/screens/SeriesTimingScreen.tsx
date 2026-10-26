@@ -11,6 +11,8 @@ import { ArrivalList, type ArrivalListProps } from '../components/ArrivalList';
 import { Clock } from '../components/Clock';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { TimingHeader } from '../components/TimingHeader';
+import { useAwakeWhile } from '../components/useAwakeWhile';
+import { withTap } from '../components/withTap';
 import '../i18n';
 
 export type SeriesTimingScreenProps = {
@@ -22,7 +24,13 @@ export type SeriesTimingScreenProps = {
   arrivals: ArrivalListProps['arrivals'];
   onArrival: () => void;
   onUndoLast: () => void;
+  // Ends the capture and opens the assignment of names; the series needs at least one arrival.
+  onAssignNames: () => void;
   onBack: () => void;
+  // The shared clock is running: the screen stays awake.
+  running?: boolean;
+  // Why the last attempt to name the arrivals did not go through; absent when there is nothing to say.
+  error?: string;
   // Shows the offline notice. Nothing is disabled: times are saved on the phone.
   offline?: boolean;
   externalTimerDisconnected?: boolean;
@@ -36,7 +44,10 @@ export function SeriesTimingScreen({
   arrivals,
   onArrival,
   onUndoLast,
+  onAssignNames,
   onBack,
+  running = false,
+  error,
   offline = false,
   externalTimerDisconnected = false,
   onUseOnScreenStopwatch,
@@ -44,12 +55,21 @@ export function SeriesTimingScreen({
   const { colors, space } = useTheme();
   const large = useLargeText();
   const hasArrivals = arrivals.length > 0;
+  useAwakeWhile(running);
+  const arrive = withTap(onArrival);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       <TimingHeader title={t('timing.series.title', { count: athleteCount })} subtitle={eventSubtitle} onBack={onBack} />
       <View style={{ paddingHorizontal: space[4], gap: space[2] }}>
         {offline && <OfflineBanner />}
+        {error && (
+          <View accessibilityLiveRegion="polite">
+            <Banner variant="warn" icon="error">
+              {error}
+            </Banner>
+          </View>
+        )}
         {externalTimerDisconnected && (
           <View testID="external-disconnected" accessibilityLiveRegion="polite">
             <Banner variant="warn" icon="link">
@@ -74,12 +94,19 @@ export function SeriesTimingScreen({
           <ActionRow
             large={large}
             secondary={{ variant: 'secondary', size: 'timing', label: t('timing.series.undo_last'), onPress: onUndoLast }}
-            primary={{ size: 'timing', label: t('timing.series.arrival'), onPress: onArrival }}
+            primary={{ size: 'timing', label: t('timing.series.arrival'), onPress: arrive }}
             renderPrimary={(props) => <ArrivalButton onArrival={props.onPress} />}
           />
         ) : (
-          <ArrivalButton onArrival={onArrival} />
+          <ArrivalButton onArrival={arrive} />
         )}
+        <View style={{ paddingTop: space[3] }}>
+          <Button
+            label={t('timing.series.assign_names')}
+            onPress={onAssignNames}
+            disabledReason={hasArrivals ? undefined : t('timing.series.assign_names_disabled')}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );

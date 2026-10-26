@@ -79,24 +79,29 @@ export async function editRecord(
   values: Record<string, unknown>,
   meta: Record<string, unknown> = {},
 ): Promise<void> {
+  assertEditable(table, values, meta);
+  await db.writeTransaction((tx) => editRow(tx, table, id, values, meta));
+}
+
+function assertEditable(table: string, values: Record<string, unknown>, meta: Record<string, unknown>): void {
   assertIdentifier(table);
   Object.keys(values).forEach(assertIdentifier);
   Object.keys(meta).forEach(assertIdentifier);
+}
 
-  await db.writeTransaction(async (tx) => {
-    const columns = ['version', 'base_version', ...Object.keys(meta)];
-    const row = await tx.getOptional<Record<string, unknown>>(`SELECT ${columns.join(', ')} FROM ${table} WHERE id = ?`, [id]);
-    if (!row) throw new Error(`Cannot edit ${table} ${id}: it is not on this device`);
-    // Only a column that holds a value can be reset: resetting a NULL one changes nothing and would upload an empty PATCH.
-    const reset = columns.filter((column) => column !== 'version' && row[column] !== null);
-    if (reset.length > 0) {
-      await updateRow(tx, table, id, Object.fromEntries(reset.map((column) => [column, null])));
-      await markPending(tx, table, id);
-    }
-    // base_version is now NULL, so this op always carries it (and every non-null meta column). One marker per op, like the connector clears them.
-    await updateRow(tx, table, id, { ...values, ...meta, base_version: (row.version as number | null) ?? 1 });
+async function editRow(tx: Transaction, table: string, id: string, values: Record<string, unknown>, meta: Record<string, unknown>): Promise<void> {
+  const columns = ['version', 'base_version', ...Object.keys(meta)];
+  const row = await tx.getOptional<Record<string, unknown>>(`SELECT ${columns.join(', ')} FROM ${table} WHERE id = ?`, [id]);
+  if (!row) throw new Error(`Cannot edit ${table} ${id}: it is not on this device`);
+  // Only a column that holds a value can be reset: resetting a NULL one changes nothing and would upload an empty PATCH.
+  const reset = columns.filter((column) => column !== 'version' && row[column] !== null);
+  if (reset.length > 0) {
+    await updateRow(tx, table, id, Object.fromEntries(reset.map((column) => [column, null])));
     await markPending(tx, table, id);
-  });
+  }
+  // base_version is now NULL, so this op always carries it (and every non-null meta column). One marker per op, like the connector clears them.
+  await updateRow(tx, table, id, { ...values, ...meta, base_version: (row.version as number | null) ?? 1 });
+  await markPending(tx, table, id);
 }
 
 /** Deletes a row on the device and queues the deletion for upload in the same transaction. */
@@ -105,10 +110,11 @@ export async function deleteRecord(table: string, id: string): Promise<void> {
   await db.writeTransaction((tx) => removeRow(tx, table, id));
 }
 
-/** The writes of one batch: `write` and `delete` behave like writeRecord and deleteRecord; `getAll` reads inside the batch. */
+/** The writes of one batch: `write`, `edit` and `delete` behave like writeRecord, editRecord and deleteRecord; `getAll` reads inside the batch. */
 export type WriteBatch = {
   getAll<T>(sql: string, params?: unknown[]): Promise<T[]>;
   write(table: string, values: Record<string, unknown> & { id?: string }): Promise<string>;
+  edit(table: string, id: string, values: Record<string, unknown>, meta?: Record<string, unknown>): Promise<void>;
   delete(table: string, id: string): Promise<void>;
 };
 
@@ -124,6 +130,10 @@ export async function writeBatch<T>(writes: (batch: WriteBatch) => Promise<T>): 
       write: async (table, values) => {
         assertWritable(table, values);
         return putRow(tx, table, values);
+      },
+      edit: async (table, id, values, meta = {}) => {
+        assertEditable(table, values, meta);
+        return editRow(tx, table, id, values, meta);
       },
       delete: async (table, id) => {
         assertIdentifier(table);
@@ -146,50 +156,76 @@ export type RetryResult = 'queued' | 'row_missing' | 'nothing_to_send';
  * nothing (sync-down may have dropped it, and the failure keeps its payload); any failed PUT requeues the
  * whole current row as a PUT (null audit columns omitted, other nulls sent), which covers later PATCHes;
  * only failed PATCHes requeue the current values of their still-existing columns.
+ * An athlete and its manager link that failed together are requeued together (see failedManagedAthletePair).
  * `powersync_crud` is PowerSync's documented manual-queue API (raw tables); it must be verified on a device (#35).
  */
 export async function retryFailedRecord(table: string, id: string): Promise<RetryResult> {
   assertIdentifier(table);
 
   return db.writeTransaction<RetryResult>(async (tx) => {
-    // One aggregate row (a plain `get`, which every transaction supports); sorted here so the order never depends on SQLite.
-    const { failures: json } = await tx.get<{ failures: string }>(
-      "SELECT json_group_array(json_object('op', op, 'payload', payload, 'failed_at', failed_at, 'client_id', client_id)) AS failures FROM upload_failures WHERE table_name = ? AND record_id = ?",
-      [table, id],
-    );
-    // PowerSync numbers ops with AUTOINCREMENT, so client_id is the real queue order when failed_at ties (null, from older rows, sorts first).
-    const failures = (JSON.parse(json) as { op: string; payload: string; failed_at: string; client_id: number | null }[]).sort(
-      (a, b) => a.failed_at.localeCompare(b.failed_at) || (a.client_id ?? -1) - (b.client_id ?? -1),
-    );
-    if (failures.length === 0) return 'nothing_to_send';
-
-    const row = await tx.getOptional<Record<string, unknown>>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
-    let op: 'DELETE' | 'PUT' | 'PATCH';
-    let data: Record<string, unknown> | undefined;
-
-    if (failures[failures.length - 1].op === 'DELETE') {
-      op = 'DELETE';
-    } else if (!row) {
-      return 'row_missing';
-    } else {
-      const { id: _id, ...values } = row;
-      if (failures.some((failure) => failure.op === 'PUT')) {
-        op = 'PUT';
-        data = Object.fromEntries(Object.entries(values).filter(([column, value]) => value !== null || !SERVER_ASSIGNED_COLUMNS.includes(column)));
-      } else {
-        op = 'PATCH';
-        const columns = new Set(failures.flatMap((failure) => Object.keys(JSON.parse(failure.payload))));
-        data = Object.fromEntries([...columns].filter((column) => column in values).map((column) => [column, values[column]]));
-        if (Object.keys(data).length === 0) return 'nothing_to_send';
-      }
-    }
-
-    await tx.execute(
-      data ? 'INSERT INTO powersync_crud (op, id, type, data) VALUES (?, ?, ?, ?)' : 'INSERT INTO powersync_crud (op, id, type) VALUES (?, ?, ?)',
-      data ? [op, id, table, JSON.stringify(data)] : [op, id, table],
-    );
-    await markPending(tx, table, id);
-    await tx.execute('DELETE FROM upload_failures WHERE table_name = ? AND record_id = ?', [table, id]);
-    return 'queued';
+    const pair = await failedManagedAthletePair(tx, table, id);
+    if (!pair) return requeueRecord(tx, table, id);
+    // Both in this transaction, athlete first like createManagedAthlete: PowerSync hands them to the connector as one CRUD transaction.
+    const athlete = await requeueRecord(tx, 'athletes', pair.athlete);
+    const manager = await requeueRecord(tx, 'athlete_managers', pair.manager);
+    return table === 'athletes' ? athlete : manager;
   });
+}
+
+/**
+ * An athlete and its manager link created together go up as one create_managed_athlete call, so they fail together, and the server
+ * refuses either row sent alone (42501): they are retried together. Returns the pair when the record and its partner both have a failed PUT.
+ */
+function failedManagedAthletePair(tx: Transaction, table: string, id: string): Promise<{ athlete: string; manager: string } | null> {
+  if (table !== 'athletes' && table !== 'athlete_managers') return Promise.resolve(null);
+  return tx.getOptional<{ athlete: string; manager: string }>(
+    `SELECT a.record_id AS athlete, m.record_id AS manager
+     FROM upload_failures a
+     JOIN upload_failures m ON m.table_name = 'athlete_managers' AND m.op = 'PUT' AND json_extract(m.payload, '$.athlete_id') = a.record_id
+     WHERE a.table_name = 'athletes' AND a.op = 'PUT' AND ${table === 'athletes' ? 'a' : 'm'}.record_id = ?
+     LIMIT 1`,
+    [id],
+  );
+}
+
+async function requeueRecord(tx: Transaction, table: string, id: string): Promise<RetryResult> {
+  // One aggregate row (a plain `get`, which every transaction supports); sorted here so the order never depends on SQLite.
+  const { failures: json } = await tx.get<{ failures: string }>(
+    "SELECT json_group_array(json_object('op', op, 'payload', payload, 'failed_at', failed_at, 'client_id', client_id)) AS failures FROM upload_failures WHERE table_name = ? AND record_id = ?",
+    [table, id],
+  );
+  // PowerSync numbers ops with AUTOINCREMENT, so client_id is the real queue order when failed_at ties (null, from older rows, sorts first).
+  const failures = (JSON.parse(json) as { op: string; payload: string; failed_at: string; client_id: number | null }[]).sort(
+    (a, b) => a.failed_at.localeCompare(b.failed_at) || (a.client_id ?? -1) - (b.client_id ?? -1),
+  );
+  if (failures.length === 0) return 'nothing_to_send';
+
+  const row = await tx.getOptional<Record<string, unknown>>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+  let op: 'DELETE' | 'PUT' | 'PATCH';
+  let data: Record<string, unknown> | undefined;
+
+  if (failures[failures.length - 1].op === 'DELETE') {
+    op = 'DELETE';
+  } else if (!row) {
+    return 'row_missing';
+  } else {
+    const { id: _id, ...values } = row;
+    if (failures.some((failure) => failure.op === 'PUT')) {
+      op = 'PUT';
+      data = Object.fromEntries(Object.entries(values).filter(([column, value]) => value !== null || !SERVER_ASSIGNED_COLUMNS.includes(column)));
+    } else {
+      op = 'PATCH';
+      const columns = new Set(failures.flatMap((failure) => Object.keys(JSON.parse(failure.payload))));
+      data = Object.fromEntries([...columns].filter((column) => column in values).map((column) => [column, values[column]]));
+      if (Object.keys(data).length === 0) return 'nothing_to_send';
+    }
+  }
+
+  await tx.execute(
+    data ? 'INSERT INTO powersync_crud (op, id, type, data) VALUES (?, ?, ?, ?)' : 'INSERT INTO powersync_crud (op, id, type) VALUES (?, ?, ?)',
+    data ? [op, id, table, JSON.stringify(data)] : [op, id, table],
+  );
+  await markPending(tx, table, id);
+  await tx.execute('DELETE FROM upload_failures WHERE table_name = ? AND record_id = ?', [table, id]);
+  return 'queued';
 }

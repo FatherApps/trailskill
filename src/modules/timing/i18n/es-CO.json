@@ -11,10 +11,24 @@
       "start": "Empezar toma",
       "athletes_count": "Nadadores ({{selected}} de {{group}})",
       "choose": "Elegir",
+      "error_title": "No pudimos cargar los nadadores",
+      "error_message": "Revisa que el teléfono ya sincronizó e inténtalo de nuevo.",
       "skipped": "Falta autorización — se omitirá",
       "athlete_name": "{{order}} · {{name}}",
       "empty_title": "Aún no hay nadadores",
-      "empty_message": "Elige a quienes vas a medir para empezar la toma."
+      "empty_message": "Elige a quienes vas a medir para empezar la toma.",
+      "pending_message_one": "{{count}} llegada sin nombre de {{event}}.",
+      "pending_message_other": "{{count}} llegadas sin nombre de {{event}}.",
+      "pending_open": "Asignar nombres"
+    },
+    "picker": {
+      "title": "Elegir nadadores",
+      "done": "Listo",
+      "empty_message": "Ningún nadador con autorización para medir."
+    },
+    "school": {
+      "label": "Escuela",
+      "question": "¿En qué escuela vas a medir?"
     },
     "session_type": {
       "training": "Entrenamiento",
@@ -48,12 +62,29 @@
       "error_message": "Los tiempos siguen guardados en el teléfono. Inténtalo de nuevo.",
       "retry_load": "Intentar de nuevo",
       "correct": "Corregir un tiempo",
+      "correct_choose": "Elige el tiempo que quieres corregir.",
       "finish": "Terminar",
       "time_label": "Tiempo",
       "saved_one": "{{count}} tiempo guardado.",
       "saved_other": "{{count}} tiempos guardados.",
       "on_device_one": "{{count}} en el teléfono, se enviará con señal.",
       "on_device_other": "{{count}} en el teléfono, se enviarán con señal."
+    },
+    "completed": {
+      "title": "Completado sin tiempo",
+      "finish": "Terminar",
+      "error": "No pudimos guardar el cambio en este teléfono. Inténtalo de nuevo."
+    },
+    "correct": {
+      "title": "Corregir un tiempo",
+      "current": "Tiempo guardado",
+      "field_label": "Nuevo tiempo",
+      "field_help": "Déjalo vacío si no hay tiempo.",
+      "save": "Guardar corrección",
+      "error_format": "Escribe el tiempo como 35,20 o 1:05,30.",
+      "error_invalid": "El tiempo debe ser mayor que cero.",
+      "error_completed": "Esta medición se completó sin tiempo y no admite uno.",
+      "error_failed": "No pudimos guardar la corrección. Inténtalo de nuevo."
     },
     "offline": {
       "title": "Sin conexión.",
@@ -67,6 +98,9 @@
       "arrival": "Llegada",
       "undo_last": "Deshacer última",
       "assign_names": "Asignar nombres",
+      "assign_names_disabled": "Registra una llegada primero",
+      "name_error": "No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.",
+      "assign_error": "No pudimos guardar ese nombre. Toca la tarjeta de nuevo.",
       "unassigned": "por asignar",
       "completed": "Completado",
       "external_disconnected_title": "Cronómetro externo desconectado.",
@@ -81,7 +115,11 @@
       "position_n": "Posición {{position}}",
       "all_assigned": "Todas las posiciones tienen nombre.",
       "whose": "¿De quién es?",
-      "save": "Guardar serie",
+      "save": "Listo",
+      "exit_title": "¿Salir de la serie?",
+      "exit_message": "Las llegadas ya están guardadas en este teléfono y quedan \"por asignar\".",
+      "exit_confirm": "Salir de la serie",
+      "exit_cancel": "Seguir midiendo",
       "not_completed": "Sin completar",
       "completed_for": "Completado, {{name}}"
     }

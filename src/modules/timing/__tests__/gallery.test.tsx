@@ -20,6 +20,7 @@ describe('timing gallery entries', () => {
       'nameCard',
       'seriesTiming',
       'seriesAssignment',
+      'completed',
     ]);
     expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-empty']);
     expect(Object.keys(entry('timingSummary').states)).toEqual([
@@ -57,6 +58,7 @@ describe('timing gallery entries', () => {
       'completion-on',
       'offline',
     ]);
+    expect(Object.keys(entry('completed').states)).toEqual(['completed', 'completed-empty']);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, state, theme, scale) => {
@@ -109,6 +111,8 @@ describe('timing gallery entries', () => {
     ['seriesAssignment', 'completion-off', 'Completado'],
     ['seriesAssignment', 'completion-on', 'Completado'],
     ['seriesAssignment', 'offline', 'Sin conexión. Se guarda en el teléfono.'],
+    ['completed', 'completed', 'Completado sin tiempo'],
+    ['completed', 'completed-empty', 'Aún no hay nadadores'],
   ])('%s / %s shows its content', async (id, state, text) => {
     await render(<ThemeProvider>{entry(id).states[state]()}</ThemeProvider>);
 

@@ -31,6 +31,18 @@ describe('HistoryList', () => {
     expect(screen.toJSON()).toBeNull();
   });
 
+  it('says a result without a sync state is online only', async () => {
+    const { syncState: _syncState, ...withoutState } = { ...byId('race-pb'), origin: 'other_school' as const };
+    await render(
+      <ThemeProvider>
+        <HistoryList results={[withoutState]} />
+      </ThemeProvider>,
+    );
+
+    expect(hiddenText('Solo en línea')).toHaveLength(1);
+    expect(screen.getByLabelText(/Otra escuela, .*Solo en línea$/)).toBeOnTheScreen();
+  });
+
   it('is virtualized: it renders only the first window of a long history', async () => {
     const many = Array.from({ length: 40 }, (_, index) => ({ ...byId('race-pb'), id: `r-${index}` }));
     await render(<HistoryList results={many} />);
@@ -41,28 +53,28 @@ describe('HistoryList', () => {
   });
 
   it.each([
-    ['race-pb', 'Libre 50 m, 18 de octubre de 2026, Competencia, 34 segundos con 82 centésimas, Marca personal'],
-    ['repetition', 'Libre 50 m, 16 de octubre de 2026, Entrenamiento, Rep. 3, 35 segundos con 73 centésimas'],
+    ['race-pb', 'Libre 50 m, 18 de octubre de 2026, Competencia, 34 segundos con 82 centésimas, Marca personal, Enviado'],
+    ['repetition', 'Libre 50 m, 16 de octubre de 2026, Entrenamiento, Rep. 3, 35 segundos con 73 centésimas, Enviado'],
     [
       'series-total',
-      'Libre 200 m, 16 de octubre de 2026, Entrenamiento, Total serie, 2 minutos, 33 segundos con 80 centésimas',
+      'Libre 200 m, 16 de octubre de 2026, Entrenamiento, Total serie, 2 minutos, 33 segundos con 80 centésimas, Enviado',
     ],
-    ['split', 'Libre 100 m, 11 de octubre de 2026, Competencia, Parcial 25 m, 16 segundos con 40 centésimas'],
-    ['completed', 'Espalda 100 m, 9 de octubre de 2026, Entrenamiento, Completado, sin tiempo'],
-    ['missing-time', 'Pecho 50 m, 9 de octubre de 2026, Entrenamiento, Sin registro'],
+    ['split', 'Libre 100 m, 11 de octubre de 2026, Competencia, Parcial 25 m, 16 segundos con 40 centésimas, Enviado'],
+    ['completed', 'Espalda 100 m, 9 de octubre de 2026, Entrenamiento, Completado, sin tiempo, Enviado'],
+    ['missing-time', 'Pecho 50 m, 9 de octubre de 2026, Entrenamiento, Sin registro, Enviado'],
     ['on-device', 'Mariposa 50 m, 24 de octubre de 2026, Entrenamiento, 41 segundos con 20 centésimas, En el teléfono'],
     [
       'not-sent',
       'Combinado 200 m, 24 de octubre de 2026, Entrenamiento, 2 minutos, 42 segundos con 10 centésimas, No enviado',
     ],
-    ['import', 'Mariposa 100 m, 7 de marzo de 2026, Competencia, FEDNAT, 1 minuto, 18 segundos con 55 centésimas'],
+    ['import', 'Mariposa 100 m, 7 de marzo de 2026, Competencia, FEDNAT, 1 minuto, 18 segundos con 55 centésimas, Enviado'],
     [
       'external-timer',
-      'Pecho 100 m, 20 de septiembre de 2026, Entrenamiento, Botón externo, 1 minuto, 22 segundos con 10 centésimas',
+      'Pecho 100 m, 20 de septiembre de 2026, Entrenamiento, Botón externo, 1 minuto, 22 segundos con 10 centésimas, Enviado',
     ],
     [
       'other-school',
-      'Espalda 50 m, 15 de agosto de 2026, Competencia, Otra escuela: Club Acuático Norte, 39 segundos con 5 centésimas',
+      'Espalda 50 m, 15 de agosto de 2026, Competencia, Otra escuela: Club Acuático Norte, 39 segundos con 5 centésimas, Enviado',
     ],
   ])('makes the %s row one accessible element with a composed label', async (id, label) => {
     await render(<HistoryList results={[byId(id)]} />);
@@ -134,21 +146,29 @@ describe('HistoryList', () => {
     expect(hiddenText('MP')).toHaveLength(1);
   });
 
-  it('shows the sync status only when the result is not synced', async () => {
-    await render(<HistoryList results={[byId('race-pb')]} />);
-    expect(screen.queryAllByTestId('sync-status', { includeHiddenElements: true })).toHaveLength(0);
+  it('shows the real sync state of each row, "Enviado" included', async () => {
+    await render(
+      <HistoryList
+        results={[
+          byId('on-device'),
+          { ...byId('repetition'), id: 'sending', syncState: 'sending' },
+          byId('repetition'),
+          byId('not-sent'),
+        ]}
+      />,
+    );
 
-    await render(<HistoryList results={[byId('on-device'), byId('not-sent'), byId('repetition')]} />);
-    expect(screen.queryAllByTestId('sync-status', { includeHiddenElements: true })).toHaveLength(2);
-    expect(hiddenText('En el teléfono')).toHaveLength(1);
-    expect(hiddenText('No enviado')).toHaveLength(1);
+    expect(screen.queryAllByTestId('sync-status', { includeHiddenElements: true })).toHaveLength(4);
+    for (const state of ['En el teléfono', 'Enviando', 'Enviado', 'No enviado']) {
+      expect(hiddenText(state)).toHaveLength(1);
+    }
   });
 
   it('uses the date helper: a malformed date is left out of the label', async () => {
     await render(<HistoryList results={[{ ...byId('race-pb'), date: 'ayer' }]} />);
 
     expect(
-      screen.getByLabelText('Libre 50 m, Competencia, 34 segundos con 82 centésimas, Marca personal'),
+      screen.getByLabelText('Libre 50 m, Competencia, 34 segundos con 82 centésimas, Marca personal, Enviado'),
     ).toBeOnTheScreen();
   });
 

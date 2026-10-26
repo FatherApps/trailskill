@@ -8,9 +8,16 @@ import { SessionGate } from '../app/_layout';
 import { colors, ThemeProvider } from '../core/theme';
 
 // Avoid loading the native PowerSync database and the ESM-only @powersync/react.
-jest.mock('../core/sync', () => ({ db: {} }));
+jest.mock('../core/sync', () => ({ db: {}, useGlobalSyncSummary: () => ({ lastSyncedAt: null }) }));
 jest.mock('@powersync/react', () => ({ PowerSyncContext: { Provider: ({ children }: { children: unknown }) => children } }));
 jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn(), hideAsync: jest.fn() }));
+
+// Expiry of the registration draft is the accounts module's job; the root only calls it when the app opens.
+const mockDiscardStaleDraft = jest.fn().mockResolvedValue(undefined);
+jest.mock('../modules/accounts', () => ({
+  ...jest.requireActual('../modules/accounts'),
+  discardStaleDraft: () => mockDiscardStaleDraft(),
+}));
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ default: jest.fn() }));
 // expo-router brings its own provider, so insets are mocked to be non-zero on every side.
@@ -47,6 +54,8 @@ const routes = {
 };
 
 describe('session gate', () => {
+  beforeEach(() => mockDiscardStaleDraft.mockClear());
+
   it('sends a visitor without session to the sign-in screen', async () => {
     setSession(null);
     await renderRouter(routes, { initialUrl: '/' });
@@ -81,6 +90,14 @@ describe('session gate', () => {
     await act(async () => setSession(null));
 
     expect(await screen.findByText('sign-in')).toBeOnTheScreen();
+  });
+
+  it('drops a registration draft that went stale, once, when the app opens', async () => {
+    setSession(null);
+    await renderRouter(routes, { initialUrl: '/' });
+    await screen.findByText('sign-in');
+
+    expect(mockDiscardStaleDraft).toHaveBeenCalledTimes(1);
   });
 
   describe('root container', () => {

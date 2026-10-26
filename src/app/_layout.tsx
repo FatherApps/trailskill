@@ -18,8 +18,11 @@ import { i18n } from '../core/i18n';
 import { SessionProvider, useSession } from '../core/session';
 import { db } from '../core/sync';
 import { ThemeProvider, useTheme } from '../core/theme';
+import { createSecureStoreRegistrationDraftRepository, discardStaleDraft } from '../modules/accounts';
 
 SplashScreen.preventAutoHideAsync();
+
+const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 
 // Guarded groups redirect on their own when the session changes: no navigation calls in the auth flow.
 // redirectTo is needed for a cold start: without it the guarded "/" is an unmatched route.
@@ -27,6 +30,11 @@ export function SessionGate() {
   const { session } = useSession();
   const { name, colors } = useTheme();
   const insets = useSafeAreaInsets();
+
+  // A registration draft older than 24 hours goes away when the app opens.
+  useEffect(() => {
+    discardStaleDraft(registrationDrafts).catch(() => {});
+  }, []);
 
   // The bars are translucent (edge-to-edge): this padding keeps every screen out from under them.
   return (

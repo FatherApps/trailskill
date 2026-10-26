@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import { createStore, openDatabase, type FakeDatabase } from '../../../core/sync/testing/fakeDatabase';
-import { createInMemoryTrainingPlanRepository, createPowerSyncTrainingPlanRepository } from '..';
+import { BlockHasFulfillmentError, createInMemoryTrainingPlanRepository, createPowerSyncTrainingPlanRepository } from '..';
 import type { Plan, PlanBlock, TrainingPlanRepository } from '..';
 
 // Same setup as the measurement repository test: the real database is replaced by the SQLite-backed
@@ -21,11 +21,13 @@ jest.mock('../../../core/sync', () => ({
 
 const TABLES = `
   CREATE TABLE training_plans (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, school_id TEXT, name TEXT, is_template INTEGER);
-  CREATE TABLE training_plan_versions (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, plan_id TEXT, version INTEGER);
+  CREATE TABLE training_plan_versions (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, plan_id TEXT, version INTEGER, complete INTEGER, assigned INTEGER);
   CREATE TABLE training_plan_blocks (
     id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, version_id TEXT, position INTEGER, repetitions INTEGER,
     distance TEXT, stroke TEXT, drill TEXT, equipment TEXT, send_off_seconds INTEGER, phase TEXT, recording TEXT
   );
+  CREATE TABLE training_plan_assignments (id TEXT PRIMARY KEY, plan_id TEXT, version_id TEXT, withdrawn_at TEXT);
+  CREATE TABLE training_plan_fulfillments (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, assignment_id TEXT, block_id TEXT, status TEXT);
 `;
 
 let removeStore: (() => void) | undefined;
@@ -330,5 +332,38 @@ describe('PowerSync training plan repository', () => {
 
     await expect(repository.get('p1')).resolves.toEqual(before);
     expect(pendingWrites()).toEqual(queued);
+  });
+
+  describe('a removed block that already has a local mark', () => {
+    const mark = (blockId: string) => {
+      const seed = new DatabaseSync(storePath);
+      seed.prepare("INSERT INTO training_plan_fulfillments (id, block_id, status) VALUES ('f1', ?, 'done')").run(blockId);
+      seed.close();
+    };
+
+    it('rejects with BlockHasFulfillmentError and writes nothing', async () => {
+      const repository = createPowerSync();
+      await repository.save(plan('p1'));
+      const before = await repository.get('p1');
+      const queued = pendingWrites();
+      mark('b2');
+
+      await expect(repository.save(plan('p1', { name: 'Renamed', blocks: [block('b1'), block('b3')] }))).rejects.toBeInstanceOf(
+        BlockHasFulfillmentError,
+      );
+
+      await expect(repository.get('p1')).resolves.toEqual(before);
+      expect(pendingWrites()).toEqual(queued);
+    });
+
+    it('still saves when the marked block is kept', async () => {
+      const repository = createPowerSync();
+      await repository.save(plan('p1'));
+      mark('b1');
+
+      await repository.save(plan('p1', { blocks: [block('b1'), block('b3')] }));
+
+      expect((await repository.get('p1'))?.blocks.map((b) => b.id)).toEqual(['b1', 'b3']);
+    });
   });
 });

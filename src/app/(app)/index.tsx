@@ -1,15 +1,25 @@
 import { Link, router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
-import { Button, ConfirmSheet, SyncStatus } from '../../core/ui';
-import { createPowerSyncStaffSchoolRepository, useAdminSchool } from '../../modules/school-console';
+import { Button, ConfirmSheet, SwimmerRow, SyncStatus } from '../../core/ui';
+import {
+  createPowerSyncManagedAthleteRepository,
+  createSecureStorePendingInvitationRepository,
+  createSecureStoreRegistrationDraftRepository,
+} from '../../modules/accounts';
+import { athleteDisplay, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
+import { createPowerSyncStaffSchoolRepository, useAdminSchool, useStaffSchool } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
+const managedAthletes = createPowerSyncManagedAthleteRepository();
+const schoolAthletes = createPowerSyncSchoolAthleteRepository();
+const registrationDrafts = createSecureStoreRegistrationDraftRepository();
+const pendingInvitations = createSecureStorePendingInvitationRepository();
 
 export default function Home() {
   const { syncConnectFailed, signOut, session } = useSession();
@@ -21,21 +31,10 @@ export default function Home() {
     failed: summary.failed > 0,
     uploading: summary.uploading,
   });
-  const [isStaff, setIsStaff] = useState(false);
   const lastSyncedAt = summary.lastSyncedAt?.getTime();
-  // Memberships arrive with a sync, so the lookup runs again when one completes. A failure keeps the button hidden.
-  useEffect(() => {
-    let active = true;
-    if (userId) {
-      staffSchools
-        .listStaffSchools(userId)
-        .then((schools) => active && setIsStaff(schools.length > 0))
-        .catch(() => {});
-    }
-    return () => {
-      active = false;
-    };
-  }, [userId, lastSyncedAt]);
+  // Memberships and managed athletes arrive with a sync, so each lookup runs again when one completes.
+  const isStaff = useStaffSchool(staffSchools, userId, lastSyncedAt).status === 'staff';
+  const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, lastSyncedAt);
   const isAdmin = useAdminSchool(staffSchools, userId, lastSyncedAt).status === 'admin';
   const [blocked, setBlocked] = useState<{ unsent: number; rejected: number }>();
   const [signingOut, setSigningOut] = useState(false);
@@ -53,6 +52,8 @@ export default function Home() {
     try {
       const result = await (force ? signOut({ force }) : signOut());
       if (result.status === 'blocked_pending') setBlocked(result);
+      // The next person on this phone must not find a registration someone left half done, nor an invitation token queued for it.
+      else await Promise.all([registrationDrafts.clear(), userId ? pendingInvitations.clear(userId) : undefined].map((cleared) => cleared?.catch(() => {})));
     } catch {
       setSignOutFailed(true);
     } finally {
@@ -76,6 +77,28 @@ export default function Home() {
       <Text>{t('home.title')}</Text>
       <SyncStatus state={state} />
       {syncConnectFailed && <Text accessibilityLiveRegion="polite">{t('sync.connect_failed')}</Text>}
+      {managed.status === 'ready' &&
+        managed.athletes.map((athlete, index) => {
+          const { shortName, initials, color } = athleteDisplay(athlete, index);
+          return (
+            <SwimmerRow
+              key={athlete.id}
+              name={shortName}
+              initials={initials}
+              color={color}
+              detail=""
+              chevron
+              onPress={() => router.push(`/athletes/${athlete.id}`)}
+            />
+          );
+        })}
+      {managed.status === 'ready' && managed.athletes.length > 0 && <Button label={t('training_plans.today.title')} onPress={() => router.push('/today')} />}
+      {managed.status === 'ready' && managed.athletes.length > 0 && (
+        <Button variant="secondary" label={t('accounts.authorizations.title')} onPress={() => router.push('/authorizations')} />
+      )}
+      {isStaff && <Button label={t('home.timing')} onPress={() => router.push('/timing')} />}
+      {isStaff && <Button label={t('home.timing_series')} onPress={() => router.push('/timing?mode=series')} />}
+      {isStaff && <Button label={t('home.timing_completed')} onPress={() => router.push('/timing?mode=completed')} />}
       {isStaff && <Button label={t('home.plans')} onPress={() => router.push('/plans')} />}
       {isAdmin && <Button label={t('home.console')} onPress={() => router.push('/console')} />}
       <Button variant="secondary" label={t('session.sign_out')} onPress={() => signOutWith(false)} loading={signingOut} />

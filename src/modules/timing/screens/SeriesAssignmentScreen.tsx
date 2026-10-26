@@ -1,11 +1,13 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
+import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
-import { Button, SwimmerRow, TimeValue, type SwimmerRowProps } from '../../../core/ui';
+import { Banner, Button, SwimmerRow, SyncStatus, type SwimmerRowProps } from '../../../core/ui';
 import { useLargeText } from '../components/ActionRow';
+import { CompletionRow } from '../components/CompletionRow';
 import { NameCard } from '../components/NameCard';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { TimingHeader } from '../components/TimingHeader';
@@ -20,13 +22,16 @@ export type AssignmentAthlete = {
   detail?: string;
 };
 
-export type AssignmentPosition = { position: number; time: Hundredths; athleteId: string | null };
+// `time` is null for an arrival saved without one (never 0). `syncState` is the arrival's own state; without it no pill is drawn.
+export type AssignmentPosition = { position: number; time: Hundredths | null; athleteId: string | null; syncState?: RecordSyncState };
 
 export type SeriesAssignmentScreenProps = {
   // In arrival order. A position without an athlete stays in the list as "por asignar".
   positions: AssignmentPosition[];
   athletes: AssignmentAthlete[];
   eventSubtitle: string;
+  // The position the next card goes to, when it is not the first one without an athlete (for example a reopened one).
+  highlightedPosition?: number | null;
   // Assigns the athlete to the highlighted position (the first one without an athlete).
   onAssign: (athleteId: string) => void;
   // Opens an assigned position again.
@@ -34,6 +39,8 @@ export type SeriesAssignmentScreenProps = {
   onSave: () => void;
   onBack: () => void;
   offline?: boolean;
+  // Why the last tap on a card did not go through; absent when there is nothing to say.
+  error?: string;
   // Work that only records completion: one switch per athlete instead of times.
   completionOnly?: boolean;
   completedIds?: string[];
@@ -42,52 +49,17 @@ export type SeriesAssignmentScreenProps = {
 
 const noop = () => {};
 
-function CompletionRow({
-  athlete,
-  checked,
-  onToggle,
-}: {
-  athlete: AssignmentAthlete;
-  checked: boolean;
-  onToggle: () => void;
-}) {
-  const { space } = useTheme();
-
-  return (
-    <View>
-      <SwimmerRow name={athlete.shortName} initials={athlete.initials} color={athlete.color} detail={athlete.detail ?? ''} />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3], padding: space[4] }}>
-        {/* The Pressable is the switch; the Button only draws it (core has no switch component). */}
-        <Pressable
-          accessibilityRole="switch"
-          accessibilityLabel={t('timing.series.completed_for', { name: athlete.shortName })}
-          accessibilityState={{ checked }}
-          onPress={onToggle}
-        >
-          <View
-            pointerEvents="none"
-            importantForAccessibility="no-hide-descendants"
-            accessibilityElementsHidden
-          >
-            <Button variant="secondary" label={t('timing.series.completed')} onPress={noop} />
-          </View>
-        </Pressable>
-        {/* A completion has no time: null never prints 0,00. */}
-        {checked && <TimeValue value={null} completed />}
-      </View>
-    </View>
-  );
-}
-
 export function SeriesAssignmentScreen({
   positions,
   athletes,
   eventSubtitle,
+  highlightedPosition,
   onAssign,
   onReopen,
   onSave,
   onBack,
   offline = false,
+  error,
   completionOnly = false,
   completedIds = [],
   onToggleCompleted = noop,
@@ -96,7 +68,8 @@ export function SeriesAssignmentScreen({
   const large = useLargeText();
 
   // Always the first position without an athlete, as in the series rules.
-  const highlighted = positions.find((p) => p.athleteId === null) ?? null;
+  const highlighted =
+    (highlightedPosition === undefined ? positions.find((p) => p.athleteId === null) : positions.find((p) => p.position === highlightedPosition)) ?? null;
   const athleteById = (id: string | null) => athletes.find((a) => a.id === id);
   const listStyle = { backgroundColor: colors['surface-1'], borderRadius: radius.md, overflow: 'hidden' } as const;
   const separator = { borderBottomWidth: 1, borderBottomColor: colors.border } as const;
@@ -104,9 +77,16 @@ export function SeriesAssignmentScreen({
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       <TimingHeader title={t('timing.series.assign_title')} subtitle={eventSubtitle} onBack={onBack} />
-      {offline && (
-        <View style={{ paddingHorizontal: space[4] }}>
-          <OfflineBanner />
+      {(offline || error) && (
+        <View style={{ paddingHorizontal: space[4], gap: space[2] }}>
+          {offline && <OfflineBanner />}
+          {error && (
+            <View accessibilityLiveRegion="polite">
+              <Banner variant="warn" icon="error">
+                {error}
+              </Banner>
+            </View>
+          )}
         </View>
       )}
       {/* Android needs nestedScrollEnabled for this list to scroll when hosted inside another ScrollView (e.g. the dev gallery preview). */}
@@ -158,6 +138,7 @@ export function SeriesAssignmentScreen({
                         color={athlete.color}
                         detail={t('timing.series.position_n', { position: p.position })}
                         time={p.time}
+                        status={p.syncState && <SyncStatus state={p.syncState} />}
                         selected={highlighted?.position === p.position}
                         onPress={() => onReopen(p.position)}
                       />
@@ -169,6 +150,7 @@ export function SeriesAssignmentScreen({
                         detail=""
                         time={p.time}
                         tag={{ label: t('timing.series.unassigned'), variant: 'warn' }}
+                        status={p.syncState && <SyncStatus state={p.syncState} />}
                         selected={highlighted?.position === p.position}
                       />
                     )}

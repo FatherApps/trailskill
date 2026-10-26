@@ -224,3 +224,48 @@ describe('ConsoleLayout', () => {
     expect(JSON.stringify(screen.toJSON())).not.toContain('RCTScrollView');
   });
 });
+
+describe('ConsoleLayout: content that scrolls on its own', () => {
+  it('does not wrap the children in its own scroll view, and still scrolls the detail', async () => {
+    await show(1280, { childrenScroll: true, detail });
+    const json = JSON.stringify(screen.toJSON());
+
+    expect(screen.getByText('Contenido principal')).toBeOnTheScreen();
+    // The only scroll view is the one of the detail panel.
+    expect(json.match(/RCTScrollView/g)).toHaveLength(1);
+    expect(screen.getByText('Contenido del detalle')).toBeOnTheScreen();
+  });
+
+  it('keeps the layout scroll view by default', async () => {
+    await show(1280);
+
+    expect(JSON.stringify(screen.toJSON())).toContain('RCTScrollView');
+  });
+});
+
+describe('ConsoleLayout: sheet', () => {
+  const sheet = { label: 'Filtrar por categoría', content: <Text>Contenido de la hoja</Text>, onClose: jest.fn() };
+
+  it.each([1280, 800, 360])('opens a side sheet over the content at %s dp and hides what is behind it', async (width) => {
+    await show(width, { sheet });
+
+    expect(screen.getByTestId('side-sheet')).toHaveProp('accessibilityLabel', 'Filtrar por categoría');
+    expect(screen.getByText('Contenido de la hoja')).toBeOnTheScreen();
+    expect(screen.queryByText('Contenido principal')).toBeNull();
+    expect(screen.getByText('Contenido principal', hidden)).toBeOnTheScreen();
+  });
+
+  it('closes from Cerrar', async () => {
+    await show(800, { sheet });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+
+    expect(sheet.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no sheet by default', async () => {
+    await show(360);
+
+    expect(screen.queryByTestId('side-sheet')).toBeNull();
+  });
+});

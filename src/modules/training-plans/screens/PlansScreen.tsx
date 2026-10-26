@@ -13,12 +13,13 @@ export type PlansScreenProps = {
   refreshKey?: number;
   onOpenPlan: (id: string) => void;
   onNewPlan: () => void;
+  onAssign?: () => void;
 };
 
 type State = Exclude<PlanListView, { kind: 'data' }> | { kind: 'ready'; templates: PlanSummary[]; plans: PlanSummary[] };
 
 // Container: finds the school, loads its plans from the local repository and creates plans from templates.
-export function PlansScreen({ repository, schools, userId, refreshKey = 0, onOpenPlan, onNewPlan }: PlansScreenProps) {
+export function PlansScreen({ repository, schools, userId, refreshKey = 0, onOpenPlan, onNewPlan, onAssign }: PlansScreenProps) {
   const [view, setView] = useState<State>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [copyingId, setCopyingId] = useState<string>();
@@ -74,6 +75,7 @@ export function PlansScreen({ repository, schools, userId, refreshKey = 0, onOpe
       onNewPlan={onNewPlan}
       onUseTemplate={useTemplate}
       onOpenPlan={onOpenPlan}
+      onAssign={onAssign}
     />
   );
 }

@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
+import { router } from 'expo-router';
+
 import SignIn from '../app/(auth)/sign-in';
 import { CodeMismatchError } from '../core/session';
 
@@ -18,10 +20,19 @@ jest.mock('../core/session', () => ({
   useSession: () => mockSession,
 }));
 
+// A draft waits on this phone: the sign-in must neither read it nor show anything about it before a session exists.
+const mockLoadDraft = jest.fn();
+jest.mock('../modules/accounts', () => ({
+  createSecureStoreRegistrationDraftRepository: () => ({ load: () => mockLoadDraft() }),
+}));
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+
 const email = 'ana@example.com';
 
 beforeEach(() => {
   mockSession.configError = null;
+  mockLoadDraft.mockReset().mockResolvedValue(null);
+  jest.mocked(router.push).mockClear();
   mockSession.requestCode.mockReset().mockResolvedValue(undefined);
   mockSession.verifyCode.mockReset().mockResolvedValue(undefined);
 });
@@ -34,6 +45,24 @@ async function openCodeStep() {
 }
 
 describe('sign-in screen', () => {
+  it('offers to create an account', async () => {
+    await render(<SignIn />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(router.push).toHaveBeenCalledWith('/register');
+  });
+
+  it('never redirects to the registration nor mentions the draft left on the phone', async () => {
+    mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: 'Ana', lastName: 'Mora', email: email });
+    await render(<SignIn />);
+
+    expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
+    expect(screen.queryByText(/Retomar|Empezar de nuevo|ana@example/)).not.toBeOnTheScreen();
+    expect(mockLoadDraft).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it('replaces the form with a not-ready notice when the server is not configured', async () => {
     mockSession.configError = 'Missing EXPO_PUBLIC_SUPABASE_URL';
     await render(<SignIn />);

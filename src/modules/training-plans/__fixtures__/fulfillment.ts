@@ -47,6 +47,8 @@ for (const athlete of athletes) {
 export const fulfillmentFixture = {
   grid,
   manyBlocks: { athletes, blocks: manyBlocks, vocabulary, cells: manyCells } satisfies FulfillmentContent,
+  // Tomás V. has no record_times authorization: shown as "se omitirá" and not markable.
+  skipped: { ...grid, athletes: athletes.map((a) => (a.id === 'a4' ? { ...a, skipped: true } : a)) } satisfies FulfillmentContent,
   noAthletes: { ...grid, athletes: [] } satisfies FulfillmentContent,
   noBlocks: { ...grid, blocks: [] } satisfies FulfillmentContent,
   planName: 'Resistencia aeróbica',

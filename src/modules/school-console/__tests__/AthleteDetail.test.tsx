@@ -20,7 +20,7 @@ describe('AthleteDetail', () => {
     await render(<AthleteDetail athlete={detailFixture} onViewProfile={() => {}} />);
 
     expect(screen.getByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
-    expect(screen.getByLabelText('Infantil B', hidden)).toBeOnTheScreen();
+    expect(screen.getByLabelText('Categoría B', hidden)).toBeOnTheScreen();
     expect(StyleSheet.flatten(screen.getByLabelText('Autorizado', hidden).props.style).backgroundColor).toBe(colors.light['success-bg']);
   });
 
@@ -128,5 +128,33 @@ describe('AthleteDetail', () => {
     const c = colors[theme];
     expect(contrastRatio(c[athleteDetailColors.title], c[athleteDetailColors.background])).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(c[athleteDetailColors.caption], c[athleteDetailColors.background])).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('AthleteDetail with missing data', () => {
+  const missing = { ...detailFixture, guardian: { name: null, contact: null } };
+
+  it('says Sin dato for a guardian name and a contact that are not known, never a blank', async () => {
+    await render(<AthleteDetail athlete={missing} />);
+
+    expect(screen.getAllByText('Sin dato')).toHaveLength(2);
+    expect(screen.queryByText('Paula Gómez')).toBeNull();
+  });
+
+  it('says Sin dato only for the part that is missing', async () => {
+    await render(<AthleteDetail athlete={{ ...detailFixture, guardian: { name: 'Paula Gómez', contact: null } }} />);
+
+    expect(screen.getByText('Paula Gómez')).toBeOnTheScreen();
+    expect(screen.getAllByText('Sin dato')).toHaveLength(1);
+  });
+
+  it('has no profile button without a profile to open, and has it with one', async () => {
+    const onViewProfile = jest.fn();
+    await render(<AthleteDetail athlete={detailFixture} />);
+    expect(screen.queryByRole('button', { name: 'Ver perfil completo' })).toBeNull();
+
+    await screen.rerender(<AthleteDetail athlete={detailFixture} onViewProfile={onViewProfile} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Ver perfil completo' }));
+    expect(onViewProfile).toHaveBeenCalledTimes(1);
   });
 });

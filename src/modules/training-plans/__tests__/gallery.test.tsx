@@ -12,7 +12,7 @@ const cases = galleryEntries.flatMap((e) =>
 
 describe('training-plans gallery entries', () => {
   it('cover the block card, the plan builder, the plan list, the today view and the fulfillment grid', () => {
-    expect(galleryEntries.map((e) => e.id)).toEqual(['blockCard', 'planBuilder', 'planList', 'today', 'fulfillment']);
+    expect(galleryEntries.map((e) => e.id)).toEqual(['blockCard', 'planBuilder', 'planList', 'assignPlan', 'today', 'fulfillment']);
     expect(Object.keys(entry('blockCard').states)).toEqual(['phases', 'recordings']);
     expect(Object.keys(entry('planBuilder').states)).toEqual(['empty', 'blocks', 'editing', 'errors', 'drill', 'removing', 'saved']);
     expect(Object.keys(entry('planList').states)).toEqual(['data', 'empty', 'loading', 'error', 'no-school']);
@@ -28,6 +28,7 @@ describe('training-plans gallery entries', () => {
     expect(Object.keys(entry('fulfillment').states)).toEqual([
       'grid',
       'many-blocks',
+      'skipped',
       'loading',
       'empty-athletes',
       'empty-blocks',
@@ -73,6 +74,7 @@ describe('training-plans gallery entries', () => {
     ['today', 'denied', 'Esta información es privada'],
     ['fulfillment', 'grid', 'Toca una celda para cambiar su estado.'],
     ['fulfillment', 'many-blocks', 'Toca una celda para cambiar su estado.'],
+    ['fulfillment', 'skipped', 'Se omitirá'],
     ['fulfillment', 'loading', 'Cumplimiento · 24 oct'],
     ['fulfillment', 'empty-athletes', 'Aún no hay deportistas en este plan'],
     ['fulfillment', 'empty-blocks', 'Este plan no tiene bloques'],

@@ -1,6 +1,9 @@
 {
   "home": {
     "title": "TrailSkill",
+    "timing": "Toma de tiempos",
+    "timing_series": "Toma en serie",
+    "timing_completed": "Registrar completado",
     "plans": "Planes de entrenamiento",
     "console": "Consola"
   },
@@ -19,7 +22,8 @@
     "verify_failed": "No pudimos revisar el código. Inténtalo de nuevo.",
     "resend": "Pedir un código nuevo",
     "resend_sent": "Te enviamos un código nuevo.",
-    "resend_failed": "No pudimos enviar un código nuevo. Inténtalo de nuevo en un momento."
+    "resend_failed": "No pudimos enviar un código nuevo. Inténtalo de nuevo en un momento.",
+    "create_account": "Crear cuenta"
   },
   "session": {
     "previous_user_title": "¿Descartar los registros de la persona anterior?",

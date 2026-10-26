@@ -10,6 +10,7 @@ import { fulfillmentFixture } from './__fixtures__/fulfillment';
 import { blockErrors, newDraftBlock, type BlockErrors, type DraftBlock } from './draft';
 import { plansFixture } from './__fixtures__/plans';
 import { FulfillmentScreen, type FulfillmentView } from './screens/FulfillmentScreen';
+import { AssignPlanScreen, type AssignPlanView } from './screens/AssignPlanScreen';
 import { PlanBuilderScreen } from './screens/PlanBuilderScreen';
 import { PlanListScreen, type PlanListView } from './screens/PlanListScreen';
 import { TodayScreen, type TodayView } from './screens/TodayScreen';
@@ -97,7 +98,7 @@ function BuilderPreview({
 function TodayPreview({ view }: { view: TodayView }) {
   return (
     <ScreenFrame>
-      <TodayScreen athleteName={athleteName} view={view} onReportToCoach={noop} />
+      <TodayScreen athleteName={athleteName} view={view} onSendNotice={noop} />
     </ScreenFrame>
   );
 }
@@ -131,6 +132,7 @@ function FulfillmentPreview({ view }: { view: FulfillmentView }) {
         dateLabel={fulfillmentFixture.dateLabel}
         view={live}
         onCycle={cycle}
+        onOpenTiming={noop}
       />
     </ScreenFrame>
   );
@@ -143,6 +145,29 @@ function PlanListPreview({ view }: { view: PlanListView }) {
     </ScreenFrame>
   );
 }
+
+function AssignPreview({ view }: { view: AssignPlanView }) {
+  return (
+    <ScreenFrame>
+      <AssignPlanScreen view={view} onPreviousDay={noop} onNextDay={noop} onSelectPlan={noop} onSelectKind={noop} onSelectOption={noop} onAssign={noop} onWithdraw={noop} />
+    </ScreenFrame>
+  );
+}
+
+const assignContent = {
+  dateLabel: 'lunes, 2 de noviembre de 2026',
+  plans: [...planList.plans, ...planList.templates],
+  selectedPlanId: planList.plans[0]?.id ?? null,
+  kinds: ['athlete', 'group', 'category', 'school'] as const,
+  kind: 'group' as const,
+  options: [
+    { id: 'g1', label: 'Grupo A' },
+    { id: 'g2', label: 'Grupo B' },
+  ],
+  selectedOptionId: 'g1',
+  assigned: [{ id: 'a1', planName: planList.plans[0]?.name ?? '', targetLabel: 'Grupo A', athleteCount: 12, canWithdraw: true }],
+  saving: false,
+};
 
 export const galleryEntries: GalleryEntry[] = [
   {
@@ -199,6 +224,18 @@ export const galleryEntries: GalleryEntry[] = [
     },
   },
   {
+    id: 'assignPlan',
+    title: 'AssignPlanScreen',
+    states: {
+      data: () => <AssignPreview view={{ kind: 'data', content: { ...assignContent, kinds: [...assignContent.kinds] } }} />,
+      empty: () => (
+        <AssignPreview
+          view={{ kind: 'data', content: { ...assignContent, kinds: [...assignContent.kinds], selectedPlanId: null, selectedOptionId: null, assigned: [] } }}
+        />
+      ),
+    },
+  },
+  {
     id: 'today',
     title: 'TodayScreen',
     states: {
@@ -217,6 +254,7 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       grid: () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.grid }} />,
       'many-blocks': () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.manyBlocks }} />,
+      skipped: () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.skipped }} />,
       loading: () => <FulfillmentPreview view={{ kind: 'loading' }} />,
       'empty-athletes': () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.noAthletes }} />,
       'empty-blocks': () => <FulfillmentPreview view={{ kind: 'data', content: fulfillmentFixture.noBlocks }} />,

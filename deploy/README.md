@@ -19,8 +19,12 @@ Organization `fatherApps`, project `TrailSkill`.
 
 1. **Supabase**, from the Dokploy Supabase template. The template's default public `sslip.io` domain was removed: the stack has no public domain of its own (see [Public and internal](#public-and-internal)).
    - The database is only on the stack's default network (`<supabase app name>_default`). `migrate` and `powersync` join that network; put its name in `SUPABASE_NETWORK` and use `db` as `SUPABASE_DB_HOST`.
-   - Two internal services were added to the stack's compose in Dokploy:
-     - `mailpit` (`axllent/mailpit:v1.22.3`): development SMTP on port 1025.
+   - Two services were added to the stack's compose in Dokploy:
+     - `mailpit` (`axllent/mailpit:v1.22.3`): test SMTP on port 1025, for the test environment only. Until production email exists (#105), it is how demo accounts get their sign-in code. Its environment is set by the maintainer on the `mailpit` service of that compose in Dokploy; values never go in the repository:
+       - `MP_SMTP_ALLOWED_RECIPIENTS` = `^demo-[a-z]+@example\.test$`: Mailpit accepts email only for `demo-*@example.test` and rejects every other recipient (`550`), so only demo accounts can get a code. Any other account gets `Error sending magic link email`.
+       - `MP_UI_AUTH`: the basic authentication credential for the web UI and API.
+       - Domain `trailskill-mail.tuls.app` on port `8025`, HTTPS off (see [Public and internal](#public-and-internal)). To sign in to a demo account, for example from a test APK, request the code in the app and read it there.
+       - Alternative without publishing it: leave out `MP_UI_AUTH` and the domain. The maintainer reads the code in the internal Mailpit and passes it on, so every demo sign-in depends on the maintainer.
      - `mail-templates` (`busybox:1.37` running `httpd -f -p 8080 -h /www`): serves `../files/mail-templates` read-only. The email template is a Dokploy file mount, `mail-templates/otp.html`, and it contains `{{ .Token }}`.
    - Environment added to the Auth service in that compose:
      - `GOTRUE_MAILER_TEMPLATES_MAGIC_LINK` and `GOTRUE_MAILER_TEMPLATES_CONFIRMATION` = `http://mail-templates:8080/otp.html`
@@ -67,7 +71,7 @@ Set them in the environment of this Compose service in Dokploy.
 | `POWERSYNC_STORAGE_PASSWORD` | required | Password of the PowerSync bucket storage Postgres | Generate; only used here |
 | `SUPABASE_JWT_SECRET` | required | HS256 secret PowerSync uses to verify Supabase tokens | Supabase service (`JWT_SECRET`) |
 | `PS_SYNC_CONFIG_PATH` | `/sync/sync-config.yaml` | Sync config file inside the container | See [Sync config](#sync-config) |
-| `APPLY_SEED` | `false` | `true` applies `supabase/seed.sql` once (development only) | Set by hand |
+| `APPLY_SEED` | `false` | `true` applies the demo data in `supabase/seed.sql` once (see [Demo data](#demo-data)) | Set by hand |
 | `DOKPLOY_NETWORK` | `dokploy-network` | Traefik network, used only so `powersync` can be routed | Change only for tests |
 
 Dokploy writes these variables to `deploy/.env` in the clone, so each service mounts only what it needs: `powersync` mounts `deploy/powersync` (`powersync/sync-config.yaml` is copied into its image; the build context is `powersync/` only), `migrate` gets `deploy/scripts` and `supabase/`. Never mount the repository root.
@@ -90,9 +94,10 @@ Public hostnames (zone `tuls.app`):
 | --- | --- | --- |
 | `trailskill-api.tuls.app` | Supabase `api-gw`, port 8000 | The tunnel rule only allows paths matching `^/(auth\|rest\|storage\|functions\|realtime)/v1/`. Studio (the gateway root) is not reachable (404). |
 | `trailskill-sync.tuls.app` | `powersync`, port 8080 | |
+| `trailskill-mail.tuls.app` | Supabase stack `mailpit`, port 8025 | Test environment only. Mailpit basic authentication (`MP_UI_AUTH`). Holds only `demo-*@example.test` emails (see `MP_SMTP_ALLOWED_RECIPIENTS`). |
 | `trailskill-deploy.tuls.app` | Dokploy panel | Only paths matching `^/api/deploy/` (the GitHub webhook). Everything else is 404. |
 
-Internal only: Dokploy panel, Studio, Postgres, Mailpit, PowerSync storage. Details in ADR 0002.
+Internal only: Dokploy panel, Studio, Postgres, PowerSync storage. Mailpit is public only behind its basic authentication. Details in ADR 0002.
 
 To add or change a public hostname: add a Dokploy domain (HTTPS off), then add a tunnel rule and a proxied CNAME to the tunnel. Insert the rule before the tunnel's final 404 rule. The same tunnel serves other sites, so never replace or reorder its existing rules. Use single-level names (`name.tuls.app`): Cloudflare's free certificate does not cover `a.b.tuls.app`.
 
@@ -103,11 +108,40 @@ On every deploy of `main`, `migrate` runs once before PowerSync starts:
 1. Creates `powersync_role` (`LOGIN REPLICATION BYPASSRLS`) with `POWERSYNC_DB_PASSWORD`. If it exists, only the attributes are updated; the password is set again only when logging in with `POWERSYNC_DB_PASSWORD` fails (so rotating the variable works, and the password is not sent on every deploy).
 2. Applies `supabase/migrations/*.sql` in name order. Names must be `<digits>_<name>.sql`. Each file runs in one transaction together with its record in `supabase_migrations.schema_migrations`, so a failure leaves nothing partial. Applied versions are skipped.
 3. Grants `powersync_role` read access (`SELECT`) on `public`, now and for future tables.
-4. With `APPLY_SEED=true` only (the value must be exactly `true` or `false`), applies `supabase/seed.sql` once (recorded in `supabase_migrations.seed_files`).
+4. With `APPLY_SEED=true` only (the value must be exactly `true` or `false`), applies `supabase/seed.sql` once (recorded by path and hash in `supabase_migrations.seed_files`; see [Demo data](#demo-data)).
 
 If anything fails, `migrate` exits non-zero and PowerSync does not start: the deploy fails and PowerSync stays stopped until a fix is merged (see [Rolling back](#rolling-back)).
 
 PowerSync logs replication errors (`Publication 'powersync' does not exist`) until the foundations migration creates the `powersync` publication.
+
+## Demo data
+
+`supabase/seed.sql` is the demo for development and walkthroughs. Everything in it is invented: a school ("Demo Swim School") with its own organization, hanging from a parent league organization ("Demo Swim League") whose three category templates (`Under 11`, `Under 14`, `Open`) become the school's categories, two groups and ten athletes (each with a category), six weeks of times in two events (so there is history and personal bests), one training plan, and the authorizations in force for two athletes. It has no platform admin account; if a walkthrough needs one, add it later.
+
+| Account | Role | Sees |
+| --- | --- | --- |
+| `demo-coach@example.test` | Coach of Group A | The 5 athletes of Group A, their times, the school's plan |
+| `demo-guardian@example.test` | Guardian of 2 athletes of Group A | Those 2 athletes, their times and authorizations |
+| `demo-admin@example.test` | School administrator | The whole school, including the authorization evidence |
+
+The accounts have no password. They sign in with the email code (Mailpit receives it). The seed creates them directly in `auth.users`, so no Auth admin API call is needed.
+
+The seed is idempotent: every insert uses fixed ids and `on conflict do nothing`, so applying it again adds only what is missing.
+
+**Apply it in Dokploy.** This needs the maintainer; agents do not touch Dokploy or the deployed Auth.
+
+1. Set `APPLY_SEED=true` on the deploy compose and redeploy. `migrate` logs `seed applied supabase/seed.sql`.
+2. Set `APPLY_SEED` back to `false`.
+
+`migrate` records the seed by path and hash. A later change to `seed.sql` is not applied by itself: `migrate` only logs `seed ... changed since it was applied; not re-applied`. To update the demo, delete the row with path `supabase/seed.sql` from `supabase_migrations.seed_files` by hand and redeploy with `APPLY_SEED=true`; the seed only adds what is missing. To start over clean, remove the demo first (below).
+
+**Remove it.** [`supabase/scripts/seed-remove.sql`](../supabase/scripts/seed-remove.sql) deletes the demo school, its organization and the parent league with its category templates, the athletes, times, plans and authorizations (also what people added to that school while trying it) and the three accounts. An athlete who also belongs to another school stays, only unlinked from the demo school. It also deletes the `seed_files` row, so `APPLY_SEED` can apply the demo again. It keeps the authorization texts. It lifts the authorizations delete trigger for one statement, so it must run in one transaction (`psql --single-transaction`) and refuses to run otherwise. From a clone of the repository on the server:
+
+```sh
+docker exec -i <supabase db container> psql -U postgres -d postgres -v ON_ERROR_STOP=1 --single-transaction < supabase/scripts/seed-remove.sql
+```
+
+**Check it locally.** `supabase db reset` (it loads the seed), then `sh supabase/scripts/seed.test.sh`. The script applies the seed again and checks nothing changed, checks what each account sees, checks that `seed-remove.sql` refuses to run outside a transaction, and checks that it removes the demo (inside a rolled-back transaction).
 
 ## Security notes
 

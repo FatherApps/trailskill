@@ -12,7 +12,8 @@ export type AthleteRow = {
   color: SwimmerRowProps['color'];
   category: string;
   group: string;
-  coach: string;
+  // `null` when the coach's name is not known: the console shows "Sin dato", never a guess.
+  coach: string | null;
   authorization: AthleteAuthorization;
   // The personal best of the event the list shows, `null` when there is none (never zero).
   bestTime: Hundredths | null;
@@ -27,13 +28,31 @@ export type AthleteBest = {
   source?: string;
 };
 
+// The category selector of the detail: the choices the admin can make and what happens when one is picked.
+export type CategoryChoice = {
+  // `id: null` clears the category.
+  options: { id: string | null; label: string }[];
+  selectedId: string | null;
+  // Already translated; `null` when the last change worked.
+  error: string | null;
+  onChoose: (categoryId: string | null) => void;
+};
+
 export type AthleteDetailData = {
   id: string;
   name: string;
   category: string;
   authorization: AthleteAuthorization;
-  guardian: { name: string; contact: string };
+  // `null` for each part that is not known: the console shows "Sin dato".
+  guardian: { name: string | null; contact: string | null };
   bests: AthleteBest[];
+  // The bests could not be read: not the same as an athlete with no times.
+  bestsError?: boolean;
+  // Absent while the console has no categories to choose from: the detail only shows the category tag.
+  categoryChoice?: CategoryChoice;
 };
 
 export type AthleteFilterId = 'category' | 'group' | 'coach';
+
+// The chips of the measurement log: the date range is one of a few presets.
+export type MeasurementFilterId = 'category' | 'event' | 'coach' | 'range';

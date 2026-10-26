@@ -130,6 +130,55 @@ describe('SeriesAssignmentScreen', () => {
     expect(screen.getAllByText('por asignar', hidden)).toHaveLength(4);
   });
 
+  it('highlights the position it is told to, even with an earlier one still open', async () => {
+    await renderScreen({ positions: firstAndThirdOpen, highlightedPosition: 3 });
+
+    expect(isSelected(3)).toBe(true);
+    expect(isSelected(1)).toBe(false);
+  });
+
+  it('shows why a tap did not go through, only when there is something to say', async () => {
+    await renderScreen({ error: 'No pudimos guardar ese nombre. Toca la tarjeta de nuevo.' });
+    expect(screen.getByText('No pudimos guardar ese nombre. Toca la tarjeta de nuevo.')).toBeOnTheScreen();
+  });
+
+  it('shows no error notice by default', async () => {
+    await renderScreen();
+    expect(screen.queryByText(/No pudimos guardar/)).toBeNull();
+  });
+
+  it('shows the all-assigned message when the highlight is none', async () => {
+    await renderScreen({ positions: snapshots.pending, highlightedPosition: null });
+
+    expect(screen.getByText('Todas las posiciones tienen nombre.')).toBeOnTheScreen();
+  });
+
+  it('draws the sync state of each arrival, assigned or not', async () => {
+    await renderScreen({
+      positions: [
+        { position: 1, time: 3100, athleteId: athletes[0]!.id, syncState: 'synced' },
+        { position: 2, time: 3300, athleteId: null, syncState: 'on_device' },
+      ],
+    });
+
+    expect(screen.getByLabelText('Enviado')).toBeOnTheScreen();
+    expect(screen.getByLabelText('En el teléfono')).toBeOnTheScreen();
+  });
+
+  it('draws no pill for an arrival without a known state', async () => {
+    await renderScreen();
+
+    expect(screen.queryByLabelText('Enviado')).toBeNull();
+    expect(screen.queryByLabelText('En el teléfono')).toBeNull();
+  });
+
+  it('shows a missing time as a dash, never 0,00', async () => {
+    await renderScreen({ positions: [{ position: 1, time: null, athleteId: null }] });
+
+    expect(screen.queryByText(/0,00/, hidden)).toBeNull();
+    expect(screen.getByTestId('highlighted-stat')).toHaveTextContent(/—/);
+  });
+
   it('shows the all-assigned message instead of a highlighted position', async () => {
     await renderScreen({ positions: snapshots.all });
 
@@ -163,7 +212,7 @@ describe('SeriesAssignmentScreen', () => {
   it('saves the series with the only lime action', async () => {
     const { onSave } = await renderScreen();
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Guardar serie' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Listo' }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
   });
@@ -178,7 +227,7 @@ describe('SeriesAssignmentScreen', () => {
     const scroll = node;
     const list = within(scroll);
 
-    expect(list.queryByRole('button', { name: 'Guardar serie' })).toBeNull();
+    expect(list.queryByRole('button', { name: 'Listo' })).toBeNull();
     for (const label of ['Mateo C., en la posición 1', 'Lucía R., en la posición 2', 'Asignar a Sara P.', 'Asignar a Tomás V.']) {
       expect(list.getByRole('button', { name: label })).toBeOnTheScreen();
     }
@@ -208,6 +257,7 @@ describe('SeriesAssignmentScreen', () => {
       await renderScreen({ ...completionProps, completedIds: [] });
 
       for (const toggle of screen.getAllByRole('switch')) expect(toggle).not.toBeChecked();
+      expect(screen.getAllByLabelText('Sin registro', hidden)).toHaveLength(4);
       expect(screen.queryByText('0,00', { exact: false, ...hidden })).toBeNull();
     });
 

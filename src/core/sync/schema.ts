@@ -5,17 +5,18 @@ const audit = { created_at: column.text, created_by: column.text };
 
 export const AppSchema = new Schema({
   schools: new Table({ ...audit, name: column.text }),
-  categories: new Table({ ...audit, school_id: column.text, name: column.text, sort_order: column.integer }),
+  categories: new Table({ ...audit, school_id: column.text, name: column.text, sort_order: column.integer, active: column.integer }),
   training_groups: new Table({ ...audit, school_id: column.text, name: column.text }),
   school_memberships: new Table({ ...audit, school_id: column.text, user_id: column.text, role: column.text }),
   coach_group_assignments: new Table({ ...audit, coach_user_id: column.text, group_id: column.text }),
-  coach_athlete_assignments: new Table({ ...audit, coach_user_id: column.text, athlete_id: column.text }),
+  coach_athlete_assignments: new Table({ ...audit, school_id: column.text, coach_user_id: column.text, athlete_id: column.text }),
   athletes: new Table({ ...audit, first_name: column.text, last_name: column.text }),
   athlete_schools: new Table({ ...audit, athlete_id: column.text, school_id: column.text, category_id: column.text }),
   athlete_groups: new Table({ ...audit, athlete_id: column.text, group_id: column.text }),
   athlete_managers: new Table({ ...audit, user_id: column.text, athlete_id: column.text, relation: column.text }),
   timing_series: new Table({
     ...audit,
+    school_id: column.text,
     device_id: column.text,
     stroke: column.text,
     distance: column.text,
@@ -25,6 +26,7 @@ export const AppSchema = new Schema({
   measurements: new Table(
     {
       ...audit,
+      school_id: column.text,
       device_id: column.text,
       kind: column.text,
       athlete_id: column.text,
@@ -45,6 +47,9 @@ export const AppSchema = new Schema({
       edited_at: column.text,
       edited_device_id: column.text,
       edit_reason: column.text,
+      // "Deshacer última" (issue #50): the author discards an unassigned series arrival once; the row stays and every read leaves it out.
+      discarded_at: column.text,
+      discarded_by: column.text,
     },
     { indexes: { series: ['series_id'] } },
   ),
@@ -59,7 +64,9 @@ export const AppSchema = new Schema({
     { indexes: { school: ['school_id'] } },
   ),
   training_plan_versions: new Table(
-    { ...audit, plan_id: column.text, version: column.integer },
+    // SQLite has no boolean. complete is 0 while the version is being written and 1 once its blocks are all there (NULL on an old row means 1);
+    // assigned is set by the server once an assignment references the version (NULL means 0) and is never written by the app.
+    { ...audit, plan_id: column.text, version: column.integer, complete: column.integer, assigned: column.integer },
     { indexes: { plan: ['plan_id'] } },
   ),
   training_plan_blocks: new Table(
@@ -78,6 +85,52 @@ export const AppSchema = new Schema({
       recording: column.text,
     },
     { indexes: { version: ['version_id'] } },
+  ),
+  training_plan_assignments: new Table(
+    {
+      ...audit,
+      school_id: column.text,
+      plan_id: column.text,
+      version_id: column.text,
+      session_date: column.text,
+      target: column.text,
+      athlete_id: column.text,
+      group_id: column.text,
+      category_id: column.text,
+      withdrawn_at: column.text,
+      withdrawn_by: column.text,
+    },
+    { indexes: { version: ['version_id'], school: ['school_id'] } },
+  ),
+  // Append-only marks, one new row per mark.
+  training_plan_fulfillments: new Table(
+    {
+      ...audit,
+      device_id: column.text,
+      assignment_id: column.text,
+      version_id: column.text,
+      block_id: column.text,
+      athlete_id: column.text,
+      status: column.text,
+      completed_repetitions: column.integer,
+      series_id: column.text,
+      captured_at: column.text,
+      // SQLite has no boolean: hidden is 1 for a mark stored after an authorization withdrawal, 0 otherwise.
+      hidden: column.integer,
+    },
+    { indexes: { assignment: ['assignment_id'], block: ['block_id'] } },
+  ),
+  // Append-only notes of a guardian or adult athlete about an assignment's plan (block_id null) or one of its blocks.
+  training_plan_notices: new Table(
+    {
+      ...audit,
+      athlete_id: column.text,
+      assignment_id: column.text,
+      version_id: column.text,
+      block_id: column.text,
+      body: column.text,
+    },
+    { indexes: { athlete: ['athlete_id'], assignment: ['assignment_id'] } },
   ),
   authorization_texts: new Table({
     ...audit,

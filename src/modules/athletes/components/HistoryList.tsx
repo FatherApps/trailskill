@@ -36,7 +36,8 @@ export type HistoryResult = {
   // Completed without a time (only with `time` null).
   completed?: boolean;
   isPersonalBest?: boolean;
-  syncState: RecordSyncState;
+  // Absent for a result that is never stored on the device (another school's): the row says it is online only.
+  syncState?: RecordSyncState;
 };
 
 export type HistoryListProps = {
@@ -119,7 +120,6 @@ function HistoryRow({ result }: { result: HistoryResult }) {
   const origin = originTag(result);
   const shortDate = formatDate(result.date, 'short');
   const longDate = formatDate(result.date, 'long');
-  const synced = result.syncState === 'synced';
 
   // A malformed date is left out rather than shown wrong.
   const meta = [shortDate, context, value].filter(Boolean).join(' · ');
@@ -137,7 +137,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
     origin?.label,
     spokenResult,
     result.time !== null && result.isPersonalBest ? t('time_value.pb_spoken') : null,
-    synced ? null : t(`sync.${result.syncState}`),
+    result.syncState ? t(`sync.${result.syncState}`) : t('athletes.history.online_only'),
   ]
     .filter(Boolean)
     .join(', ');
@@ -173,7 +173,11 @@ function HistoryRow({ result }: { result: HistoryResult }) {
           completed={result.completed}
           newPersonalBest={result.isPersonalBest}
         />
-        {!synced && <SyncStatus state={result.syncState} />}
+        {result.syncState ? (
+          <SyncStatus state={result.syncState} />
+        ) : (
+          <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{t('athletes.history.online_only')}</Text>
+        )}
       </View>
     </View>
   );

@@ -698,6 +698,52 @@ describe('SupabaseConnector.uploadData', () => {
       });
     });
 
+    describe('a fulfillment mark hidden after a withdrawal', () => {
+      const mark = () =>
+        entry('PUT', 'f1', { assignment_id: 'a1', block_id: 'b1', athlete_id: 'at1', status: 'done', captured_at: '2026-10-06T08:00:00.000Z', series_id: null }, 'training_plan_fulfillments');
+      const markRetry = (rpc: RpcResult) => setup({ upsert: empty, readBack: empty, rpc });
+
+      it('a retry confirmed as stored is a success, not no_rows_affected', async () => {
+        const t = markRetry({ data: 'stored', error: null });
+        await t.connector.uploadData(t.database([mark()]));
+
+        expect(failureInserts(t.committed)).toHaveLength(0);
+        expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['training_plan_fulfillments', 'f1']]);
+        expect(t.complete).toHaveBeenCalledTimes(1);
+      });
+
+      it('asks confirm_training_plan_fulfillment_insert with the values sent, without the null series_id', async () => {
+        const t = markRetry({ data: 'stored', error: null });
+        await t.connector.uploadData(t.database([mark()]));
+
+        expect(t.rpc).toHaveBeenCalledWith('confirm_training_plan_fulfillment_insert', {
+          payload: { id: 'f1', assignment_id: 'a1', block_id: 'b1', athlete_id: 'at1', status: 'done', captured_at: '2026-10-06T08:00:00.000Z' },
+        });
+      });
+
+      it('absent: no_rows_affected is recorded', async () => {
+        const t = markRetry({ data: 'absent', error: null });
+        await t.connector.uploadData(t.database([mark()]));
+
+        expect(failureInserts(t.committed).map(([, params]) => params[4])).toEqual(['no_rows_affected']);
+      });
+    });
+
+    describe('a training plan notice', () => {
+      const notice = () =>
+        entry('PUT', 'n1', { created_at: '2026-10-25T10:00:00.000Z', created_by: 'u1', athlete_id: 'at1', assignment_id: 'a1', version_id: 'v1', block_id: null, body: 'Test note 1' }, 'training_plan_notices');
+
+      it('a retry inserts with ignore-duplicates and is confirmed against the stored row without created_at and created_by, which the server sets', async () => {
+        const t = setup({ upsert: empty, readBack: ok });
+        await t.connector.uploadData(t.database([notice()]));
+
+        expect(t.upsert.mock.calls[0][1]).toEqual({ onConflict: 'id', ignoreDuplicates: true });
+        expect(t.readQueries).toEqual([[['id', 'n1'], ['athlete_id', 'at1'], ['assignment_id', 'a1'], ['version_id', 'v1'], ['body', 'Test note 1']]]);
+        expect(failureInserts(t.committed)).toHaveLength(0);
+        expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([['training_plan_notices', 'n1']]);
+      });
+    });
+
     describe('a measurement hidden after a withdrawal (issue 206)', () => {
       // Stored hidden, the author cannot read it back: the insert returns no row and the read-back finds nothing.
       const hidden = () =>
@@ -832,6 +878,103 @@ describe('SupabaseConnector.uploadData', () => {
         expect(t.rpc).toHaveBeenCalledWith('confirm_measurement_insert', { payload: { id: 'm1', kind: 'repetition', hundredths: 3150 } });
         expect(failureInserts(t.committed)).toHaveLength(0);
       });
+    });
+  });
+
+  describe('a managed athlete created offline (issue 42)', () => {
+    const athlete = (clientId = 1) => entry('PUT', 'a1', { first_name: 'Ana', last_name: 'Lopez' }, 'athletes', clientId);
+    const link = (clientId = 2, athleteId = 'a1') =>
+      entry('PUT', 'm1', { user_id: 'u1', athlete_id: athleteId, relation: 'guardian' }, 'athlete_managers', clientId);
+    const payload = {
+      athlete: { id: 'a1', first_name: 'Ana', last_name: 'Lopez' },
+      manager: { id: 'm1', user_id: 'u1', athlete_id: 'a1', relation: 'guardian' },
+    };
+
+    it('sends the athlete and its link as one call, without writing either table', async () => {
+      const t = setup({ rpc: { data: 'stored', error: null } });
+      await t.connector.uploadData(t.database([athlete(), link()]));
+
+      expect(t.rpc).toHaveBeenCalledTimes(1);
+      expect(t.rpc).toHaveBeenCalledWith('create_managed_athlete', { payload });
+      expect(t.from).not.toHaveBeenCalled();
+      expect(t.complete).toHaveBeenCalledTimes(1);
+      expect(failureInserts(t.committed)).toHaveLength(0);
+      expect(pendingDeletes(t.committed).map(([, params]) => params)).toEqual([
+        ['athletes', 'a1'],
+        ['athlete_managers', 'm1'],
+      ]);
+    });
+
+    it('pairs the link with its athlete even when the link comes first', async () => {
+      const t = setup({ rpc: { data: 'stored', error: null } });
+      await t.connector.uploadData(t.database([link(1), athlete(2)]));
+
+      expect(t.rpc).toHaveBeenCalledTimes(1);
+      expect(t.rpc).toHaveBeenCalledWith('create_managed_athlete', { payload });
+      expect(t.from).not.toHaveBeenCalled();
+    });
+
+    it('records insert_only_changed for both ops when the server answers changed', async () => {
+      const t = setup({ rpc: { data: 'changed', error: null } });
+      await t.connector.uploadData(t.database([athlete(), link()]));
+
+      const inserts = failureInserts(t.committed);
+      expect(inserts.map(([, params]) => [params[0], params[1], params[4]])).toEqual([
+        ['athletes', 'a1', 'insert_only_changed'],
+        ['athlete_managers', 'm1', 'insert_only_changed'],
+      ]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('records a permanent rejection for both ops and advances the queue', async () => {
+      const t = setup({ rpc: { data: null, error: { code: '23505', message: 'one self profile' } } });
+      await t.connector.uploadData(t.database([athlete(), link()]));
+
+      expect(t.rpc).toHaveBeenCalledTimes(1);
+      expect(failureInserts(t.committed).map(([, params]) => [params[0], params[1], params[4]])).toEqual([
+        ['athletes', 'a1', '23505'],
+        ['athlete_managers', 'm1', '23505'],
+      ]);
+      expect(t.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries a transient error with the usual wait and leaves local state untouched', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code: '40001', message: 'serialization failure' };
+      const t = setup({ rpc: { data: null, error } }, { sleep });
+
+      await expect(t.connector.uploadData(t.database([athlete(), link()]))).rejects.toBe(error);
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000]);
+      expect(t.writeTransaction).not.toHaveBeenCalled();
+      expect(t.complete).not.toHaveBeenCalled();
+    });
+
+    it('counts the pair as one attempt chain before giving up', async () => {
+      const sleep = jest.fn().mockResolvedValue(undefined);
+      const error = { code: '42P01', message: 'relation does not exist' };
+      const t = setup({ rpc: { data: null, error } }, { sleep, maxAttempts: 2 });
+
+      await expect(t.connector.uploadData(t.database([athlete(), link()]))).rejects.toBe(error);
+      await expect(t.connector.uploadData(t.database([athlete(), link()]))).resolves.toBeUndefined();
+
+      expect(t.rpc).toHaveBeenCalledTimes(2);
+      expect(failureInserts(t.committed).map(([, params]) => [params[0], params[4]])).toEqual([
+        ['athletes', '42P01'],
+        ['athlete_managers', '42P01'],
+      ]);
+    });
+
+    it.each([
+      ['an athlete without its link', [athlete()], ['athletes']],
+      ['a link without its athlete', [link()], ['athlete_managers']],
+      ['a link of another athlete', [athlete(), link(2, 'other')], ['athletes', 'athlete_managers']],
+      ['a PATCH of the athlete', [entry('PATCH', 'a1', { first_name: 'Ana' }, 'athletes', 1), link()], ['athletes', 'athlete_managers']],
+    ])('keeps the table upload for %s', async (_name, crud, tables) => {
+      const t = setup();
+      await t.connector.uploadData(t.database(crud));
+
+      expect(t.rpc).not.toHaveBeenCalled();
+      expect(t.from.mock.calls.map(([table]) => table)).toEqual(tables);
     });
   });
 

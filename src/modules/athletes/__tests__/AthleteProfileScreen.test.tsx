@@ -96,7 +96,7 @@ describe('AthleteProfileScreen', () => {
       expect(screen.queryAllByText(/0,00/, hidden)).toHaveLength(0);
       // The personal best shows a dash and the history keeps its rows without a time.
       expect(screen.getAllByText('—', hidden).length).toBeGreaterThan(0);
-      expect(screen.getByLabelText('Pecho 50 m, 9 de octubre de 2026, Entrenamiento, Sin registro')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Pecho 50 m, 9 de octubre de 2026, Entrenamiento, Sin registro, Enviado')).toBeOnTheScreen();
     });
 
     it('keeps the history virtualized inside the one scrolling list', async () => {

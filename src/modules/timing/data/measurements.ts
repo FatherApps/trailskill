@@ -18,6 +18,8 @@ type MeasurementBase = {
   sessionType: SessionType;
   source: MeasurementSource;
   createdBy: string;
+  // The school the time is for: the server accepts it only from a coach or admin of that school, for an athlete of that school.
+  schoolId: string;
   deviceId: string;
   capturedAt: string; // ISO 8601
   parentId: string | null;
@@ -40,6 +42,19 @@ export interface MeasurementRepository {
   listBySeries(seriesId: string): Promise<Measurement[]>;
   /** Every kind of measurement of the athlete in the event, newest first (by id on a tie). */
   listByAthleteEvent(athleteId: string, event: MeasurementEvent): Promise<Measurement[]>;
+  /** Every kind of measurement of the listed athletes in the event, newest first (by id on a tie). An empty list returns nothing. */
+  listByAthletesEvent(athleteIds: readonly string[], event: MeasurementEvent): Promise<Measurement[]>;
+  /** Every measurement of the athlete, all events and kinds, newest first (by id on a tie). */
+  listByAthlete(athleteId: string): Promise<Measurement[]>;
+  /** Every measurement stored for the school that has an athlete, newest first (by id on a tie). Reads the local database only. */
+  listBySchool(schoolId: string): Promise<Measurement[]>;
+  /** How many measurements of the athletes were captured at or after `since` (ISO 8601). An empty list counts 0. */
+  countCapturedSince(athleteIds: readonly string[], since: string): Promise<number>;
+  /**
+   * Marks the measurement as discarded by its author ("Deshacer última", or unticking "Completado"). The row stays, with who and when,
+   * and every read leaves it out. Never a delete: the server cannot undo one. A missing or already discarded measurement changes nothing.
+   */
+  discard(id: string, discardedBy: string): Promise<void>;
   /**
    * Edits an existing measurement: only the time and the athlete can change. The edit is sent with the version it was based on
    * and the editing device, so another device's different edit becomes a conflict ("Revisar") instead of overwriting. Rejects a missing id.
@@ -55,6 +70,11 @@ export interface MeasurementRepository {
 /** A completed measurement records a done repetition without a time, so a time cannot be set on it. */
 export class CompletedMeasurementTimeError extends Error {
   override name = 'CompletedMeasurementTimeError';
+}
+
+/** A discarded arrival ("Deshacer última") never changes again: the server refuses a new time or athlete on it for good. */
+export class DiscardedMeasurementError extends Error {
+  override name = 'DiscardedMeasurementError';
 }
 
 /** A time is above zero: a missing time is null, never 0. */

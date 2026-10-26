@@ -88,6 +88,43 @@ Complete before the first closed-track release and keep up to date:
 | Closed testing | Pilot school testers | Pilot validation; also satisfies the production-access requirement above. |
 | Production | Public | Staged rollout (for example 10% → 50% → 100%). Raise the percentage only when crash and error rates stay normal; halt the rollout on a regression. |
 
+## Test builds (debug-signed APK)
+
+An installable APK for walking through the app against the test backend, without Google Play or EAS. It is built locally, signed with the **debug key** that Expo's generated Android project ships, and never uploaded anywhere. It is not a release: never publish it, and never sign a store build this way.
+
+Requirements: JDK, the Android SDK (`ANDROID_HOME` set), and `adb` with an emulator or device attached. No EAS account, release keystore, or Play credentials are involved.
+
+1. Install dependencies: `npm ci`.
+2. Export the backend variables in the shell that runs the build. Get the values from the maintainer; they are inlined into the JavaScript bundle at build time and must never be committed or written to a tracked file (`.env*` is git-ignored).
+
+   ```bash
+   export EXPO_PUBLIC_SUPABASE_URL=<test backend URL>
+   export EXPO_PUBLIC_SUPABASE_ANON_KEY=<test backend anon key>
+   export EXPO_PUBLIC_POWERSYNC_URL=<test PowerSync URL>
+   ```
+
+3. Generate the native project (`android/` is git-ignored) and build the release variant. Add `-PreactNativeArchitectures=<abi>` to build one ABI and finish faster; use the one that `adb shell getprop ro.product.cpu.abi` reports (`arm64-v8a` on phones and on Apple-silicon emulators, `x86_64` on Intel emulators):
+
+   ```bash
+   npx expo prebuild --platform android --clean
+   cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+   ```
+
+   The APK is `android/app/build/outputs/apk/release/app-release.apk`. The release build type uses `signingConfigs.debug`, and `targetSdkVersion` comes from React Native (36 or higher; re-check it after each Expo upgrade, see [Google Play requirements](../AGENTS.md#google-play-requirements)).
+
+4. Install and open it without Metro:
+
+   ```bash
+   adb -s <device> install -r android/app/build/outputs/apk/release/app-release.apk
+   adb -s <device> shell monkey -p com.fatherapps.trailskill -c android.intent.category.LAUNCHER 1
+   ```
+
+   The package is the same as the development client's and both use the debug key, so `-r` replaces the development client. Reinstall it with `npx expo run:android` or an EAS `development` build when needed.
+
+5. Smoke test: the app opens with no Metro server running, signs in with a demo account, and shows synced data.
+
+A build without the three variables still opens, but sign-in and sync report a missing configuration. Rebuild after changing any `EXPO_PUBLIC_*` value, because they are inlined at build time.
+
 ## Release checklist
 
 - [ ] `main` (or `release/X.Y`) is green and the tag points to the built commit.
@@ -96,6 +133,7 @@ Complete before the first closed-track release and keep up to date:
 - [ ] Data safety form still matches what the app collects and shares.
 - [ ] Target API level meets the current Play requirement.
 - [ ] No debug flags, test accounts, or synthetic seed data in the production build.
+- [ ] `LEGAL_REVIEW_PENDING` in `src/modules/accounts/legalReview.ts` is `false` and issue #106 (legal review of the authorization texts) is closed: never publish to production while it is `true`.
 
 ## Open decisions
 

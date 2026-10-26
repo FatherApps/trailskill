@@ -404,9 +404,9 @@ select is_empty('select 1 from public.school_invitations', 'coach C reads no inv
 -- Platform admin P
 set local request.jwt.claims = '{"sub": "40000000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
 
-select is((select count(*) from public.authorizations), 3::bigint, 'platform admin P reads all the evidence');
+select is((select count(*) from public.authorizations where athlete_id::text like '40000000-%'), 3::bigint, 'platform admin P reads all the evidence');
 select is((select count(*) from public.school_invitations), 2::bigint, 'platform admin P reads all the invitations');
-select is((select count(*) from public.authorization_status), 1::bigint, 'platform admin P reads all the status');
+select is((select count(*) from public.authorization_status where athlete_id::text like '40000000-%'), 1::bigint, 'platform admin P reads all the status');
 
 -- Two clocks. Athlete e2, guardian H. An acceptance counts only if it is later
 -- than the latest withdrawal by the device clock and by the server clock.

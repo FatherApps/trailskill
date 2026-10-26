@@ -92,3 +92,20 @@ describe('AthleteIndicators', () => {
     expect(StyleSheet.flatten(screen.getByLabelText('Activos: 128').props.style).backgroundColor).toBe(colors.dark['surface-1']);
   });
 });
+
+describe('AthleteIndicators with an unknown value', () => {
+  it('says Sin dato, to the eye and to the screen reader, and never 0', async () => {
+    await render(<AthleteIndicators {...indicatorsFixture} toReview={null} />);
+
+    expect(screen.getByLabelText('Por revisar: Sin dato')).toBeOnTheScreen();
+    expect(screen.getByText('Sin dato', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Por revisar: 0')).toBeNull();
+    expect(screen.getByLabelText('Activos: 128')).toBeOnTheScreen();
+  });
+
+  it('still shows a real zero as 0', async () => {
+    await render(<AthleteIndicators {...indicatorsFixture} toReview={0} />);
+
+    expect(screen.getByLabelText('Por revisar: 0')).toBeOnTheScreen();
+  });
+});

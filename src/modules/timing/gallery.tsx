@@ -8,6 +8,7 @@ import { fixture } from './__fixtures__/timing';
 import { ArrivalList } from './components/ArrivalList';
 import { NameCard } from './components/NameCard';
 import { arrivals as arrivalsOf, assignHighlighted, reopen, type Series } from './domain/series';
+import { CompletedScreen } from './screens/CompletedScreen';
 import { SeriesAssignmentScreen } from './screens/SeriesAssignmentScreen';
 import { SeriesTimingScreen } from './screens/SeriesTimingScreen';
 import { useFakeClock } from './__fixtures__/fakeClock';
@@ -161,6 +162,7 @@ function SeriesTimingPreview({
         onUseOnScreenStopwatch={noop}
         onArrival={() => setArrivals((current) => [...current, { id: `arrival-${current.length + 1}`, time: elapsed }])}
         onUndoLast={() => setArrivals((current) => current.slice(0, -1))}
+        onAssignNames={noop}
         onBack={noop}
       />
     </ScreenFrame>
@@ -205,6 +207,24 @@ function SeriesAssignmentPreview({
         onBack={noop}
       />
     </ScreenFrame>
+  );
+}
+
+// Holds the switches, so tapping one ticks and unticks it like the container will.
+function CompletedPreview({ completed = [], empty }: { completed?: string[]; empty?: boolean }) {
+  const [completedIds, setCompletedIds] = useState(completed);
+
+  return (
+    <FullScreen>
+      <CompletedScreen
+        subtitle={seriesFixture.eventSubtitle}
+        athletes={empty ? [] : seriesFixture.athletes.map((a) => ({ ...a, completed: completedIds.includes(a.id), syncState: 'on_device' }))}
+        onToggle={(id) => setCompletedIds((current) => (current.includes(id) ? current.filter((c) => c !== id) : [...current, id]))}
+        onRetry={noop}
+        onFinish={noop}
+        onBack={noop}
+      />
+    </FullScreen>
   );
 }
 
@@ -313,6 +333,14 @@ export const galleryEntries: GalleryEntry[] = [
         />
       ),
       offline: () => <SeriesAssignmentPreview initial={seriesFixture.series.partial} offline />,
+    },
+  },
+  {
+    id: 'completed',
+    title: 'CompletedScreen',
+    states: {
+      completed: () => <CompletedPreview completed={['a1', 'a3']} />,
+      'completed-empty': () => <CompletedPreview empty />,
     },
   },
 ] satisfies { id: string; title: string; states: Record<string, () => ReactElement> }[];

@@ -4,12 +4,26 @@ import type { PlanBlock } from '../types';
 export type Plan = { id: string; schoolId: string; name: string; isTemplate: boolean; blocks: PlanBlock[] };
 export type PlanSummary = Pick<Plan, 'id' | 'name' | 'isTemplate'>;
 
+/** Thrown by save() when the plan removes a block that already has a fulfillment mark; nothing is written. */
+export class BlockHasFulfillmentError extends Error {
+  constructor(public readonly blockIds: string[]) {
+    super(`Blocks with fulfillment cannot be removed: ${blockIds.join(', ')}`);
+    this.name = 'BlockHasFulfillmentError';
+  }
+}
+
 export interface TrainingPlanRepository {
-  /** The plan with its blocks in order, or null when it does not exist. */
-  get(id: string): Promise<Plan | null>;
+  /**
+   * The plan with its blocks in order, or null when it does not exist. Blocks come from the latest version (the highest number among the
+   * complete ones), or from `versionId` when given; a version that does not exist or belongs to another plan gives null.
+   */
+  get(id: string, versionId?: string): Promise<Plan | null>;
   /** Plans and templates of the school, by name (then id). */
   list(schoolId: string): Promise<PlanSummary[]>;
-  /** Creates or updates the plan and replaces its blocks in the given order. Validates every block before writing anything. */
+  /** Creates or updates the plan and replaces its blocks in the given order. Validates every block before writing anything.
+   *  Editing a plan whose latest version is assigned creates a new version (the earlier ones stay as they were) and moves the sessions
+   *  without fulfillment marks to it; a plan without assignments is edited in place.
+   *  The PowerSync repository also rejects with BlockHasFulfillmentError, writing nothing, when a removed block has a local fulfillment mark. */
   save(plan: Plan): Promise<void>;
   /** Copies the plan (same name and blocks, all new ids) as a template or a plan; returns the new plan id. Independent of the source. */
   copy(id: string, asTemplate: boolean): Promise<string>;

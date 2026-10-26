@@ -19,6 +19,34 @@ export {
 } from './screens/AthleteProfileScreen';
 export { galleryEntries } from './gallery';
 export type { HistoryMeasurement, HistoryRepository } from './data/history';
+export {
+  createInMemorySchoolAthleteRepository,
+  createPowerSyncSchoolAthleteRepository,
+  type SchoolAthlete,
+  type SchoolAthleteRepository,
+} from './data/schoolAthletes';
 export { createInMemoryHistoryRepository } from './data/inMemoryHistoryRepository';
 export { createHistoryRepository, createPowerSyncHistoryRepository } from './data/measurementHistoryRepository';
-export { personalBest, personalBestKinds, type PersonalBestResult } from './personalBest';
+export { personalBest, personalBestKinds, personalBestTime, type PersonalBestResult } from './personalBest';
+export { formatShortName } from './formatShortName';
+export {
+  createInMemoryAthleteSchoolRepository,
+  createPowerSyncAthleteSchoolRepository,
+  type AthleteSchoolLink,
+  type AthleteSchoolRepository,
+} from './data/athleteSchools';
+export {
+  createInMemoryAthleteRepository,
+  createPowerSyncAthleteRepository,
+  type AthleteProfileInput,
+  type AthleteRepository,
+} from './data/athleteRepository';
+export { athleteDisplay, type AthleteColor } from './athleteDisplay';
+export { useManagedAthletes, type ManagedAthletesResult } from './data/useManagedAthletes';
+export { AthleteProfileContainer, type AthleteProfileContainerProps } from './screens/AthleteProfileContainer';
+export {
+  createInMemoryOtherSchoolResultsRepository,
+  createSupabaseOtherSchoolResultsRepository,
+  type OtherSchoolResult,
+  type OtherSchoolResultsRepository,
+} from './data/otherSchoolResults';

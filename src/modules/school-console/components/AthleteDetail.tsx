@@ -3,14 +3,16 @@ import { Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime } from '../../../core/time';
-import { Button, Tag, TimeValue } from '../../../core/ui';
+import { Banner, Button, Tag, TimeValue } from '../../../core/ui';
 import '../i18n';
+import { OptionRow } from './AthleteFilterOptions';
 import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 import type { AthleteDetailData } from './athleteTypes';
 
 export type AthleteDetailProps = {
   athlete: AthleteDetailData;
-  onViewProfile: () => void;
+  // Absent while there is no profile screen: the button is not shown.
+  onViewProfile?: () => void;
 };
 
 export const athleteDetailColors: { background: ColorToken; title: ColorToken; caption: ColorToken; divider: ColorToken } = {
@@ -28,6 +30,8 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
   const { colors, space, typography } = useTheme();
   const valid = athlete.authorization === 'valid';
   const large = useTextScale() >= LARGE_TEXT_SCALE;
+  const noData = t('schoolConsole.common.no_data');
+  const choice = athlete.categoryChoice;
 
   return (
     <View style={{ gap: space[4] }}>
@@ -42,18 +46,31 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
           icon={valid ? 'verified_user' : 'schedule'}
         />
       </View>
+      {choice && (
+        <View>
+          <Text accessibilityRole="header" style={[typography.label, { color: colors[athleteDetailColors.title] }]}>
+            {t('schoolConsole.detail.category')}
+          </Text>
+          {choice.options.map((option) => (
+            <OptionRow key={option.id ?? 'none'} label={option.label} selected={option.id === choice.selectedId} onPress={() => choice.onChoose(option.id)} />
+          ))}
+          {choice.error && <Banner variant="warn" icon="error">{choice.error}</Banner>}
+        </View>
+      )}
       <View style={{ gap: space[1] }}>
         <Text style={[typography.caption, { color: colors[athleteDetailColors.caption] }]}>
           {t('schoolConsole.detail.guardian')}
         </Text>
-        <Text style={[typography.body, { color: colors[athleteDetailColors.title] }]}>{athlete.guardian.name}</Text>
-        <Text style={[typography.body, { color: colors[athleteDetailColors.caption] }]}>{athlete.guardian.contact}</Text>
+        <Text style={[typography.body, { color: colors[athleteDetailColors.title] }]}>{athlete.guardian.name ?? noData}</Text>
+        <Text style={[typography.body, { color: colors[athleteDetailColors.caption] }]}>{athlete.guardian.contact ?? noData}</Text>
       </View>
       <View>
         <Text accessibilityRole="header" style={[typography.label, { color: colors[athleteDetailColors.title] }]}>
           {t('schoolConsole.detail.bests')}
         </Text>
-        {athlete.bests.length === 0 ? (
+        {athlete.bestsError ? (
+          <Banner variant="warn" icon="error">{t('schoolConsole.detail.bests_error')}</Banner>
+        ) : athlete.bests.length === 0 ? (
           <Text style={[typography.body, { paddingVertical: space[3], color: colors[athleteDetailColors.caption] }]}>
             {t('schoolConsole.detail.no_bests')}
           </Text>
@@ -99,7 +116,7 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
           ))
         )}
       </View>
-      <Button variant="secondary" label={t('schoolConsole.detail.view_profile')} onPress={onViewProfile} />
+      {onViewProfile && <Button variant="secondary" label={t('schoolConsole.detail.view_profile')} onPress={onViewProfile} />}
     </View>
   );
 }
