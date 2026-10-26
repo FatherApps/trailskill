@@ -5,7 +5,8 @@
 # training-plans_plans, accounts_record_times_withdrawal_check,
 # timing_hide_after_withdrawal, training-plans_assignments,
 # training-plans_assignment_scope_and_withdrawal, timing_school_id,
-# school-console_coach_assignment_school, timing_admin_measurement_conflicts):
+# school-console_coach_assignment_school, timing_admin_measurement_conflicts,
+# training-plans_notices):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -126,6 +127,13 @@ streams:
       - SELECT * FROM training_plan_fulfillments WHERE athlete_id IN coach_direct_athlete_ids AND hidden = false
       - SELECT * FROM training_plan_fulfillments WHERE athlete_id IN coach_group_athlete_ids AND hidden = false
       - SELECT * FROM training_plan_fulfillments WHERE athlete_id IN admin_athlete_ids AND hidden = false
+
+  # Notes of guardians and adult athletes on a session. Only the people who manage
+  # the athlete get them; coaches have no stream for them yet. The body is free text: never log it.
+  training_plans_notices:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM training_plan_notices WHERE athlete_id IN managed_athlete_ids
 
   # Authors see their conflicts (as the stored version's author or the one whose
   # edit was not applied); the generic record_conflicts table is how the device
