@@ -37,6 +37,8 @@ type BuilderPreviewProps = {
   // Shows the field errors as after a failed save.
   showErrors?: boolean;
   savedMessage?: boolean;
+  // Whether assigning starts locked, as for a plan with unsaved changes; the saved state turns it off.
+  initialAssignBlocked?: boolean;
   // Forces the layout width in dp; the expanded states pass bp-expanded so they show the two zones whatever the window.
   width?: number;
 };
@@ -49,12 +51,15 @@ function BuilderPreview({
   initialRemovingId = null,
   showErrors = false,
   savedMessage = false,
+  initialAssignBlocked = true,
   width,
 }: BuilderPreviewProps) {
   const [current, setCurrent] = useState(initial);
   const [name, setName] = useState(initialName);
   const [editingId, setEditingId] = useState(initialEditingId);
   const [message, setMessage] = useState(savedMessage ? t('training_plans.builder.saved') : undefined);
+  // Like the editor: assigning waits until the plan is saved, and saving the plan or a template unlocks it.
+  const [assignBlocked, setAssignBlocked] = useState(initialAssignBlocked);
 
   const add = () => {
     const block = newDraftBlock(`new-${current.length + 1}`, vocabulary);
@@ -86,8 +91,7 @@ function BuilderPreview({
         defaultRemovingId={initialRemovingId}
         width={width}
         onAssign={noop}
-        // Like the editor: assigning waits until the plan is saved.
-        assignBlocked={message === undefined}
+        assignBlocked={assignBlocked}
         onChangeName={setName}
         onAddBlock={add}
         onEditBlock={setEditingId}
@@ -98,8 +102,14 @@ function BuilderPreview({
           setCurrent((list) => list.filter((block) => block.id !== id));
           if (editingId === id) setEditingId(null);
         }}
-        onSave={() => setMessage(t('training_plans.builder.saved'))}
-        onSaveTemplate={() => setMessage(t('training_plans.builder.template_saved'))}
+        onSave={() => {
+          setMessage(t('training_plans.builder.saved'));
+          setAssignBlocked(false);
+        }}
+        onSaveTemplate={() => {
+          setMessage(t('training_plans.builder.template_saved'));
+          setAssignBlocked(false);
+        }}
       />
     </ScreenFrame>
   );
@@ -236,7 +246,7 @@ export const galleryEntries: GalleryEntry[] = [
       // A drill typed instead of a stroke.
       drill: () => <BuilderPreview initial={blocks} initialEditingId={blocks[2].id} />,
       removing: () => <BuilderPreview initial={blocks} initialRemovingId={blocks[1].id} />,
-      saved: () => <BuilderPreview initial={blocks} savedMessage />,
+      saved: () => <BuilderPreview initial={blocks} savedMessage initialAssignBlocked={false} />,
       // The tablet layout: the block list and the editing panel side by side.
       expanded: () => <BuilderPreview initial={blocks} initialEditingId={blocks[1].id} width={breakpoint['bp-expanded']} />,
       'expanded-no-selection': () => <BuilderPreview initial={blocks} width={breakpoint['bp-expanded']} />,
