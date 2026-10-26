@@ -94,6 +94,21 @@ describe('AddAthletesContainer', () => {
     expect(screen.getByRole('radio', { name: 'Sin categoría' }).props.accessibilityState.checked).toBe(true);
   });
 
+  it('the choice starting over after an add is not a choice: the next athlete is accepted with no category', async () => {
+    const { mount, rows, invitations } = setup('tok-1');
+    await mount();
+    await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
+    await addLucia();
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Sin categoría' }).props.accessibilityState.checked).toBe(true));
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+
+    await waitFor(() => expect(invitations.accepted).toHaveLength(2));
+    expect(invitations.accepted[1]).toEqual({ token: 'tok-1', athleteId: rows[1].athleteId });
+  });
+
   it('without network the acceptance stays pending, outlives the draft and completes by itself later', async () => {
     const { mount, drafts, rows, pending, invitations } = setup('tok-1');
     await mount();
