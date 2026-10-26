@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { BackHandler } from 'react-native';
 
 import { athleteDisplay, type AthleteRepository } from '../../athletes';
 import type { InvitationRepository } from '../data/invitations';
@@ -50,6 +51,12 @@ export function AddAthletesContainer({
       ),
     [athletes, userId],
   );
+
+  // The account exists already and "Continuar" is the only way out of this step: the system back button must not drop the person on a half-done registration.
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     // A failed read shows an empty form and nobody added: the person can still add.

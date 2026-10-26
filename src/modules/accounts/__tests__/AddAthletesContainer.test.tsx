@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { BackHandler } from 'react-native';
 
 import { createInMemoryAthleteRepository } from '../../athletes';
 import { createInMemoryInvitationRepository } from '../data/invitations';
@@ -218,5 +219,23 @@ describe('AddAthletesContainer', () => {
 
     await waitFor(() => expect(screen.getByLabelText('Nombre').props.value).toBe(''));
     expect(screen.queryByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeNull();
+  });
+
+  it('the Android back button does nothing here and stops listening when the screen goes away', async () => {
+    const remove = jest.fn();
+    let handler: Parameters<typeof BackHandler.addEventListener>[1] | undefined;
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_, listener) => {
+      handler = listener;
+      return { remove };
+    });
+    const { mount, onContinue } = setup();
+    const view = await mount();
+
+    // Handled (true) means the navigator never sees the press; Continuar stays the only way out.
+    expect(handler?.(undefined as never)).toBe(true);
+    expect(onContinue).not.toHaveBeenCalled();
+
+    await view.unmount();
+    expect(remove).toHaveBeenCalledTimes(1);
   });
 });
