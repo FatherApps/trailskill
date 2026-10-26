@@ -20,6 +20,8 @@ export type AddAthletesContainerProps = {
   invitations: InvitationRepository;
   pending: PendingInvitationRepository;
   renderStatus?: (athleteId: string) => ReactNode;
+  // Opt-in: the route that makes "Continuar" the only way out asks to ignore the system back button.
+  blockSystemBack?: boolean;
   onContinue: () => void;
 };
 
@@ -35,6 +37,7 @@ export function AddAthletesContainer({
   invitations,
   pending,
   renderStatus,
+  blockSystemBack = false,
   onContinue,
 }: AddAthletesContainerProps) {
   const [values, setValues] = useState(empty);
@@ -52,11 +55,13 @@ export function AddAthletesContainer({
     [athletes, userId],
   );
 
-  // The account exists already and "Continuar" is the only way out of this step: the system back button must not drop the person on a half-done registration.
+  // The route asked for it because "Continuar" is the only way out of this step. When saving the step fails there is no other way out, so back works again.
+  const blockBack = blockSystemBack && failed !== 'continue';
   useEffect(() => {
+    if (!blockBack) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => subscription.remove();
-  }, []);
+  }, [blockBack]);
 
   useEffect(() => {
     // A failed read shows an empty form and nobody added: the person can still add.
