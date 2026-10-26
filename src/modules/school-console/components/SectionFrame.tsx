@@ -36,6 +36,8 @@ export type SectionFrameProps<Content> = {
   action?: { label: string; icon: IconName; onPress: () => void };
   // The content of the section; `compact` is true in the phone layout.
   children: (content: Content, compact: boolean) => ReactNode;
+  // A notice of the screen, shown under the header in every state.
+  notice?: ReactNode;
   // Sheets and dialogs of the screen, drawn above the layout.
   overlay?: ReactNode;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
@@ -59,6 +61,7 @@ export function SectionFrame<Content>({
   summary,
   action,
   children,
+  notice,
   overlay,
   scrollEnabled = true,
 }: SectionFrameProps<Content>) {
@@ -161,6 +164,7 @@ export function SectionFrame<Content>({
     <>
       <ConsoleLayout width={width} schoolName={schoolName} activeId={section} onSelect={onNavigate} scrollEnabled={scrollEnabled}>
         {header}
+        {notice}
         {body}
       </ConsoleLayout>
       {overlay}

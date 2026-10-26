@@ -1,6 +1,7 @@
 import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import { fontFamily, useTheme, type ColorToken } from '../theme';
+import { unavailableColors } from './Button';
 import { useFocusRing } from './focusRing';
 
 export type InitialsDotProps = {
@@ -13,6 +14,8 @@ export type ChipProps = {
   label: string;
   selected?: boolean;
   dot?: InitialsDotProps;
+  // Not pressable, and said so to screen readers. Unchosen it turns the unavailable grey of Button; chosen it keeps its choice's black.
+  disabled?: boolean;
   onPress: () => void;
 };
 
@@ -56,10 +59,11 @@ export function InitialsDot({ initials, color }: InitialsDotProps) {
 }
 
 // A chip is one option of a ChipRow, so it is a radio: the selected one is black (primary / on-primary).
-export function Chip({ label, selected = false, dot, onPress }: ChipProps) {
+export function Chip({ label, selected = false, dot, disabled = false, onPress }: ChipProps) {
   const { colors, space, radius, size, typography } = useTheme();
   const { focusProps, ring } = useFocusRing();
   const palette = selected ? chipColors.selected : chipColors;
+  const unavailable = disabled && !selected;
 
   return (
     <Pressable
@@ -67,6 +71,8 @@ export function Chip({ label, selected = false, dot, onPress }: ChipProps) {
       accessibilityLabel={label}
       // Android reads `checked` for radios, iOS reads `selected`.
       accessibilityState={{ checked: selected, selected }}
+      // Pressable adds `disabled` to the state and stops the press; passing false would add `disabled: false` to every enabled chip.
+      disabled={disabled || undefined}
       onPress={onPress}
       {...focusProps}
       style={[
@@ -79,8 +85,8 @@ export function Chip({ label, selected = false, dot, onPress }: ChipProps) {
           paddingRight: space[3],
           borderRadius: radius.full,
           borderWidth: 1.5,
-          borderColor: colors[palette.border],
-          backgroundColor: colors[palette.background],
+          borderColor: unavailable ? 'transparent' : colors[palette.border],
+          backgroundColor: colors[unavailable ? unavailableColors.background : palette.background],
         },
         ring,
       ]}
@@ -93,7 +99,7 @@ export function Chip({ label, selected = false, dot, onPress }: ChipProps) {
       <Text
         importantForAccessibility="no"
         accessibilityElementsHidden
-        style={[typography.label, { flexShrink: 1, color: colors[palette.text] }]}
+        style={[typography.label, { flexShrink: 1, color: colors[unavailable ? unavailableColors.text : palette.text] }]}
       >
         {label}
       </Text>

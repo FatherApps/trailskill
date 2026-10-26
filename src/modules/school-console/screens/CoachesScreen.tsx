@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 
 import { t } from '../../../core/i18n';
-import { ConfirmSheet } from '../../../core/ui';
+import { Banner, ConfirmSheet } from '../../../core/ui';
 import '../i18n';
 import { CoachList, type CoachRow } from '../components/CoachList';
 import { InviteCoachSheet, type CoachInvitation, type InviteGroups } from '../components/InviteCoachSheet';
@@ -28,6 +28,8 @@ export type CoachesScreenProps = ConsoleSectionProps & {
   // The groups of the school, offered as chips in the invite sheet; [] (the default) is a school with none, so the sheet asks only name and email.
   // 'loading' and 'error' say the groups are not known yet: the sheet shows that and does not send.
   groups?: InviteGroups;
+  // Reads the groups again; the invite sheet offers it when they failed to load.
+  onRetryGroups?: () => void;
   // The group an invitation link came from; its chip starts chosen.
   contextGroupId?: string;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
@@ -47,6 +49,7 @@ export function CoachesScreen({
   onDeactivate,
   deactivateAvailable = false,
   groups = [],
+  onRetryGroups,
   contextGroupId,
   scrollEnabled,
 }: CoachesScreenProps) {
@@ -54,12 +57,16 @@ export function CoachesScreen({
 
   const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
   const coach = pending?.kind === 'deactivate' ? content?.coaches.find((row) => row.id === pending.id) : undefined;
-  // Counts the openings of the invite sheet; an invitation settles only the opening it was sent from.
+  // Counts the openings of the invite sheet, and moves on when it closes; an invitation settles only the opening it was sent from.
+  // Closing the deactivate sheet does not touch it.
   const openings = useRef(0);
-  const close = () => {
+  const closeInvite = () => {
     openings.current += 1;
     setPending(null);
   };
+  const closeDeactivate = () => setPending(null);
+  // An invitation whose sheet was closed before it failed: nothing else would tell the person.
+  const [lateFailure, setLateFailure] = useState(false);
 
   let sheet = null;
   if (pending?.kind === 'invite') {
@@ -68,12 +75,21 @@ export function CoachesScreen({
         key={pending.opening}
         groups={groups}
         initialGroupId={contextGroupId}
+        onRetryGroups={onRetryGroups}
         onSubmit={async (invitation) => {
           const { opening } = pending;
-          await onInvite(invitation);
-          if (opening === openings.current) close();
+          try {
+            await onInvite(invitation);
+          } catch (error) {
+            // Only the kind of the error: its message can carry the invitee's email.
+            if (__DEV__) console.warn('[school-console] The coach invitation could not be sent', error instanceof Error ? error.name : typeof error);
+            if (opening === openings.current) throw error;
+            setLateFailure(true);
+            return;
+          }
+          if (opening === openings.current) closeInvite();
         }}
-        onClose={close}
+        onClose={closeInvite}
       />
     );
   } else if (coach) {
@@ -87,10 +103,10 @@ export function CoachesScreen({
         confirmLabel={t('schoolConsole.coaches.deactivate_confirm.confirm')}
         cancelLabel={t('schoolConsole.coaches.cancel')}
         onConfirm={() => {
-          close();
+          closeDeactivate();
           onDeactivate(coach.id);
         }}
-        onCancel={close}
+        onCancel={closeDeactivate}
       />
     );
   }
@@ -107,7 +123,18 @@ export function CoachesScreen({
         count: t('schoolConsole.coaches.count', { count: coaches.length }),
         updatedMinutesAgo,
       })}
-      action={{ label: t('schoolConsole.coaches.invite'), icon: 'person_add', onPress: () => setPending({ kind: 'invite', opening: ++openings.current }) }}
+      action={{ label: t('schoolConsole.coaches.invite'), icon: 'person_add', onPress: () => {
+          setLateFailure(false);
+          setPending({ kind: 'invite', opening: ++openings.current });
+        },
+      }}
+      notice={
+        lateFailure ? (
+          <Banner variant="warn" icon="error">
+            {t('schoolConsole.coaches.invite_sheet.failed')}
+          </Banner>
+        ) : undefined
+      }
       overlay={sheet}
     >
       {({ coaches }) => <CoachList coaches={coaches} deactivateAvailable={deactivateAvailable} onDeactivate={(id) => setPending({ kind: 'deactivate', id })} />}
