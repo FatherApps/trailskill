@@ -607,6 +607,26 @@ describe('PlanEditorScreen', () => {
         expect(ctx.onSaved).not.toHaveBeenCalled();
       });
 
+      it('says the template was made when the save of a template ends', async () => {
+        const ctx = setup();
+        const { hold } = await reopenFirst(ctx, 'Guardar como plantilla');
+
+        await act(async () => hold.finish());
+
+        expect(await screen.findByText('Plantilla guardada.')).toBeOnTheScreen();
+        expect(screen.getByRole('button', { name: 'Guardar como plantilla' })).not.toBeBusy();
+      });
+
+      it('says the template failed when its copy fails after the save ends', async () => {
+        const ctx = setup();
+        const { hold } = await reopenFirst(ctx, 'Guardar como plantilla');
+        jest.spyOn(ctx.repository, 'copy').mockRejectedValueOnce(new Error('disk'));
+
+        await act(async () => hold.finish());
+
+        expect(await screen.findByText('No pudimos guardar la plantilla. Inténtalo de nuevo.')).toBeOnTheScreen();
+      });
+
       it('lets the plan be saved again once the first save ended', async () => {
         const ctx = setup();
         const { first, hold } = await reopenFirst(ctx);

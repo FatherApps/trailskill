@@ -185,12 +185,14 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
         if (result === 'saved') setMessage({ kind: 'success', text: t('training_plans.builder.saved') });
         return;
       }
-      // A template asked for a saved plan is made even if the screen moved on; it says nothing then, there is no screen for it.
+      // A template asked for a saved plan is made even if the screen moved on. It says so only while the screen shows the plan
+      // it was made from, also when that plan was reopened during the save; with another plan on screen it says nothing.
+      const shows = () => mounted.current && shown.current === started.id;
       try {
         await repository.copy(started.id, true);
-        if (live()) setMessage({ kind: 'success', text: t('training_plans.builder.template_saved') });
+        if (shows()) setMessage({ kind: 'success', text: t('training_plans.builder.template_saved') });
       } catch {
-        if (live()) setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
+        if (shows()) setMessage({ kind: 'error', text: t('training_plans.builder.template_failed') });
       }
     } finally {
       if (busy.current?.id === started.id) busy.current = null;
