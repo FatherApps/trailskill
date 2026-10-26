@@ -86,7 +86,8 @@
   },
   "today": {
     "title": "Hoy",
-    "caption": "Hoy · {{name}}",
+    "caption": "{{title}} · {{name}}",
+    "heading": "{{title}} · {{plan}}",
     "summary_one": "{{meters}} m · {{count}} bloque",
     "summary_other": "{{meters}} m · {{count}} bloques",
     "empty_title": "Hoy no hay plan",

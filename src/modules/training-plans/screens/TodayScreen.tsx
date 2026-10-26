@@ -4,7 +4,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { Banner, Button, ChipRow, ColorCard, Icon, Segmented, StateView, Tag, TextField, TimeValue, type ColorCardColor, type InitialsDotProps } from '../../../core/ui';
+import { Banner, Button, ChipRow, ColorCard, Segmented, StateView, Tag, TextField, TimeValue, type ColorCardColor, type InitialsDotProps } from '../../../core/ui';
 import '../i18n';
 import { BlockCard } from '../components/BlockCard';
 import { statusTag } from '../components/blockStatus';
@@ -103,12 +103,18 @@ function PlanHeader({ content, athleteName, color }: { content: TodayContent; at
   // Never an empty string: the colour card would draw bare text outside <Text>.
   const summary = count > 0 ? t('training_plans.today.summary', { meters: formatNumber(meters), count }) : undefined;
 
+  const title = t('training_plans.today.title');
+  // The card is the heading: it is announced with the visible title (the plan) and keeps "Hoy", then the rest of what it shows.
+  const heading = [t('training_plans.today.heading', { title, plan: content.planName }), athleteName, summary].filter(Boolean).join(', ');
+
   return (
-    <ColorCard color={color} title={content.planName} detail={summary}>
-      <Text accessibilityRole="header" style={[typography.label, { color: colors['on-color'] }]}>
-        {t('training_plans.today.caption', { name: athleteName })}
-      </Text>
-    </ColorCard>
+    <View accessible accessibilityRole="header" accessibilityLabel={heading}>
+      <ColorCard color={color} title={content.planName} detail={summary}>
+        <Text style={[typography.label, { color: colors['on-color'] }]}>
+          {t('training_plans.today.caption', { title, name: athleteName })}
+        </Text>
+      </ColorCard>
+    </View>
   );
 }
 
@@ -149,13 +155,8 @@ function NoticeSection({
 
   return (
     <>
-      {/* The board draws chat_bubble, which the icon set lacks: info is the closest. */}
-      <Button
-        variant="secondary"
-        icon={<Icon name="info" />}
-        label={t('training_plans.today.report')}
-        onPress={() => setOpen((value) => !value)}
-      />
+      {/* The board draws chat_bubble, which the icon set lacks; info is the plan-changed banner's glyph and made this read as a notice, so no icon. */}
+      <Button variant="secondary" label={t('training_plans.today.report')} onPress={() => setOpen((value) => !value)} />
       {open && (
         <View style={{ gap: space[3], padding: space[5], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
           <Segmented
