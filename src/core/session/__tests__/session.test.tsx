@@ -40,6 +40,7 @@ jest.mock('../../sync', () => ({
     return mockConfigError;
   },
   SupabaseConnector: jest.fn(() => ({ cancelWaits: () => mockCalls.push('connector.cancelWaits') })),
+  connectOptions: { connectionMethod: 'web-socket' },
   db: {
     connect: jest.fn(() => mockConnect()),
     disconnect: jest.fn(async () => mockCalls.push('db.disconnect')),
@@ -121,6 +122,12 @@ describe('useSession', () => {
     expect(session.current.session).toBe(mockSignedIn);
     expect(mockCalls).toEqual(['db.connect']);
     expect(SupabaseConnector).toHaveBeenCalledTimes(1);
+  });
+
+  it('connects with the sync connection options of the build', async () => {
+    await renderSession();
+
+    expect(jest.mocked(db.connect)).toHaveBeenCalledWith(expect.anything(), { connectionMethod: 'web-socket' });
   });
 
   it('flags a failed sync connection instead of leaving an unhandled rejection, and logs it in development', async () => {
