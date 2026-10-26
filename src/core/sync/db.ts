@@ -1,5 +1,5 @@
 import { open } from '@op-engineering/op-sqlite';
-import { PowerSyncDatabase } from '@powersync/react-native';
+import { createConsoleLogger, LogLevels, PowerSyncDatabase, SyncStreamConnectionMethod, type SyncOptions } from '@powersync/react-native';
 import { getRandomBytes } from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 
@@ -31,4 +31,13 @@ const encryptionKey = prepareEncryptedDatabase({
 export const db = new PowerSyncDatabase({
   schema: AppSchema,
   database: { dbFilename: ENCRYPTED_DB_FILENAME, sqliteOptions: { encryptionKey } },
+  // Debug lines in development show why a downloaded checkpoint is not applied; sync errors are logged at every level.
+  logger: createConsoleLogger({ minLevel: __DEV__ ? LogLevels.debug : LogLevels.info }),
 });
+
+// Debug builds get a network inspector (added by expo-dev-launcher) that reads up to 1 MB of every HTTP response before
+// handing it over. The sync stream comes over HTTP/2, never chunked, so it reached PowerSync only when the server closed it,
+// and the downloaded checkpoint was never applied (#335). Development builds sync over a WebSocket; release builds keep HTTP.
+export const connectOptions: SyncOptions = {
+  connectionMethod: __DEV__ ? SyncStreamConnectionMethod.WEB_SOCKET : SyncStreamConnectionMethod.HTTP,
+};

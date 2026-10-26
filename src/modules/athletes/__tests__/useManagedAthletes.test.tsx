@@ -46,10 +46,14 @@ describe('useManagedAthletes', () => {
     await waitFor(() => expect(result.current).toEqual({ status: 'ready', athletes: [] }));
   });
 
-  it('gives nobody when the lookup fails', async () => {
-    const failing = { listManagedAthleteIds: () => Promise.reject(new Error('db')) };
+  it('gives nobody when the lookup fails, and logs the failure in development', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = new Error('db');
+    const failing = { listManagedAthleteIds: () => Promise.reject(error) };
     const { result } = await renderHook(() => useManagedAthletes(failing, athletes, 'guardian-1'));
 
     await waitFor(() => expect(result.current).toEqual({ status: 'ready', athletes: [] }));
+    expect(warn).toHaveBeenCalledWith(expect.any(String), error);
+    warn.mockRestore();
   });
 });

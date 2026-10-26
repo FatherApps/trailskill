@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AccessibilityInfo, View } from 'react-native';
 
 import { t } from '../i18n';
-import { countUnsentRecords, db, supabase, supabaseConfigError, SupabaseConnector } from '../sync';
+import { connectOptions, countUnsentRecords, db, supabase, supabaseConfigError, SupabaseConnector } from '../sync';
 import { useTheme } from '../theme';
 import { Button, ConfirmSheet, StateView } from '../ui';
 
@@ -97,7 +97,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!current) return;
       setReadyFor(userId);
       if (supabaseConfigError) return;
-      await db.connect(connector).catch(() => {
+      await db.connect(connector, connectOptions).catch((error: unknown) => {
+        if (__DEV__) console.warn('[sync] Could not connect to the sync service', error);
         if (current) setSyncFailedFor(userId);
       });
     })().catch(() => {

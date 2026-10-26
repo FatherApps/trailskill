@@ -40,6 +40,7 @@ jest.mock('../../sync', () => ({
     return mockConfigError;
   },
   SupabaseConnector: jest.fn(() => ({ cancelWaits: () => mockCalls.push('connector.cancelWaits') })),
+  connectOptions: { connectionMethod: 'web-socket' },
   db: {
     connect: jest.fn(() => mockConnect()),
     disconnect: jest.fn(async () => mockCalls.push('db.disconnect')),
@@ -123,11 +124,21 @@ describe('useSession', () => {
     expect(SupabaseConnector).toHaveBeenCalledTimes(1);
   });
 
-  it('flags a failed sync connection instead of leaving an unhandled rejection', async () => {
-    mockConnect = () => Promise.reject(new Error('unreachable'));
+  it('connects with the sync connection options of the build', async () => {
+    await renderSession();
+
+    expect(jest.mocked(db.connect)).toHaveBeenCalledWith(expect.anything(), { connectionMethod: 'web-socket' });
+  });
+
+  it('flags a failed sync connection instead of leaving an unhandled rejection, and logs it in development', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = new Error('unreachable');
+    mockConnect = () => Promise.reject(error);
     const session = await renderSession();
 
     await waitFor(() => expect(session.current.syncConnectFailed).toBe(true));
+    expect(warn).toHaveBeenCalledWith(expect.any(String), error);
+    warn.mockRestore();
   });
 
   it('does not flag the sync connection when it succeeds', async () => {
