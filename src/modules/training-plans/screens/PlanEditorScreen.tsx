@@ -20,8 +20,8 @@ export type PlanEditorScreenProps = {
   userId: string;
   vocabulary: PlanVocabulary;
   onSaved?: (planId: string) => void;
-  // Opens the assign flow; the editor never assigns by itself. Without it there is no assign button.
-  onAssign?: () => void;
+  // Opens the assign flow for the saved plan; the editor never saves or assigns by itself. Without it there is no assign button.
+  onAssign?: (planId: string) => void;
 };
 
 type Load =
@@ -30,6 +30,9 @@ type Load =
   | { kind: 'not_found' }
   | { kind: 'no_school' }
   | { kind: 'ready' };
+
+// The draft as it is compared with what is stored; the name is trimmed because that is how it is saved.
+const snapshot = (name: string, blocks: DraftBlock[]) => JSON.stringify({ name: name.trim(), blocks });
 
 // Container: loads the plan from the local repository, holds the draft, validates and saves.
 export function PlanEditorScreen({ planId, repository, schools, userId, vocabulary, onSaved, onAssign }: PlanEditorScreenProps) {
@@ -42,6 +45,8 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState<'plan' | 'template' | null>(null);
   const [message, setMessage] = useState<PlanBuilderScreenProps['message']>();
+  // What is stored for this plan; null until a new plan is first saved. The draft differing from it means unsaved changes.
+  const [stored, setStored] = useState<string | null>(null);
   // The plan being edited; a new plan gets its id and school on load, and keeps them after its first save.
   const plan = useRef({ id: '', schoolId: '', isTemplate: false });
   // State updates land after the render: a ref blocks a second press made before the loading state shows.
@@ -62,6 +67,7 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
           plan.current = { id: randomUUID(), schoolId: school.id, isTemplate: false };
           setName('');
           setBlocks([]);
+          setStored(null);
         } else {
           const existing = await repository.get(planId);
           if (cancelled) return;
@@ -69,6 +75,7 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
           plan.current = { id: existing.id, schoolId: existing.schoolId, isTemplate: existing.isTemplate };
           setName(existing.name);
           setBlocks(existing.blocks);
+          setStored(snapshot(existing.name, existing.blocks));
         }
         setEditingId(null);
         setShowErrors(false);
@@ -119,8 +126,10 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
       setMessage({ kind: 'error', text: t('training_plans.builder.fix_errors') });
       return false;
     }
+    const saved = snapshot(name, blocks);
     try {
       await repository.save({ ...plan.current, name: name.trim(), blocks: blocks.map(toPlanBlock) });
+      setStored(saved);
     } catch (error) {
       const key = error instanceof BlockHasFulfillmentError ? 'block_has_fulfillment' : 'save_failed';
       setMessage({ kind: 'error', text: t(`training_plans.builder.${key}`) });
@@ -188,7 +197,8 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
       }}
       onSave={() => run('plan')}
       onSaveTemplate={() => run('template')}
-      onAssign={onAssign}
+      onAssign={onAssign && (() => onAssign(plan.current.id))}
+      assignBlocked={stored !== snapshot(name, blocks)}
     />
   );
 }

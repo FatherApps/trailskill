@@ -86,6 +86,8 @@ function BuilderPreview({
         defaultRemovingId={initialRemovingId}
         width={width}
         onAssign={noop}
+        // Like the editor: assigning waits until the plan is saved.
+        assignBlocked={message === undefined}
         onChangeName={setName}
         onAddBlock={add}
         onEditBlock={setEditingId}

@@ -19,6 +19,8 @@ export type AssignPlanContainerProps = {
   userId: string;
   // The day shown first (YYYY-MM-DD); today when omitted.
   initialDay?: string;
+  // The plan selected first, for example the one just saved in the editor; none when omitted or not in the school's list.
+  initialPlanId?: string;
   // Opens the fulfillment grid of an assignment of the day shown.
   onOpenFulfillment?: (assignmentId: string, day: string) => void;
 };
@@ -51,12 +53,12 @@ function targetLabel(scope: AssignScope, target: AssignmentTarget): string {
 }
 
 // Container: finds the school and what the user may assign, and saves the assignments through the local repository.
-export function AssignPlanContainer({ plans, assignments, athletes, structure, schools, userId, initialDay, onOpenFulfillment }: AssignPlanContainerProps) {
+export function AssignPlanContainer({ plans, assignments, athletes, structure, schools, userId, initialDay, initialPlanId, onOpenFulfillment }: AssignPlanContainerProps) {
   const [loaded, setLoaded] = useState<Loaded | 'loading' | 'error' | 'no_school'>('loading');
   const [attempt, setAttempt] = useState(0);
   const [day, setDay] = useState(initialDay ?? todayText());
   const [rows, setRows] = useState<AssignedRow[]>([]);
-  const [planId, setPlanId] = useState<string | null>(null);
+  const [planId, setPlanId] = useState<string | null>(initialPlanId ?? null);
   const [kind, setKind] = useState<AssignmentKind>('group');
   const [optionId, setOptionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -162,7 +164,7 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
       content: {
         dateLabel: dayLabel(day),
         plans: ready.plans,
-        selectedPlanId: planId,
+        selectedPlanId: ready.plans.some((p) => p.id === planId) ? planId : null,
         kinds,
         kind,
         options: optionsOf(scope, kind),
