@@ -82,8 +82,8 @@ export default function Home() {
       <SyncStatus state={state} />
       {syncConnectFailed && <Text accessibilityLiveRegion="polite">{t('sync.connect_failed')}</Text>}
       {managed.status === 'ready' &&
-        managed.athletes.map((athlete, index) => {
-          const { shortName, initials, color } = athleteDisplay(athlete, index);
+        managed.athletes.map((athlete) => {
+          const { shortName, initials, color } = athleteDisplay(athlete);
           return (
             <SwimmerRow
               key={athlete.id}

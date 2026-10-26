@@ -48,7 +48,7 @@ export function AddAthletesContainer({
   const refresh = useCallback(
     () =>
       athletes.listManaged(userId).then((found) =>
-        setAdded(found.map((a, index) => ({ id: a.id, ...pick(athleteDisplay(a, index)) }))),
+        setAdded(found.map((a) => ({ id: a.id, ...pick(athleteDisplay(a)) }))),
       ),
     [athletes, userId],
   );

@@ -98,7 +98,7 @@ export function FulfillmentContainer(props: FulfillmentContainerProps) {
           blocks: plan.blocks,
           athletes: scope.athletes
             .filter((athlete) => reached.has(athlete.id))
-            .map((athlete, index) => ({ id: athlete.id, shortName: athleteDisplay(athlete, index).shortName, skipped: !granted.includes(athlete.id) })),
+            .map((athlete) => ({ id: athlete.id, shortName: athleteDisplay(athlete).shortName, skipped: !granted.includes(athlete.id) })),
           marks,
           times: await timesOf(series, marks),
         };
