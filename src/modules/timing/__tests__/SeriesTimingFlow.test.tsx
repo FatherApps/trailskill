@@ -62,7 +62,7 @@ const press = (name: string | RegExp) => fireEvent.press(screen.getByRole('butto
 async function startSeries() {
   await screen.findByText('Nadadores (2 de 3)');
   await press('Empezar toma');
-  await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+  await screen.findByRole('header', { name: 'Serie 1 · Libre 50 m' });
 }
 
 // The first press starts the shared clock; each later one is an arrival `seconds` after the previous.
@@ -78,7 +78,7 @@ describe('series timing flow', () => {
     await setup();
     await startSeries();
 
-    expect(screen.getByText('Aún no hay llegadas')).toBeOnTheScreen();
+    expect(screen.getAllByText('Esperando llegada…', { includeHiddenElements: true })).toHaveLength(2);
   });
 
   it('leaves the flow from the setup back button', async () => {
@@ -106,7 +106,7 @@ describe('series timing flow', () => {
     await setup();
     await startSeries();
 
-    expect(screen.getByRole('button', { name: /Asignar nombres/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Terminar y asignar/ })).toBeDisabled();
   });
 
   it('assigns the names to the arrivals and saves the series with its arrivals', async () => {
@@ -115,13 +115,13 @@ describe('series timing flow', () => {
     await press('Llegada');
     await arrive(31n);
     await arrive(3n);
-    await press('Asignar nombres');
+    await press('Terminar y asignar');
 
     await press('Asignar a Ana M.');
     await press('Asignar a Cleo O.');
-    await press('Listo');
+    await press('Guardar serie');
 
-    expect(await screen.findByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' })).toBeOnTheScreen();
     expect(openSpy).toHaveBeenCalledTimes(1);
     const saved = await measurements.listBySeries(openSpy.mock.calls[0]![0].id);
     expect(saved.map((m) => [m.arrivalPosition, m.athleteId, m.hundredths])).toEqual([
@@ -135,10 +135,10 @@ describe('series timing flow', () => {
     await startSeries();
     await press('Llegada');
     await arrive(31n);
-    await press('Asignar nombres');
+    await press('Terminar y asignar');
     await press('Asignar a Ana M.');
-    await press('Listo');
-    await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+    await press('Guardar serie');
+    await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' });
 
     const [series] = openSpy.mock.calls[0]!;
     const [saved] = await measurements.listBySeries(series.id);
@@ -164,9 +164,9 @@ describe('series timing flow', () => {
     await press('Empezar toma');
     await press('Llegada');
     await arrive(31n);
-    await press('Asignar nombres');
-    await press('Listo');
-    await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+    await press('Terminar y asignar');
+    await press('Guardar serie');
+    await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' });
 
     const [saved] = await measurements.listBySeries(openSpy.mock.calls[0]![0].id);
 
@@ -179,11 +179,11 @@ describe('series timing flow', () => {
     await press('Llegada');
     await arrive(31n);
     await arrive(3n);
-    await press('Asignar nombres');
+    await press('Terminar y asignar');
     await press('Asignar a Ana M.');
 
-    await press('Listo');
-    await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+    await press('Guardar serie');
+    await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' });
 
     const saved = await measurements.listBySeries(openSpy.mock.calls[0]![0].id);
     expect(saved.map((m) => m.athleteId)).toEqual(['a1', null]);
@@ -194,16 +194,29 @@ describe('series timing flow', () => {
     await startSeries();
     await press('Llegada');
     await arrive(31n);
-    await press('Asignar nombres');
+    await press('Terminar y asignar');
     await press('Asignar a Ana M.');
 
     await press(/^Ana M\.,? .*Posición 1/); // the assigned row reopens its position
     await press('Asignar a Cleo O.');
-    await press('Listo');
-    await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+    await press('Guardar serie');
+    await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' });
 
     const [saved] = await measurements.listBySeries(openSpy.mock.calls[0]![0].id);
     expect(saved?.athleteId).toBe('a3');
+  });
+
+  it('numbers the series of the visit and says when it started and when each arrival happened', async () => {
+    await setup();
+    await startSeries();
+    expect(screen.getByText('Reloj de la serie')).toBeOnTheScreen();
+    await press('Llegada');
+    await arrive(31n);
+
+    expect(screen.getByText(/^Reloj de la serie · salida a las \d{1,2}:\d{2}:\d{2}$/)).toBeOnTheScreen();
+    expect(screen.getByText(/^\d{1,2}:\d{2}:\d{2} · sin asignar$/, { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('Entrenamiento · 2 nadadores en el agua')).toBeOnTheScreen();
+    expect(screen.getByText('Siguiente: 2.º puesto')).toBeOnTheScreen();
   });
 
   it('asks before leaving a series that already has arrivals, which stay on the phone as "por asignar"', async () => {
@@ -230,7 +243,7 @@ describe('series timing flow', () => {
     await press('Volver');
     await press('Seguir midiendo');
 
-    expect(screen.getByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Serie 1 · Libre 50 m' })).toBeOnTheScreen();
     expect(screen.queryByText('¿Salir de la serie?')).toBeNull();
   });
 
@@ -306,11 +319,11 @@ describe('series timing flow', () => {
       await arrive(31n);
       await arrive(3n);
       await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(2));
-      await press('Asignar nombres');
+      await press('Terminar y asignar');
       await press('Asignar a Ana M.');
 
-      await press('Listo');
-      await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+      await press('Guardar serie');
+      await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' });
 
       const saved = await measurements.listBySeries(openSpy.mock.calls[1]![0].id);
       expect(saved.map((m) => [m.arrivalPosition, m.athleteId, m.hundredths])).toEqual([
@@ -344,11 +357,11 @@ describe('series timing flow', () => {
       await arrive(3n);
       await press('Deshacer última');
       await waitFor(() => expect(series.discardArrival).toHaveBeenCalledTimes(1));
-      await press('Asignar nombres');
+      await press('Terminar y asignar');
       await press('Asignar a Ana M.');
 
-      await press('Listo');
-      await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+      await press('Guardar serie');
+      await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' });
 
       expect(series.discardArrival).toHaveBeenCalledTimes(2);
       expect((await measurements.listBySeries(seriesOf(openSpy))).map((m) => m.arrivalPosition)).toEqual([1]);
@@ -359,13 +372,13 @@ describe('series timing flow', () => {
       await startSeries();
       await press('Llegada');
       await arrive(31n);
-      await press('Asignar nombres');
+      await press('Terminar y asignar');
       await press('Asignar a Ana M.');
 
-      await press('Listo');
+      await press('Guardar serie');
 
-      expect(await screen.findByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
-      expect(screen.getByText('Aún no hay llegadas')).toBeOnTheScreen();
+      expect(await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' })).toBeOnTheScreen();
+      expect(screen.getAllByText('Esperando llegada…', { includeHiddenElements: true })).toHaveLength(2);
       // The next series is a new one: its first press starts the clock and its arrivals belong to another series.
       await press('Llegada');
       await arrive(20n);
@@ -381,12 +394,14 @@ describe('series timing flow', () => {
       await press('Llegada');
       await arrive(31n);
       await arrive(3n);
-      expect(screen.getAllByLabelText('En el teléfono')).toHaveLength(2);
+      expect(screen.getAllByLabelText(/, En el teléfono$/)).toHaveLength(2);
+      expect(screen.getByLabelText('2 en el teléfono')).toBeOnTheScreen();
 
       mockSyncStates.mockImplementation((_table, ids) => new Map(ids.map((id) => [id, 'synced'])));
       await arrive(1n);
 
-      expect(screen.getAllByLabelText('Enviado')).toHaveLength(3);
+      expect(screen.getAllByLabelText(/, Enviado$/)).toHaveLength(3);
+      expect(screen.queryByLabelText(/en el teléfono$/)).toBeNull();
     });
 
     it('keeps the screen awake and taps while timing', async () => {
@@ -416,8 +431,8 @@ describe('series timing flow', () => {
       await press('Llegada');
       await arrive(31n);
       await arrive(3n);
-      await press('Asignar nombres');
-      await screen.findByRole('header', { name: 'Asignar nombres' });
+      await press('Terminar y asignar');
+      await screen.findByRole('header', { name: '¿Quién llegó en cada puesto?' });
       return result;
     }
 
@@ -437,8 +452,8 @@ describe('series timing flow', () => {
       const { measurements, openSpy } = await nameTwo();
       await press('Asignar a Ana M.');
 
-      await press('Listo');
-      await screen.findByRole('header', { name: 'Serie · 2 nadadores' });
+      await press('Guardar serie');
+      await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' });
       await press('Volver');
 
       expect(await screen.findByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
@@ -457,15 +472,30 @@ describe('series timing flow', () => {
       expect(await screen.findByText('2 llegadas sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
 
       await press('Asignar nombres');
-      await screen.findByRole('header', { name: 'Asignar nombres' });
+      await screen.findByRole('header', { name: '¿Quién llegó en cada puesto?' });
       // The arrival saved without a time reads as missing, never 0,00.
       expect(screen.queryByText(/0,00/)).toBeNull();
       await press('Asignar a Cleo O.');
-      await press('Listo');
+      await press('Guardar serie');
 
       await waitFor(async () => expect(await positionsOf(measurements, 'S-old')).toEqual([[1, 'a3'], [2, null]]));
       // Back at the setup, what is still unnamed is still offered.
       expect(await screen.findByText('1 llegada sin nombre de Libre 50 m · Entrenamiento.')).toBeOnTheScreen();
+    });
+
+    it('shows each swimmer\'s personal best on the name cards, and nothing for one without', async () => {
+      const loadBestTime = jest.fn(async (athleteId: string) => (athleteId === 'a1' ? 3100 : null));
+      await nameTwo({ loadBestTime });
+
+      expect(await screen.findByText('MP 31,00')).toBeOnTheScreen();
+      expect(screen.getAllByText(/^MP /)).toHaveLength(1);
+      expect(loadBestTime).toHaveBeenCalledWith('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' });
+    });
+
+    it('names the series in the heading of the naming screen', async () => {
+      await nameTwo();
+
+      expect(screen.getByText('Serie 1 · Libre 50 m · toca un nombre para asignarlo al puesto marcado')).toBeOnTheScreen();
     });
 
     it('offers no arrival of another school for naming, and still offers the ones of the active school', async () => {
@@ -532,12 +562,12 @@ describe('series timing flow', () => {
 
     it('shows the sync state of each arrival while naming', async () => {
       await nameTwo();
-      expect(screen.getAllByLabelText('En el teléfono')).toHaveLength(2);
+      expect(screen.getAllByLabelText(/, En el teléfono$/)).toHaveLength(2);
 
       mockSyncStates.mockImplementation((_table, ids) => new Map(ids.map((id) => [id, 'synced'])));
       await press('Asignar a Ana M.');
 
-      expect(screen.getAllByLabelText('Enviado')).toHaveLength(2);
+      expect(screen.getAllByLabelText(/, Enviado$/)).toHaveLength(2);
     });
 
     it('ends the capture: going back from the naming starts the next series', async () => {
@@ -545,26 +575,26 @@ describe('series timing flow', () => {
 
       await press('Volver');
 
-      expect(await screen.findByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
-      expect(screen.getByText('Aún no hay llegadas')).toBeOnTheScreen();
+      expect(await screen.findByRole('header', { name: 'Serie 2 · Libre 50 m' })).toBeOnTheScreen();
+      expect(screen.getAllByText('Esperando llegada…', { includeHiddenElements: true })).toHaveLength(2);
     });
   });
 
-  it('writes a pending arrival only once when "Asignar nombres" is tapped twice in a row', async () => {
+  it('writes a pending arrival only once when "Terminar y asignar" is tapped twice in a row', async () => {
     const { openSpy } = await setup();
     openSpy.mockRejectedValueOnce(new Error('disk full'));
     await startSeries();
     await press('Llegada');
     await arrive(31n);
     await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
-    const name = screen.getByRole('button', { name: /Asignar nombres/ });
+    const name = screen.getByRole('button', { name: /Terminar y asignar/ });
 
     await act(async () => {
       fireEvent.press(name);
       fireEvent.press(name);
     });
 
-    await screen.findByRole('header', { name: 'Asignar nombres' });
+    await screen.findByRole('header', { name: '¿Quién llegó en cada puesto?' });
     expect(openSpy).toHaveBeenCalledTimes(2);
   });
 
@@ -576,9 +606,9 @@ describe('series timing flow', () => {
     await arrive(31n);
     await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
 
-    await press('Asignar nombres');
+    await press('Terminar y asignar');
 
-    expect(screen.getByRole('header', { name: 'Serie · 2 nadadores' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Serie 1 · Libre 50 m' })).toBeOnTheScreen();
     expect(screen.getByText('No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.')).toBeOnTheScreen();
   });
 
@@ -590,13 +620,13 @@ describe('series timing flow', () => {
     await arrive(31n);
     await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
 
-    await press('Asignar nombres');
+    await press('Terminar y asignar');
     expect(screen.getByText('No pudimos guardar las llegadas en este teléfono. Inténtalo de nuevo.')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: /Asignar nombres/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Terminar y asignar/ })).toBeEnabled();
 
-    await press('Asignar nombres');
+    await press('Terminar y asignar');
 
-    await screen.findByRole('header', { name: 'Asignar nombres' });
+    await screen.findByRole('header', { name: '¿Quién llegó en cada puesto?' });
     expect(await measurements.listBySeries(openSpy.mock.calls[2]![0].id)).toHaveLength(1);
     expect(screen.queryByText(/No pudimos guardar/)).toBeNull();
   });

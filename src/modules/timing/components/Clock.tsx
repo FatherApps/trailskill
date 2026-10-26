@@ -10,10 +10,13 @@ export const clockFormat = { alwaysShowMinutes: true };
 export function Clock({
   value,
   muted = false,
+  onDark = false,
   hiddenFromReaders = false,
 }: {
   value: Hundredths;
   muted?: boolean;
+  // On the near-black panel of the series screens.
+  onDark?: boolean;
   // A running clock is not a live region and is hidden: only the state is announced.
   hiddenFromReaders?: boolean;
 }) {
@@ -31,7 +34,7 @@ export function Clock({
       })}
       style={[
         typography['time-display'],
-        { textAlign: 'center', fontVariant: ['tabular-nums'], color: colors[muted ? 'ink-muted' : 'ink'] },
+        { textAlign: 'center', fontVariant: ['tabular-nums'], color: colors[onDark ? 'on-header' : muted ? 'ink-muted' : 'ink'] },
       ]}
     >
       {formatTime(value, clockFormat)}

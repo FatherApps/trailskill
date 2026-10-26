@@ -17,9 +17,14 @@ export type RosterAthlete = Pick<SetupAthlete, 'id' | 'shortName' | 'initials' |
 const option = ({ code, nameKey }: { code: string; nameKey: string }) => ({ value: code, label: t(nameKey) });
 const nameOf = (catalog: readonly { code: string; nameKey: string }[], code: string) => t(catalog.find((c) => c.code === code)?.nameKey ?? code);
 
+// For example "Libre 50 m".
+export const eventTitleOf = (choice: Pick<Choice, 'stroke' | 'distance'>) => `${nameOf(strokes, choice.stroke)} ${nameOf(distances, choice.distance)}`;
+
+// For example "Entrenamiento".
+export const sessionLabelOf = (choice: Pick<Choice, 'sessionType'>) => t(`timing.session_type.${choice.sessionType}`);
+
 // For example "Libre 50 m · Entrenamiento".
-export const eventSubtitleOf = (choice: Choice) =>
-  `${nameOf(strokes, choice.stroke)} ${nameOf(distances, choice.distance)} · ${t(`timing.session_type.${choice.sessionType}`)}`;
+export const eventSubtitleOf = (choice: Choice) => `${eventTitleOf(choice)} · ${sessionLabelOf(choice)}`;
 
 // A training time is a repetition and a competition time is a race: the two kinds a personal best can come from.
 export const kindOf = (choice: Choice) => (choice.sessionType === 'competition' ? ('race' as const) : ('repetition' as const));

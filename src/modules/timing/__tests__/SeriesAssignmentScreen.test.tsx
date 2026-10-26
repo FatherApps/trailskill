@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
-import { PixelRatio, StyleSheet } from 'react-native';
+import { Dimensions, PixelRatio, StyleSheet } from 'react-native';
 
 import { colors } from '../../../core/theme';
 import { SeriesAssignmentScreen } from '../screens/SeriesAssignmentScreen';
@@ -16,7 +16,7 @@ async function renderScreen(props: Partial<Parameters<typeof SeriesAssignmentScr
     <SeriesAssignmentScreen
       positions={snapshots.partial}
       athletes={athletes}
-      eventSubtitle={seriesFixture.eventSubtitle}
+      heading="Serie 2 · Libre 50 m"
       {...callbacks}
       {...props}
     />,
@@ -24,110 +24,107 @@ async function renderScreen(props: Partial<Parameters<typeof SeriesAssignmentScr
   return callbacks;
 }
 
-const isSelected = (position: number) =>
-  within(screen.getByTestId(`position-row-${position}`)).getAllByLabelText(/./, hidden).some((n) => n.props.accessibilityState?.selected === true);
+const isSelected = (position: number) => screen.getByTestId(`position-row-${position}`).props.accessibilityState?.selected === true;
+
+// The jest window is a tablet; the phone shows the same content in one column.
+const setWidth = (width: number) => Dimensions.set({ window: { width, height: 844, scale: 1, fontScale: 1 }, screen: { width, height: 844, scale: 1, fontScale: 1 } });
+afterEach(() => setWidth(750));
+
+const withBest = athletes.map((a, index) => ({ ...a, bestTime: [3105, 3391, null, 3647][index] ?? null }));
 
 describe('SeriesAssignmentScreen', () => {
-  it('shows the title, the event and the highlighted position with its time', async () => {
+  it('asks who arrived in each position, naming the series and how many have a name', async () => {
     await renderScreen();
 
-    expect(screen.getByRole('header', { name: 'Asignar nombres' })).toBeOnTheScreen();
-    expect(screen.getByText('Posición 3 de 4')).toBeOnTheScreen();
-    const time = within(screen.getByTestId('highlighted-stat')).getByText('35,22', hidden);
-    expect(StyleSheet.flatten(time.props.style)?.fontSize).toBe(40);
+    expect(screen.getByRole('header', { name: '¿Quién llegó en cada puesto?' })).toBeOnTheScreen();
+    expect(screen.getByText('Serie 2 · Libre 50 m · toca un nombre para asignarlo al puesto marcado')).toBeOnTheScreen();
+    expect(screen.getByLabelText('2 de 4 asignados')).toBeOnTheScreen();
   });
 
   it('lists every position in arrival order', async () => {
     await renderScreen({ positions: snapshots.none });
 
     const times = screen.getAllByText(/^\d\d,\d\d$/, hidden).map((n) => n.props.children);
-    expect(times.slice(-4)).toEqual(['31,05', '33,91', '35,22', '36,47']);
+    expect(times).toEqual(['31,05', '33,91', '35,22', '36,47']);
   });
 
-  it('with position 1 open, reopening position 3 keeps 1 highlighted and 3 shows por asignar', async () => {
-    await renderScreen({ positions: firstAndThirdOpen });
-
-    expect(screen.getByText('Posición 1 de 4')).toBeOnTheScreen();
-    expect(isSelected(1)).toBe(true);
-    expect(isSelected(3)).toBe(false);
-    expect(within(screen.getByTestId('position-row-3')).getByText('por asignar', hidden)).toBeOnTheScreen();
-    expect(screen.getAllByText('por asignar', hidden)).toHaveLength(2);
-  });
-
-  it('highlights exactly one position, the first without an athlete', async () => {
+  it('highlights exactly one position, the first without an athlete, and invites to pick a name', async () => {
     await renderScreen();
 
     expect([1, 2, 3, 4].map(isSelected)).toEqual([false, false, true, false]);
+    expect(screen.getByText('Elige un nombre →', hidden)).toBeOnTheScreen();
+    expect(screen.getByText('Sin asignar', hidden)).toBeOnTheScreen();
   });
 
   it('highlights the first position without an athlete, in every state', async () => {
     await renderScreen({ positions: snapshots.none });
-    expect(screen.getByText('Posición 1 de 4')).toBeOnTheScreen();
+
+    expect([1, 2, 3, 4].map(isSelected)).toEqual([true, false, false, false]);
   });
 
-  it('reopening position 3 with everything assigned highlights it and shows por asignar', async () => {
+  it('with position 1 open, reopening position 3 keeps 1 highlighted and 3 shows sin asignar', async () => {
+    await renderScreen({ positions: firstAndThirdOpen });
+
+    expect(isSelected(1)).toBe(true);
+    expect(isSelected(3)).toBe(false);
+    expect(within(screen.getByTestId('position-row-3')).getByText('Sin asignar', hidden)).toBeOnTheScreen();
+  });
+
+  it('reopening position 3 with everything assigned highlights it', async () => {
     await renderScreen({ positions: snapshots.pending });
 
-    expect(screen.getByText('Posición 3 de 4')).toBeOnTheScreen();
-    expect(screen.getAllByText('por asignar', hidden)).toHaveLength(1);
     expect(isSelected(3)).toBe(true);
-    expect(within(screen.getByTestId('position-row-3')).getByText('por asignar', hidden)).toBeOnTheScreen();
+    expect(within(screen.getByTestId('position-row-3')).getByText('Elige un nombre →', hidden)).toBeOnTheScreen();
   });
 
   it('draws an unassigned position without an athlete colour and an assigned one with its own', async () => {
     await renderScreen({ positions: snapshots.pending });
 
-    const avatarBackground = (position: number, initials: string) =>
-      StyleSheet.flatten(
-        within(screen.getByTestId(`position-row-${position}`)).getByText(initials, hidden).parent?.props.style,
-      )?.backgroundColor;
-    const athleteValues = [colors.light['athlete-1'], colors.light['athlete-2'], colors.light['athlete-3'], colors.light['athlete-4']];
+    const chip = (position: number, initials: string) =>
+      StyleSheet.flatten(within(screen.getByTestId(`position-row-${position}`)).getByText(initials, hidden).parent?.parent?.props.style)?.backgroundColor;
 
-    expect(avatarBackground(3, '3')).toBe(colors.light['surface-2']);
-    expect(athleteValues).not.toContain(avatarBackground(3, '3'));
-    expect(avatarBackground(2, 'LR')).toBe(colors.light['athlete-2']);
+    expect(chip(2, 'LR')).toBe(colors.light['athlete-2']);
+    expect(within(screen.getByTestId('position-row-3')).queryByText('LR', hidden)).toBeNull();
   });
 
-  it('names an unassigned position with the short ordinal and keeps its time and por asignar tag', async () => {
-    // Jest reports a system font scale of 2: pin 1 so the default layout is the one under test.
-    jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1);
-    await renderScreen({ positions: snapshots.pending });
+  it('reads each position out as one element: who, where, the time and its sync state', async () => {
+    await renderScreen({
+      positions: [
+        { position: 1, time: 3100, athleteId: athletes[0]!.id, syncState: 'synced' },
+        { position: 2, time: 3300, athleteId: null, syncState: 'on_device' },
+        { position: 3, time: null, athleteId: null },
+      ],
+    });
 
-    const row = within(screen.getByTestId('position-row-3'));
-    expect(row.getByText('3.º', hidden)).toBeOnTheScreen();
-    expect(row.queryByText('Posición 3', hidden)).toBeNull();
-    expect(row.getByText('35,22', hidden)).toBeOnTheScreen();
-    expect(row.getByText('por asignar', hidden)).toBeOnTheScreen();
-    expect(row.getAllByLabelText(/./, hidden)[0].props.accessibilityLabel).toBe('3.º, 35,22, por asignar');
-    jest.restoreAllMocks();
+    expect(screen.getByTestId('position-row-1').props.accessibilityLabel).toBe('Mateo C., Posición 1, 31,00, Enviado');
+    expect(screen.getByTestId('position-row-2').props.accessibilityLabel).toBe('Posición 2, Sin asignar, 33,00, En el teléfono');
+    expect(screen.getByTestId('position-row-3').props.accessibilityLabel).toBe('Posición 3, Sin asignar');
   });
 
   describe('at a large text scale', () => {
     beforeEach(() => jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(2));
     afterEach(() => jest.restoreAllMocks());
 
-    // The row stacks its time and tag below the name (core SwimmerRow), so the same props work at every scale.
-    it('still shows the ordinal, the time and the por asignar tag of an unassigned position', async () => {
+    it('keeps the position, the time and the missing name of an unassigned position', async () => {
       await renderScreen({ positions: snapshots.pending });
 
       const row = within(screen.getByTestId('position-row-3'));
-      expect(row.getByText('3.º', hidden)).toBeOnTheScreen();
+      expect(row.getByText('3', hidden)).toBeOnTheScreen();
       expect(row.getByText('35,22', hidden)).toBeOnTheScreen();
-      expect(row.getByText('por asignar', hidden)).toBeOnTheScreen();
-      expect(row.getAllByLabelText(/./, hidden)[0].props.accessibilityLabel).toBe('3.º, 35,22, por asignar');
       expect(isSelected(3)).toBe(true);
     });
 
-    it('never drops an unassigned position', async () => {
-      await renderScreen({ positions: snapshots.none });
+    it('stacks the name cards one per row', async () => {
+      await renderScreen();
 
-      expect(screen.getAllByText('por asignar', hidden)).toHaveLength(4);
+      expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Asignar a Sara P.' }).parent?.props.style)?.width).toBe('100%');
     });
   });
 
   it('never drops a position without an athlete', async () => {
     await renderScreen({ positions: snapshots.none });
-    expect(screen.getAllByText('por asignar', hidden)).toHaveLength(4);
+
+    expect(screen.getAllByText(/^Sin asignar$|^Elige un nombre →$/, hidden)).toHaveLength(4);
   });
 
   it('highlights the position it is told to, even with an earlier one still open', async () => {
@@ -147,44 +144,68 @@ describe('SeriesAssignmentScreen', () => {
     expect(screen.queryByText(/No pudimos guardar/)).toBeNull();
   });
 
-  it('shows the all-assigned message when the highlight is none', async () => {
+  it('highlights nothing when the highlight is none', async () => {
     await renderScreen({ positions: snapshots.pending, highlightedPosition: null });
 
-    expect(screen.getByText('Todas las posiciones tienen nombre.')).toBeOnTheScreen();
+    expect([1, 2, 3, 4].some(isSelected)).toBe(false);
+    expect(screen.queryByText('Elige un nombre →', hidden)).toBeNull();
   });
 
-  it('draws the sync state of each arrival, assigned or not', async () => {
+  it('counts the arrivals that did not go through in the header and not the ones still on the phone', async () => {
     await renderScreen({
       positions: [
         { position: 1, time: 3100, athleteId: athletes[0]!.id, syncState: 'synced' },
         { position: 2, time: 3300, athleteId: null, syncState: 'on_device' },
+        { position: 3, time: 3500, athleteId: null, syncState: 'not_sent' },
       ],
     });
 
-    expect(screen.getByLabelText('Enviado')).toBeOnTheScreen();
-    expect(screen.getByLabelText('En el teléfono')).toBeOnTheScreen();
+    expect(screen.getByLabelText('No enviado · 1')).toBeOnTheScreen();
+    // The pill list holds only the failure; the row still reads its own state out.
+    expect(screen.queryAllByTestId('sync-status')).toHaveLength(1);
   });
 
-  it('draws no pill for an arrival without a known state', async () => {
+  it('draws no sync pill when everything is on the phone or sent', async () => {
     await renderScreen();
 
-    expect(screen.queryByLabelText('Enviado')).toBeNull();
-    expect(screen.queryByLabelText('En el teléfono')).toBeNull();
+    expect(screen.queryAllByTestId('sync-status')).toHaveLength(0);
   });
 
   it('shows a missing time as a dash, never 0,00', async () => {
     await renderScreen({ positions: [{ position: 1, time: null, athleteId: null }] });
 
     expect(screen.queryByText(/0,00/, hidden)).toBeNull();
-    expect(screen.getByTestId('highlighted-stat')).toHaveTextContent(/—/);
+    expect(within(screen.getByTestId('position-row-1')).getByText('—', hidden)).toBeOnTheScreen();
   });
 
-  it('shows the all-assigned message instead of a highlighted position', async () => {
-    await renderScreen({ positions: snapshots.all });
+  it('shows the personal best on the card, and the MP tag on a time that matches it', async () => {
+    await renderScreen({
+      athletes: withBest,
+      positions: [
+        { position: 1, time: 3105, athleteId: athletes[0]!.id },
+        { position: 2, time: 3500, athleteId: athletes[1]!.id },
+        { position: 3, time: 3600, athleteId: null },
+      ],
+    });
 
-    expect(screen.getByText('Todas las posiciones tienen nombre.')).toBeOnTheScreen();
-    expect(screen.queryByText(/de 4$/)).toBeNull();
-    expect(screen.queryByText('por asignar', hidden)).toBeNull();
+    // Sara P. has a best of 36,47 on card and no tag yet; Mateo C. matched his best, Lucía R. did not.
+    expect(screen.getByText('MP 36,47')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('position-row-1')).getByText('MP', hidden)).toBeOnTheScreen();
+    expect(within(screen.getByTestId('position-row-2')).queryByText('MP', hidden)).toBeNull();
+  });
+
+  it('shows nothing about a personal best the athlete does not have', async () => {
+    await renderScreen({ athletes: withBest, positions: snapshots.none });
+
+    expect(screen.queryByText(/^MP 0/)).toBeNull();
+    expect(screen.queryAllByText(/^MP \d/)).toHaveLength(3);
+  });
+
+  it('puts the swimmers still without a position first and the placed ones after, quiet', async () => {
+    await renderScreen();
+
+    const names = screen.getAllByRole('button').map((b) => b.props.accessibilityLabel).filter((l: string) => /Asignar a|en la posición/.test(l));
+    expect(names).toEqual(['Asignar a Sara P.', 'Asignar a Tomás V.', 'Mateo C., en la posición 1', 'Lucía R., en la posición 2']);
   });
 
   it('assigns the tapped name card through onAssign', async () => {
@@ -204,7 +225,7 @@ describe('SeriesAssignmentScreen', () => {
   it('reopens an assigned position when tapped', async () => {
     const { onReopen } = await renderScreen();
 
-    await fireEvent.press(within(screen.getByTestId('position-row-2')).getByRole('button'));
+    await fireEvent.press(screen.getByTestId('position-row-2'));
 
     expect(onReopen).toHaveBeenCalledWith(2);
   });
@@ -212,33 +233,46 @@ describe('SeriesAssignmentScreen', () => {
   it('saves the series with the only lime action', async () => {
     const { onSave } = await renderScreen();
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Listo' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar serie' }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps Guardar serie outside the scrolling list so the last name card is never covered', async () => {
+  it('keeps Guardar serie outside the scrolling cards so the last name card is never covered', async () => {
     await renderScreen();
 
-    // Walk up from a name card to the ScrollView that holds the list (the jest mock wraps it, so match its props, not its type).
+    // Walk up from a name card to the ScrollView that holds the cards (the jest mock wraps it, so match its props, not its type).
     let node = screen.getByRole('button', { name: 'Asignar a Sara P.' }).parent;
-    while (node && node.props.contentContainerStyle === undefined) node = node.parent;
+    while (node && node.props.nestedScrollEnabled === undefined) node = node.parent;
     if (!node) throw new Error('No ScrollView above the name cards');
-    const scroll = node;
-    const list = within(scroll);
+    const list = within(node);
 
-    expect(list.queryByRole('button', { name: 'Listo' })).toBeNull();
+    expect(list.queryByRole('button', { name: 'Guardar serie' })).toBeNull();
     for (const label of ['Mateo C., en la posición 1', 'Lucía R., en la posición 2', 'Asignar a Sara P.', 'Asignar a Tomás V.']) {
       expect(list.getByRole('button', { name: label })).toBeOnTheScreen();
     }
-    const contentStyle = StyleSheet.flatten(scroll.props.contentContainerStyle);
-    expect(contentStyle?.paddingBottom ?? contentStyle?.padding).toBeGreaterThan(0);
-    expect(scroll.props.nestedScrollEnabled).toBe(true);
+    expect(node.props.nestedScrollEnabled).toBe(true);
   });
 
   it('shows the offline notice', async () => {
     await renderScreen({ offline: true });
     expect(screen.getByText('Sin conexión.', { exact: false })).toBeOnTheScreen();
+  });
+
+  describe('on a phone', () => {
+    beforeEach(() => setWidth(390));
+
+    it('shows the same content in one scrolling column with Guardar serie under it', async () => {
+      const { onSave } = await renderScreen();
+
+      expect(screen.getByRole('header', { name: '¿Quién llegó en cada puesto?' })).toBeOnTheScreen();
+      expect(screen.getByLabelText('2 de 4 asignados')).toBeOnTheScreen();
+      expect(screen.getByText('En el agua en esta serie')).toBeOnTheScreen();
+      expect(isSelected(3)).toBe(true);
+      expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Asignar a Sara P.' }).parent?.props.style)?.width).toBe('47.5%');
+      await fireEvent.press(screen.getByRole('button', { name: 'Guardar serie' }));
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('completion only', () => {
