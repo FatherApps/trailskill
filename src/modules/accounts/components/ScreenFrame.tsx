@@ -5,6 +5,8 @@ import { useTheme } from '../../../core/theme';
 
 export type ScreenFrameProps = {
   title: string;
+  // The display size of the lima boards, for the first screen of a flow.
+  large?: boolean;
   // Only with an invitation: the school that invited.
   subtitle?: string;
   // Above the title, for example a back button.
@@ -15,7 +17,7 @@ export type ScreenFrameProps = {
 };
 
 // Scrolls, so large text never clips; no text container has a fixed height.
-export function ScreenFrame({ title, subtitle, before, children, footer }: ScreenFrameProps) {
+export function ScreenFrame({ title, large = false, subtitle, before, children, footer }: ScreenFrameProps) {
   const { colors, space, typography } = useTheme();
 
   return (
@@ -25,7 +27,7 @@ export function ScreenFrame({ title, subtitle, before, children, footer }: Scree
       contentContainerStyle={{ flexGrow: 1, padding: space[4], gap: space[4] }}
     >
       {before}
-      <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+      <Text accessibilityRole="header" style={[typography[large ? 'title-lg' : 'title'], { color: colors.ink }]}>
         {title}
       </Text>
       {subtitle ? <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{subtitle}</Text> : null}

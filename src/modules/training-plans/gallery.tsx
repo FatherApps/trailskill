@@ -17,7 +17,7 @@ import { TodayScreen, type TodayView } from './screens/TodayScreen';
 import { phases, recordings, type BlockStatus } from './types';
 
 const noop = () => {};
-const { vocabulary, blocks, today, athleteName, storedOnLabel, planList } = plansFixture;
+const { vocabulary, blocks, today, athleteName, athletes, storedOnLabel, planList } = plansFixture;
 
 // The preview box shrinks its children; a screen fills a phone-like area instead, and its own ScrollView scrolls.
 function ScreenFrame({ children }: { children: ReactNode }) {
@@ -95,10 +95,20 @@ function BuilderPreview({
   );
 }
 
-function TodayPreview({ view }: { view: TodayView }) {
+// With `withPicker` the chips really switch, as the container does.
+function TodayPreview({ view, withPicker = false }: { view: TodayView; withPicker?: boolean }) {
+  const [selectedId, setSelectedId] = useState(athletes[0].id);
+  const shown = withPicker ? athletes.find(({ id }) => id === selectedId)! : undefined;
   return (
     <ScreenFrame>
-      <TodayScreen athleteName={athleteName} view={view} onSendNotice={noop} />
+      <TodayScreen
+        athleteName={shown?.name ?? athleteName}
+        view={view}
+        athletes={withPicker ? athletes : undefined}
+        selectedAthleteId={selectedId}
+        onSelectAthlete={setSelectedId}
+        onSendNotice={noop}
+      />
     </ScreenFrame>
   );
 }
@@ -188,6 +198,13 @@ export const galleryEntries: GalleryEntry[] = [
           ))}
         </Stack>
       ),
+      rows: () => (
+        <Stack>
+          {phases.map((phase) => (
+            <BlockCard key={phase} variant="row" block={{ ...blocks[2], id: phase, phase }} vocabulary={vocabulary} />
+          ))}
+        </Stack>
+      ),
     },
   },
   {
@@ -240,6 +257,7 @@ export const galleryEntries: GalleryEntry[] = [
     title: 'TodayScreen',
     states: {
       today: () => <TodayPreview view={{ kind: 'data', content: today }} />,
+      'several-athletes': () => <TodayPreview withPicker view={{ kind: 'data', content: today }} />,
       loading: () => <TodayPreview view={{ kind: 'loading' }} />,
       empty: () => <TodayPreview view={{ kind: 'empty' }} />,
       error: () => <TodayPreview view={{ kind: 'error', onRetry: noop }} />,

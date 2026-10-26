@@ -123,11 +123,19 @@
     "deactivate": "Desactivar",
     "deactivate_hint": "Desactivar a {{name}}",
     "cancel": "Cancelar",
-    "invite_confirm": {
-      "title": "¿Invitar a un entrenador?",
-      "message": "La persona invitada podrá registrar mediciones de los deportistas que le asignes.",
-      "confirm": "Enviar invitación"
+    "invite_sheet": {
+      "label": "Invitar entrenador",
+      "name": "Nombre",
+      "email": "Correo",
+      "groups": "Grupos a cargo",
+      "send": "Enviar invitación",
+      "incomplete": "Escribe el nombre y un correo válido"
     },
+    "status": {
+      "active": "Activo",
+      "pending": "Invitación enviada"
+    },
+    "deactivate_unavailable": "Aún no disponible",
     "deactivate_confirm": {
       "title": "¿Desactivar a {{name}}?",
       "message": "{{name}} dejará de ser entrenador activo de la escuela. Sus registros anteriores conservan su autoría.",

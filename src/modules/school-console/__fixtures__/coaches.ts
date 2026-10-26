@@ -1,4 +1,5 @@
 import type { CoachRow } from '../components/CoachList';
+import type { InviteGroup } from '../components/InviteCoachSheet';
 
 // Synthetic data for the development gallery and the tests: fictional people.
 export const coachesFixture: CoachRow[] = [
@@ -15,3 +16,21 @@ export const longTextCoachFixture: CoachRow = {
   groups: ['Grupo de iniciación avanzada', 'Grupo de desarrollo infantil', 'Grupo de perfeccionamiento'],
   athleteCount: 128,
 };
+
+// A coach whose invitation was sent and not yet accepted (no real source of these exists yet).
+export const pendingCoachFixture: CoachRow = {
+  id: 'c5',
+  name: 'Julio Castaño',
+  initials: 'JC',
+  color: 'athlete-1',
+  status: 'pending',
+  groups: ['Grupo B'],
+  athleteCount: 0,
+};
+
+// The groups of the school offered as chips in the invite sheet.
+export const inviteGroupsFixture: InviteGroup[] = [
+  { id: 'g1', name: 'Grupo A' },
+  { id: 'g2', name: 'Grupo B' },
+  { id: 'g3', name: 'Grupo C' },
+];

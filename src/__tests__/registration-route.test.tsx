@@ -13,7 +13,7 @@ let mockOnNext: (step: 'add_athletes' | 'authorizations') => void = () => {};
 let mockOffer: { email: string; resume: () => void; startOver: () => void } | undefined;
 jest.mock('../modules/accounts', () => ({
   createPowerSyncManagedAthleteProfileRepository: () => ({}),
-  createPowerSyncManagedAthleteRepository: () => ({}),
+  createPowerSyncManagedAthleteRepository: () => ({ listManagedAthleteIds: async () => [] }),
   createSecureStorePendingInvitationRepository: () => ({}),
   createSecureStoreRegistrationDraftRepository: () => ({}),
   createSupabaseAdultProfileRepository: () => ({}),

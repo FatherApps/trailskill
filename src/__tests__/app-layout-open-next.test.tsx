@@ -15,6 +15,7 @@ const mockReplace = jest.fn();
 const mockRouter = { replace: mockReplace };
 jest.mock('expo-router', () => ({
   Stack: () => null,
+  usePathname: () => '/',
   router: new Proxy({}, { get: () => () => { throw new Error('The imperative router is unavailable before the first render has finished.'); } }),
   useRouter: () => mockRouter,
 }));

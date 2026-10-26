@@ -291,21 +291,21 @@ describe('t', () => {
 describe('home by role', () => {
   const school = [{ id: 's1', name: 'Escuela Delfines' }];
 
-  it('shows a guardian their athletes and opens the profile of the one they press', async () => {
+  it('gives a guardian a button to their athletes', async () => {
     mockListManagedAthleteIds.mockResolvedValue(['a1']);
     mockListByIds.mockResolvedValue([{ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] }]);
     await render(<Home />);
 
-    await fireEvent.press(await screen.findByRole('button', { name: /Ana M\./ }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Deportistas' }));
 
-    expect(mockPush).toHaveBeenCalledWith('/athletes/a1');
+    expect(mockPush).toHaveBeenCalledWith('/athletes');
   });
 
   it('shows a guardian neither the timing, the plans nor the console', async () => {
     mockListManagedAthleteIds.mockResolvedValue(['a1']);
     mockListByIds.mockResolvedValue([{ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] }]);
     await render(<Home />);
-    await screen.findByRole('button', { name: /Ana M\./ });
+    await screen.findByRole('button', { name: 'Deportistas' });
 
     expect(screen.queryByRole('button', { name: 'Toma de tiempos' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Toma en serie' })).toBeNull();

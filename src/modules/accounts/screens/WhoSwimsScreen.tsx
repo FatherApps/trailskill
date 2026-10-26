@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { useTheme } from '../../../core/theme';
+import { typography as baseTypography, useTheme } from '../../../core/theme';
 import { Banner, Button, Icon, StepHeader } from '../../../core/ui';
-import { ChoiceRow } from '../components/ChoiceRow';
+import { ChoiceCard } from '../components/ChoiceCard';
 import { InvalidInvitationBanner, InvitationBanner, type Invitation } from '../components/notices';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { t } from '../i18n';
@@ -22,16 +22,19 @@ export type WhoSwimsScreenProps = {
   onBack: () => void;
 };
 
+const largeTextScale = 1.5;
+
 const styles = StyleSheet.create({
-  list: { overflow: 'hidden' },
-  separator: { height: StyleSheet.hairlineWidth },
   error: { flexDirection: 'row', alignItems: 'flex-start' },
   errorText: { flexShrink: 1 },
 });
 
 // Step 1 of registration. A guardian goes through four steps, an adult through three (no athlete details).
 export function WhoSwimsScreen({ initialChoice, invitation, invalidInvitation, onSelect, onBack }: WhoSwimsScreenProps) {
-  const { colors, space, radius, typography } = useTheme();
+  const { colors, space, typography } = useTheme();
+  // The gallery preview scale (theme) and the system scale both apply: side by side no longer fits with large text.
+  const { fontScale } = useWindowDimensions();
+  const stacked = (typography.caption.fontSize / baseTypography.caption.fontSize) * fontScale >= largeTextScale;
   const [choice, setChoice] = useState(initialChoice);
   const [missing, setMissing] = useState(false);
 
@@ -51,6 +54,7 @@ export function WhoSwimsScreen({ initialChoice, invitation, invalidInvitation, o
   return (
     <ScreenFrame
       title={t('accounts.create_title')}
+      large
       subtitle={invitation?.school}
       footer={<Button label={t('accounts.who.continue')} onPress={next} />}
     >
@@ -60,26 +64,24 @@ export function WhoSwimsScreen({ initialChoice, invitation, invalidInvitation, o
       <View
         accessibilityRole="radiogroup"
         accessibilityLabel={t('accounts.who.title')}
-        style={[
-          styles.list,
-          { paddingVertical: space[1], borderRadius: radius.md, backgroundColor: colors['surface-1'] },
-        ]}
+        style={{ flexDirection: stacked ? 'column' : 'row', gap: space[2] }}
       >
-        <ChoiceRow
+        <ChoiceCard
           title={t('accounts.who.child_title')}
           detail={t('accounts.who.child_detail')}
           icon="family_restroom"
-          color="athlete-1"
+          color="sky"
           selected={choice === 'child'}
+          stacked={stacked}
           onPress={() => choose('child')}
         />
-        <View style={[styles.separator, { backgroundColor: colors.border }]} />
-        <ChoiceRow
+        <ChoiceCard
           title={t('accounts.who.adult_title')}
           detail={t('accounts.who.adult_detail')}
           icon="person"
-          color="athlete-2"
+          color="lilac"
           selected={choice === 'adult'}
+          stacked={stacked}
           onPress={() => choose('adult')}
         />
       </View>

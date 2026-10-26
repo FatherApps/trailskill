@@ -1,5 +1,5 @@
 import type { PlanSummary } from '../data/plans';
-import type { TodayBlock } from '../screens/TodayScreen';
+import type { TodayAthlete, TodayBlock } from '../screens/TodayScreen';
 import type { PlanBlock, PlanVocabulary } from '../types';
 import { planVocabulary } from '../vocabulary';
 
@@ -41,6 +41,11 @@ export const plansFixture = {
   blocks,
   today: { planName: 'Resistencia aeróbica', blocks: todayBlocks, vocabulary },
   athleteName: 'Lucía R.',
+  // Two athletes for the picker; colours as the athletes module derives them.
+  athletes: [
+    { id: 'a1', name: 'Lucía R.', initials: 'LR', color: 'athlete-1' },
+    { id: 'a2', name: 'Tomás R.', initials: 'TR', color: 'athlete-2' },
+  ] as TodayAthlete[],
   storedOnLabel: '25 oct',
   // Equipment of the plan above, deduplicated, in first-appearance order.
   equipmentLabels: ['Paletas', 'Aletas', 'Tabla'],
