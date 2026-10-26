@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { Banner, StateView } from '../../../core/ui';
+import { Banner, ColorHeader, StateView, type ColorCardColor } from '../../../core/ui';
 import '../i18n';
 import { EventSelector, type EventSelectorProps } from '../components/EventSelector';
 import { formatDate } from '../components/formatDate';
@@ -48,14 +48,21 @@ export type AthleteProfileScreenProps = {
   view: AthleteProfileView;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
+  // Where the band's back button goes in the states without content; the states with content take it from their header.
+  onBack?: () => void;
 };
 
 export const athleteProfileScreenColors: { title: ColorToken } = {
   title: 'ink',
 };
 
+// No athlete is loaded in these states, so the band takes the neutral brand colour, like ProfileHeader without one.
+const stateBandColor: ColorCardColor = 'sky';
+
+const noop = () => {};
+
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
-export function AthleteProfileScreen({ name, view, scrollEnabled = true }: AthleteProfileScreenProps) {
+export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack = noop }: AthleteProfileScreenProps) {
   const { colors, space, typography } = useTheme();
   const values = { name };
   // A list that scrolls fills the height it is given; the gallery preview has none to give.
@@ -64,65 +71,62 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true }: Athle
     flex: scrollEnabled ? 1 : undefined,
     paddingHorizontal: space[4],
   } as const;
+  // The states without content keep the band and its back button, so the screen never depends on the system back.
+  const withBand = (state: ReactNode) => (
+    <View style={[frame, { paddingHorizontal: 0 }]}>
+      <ColorHeader color={stateBandColor} title={name} onBack={onBack} />
+      <View style={[frame, { paddingVertical: space[4] }]}>{state}</View>
+    </View>
+  );
 
   switch (view.kind) {
     case 'loading':
-      return (
-        <View style={[frame, { paddingVertical: space[4] }]}>
-          <StateView kind="loading" />
-        </View>
+      return withBand(
+        <StateView kind="loading" />
       );
     case 'error':
-      return (
-        <View style={[frame, { paddingVertical: space[4] }]}>
-          <StateView
-            kind="error"
-            title={t('athletes.screen.error.title')}
-            message={t('athletes.screen.error.message')}
-            action={{
-              label: t('athletes.screen.retry'),
-              onPress: view.onRetry,
-            }}
-          />
-        </View>
+      return withBand(
+        <StateView
+          kind="error"
+          title={t('athletes.screen.error.title')}
+          message={t('athletes.screen.error.message')}
+          action={{
+            label: t('athletes.screen.retry'),
+            onPress: view.onRetry,
+          }}
+        />
       );
     case 'offline-empty':
-      return (
-        <View style={[frame, { paddingVertical: space[4] }]}>
-          <StateView
-            kind="offline"
-            title={t('athletes.screen.offline.title')}
-            message={t('athletes.screen.offline.message', values)}
-          />
-        </View>
+      return withBand(
+        <StateView
+          kind="offline"
+          title={t('athletes.screen.offline.title')}
+          message={t('athletes.screen.offline.message', values)}
+        />
       );
     case 'other-school-offline':
-      return (
-        <View style={[frame, { paddingVertical: space[4] }]}>
-          <StateView
-            kind="offline"
-            title={t('athletes.screen.online_only.title')}
-            message={t('athletes.screen.online_only.message')}
-          />
-        </View>
+      return withBand(
+        <StateView
+          kind="offline"
+          title={t('athletes.screen.online_only.title')}
+          message={t('athletes.screen.online_only.message')}
+        />
       );
     case 'denied':
-      return (
-        <View style={[frame, { paddingVertical: space[4] }]}>
-          <StateView
-            kind="denied"
-            title={t('athletes.screen.denied.title')}
-            message={t('athletes.screen.denied.message', values)}
-            action={
-              view.onRequestAccess
-                ? {
-                    label: t('athletes.screen.denied.action'),
-                    onPress: view.onRequestAccess,
-                  }
-                : undefined
-            }
-          />
-        </View>
+      return withBand(
+        <StateView
+          kind="denied"
+          title={t('athletes.screen.denied.title')}
+          message={t('athletes.screen.denied.message', values)}
+          action={
+            view.onRequestAccess
+              ? {
+                  label: t('athletes.screen.denied.action'),
+                  onPress: view.onRequestAccess,
+                }
+              : undefined
+          }
+        />
       );
   }
 
