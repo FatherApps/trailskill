@@ -50,9 +50,13 @@ jest.mock('../modules/school-console', () => ({
     listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
   }),
 }));
+const mockPush = jest.fn();
 jest.mock('expo-router', () => {
   const { Text } = jest.requireActual('react-native');
-  return { Redirect: ({ href }: { href: string }) => <Text>{`redirected to ${href}`}</Text> };
+  return {
+    Redirect: ({ href }: { href: string }) => <Text>{`redirected to ${href}`}</Text>,
+    useRouter: () => ({ push: mockPush }),
+  };
 });
 
 beforeEach(() => {
@@ -93,6 +97,17 @@ describe('console route', () => {
 
     expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
     expect(screen.queryByText(/redirected/)).toBeNull();
+  });
+
+  it('opens the existing plans route from the Planes destination', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    await show();
+    await screen.findByRole('header', { name: 'Deportistas' });
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Planes' }));
+
+    expect(mockPush).toHaveBeenCalledWith('/plans');
+    expect(screen.getByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
   });
 
   it('loads the athletes of the admin school from the local database', async () => {

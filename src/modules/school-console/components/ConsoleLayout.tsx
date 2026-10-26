@@ -33,7 +33,7 @@ export type ConsoleLayoutProps = {
   // them in a scroll view, and they use `consoleContentPadding` as their own padding. The detail still scrolls.
   childrenScroll?: boolean;
   // A side sheet over the whole console, in every layout (for example the options of a filter). It hides what is behind it.
-  sheet?: { label: string; content: ReactNode; onClose: () => void };
+  sheet?: { label: string; titleKey?: string; content: ReactNode; onClose: () => void };
 };
 
 // Hides what is behind an open sheet from screen readers.
@@ -91,7 +91,7 @@ export function ConsoleLayout({
       node
     );
 
-  // The 240 dp side panel cannot hold the labels whole at large text: the top navigation, whose pills wrap, takes over.
+  // The 236 dp side card cannot hold the labels whole at large text: the top navigation, whose pills wrap, takes over.
   const sideNav = layout === 'expanded' && !largeText;
   const nav = (
     <ConsoleNav
@@ -103,7 +103,7 @@ export function ConsoleLayout({
   );
   const testID = `console-layout-${layout}`;
   const sheetNode = sheet && (
-    <SideSheet label={sheet.label} onClose={sheet.onClose}>
+    <SideSheet label={sheet.label} titleKey={sheet.titleKey} onClose={sheet.onClose}>
       {sheet.content}
     </SideSheet>
   );

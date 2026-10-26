@@ -25,7 +25,7 @@ export type SectionSummary = { count: string; updatedMinutesAgo: number | null }
 
 export type SectionFrameProps<Content> = {
   // The destination this section is; its texts live under `schoolConsole.<section>.*`.
-  section: Exclude<ConsoleDestinationId, 'athletes' | 'settings'>;
+  section: Exclude<ConsoleDestinationId, 'athletes' | 'plans' | 'settings'>;
   // The width available to the console in dp: the caller measures it (window or preview).
   width: number;
   schoolName: string;

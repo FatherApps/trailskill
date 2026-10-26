@@ -5,13 +5,22 @@ import { useTheme, type ColorToken } from '../../../core/theme';
 import { Icon, Logo, type IconName, useFocusRing } from '../../../core/ui';
 import '../i18n';
 
-export type ConsoleDestinationId = 'athletes' | 'coaches' | 'records' | 'measurements' | 'authorizations' | 'settings';
+export type ConsoleDestinationId =
+  | 'athletes'
+  | 'coaches'
+  | 'records'
+  | 'plans'
+  | 'measurements'
+  | 'authorizations'
+  | 'settings';
 
-// The six console destinations, in the order of the design-system reference.
+// The console destinations, in the order of the lima boards. "plans" is a link to the existing plan routes, not a section.
 export const consoleDestinations: readonly { id: ConsoleDestinationId; icon: IconName }[] = [
   { id: 'athletes', icon: 'group' },
   { id: 'coaches', icon: 'sports' },
   { id: 'records', icon: 'leaderboard' },
+  // The boards use fitness_center, which is not bundled; rule is the closest icon of the set.
+  { id: 'plans', icon: 'rule' },
   { id: 'measurements', icon: 'timer' },
   { id: 'authorizations', icon: 'shield_person' },
   { id: 'settings', icon: 'settings' },
@@ -40,8 +49,8 @@ export const consoleNavColors: {
   active: { background: 'primary', text: 'on-primary' },
 };
 
-// Width of the side navigation in the design-system reference; it is not a token.
-const SIDE_WIDTH = 240;
+// Width of the floating side navigation card in the lima boards; it is not a token.
+const SIDE_WIDTH = 236;
 
 // One tab: its own component so each keeps its focus state.
 function NavTab({
@@ -92,7 +101,7 @@ function NavTab({
 }
 
 export function ConsoleNav({ variant, activeId, onSelect, schoolName }: ConsoleNavProps) {
-  const { colors, space, typography } = useTheme();
+  const { colors, space, radius, typography } = useTheme();
   const side = variant === 'side';
 
   const brand = (
@@ -116,7 +125,13 @@ export function ConsoleNav({ variant, activeId, onSelect, schoolName }: ConsoleN
           padding: space[4],
         },
         side
-          ? { width: SIDE_WIDTH, borderRightWidth: 1, paddingHorizontal: space[3] }
+          ? {
+              width: SIDE_WIDTH,
+              margin: space[5],
+              borderRadius: radius.lg,
+              paddingVertical: space[5],
+              paddingHorizontal: space[3],
+            }
           : { alignSelf: 'stretch', borderBottomWidth: 1 },
       ]}
     >
