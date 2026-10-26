@@ -35,7 +35,8 @@ export type SectionFrameProps<Content> = {
   onNavigate: (id: ConsoleDestinationId) => void;
   summary: (content: Content) => SectionSummary;
   // The screen's main action, shown next to the title while there is content (or none yet) to act on.
-  action?: { label: string; icon: IconName; onPress: () => void };
+  // `disabledReason` shows the action disabled with the reason after its label (not hidden), for an action that cannot work yet.
+  action?: { label: string; icon: IconName; onPress: () => void; disabledReason?: string };
   // The content of the section; `compact` is true in the phone layout.
   children: (content: Content, compact: boolean) => ReactNode;
   // A notice of the screen, shown under the header in every state.
@@ -101,6 +102,7 @@ export function SectionFrame<Content>({
           variant="secondary"
           label={action.label}
           icon={<Icon name={action.icon} size="icon-sm" />}
+          disabledReason={action.disabledReason}
           onPress={action.onPress}
         />
       )}

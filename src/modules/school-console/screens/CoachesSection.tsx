@@ -5,7 +5,8 @@ import '../i18n';
 import type { CoachRow } from '../components/CoachList';
 import { kindOf } from '../components/errorKind';
 import { localDate } from '../components/formatDate';
-import type { CoachInvitation, InviteGroups } from '../components/InviteCoachSheet';
+import type { InviteGroups } from '../components/InviteCoachSheet';
+import type { CoachInvitationRepository } from '../data/coachInvitations';
 import type { Coach, CoachRepository } from '../data/coaches';
 import { colorOf, countAthletesByCoach, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import type { CoachAssignment, SchoolGroup, SchoolStructureRepository } from '../data/schoolStructure';
@@ -25,9 +26,10 @@ export type CoachesSectionProps = ConsoleSectionProps & {
   connection: SyncConnection;
   // The clock. A stable function: the caption is computed again when it changes.
   now?: () => Date;
-  // The real invitation and deactivation belong to the caller; deactivating only reports the press once the ConfirmSheet is confirmed.
-  // `onInvite` goes to the sheet as it is: it must reject when the invitation fails, or the sheet closes as if it had been sent.
-  onInvite: (invitation: CoachInvitation) => void | Promise<void>;
+  // Where the invitations go. Without it «Invitar» is shown disabled as «Próximamente»: never a button that seems to work.
+  // `invite` must reject when the invitation fails, or the sheet closes as if it had been sent.
+  invitations?: CoachInvitationRepository;
+  // The real deactivation belongs to the caller; it only reports the press once the ConfirmSheet is confirmed, and stays disabled until issue 220.
   onDeactivate: (id: string) => void;
 };
 
@@ -78,7 +80,7 @@ export function CoachesSection({
   lastSyncedAt,
   connection,
   now = defaultNow,
-  onInvite,
+  invitations,
   onDeactivate,
 }: CoachesSectionProps) {
   const [answer, setAnswer] = useState<Answer>();
@@ -165,5 +167,5 @@ export function CoachesSection({
     );
   };
 
-  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onRetryGroups={retryGroups} onInvite={onInvite} onDeactivate={onDeactivate} />;
+  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onRetryGroups={retryGroups} inviteAvailable={invitations !== undefined} onInvite={(invitation) => invitations?.invite(schoolId, invitation)} onDeactivate={onDeactivate} />;
 }
