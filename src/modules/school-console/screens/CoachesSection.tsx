@@ -6,7 +6,7 @@ import type { CoachRow } from '../components/CoachList';
 import { localDate } from '../components/formatDate';
 import type { CoachInvitation, InviteGroups } from '../components/InviteCoachSheet';
 import type { Coach, CoachRepository } from '../data/coaches';
-import { colorOf, type ConsoleAthletesRepository } from '../data/consoleAthletes';
+import { colorOf, countAthletesByCoach, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import type { CoachAssignment, SchoolGroup, SchoolStructureRepository } from '../data/schoolStructure';
 import { CoachesScreen, type CoachesContent, type CoachesView } from './CoachesScreen';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -30,15 +30,17 @@ export type CoachesSectionProps = ConsoleSectionProps & {
   onDeactivate: (id: string) => void;
 };
 
-type Loaded = { coaches: Coach[]; groups: SchoolGroup[]; athleteCounts: Map<string, number>; assignments: CoachAssignment[] };
+// `null` is a read that failed: what it feeds is left out of the cards, never shown as no groups or 0 athletes.
+type Loaded = { coaches: Coach[]; groups: SchoolGroup[]; athleteCounts: Map<string, number> | null; assignments: CoachAssignment[] | null };
 // The answer is stored with what it answers, so another school or a retry never inherits it while its own read runs.
 type Answer = { schoolId: string; attempt: number; result: Loaded | 'error' };
 
 const MINUTE_MS = 60_000;
 const defaultNow = () => new Date();
 
-// The group ids of each coach, built once per read.
+// The group ids of each coach, built once per read; null when the assignments could not be read.
 function indexByCoach({ assignments }: Loaded) {
+  if (assignments === null) return null;
   const groupIds = new Map<string, Set<string>>();
   for (const { coachId, groupId } of assignments) {
     if (groupId !== null) groupIds.set(coachId, (groupIds.get(coachId) ?? new Set<string>()).add(groupId));
@@ -46,24 +48,30 @@ function indexByCoach({ assignments }: Loaded) {
   return groupIds;
 }
 
-// Names the read that failed. Not behind __DEV__: in release this is the only trace. Only the kind of the error, never its message, which can carry stored data.
-function traced<T>(read: string, pending: Promise<T>) {
-  return pending.catch((error: unknown) => {
-    console.error(`[school-console] Coaches could not be loaded: ${read} read failed`, error instanceof Error ? error.name : typeof error);
-    throw error;
-  });
+// Only plain tokens (a PostgREST or PowerSync code, an HTTP status) pass as a discriminator: never free text.
+const TOKEN = /^[\w.:-]{1,40}$/;
+
+// The kind of a failure: the error name (or typeof) plus its code or status when it has a plain one. Never its message, which can carry stored data.
+function kindOf(error: unknown) {
+  const kind = error instanceof Error ? error.name : typeof error;
+  const { code, status } = (typeof error === 'object' && error !== null ? error : {}) as { code?: unknown; status?: unknown };
+  const detail = [code, status].find((value) => (typeof value === 'string' || typeof value === 'number') && TOKEN.test(String(value)));
+  return detail === undefined ? kind : `${kind} ${detail}`;
 }
 
-function toRow(coach: Coach, groups: SchoolGroup[], athleteCounts: Map<string, number>, groupIds: ReturnType<typeof indexByCoach>): CoachRow {
-  const assigned = groupIds.get(coach.id);
+type Read<T> = { ok: true; value: T } | { ok: false };
+const READS = ['coaches', 'groups', 'athleteCounts', 'assignments'];
+
+function toRow(coach: Coach, groups: SchoolGroup[], athleteCounts: Loaded['athleteCounts'], groupIds: ReturnType<typeof indexByCoach>): CoachRow {
+  const assigned = groupIds?.get(coach.id);
   return {
     id: coach.id,
     name: coach.name,
     // Without a readable name there is nothing to take initials from.
     initials: '',
     color: colorOf(coach.id),
-    groups: groups.filter((group) => assigned?.has(group.id)).map((group) => group.name),
-    athleteCount: athleteCounts.get(coach.id) ?? 0,
+    groups: groupIds === null ? null : groups.filter((group) => assigned?.has(group.id)).map((group) => group.name),
+    athleteCount: athleteCounts === null ? null : (athleteCounts.get(coach.id) ?? 0),
   };
 }
 
@@ -89,16 +97,38 @@ export function CoachesSection({
   useEffect(() => {
     let active = true;
     const settle = (result: Answer['result']) => active && setAnswer({ schoolId, attempt, result });
-    // All or nothing, for now: if one read fails the list is not shown with the rest, since what is missing would read as zero athletes or no groups.
+    const failures = new Map<string, string>();
+    // A failed read does not reject: it is noted by name and kind, and the rest of the load goes on.
+    const attemptRead = <T,>(read: string, pending: Promise<T>): Promise<Read<T>> =>
+      pending.then(
+        (value) => ({ ok: true as const, value }),
+        (error: unknown) => {
+          failures.set(read, kindOf(error));
+          return { ok: false as const };
+        },
+      );
+    const athleteGroups = attemptRead('athleteCounts', athletes.listAthleteGroups(schoolId));
     Promise.all([
-      traced('coaches', repository.listCoaches(schoolId)),
-      traced('groups', structure.listGroups(schoolId)),
-      traced('athleteCounts', athletes.countAthletesByCoach(schoolId)),
-      // No athlete ids: only the assignments to the school's groups, which are what the list shows.
-      traced('assignments', structure.listCoachAssignments(schoolId, [])),
-    ])
-      .then(([coaches, groups, athleteCounts, assignments]) => settle({ coaches, groups, athleteCounts, assignments }))
-      .catch(() => settle('error'));
+      attemptRead('coaches', repository.listCoaches(schoolId)),
+      attemptRead('groups', structure.listGroups(schoolId)),
+      athleteGroups,
+      // The athlete ids bring the direct assignments to the same read; without them the group assignments, which are what the list shows, are still read.
+      athleteGroups.then((read) => attemptRead('assignments', structure.listCoachAssignments(schoolId, read.ok ? read.value.map((athlete) => athlete.id) : []))),
+    ]).then(([coaches, groups, athleteList, assignments]) => {
+      if (!active) return;
+      // Not behind __DEV__: in release this is the only trace. One line per load, whatever number of reads failed.
+      if (failures.size > 0) {
+        console.warn(`[school-console] Coaches could not be loaded: ${READS.filter((read) => failures.has(read)).map((read) => `${read}=${failures.get(read)}`).join(', ')}`);
+      }
+      // The coaches and the groups are the list itself; the athletes and the assignments only complete each card.
+      if (!coaches.ok || !groups.ok) return settle('error');
+      settle({
+        coaches: coaches.value,
+        groups: groups.value,
+        assignments: assignments.ok ? assignments.value : null,
+        athleteCounts: athleteList.ok && assignments.ok ? countAthletesByCoach(athleteList.value, groups.value, assignments.value) : null,
+      });
+    });
     return () => {
       active = false;
     };

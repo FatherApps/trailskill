@@ -80,7 +80,7 @@ export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate,
   const { colors, space, radius, typography } = useTheme();
   const cell = oneColumn ? { flexBasis: '100%' as const } : { flexGrow: 1, flexBasis: TWO_COLUMN_BASIS, minWidth: MIN_CARD_WIDTH, maxWidth };
   const name = coach.name ?? t('schoolConsole.common.no_data');
-  const groups = coach.groups.length > 0 ? coach.groups.join(' · ') : t('schoolConsole.coaches.no_groups');
+  const groups = coach.groups === null ? null : coach.groups.length > 0 ? coach.groups.join(' · ') : t('schoolConsole.coaches.no_groups');
 
   if (coach.status === 'pending') {
     const status = t('schoolConsole.coaches.status.pending');
@@ -111,7 +111,8 @@ export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate,
     );
   }
 
-  const detail = `${groups} · ${t('schoolConsole.coaches.athletes', { count: coach.athleteCount })}`;
+  // What could not be read is left out, not written as no groups or 0 athletes.
+  const detail = [groups, coach.athleteCount === null ? null : t('schoolConsole.coaches.athletes', { count: coach.athleteCount })].filter((part) => part !== null).join(' · ') || undefined;
 
   return (
     <View testID="coach-card" style={cell}>
