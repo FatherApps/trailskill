@@ -70,6 +70,9 @@ export function TodayContainer(props: TodayContainerProps) {
   const { plans, assignments, schoolLinks, fulfillment, notices, series, userId, athletes, initialAthleteId, renderNoticeStatus } = props;
   const day = props.day ?? todayText();
   const synced = props.synced ?? true;
+  // Only the first sync reads again: a connection that comes and goes afterwards must not restart the read each time.
+  const [syncedOnce, setSyncedOnce] = useState(synced);
+  if (synced && !syncedOnce) setSyncedOnce(true);
   // Only the choice is kept; the athlete shown is derived, so it follows `athletes`: the chosen one while it is in the list, else the first.
   const [chosenId, setChosenId] = useState(initialAthleteId);
   // The athlete of the link is a choice too: when it changes with the route mounted, it replaces the previous one.
@@ -95,6 +98,10 @@ export function TodayContainer(props: TodayContainerProps) {
   useEffect(() => {
     latest.current = { answer, selectedId, day };
   });
+  // How many notes were saved on the device, and how many had been when the open read started (null: no read is open).
+  // A read that started before a save finished may have listed the notes without it; one that started after cannot.
+  const saved = useRef(0);
+  const readingSince = useRef<number | null>(null);
   // The short name only, never the document or the birth date.
   const names = athletes.map((athlete) => {
     const { shortName, initials, color } = athleteDisplay(athlete);
@@ -146,21 +153,26 @@ export function TodayContainer(props: TodayContainerProps) {
   useEffect(() => {
     if (!selected) return;
     let cancelled = false;
-    load(selected).then(
-      (value) => !cancelled && setAnswer({ athleteId: selected.id, value }),
-      () => !cancelled && setAnswer({ athleteId: selected.id, value: 'error' }),
-    );
+    readingSince.current = saved.current;
+    const answered = (value: Answer['value']) => {
+      if (cancelled) return;
+      readingSince.current = null;
+      setAnswer({ athleteId: selected.id, value });
+    };
+    load(selected).then(answered, () => answered('error'));
     return () => {
       cancelled = true;
+      readingSince.current = null;
     };
     // The repositories are fixed for the screen's life.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, day, attempt, synced]);
+  }, [selectedId, day, attempt, syncedOnce]);
 
   async function sendNotice({ blockId, body }: { blockId: string | null; body: string }) {
     if (!selected || typeof loaded !== 'object' || loaded === null) return;
     // The note is saved on the device first, so it never waits for the network.
     await notices.add({ athleteId: selected.id, assignmentId: loaded.assignmentId, versionId: loaded.versionId, blockId, body, authorId: userId });
+    saved.current += 1;
     const list = await notices.list(selected.id, loaded.assignmentId);
     // The person may have moved to another athlete, or the read may have been replaced by another assignment of the same one, while this saved: only the answer this note was written under takes it.
     // It is added to the answer that is there now, never to the one this started from, which a newer read may have replaced with newer marks and times.
@@ -169,9 +181,10 @@ export function TodayContainer(props: TodayContainerProps) {
       if (current?.athleteId !== selected.id || !now || now === 'error' || now.assignmentId !== loaded.assignmentId) return current;
       return { athleteId: selected.id, value: { ...now, content: { ...now.content, notes: notesOf(list) } } };
     });
-    // The same athlete and day are being read again: that read may have listed its notes before this one was saved, so it reads once more and shows it.
-    const { answer: shownNow, selectedId: shownId, day: shownDay } = latest.current;
-    if (!shownNow && shownId === selected.id && shownDay === day) reload();
+    // The same athlete and day are being read, and that read started before this note was saved: it may have listed its notes without it, so it reads once more and shows it.
+    // A read that started after the save, or none, is left alone: reading again would only show loading.
+    const { selectedId: shownId, day: shownDay } = latest.current;
+    if (readingSince.current !== null && readingSince.current < saved.current && shownId === selected.id && shownDay === day) reload();
   }
 
   // Reading again drops the shown data at once (the key changes), so the plan of the previous athlete never stays under the new name.
