@@ -43,6 +43,18 @@ type Loaded = { content: TodayContent; assignmentId: string; versionId: string }
 // What was read for one athlete: the answer is stored with it, so it never shows under another athlete's name.
 type Answer = { athleteId: string; value: Loaded | null | 'error' };
 
+type Flight = {
+  // How many notes were saved on the device.
+  saved: number;
+  // How many saves have not finished: only the last one to finish reads again, so overlapping saves share one read.
+  saving: number;
+  // A note was saved whose listing failed: the answer shown may lack it, and the save that finishes last reads again, even if it failed itself.
+  unlisted: boolean;
+};
+
+// The athlete and day of a read, and the notes saved per assignment when it started (null once it answered).
+type Reading = { key: string; since: Map<string, number> | null };
+
 type SeriesArrivals = Awaited<ReturnType<TodayContainerProps['series']['listArrivals']>>;
 
 // per_repetition: one entry per repetition, "not recorded" (null) where the series has no time; series_total: at most one; completion: none.
@@ -98,21 +110,14 @@ export function TodayContainer(props: TodayContainerProps) {
     setAnswer(undefined);
   }
   const loaded = answer ? answer.value : 'loading';
-  // What is on the screen now, for a save that finishes later than the render it started in.
-  const latest = useRef({ answer, selectedId, day });
-  useEffect(() => {
-    latest.current = { answer, selectedId, day };
-  });
-  // How many notes were saved on the device per assignment, and how many had been when the open read started (null: no read is open).
+  // The read that is open or last ended, put by the read effect: the athlete and day it reads, and how many notes had been saved per assignment when it started (null: it already answered).
   // A read that started before a save finished may have listed the notes without it; one that started after cannot. A save of another assignment says nothing about it.
-  const saved = useRef(new Map<string, number>());
-  const readingSince = useRef<Map<string, number> | null>(null);
-  // How many saves of each assignment have not finished: only the last one to finish reads again, so overlapping saves share one read.
-  const saving = useRef(new Map<string, number>());
-  // The assignments with a note saved whose listing failed: the answer shown may lack it, and the save that finishes last reads again, even if it failed itself.
-  const unlisted = useRef(new Set<string>());
+  // Null when nothing is read, so a save that finishes later than the render it started in refreshes only the athlete and day on the screen now.
+  const reading = useRef<Reading | null>(null);
+  // Per assignment, what its saves left in flight; the entry goes away when its last save finishes, unless a read is open (it compares against `saved`).
+  const flights = useRef(new Map<string, Flight>());
   // Listings are numbered as they start; per assignment, the number of the last one shown. A listing that answers after a newer one was shown is older, so it is dropped.
-  // Like `saved` and `saving`, the entry of an assignment goes away when its last save finishes: the maps only hold what is in flight.
+  // The entry of `shownListing` always goes away when the last save of its assignment finishes; the one of `flights` stays while a read is open.
   const listingSeq = useRef(0);
   const shownListing = useRef(new Map<string, number>());
   // The short name only, never the document or the birth date.
@@ -164,18 +169,23 @@ export function TodayContainer(props: TodayContainerProps) {
   }
 
   useEffect(() => {
-    if (!selected) return;
+    // Set here whatever the path, so it never depends on the cleanup of the previous run having cleared it.
+    if (!selected) {
+      reading.current = null;
+      return;
+    }
     let cancelled = false;
-    readingSince.current = new Map(saved.current);
+    const mine: Reading = { key: `${selected.id}|${day}`, since: new Map([...flights.current].map(([id, flight]) => [id, flight.saved])) };
+    reading.current = mine;
     const answered = (value: Answer['value']) => {
       if (cancelled) return;
-      readingSince.current = null;
+      mine.since = null;
       setAnswer({ athleteId: selected.id, value });
     };
     load(selected).then(answered, () => answered('error'));
     return () => {
       cancelled = true;
-      readingSince.current = null;
+      reading.current = null;
     };
     // The repositories are fixed for the screen's life.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,12 +194,16 @@ export function TodayContainer(props: TodayContainerProps) {
   async function sendNotice({ blockId, body }: { blockId: string | null; body: string }) {
     if (!selected || typeof loaded !== 'object' || loaded === null) return;
     const { assignmentId } = loaded;
-    const count = (map: Map<string, number>) => map.get(assignmentId) ?? 0;
-    saving.current.set(assignmentId, count(saving.current) + 1);
+    const flight = () => {
+      const current = flights.current.get(assignmentId) ?? { saved: 0, saving: 0, unlisted: false };
+      flights.current.set(assignmentId, current);
+      return current;
+    };
+    flight().saving += 1;
     try {
       // The note is saved on the device first, so it never waits for the network.
       await notices.add({ athleteId: selected.id, assignmentId, versionId: loaded.versionId, blockId, body, authorId: userId });
-      saved.current.set(assignmentId, count(saved.current) + 1);
+      flight().saved += 1;
       const ticket = (listingSeq.current += 1);
       let list: Notice[] | undefined;
       try {
@@ -197,7 +211,7 @@ export function TodayContainer(props: TodayContainerProps) {
       } catch (error) {
         // The note is saved; the read below shows it, or the error view with its retry.
         if (__DEV__) console.warn('[training-plans] The notes could not be listed after saving one', error);
-        unlisted.current.add(assignmentId);
+        flight().unlisted = true;
       }
       // A listing that started before a newer one was shown may lack the notes saved meanwhile: it does not replace it.
       if (list && ticket > (shownListing.current.get(assignmentId) ?? 0)) {
@@ -212,21 +226,19 @@ export function TodayContainer(props: TodayContainerProps) {
         });
       }
     } finally {
-      const left = count(saving.current) - 1;
-      if (left > 0) saving.current.set(assignmentId, left);
-      else saving.current.delete(assignmentId);
+      const mine = flight();
+      mine.saving -= 1;
       // The same athlete and day are being read, and that read started before a note was saved: it may have listed its notes without it, so it reads once more and shows it.
       // A read that started after the saves is left alone: reading again would only replace the data with the read to come. Without an open read, only a failed listing needs one.
       // Saves that overlap read once, when the last of them finishes, after all their notes were added.
-      if (count(saving.current) === 0) {
-        const listingFailed = unlisted.current.delete(assignmentId);
-        const { selectedId: shownId, day: shownDay } = latest.current;
-        const since = readingSince.current;
-        const stale = since === null ? listingFailed : count(since) < count(saved.current);
-        if (stale && shownId === selected.id && shownDay === day) setRefreshes((n) => n + 1);
+      if (mine.saving === 0) {
+        const since = reading.current?.since ?? null;
+        const stale = since === null ? mine.unlisted : (since.get(assignmentId) ?? 0) < mine.saved;
+        if (stale && reading.current?.key === `${selected.id}|${day}`) setRefreshes((n) => n + 1);
         shownListing.current.delete(assignmentId);
         // An open read compares against the count it started with, so the count stays while one is open.
-        if (since === null) saved.current.delete(assignmentId);
+        if (since === null) flights.current.delete(assignmentId);
+        else mine.unlisted = false;
       }
     }
   }

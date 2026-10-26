@@ -23,10 +23,10 @@ const NEXT_DAY = '2026-11-03';
 // A day with no assignment yet.
 const LATE_DAY = '2026-11-04';
 
-// Lets the pending reads and saves, which only wait on promises, finish.
+// Lets the pending reads and saves, which only wait on promises, finish: a macrotask turn runs every promise chain to its end, however many awaits it has.
 const settle = () =>
   act(async () => {
-    for (let i = 0; i < 20; i += 1) await Promise.resolve();
+    await new Promise<void>((resolve) => setImmediate(resolve));
   });
 
 // The bodies of the notes on the screen, in a fixed order.
@@ -61,15 +61,27 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
     },
   };
   const storedNotices = createInMemoryNoticeRepository();
-  // Saving a note waits for `hold.promise` while it is set; the next `hold.listing.remaining` listings wait for `hold.listing.promise`.
+  // Saving a note waits for `hold.promise` while it is set; the next `hold.listing.remaining` listings a save does after adding its note wait for `hold.listing.promise`.
+  // The reads of the container list the notes too, but only the listing right after an added note counts: `unlisted` has the notes added whose save has not listed yet.
   // The next `hold.failListings` listings are rejected.
   // The next `hold.stale.remaining` listings read the notes at once but answer only when `hold.stale.promise` resolves, so they can be older than the ones that answer before.
   const hold: { promise?: Promise<void>; listing?: { promise: Promise<void>; remaining: number }; stale?: { promise: Promise<void>; remaining: number }; failListings?: number } = {};
+  const unlisted = new Map<string, number>();
+  const unlistedOf = (athleteId: string, assignmentId: string) => `${athleteId}|${assignmentId}`;
   const notices = {
     ...storedNotices,
-    add: async (...args: Parameters<typeof storedNotices.add>) => (await hold.promise, storedNotices.add(...args)),
+    add: async (...args: Parameters<typeof storedNotices.add>) => {
+      await hold.promise;
+      const id = await storedNotices.add(...args);
+      const key = unlistedOf(args[0].athleteId, args[0].assignmentId);
+      unlisted.set(key, (unlisted.get(key) ?? 0) + 1);
+      return id;
+    },
     list: async (...args: Parameters<typeof storedNotices.list>) => {
-      if (hold.listing && hold.listing.remaining > 0) {
+      const key = unlistedOf(...args);
+      const afterAdd = (unlisted.get(key) ?? 0) > 0;
+      if (afterAdd) unlisted.set(key, unlisted.get(key)! - 1);
+      if (afterAdd && hold.listing && hold.listing.remaining > 0) {
         hold.listing.remaining -= 1;
         await hold.listing.promise;
       }
@@ -203,16 +215,21 @@ describe('TodayContainer races', () => {
   });
 
   it('reads again when the first sync completes, so a plan that arrived with it is not "no plan"', async () => {
-    const { stored, update } = await setup({ synced: false });
+    const { stored, reads, update } = await setup({ synced: false });
     await showsPlan('Plan p1');
     // Before the first sync nothing was found for the day: still connecting, so loading.
     await update(['a1', 'a3'], LATE_DAY, false);
     await waitFor(() => expect(shown.view.kind).toBe('loading'));
+    // That read ended without a plan; the plan arrives only afterwards, so only a second read can show it.
+    await settle();
+    expect(shown.view.kind).toBe('loading');
+    const beforeSync = reads.count;
 
     await stored.create({ planId: 'p3', schoolId: 's1', sessionDate: LATE_DAY, target: { kind: 'group', groupId: 'g1' } });
     await update(['a1', 'a3'], LATE_DAY, true);
 
     await showsPlan('Plan de mañana');
+    expect(reads.count).toBe(beforeSync + 1);
   });
 
   it('keeps the newer marks of a read that finishes while a note is being saved, and adds the note', async () => {
