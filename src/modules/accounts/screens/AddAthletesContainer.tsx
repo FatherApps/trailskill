@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { athleteDisplay, type AthleteRepository } from '../../athletes';
+import type { InvitationRepository } from '../data/invitations';
+import { queueInvitation, type PendingInvitationRepository } from '../data/pendingInvitations';
 import type { RegistrationDraftRepository } from '../data/registrationDraft';
 import type { ManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
+import { useInvitation } from './useInvitation';
 import { AddAthletesScreen, type AddAthleteField, type AddedAthlete } from './AddAthletesScreen';
 
 export type AddAthletesContainerProps = {
@@ -12,6 +15,9 @@ export type AddAthletesContainerProps = {
   profiles: ManagedAthleteProfileRepository;
   athletes: AthleteRepository;
   drafts: RegistrationDraftRepository;
+  // The school invitation of the draft is accepted for each athlete added; it waits in `pending` until the athlete reaches the server.
+  invitations: InvitationRepository;
+  pending: PendingInvitationRepository;
   renderStatus?: (athleteId: string) => ReactNode;
   onContinue: () => void;
   onBack: () => void;
@@ -26,12 +32,16 @@ export function AddAthletesContainer({
   profiles,
   athletes,
   drafts,
+  invitations,
+  pending,
   renderStatus,
   onContinue,
   onBack,
 }: AddAthletesContainerProps) {
   const [values, setValues] = useState(empty);
   const [added, setAdded] = useState<AddedAthlete[]>([]);
+  const { categories } = useInvitation(drafts, invitations);
+  const [categoryId, setCategoryId] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<false | 'add' | 'continue'>(false);
 
@@ -76,8 +86,9 @@ export function AddAthletesContainer({
   async function add() {
     setBusy(true);
     setFailed(false);
+    let athleteId: string;
     try {
-      await profiles.createManagedAthlete({ userId, relation: 'guardian', ...values });
+      athleteId = await profiles.createManagedAthlete({ userId, relation: 'guardian', ...values });
     } catch {
       // Nothing was saved: the names stay in the form and the person can try again.
       setFailed('add');
@@ -85,7 +96,11 @@ export function AddAthletesContainer({
       return;
     }
     setValues(empty);
+    setCategoryId('');
     void persist(undefined);
+    // The athlete only exists on this device so far: queue the acceptance, which retries until the server knows them. It never blocks the registration.
+    const token = (await drafts.load().catch(() => null))?.invitationToken;
+    if (token) void queueInvitation(pending, invitations, { userId, token, athleteId, ...(categoryId && { categoryId }) }).catch(() => {});
     // Saved already: a failed list read must not look like a failed save.
     await refresh().catch(() => {});
     setBusy(false);
@@ -107,6 +122,9 @@ export function AddAthletesContainer({
       athletes={added}
       busy={busy}
       failed={failed}
+      categories={categories}
+      categoryId={categoryId}
+      onCategoryChange={setCategoryId}
       renderStatus={renderStatus}
       onChange={change}
       onAdd={() => void add()}

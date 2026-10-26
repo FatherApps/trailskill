@@ -34,7 +34,7 @@ describe('accounts gallery entries', () => {
     expect(statesOf('signIn')).toEqual(['initial', 'codeSent', 'codeMismatch', 'sending', 'offline']);
     expect(statesOf('authorizations')).toEqual(['initial']);
     expect(statesOf('consentCard')).toEqual(['unchecked', 'accepted']);
-    expect(statesOf('addAthletes')).toEqual(['withData']);
+    expect(statesOf('addAthletes')).toEqual(['withData', 'withCategories']);
     expect(statesOf('resumeRegistration')).toEqual(['initial']);
   });
 

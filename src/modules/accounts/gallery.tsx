@@ -28,6 +28,7 @@ const person = { firstName: fx.person.firstName, lastName: fx.person.lastName, e
 // Holds what is typed, so the name fields can be edited in the gallery.
 function AddAthletesPreview(props: Partial<AddAthletesScreenProps>) {
   const [values, setValues] = useState({ firstName: '', lastName: '', ...props.values });
+  const [categoryId, setCategoryId] = useState('');
 
   return (
     <FullWidth>
@@ -40,6 +41,8 @@ function AddAthletesPreview(props: Partial<AddAthletesScreenProps>) {
         onBack={noop}
         {...props}
         values={values}
+        categoryId={categoryId}
+        onCategoryChange={setCategoryId}
         onChange={(field, value) => setValues((current) => ({ ...current, [field]: value }))}
       />
     </FullWidth>
@@ -215,6 +218,8 @@ export const galleryEntries: GalleryEntry[] = [
           renderStatus={() => <SyncStatus state="on_device" />}
         />
       ),
+      // The school invitation brings categories: choosing one is optional.
+      withCategories: () => <AddAthletesPreview athletes={[...fx.addedAthletes]} categories={[...fx.categories]} />,
     },
   },
   {

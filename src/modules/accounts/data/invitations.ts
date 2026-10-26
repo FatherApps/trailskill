@@ -52,6 +52,10 @@ export function createInMemoryInvitationRepository(
     accepted,
     failing: options.failing ?? false,
     offline: options.offline ?? false,
+    // A server error code that rejects every accept, for example '42501' while the athlete has not synced yet.
+    rejectWith: undefined as string | undefined,
+    // Like rejectWith, but only for an accept that carries a category (for example '23514' for an inactive one).
+    rejectCategoryWith: undefined as string | undefined,
     resolveCalls: 0,
     async create(input: InvitationInput): Promise<CreatedInvitation> {
       if (repository.failing) throw new Error('invitation failed');
@@ -68,6 +72,8 @@ export function createInMemoryInvitationRepository(
     },
     async accept(input: AcceptInvitationInput): Promise<void> {
       if (repository.offline) throw new Error('offline');
+      const code = repository.rejectWith ?? (input.categoryId ? repository.rejectCategoryWith : undefined);
+      if (code) throw Object.assign(new Error('rejected'), { code });
       accepted.push({ ...input });
     },
   };

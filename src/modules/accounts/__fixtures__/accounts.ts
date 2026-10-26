@@ -6,6 +6,10 @@ export const accountsFixture = {
     email: 'camila@example.test',
   },
   invitation: { school: 'Escuela Delfines', group: 'Infantil B' },
+  categories: [
+    { id: 'category-9-10', name: '9-10' },
+    { id: 'category-11-12', name: '11-12' },
+  ],
   // A six-digit code that does not match: used by the mismatch states.
   wrongCode: '482913',
   // Profiles a guardian already added (names already shortened, as the athletes module gives them).

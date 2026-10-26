@@ -60,6 +60,15 @@ export {
   type ResolvedInvitation,
 } from './data/invitations';
 export {
+  acceptPendingInvitations,
+  createInMemoryPendingInvitationRepository,
+  createSecureStorePendingInvitationRepository,
+  queueInvitation,
+  usePendingInvitations,
+  type PendingInvitation,
+  type PendingInvitationRepository,
+} from './data/pendingInvitations';
+export {
   createInMemoryRegistrationDraftRepository,
   createSecureStoreRegistrationDraftRepository,
   finishRegistration,

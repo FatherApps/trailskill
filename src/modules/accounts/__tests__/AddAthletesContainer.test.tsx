@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryAthleteRepository } from '../../athletes';
+import { createInMemoryInvitationRepository } from '../data/invitations';
 import { createInMemoryManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
 import { createInMemoryManagedAthleteRepository, type ManagedAthleteRow } from '../data/managedAthletes';
+import { acceptPendingInvitations, createInMemoryPendingInvitationRepository } from '../data/pendingInvitations';
 import { createInMemoryRegistrationDraftRepository } from '../data/registrationDraft';
 import { AddAthletesContainer } from '../screens/AddAthletesContainer';
 
@@ -10,15 +12,31 @@ import { AddAthletesContainer } from '../screens/AddAthletesContainer';
 jest.mock('../../../core/sync', () => ({ db: {}, writeBatch: jest.fn() }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
-function setup() {
+// Synthetic school, group, categories and token only.
+const invitation = { school: 'Escuela Delfines', group: 'Infantil B', categories: [{ id: 'cat-1', name: '9-10' }] };
+
+function setup(invitationToken?: string) {
   const rows: ManagedAthleteRow[] = [];
   const athletes = createInMemoryAthleteRepository(createInMemoryManagedAthleteRepository(rows));
   const profiles = createInMemoryManagedAthleteProfileRepository(athletes, rows);
-  const drafts = createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: '' });
+  const drafts = createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: '', invitationToken });
+  const pending = createInMemoryPendingInvitationRepository();
+  const invitations = createInMemoryInvitationRepository({ invitations: { 'tok-1': invitation } });
   const onContinue = jest.fn();
   const mount = () =>
-    render(<AddAthletesContainer userId="guardian-1" profiles={profiles} athletes={athletes} drafts={drafts} onContinue={onContinue} onBack={jest.fn()} />);
-  return { mount, onContinue, drafts, profiles, athletes };
+    render(
+      <AddAthletesContainer
+        userId="guardian-1"
+        profiles={profiles}
+        athletes={athletes}
+        drafts={drafts}
+        invitations={invitations}
+        pending={pending}
+        onContinue={onContinue}
+        onBack={jest.fn()}
+      />,
+    );
+  return { mount, onContinue, drafts, profiles, athletes, rows, pending, invitations };
 }
 
 describe('AddAthletesContainer', () => {
@@ -37,6 +55,63 @@ describe('AddAthletesContainer', () => {
     expect(await screen.findByLabelText('Lucía R., Hijo o hija')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Agregar otro deportista' })).toBeOnTheScreen();
     expect(screen.queryByText(/documento|nacimiento/i)).toBeNull();
+  });
+
+  async function addLucia() {
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await screen.findByLabelText('Lucía R., Hijo o hija');
+  }
+
+  it('with an invitation, the category is optional: adding without choosing accepts it with no category', async () => {
+    const { mount, rows, invitations, onContinue } = setup('tok-1');
+    await mount();
+    await screen.findByRole('radio', { name: '9-10' });
+
+    await addLucia();
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(invitations.accepted).toEqual([{ token: 'tok-1', athleteId: rows[0].athleteId }]));
+    await waitFor(() => expect(onContinue).toHaveBeenCalled());
+  });
+
+  it('with an invitation, the chosen category goes with the accepted athlete and the choice starts over for the next one', async () => {
+    const { mount, rows, invitations } = setup('tok-1');
+    await mount();
+    await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
+
+    await addLucia();
+
+    await waitFor(() => expect(invitations.accepted).toEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
+    expect(screen.getByRole('radio', { name: 'Sin categoría' }).props.accessibilityState.checked).toBe(true);
+  });
+
+  it('without network the acceptance stays pending, outlives the draft and completes by itself later', async () => {
+    const { mount, drafts, rows, pending, invitations } = setup('tok-1');
+    await mount();
+    await screen.findByRole('radio', { name: '9-10' });
+    invitations.offline = true;
+
+    await addLucia();
+    await drafts.clear();
+
+    expect(await pending.list()).toEqual([{ userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId }]);
+    invitations.offline = false;
+    await acceptPendingInvitations('guardian-1', pending, invitations);
+    expect(invitations.accepted).toHaveLength(1);
+    expect(await pending.list()).toEqual([]);
+  });
+
+  it('without an invitation there is no category choice and nothing is queued', async () => {
+    const { mount, pending, invitations } = setup();
+    await mount();
+
+    await addLucia();
+
+    expect(screen.queryByRole('radio', { name: 'Sin categoría' })).toBeNull();
+    expect(await pending.list()).toEqual([]);
+    expect(invitations.accepted).toEqual([]);
   });
 
   it('the typed names survive a restart of the screen', async () => {

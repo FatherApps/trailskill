@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 
 import type { SwimmerChoice } from '../screens/WhoSwimsScreen';
 import type { AdultProfileRepository } from './adultProfiles';
+import type { InvitationRepository } from './invitations';
 import type { ManagedAthleteProfileRepository } from './managedAthleteProfiles';
+import { queueInvitation, type PendingInvitationRepository } from './pendingInvitations';
 
 export type RegistrationDraft = {
   swimmer?: SwimmerChoice;
@@ -82,6 +84,9 @@ export type FinishRegistrationInput = {
   drafts: RegistrationDraftRepository;
   profiles: AdultProfileRepository;
   managedProfiles: ManagedAthleteProfileRepository;
+  // Where the invitation of the draft is queued for the adult's own profile; without them it is not accepted.
+  pending?: PendingInvitationRepository;
+  invitations?: InvitationRepository;
   // The person chose to resume a draft that was only typed.
   confirmed?: boolean;
 };
@@ -100,6 +105,8 @@ export async function finishRegistration({
   drafts,
   profiles,
   managedProfiles,
+  pending,
+  invitations,
   confirmed = false,
 }: FinishRegistrationInput): Promise<RegistrationStep | 'offer' | undefined> {
   const draft = await drafts.load();
@@ -126,7 +133,11 @@ export async function finishRegistration({
     return 'add_athletes';
   }
   if (draft.swimmer === 'adult') {
-    await managedProfiles.createManagedAthlete({ userId, firstName, lastName, relation: 'self' });
+    const athleteId = await managedProfiles.createManagedAthlete({ userId, firstName, lastName, relation: 'self' });
+    // The adult picks no category. A failed queue write must not block the registration.
+    if (draft.invitationToken && pending && invitations) {
+      await queueInvitation(pending, invitations, { userId, token: draft.invitationToken, athleteId }).catch(() => {});
+    }
     await drafts.save({ swimmer: 'adult', firstName: '', lastName: '', email: draft.email, step: 'authorizations', invitationToken: draft.invitationToken });
     return 'authorizations';
   }
@@ -143,22 +154,23 @@ export function useFinishRegistration(
   profiles: AdultProfileRepository,
   managedProfiles: ManagedAthleteProfileRepository,
   onNext: (step: RegistrationStep) => void,
+  invitation?: { pending: PendingInvitationRepository; invitations: InvitationRepository },
 ): RegistrationOffer | undefined {
   const [offered, setOffered] = useState(false);
 
   useEffect(() => {
     if (!userId || !email) return;
-    finishRegistration({ userId, email, drafts, profiles, managedProfiles })
+    finishRegistration({ userId, email, drafts, profiles, managedProfiles, ...invitation })
       .then((next) => (next === 'offer' ? setOffered(true) : next && onNext(next)))
       .catch(() => {});
-  }, [userId, email, drafts, profiles, managedProfiles, onNext]);
+  }, [userId, email, drafts, profiles, managedProfiles, invitation, onNext]);
 
   if (!offered || !userId || !email) return undefined;
   return {
     email,
     resume: () => {
       setOffered(false);
-      finishRegistration({ userId, email, drafts, profiles, managedProfiles, confirmed: true })
+      finishRegistration({ userId, email, drafts, profiles, managedProfiles, ...invitation, confirmed: true })
         .then((next) => next && next !== 'offer' && onNext(next))
         .catch(() => setOffered(true));
     },

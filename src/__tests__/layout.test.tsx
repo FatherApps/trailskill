@@ -8,7 +8,7 @@ import { SessionGate } from '../app/_layout';
 import { colors, ThemeProvider } from '../core/theme';
 
 // Avoid loading the native PowerSync database and the ESM-only @powersync/react.
-jest.mock('../core/sync', () => ({ db: {} }));
+jest.mock('../core/sync', () => ({ db: {}, useGlobalSyncSummary: () => ({ lastSyncedAt: null }) }));
 jest.mock('@powersync/react', () => ({ PowerSyncContext: { Provider: ({ children }: { children: unknown }) => children } }));
 jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn(), hideAsync: jest.fn() }));
 
