@@ -17,10 +17,10 @@ const styles = StyleSheet.create({
   tag: { alignSelf: 'flex-start', maxWidth: '100%', minHeight: 24, paddingHorizontal: 10, justifyContent: 'center' },
 });
 
-// Follows the metrics of core Tag, whose variants carry state meanings and accept no brand fill. Always the text, never colour only.
+// Follows the metrics and the outline border of core Tag, whose variants carry state meanings and accept no brand fill.
+// The card around it wears the phase colour, so the tag takes surface-1 and ink to stay a chip (cool_down included). Always the text, never colour only.
 export function PhaseTag({ phase }: { phase: BlockPhase }) {
   const { colors, radius, typography } = useTheme();
-  const { background, text } = phaseColors[phase];
   const label = t(`training_plans.phase.${phase}`);
 
   return (
@@ -28,12 +28,12 @@ export function PhaseTag({ phase }: { phase: BlockPhase }) {
       accessible
       accessibilityRole="text"
       accessibilityLabel={label}
-      style={[styles.tag, { borderRadius: radius.full, backgroundColor: colors[background] }]}
+      style={[styles.tag, { borderRadius: radius.full, borderWidth: 1.5, borderColor: colors['border-strong'], backgroundColor: colors['surface-1'] }]}
     >
       <Text
         importantForAccessibility="no"
         accessibilityElementsHidden
-        style={[typography.caption, { fontFamily: fontFamily.sansMedium, fontWeight: '500', color: colors[text] }]}
+        style={[typography.caption, { fontFamily: fontFamily.sansMedium, fontWeight: '500', color: colors.ink }]}
       >
         {label}
       </Text>

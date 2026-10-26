@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { colors } from '../../../core/theme';
+import { colors, contrastRatio, type ColorToken, type ThemeName } from '../../../core/theme';
 import { PlanBuilderScreen, type PlanBuilderScreenProps } from '../screens/PlanBuilderScreen';
 import { plansFixture } from '../__fixtures__/plans';
+import { phaseColors } from '../components/PhaseTag';
+import type { BlockPhase } from '../types';
 
 const { blocks, vocabulary } = plansFixture;
 
@@ -434,5 +436,24 @@ describe('PlanBuilderScreen', () => {
 
       expect(handlers.onChangeBlock).toHaveBeenCalledWith({ ...editing, recording: 'series_total' });
     });
+  });
+});
+
+describe('PlanBuilderScreen editor on a phase fill', () => {
+  const phaseList: BlockPhase[] = ['warm_up', 'main', 'technique', 'cool_down'];
+  // The editor draws these on its own container: labels, help, field errors and the stepper values.
+  const editorTexts: ColorToken[] = ['ink', 'ink-muted', 'danger-text'];
+
+  it.each(phaseList)('seats the %s editor on a surface-1 panel, not on the phase fill', async (phase) => {
+    await render(setup({ blocks: [{ ...blocks[1], phase }], editingId: 'b2' }).ui);
+
+    expect(screen.getByTestId('block-editor-panel')).toHaveStyle({ backgroundColor: colors.light['surface-1'] });
+    expect(screen.getByTestId('block-card')).toHaveStyle({ backgroundColor: colors.light[phaseColors[phase].background] });
+  });
+
+  it.each(['light', 'dark'] as ThemeName[])('keeps 4.5:1 contrast for every editor text on the panel in %s theme', (theme) => {
+    for (const token of editorTexts) {
+      expect(contrastRatio(colors[theme][token], colors[theme]['surface-1'])).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

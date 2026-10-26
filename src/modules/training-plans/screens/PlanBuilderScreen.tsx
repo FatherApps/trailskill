@@ -90,7 +90,13 @@ export function PlanBuilderScreen({
     return (
       <BlockCard key={block.id} block={block} vocabulary={vocabulary}>
         {isEditing && !expanded ? (
-          editor(block)
+          // The editor texts are ink on surface-1; on the phase fill they would lose contrast (coral, lilac and sky in the dark theme).
+          <View
+            testID="block-editor-panel"
+            style={{ padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}
+          >
+            {editor(block)}
+          </View>
         ) : (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
             {!isEditing && (
