@@ -12,9 +12,11 @@ export type TimingHeaderProps = {
   onBack: () => void;
   // For example a sync pill; the header does not know what it is.
   trailing?: ReactNode;
+  // The series screens use the larger display title; every other screen keeps `title`.
+  large?: boolean;
 };
 
-export function TimingHeader({ title, subtitle, onBack, trailing }: TimingHeaderProps) {
+export function TimingHeader({ title, subtitle, onBack, trailing, large = false }: TimingHeaderProps) {
   const { colors, space, radius, size, typography } = useTheme();
   const [widths, setWidths] = useState<{ container?: number; text?: number; trailing?: number }>({});
   const measured = (key: 'container' | 'text' | 'trailing') => (event: LayoutChangeEvent) => {
@@ -34,7 +36,7 @@ export function TimingHeader({ title, subtitle, onBack, trailing }: TimingHeader
 
   const titleBlock = (
     <>
-      <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+      <Text accessibilityRole="header" style={[typography[large ? 'title-lg' : 'title'], { color: colors.ink }]}>
         {title}
       </Text>
       {subtitle !== undefined && <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{subtitle}</Text>}
@@ -66,6 +68,8 @@ export function TimingHeader({ title, subtitle, onBack, trailing }: TimingHeader
           justifyContent: 'center',
           borderRadius: radius.full,
           backgroundColor: colors['surface-1'],
+          borderWidth: 1.5,
+          borderColor: colors.border,
         }}
       >
         <Icon name="arrow_back" />

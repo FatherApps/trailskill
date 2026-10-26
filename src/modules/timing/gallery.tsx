@@ -7,10 +7,12 @@ import { seriesFixture } from './__fixtures__/series';
 import { fixture } from './__fixtures__/timing';
 import { ArrivalList } from './components/ArrivalList';
 import { NameCard } from './components/NameCard';
-import { arrivals as arrivalsOf, assignHighlighted, reopen, type Series } from './domain/series';
+import { arrivalClockTime, formatClockTime } from './domain/clockTime';
+import { arrivals as arrivalsOf, assignHighlighted, press, readySeries, reopen, type Series } from './domain/series';
 import { CompletedScreen } from './screens/CompletedScreen';
-import { SeriesAssignmentScreen } from './screens/SeriesAssignmentScreen';
+import { SeriesAssignmentScreen, type AssignmentAthlete } from './screens/SeriesAssignmentScreen';
 import { SeriesTimingScreen } from './screens/SeriesTimingScreen';
+import { t } from '../../core/i18n';
 import { useFakeClock } from './__fixtures__/fakeClock';
 import { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
 import { TimingSetupScreen, type SetupAthlete } from './screens/TimingSetupScreen';
@@ -142,20 +144,30 @@ function SeriesTimingPreview({
   elapsed,
   disconnected,
   offline,
+  athleteCount = seriesFixture.athletes.length,
+  startedAt,
+  running = false,
 }: {
   initial: typeof seriesFixture.arrivals;
   elapsed: number;
   disconnected?: boolean;
   offline?: boolean;
+  athleteCount?: number;
+  startedAt?: string;
+  running?: boolean;
 }) {
   const [arrivals, setArrivals] = useState(initial);
 
   return (
     <ScreenFrame>
       <SeriesTimingScreen
-        athleteCount={seriesFixture.athletes.length}
-        eventSubtitle={seriesFixture.eventSubtitle}
+        athleteCount={athleteCount}
+        seriesNumber={2}
+        eventTitle={seriesFixture.eventTitle}
+        sessionLabel={seriesFixture.sessionLabel}
         elapsedHundredths={elapsed}
+        startedAt={startedAt}
+        running={running}
         arrivals={arrivals}
         externalTimerDisconnected={disconnected}
         offline={offline}
@@ -175,7 +187,9 @@ function SeriesAssignmentPreview({
   offline,
   completionOnly,
   completed = [],
+  athletes = seriesFixture.athletes,
 }: {
+  athletes?: AssignmentAthlete[];
   initial: Series;
   offline?: boolean;
   completionOnly?: boolean;
@@ -188,8 +202,8 @@ function SeriesAssignmentPreview({
     <ScreenFrame>
       <SeriesAssignmentScreen
         positions={arrivalsOf(series)}
-        athletes={seriesFixture.athletes}
-        eventSubtitle={seriesFixture.eventSubtitle}
+        athletes={athletes}
+        heading={t('timing.series.heading', { number: 2, event: seriesFixture.eventTitle })}
         offline={offline}
         completionOnly={completionOnly}
         completedIds={completedIds}
@@ -227,6 +241,23 @@ function CompletedPreview({ completed = [], empty }: { completed?: string[]; emp
     </FullScreen>
   );
 }
+
+// The three arrivals of the reference screen, with the wall-clock time of each touch.
+const mockupArrivals = seriesFixture.mockup.times.slice(0, 3).map((time, index) => ({
+  id: `arrival-${index + 1}`,
+  time,
+  syncState: 'on_device' as const,
+  clockTime: arrivalClockTime(seriesFixture.mockup.startedAt, time),
+}));
+
+// The five arrivals of the reference assignment screen, the first two already named.
+const mockupSeries: Series = (() => {
+  const timed = seriesFixture.mockup.times.reduce((current, time) => press(current, BigInt(time) * 10_000_000n), press(readySeries, 0n));
+  return seriesFixture.mockup.athletes.slice(0, 2).reduce((current, athlete) => {
+    const result = assignHighlighted(current, athlete.id);
+    return result.ok ? result.series : current;
+  }, timed);
+})();
 
 const stopped = { state: 'stopped', elapsedHundredths: fixture.times.final } as const;
 
@@ -282,12 +313,12 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       unassigned: () => (
         <Stack>
-          <NameCard name={seriesFixture.athletes[0].shortName} color="athlete-1" onPress={noop} />
+          <NameCard name={seriesFixture.athletes[0].shortName} initials={seriesFixture.athletes[0].initials} color="athlete-1" onPress={noop} />
         </Stack>
       ),
       assigned: () => (
         <Stack>
-          <NameCard name={seriesFixture.athletes[1].shortName} color="athlete-2" position={2} onPress={noop} />
+          <NameCard name={seriesFixture.athletes[1].shortName} initials={seriesFixture.athletes[1].initials} color="athlete-2" position={2} onPress={noop} />
         </Stack>
       ),
       // Two assigned and two waiting, as in the middle of an assignment.
@@ -297,6 +328,7 @@ export const galleryEntries: GalleryEntry[] = [
             <NameCard
               key={athlete.id}
               name={athlete.shortName}
+              initials={athlete.initials}
               color={athlete.color}
               position={index < 2 ? index + 1 : null}
               onPress={noop}
@@ -310,6 +342,16 @@ export const galleryEntries: GalleryEntry[] = [
     id: 'seriesTiming',
     title: 'SeriesTimingScreen',
     states: {
+      // The data of the reference screens, to compare side by side with the mockups.
+      'reference-screen': () => (
+        <SeriesTimingPreview
+          initial={mockupArrivals}
+          elapsed={seriesFixture.mockup.clock}
+          athleteCount={5}
+          running
+          startedAt={formatClockTime(seriesFixture.mockup.startedAt)}
+        />
+      ),
       'no-arrivals': () => <SeriesTimingPreview initial={[]} elapsed={seriesFixture.clock.empty} />,
       running: () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 3)} elapsed={seriesFixture.clock.still} />,
       'external-disconnected': () => <SeriesTimingPreview initial={seriesFixture.arrivals.slice(0, 2)} elapsed={seriesFixture.clock.still} disconnected />,
@@ -320,6 +362,7 @@ export const galleryEntries: GalleryEntry[] = [
     id: 'seriesAssignment',
     title: 'SeriesAssignmentScreen',
     states: {
+      'reference-screen': () => <SeriesAssignmentPreview initial={mockupSeries} athletes={seriesFixture.mockup.athletes} />,
       'in-progress': () => <SeriesAssignmentPreview initial={seriesFixture.series.partial} />,
       'all-assigned': () => <SeriesAssignmentPreview initial={seriesFixture.series.all} />,
       pending: () => <SeriesAssignmentPreview initial={seriesFixture.series.pending} />,

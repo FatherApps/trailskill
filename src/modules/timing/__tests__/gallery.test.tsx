@@ -44,12 +44,14 @@ describe('timing gallery entries', () => {
     expect(Object.keys(entry('arrivalList').states)).toEqual(['arrivals', 'many-arrivals']);
     expect(Object.keys(entry('nameCard').states)).toEqual(['unassigned', 'assigned', 'all-colours']);
     expect(Object.keys(entry('seriesTiming').states)).toEqual([
+      'reference-screen',
       'no-arrivals',
       'running',
       'external-disconnected',
       'offline',
     ]);
     expect(Object.keys(entry('seriesAssignment').states)).toEqual([
+      'reference-screen',
       'in-progress',
       'all-assigned',
       'pending',
@@ -96,18 +98,20 @@ describe('timing gallery entries', () => {
     ['timingSummary', 'summary-offline', 'Sin conexión. Se guarda en el teléfono.'],
     ['stopwatch', 'offline', 'Sin conexión. Se guarda en el teléfono.'],
     ['arrivalList', 'arrivals', '31,05'],
-    ['arrivalList', 'many-arrivals', '8.º'],
+    ['arrivalList', 'many-arrivals', '44,14'],
     ['nameCard', 'unassigned', 'Mateo C.'],
     ['nameCard', 'assigned', '2.º'],
     ['nameCard', 'all-colours', 'Tomás V.'],
-    ['seriesTiming', 'no-arrivals', 'Aún no hay llegadas'],
+    ['seriesTiming', 'reference-screen', 'Reloj de la serie · salida a las 7:14:02'],
+    ['seriesTiming', 'no-arrivals', 'Esperando llegada…'],
     ['seriesTiming', 'running', 'Deshacer última'],
     ['seriesTiming', 'external-disconnected', 'Usar cronómetro en pantalla'],
     ['seriesTiming', 'offline', 'Sin conexión. Se guarda en el teléfono.'],
-    ['seriesAssignment', 'in-progress', 'Posición 3 de 4'],
-    ['seriesAssignment', 'all-assigned', 'Todas las posiciones tienen nombre.'],
-    ['seriesAssignment', 'pending', 'por asignar'],
-    ['seriesAssignment', 'reopened', 'Posición 1 de 4'],
+    ['seriesAssignment', 'reference-screen', 'MP 34,82'],
+    ['seriesAssignment', 'in-progress', 'Elige un nombre →'],
+    ['seriesAssignment', 'all-assigned', '4 de 4 asignados'],
+    ['seriesAssignment', 'pending', 'Elige un nombre →'],
+    ['seriesAssignment', 'reopened', 'Elige un nombre →'],
     ['seriesAssignment', 'completion-off', 'Completado'],
     ['seriesAssignment', 'completion-on', 'Completado'],
     ['seriesAssignment', 'offline', 'Sin conexión. Se guarda en el teléfono.'],
@@ -142,9 +146,10 @@ describe('timing gallery entries', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Llegada' }));
     expect(screen.getAllByLabelText(/^Llegada \d/)).toHaveLength(1);
+    expect(screen.getAllByText('Esperando llegada…', { includeHiddenElements: true })).toHaveLength(3);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Deshacer última' }));
-    expect(screen.getByText('Aún no hay llegadas')).toBeOnTheScreen();
+    expect(screen.getAllByText('Esperando llegada…', { includeHiddenElements: true })).toHaveLength(4);
   });
 
   it.each([
@@ -169,15 +174,16 @@ describe('timing gallery entries', () => {
   });
 
   it('assigns a name and advances the highlight in the assignment preview, then reopens', async () => {
+    const selected = (position: number) => screen.getByTestId(`position-row-${position}`).props.accessibilityState?.selected === true;
     await render(<ThemeProvider>{entry('seriesAssignment').states['in-progress']()}</ThemeProvider>);
-    expect(screen.getByText('Posición 3 de 4')).toBeOnTheScreen();
+    expect(selected(3)).toBe(true);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Asignar a Sara P.' }));
-    expect(screen.getByText('Posición 4 de 4')).toBeOnTheScreen();
+    expect(selected(4)).toBe(true);
 
-    await fireEvent.press(within(screen.getByTestId('position-row-3')).getByRole('button'));
-    expect(screen.getByText('Posición 3 de 4')).toBeOnTheScreen();
-    expect(within(screen.getByTestId('position-row-3')).getByText('por asignar', { includeHiddenElements: true })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('position-row-3'));
+    expect(selected(3)).toBe(true);
+    expect(within(screen.getByTestId('position-row-3')).getByText('Elige un nombre →', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 
   it('toggles Completado in the completion preview', async () => {

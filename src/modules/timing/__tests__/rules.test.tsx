@@ -93,10 +93,11 @@ describe('src/modules/timing rules', () => {
           onBack={noop}
         />
         <ArrivalList arrivals={seriesFixture.arrivals} />
-        <NameCard name="Mateo C." color="athlete-1" position={1} onPress={noop} />
+        <NameCard name="Mateo C." initials="MC" color="athlete-1" position={1} onPress={noop} />
         <SeriesTimingScreen
           athleteCount={4}
-          eventSubtitle={seriesFixture.eventSubtitle}
+          eventTitle={seriesFixture.eventTitle}
+          sessionLabel={seriesFixture.sessionLabel}
           elapsedHundredths={3700}
           arrivals={seriesFixture.arrivals}
           externalTimerDisconnected
@@ -109,7 +110,7 @@ describe('src/modules/timing rules', () => {
         <SeriesAssignmentScreen
           positions={seriesFixture.snapshots.pending}
           athletes={seriesFixture.athletes}
-          eventSubtitle={seriesFixture.eventSubtitle}
+          heading="Serie 1 · Libre 50 m"
           onAssign={noop}
           onReopen={noop}
           onSave={noop}
@@ -133,7 +134,8 @@ describe('src/modules/timing rules', () => {
       const style = StyleSheet.flatten(control.props.style);
       expect(style?.width).toBeUndefined();
       expect(style?.height).toBeUndefined();
-      expect(style?.minHeight).toBeGreaterThanOrEqual(48);
+      // The label tells which control it is when one falls short.
+      expect([control.props.accessibilityLabel, (style?.minHeight ?? 0) >= 48]).toEqual([control.props.accessibilityLabel, true]);
     }
   });
 });

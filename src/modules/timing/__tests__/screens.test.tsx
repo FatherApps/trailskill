@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { impactAsync } from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { BackHandler, Text } from 'react-native';
+import { BackHandler, StyleSheet, Text } from 'react-native';
 
 import { TimingHeader } from '../components/TimingHeader';
 import { StopwatchScreen } from '../screens/StopwatchScreen';
@@ -77,6 +77,15 @@ describe('TimingHeader', () => {
       expect(screen.queryByTestId('timing-header-trailing', { includeHiddenElements: true })).toBeNull();
       expect(screen.getByRole('header', { name: 'Mateo C.' })).toBeOnTheScreen();
     });
+  });
+
+  it('draws the display title for the series screens and keeps the regular one by default', async () => {
+    const size = () => StyleSheet.flatten(screen.getByRole('header').props.style)?.fontSize;
+    const { rerender } = await render(<TimingHeader title="Serie 2 · Libre 50 m" onBack={jest.fn()} />);
+    expect(size()).toBe(22);
+
+    await rerender(<TimingHeader large title="Serie 2 · Libre 50 m" onBack={jest.fn()} />);
+    expect(size()).toBe(32);
   });
 
   it('works without subtitle or trailing slot', async () => {

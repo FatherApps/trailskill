@@ -45,7 +45,7 @@ function SchoolTiming({ school, mode, userId, deviceId, lastSyncedAt }: { school
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const loadRoster = useCallback(() => loadSchoolRoster(school.id), [school.id, lastSyncedAt]);
   const flow = { subtitle: school.name, schoolId: school.id, loadRoster, userId, deviceId, setups: sessionSetups, onExit: leave };
-  if (mode === 'series') return <SeriesTimingFlow {...flow} series={seriesRepository} />;
+  if (mode === 'series') return <SeriesTimingFlow {...flow} series={seriesRepository} loadBestTime={loadBestTime} />;
   if (mode === 'completed') return <CompletedFlow {...flow} measurements={measurements} />;
   return <IndividualTimingFlow {...flow} measurements={measurements} loadBestTime={loadBestTime} />;
 }
