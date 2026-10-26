@@ -80,7 +80,8 @@ export function AddAthletesScreen({
       footer={
         <Button
           label={t('accounts.athletes.continue')}
-          loading={continuing}
+          // Busy also while a profile saves: the tap is not ignored in silence.
+          loading={continuing || busy}
           disabledReason={canContinue ? undefined : t('accounts.athletes.add_first')}
           onPress={onContinue}
         />
@@ -130,7 +131,7 @@ export function AddAthletesScreen({
       )}
       <AddAthleteCard
         label={t(athletes.length === 0 ? 'accounts.athletes.add' : 'accounts.athletes.add_another')}
-        busy={busy}
+        busy={busy || continuing}
         onPress={add}
       />
     </ScreenFrame>

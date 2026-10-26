@@ -91,6 +91,24 @@ describe('AddAthletesScreen dashed add card', () => {
     await fireEvent.press(add);
     expect(onAdd).not.toHaveBeenCalled();
   });
+
+  it('shows Continuar busy and ignores presses while a profile is being saved, instead of dropping the tap silently', async () => {
+    const { onContinue } = await renderScreen({ athletes: [...fx.addedAthletes], busy: true });
+
+    const next = screen.getByRole('button', { name: 'Continuar' });
+    expect(next).toBeBusy();
+    await fireEvent.press(next);
+    expect(onContinue).not.toHaveBeenCalled();
+  });
+
+  it('shows the add card busy and ignores presses while Continuar keeps the step', async () => {
+    const { onAdd } = await renderScreen({ values: { firstName: 'Lucía', lastName: 'Rojas' }, continuing: true });
+
+    const add = screen.getByRole('button', { name: 'Agregar deportista' });
+    expect(add).toBeBusy();
+    await fireEvent.press(add);
+    expect(onAdd).not.toHaveBeenCalled();
+  });
 });
 
 describe('AddAthletesScreen name limit', () => {
