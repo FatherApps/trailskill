@@ -5,9 +5,8 @@ const block = (repetitions: number, distance: number) => ({ repetitions, distanc
 
 // Rows read from the database are not checked at runtime: they can hold null, undefined or strings where the type says number.
 const row = (repetitions: unknown, distance: unknown) => ({ repetitions, distance });
-const summaryOfRows = (rows: { repetitions: unknown; distance: unknown }[]) =>
-  // @ts-expect-error the production type says number: this test feeds it what the database can hand over
-  planSummary(rows);
+// The production type says number: this test feeds it what the database can hand over.
+const summaryOfRows = (rows: { repetitions: unknown; distance: unknown }[]) => planSummary(rows as Parameters<typeof planSummary>[0]);
 
 describe('planSummary', () => {
   it('keeps "metres · blocks" when every block adds metres', () => {
@@ -75,14 +74,30 @@ describe('planSummary', () => {
     const small = block(4e153, 1e154);
     const medium = block(1e154, 1e154);
     const big = block(1.5e154, 1e154);
+    // 1.4e308 is small + medium: any total that kept the big block would be bigger or overflow, so this one proves the big block is the one left out.
     const expected = `${formatNumber(1.4e308)} m + 1 bloque sin distancia`;
     for (const blocks of [
       [small, medium, big],
-      [big, medium, small],
-      [medium, big, small],
       [small, big, medium],
+      [medium, small, big],
+      [medium, big, small],
+      [big, small, medium],
+      [big, medium, small],
     ]) {
       expect(planSummary(blocks)).toBe(expected);
+    }
+  });
+
+  // Blocks are added in ascending order, not in plan order: 0.1 + 0.2 + 0.3 is 0.6000000000000001 that way and 0.6 from the biggest.
+  // formatNumber rounds to three decimals, so the metres shown are the same in any order.
+  it('shows the same metres for fractional distances in any order', () => {
+    expect(planSummary([block(1, 0.1), block(1, 0.2)])).toBe('0,3 m · 2 bloques');
+    for (const blocks of [
+      [block(1, 0.1), block(1, 0.2), block(1, 0.3)],
+      [block(1, 0.3), block(1, 0.2), block(1, 0.1)],
+      [block(1, 0.2), block(1, 0.3), block(1, 0.1)],
+    ]) {
+      expect(planSummary(blocks)).toBe('0,6 m · 3 bloques');
     }
   });
 
