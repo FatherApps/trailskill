@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
 import ConsoleRoute from '../app/(app)/console';
-import { ThemeProvider } from '../core/theme';
+import { colors, space, ThemeProvider } from '../core/theme';
 
 let mockUserId: string | undefined;
 jest.mock('../core/session', () => ({
@@ -106,7 +107,7 @@ describe('console route', () => {
     expect(mockListAdminSchools).toHaveBeenCalledTimes(2);
   });
 
-  it('shows the loading state, not a blank screen, while the lookup runs and while a retry runs', async () => {
+  it('shows the loading state, not a blank screen, while a retry runs', async () => {
     let answer: (schools: unknown[]) => void = () => {};
     mockListAdminSchools.mockRejectedValueOnce(new Error('db')).mockReturnValue(new Promise((resolve) => (answer = resolve)));
     await show();
@@ -129,11 +130,43 @@ describe('console route', () => {
     const home = screen.getByRole('button', { name: 'Volver al inicio' });
     const labels = screen.getAllByRole('button').map((b) => b.props.accessibilityLabel);
     expect(labels).toEqual(['Intentar de nuevo', 'Volver al inicio']);
+    // Tree order is not what the user sees: the container must stack its children top to bottom, in that order, in flow.
+    const container = StyleSheet.flatten(screen.getByTestId('state-view').parent?.props.style);
+    expect(container.flexDirection ?? 'column').toBe('column');
+    expect(screen.getByTestId('state-view').parent?.children).toHaveLength(2);
+    expect(StyleSheet.flatten(screen.getByTestId('access-error-home').props.style).position).toBeUndefined();
     expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
 
     await fireEvent.press(home);
 
     expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+
+  it('draws the retry as secondary and the way home as ghost, and neither as the lime primary', async () => {
+    mockListAdminSchools.mockRejectedValue(new Error('db'));
+    await show();
+    const retry = await screen.findByRole('button', { name: 'Intentar de nuevo' });
+    const home = screen.getByRole('button', { name: 'Volver al inicio' });
+
+    const retryStyle = StyleSheet.flatten(retry.props.style);
+    const homeStyle = StyleSheet.flatten(home.props.style);
+    // Secondary: outlined. Ghost: no background, no outline, underlined label.
+    expect(retryStyle.borderColor).toBe(colors.light.border);
+    expect(homeStyle.backgroundColor).toBe('transparent');
+    expect(homeStyle.borderColor).toBe('transparent');
+    expect(StyleSheet.flatten(screen.getByText('Volver al inicio').props.style).textDecorationLine).toBe('underline');
+    expect(StyleSheet.flatten(screen.getByText('Intentar de nuevo').props.style).textDecorationLine).toBeUndefined();
+    for (const style of [retryStyle, homeStyle]) {
+      expect([colors.light.action, colors.dark.action]).not.toContain(style.backgroundColor);
+    }
+  });
+
+  it('separates the way home from the error view with a design-system space', async () => {
+    mockListAdminSchools.mockRejectedValue(new Error('db'));
+    await show();
+    await screen.findByRole('button', { name: 'Volver al inicio' });
+
+    expect(StyleSheet.flatten(screen.getByTestId('access-error-home').props.style).marginTop).toBe(space[4]);
   });
 
   it('sends the user home when the retry finds no admin school', async () => {
@@ -242,10 +275,11 @@ describe('console route', () => {
     expect(await screen.findByText('Aún no hay récords')).toBeOnTheScreen();
   });
 
-  it('shows nothing while the lookup is pending', async () => {
+  it('shows the loading state, not a blank screen or a redirect, while the first lookup is pending', async () => {
     mockListAdminSchools.mockReturnValue(new Promise(() => {}));
     await show();
 
+    expect(screen.getByTestId('state-view')).toBeBusy();
     expect(screen.queryByText(/redirected/)).toBeNull();
     expect(screen.queryByRole('header')).toBeNull();
   });
