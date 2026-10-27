@@ -4,6 +4,7 @@ import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, contrastRatio, space, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { historyFixture, historyResults } from '../__fixtures__/history';
+import { closest, rowLabel } from '../__fixtures__/historyRows';
 import { profileContentFixture as content, storedOnFixture } from '../__fixtures__/screen';
 import type { ImportPromptProps } from '../components/ImportPrompt';
 import {
@@ -15,6 +16,8 @@ import {
 
 const name = 'Lucía R.';
 const hidden = { includeHiddenElements: true };
+// The label of a race-pb row, the title the history fixture starts with.
+const raceRow = rowLabel('Libre 50 m');
 
 const importPrompt: ImportPromptProps = {
   athleteName: name,
@@ -125,7 +128,7 @@ describe('AthleteProfileScreen', () => {
 
       // One vertical scroll container only: the history is not a list inside a ScrollView.
       expect(order().filter((item) => item === 'vertical-scroll')).toHaveLength(1);
-      const rows = screen.getAllByLabelText(/^Libre 50 m, /);
+      const rows = screen.getAllByLabelText(raceRow);
       expect(rows.length).toBeGreaterThan(0);
       expect(rows.length).toBeLessThan(many.length);
     });
@@ -151,7 +154,13 @@ describe('AthleteProfileScreen', () => {
       await show({ kind: 'data', content });
 
       expect(rootStyle()?.paddingHorizontal).toBeUndefined();
-      expect(StyleSheet.flatten(screen.getAllByLabelText(/^Libre 50 m, /)[0].parent!.props.style).marginHorizontal).toBe(space[4]);
+      // Every row sits in a card with the margin: the nearest ancestor of each one that has a horizontal margin.
+      const rows = screen.getAllByLabelText(raceRow);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        const card = closest(row, (node) => StyleSheet.flatten(node.props.style)?.marginHorizontal !== undefined);
+        expect(StyleSheet.flatten(card?.props.style).marginHorizontal).toBe(space[4]);
+      }
     });
 
     it.each(bandViews)('keeps the same margin in the %s state', async (_state, view) => {
@@ -379,7 +388,7 @@ describe('AthleteProfileScreen', () => {
         ),
       ).toBeOnTheScreen();
       expect(screen.getByTestId('state-view')).toBeOnTheScreen();
-      expect(screen.queryByLabelText(/^Libre 50 m/)).toBeNull();
+      expect(screen.queryByLabelText(raceRow)).toBeNull();
     });
   });
 
@@ -416,7 +425,8 @@ describe('AthleteProfileScreen', () => {
       ...extra,
     });
     // A Record keyed by the view's kind: a new kind in AthleteProfileView does not compile until it is listed here.
-    const views: Record<AthleteProfileView['kind'], [AthleteProfileView, string]> = {
+    // A function, so each case builds its own callbacks and none shares a mock with another.
+    const views = (): Record<AthleteProfileView['kind'], [AthleteProfileView, string]> => ({
       data: [{ kind: 'data', content: withContent({ importPrompt }) }, 'Historial'],
       loading: [{ kind: 'loading' }, 'state-view'],
       empty: [{ kind: 'empty', content: withContent() }, 'Aún no hay tiempos'],
@@ -425,9 +435,10 @@ describe('AthleteProfileScreen', () => {
       'offline-empty': [{ kind: 'offline-empty' }, 'Estás sin conexión'],
       'other-school-offline': [{ kind: 'other-school-offline' }, 'Disponible con conexión'],
       denied: [{ kind: 'denied', onRequestAccess: jest.fn() }, 'Esta información es privada'],
-    };
+    });
 
-    it.each(Object.entries(views))('renders the %s view without dropping its text', async (_, [view, expected]) => {
+    it.each(Object.keys(views()) as AthleteProfileView['kind'][])('renders the %s view without dropping its text', async (kind) => {
+      const [view, expected] = views()[kind];
       await show(view, (node) => (
         <ThemeProvider name={theme} fontScale={2}>
           {node}
