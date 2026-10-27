@@ -1,8 +1,11 @@
 import { Redirect, useRouter } from 'expo-router';
-import { useWindowDimensions } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 
+import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
+import { useTheme } from '../../core/theme';
+import { StateView } from '../../core/ui';
 import {
   AthletesSection,
   AuthorizationsSection,
@@ -38,6 +41,7 @@ export default function ConsoleRoute() {
   const router = useRouter();
   const { session } = useSession();
   const { width } = useWindowDimensions();
+  const { colors, space } = useTheme();
   // Memberships arrive with a sync, so the lookup runs again when one completes.
   const { lastSyncedAt, connection } = useGlobalSyncSummary();
   const access = useAdminSchool(staffSchools, session?.user.id, lastSyncedAt?.getTime());
@@ -45,6 +49,19 @@ export default function ConsoleRoute() {
   if (access.status === 'loading') return null;
   // Only a hidden screen is not protection: the backend enforces the role on every query.
   if (access.status === 'denied') return <Redirect href="/" />;
+  // A failed lookup says nothing about the role: it does not leave the console, it offers to look again.
+  if (access.status === 'error') {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', padding: space[4], backgroundColor: colors['surface-0'] }}>
+        <StateView
+          kind="error"
+          title={t('schoolConsole.screen.access_error_title')}
+          message={t('schoolConsole.screen.error.message')}
+          action={{ label: t('schoolConsole.screen.retry'), onPress: access.retry }}
+        />
+      </View>
+    );
+  }
   const schoolId = access.school.id;
   return (
     <ConsoleScreen

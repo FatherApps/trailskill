@@ -18,14 +18,23 @@ jest.mock('../modules/athletes', () => ({
   useManagedAthletes: () => ({ status: 'ready', athletes: [] }),
 }));
 jest.mock('../modules/timing', () => ({ createPowerSyncSeriesRepository: () => ({}) }));
-jest.mock('../modules/training-plans', () => ({
-  // The real container (it brings its own translations): the only thing `today.tsx` takes besides the repositories that open the database, which are replaced.
-  ...jest.requireActual('../modules/training-plans/screens/TodayContainer'),
-  createPowerSyncAssignmentRepository: () => ({}),
-  createPowerSyncFulfillmentRepository: () => ({}),
-  createPowerSyncNoticeRepository: () => ({}),
-  createPowerSyncTrainingPlanRepository: () => ({}),
-}));
+jest.mock('../modules/training-plans', () => {
+  const mocked: Record<string, unknown> = {
+    // The real container (it brings its own translations): the only thing `today.tsx` takes besides the repositories that open the database, which are replaced.
+    ...jest.requireActual('../modules/training-plans/screens/TodayContainer'),
+    createPowerSyncAssignmentRepository: () => ({}),
+    createPowerSyncFulfillmentRepository: () => ({}),
+    createPowerSyncNoticeRepository: () => ({}),
+    createPowerSyncTrainingPlanRepository: () => ({}),
+  };
+  // A value `today.tsx` starts importing from the module and this mock lacks would otherwise be `undefined`: "not a function" or an empty render. Fail naming the import.
+  return new Proxy(mocked, {
+    get: (target, name) => {
+      if (typeof name === 'symbol' || name in target || name === '__esModule' || name === 'then') return target[name as string];
+      throw new Error(`today.tsx imports "${name}" from the training-plans module, but today-route.test does not mock it. Add it to the jest.mock('../modules/training-plans') factory.`);
+    },
+  });
+});
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   createPowerSyncStaffSchoolRepository: () => ({ listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args) }),
