@@ -26,7 +26,7 @@ export type AssignPlanContainerProps = {
   onOpenFulfillment?: (assignmentId: string, day: string) => void;
 };
 
-type Loaded = { userId: string; schoolId: string; scope: AssignScope; plans: PlanSummary[] };
+type Loaded = { schoolId: string; scope: AssignScope; plans: PlanSummary[] };
 
 const fullName = (a: { firstName: string; lastName: string }) => `${a.firstName} ${a.lastName}`;
 
@@ -54,21 +54,26 @@ function targetLabel(scope: AssignScope, target: AssignmentTarget): string {
 }
 
 // Container: finds the school and what the user may assign, and saves the assignments through the local repository.
-export function AssignPlanContainer({ plans, assignments, athletes, structure, schools, userId, initialDay, initialPlanId, onOpenFulfillment }: AssignPlanContainerProps) {
+// Each user gets a screen of their own: nothing of the previous one (list, day, choices, failure, a save still on its way) carries over.
+export function AssignPlanContainer(props: AssignPlanContainerProps) {
+  return <AssignPlanBody key={props.userId} {...props} />;
+}
+
+function AssignPlanBody({ plans, assignments, athletes, structure, schools, userId, initialDay, initialPlanId, onOpenFulfillment }: AssignPlanContainerProps) {
   const [loaded, setLoaded] = useState<Loaded | 'loading' | 'error' | 'no_school'>('loading');
   const [attempt, setAttempt] = useState(0);
-  // The list of another user is not ready for this one: it shows as loading until this user's list arrives.
-  const ready = typeof loaded === 'object' && loaded.userId === userId ? loaded : null;
+  const ready = typeof loaded === 'object' ? loaded : null;
   const [day, setDay] = useState(initialDay ?? todayText());
   const [rows, setRows] = useState<AssignedRow[]>([]);
   // An empty parameter (`?plan=`, or an empty first value of a repeated one) counts as none.
   const preselected = (Array.isArray(initialPlanId) ? initialPlanId.find(Boolean) : initialPlanId) || null;
   // The person's own choice, made under a parameter value. It is dropped from state when the parameter changes, so a value that comes
   // back is applied again, and when a loaded list lacks the picked plan, so it does not come back selected when a list gets it again.
-  // The parameter check in the derivation covers the render before that cleanup runs. The choice also belongs to the user who made it.
-  const [pick, setPick] = useState<{ param: string | null; userId: string; id: string } | null>(null);
-  useEffect(() => () => setPick(null), [preselected, userId]);
-  const planId = (pick?.param === preselected && pick.userId === userId ? pick.id : null) ?? preselected;
+  // The list is only ever set by the load below, so that is the one place its loss is seen.
+  const [pick, setPick] = useState<{ param: string | null; id: string } | null>(null);
+  // Dropped while rendering, so the stale choice never reaches the screen and nothing runs on unmount.
+  if (pick && pick.param !== preselected) setPick(null);
+  const planId = pick?.id ?? preselected;
   const [kind, setKind] = useState<AssignmentKind>('group');
   const [optionId, setOptionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -86,7 +91,7 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
         if (!school) return setLoaded('no_school');
         const [scope, all] = await Promise.all([loadAssignScope({ schools, athletes, structure }, userId, school.id), plans.list(school.id)]);
         if (cancelled) return;
-        setLoaded({ userId, schoolId: school.id, scope, plans: all });
+        setLoaded({ schoolId: school.id, scope, plans: all });
         setPick((current) => (current && all.some((p) => p.id === current.id) ? current : null));
       } catch {
         if (!cancelled) setLoaded('error');
@@ -194,7 +199,7 @@ export function AssignPlanContainer({ plans, assignments, athletes, structure, s
       view={view}
       onPreviousDay={() => setDay((d) => shiftDay(d, -1))}
       onNextDay={() => setDay((d) => shiftDay(d, 1))}
-      onSelectPlan={(id) => setPick({ param: preselected, userId, id })}
+      onSelectPlan={(id) => setPick({ param: preselected, id })}
       onSelectKind={(next) => {
         setKind(next);
         setOptionId(null);
