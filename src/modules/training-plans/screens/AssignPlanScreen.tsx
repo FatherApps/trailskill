@@ -23,7 +23,8 @@ export type AssignPlanContent = {
   // What can be picked for the kind; empty for the school kind.
   options: AssignOption[];
   selectedOptionId: string | null;
-  assigned: AssignedRow[];
+  // Null while the day loads: the list shows the loading state and the Assign button waits, as when saving.
+  assigned: AssignedRow[] | null;
   saving: boolean;
   // 'denied': the plan or the target is not assignable; 'save' and 'withdraw': anything else, saving or withdrawing.
   failure?: 'denied' | 'save' | 'withdraw';
@@ -149,13 +150,15 @@ function AssignForm({
       )}
       <Button
         label={t('training_plans.assign.save')}
-        loading={content.saving}
+        loading={content.saving || content.assigned === null}
         disabledReason={ready ? undefined : t('training_plans.assign.not_ready')}
         onPress={onAssign}
       />
 
       <Section title={t('training_plans.assign.assigned')}>
-        {content.assigned.length === 0 ? (
+        {content.assigned === null ? (
+          <StateView kind="loading" />
+        ) : content.assigned.length === 0 ? (
           <Text style={[typography.body, { color: colors.ink }]}>{t('training_plans.assign.assigned_empty')}</Text>
         ) : (
           content.assigned.map((row) => (
