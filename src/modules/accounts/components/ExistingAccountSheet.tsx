@@ -13,7 +13,7 @@ export type ExistingAccountSheetProps = {
 };
 
 // Shown once the code checked out and the account already had a profile: the session is open, so entering just closes the sheet.
-// Dismissing the sheet in any way chooses the other action, which signs out. Records that cannot be sent keep the person in the app,
+// Only the cancel button signs out; back and a tap outside just close the sheet. Records that cannot be sent keep the person in the app,
 // where the sign-out button asks before discarding them.
 export function ExistingAccountSheet({ email, signOut, onClose }: ExistingAccountSheetProps) {
   const leaving = useRef(false);
@@ -38,6 +38,7 @@ export function ExistingAccountSheet({ email, signOut, onClose }: ExistingAccoun
       cancelLabel={t('session.sign_out')}
       onConfirm={onClose}
       onCancel={leave}
+      onDismiss={onClose}
     />
   );
 }

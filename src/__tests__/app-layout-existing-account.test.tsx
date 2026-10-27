@@ -15,22 +15,28 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn() }),
 }));
 
-let mockNotice: unknown;
+let mockHasNotice = true;
+const mockDismiss = jest.fn();
 jest.mock('../modules/accounts', () => ({
   ...jest.requireActual('../modules/accounts'),
-  useFinishRegistration: () => mockNotice,
+  // Like the real hook, the notice goes away once it is dismissed.
+  useFinishRegistration: () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const [dismissed, setDismissed] = require('react').useState(false);
+    return mockHasNotice && !dismissed
+      ? { existing: true, email: 'camila@example.test', dismiss: () => (mockDismiss(), setDismissed(true)) }
+      : undefined;
+  },
   usePendingInvitations: jest.fn(),
 }));
 
 const IN_USE = 'Ya hay una cuenta con este correo. Inicia sesión';
 
 describe('app layout: account that already existed', () => {
-  const dismiss = jest.fn();
-
   beforeEach(() => {
-    dismiss.mockClear();
+    mockDismiss.mockClear();
     mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
-    mockNotice = { existing: true, email: 'camila@example.test', dismiss };
+    mockHasNotice = true;
   });
 
   it('shows the sheet over the app with the existing copy', async () => {
@@ -41,7 +47,7 @@ describe('app layout: account that already existed', () => {
   });
 
   it('shows no sheet when the account was new, or before there is anything to say', async () => {
-    mockNotice = undefined;
+    mockHasNotice = false;
     await render(<AppLayout />);
 
     expect(screen.queryByText(IN_USE)).not.toBeOnTheScreen();
@@ -51,7 +57,20 @@ describe('app layout: account that already existed', () => {
     await render(<AppLayout />);
     await fireEvent.press(screen.getByRole('button', { name: 'Iniciar sesión' }));
 
-    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(IN_USE)).not.toBeOnTheScreen();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['Android back', () => fireEvent(screen.container.queryAll((node) => typeof node.props.onRequestClose === 'function')[0], 'requestClose')],
+    ['a tap outside', () => fireEvent.press(screen.getByTestId('confirm-sheet-scrim'))],
+  ])('%s closes the sheet, keeps the session and never signs out', async (_how, dismissIt) => {
+    await render(<AppLayout />);
+    await dismissIt();
+
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(IN_USE)).not.toBeOnTheScreen();
     expect(mockSignOut).not.toHaveBeenCalled();
   });
 

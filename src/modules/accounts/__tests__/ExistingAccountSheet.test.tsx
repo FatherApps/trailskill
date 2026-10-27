@@ -34,6 +34,17 @@ describe('ExistingAccountSheet', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it('closing the sheet by back or by tapping outside leaves the person in the app and never signs out', async () => {
+    const { signOut, onClose } = await renderSheet();
+    const [modal] = screen.container.queryAll((node) => typeof node.props.onRequestClose === 'function');
+
+    await fireEvent(modal, 'requestClose');
+    await fireEvent.press(screen.getByTestId('confirm-sheet-scrim'));
+
+    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['unsent records block it', jest.fn().mockResolvedValue({ status: 'blocked_pending', unsent: 2, rejected: 0 })],
     ['it fails', jest.fn().mockRejectedValue(new Error('offline'))],
