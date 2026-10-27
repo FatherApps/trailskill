@@ -6,6 +6,7 @@ import type { ColorToken } from '../../../core/theme';
 import { useTheme } from '../../../core/theme';
 import { ColorHeader, Segmented, Tag, type ColorCardColor } from '../../../core/ui';
 import '../i18n';
+import { profileBandColor } from '../profileBandColor';
 
 export type ProfileHeaderProps = {
   name: string;
@@ -24,9 +25,6 @@ export type ProfileHeaderProps = {
   // Below the school and authorization rows, inside the band: the event chips.
   children?: ReactNode;
 };
-
-// The neutral brand colour of the profile band when no athlete colour applies; the screen's states without content share it.
-export const profileBandColor: ColorCardColor = 'sky';
 
 // The board draws the ring white at 50 %; that is not a token, so it takes the nearest opaque one (maintainer decision).
 export const profileHeaderColors: { ring: ColorToken } = { ring: 'surface-1' };
