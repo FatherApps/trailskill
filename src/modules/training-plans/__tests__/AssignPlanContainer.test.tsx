@@ -4,7 +4,7 @@ import { StrictMode } from 'react';
 import { createInMemoryStaffSchoolRepository } from '../../school-console';
 import { createInMemoryAssignmentRepository } from '../data/inMemoryAssignmentRepository';
 import { createInMemoryTrainingPlanRepository } from '../data/inMemoryTrainingPlanRepository';
-import { todayText } from '../components/day';
+import { dayLabel, shiftDay, todayText } from '../components/day';
 import { AssignPlanContainer } from '../screens/AssignPlanContainer';
 import type { AssignPlanScreenProps } from '../screens/AssignPlanScreen';
 
@@ -62,7 +62,7 @@ const assignmentOfDay = (id: string) => ({
   athleteIds: [],
 });
 
-async function setup(initialPlanId?: string | string[], strict = false) {
+async function setup(initialPlanId?: string | string[], strict = false, initialDay?: string) {
   const plans = createInMemoryTrainingPlanRepository();
   for (const [id, name] of [['plan-1', 'Resistencia'], ['plan-2', 'Velocidad']]) {
     await plans.save({ id, schoolId: 'school-1', isTemplate: false, name, blocks: [] });
@@ -96,6 +96,7 @@ async function setup(initialPlanId?: string | string[], strict = false) {
       ])}
       userId={userId}
       initialPlanId={planId}
+      initialDay={initialDay}
     />
   );
   const element = (planId?: string | string[], userId?: string) => (strict ? <StrictMode>{container(planId, userId)}</StrictMode> : container(planId, userId));
@@ -267,6 +268,20 @@ describe('AssignPlanContainer', () => {
 
       expect(screen.queryByTestId('assigned-assignment-1')).toBeNull();
       await act(async () => release());
+    });
+
+    it.each([
+      ['today', undefined, todayText()],
+      ['the initial day', '2026-03-10', '2026-03-10'],
+    ])('goes back to %s instead of keeping the day of the previous user', async (_name, initialDay, expected) => {
+      const { reload } = await setup('plan-1', false, initialDay);
+      await act(async () => screenProps().onNextDay());
+      expect(content().dateLabel).toBe(dayLabel(shiftDay(expected, 1)));
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByText('Velocidad');
+
+      expect(content().dateLabel).toBe(dayLabel(expected));
     });
 
     it('starts over with the group kind', async () => {
