@@ -88,6 +88,30 @@ describe('console route', () => {
     expect(screen.queryByRole('header', { name: 'Deportistas' })).toBeNull();
   });
 
+  it('shows the error view, not a redirect, when the lookup fails, and the console once a retry works', async () => {
+    mockListAdminSchools.mockRejectedValueOnce(new Error('db')).mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    await show();
+
+    expect(await screen.findByText('No pudimos cargar tu escuela')).toBeOnTheScreen();
+    expect(screen.getByText('Revisa tu conexión e inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(screen.queryByText(/redirected/)).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
+    expect(screen.queryByText('No pudimos cargar tu escuela')).toBeNull();
+    expect(mockListAdminSchools).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends the user home when the retry finds no admin school', async () => {
+    mockListAdminSchools.mockRejectedValueOnce(new Error('db')).mockResolvedValue([]);
+    await show();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(await screen.findByText('redirected to /')).toBeOnTheScreen();
+  });
+
   it('sends a signed-out user back to the home', async () => {
     mockUserId = undefined;
     await show();
