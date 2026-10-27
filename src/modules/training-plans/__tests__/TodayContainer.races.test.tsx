@@ -1,4 +1,6 @@
 import { act, render, waitFor } from '@testing-library/react-native';
+// The real one: a test that calls jest.useFakeTimers() replaces the global setImmediate, not this one.
+import { setImmediate as macrotask } from 'timers';
 
 import { createInMemoryAthleteSchoolRepository } from '../../athletes';
 import { createInMemoryAssignmentRepository, createInMemoryFulfillmentRepository, createInMemoryNoticeRepository, createInMemoryTrainingPlanRepository, TodayContainer } from '..';
@@ -26,7 +28,7 @@ const LATE_DAY = '2026-11-04';
 // Lets the pending reads and saves, which only wait on promises, finish: a macrotask turn runs every promise chain to its end, however many awaits it has.
 const settle = () =>
   act(async () => {
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await new Promise<void>((resolve) => macrotask(resolve));
   });
 
 // The bodies of the notes on the screen, in the order shown (the newest first): not sorted here, so a wrong order fails the tests that read it.
@@ -63,25 +65,33 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
   };
   const storedNotices = createInMemoryNoticeRepository();
   // Saving a note waits for `hold.promise` while it is set; the next `hold.listing.remaining` listings a save does after adding its note wait for `hold.listing.promise`.
-  // The reads of the container list the notes too, but only the listing right after an added note counts: `unlisted` has the notes added whose save has not listed yet.
+  // The reads of the container list the notes too, but only the listing right after an added note counts: `unlisted` has the notes added whose save has not listed yet, and holds a note only until that listing.
   // The next `hold.failListings` listings are rejected.
   // The next `hold.stale.remaining` listings read the notes at once but answer only when `hold.stale.promise` resolves, so they can be older than the ones that answer before.
   const hold: { promise?: Promise<void>; listing?: { promise: Promise<void>; remaining: number }; stale?: { promise: Promise<void>; remaining: number }; failListings?: number } = {};
-  const unlisted = new Map<string, number>();
+  const unlisted = new Set<string>();
   const unlistedOf = (athleteId: string, assignmentId: string) => `${athleteId}|${assignmentId}`;
   const notices = {
     ...storedNotices,
-    add: async (...args: Parameters<typeof storedNotices.add>) => {
-      await hold.promise;
-      const id = await storedNotices.add(...args);
+    add: (...args: Parameters<typeof storedNotices.add>) => {
+      const added = (async () => {
+        await hold.promise;
+        return storedNotices.add(...args);
+      })();
       const key = unlistedOf(args[0].athleteId, args[0].assignmentId);
-      unlisted.set(key, (unlisted.get(key) ?? 0) + 1);
-      return id;
+      // This reaction runs right before the save continues and lists, and the microtask after that listing: a listing of a read, which lands anywhere else, never takes the note.
+      added.then(
+        () => {
+          unlisted.add(key);
+          queueMicrotask(() => unlisted.delete(key));
+        },
+        () => undefined,
+      );
+      return added;
     },
     list: async (...args: Parameters<typeof storedNotices.list>) => {
       const key = unlistedOf(...args);
-      const afterAdd = (unlisted.get(key) ?? 0) > 0;
-      if (afterAdd) unlisted.set(key, unlisted.get(key)! - 1);
+      const afterAdd = unlisted.delete(key);
       if (afterAdd && hold.listing && hold.listing.remaining > 0) {
         hold.listing.remaining -= 1;
         await hold.listing.promise;
@@ -172,6 +182,15 @@ describe('TodayContainer races', () => {
     warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
   afterEach(() => warn.mockRestore());
+
+  it('settles the pending work even when the test uses fake timers', async () => {
+    jest.useFakeTimers();
+    try {
+      await settle();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 
   it('keeps the plan of the athlete picked while a note of another one is being saved, and the note stays with the first athlete', async () => {
     const { one, other, notices, sendHeld } = await setup();
