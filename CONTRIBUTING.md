@@ -139,6 +139,10 @@ A pull request is ready to merge when:
 - [ ] Interface changes match the design-system reference, with side-by-side screenshots in the description (see [Visual fidelity](#visual-fidelity)).
 - [ ] It has the required approvals.
 
+### Tests
+
+Production code adds a `testID` only when the element has no role, label, or text a test can query. Each one carries a comment with the reason.
+
 ## Product decisions and architecture
 
 - Product rules live in the product documents (currently [`PROJECT-HANDOFF-2026-10-24.md`](PROJECT-HANDOFF-2026-10-24.md), moving to `docs/product/`). They distinguish **confirmed**, **proposed**, and **open** items. Only confirmed items are requirements.
