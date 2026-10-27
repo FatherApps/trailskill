@@ -1,6 +1,6 @@
 import { act, render, waitFor } from '@testing-library/react-native';
 // The real one: a test that calls jest.useFakeTimers() replaces the global setImmediate, not this one.
-import { setImmediate as macrotask } from 'timers';
+import { setImmediate as macrotask, setTimeout as realTimeout } from 'timers';
 
 import { createInMemoryAthleteSchoolRepository } from '../../athletes';
 import { createInMemoryAssignmentRepository, createInMemoryFulfillmentRepository, createInMemoryNoticeRepository, createInMemoryTrainingPlanRepository, TodayContainer } from '..';
@@ -38,7 +38,8 @@ const showsPlan = (planName: string) => waitFor(() => expect(shown.view).toMatch
 
 // `synced` is the state of the first render; the first sync is the change from false to true.
 // `alsoOn`: a day that lists the assignment of DAY too, so one assignment is read under two days; undefined remaps no day, not even an empty one.
-async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstSynced = true, alsoOn }: { failFirstRead?: boolean; ids?: string[]; synced?: boolean; alsoOn?: string } = {}) {
+// `addHops`: extra microtask turns between a note being added and the save that continues, to prove the fake does not count on the save listing right away.
+async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstSynced = true, alsoOn, addHops = 0 }: { failFirstRead?: boolean; ids?: string[]; synced?: boolean; alsoOn?: string; addHops?: number } = {}) {
   const plans = createInMemoryTrainingPlanRepository();
   await plans.save(plan('p1'));
   await plans.save({ ...plan('p2'), name: 'Plan del otro' });
@@ -65,11 +66,11 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
   };
   const storedNotices = createInMemoryNoticeRepository();
   // Saving a note waits for `hold.promise` while it is set; the next `hold.listing.remaining` listings a save does after adding its note wait for `hold.listing.promise`.
-  // The reads of the container list the notes too, but only the listing right after an added note counts: `unlisted` has the notes added whose save has not listed yet, and holds a note only until that listing.
+  // The reads of the container list the notes too, but only the listing right after an added note counts: `unlisted` counts, per athlete and assignment, the notes added whose save has not listed yet; each listing takes one.
   // The next `hold.failListings` listings are rejected.
   // The next `hold.stale.remaining` listings read the notes at once but answer only when `hold.stale.promise` resolves, so they can be older than the ones that answer before.
   const hold: { promise?: Promise<void>; listing?: { promise: Promise<void>; remaining: number }; stale?: { promise: Promise<void>; remaining: number }; failListings?: number } = {};
-  const unlisted = new Set<string>();
+  const unlisted = new Map<string, number>();
   const unlistedOf = (athleteId: string, assignmentId: string) => `${athleteId}|${assignmentId}`;
   const notices = {
     ...storedNotices,
@@ -79,19 +80,21 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
         return storedNotices.add(...args);
       })();
       const key = unlistedOf(args[0].athleteId, args[0].assignmentId);
-      // This reaction runs right before the save continues and lists, and the microtask after that listing: a listing of a read, which lands anywhere else, never takes the note.
+      // By order of calls, not by turns of the event loop: the next listing of this athlete and assignment after the add is the one of the save, which lists as soon as it continues.
       added.then(
-        () => {
-          unlisted.add(key);
-          queueMicrotask(() => unlisted.delete(key));
-        },
+        () => unlisted.set(key, (unlisted.get(key) ?? 0) + 1),
         () => undefined,
       );
-      return added;
+      if (addHops === 0) return added;
+      return added.then(async (result) => {
+        for (let hop = 0; hop < addHops; hop += 1) await undefined;
+        return result;
+      });
     },
     list: async (...args: Parameters<typeof storedNotices.list>) => {
       const key = unlistedOf(...args);
-      const afterAdd = unlisted.delete(key);
+      const afterAdd = (unlisted.get(key) ?? 0) > 0;
+      if (afterAdd) unlisted.set(key, unlisted.get(key)! - 1);
       if (afterAdd && hold.listing && hold.listing.remaining > 0) {
         hold.listing.remaining -= 1;
         await hold.listing.promise;
@@ -136,7 +139,8 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
       sending = shown.onSendNotice({ blockId: null, body });
     });
     hold.promise = undefined;
-    return { release: () => act(async () => release()), sending };
+    // `open`: releases without an act of its own, so a test can release several saves in the same one.
+    return { release: () => act(async () => release()), open: release, sending };
   };
   // Starts a save that stays open until the returned function is called.
   const sendHeld = async (body: string) => {
@@ -186,10 +190,62 @@ describe('TodayContainer races', () => {
   it('settles the pending work even when the test uses fake timers', async () => {
     jest.useFakeTimers();
     try {
-      await settle();
+      let ran = false;
+      void Promise.resolve()
+        .then(() => undefined)
+        .then(() => {
+          ran = true;
+        });
+      // A real timer: if settle() waited on a faked one, it would never end, and this reports it instead of a timeout of the whole test.
+      const settled = (async () => {
+        await settle();
+        return 'settled';
+      })();
+      const outcome = await Promise.race([settled, new Promise<string>((resolve) => realTimeout(() => resolve('stuck on a fake timer'), 500))]);
+      expect(outcome).toBe('settled');
+      expect(ran).toBe(true);
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it.each([0, 3])('holds the listing of a save right after its note was added, even when the save continues %i microtask turns later', async (addHops) => {
+    const { holdListings, startOpen } = await setup({ addHops });
+    await showsPlan('Plan p1');
+
+    const release = holdListings(1);
+    const { sending } = await startOpen('Test note 1');
+    await settle();
+    // The listing is still open, so the screen does not have the note yet.
+    expect(noteBodies()).toEqual([]);
+
+    await act(async () => {
+      release();
+      await sending;
+    });
+    expect(noteBodies()).toEqual(['Test note 1']);
+  });
+
+  it('holds the listings of two saves of the same assignment whose notes were both added before either listed', async () => {
+    const { holdListings, startHeld } = await setup({ addHops: 3 });
+    await showsPlan('Plan p1');
+    const first = await startHeld('Test note 1');
+    const second = await startHeld('Test note 2');
+
+    // Both notes are added in the same turn, and the saves list only after some more microtasks.
+    const release = holdListings(2);
+    await act(async () => {
+      first.open();
+      second.open();
+      await new Promise<void>((resolve) => macrotask(resolve));
+    });
+    expect(noteBodies()).toEqual([]);
+
+    await act(async () => {
+      release();
+      await Promise.all([first.sending, second.sending]);
+    });
+    expect(noteBodies()).toEqual(['Test note 2', 'Test note 1']);
   });
 
   it('keeps the plan of the athlete picked while a note of another one is being saved, and the note stays with the first athlete', async () => {
