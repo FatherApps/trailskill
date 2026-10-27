@@ -4,7 +4,7 @@ import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, contrastRatio, space, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { historyFixture, historyResults } from '../__fixtures__/history';
-import { closest, rowLabel } from '../__fixtures__/historyRows';
+import { marginOfCard, rowLabel, rowTitleStartingWith } from '../__fixtures__/historyRows';
 import { profileContentFixture as content, storedOnFixture } from '../__fixtures__/screen';
 import type { ImportPromptProps } from '../components/ImportPrompt';
 import {
@@ -18,14 +18,17 @@ const name = 'Lucía R.';
 const hidden = { includeHiddenElements: true };
 // The label of a race-pb row, the title the history fixture starts with.
 const raceRow = rowLabel('Libre 50 m');
+// Any row whose title starts like the race row, one that extends it included: for asserting that no such row is shown.
+const anyRaceRow = rowTitleStartingWith('Libre 50 m');
 
-const importPrompt: ImportPromptProps = {
+// A function, so each test builds its own callbacks and none shares a mock with another.
+const importPrompt = (): ImportPromptProps => ({
   athleteName: name,
   sourceName: historyFixture.sourceName,
   imported: false,
   onDismiss: jest.fn(),
   onRefresh: jest.fn(),
-};
+});
 
 const show = (view: AthleteProfileView, wrap: (node: ReactElement) => ReactElement = (node) => node) =>
   render(wrap(<AthleteProfileScreen name={name} view={view} onBack={jest.fn()} />));
@@ -56,13 +59,14 @@ const shownStrings = (node: unknown): string[] => {
 };
 const at = (flat: string[], start: string) => flat.findIndex((item) => item.startsWith(start));
 
-// The states without content: each one shows the band (title and back button) over a state view.
-const bandViews: [string, AthleteProfileView][] = [
-  ['loading', { kind: 'loading' }],
-  ['error', { kind: 'error', onRetry: jest.fn() }],
-  ['offline-empty', { kind: 'offline-empty' }],
-  ['other-school-offline', { kind: 'other-school-offline' }],
-  ['denied', { kind: 'denied' }],
+// The states without content: each one shows the band (title and back button) over a state view. Each view is built
+// by calling it inside the test, so each test has its own callbacks and none shares a mock with another.
+const bandViews: [string, () => AthleteProfileView][] = [
+  ['loading', () => ({ kind: 'loading' })],
+  ['error', () => ({ kind: 'error', onRetry: jest.fn() })],
+  ['offline-empty', () => ({ kind: 'offline-empty' })],
+  ['other-school-offline', () => ({ kind: 'other-school-offline' })],
+  ['denied', () => ({ kind: 'denied' })],
 ];
 
 describe('AthleteProfileScreen', () => {
@@ -154,17 +158,16 @@ describe('AthleteProfileScreen', () => {
       await show({ kind: 'data', content });
 
       expect(rootStyle()?.paddingHorizontal).toBeUndefined();
-      // Every row sits in a card with the margin: the nearest ancestor of each one that has a horizontal margin.
+      // Every row sits in a card with the margin: the nearest ancestor of each one that has a background.
       const rows = screen.getAllByLabelText(raceRow);
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
-        const card = closest(row, (node) => StyleSheet.flatten(node.props.style)?.marginHorizontal !== undefined);
-        expect(StyleSheet.flatten(card?.props.style).marginHorizontal).toBe(space[4]);
+        expect(marginOfCard(row)).toBe(space[4]);
       }
     });
 
     it.each(bandViews)('keeps the same margin in the %s state', async (_state, view) => {
-      await show(view);
+      await show(view());
 
       expect(rootStyle()?.paddingHorizontal).toBeUndefined();
       expect(StyleSheet.flatten(screen.getByTestId('profile-content').props.style)?.paddingHorizontal).toBe(space[4]);
@@ -178,7 +181,7 @@ describe('AthleteProfileScreen', () => {
 
   describe('import prompt', () => {
     it('shows it only when its props are given, with the exact words', async () => {
-      await show({ kind: 'data', content: { ...content, importPrompt } });
+      await show({ kind: 'data', content: { ...content, importPrompt: importPrompt() } });
 
       expect(screen.getByRole('button', { name: 'Ahora no' })).toBeOnTheScreen();
       expect(screen.getByText('¿Lucía R. compitió antes?', { exact: false })).toBeOnTheScreen();
@@ -199,7 +202,7 @@ describe('AthleteProfileScreen', () => {
         content: {
           ...content,
           importPrompt: {
-            ...importPrompt,
+            ...importPrompt(),
             imported: true,
             onDismiss,
             onRefresh,
@@ -255,7 +258,7 @@ describe('AthleteProfileScreen', () => {
     });
 
     it.each(bandViews)('is trimmed in the band title of the %s view', async (_, view) => {
-      await showPadded(view);
+      await showPadded(view());
 
       expect(screen.getByRole('header', { name: 'Lucía' })).toBeOnTheScreen();
       expect(screen.getByText('Lucía', { normalizer: verbatim })).toBeOnTheScreen();
@@ -276,7 +279,7 @@ describe('AthleteProfileScreen', () => {
 
   describe('a blank name in the band', () => {
     it.each(bandViews)('leaves the band title of the %s view without text', async (_, view) => {
-      await render(<AthleteProfileScreen name="   " view={view} onBack={jest.fn()} />);
+      await render(<AthleteProfileScreen name="   " view={view()} onBack={jest.fn()} />);
 
       // An empty band title is no header and gets no filler: every header on the screen belongs to the state view.
       expect(screen.queryAllByRole('header')).toHaveLength(within(screen.getByTestId('state-view')).queryAllByRole('header').length);
@@ -286,7 +289,7 @@ describe('AthleteProfileScreen', () => {
   describe('back in the states without content', () => {
     it.each(bandViews)('the %s view shows the band with a "Volver" button that calls onBack', async (_, view) => {
       const onBack = jest.fn();
-      await render(<AthleteProfileScreen name={name} view={view} onBack={onBack} />);
+      await render(<AthleteProfileScreen name={name} view={view()} onBack={onBack} />);
 
       expect(screen.getByRole('header', { name })).toBeOnTheScreen();
       await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
@@ -311,7 +314,7 @@ describe('AthleteProfileScreen', () => {
     });
 
     it('still offers the import when its props are given', async () => {
-      await show({ kind: 'empty', content: { ...content, importPrompt } });
+      await show({ kind: 'empty', content: { ...content, importPrompt: importPrompt() } });
 
       expect(screen.getByRole('button', { name: 'Ahora no' })).toBeOnTheScreen();
     });
@@ -388,7 +391,7 @@ describe('AthleteProfileScreen', () => {
         ),
       ).toBeOnTheScreen();
       expect(screen.getByTestId('state-view')).toBeOnTheScreen();
-      expect(screen.queryByLabelText(raceRow)).toBeNull();
+      expect(screen.queryByLabelText(anyRaceRow)).toBeNull();
     });
   });
 
@@ -425,20 +428,21 @@ describe('AthleteProfileScreen', () => {
       ...extra,
     });
     // A Record keyed by the view's kind: a new kind in AthleteProfileView does not compile until it is listed here.
-    // A function, so each case builds its own callbacks and none shares a mock with another.
-    const views = (): Record<AthleteProfileView['kind'], [AthleteProfileView, string]> => ({
-      data: [{ kind: 'data', content: withContent({ importPrompt }) }, 'Historial'],
-      loading: [{ kind: 'loading' }, 'state-view'],
-      empty: [{ kind: 'empty', content: withContent() }, 'Aún no hay tiempos'],
-      error: [{ kind: 'error', onRetry: jest.fn() }, 'No pudimos cargar el perfil'],
-      offline: [{ kind: 'offline', storedOn: storedOnFixture, content: withContent() }, 'Historial'],
-      'offline-empty': [{ kind: 'offline-empty' }, 'Estás sin conexión'],
-      'other-school-offline': [{ kind: 'other-school-offline' }, 'Disponible con conexión'],
-      denied: [{ kind: 'denied', onRequestAccess: jest.fn() }, 'Esta información es privada'],
-    });
+    // Each value builds its view when its case calls it, so each case has its own callbacks and none shares a mock
+    // with another, and nothing is built while the cases are collected.
+    const views: Record<AthleteProfileView['kind'], () => [AthleteProfileView, string]> = {
+      data: () => [{ kind: 'data', content: withContent({ importPrompt: importPrompt() }) }, 'Historial'],
+      loading: () => [{ kind: 'loading' }, 'state-view'],
+      empty: () => [{ kind: 'empty', content: withContent() }, 'Aún no hay tiempos'],
+      error: () => [{ kind: 'error', onRetry: jest.fn() }, 'No pudimos cargar el perfil'],
+      offline: () => [{ kind: 'offline', storedOn: storedOnFixture, content: withContent() }, 'Historial'],
+      'offline-empty': () => [{ kind: 'offline-empty' }, 'Estás sin conexión'],
+      'other-school-offline': () => [{ kind: 'other-school-offline' }, 'Disponible con conexión'],
+      denied: () => [{ kind: 'denied', onRequestAccess: jest.fn() }, 'Esta información es privada'],
+    };
 
-    it.each(Object.keys(views()) as AthleteProfileView['kind'][])('renders the %s view without dropping its text', async (kind) => {
-      const [view, expected] = views()[kind];
+    it.each(Object.keys(views) as AthleteProfileView['kind'][])('renders the %s view without dropping its text', async (kind) => {
+      const [view, expected] = views[kind]();
       await show(view, (node) => (
         <ThemeProvider name={theme} fontScale={2}>
           {node}

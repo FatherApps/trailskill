@@ -3,7 +3,7 @@ import { PixelRatio, StyleSheet, Text, type StyleProp, type ViewStyle } from 're
 
 import { colors, contrastRatio, size, space, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { historyFixture, historyResults } from '../__fixtures__/history';
-import { closest, rowLabel } from '../__fixtures__/historyRows';
+import { marginOfCard, rowLabel } from '../__fixtures__/historyRows';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 
 const themes: ThemeName[] = ['light', 'dark'];
@@ -39,7 +39,7 @@ describe('HistoryList', () => {
   });
 
   it('says a result without a sync state is online only', async () => {
-    const { syncState: _syncState, ...withoutState } = { ...byId('race-pb'), origin: 'other_school' as const };
+    const withoutState = { ...byId('race-pb'), origin: 'other_school' as const, syncState: undefined };
     await render(
       <ThemeProvider>
         <HistoryList results={[withoutState]} />
@@ -133,11 +133,8 @@ describe('HistoryList', () => {
   it('insets the rows from the edges when asked, so a full-bleed header can sit above', async () => {
     await render(<HistoryList results={[byId('race-pb')]} inset={space[4]} />);
 
-    // The card is the row's nearest ancestor with a horizontal margin, however the components nest above the row.
-    const isCard = (node: { props: { style?: StyleProp<ViewStyle> } }) =>
-      StyleSheet.flatten(node.props.style)?.marginHorizontal !== undefined;
-    const card = closest(screen.getByLabelText(raceRow), isCard);
-    expect(StyleSheet.flatten(card?.props.style).marginHorizontal).toBe(space[4]);
+    // The margin is the card's: the row's nearest ancestor with a background, however the components nest above it.
+    expect(marginOfCard(screen.getByLabelText(raceRow))).toBe(space[4]);
   });
 
   it('shows no origin for an own result', async () => {
@@ -224,12 +221,16 @@ describe('HistoryList', () => {
     const rowStyle = () => StyleSheet.flatten(screen.getByLabelText(raceRow).props.style);
     const flat = (style: unknown) => StyleSheet.flatten(style as never);
     // The parts of the one row, found through what they hold (the hidden parts need includeHiddenElements).
+    // `hasSyncState` says which of the two things the trailing block holds is looked up: the sync status of a result
+    // with a sync state, or the "Solo en línea" caption of one without it. A wrong value fails on that lookup.
     // shortcut: the text block and the trailing block have no testID, role or label, so each is the parent of the one
-    // thing it holds (the title; the sync status, or its online-only caption). That breaks if another view wraps that
-    // thing; a stable hook needs a production testID, which the maintainer has to approve.
-    const partsOf = (row: ReturnType<typeof screen.getAllByLabelText>[number], title: string) => {
+    // thing it holds (the title; the sync status or the caption), and the two lookups share that parent. That breaks
+    // if another view wraps that thing; a stable hook needs a production testID, which the maintainer has to approve.
+    const partsOf = (row: ReturnType<typeof screen.getAllByLabelText>[number], title: string, hasSyncState = true) => {
       const head = within(row).getByTestId('history-head', hidden);
-      const syncStatus = within(row).queryByTestId('sync-status', hidden) ?? within(row).getByText('Solo en línea', hidden);
+      const syncStatus = hasSyncState
+        ? within(row).getByTestId('sync-status', hidden)
+        : within(row).getByText('Solo en línea', hidden);
       return {
         head,
         dot: within(head).getByTestId('history-dot', hidden),
@@ -248,10 +249,9 @@ describe('HistoryList', () => {
     });
 
     it('finds the trailing block of a row without a sync state, whose caption is online only', async () => {
-      const { syncState: _syncState, ...withoutState } = byId('race-pb');
-      await render(<HistoryList results={[withoutState]} />);
+      await render(<HistoryList results={[{ ...byId('race-pb'), syncState: undefined }]} />);
 
-      const { trailing } = partsOf(screen.getByLabelText(raceRow), raceTitle);
+      const { trailing } = partsOf(screen.getByLabelText(raceRow), raceTitle, false);
       expect(flat(trailing.props.style).flexShrink).toBe(0);
       expect(within(trailing).getByText('Solo en línea', hidden)).toBeOnTheScreen();
     });
