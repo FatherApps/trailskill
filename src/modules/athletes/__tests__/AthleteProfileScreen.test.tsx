@@ -142,7 +142,7 @@ describe('AthleteProfileScreen', () => {
       await show({ kind: 'data', content });
 
       expect(rootStyle()?.paddingHorizontal).toBeUndefined();
-      expect(StyleSheet.flatten(screen.getAllByTestId('history-card')[0].props.style).marginHorizontal).toBe(space[4]);
+      expect(StyleSheet.flatten(screen.getAllByLabelText(/^Libre 50 m, /)[0].parent!.props.style).marginHorizontal).toBe(space[4]);
     });
 
     it.each<[string, AthleteProfileView]>([
@@ -397,26 +397,19 @@ describe('AthleteProfileScreen', () => {
       ...content,
       ...extra,
     });
-    const views: [string, AthleteProfileView, string][] = [
-      ['data', { kind: 'data', content: withContent({ importPrompt }) }, 'Historial'],
-      ['loading', { kind: 'loading' }, 'state-view'],
-      ['empty', { kind: 'empty', content: withContent() }, 'Aún no hay tiempos'],
-      ['error', { kind: 'error', onRetry: jest.fn() }, 'No pudimos cargar el perfil'],
-      [
-        'offline',
-        {
-          kind: 'offline',
-          storedOn: storedOnFixture,
-          content: withContent(),
-        },
-        'Historial',
-      ],
-      ['offline-empty', { kind: 'offline-empty' }, 'Estás sin conexión'],
-      ['other-school-offline', { kind: 'other-school-offline' }, 'Disponible con conexión'],
-      ['denied', { kind: 'denied', onRequestAccess: jest.fn() }, 'Esta información es privada'],
-    ];
+    // A Record keyed by the view's kind: a new kind in AthleteProfileView does not compile until it is listed here.
+    const views: Record<AthleteProfileView['kind'], [AthleteProfileView, string]> = {
+      data: [{ kind: 'data', content: withContent({ importPrompt }) }, 'Historial'],
+      loading: [{ kind: 'loading' }, 'state-view'],
+      empty: [{ kind: 'empty', content: withContent() }, 'Aún no hay tiempos'],
+      error: [{ kind: 'error', onRetry: jest.fn() }, 'No pudimos cargar el perfil'],
+      offline: [{ kind: 'offline', storedOn: storedOnFixture, content: withContent() }, 'Historial'],
+      'offline-empty': [{ kind: 'offline-empty' }, 'Estás sin conexión'],
+      'other-school-offline': [{ kind: 'other-school-offline' }, 'Disponible con conexión'],
+      denied: [{ kind: 'denied', onRequestAccess: jest.fn() }, 'Esta información es privada'],
+    };
 
-    it.each(views)('renders the %s view without dropping its text', async (_, view, expected) => {
+    it.each(Object.entries(views))('renders the %s view without dropping its text', async (_, [view, expected]) => {
       await show(view, (node) => (
         <ThemeProvider name={theme} fontScale={2}>
           {node}
