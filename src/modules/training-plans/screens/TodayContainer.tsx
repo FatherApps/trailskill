@@ -115,6 +115,7 @@ export function TodayContainer(props: TodayContainerProps) {
   // Null when nothing is read, so a save that finishes later than the render it started in refreshes only the athlete on the screen now.
   const reading = useRef<Reading | null>(null);
   // Per assignment, what its saves left in flight; the entry goes away when its last save finishes, unless a read is open (it compares against `saved`).
+  // shortcut: an entry kept for an open read is not removed when that read answers, only when a later save of its assignment finishes; it is one small record per assignment saved on this screen and goes with it, upgrade if the map must stay empty at rest (issue 636).
   const flights = useRef(new Map<string, Flight>());
   // Listings are numbered as they start; per assignment, the number of the last one shown. A listing that answers after a newer one was shown is older, so it is dropped.
   // The entry of `shownListing` always goes away when the last save of its assignment finishes; the one of `flights` stays while a read is open.
@@ -194,17 +195,15 @@ export function TodayContainer(props: TodayContainerProps) {
   async function sendNotice({ blockId, body }: { blockId: string | null; body: string }) {
     if (!selected || typeof loaded !== 'object' || loaded === null) return;
     const { assignmentId } = loaded;
-    const flight = () => {
-      const current = flights.current.get(assignmentId) ?? { saved: 0, saving: 0, unlisted: false };
-      flights.current.set(assignmentId, current);
-      return current;
-    };
-    flight().saving += 1;
+    // Taken once: the entry cannot go away while this save is in flight (it goes when the last one finishes), so every step below shares it.
+    const flight = flights.current.get(assignmentId) ?? { saved: 0, saving: 0, unlisted: false };
+    flights.current.set(assignmentId, flight);
+    flight.saving += 1;
     try {
       // The note is saved on the device first, so it never waits for the network.
       // shortcut: a save that never ends has no timeout, so the form stays on 'sending' with the text kept; upgrade when the maintainer defines what the person sees when a save is cut (issue 625).
       await notices.add({ athleteId: selected.id, assignmentId, versionId: loaded.versionId, blockId, body, authorId: userId });
-      flight().saved += 1;
+      flight.saved += 1;
       const ticket = (listingSeq.current += 1);
       let list: Notice[] | undefined;
       try {
@@ -212,7 +211,7 @@ export function TodayContainer(props: TodayContainerProps) {
       } catch (error) {
         // The note is saved; the read below shows it, or the error view with its retry.
         if (__DEV__) console.warn('[training-plans] The notes could not be listed after saving one', error);
-        flight().unlisted = true;
+        flight.unlisted = true;
       }
       // A listing that started before a newer one was shown may lack the notes saved meanwhile: it does not replace it.
       if (list && ticket > (shownListing.current.get(assignmentId) ?? 0)) {
@@ -228,19 +227,18 @@ export function TodayContainer(props: TodayContainerProps) {
         });
       }
     } finally {
-      const mine = flight();
-      mine.saving -= 1;
+      flight.saving -= 1;
       // The same athlete is being read, and that read started before a note was saved: it may have listed its notes without it, so it reads once more and shows it.
       // A read that started after the saves is left alone: reading again would only replace the data with the read to come. Without an open read, only a failed listing needs one.
       // Saves that overlap read once, when the last of them finishes, after all their notes were added.
-      if (mine.saving === 0) {
+      if (flight.saving === 0) {
         const since = reading.current?.since ?? null;
-        const stale = since === null ? mine.unlisted : (since.get(assignmentId) ?? 0) < mine.saved;
+        const stale = since === null ? flight.unlisted : (since.get(assignmentId) ?? 0) < flight.saved;
         if (stale && reading.current?.athleteId === selected.id) setRefreshes((n) => n + 1);
         shownListing.current.delete(assignmentId);
         // An open read compares against the count it started with, so the count stays while one is open.
         if (since === null) flights.current.delete(assignmentId);
-        else mine.unlisted = false;
+        else flight.unlisted = false;
       }
     }
   }
