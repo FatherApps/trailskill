@@ -21,6 +21,7 @@ function planVolume(blocks: Volumetric[]): { meters: number; unmeasured: number;
   // Many finite products can still add up to Infinity: a block that would overflow the total is counted apart, so the total stays finite.
   // Adding from the smallest makes the blocks left out the biggest ones, whatever the order of the plan.
   // The loop never skips a block for being too small to change the total, provided the blocks are added in ascending order and there are far fewer than 2^52 of them: then the total is at most count × the block being added, so its rounding step stays below that block.
+  // shortcut: "far fewer than 2^52 blocks" is not enforced in code, a plan holds dozens of blocks; upgrade (sum with compensation or reject the plan) if one can ever hold about 2^52 blocks.
   // That is about skipping. A bigger block added later can still absorb a smaller one into the rounded total, as the shortcut below says.
   // shortcut: the final total is rounded to a double (600 m next to 1e308 is lost in that rounding) and the block still counts as measured; upgrade only if exact sums are ever needed.
   products.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
