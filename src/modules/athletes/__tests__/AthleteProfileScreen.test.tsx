@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -269,8 +269,8 @@ describe('AthleteProfileScreen', () => {
     it.each(bandViews)('leaves the band title of the %s view without text', async (_, view) => {
       await render(<AthleteProfileScreen name="   " view={view} onBack={jest.fn()} />);
 
-      // An empty band title is no header; any header left is the state view's, and it has text.
-      expect(screen.queryAllByRole('header').filter((header) => header.props.children === '')).toEqual([]);
+      // An empty band title is no header and gets no filler: every header on the screen belongs to the state view.
+      expect(screen.queryAllByRole('header')).toHaveLength(within(screen.getByTestId('state-view')).queryAllByRole('header').length);
     });
   });
 
