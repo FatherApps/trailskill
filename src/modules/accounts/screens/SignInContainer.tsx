@@ -76,14 +76,11 @@ export function SignInContainer({ onCreateAccount }: SignInContainerProps) {
   }
 
   return (
-    <View style={{ flex: 1, padding: space[4], gap: space[4], backgroundColor: colors['surface-0'] }}>
+    <View style={{ gap: space[4] }}>
       {configError ? (
         <StateView kind="error" title={t('auth.not_configured_title')} message={t('auth.not_configured_message')} />
       ) : step === 'email' ? (
         <>
-          <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
-            {t('auth.email_title')}
-          </Text>
           <TextField
             label={t('auth.email_label')}
             value={email}
