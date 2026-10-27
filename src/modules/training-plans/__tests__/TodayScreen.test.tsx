@@ -4,13 +4,16 @@ import { StyleSheet } from 'react-native';
 import { i18n } from '../../../core/i18n';
 import { colors } from '../../../core/theme';
 import { iconPaths } from '../../../core/ui';
-import { TodayScreen, type TodayContent, type TodayView } from '../screens/TodayScreen';
+import { TodayScreen, type TodayBlock, type TodayContent, type TodayView } from '../screens/TodayScreen';
 import { plansFixture } from '../__fixtures__/plans';
 
 const content: TodayContent = plansFixture.today;
 
-// Literal on purpose: the fixture plan (blocks b1..b5) adds 200 + 400 + 100 + 150 + 100 = 950 m, so a rule change in the screen cannot be mirrored here by accident.
-const PLAN_SUMMARY = '950 m · 5 bloques';
+// Metres and thousands dots are worked out here, not with planSummary, so a rule change in the screen cannot be mirrored by accident.
+// The summary follows the fixture plan, so a change to plansFixture.today changes the expected text with it instead of breaking the tests.
+const metresOf = (blocks: TodayBlock[]) => blocks.reduce((sum, { block }) => sum + block.repetitions * block.distance, 0);
+const withDots = (n: number) => String(n).replace(/\B(?=(\d{3})+$)/g, '.');
+const PLAN_SUMMARY = `${withDots(metresOf(content.blocks))} m · ${content.blocks.length} bloques`;
 
 function setup(view: TodayView) {
   const onSendNotice = jest.fn();
@@ -94,10 +97,12 @@ describe('TodayScreen states', () => {
   it.each(['', '   '])('leaves the caption under the title empty, with no placeholder, when the athlete name is blank (%j)', async (athleteName) => {
     await render(<TodayScreen athleteName={athleteName} view={{ kind: 'empty' }} onSendNotice={jest.fn()} />);
 
-    // The title and the caption are the two Texts of the same View; the caption holds only the name.
-    const [title, caption] = screen.getByText('Hoy').parent!.children as { props: { children?: unknown } }[];
-    expect(title).toBeDefined();
-    expect(String(caption.props.children ?? '').trim()).toBe('');
+    // Read what the screen shows, not where the caption sits in the tree: besides the title and the empty-state copy there is no text, so no placeholder fills the gap.
+    const shown = screen
+      .getAllByText(/./)
+      .map((node) => [node.props.children].flat().join('').trim())
+      .filter(Boolean);
+    expect(shown).toEqual(['Hoy', 'Hoy no hay plan', 'Cuando tu entrenador asigne un plan para hoy, aparecerá aquí.']);
   });
 
   it('shows the plan, the athlete and the blocks with data', async () => {
@@ -130,12 +135,15 @@ describe('TodayScreen header', () => {
 
   it('groups thousands in the total of a several-block plan too, once it reaches 1000 m', async () => {
     const [first, main, ...rest] = content.blocks;
-    // 10 repetitions × 50 m = 500 m instead of 400 m: 200 + 500 + 100 + 150 + 100 = 1050 m.
-    const long = { ...content, blocks: [first, { ...main, block: { ...main.block, repetitions: 10 } }, ...rest] };
+    // Enough repetitions of the second block to take the plan past 1000 m, whatever the fixture holds.
+    const long = { ...content, blocks: [first, { ...main, block: { ...main.block, repetitions: Math.ceil(1000 / main.block.distance) } }, ...rest] };
+    const metres = metresOf(long.blocks);
+    expect(metres).toBeGreaterThanOrEqual(1000);
+    const summary = `${withDots(metres)} m · ${long.blocks.length} bloques`;
     await render(setup({ kind: 'data', content: long }).ui);
 
-    expect(screen.getByText('1.050 m · 5 bloques')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, Lucía R., 1.050 m · 5 bloques' })).toBeOnTheScreen();
+    expect(screen.getByText(summary)).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Resistencia aeróbica, Lucía R., ${summary}` })).toBeOnTheScreen();
   });
 
   it('shows the blocks without distance apart, in the card and the heading', async () => {
@@ -294,7 +302,7 @@ describe('TodayScreen blocks card', () => {
     const drawn = button.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
     expect(drawn).toContain(iconPaths.chat_bubble);
     expect(drawn).not.toContain(iconPaths.info);
-    // That the button uses the decorative Icon (hidden from screen readers) is the contract of core/ui/__tests__/Icon.test.tsx, not asserted here.
+    // A decorative Icon (no label) exposes no 'image' node, not even a hidden one; that it is hidden from screen readers is the contract of core/ui/__tests__/Icon.test.tsx. Here only that the button exposes none.
     expect(within(button).queryByRole('image', { includeHiddenElements: true })).toBeNull();
   });
 });
