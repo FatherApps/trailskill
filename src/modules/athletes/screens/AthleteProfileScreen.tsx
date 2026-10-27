@@ -10,7 +10,8 @@ import { formatDate } from '../components/formatDate';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 import { ImportPrompt, type ImportPromptProps } from '../components/ImportPrompt';
 import { PersonalBest, type PersonalBestProps } from '../components/PersonalBest';
-import { ProfileHeader, profileBandColor, type ProfileHeaderProps } from '../components/ProfileHeader';
+import { ProfileHeader, type ProfileHeaderProps } from '../components/ProfileHeader';
+import { profileBandColor } from '../constants';
 
 export type AthleteProfileContent = {
   header: ProfileHeaderProps;
@@ -59,7 +60,9 @@ export const athleteProfileScreenColors: { title: ColorToken } = {
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
 export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack }: AthleteProfileScreenProps) {
   const { colors, space, typography } = useTheme();
-  const values = { name };
+  // Trimmed once: the blank check and every place the name is shown or interpolated see the same value.
+  const trimmed = name.trim();
+  const values = { name: trimmed };
   // A list that scrolls fills the height it is given; the gallery preview has none to give.
   const frame = {
     alignSelf: 'stretch',
@@ -71,7 +74,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   // The states without content keep the band and its back button, so the screen never depends on the system back.
   const withBand = (state: ReactNode) => (
     <View style={frame}>
-      <ColorHeader color={profileBandColor} title={name} onBack={onBack} />
+      <ColorHeader color={profileBandColor} title={trimmed} onBack={onBack} />
       <View testID="profile-content" style={[frame, padded, { paddingVertical: space[4] }]}>
         {state}
       </View>
@@ -100,7 +103,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         <StateView
           kind="offline"
           title={t('athletes.screen.offline.title')}
-          message={t('athletes.screen.offline.message', values)}
+          message={trimmed ? t('athletes.screen.offline.message', values) : t('athletes.screen.offline.message_no_name')}
         />
       );
     case 'other-school-offline':
@@ -116,9 +119,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         <StateView
           kind="denied"
           title={t('athletes.screen.denied.title')}
-          message={
-            name.trim() ? t('athletes.screen.denied.message', values) : t('athletes.screen.denied.message_no_name')
-          }
+          message={trimmed ? t('athletes.screen.denied.message', values) : t('athletes.screen.denied.message_no_name')}
           action={
             view.onRequestAccess
               ? {

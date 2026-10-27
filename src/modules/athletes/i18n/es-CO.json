@@ -67,7 +67,8 @@
       "title": "Estás sin conexión",
       "banner_dated": "Mostramos lo guardado en este teléfono el {{date}}.",
       "banner_undated": "Mostramos lo guardado en este teléfono.",
-      "message": "No hay datos guardados de {{name}} en este teléfono. Aparecerán cuando vuelva la conexión."
+      "message": "No hay datos guardados de {{name}} en este teléfono. Aparecerán cuando vuelva la conexión.",
+      "message_no_name": "No hay datos guardados del deportista en este teléfono. Aparecerán cuando vuelva la conexión."
     },
     "online_only": {
       "title": "Disponible con conexión",
