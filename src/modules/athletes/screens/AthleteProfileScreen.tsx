@@ -75,6 +75,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   const withBand = (state: ReactNode) => (
     <View style={frame}>
       <ColorHeader color={profileBandColor} title={trimmed} onBack={onBack} />
+      {/* testID: this wrapper has no role, label or text; tests read its margin from it. */}
       <View testID="profile-content" style={[frame, padded, { paddingVertical: space[4] }]}>
         {state}
       </View>

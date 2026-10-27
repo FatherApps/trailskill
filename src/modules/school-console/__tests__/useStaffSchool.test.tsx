@@ -70,6 +70,37 @@ describe('useStaffSchool', () => {
     expect(result.current).toBe(settled);
   });
 
+  it('keeps the same staff result object while nothing changes, so a caller may use it as a dependency', async () => {
+    const { result, rerender } = await renderHook(() => useStaffSchool(repository, 'coach-1'));
+    await waitFor(() => expect(result.current.status).toBe('staff'));
+    const settled = result.current;
+
+    await rerender({});
+
+    expect(result.current).toBe(settled);
+  });
+
+  it('retries after a lookup that a user change cancelled while it was still running', async () => {
+    const list = jest
+      .fn()
+      .mockReturnValueOnce(new Promise(() => {}))
+      .mockRejectedValueOnce(new Error('db'))
+      .mockResolvedValue([]);
+    const flaky: StaffSchoolRepository = { ...repository, listStaffSchools: list };
+    const { result, rerender } = await renderHook<StaffSchoolResult, { userId: string }>(({ userId }) => useStaffSchool(flaky, userId), {
+      initialProps: { userId: 'coach-1' },
+    });
+    await rerender({ userId: 'admin-1' });
+    await waitFor(() => expect(result.current.status).toBe('error'));
+
+    await act(async () => {
+      if (result.current.status === 'error') result.current.retry();
+    });
+
+    await waitFor(() => expect(result.current).toEqual({ status: 'denied' }));
+    expect(list).toHaveBeenCalledTimes(3);
+  });
+
   it('does not start a second lookup when retry is pressed while a lookup from a refresh key change is running', async () => {
     let answer!: (schools: unknown[]) => void;
     const list = jest
