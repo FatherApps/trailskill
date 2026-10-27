@@ -1,3 +1,4 @@
+import * as i18n from '../../../core/i18n';
 import { formatNumber } from '../components/formatNumber';
 import { planSummary } from '../components/planVolume';
 
@@ -7,11 +8,24 @@ const block = (repetitions: number, distance: number) => ({ repetitions, distanc
 const row = (repetitions: unknown, distance: unknown) => ({ repetitions, distance });
 // The production type says number: this test feeds it what the database can hand over.
 const summaryOfRows = (rows: { repetitions: unknown; distance: unknown }[]) => {
-  // This line stops compiling ("Unused '@ts-expect-error' directive") once planSummary accepts non-number factors: then the cast below is no longer needed and this helper must be revisited.
+  // This line stops compiling ("Unused '@ts-expect-error' directive") once planSummary accepts non-number factors: then the directive must go and this helper must be revisited.
   // @ts-expect-error planSummary types both factors as number.
-  planSummary(rows);
-  return planSummary(rows as Parameters<typeof planSummary>[0]);
+  return planSummary(rows);
 };
+
+// Expected text built from the keys planSummary reads, so a copy change does not break the tests that are about overflow and not about the copy.
+const withMeters = (meters: number, count: number) => i18n.t('training_plans.today.summary', { meters: formatNumber(meters), count });
+const partial = (meters: number, unmeasured: number) => i18n.t('training_plans.today.summary_partial', { meters: formatNumber(meters), count: unmeasured });
+const onlyBlocks = (count: number) => i18n.t('training_plans.today.summary_blocks', { count });
+
+describe('summaryOfRows', () => {
+  it('reads the rows through planSummary once', () => {
+    const t = jest.spyOn(i18n, 't');
+    summaryOfRows([row(8, 50)]);
+    expect(t).toHaveBeenCalledTimes(1);
+    t.mockRestore();
+  });
+});
 
 describe('planSummary', () => {
   it('keeps "metres · blocks" when every block adds metres', () => {
@@ -65,8 +79,8 @@ describe('planSummary', () => {
   });
 
   it('counts two finite factors whose product overflows as without distance', () => {
-    expect(planSummary([block(1e200, 1e200)])).toBe('1 bloque');
-    expect(planSummary([block(8, 50), block(1e200, 1e200), block(1, 200)])).toBe('600 m + 1 bloque sin distancia');
+    expect(planSummary([block(1e200, 1e200)])).toBe(onlyBlocks(1));
+    expect(planSummary([block(8, 50), block(1e200, 1e200), block(1, 200)])).toBe(partial(600, 1));
   });
 
   it('counts a block whose product underflows to 0 as without distance and never adds a 0 m block to the total', () => {
@@ -80,10 +94,9 @@ describe('planSummary', () => {
     const medium = block(1e154, 1e154);
     const big = block(1.5e154, 1e154);
     // 1.4e308 is small + medium: any total that kept the big block would be bigger or overflow.
-    const withoutBig = `${formatNumber(1.4e308)} m`;
     // The big block is left out directly: the two smaller ones alone give that same total and no unmeasured block, so the third block adds nothing to the metres.
-    expect(planSummary([small, medium])).toBe(`${withoutBig} · 2 bloques`);
-    const expected = `${withoutBig} + 1 bloque sin distancia`;
+    expect(planSummary([small, medium])).toBe(withMeters(1.4e308, 2));
+    const expected = partial(1.4e308, 1);
     for (const blocks of [
       [small, medium, big],
       [small, big, medium],
@@ -110,10 +123,14 @@ describe('planSummary', () => {
   });
 
   // 2^52 has a rounding step of 1: 2^52 + 0.4 rounds back to 2^52, but 0.4 + 0.4 first and then 2^52 gives 2^52 + 1. The two sums differ by 1, far above the 0,0005 that formatNumber hides.
+  // The test assumes IEEE-754 doubles with round-to-nearest. No sum here is a tie (0.4 and 0.8 are not halves of the step), so how ties are broken (half-even) does not matter.
   it('adds fractional distances from the smallest, so the total does not depend on the order of the plan', () => {
+    // If the engine rounds differently, these two lines fail first and say so, instead of the order check below failing with an unrelated total.
+    expect(2 ** 52 + 0.4).toBe(2 ** 52);
+    expect(0.4 + 0.4 + 2 ** 52).toBe(2 ** 52 + 1);
     const huge = block(1, 2 ** 52);
     const fraction = block(1, 0.4);
-    const expected = `${formatNumber(2 ** 52 + 1)} m · 3 bloques`;
+    const expected = withMeters(2 ** 52 + 1, 3);
     for (const blocks of [
       [huge, fraction, fraction],
       [fraction, huge, fraction],
@@ -123,17 +140,29 @@ describe('planSummary', () => {
     }
   });
 
+  // NOT_MEASURED is 0, and that is observable: an underflow product is exactly 0 and must be skipped as the sentinel is, and the sort must give a consistent order (a NaN sentinel would break it).
+  // Unmeasured blocks of every kind placed anywhere in the plan change neither the order of the measured ones nor the total, and each one is counted apart.
+  it('keeps the blocks that are not measured out of the order and the sum, wherever they sit in the plan', () => {
+    const unmeasured = [block(NaN, 5), block(-2, 5), block(1e-200, 1e-200), block(0, 50), block(1e200, 1e200)];
+    const measured = [block(1, 2 ** 52), block(1, 0.4), block(1, 0.4)];
+    const all = [...unmeasured.slice(0, 2), measured[0], unmeasured[2], measured[1], unmeasured[3], measured[2], unmeasured[4]];
+    const expected = partial(2 ** 52 + 1, 5);
+    for (let i = 0; i < all.length; i += 1) {
+      const rotated = [...all.slice(i), ...all.slice(0, i)];
+      expect(planSummary(rotated)).toBe(expected);
+      expect(planSummary([...rotated].reverse())).toBe(expected);
+    }
+  });
+
   it('leaves out only one of two blocks that overflow the total together', () => {
-    expect(planSummary([block(1e154, 1e154), block(1e154, 1e154)])).toBe(`${formatNumber(1e308)} m + 1 bloque sin distancia`);
-    expect(planSummary([block(8, 50), block(1e154, 1e154), block(1e154, 1e154), block(1, 200)])).toBe(
-      `${formatNumber(1e308)} m + 1 bloque sin distancia`,
-    );
+    expect(planSummary([block(1e154, 1e154), block(1e154, 1e154)])).toBe(partial(1e308, 1));
+    expect(planSummary([block(8, 50), block(1e154, 1e154), block(1e154, 1e154), block(1, 200)])).toBe(partial(1e308, 1));
   });
 
   // Blocks are added from the smallest, so each one is still bigger than the rounding step of the total when it is added: a counted block always enters the sum.
   // The final total is the sum rounded to a double: 600 m next to 1e308 is lost in that rounding, as in any double sum, and the block still counts as measured.
   it('counts a small block next to a huge total as measured, in any order', () => {
-    const expected = `${formatNumber(1e308)} m · 2 bloques`;
+    const expected = withMeters(1e308, 2);
     expect(planSummary([block(1e154, 1e154), block(1, 600)])).toBe(expected);
     expect(planSummary([block(1, 600), block(1e154, 1e154)])).toBe(expected);
   });
