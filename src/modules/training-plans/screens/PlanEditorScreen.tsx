@@ -139,7 +139,9 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
   const editing = blocks.find((block) => block.id === editingId);
   const nameMissing = name.trim() === '';
 
-  // Whether the screen shows the plan `id`, also when it was reopened during a save that started for it.
+  // Whether the screen shows the plan `id`, also when it was reopened during a save that started for it. It compares plans, so
+  // it decides what the screen shows of that plan (message, busy button, what is stored); `live` in `run` compares loads, and
+  // decides what the save reports (`onSaved`, 'saved' or 'left').
   const showsPlan = (id: string) => mounted.current && shown.current === id;
 
   // Saves the plan when the name and every block are valid; otherwise shows what is wrong and writes nothing.
