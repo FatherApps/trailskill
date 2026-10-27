@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AccessibilityInfo, View } from 'react-native';
 
 import { t } from '../i18n';
-import { connectOptions, countUnsentRecords, db, supabase, supabaseConfigError, SupabaseConnector } from '../sync';
+import { connectOptions, countUnsentRecords, db, setSessionUser, supabase, supabaseConfigError, SupabaseConnector } from '../sync';
 import { useTheme } from '../theme';
 import { Button, ConfirmSheet, StateView } from '../ui';
 
@@ -66,6 +66,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // INITIAL_SESSION delivers the stored session, so there is no separate restore call.
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
       if (event === 'INITIAL_SESSION') restoredUserId.current = next?.user.id;
+      // Right away, not after a render: a write in flight checks it as it commits.
+      setSessionUser(next?.user.id);
       setSession(next);
       setRestored(true);
     });

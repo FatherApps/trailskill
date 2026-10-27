@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import { createStore, openDatabase, type FakeDatabase } from '../testing/fakeDatabase';
-import { deleteRecord, editRecord, writeBatch, writeRecord } from '../writes';
+import { deleteRecord, editRecord, setSessionUser, writeBatch, writeRecord } from '../writes';
 
 let mockDb: FakeDatabase;
 jest.mock('../db', () => ({
@@ -291,6 +291,44 @@ describe('editRecord', () => {
 
     await expect(editRecord('versioned', 'r1', { 'hundredths = 0; --': 1 })).rejects.toThrow('Unsafe SQL identifier');
     expect(pending()).toEqual([]);
+  });
+});
+
+describe('writeBatch for a user', () => {
+  afterEach(() => setSessionUser(undefined));
+
+  it('discards the batch when the session changed to another user while it ran: no row and no pending entry', async () => {
+    setSessionUser('user-a');
+
+    await expect(
+      writeBatch(async (batch) => {
+        await batch.write('athletes', { id: 'athlete-1', first_name: 'Ana' });
+        setSessionUser('user-b');
+      }, 'user-a'),
+    ).rejects.toThrow('Discarded a write of user user-a');
+
+    expect(athlete('athlete-1')).toBeUndefined();
+    expect(pending()).toEqual([]);
+  });
+
+  it('discards the batch when nobody is signed in anymore', async () => {
+    setSessionUser(undefined);
+
+    await expect(writeBatch((batch) => batch.write('athletes', { id: 'athlete-1', first_name: 'Ana' }), 'user-a')).rejects.toThrow(
+      'Discarded a write of user user-a',
+    );
+
+    expect(athlete('athlete-1')).toBeUndefined();
+    expect(pending()).toEqual([]);
+  });
+
+  it('saves and queues the batch when the session is still the user it started with', async () => {
+    setSessionUser('user-a');
+
+    await expect(writeBatch((batch) => batch.write('athletes', { id: 'athlete-1', first_name: 'Ana' }), 'user-a')).resolves.toBe('athlete-1');
+
+    expect(athlete('athlete-1')).toEqual({ id: 'athlete-1', first_name: 'Ana', last_name: null });
+    expect(pending()).toEqual([{ table_name: 'athletes', record_id: 'athlete-1' }]);
   });
 });
 

@@ -15,6 +15,7 @@ import {
   type AssignmentRepository,
   type AssignmentTarget,
 } from '..';
+import { setSessionUser } from '../../../core/sync';
 import { athletes, plan, sources } from '../__fixtures__/assignments';
 
 let mockDb: FakeDatabase;
@@ -28,13 +29,22 @@ jest.mock('../../../core/sync', () => ({
     return mockDb;
   },
   writeBatch: jest.requireActual('../../../core/sync/writes').writeBatch,
+  setSessionUser: jest.requireActual('../../../core/sync/writes').setSessionUser,
 }));
+
+// The user signed in now, for both repositories: the in-memory one reads it, the PowerSync one gets it through core/sync.
+let sessionUser: string | undefined;
+const signIn = (userId: string | undefined) => {
+  sessionUser = userId;
+  setSessionUser(userId);
+};
+afterEach(() => signIn(undefined));
 
 async function inMemory(): Promise<AssignmentRepository> {
   const plans = createInMemoryTrainingPlanRepository();
   await plans.save(plan('p1'));
   await plans.save(plan('foreign', 's2'));
-  return createInMemoryAssignmentRepository(plans);
+  return createInMemoryAssignmentRepository(plans, () => sessionUser);
 }
 
 const TABLES = `
@@ -121,6 +131,37 @@ describe.each(factories)('%s assignment repository', (_name, create) => {
     expect(await repository.list('s1', '2026-11-02')).toEqual([]);
   });
 
+  it('discards a save started by a user who is no longer signed in, without writing', async () => {
+    const repository = await create();
+    signIn('coach-2');
+
+    await expect(repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } }, 'coach-1')).rejects.toThrow(
+      'Discarded a write of user coach-1',
+    );
+    expect(await repository.list('s1', '2026-11-02')).toEqual([]);
+  });
+
+  it('discards a withdrawal started by a user who is no longer signed in, keeping the assignment', async () => {
+    const repository = await create();
+    signIn('coach-1');
+    const id = await repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } }, 'coach-1');
+    signIn('coach-2');
+
+    await expect(repository.withdraw(id, 'coach-1')).rejects.toThrow('Discarded a write of user coach-1');
+    expect((await repository.list('s1', '2026-11-02')).map((a) => a.id)).toEqual([id]);
+  });
+
+  it('saves and withdraws for the user who is still signed in', async () => {
+    const repository = await create();
+    signIn('coach-1');
+
+    const id = await repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } }, 'coach-1');
+    expect((await repository.list('s1', '2026-11-02')).map((a) => a.id)).toEqual([id]);
+    await repository.withdraw(id, 'coach-1');
+
+    expect(await repository.list('s1', '2026-11-02')).toEqual([]);
+  });
+
   it.each(['2026-13-01', '2026-02-30', '02/11/2026', ''])('rejects the date "%s" without writing', async (date) => {
     const repository = await create();
 
@@ -191,6 +232,32 @@ describe('PowerSync withdrawal', () => {
 
     expect(rows).toEqual([{ withdrawn_at: first!.withdrawn_at, withdrawn_by: null }]);
     expect(first!.withdrawn_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe('PowerSync writes of a user who is no longer signed in', () => {
+  const queued = () => mockDb.getAll<{ record_id: string }>('SELECT record_id FROM pending_writes');
+
+  it('leaves no row and nothing queued for a discarded save', async () => {
+    const repository = await powerSync();
+    signIn('coach-2');
+
+    await expect(repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } }, 'coach-1')).rejects.toThrow();
+
+    expect(mockDb.getAll('SELECT id FROM training_plan_assignments')).toEqual([]);
+    expect(queued()).toEqual([]);
+  });
+
+  it('leaves the row unwithdrawn and queues nothing more for a discarded withdrawal', async () => {
+    const repository = await powerSync();
+    signIn('coach-1');
+    const id = await repository.create({ schoolId: 's1', planId: 'p1', sessionDate: '2026-11-02', target: { kind: 'school' } }, 'coach-1');
+    signIn('coach-2');
+
+    await expect(repository.withdraw(id, 'coach-1')).rejects.toThrow();
+
+    expect(mockDb.getAll('SELECT withdrawn_at FROM training_plan_assignments')).toEqual([{ withdrawn_at: null }]);
+    expect(queued()).toEqual([{ record_id: id }]);
   });
 });
 

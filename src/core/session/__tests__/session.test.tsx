@@ -17,6 +17,7 @@ let mockOwner: string | null;
 let mockOwnerError: Error | undefined;
 let mockClearError: Error | undefined;
 const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
+const mockSetSessionUser = jest.fn();
 const mockSignInWithOtp = jest.fn();
 const mockVerifyOtp = jest.fn();
 const mockSignOut = jest.fn();
@@ -35,6 +36,7 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 jest.mock('../../sync', () => ({
+  setSessionUser: (userId: string | undefined) => mockSetSessionUser(userId),
   countUnsentRecords: async () => ({ unsent: await mockUnsent, rejected: mockRejected }),
   get supabaseConfigError() {
     return mockConfigError;
@@ -122,6 +124,18 @@ describe('useSession', () => {
     expect(session.current.session).toBe(mockSignedIn);
     expect(mockCalls).toEqual(['db.connect']);
     expect(SupabaseConnector).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells the local writes who is signed in on every change of session', async () => {
+    mockSetSessionUser.mockClear();
+    await renderSession();
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith('coach-1');
+
+    await act(async () => mockAuthCallback('SIGNED_OUT', null));
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith(undefined);
+
+    await act(async () => mockAuthCallback('SIGNED_IN', { access_token: 'token', user: { id: 'coach-2' } }));
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith('coach-2');
   });
 
   it('connects with the sync connection options of the build', async () => {

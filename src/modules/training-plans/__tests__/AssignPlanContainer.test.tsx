@@ -74,7 +74,9 @@ async function setup(initialPlanId?: string | string[], strict = false, initialD
   for (const [id, name] of [['plan-1', 'Resistencia'], ['plan-2', 'Velocidad']]) {
     await plans.save({ id, schoolId: 'school-1', isTemplate: false, name, blocks: [] });
   }
-  const assignments = createInMemoryAssignmentRepository(plans);
+  // The user signed in now: a write started by another user is discarded when it reaches the repository.
+  let sessionUser = 'coach-1';
+  const assignments = createInMemoryAssignmentRepository(plans, () => sessionUser);
   // A plan hidden here leaves the school's list on the next load and comes back when shown again.
   const hidden = new Set<string>();
   // A held load keeps the next list pending, so a test can look at the screen while a new user's list is on its way.
@@ -129,7 +131,10 @@ async function setup(initialPlanId?: string | string[], strict = false, initialD
     },
     changeParam: (planId?: string | string[]) => view.rerender(element(planId)),
     // A new user id is what reloads the school's list with the screen mounted.
-    reload: (planId?: string | string[], userId?: string) => view.rerender(element(planId, userId)),
+    reload: (planId?: string | string[], userId?: string) => {
+      sessionUser = userId ?? 'coach-1';
+      return view.rerender(element(planId, userId));
+    },
   };
 }
 
@@ -396,14 +401,14 @@ describe('AssignPlanContainer', () => {
       expect(content().failure).toBeUndefined();
     });
 
-    // The remount only cuts the UI: the repository write of the previous user still finishes on the device.
-    it('still writes the save of the previous user to the repository', async () => {
+    // The remount only cuts the UI; the write that reaches the repository after the change is discarded, never saved for anyone.
+    it('discards the save of the previous user that was still on its way', async () => {
       const { assignments, reload } = await setup('plan-1');
       const create = assignments.create;
       let release = () => {};
-      jest.spyOn(assignments, 'create').mockImplementationOnce(async (assignment) => {
+      jest.spyOn(assignments, 'create').mockImplementationOnce(async (assignment, asUser) => {
         await new Promise<void>((resolve) => (release = resolve));
-        return create(assignment);
+        return create(assignment, asUser);
       });
       await act(async () => screenProps().onSelectKind('school'));
       await act(async () => {
@@ -412,14 +417,14 @@ describe('AssignPlanContainer', () => {
 
       await reload('plan-1', 'coach-2');
       await screen.findByText('Velocidad');
-      expect(await assignments.list('school-1', todayText())).toEqual([]);
       await act(async () => release());
 
-      expect(await assignments.list('school-1', todayText())).toEqual([expect.objectContaining({ planId: 'plan-1', target: { kind: 'school' } })]);
+      expect(await assignments.list('school-1', todayText())).toEqual([]);
       expect(content().saving).toBe(false);
+      expect(content().failure).toBeUndefined();
     });
 
-    it('still writes the withdrawal of the previous user to the repository', async () => {
+    it('discards the withdrawal of the previous user that was still on its way', async () => {
       mockDayLoad = async () => [assignmentOfDay('assignment-1')];
       const { assignments, reload } = await setup('plan-1');
       const id = await assignments.create({ schoolId: 'school-1', planId: 'plan-1', sessionDate: todayText(), target: { kind: 'school' } });
@@ -427,9 +432,9 @@ describe('AssignPlanContainer', () => {
       await screen.findByTestId('assigned-assignment-1');
       const withdraw = assignments.withdraw;
       let release = () => {};
-      jest.spyOn(assignments, 'withdraw').mockImplementationOnce(async (assignmentId) => {
+      jest.spyOn(assignments, 'withdraw').mockImplementationOnce(async (assignmentId, asUser) => {
         await new Promise<void>((resolve) => (release = resolve));
-        return withdraw(assignmentId);
+        return withdraw(assignmentId, asUser);
       });
       await act(async () => {
         void screenProps().onWithdraw(id);
@@ -437,10 +442,50 @@ describe('AssignPlanContainer', () => {
 
       await reload('plan-1', 'coach-2');
       await screen.findByText('Velocidad');
-      expect(await assignments.list('school-1', todayText())).toHaveLength(1);
+      await act(async () => release());
+
+      expect(await assignments.list('school-1', todayText())).toEqual([expect.objectContaining({ id })]);
+      expect(content().failure).toBeUndefined();
+    });
+  });
+
+  describe('when the user stays while a write is on its way', () => {
+    it('writes the save once it finishes', async () => {
+      const { assignments } = await setup('plan-1');
+      const create = assignments.create;
+      let release = () => {};
+      jest.spyOn(assignments, 'create').mockImplementationOnce(async (assignment, asUser) => {
+        await new Promise<void>((resolve) => (release = resolve));
+        return create(assignment, asUser);
+      });
+      await act(async () => screenProps().onSelectKind('school'));
+      await act(async () => {
+        void screenProps().onAssign();
+      });
+      await act(async () => release());
+
+      expect(await assignments.list('school-1', todayText())).toEqual([expect.objectContaining({ planId: 'plan-1', target: { kind: 'school' } })]);
+      expect(content().failure).toBeUndefined();
+    });
+
+    it('writes the withdrawal once it finishes', async () => {
+      mockDayLoad = async () => [assignmentOfDay('assignment-1')];
+      const { assignments } = await setup('plan-1');
+      const id = await assignments.create({ schoolId: 'school-1', planId: 'plan-1', sessionDate: todayText(), target: { kind: 'school' } });
+      await screen.findByTestId('assigned-assignment-1');
+      const withdraw = assignments.withdraw;
+      let release = () => {};
+      jest.spyOn(assignments, 'withdraw').mockImplementationOnce(async (assignmentId, asUser) => {
+        await new Promise<void>((resolve) => (release = resolve));
+        return withdraw(assignmentId, asUser);
+      });
+      await act(async () => {
+        void screenProps().onWithdraw(id);
+      });
       await act(async () => release());
 
       expect(await assignments.list('school-1', todayText())).toEqual([]);
+      expect(content().failure).toBeUndefined();
     });
   });
 
@@ -546,7 +591,7 @@ describe('AssignPlanContainer', () => {
       await act(async () => screenProps().onAssign());
 
       expect(create).toHaveBeenCalledTimes(1);
-      expect(create).toHaveBeenCalledWith(expect.objectContaining({ planId: 'plan-1', target: { kind: 'school' } }));
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ planId: 'plan-1', target: { kind: 'school' } }), 'coach-1');
     });
   });
 });
