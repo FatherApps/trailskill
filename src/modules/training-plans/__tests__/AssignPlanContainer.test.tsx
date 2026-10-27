@@ -194,6 +194,28 @@ describe('AssignPlanContainer', () => {
     expect(selected('Resistencia')).toBe(false);
   });
 
+  describe('the Assign gate', () => {
+    it('shows no Assign label while no plan of the school is chosen', async () => {
+      await setup('plan-unknown');
+      await fireEvent.press(screen.getByRole('radio', { name: 'Toda la escuela' }));
+
+      expect(screen.queryByText('Asignar')).toBeNull();
+    });
+
+    it('shows no Assign label while the kind needs a target and none is chosen', async () => {
+      await setup('plan-1');
+
+      expect(screen.queryByText('Asignar')).toBeNull();
+    });
+
+    it('shows the Assign label once a plan and a target are chosen', async () => {
+      await setup('plan-1');
+      await fireEvent.press(screen.getByRole('radio', { name: 'Toda la escuela' }));
+
+      expect(screen.getByText('Asignar')).toBeTruthy();
+    });
+  });
+
   describe('saving without the button', () => {
     it('writes nothing when no plan of the school is chosen', async () => {
       const { assignments } = await setup('plan-unknown');
