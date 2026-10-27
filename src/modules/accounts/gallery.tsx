@@ -3,6 +3,7 @@ import { useWindowDimensions, View } from 'react-native';
 
 import { SyncStatus, type GalleryEntry } from '../../core/ui';
 import { accountsFixture as fx } from './__fixtures__/accounts';
+import { SHOW_PROVIDERS } from './providerAvailability';
 import { AccountDetailsScreen, type AccountDetailsScreenProps } from './screens/AccountDetailsScreen';
 import { AddAthletesScreen, type AddAthletesScreenProps } from './screens/AddAthletesScreen';
 import { SignInScreen, type SignInScreenProps } from './screens/SignInScreen';
@@ -57,7 +58,7 @@ function AccountDetailsPreview(props: Partial<AccountDetailsScreenProps>) {
       <AccountDetailsScreen
         step={2}
         total={4}
-        providers={false}
+        providers={SHOW_PROVIDERS}
         onRequestCode={noop}
         onSubmitCode={noop}
         onSignIn={noop}
@@ -138,6 +139,7 @@ export const galleryEntries: GalleryEntry[] = [
         <AccountDetailsPreview values={{ ...person, code: fx.wrongCode }} codeSent errors={{ code: 'mismatch' }} />
       ),
       emailInUse: () => <AccountDetailsPreview values={{ ...person, code: '' }} errors={{ email: 'in_use' }} />,
+      // No separate state with the providers: the signIn offline state already shows their disabled buttons.
       offline: () => <AccountDetailsPreview values={{ ...person, code: '' }} codeSent offline />,
       required: () => (
         <AccountDetailsPreview errors={{ firstName: 'required', lastName: 'required', email: 'required' }} />
