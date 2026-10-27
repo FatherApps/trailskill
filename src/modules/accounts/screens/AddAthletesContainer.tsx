@@ -37,7 +37,7 @@ const sameRegistration = (a: RegistrationDraft, b: RegistrationDraft) =>
   a.swimmer === b.swimmer && a.firstName === b.firstName && a.lastName === b.lastName && a.email === b.email && a.invitationToken === b.invitationToken;
 // The draft's athlete is exactly these names.
 // shortcut: with no origin known, a registration discarded and started again with the same child is told apart only by these names, so a queued write could remove that draft's athlete (issue 611, decision B);
-// it depends on the stable key named in the `sameRegistration` shortcut above, and the rule here stays as is until that key exists.
+// it depends on the stable key named in the `sameRegistration` shortcut above (issue 611, point 2: registration identity by fields), and the rule here stays as is until that key exists.
 const holds = (draft: RegistrationDraft, names?: typeof empty) =>
   !!names && draft.athlete?.firstName === names.firstName && draft.athlete?.lastName === names.lastName;
 // Stable, so the back subscription is made once while the block holds.
