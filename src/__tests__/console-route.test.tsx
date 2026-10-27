@@ -1,8 +1,8 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import ConsoleRoute from '../app/(app)/console';
-import { colors, space, ThemeProvider } from '../core/theme';
+import { colors, space, ThemeProvider, type ThemeName } from '../core/theme';
 
 let mockUserId: string | undefined;
 jest.mock('../core/session', () => ({
@@ -76,9 +76,10 @@ beforeEach(() => {
   mockListRecords.mockReset().mockResolvedValue([]);
 });
 
-const show = () =>
+// The style tests name the theme they assert against; the others do not care and take the system one.
+const show = (theme?: ThemeName) =>
   render(
-    <ThemeProvider>
+    <ThemeProvider name={theme}>
       <ConsoleRoute />
     </ThemeProvider>,
   );
@@ -107,7 +108,7 @@ describe('console route', () => {
     expect(mockListAdminSchools).toHaveBeenCalledTimes(2);
   });
 
-  it('shows the loading state, not a blank screen, while a retry runs', async () => {
+  it('shows the loading state, not the error view, while a retry runs, and the console once it answers', async () => {
     let answer: (schools: unknown[]) => void = () => {};
     mockListAdminSchools.mockRejectedValueOnce(new Error('db')).mockReturnValue(new Promise((resolve) => (answer = resolve)));
     await show();
@@ -122,18 +123,26 @@ describe('console route', () => {
     expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
   });
 
+  it('shows the loading state, not a blank screen or a redirect, while the first lookup is pending', async () => {
+    mockListAdminSchools.mockReturnValue(new Promise(() => {}));
+    await show();
+
+    expect(screen.getByTestId('state-view')).toBeBusy();
+    expect(screen.queryByText(/redirected/)).toBeNull();
+    expect(screen.queryByRole('header')).toBeNull();
+  });
+
   it('offers a way home below the retry in the error view, and no sign out', async () => {
     mockListAdminSchools.mockRejectedValue(new Error('db'));
     await show();
 
     await screen.findByRole('button', { name: 'Intentar de nuevo' });
     const home = screen.getByRole('button', { name: 'Volver al inicio' });
-    const labels = screen.getAllByRole('button').map((b) => b.props.accessibilityLabel);
+    const container = screen.getByTestId('access-error');
+    const labels = within(container).getAllByRole('button').map((b) => b.props.accessibilityLabel);
     expect(labels).toEqual(['Intentar de nuevo', 'Volver al inicio']);
     // Tree order is not what the user sees: the container must stack its children top to bottom, in that order, in flow.
-    const container = StyleSheet.flatten(screen.getByTestId('state-view').parent?.props.style);
-    expect(container.flexDirection ?? 'column').toBe('column');
-    expect(screen.getByTestId('state-view').parent?.children).toHaveLength(2);
+    expect(StyleSheet.flatten(container.props.style).flexDirection ?? 'column').toBe('column');
     expect(StyleSheet.flatten(screen.getByTestId('access-error-home').props.style).position).toBeUndefined();
     expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
 
@@ -142,28 +151,23 @@ describe('console route', () => {
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
-  it('draws the retry as secondary and the way home as ghost, and neither as the lime primary', async () => {
+  // Only the way home: the retry's variant belongs to StateView, which this route does not choose.
+  it('draws the way home as ghost, not as the lime primary', async () => {
     mockListAdminSchools.mockRejectedValue(new Error('db'));
-    await show();
-    const retry = await screen.findByRole('button', { name: 'Intentar de nuevo' });
-    const home = screen.getByRole('button', { name: 'Volver al inicio' });
+    await show('light');
+    const home = await screen.findByRole('button', { name: 'Volver al inicio' });
 
-    const retryStyle = StyleSheet.flatten(retry.props.style);
     const homeStyle = StyleSheet.flatten(home.props.style);
-    // Secondary: outlined. Ghost: no background, no outline, underlined label.
-    expect(retryStyle.borderColor).toBe(colors.light.border);
+    // Ghost: no background, no outline, underlined label.
     expect(homeStyle.backgroundColor).toBe('transparent');
     expect(homeStyle.borderColor).toBe('transparent');
     expect(StyleSheet.flatten(screen.getByText('Volver al inicio').props.style).textDecorationLine).toBe('underline');
-    expect(StyleSheet.flatten(screen.getByText('Intentar de nuevo').props.style).textDecorationLine).toBeUndefined();
-    for (const style of [retryStyle, homeStyle]) {
-      expect([colors.light.action, colors.dark.action]).not.toContain(style.backgroundColor);
-    }
+    expect(homeStyle.backgroundColor).not.toBe(colors.light.action);
   });
 
   it('separates the way home from the error view with a design-system space', async () => {
     mockListAdminSchools.mockRejectedValue(new Error('db'));
-    await show();
+    await show('light');
     await screen.findByRole('button', { name: 'Volver al inicio' });
 
     expect(StyleSheet.flatten(screen.getByTestId('access-error-home').props.style).marginTop).toBe(space[4]);
@@ -273,14 +277,5 @@ describe('console route', () => {
     await fireEvent.press(await screen.findByRole('tab', { name: 'Récords' }));
 
     expect(await screen.findByText('Aún no hay récords')).toBeOnTheScreen();
-  });
-
-  it('shows the loading state, not a blank screen or a redirect, while the first lookup is pending', async () => {
-    mockListAdminSchools.mockReturnValue(new Promise(() => {}));
-    await show();
-
-    expect(screen.getByTestId('state-view')).toBeBusy();
-    expect(screen.queryByText(/redirected/)).toBeNull();
-    expect(screen.queryByRole('header')).toBeNull();
   });
 });
