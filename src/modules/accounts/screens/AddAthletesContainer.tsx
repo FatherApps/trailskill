@@ -63,6 +63,8 @@ export function AddAthletesContainer({
   const [added, setAdded] = useState<AddedAthlete[]>([]);
   const { categories } = useInvitation(drafts, invitations);
   const [categoryId, setCategoryId] = useState('');
+  // The category as chosen right now, for add() to read whichever way it is called.
+  const chosen = useRef('');
   const mounted = useRef(true);
   // Reads and saves that end after the screen went away must not touch its state: every such step goes through here.
   const ifMounted = useCallback(<T,>(run: () => T) => (mounted.current ? run() : undefined), []);
@@ -169,10 +171,10 @@ export function AddAthletesContainer({
     setValues(next);
   }
 
-  // A person's choice: it counts as an edit, so an add in flight leaves it for the next athlete.
-  // Every choice counts, even one that undoes the previous: 9-10, 11-12, 9-10 while an add saves leaves 9-10 chosen for the next athlete.
+  // A person's choice counts as an edit (see `edits`), so an add in flight leaves it for the next athlete.
   function chooseCategory(next: string) {
     edits.current.category++;
+    chosen.current = next;
     setCategoryId(next);
   }
 
@@ -191,8 +193,8 @@ export function AddAthletesContainer({
     setFailed(false);
     const saving = typed.current;
     const savingEdits = { ...edits.current };
-    // The category of the render this tap came from, read before any await. Safe without a ref while add() is only called from a tap: React flushes discrete events synchronously, so that render is the latest committed one. A caller that is not a discrete event (a timer, a retry, a promise continuation) could read a stale category: mirror categoryId in a ref set by chooseCategory then.
-    const savingCategory = categoryId;
+    // Read before any await, from the ref: a state read could be stale for a caller that is not a tap.
+    const savingCategory = chosen.current;
     try {
       let athleteId: string;
       try {
@@ -202,7 +204,7 @@ export function AddAthletesContainer({
         ifMounted(() => setFailed('add'));
         return;
       }
-      // Only what was saved goes: a field or a category the person touched while it saved is the next athlete's.
+      // Only what was saved goes: what the person edited while it saved is the next athlete's (see `edits`).
       const left = {
         firstName: edits.current.firstName === savingEdits.firstName ? '' : typed.current.firstName,
         lastName: edits.current.lastName === savingEdits.lastName ? '' : typed.current.lastName,
@@ -210,7 +212,10 @@ export function AddAthletesContainer({
       ifMounted(() => {
         show(left);
         // Starting over after an add is not a choice, so it does not count as an edit.
-        if (edits.current.category === savingEdits.category) setCategoryId('');
+        if (edits.current.category === savingEdits.category) {
+          chosen.current = '';
+          setCategoryId('');
+        }
       });
       // Also after the screen went away: the saved names must leave the draft or the next launch would add them again.
       void persist(keep(left), undefined, saving);
