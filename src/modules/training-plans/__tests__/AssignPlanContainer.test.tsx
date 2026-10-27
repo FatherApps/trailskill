@@ -55,7 +55,15 @@ async function setup(initialPlanId?: string | string[]) {
   const assignments = createInMemoryAssignmentRepository(plans);
   // A plan hidden here leaves the school's list on the next load and comes back when shown again.
   const hidden = new Set<string>();
-  const visiblePlans = { ...plans, list: async (schoolId: string) => (await plans.list(schoolId)).filter((p) => !hidden.has(p.id)) };
+  // A held load keeps the next list pending, so a test can look at the screen while a new user's list is on its way.
+  let held: Promise<void> | null = null;
+  const visiblePlans = {
+    ...plans,
+    list: async (schoolId: string) => {
+      await held;
+      return (await plans.list(schoolId)).filter((p) => !hidden.has(p.id));
+    },
+  };
   const element = (planId?: string | string[], userId = 'coach-1') => (
     <AssignPlanContainer
       plans={visiblePlans}
@@ -75,6 +83,17 @@ async function setup(initialPlanId?: string | string[]) {
   return {
     assignments,
     hidden,
+    // Returns the function that lets the held load finish.
+    holdNextLoad: () => {
+      let release = () => {};
+      held = new Promise<void>((resolve) => {
+        release = () => {
+          held = null;
+          resolve();
+        };
+      });
+      return release;
+    },
     changeParam: (planId?: string | string[]) => view.rerender(element(planId)),
     // A new user id is what reloads the school's list with the screen mounted.
     reload: (planId?: string | string[], userId?: string) => view.rerender(element(planId, userId)),
@@ -180,6 +199,36 @@ describe('AssignPlanContainer', () => {
 
     expect(selected('Resistencia')).toBe(false);
     expect(selected('Velocidad')).toBe(false);
+  });
+
+  describe('when the user changes with the screen mounted', () => {
+    it('shows no list of the previous user while the new one loads', async () => {
+      const { holdNextLoad, reload } = await setup('plan-1');
+      expect(selected('Resistencia')).toBe(true);
+      const release = holdNextLoad();
+
+      await reload('plan-1', 'coach-2');
+
+      expect(screen.queryByText('Resistencia')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Asignar' })).toBeNull();
+      await act(async () => release());
+      await screen.findByText('Resistencia');
+      expect(selected('Resistencia')).toBe(true);
+    });
+
+    it('does not carry a manual choice over to the new user', async () => {
+      const { holdNextLoad, reload } = await setup();
+      await fireEvent.press(screen.getByRole('button', { name: 'Velocidad' }));
+      expect(selected('Velocidad')).toBe(true);
+      const release = holdNextLoad();
+
+      await reload(undefined, 'coach-2');
+      await act(async () => release());
+      await screen.findByText('Velocidad');
+
+      expect(selected('Velocidad')).toBe(false);
+      expect(selected('Resistencia')).toBe(false);
+    });
   });
 
   it('treats an empty plan parameter as no parameter', async () => {
