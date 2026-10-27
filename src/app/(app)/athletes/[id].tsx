@@ -50,7 +50,6 @@ export default function AthleteProfileRoute() {
       lastSyncedAt={lastSyncedAt}
       otherSchoolResults={isStaff ? otherSchoolResults : undefined}
       online={summary.connection === 'connected'}
-      // Deep links and cold starts leave no screen to go back to.
       onBack={goBack}
     />
   );

@@ -34,7 +34,6 @@ export default function RegistrationAuthorizations() {
       athletes={managed.athletes.map((athlete) => ({ id: athlete.id, name: athleteDisplay(athlete).shortName }))}
       mode="registration"
       drafts={drafts}
-      // Reached with replace, so back may have no history: it goes home.
       onBack={goBack}
       onDone={() => router.replace('/')}
     />
