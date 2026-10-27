@@ -46,7 +46,13 @@ export default function ConsoleRoute() {
   const { lastSyncedAt, connection } = useGlobalSyncSummary();
   const access = useAdminSchool(staffSchools, session?.user.id, lastSyncedAt?.getTime());
 
-  if (access.status === 'loading') return null;
+  if (access.status === 'loading') {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', padding: space[4], backgroundColor: colors['surface-0'] }}>
+        <StateView kind="loading" />
+      </View>
+    );
+  }
   // Only a hidden screen is not protection: the backend enforces the role on every query.
   if (access.status === 'denied') return <Redirect href="/" />;
   // A failed lookup says nothing about the role: it does not leave the console, it offers to look again.

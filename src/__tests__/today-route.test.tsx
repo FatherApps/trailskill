@@ -30,7 +30,8 @@ jest.mock('../modules/training-plans', () => {
   // A value `today.tsx` starts importing from the module and this mock lacks would otherwise be `undefined`: "not a function" or an empty render. Fail naming the import.
   return new Proxy(mocked, {
     get: (target, name) => {
-      if (typeof name === 'symbol' || name in target || name === '__esModule' || name === 'then') return target[name as string];
+      // `default`, `toJSON` and `asymmetricMatch` are what Babel's interop and Jest's printing and matchers probe; they are not imports of `today.tsx`.
+      if (typeof name === 'symbol' || name in target || ['__esModule', 'then', 'default', 'toJSON', 'asymmetricMatch'].includes(name)) return target[name as string];
       throw new Error(`today.tsx imports "${name}" from the training-plans module, but today-route.test does not mock it. Add it to the jest.mock('../modules/training-plans') factory.`);
     },
   });
@@ -44,6 +45,17 @@ jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: (
 const school = { id: 's1', name: 'Escuela Delfines' };
 const MESSAGE = 'Aún no hay un deportista vinculado';
 const ACTION = { name: 'Ir a Mis deportistas' };
+
+describe('training-plans mock', () => {
+  it('answers undefined to what the tooling probes and names the module and the import for the rest', () => {
+    const mocked = jest.requireMock('../modules/training-plans');
+
+    expect(mocked.default).toBeUndefined();
+    expect(mocked.toJSON).toBeUndefined();
+    expect(mocked.asymmetricMatch).toBeUndefined();
+    expect(() => mocked.createPowerSyncMissingRepository).toThrow('"createPowerSyncMissingRepository" from the training-plans module');
+  });
+});
 
 describe('today route, athlete-less message', () => {
   beforeEach(() => mockListStaffSchools.mockReset().mockResolvedValue([]));

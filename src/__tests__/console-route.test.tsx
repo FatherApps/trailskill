@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import ConsoleRoute from '../app/(app)/console';
 import { ThemeProvider } from '../core/theme';
@@ -104,6 +104,21 @@ describe('console route', () => {
     expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
     expect(screen.queryByText('No pudimos cargar tu escuela')).toBeNull();
     expect(mockListAdminSchools).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the loading state, not a blank screen, while the lookup runs and while a retry runs', async () => {
+    let answer: (schools: unknown[]) => void = () => {};
+    mockListAdminSchools.mockRejectedValueOnce(new Error('db')).mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    await show();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(screen.getByTestId('state-view')).toBeBusy();
+    expect(screen.queryByText('No pudimos cargar tu escuela')).toBeNull();
+
+    await act(async () => answer([{ id: 's1', name: 'Escuela Delfines' }]));
+
+    expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
   });
 
   it('offers a way home below the retry in the error view, and no sign out', async () => {
