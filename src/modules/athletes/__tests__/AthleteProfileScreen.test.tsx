@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -213,8 +213,8 @@ describe('AthleteProfileScreen', () => {
       await render(<AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={jest.fn()} />);
 
       expect(screen.getByTestId('state-view')).toBeOnTheScreen();
-      // The band's title is a header with no text: nothing about the athlete, and no placeholder in its place.
-      expect(screen.getByRole('header').props.children).toBe('');
+      // The band's title is empty: nothing about the athlete, no placeholder, and no empty header for the screen reader.
+      expect(screen.queryByRole('header')).toBeNull();
       await act(() => jest.advanceTimersByTime(299));
       expect(screen.queryByText('Cargando')).toBeNull();
 
@@ -269,8 +269,8 @@ describe('AthleteProfileScreen', () => {
     it.each(bandViews)('leaves the band title of the %s view without text', async (_, view) => {
       await render(<AthleteProfileScreen name="   " view={view} onBack={jest.fn()} />);
 
-      // The band is the first header on the screen; the state views below it have their own.
-      expect(screen.getAllByRole('header')[0].props.children).toBe('');
+      // An empty band title is no header and gets no filler: every header on the screen belongs to the state view.
+      expect(screen.queryAllByRole('header')).toHaveLength(within(screen.getByTestId('state-view')).queryAllByRole('header').length);
     });
   });
 

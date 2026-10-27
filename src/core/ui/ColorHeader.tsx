@@ -60,7 +60,8 @@ export function ColorHeader({ color, title, subtitle, onBack, children }: ColorH
       >
         <Icon name="arrow_back" color={colorHeaderColors.backIcon} />
       </Pressable>
-      <Text accessibilityRole="header" style={[typography['title-lg'], text]}>
+      {/* An empty title keeps its Text so the band layout does not move; only the header role goes, so TalkBack announces no empty heading. */}
+      <Text accessibilityRole={title ? 'header' : undefined} style={[typography['title-lg'], text]}>
         {title}
       </Text>
       {subtitle ? <Text style={[typography.body, text]}>{subtitle}</Text> : null}
