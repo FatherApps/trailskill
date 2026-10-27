@@ -37,8 +37,8 @@ const noteBodies = () => (shown.view.kind === 'data' ? (shown.view.content.notes
 const showsPlan = (planName: string) => waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { planName } }));
 
 // `synced` is the state of the first render; the first sync is the change from false to true.
-// `alsoOn`: a day that lists the assignment of DAY too, so one assignment is read under two days.
-async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstSynced = true, alsoOn = '' } = {}) {
+// `alsoOn`: a day that lists the assignment of DAY too, so one assignment is read under two days; undefined remaps no day, not even an empty one.
+async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstSynced = true, alsoOn }: { failFirstRead?: boolean; ids?: string[]; synced?: boolean; alsoOn?: string } = {}) {
   const plans = createInMemoryTrainingPlanRepository();
   await plans.save(plan('p1'));
   await plans.save({ ...plan('p2'), name: 'Plan del otro' });
@@ -233,6 +233,34 @@ describe('TodayContainer races', () => {
     await settle();
 
     await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { planName: 'Plan p1', notes: [{ body: 'Test note 1' }] } }));
+  });
+
+  it('does not list the assignment of the day under an empty day', async () => {
+    const { update } = await setup();
+    await showsPlan('Plan p1');
+
+    await update(['a1', 'a3'], '');
+
+    await waitFor(() => expect(shown.view.kind).toBe('empty'));
+  });
+
+  it('reads once more for a save of an assignment that the day now read does not list, the known limit of the comparison by athlete', async () => {
+    const { reads, update, sendHeld } = await setup();
+    await showsPlan('Plan p1');
+    const finish = await sendHeld('Test note 1');
+
+    // The read of the next day, which does not list the assignment of the note, stays open while the save finishes.
+    let openRead!: () => void;
+    reads.gate = new Promise<void>((resolve) => (openRead = resolve));
+    await update(['a1', 'a3'], NEXT_DAY);
+    const readsOpen = reads.count;
+    await finish();
+    // shortcut in TodayContainer: the day is not compared, so this read is repeated; when a read knows the assignments it lists, this must be `readsOpen`.
+    expect(reads.count).toBe(readsOpen + 1);
+
+    openRead();
+    await showsPlan('Plan de mañana');
+    expect(shown.view).toMatchObject({ kind: 'data', content: { notes: [] } });
   });
 
   it('does not read again or go through loading when the athlete already shown is picked', async () => {
@@ -493,6 +521,36 @@ describe('TodayContainer races', () => {
     });
     // Coming back reads a1 again, with both notes.
     await act(async () => shown.onSelectAthlete?.('a1'));
+    await showsPlan('Plan p1');
+    await waitFor(() => expect(noteBodies()).toEqual(['Test note 2', 'Test note 1']));
+
+    // The older listing still counts as older than the one that was dropped: it must not bring the screen back to one note.
+    await releaseFirst();
+    await act(async () => {
+      await first.sending;
+    });
+
+    expect(noteBodies()).toEqual(['Test note 2', 'Test note 1']);
+  });
+
+  it('keeps both notes when an older listing answers after a newer one that was dropped because the day changed to another assignment of the same athlete', async () => {
+    const { startOpen, holdStaleListings, holdListings, update } = await setup();
+    await showsPlan('Plan p1');
+
+    // The first listing took the notes before the second note was added, and answers last.
+    const releaseFirst = holdStaleListings(1);
+    const first = await startOpen('Test note 1');
+    // The second listing has both notes but answers while another day is shown, so the screen drops it.
+    const releaseSecond = holdListings(1);
+    const second = await startOpen('Test note 2');
+    await update(['a1', 'a3'], NEXT_DAY);
+    await showsPlan('Plan de mañana');
+    await act(async () => releaseSecond());
+    await act(async () => {
+      await second.sending;
+    });
+    // Coming back to the day reads the assignment again, with both notes.
+    await update(['a1', 'a3'], DAY);
     await showsPlan('Plan p1');
     await waitFor(() => expect(noteBodies()).toEqual(['Test note 2', 'Test note 1']));
 
