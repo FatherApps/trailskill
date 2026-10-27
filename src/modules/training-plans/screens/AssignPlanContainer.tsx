@@ -54,7 +54,9 @@ function targetLabel(scope: AssignScope, target: AssignmentTarget): string {
 }
 
 // Container: finds the school and what the user may assign, and saves the assignments through the local repository.
-// Each user gets a screen of their own: nothing of the previous one (list, day, choices, failure, a save still on its way) carries over.
+// Each user gets a screen of their own: nothing of the previous one (list, day, choices, failure, the saving state) carries over.
+// A save or withdrawal still on its way is not cancelled: the remount only cuts its UI, and the write finishes on the device.
+// shortcut: no guard for an empty `userId`, the route renders this only with a session so the id is always set; add one if a caller can pass a transient id.
 export function AssignPlanContainer(props: AssignPlanContainerProps) {
   return <AssignPlanBody key={props.userId} {...props} />;
 }
@@ -64,6 +66,7 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
   const [attempt, setAttempt] = useState(0);
   const ready = typeof loaded === 'object' ? loaded : null;
   const [day, setDay] = useState(initialDay ?? todayText());
+  // shortcut: the list of the previous day stays until the new day resolves, because clearing it shows an empty list while it loads; upgrade with a loading state for the rows.
   const [rows, setRows] = useState<AssignedRow[]>([]);
   // An empty parameter (`?plan=`, or an empty first value of a repeated one) counts as none.
   const preselected = (Array.isArray(initialPlanId) ? initialPlanId.find(Boolean) : initialPlanId) || null;
@@ -72,6 +75,7 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
   // The list is only ever set by the load below, so that is the one place its loss is seen.
   const [pick, setPick] = useState<{ param: string | null; id: string } | null>(null);
   // Dropped while rendering, so the stale choice never reaches the screen and nothing runs on unmount.
+  // No loop: React re-renders at once, and `pick` is null then, so the guard is false.
   if (pick && pick.param !== preselected) setPick(null);
   const planId = pick?.id ?? preselected;
   const [kind, setKind] = useState<AssignmentKind>('group');
