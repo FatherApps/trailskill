@@ -4,14 +4,13 @@ import { StyleSheet } from 'react-native';
 import { i18n } from '../../../core/i18n';
 import { colors } from '../../../core/theme';
 import { iconPaths } from '../../../core/ui';
-import { TodayScreen, type TodayBlock, type TodayContent, type TodayView } from '../screens/TodayScreen';
+import { TodayScreen, type TodayContent, type TodayView } from '../screens/TodayScreen';
 import { plansFixture } from '../__fixtures__/plans';
 
 const content: TodayContent = plansFixture.today;
 
-// Both come from the fixture plan (blocks b1..b5), not from the screen's own sum: metres are repetitions × distance per block.
-const metresOf = ({ block }: TodayBlock) => block.repetitions * block.distance;
-const PLAN_SUMMARY = `${content.blocks.reduce((total, entry) => total + metresOf(entry), 0)} m · ${content.blocks.length} bloques`;
+// Literal on purpose: the fixture plan (blocks b1..b5) adds 200 + 400 + 100 + 150 + 100 = 950 m, so a rule change in the screen cannot be mirrored here by accident.
+const PLAN_SUMMARY = '950 m · 5 bloques';
 
 function setup(view: TodayView) {
   const onSendNotice = jest.fn();
@@ -86,6 +85,15 @@ describe('TodayScreen states', () => {
     expect(screen.queryByText(/Solo ,/)).toBeNull();
   });
 
+  it.each(['', '   '])('leaves the caption under the title empty, with no placeholder, when the athlete name is blank (%j)', async (athleteName) => {
+    await render(<TodayScreen athleteName={athleteName} view={{ kind: 'empty' }} onSendNotice={jest.fn()} />);
+
+    // The title and the caption are the two Texts of the same View; the caption holds only the name.
+    const [title, caption] = screen.getByText('Hoy').parent!.children as { props: { children?: unknown } }[];
+    expect(title).toBeDefined();
+    expect(String(caption.props.children ?? '').trim()).toBe('');
+  });
+
   it('shows the plan, the athlete and the blocks with data', async () => {
     await render(setup({ kind: 'data', content }).ui);
 
@@ -114,13 +122,23 @@ describe('TodayScreen header', () => {
     expect(screen.getByText('2.000 m · 1 bloque')).toBeOnTheScreen();
   });
 
+  it('groups thousands in the total of a several-block plan too, once it reaches 1000 m', async () => {
+    const [first, main, ...rest] = content.blocks;
+    // 10 repetitions × 50 m = 500 m instead of 400 m: 200 + 500 + 100 + 150 + 100 = 1050 m.
+    const long = { ...content, blocks: [first, { ...main, block: { ...main.block, repetitions: 10 } }, ...rest] };
+    await render(setup({ kind: 'data', content: long }).ui);
+
+    expect(screen.getByText('1.050 m · 5 bloques')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, Lucía R., 1.050 m · 5 bloques' })).toBeOnTheScreen();
+  });
+
   it('shows the blocks without distance apart, in the card and the heading', async () => {
     const [first, main] = content.blocks;
     const drills = { ...content, blocks: [first, { ...main, block: { ...main.block, distance: 0 } }] };
     await render(setup({ kind: 'data', content: drills }).ui);
 
-    // Only the first block adds metres; the second, with distance 0, is counted apart.
-    const summary = `${metresOf(first)} m + 1 bloque sin distancia`;
+    // Only the first block adds metres (its 200 m); the second, with distance 0, is counted apart.
+    const summary = '200 m + 1 bloque sin distancia';
     expect(screen.getByText(summary)).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: `Hoy · Resistencia aeróbica, Lucía R., ${summary}` })).toBeOnTheScreen();
   });
@@ -270,8 +288,7 @@ describe('TodayScreen blocks card', () => {
     const drawn = button.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
     expect(drawn).toContain(iconPaths.chat_bubble);
     expect(drawn).not.toContain(iconPaths.info);
-    // Decorative: an Icon without a label exposes no image even to a query that includes hidden nodes, so the button label carries the meaning.
-    // How the Icon hides itself from screen readers is its own contract, pinned in core/ui/__tests__/Icon.test.tsx.
+    // That the button uses the decorative Icon (hidden from screen readers) is the contract of core/ui/__tests__/Icon.test.tsx, not asserted here.
     expect(within(button).queryByRole('image', { includeHiddenElements: true })).toBeNull();
   });
 });
