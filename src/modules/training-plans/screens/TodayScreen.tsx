@@ -284,6 +284,7 @@ export function TodayScreen({ athleteName = '', view, athletes, selectedAthleteI
           <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
             {t('training_plans.today.title')}
           </Text>
+          {/* A blank name leaves this caption empty on purpose: the title above still names the screen, and showing a placeholder would be new copy nobody decided. The denied state and the data heading already have their own no-name text. */}
           <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{athleteName}</Text>
         </View>
       )}

@@ -4,10 +4,14 @@ import { StyleSheet } from 'react-native';
 import { i18n } from '../../../core/i18n';
 import { colors } from '../../../core/theme';
 import { iconPaths } from '../../../core/ui';
-import { TodayScreen, type TodayContent, type TodayView } from '../screens/TodayScreen';
+import { TodayScreen, type TodayBlock, type TodayContent, type TodayView } from '../screens/TodayScreen';
 import { plansFixture } from '../__fixtures__/plans';
 
 const content: TodayContent = plansFixture.today;
+
+// Both come from the fixture plan (blocks b1..b5), not from the screen's own sum: metres are repetitions × distance per block.
+const metresOf = ({ block }: TodayBlock) => block.repetitions * block.distance;
+const PLAN_SUMMARY = `${content.blocks.reduce((total, entry) => total + metresOf(entry), 0)} m · ${content.blocks.length} bloques`;
 
 function setup(view: TodayView) {
   const onSendNotice = jest.fn();
@@ -87,7 +91,7 @@ describe('TodayScreen states', () => {
 
     // One heading, announced with the visible title (the plan) and keeping "Hoy", then the athlete and the summary.
     expect(screen.getAllByRole('header')).toHaveLength(1);
-    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, Lucía R., 950 m · 5 bloques' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Resistencia aeróbica, Lucía R., ${PLAN_SUMMARY}` })).toBeOnTheScreen();
     expect(screen.getByText('Resistencia aeróbica')).toBeOnTheScreen();
     expect(screen.getByText('1 × 200 m Libre')).toBeOnTheScreen();
     expect(screen.queryByTestId('banner')).toBeNull();
@@ -98,12 +102,12 @@ describe('TodayScreen header', () => {
   it('summarises the plan from its blocks: metres and number of blocks', async () => {
     await render(setup({ kind: 'data', content }).ui);
 
-    // 200 + 8 × 50 + 4 × 25 + 6 × 25 + 100 metres in 5 blocks.
-    expect(screen.getByText('950 m · 5 bloques')).toBeOnTheScreen();
+    expect(screen.getByText(PLAN_SUMMARY)).toBeOnTheScreen();
   });
 
   it('groups thousands with a dot and says "bloque" for one block', async () => {
     const [, main] = content.blocks;
+    // 8 repetitions × 250 m = 2000 m, the figure whose thousands dot this checks.
     const one = { ...content, blocks: [{ ...main, block: { ...main.block, repetitions: 8, distance: 250 } }] };
     await render(setup({ kind: 'data', content: one }).ui);
 
@@ -115,8 +119,10 @@ describe('TodayScreen header', () => {
     const drills = { ...content, blocks: [first, { ...main, block: { ...main.block, distance: 0 } }] };
     await render(setup({ kind: 'data', content: drills }).ui);
 
-    expect(screen.getByText('200 m + 1 bloque sin distancia')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, Lucía R., 200 m + 1 bloque sin distancia' })).toBeOnTheScreen();
+    // Only the first block adds metres; the second, with distance 0, is counted apart.
+    const summary = `${metresOf(first)} m + 1 bloque sin distancia`;
+    expect(screen.getByText(summary)).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Resistencia aeróbica, Lucía R., ${summary}` })).toBeOnTheScreen();
   });
 
   it('never shows "0 m", in the card or the heading, when no block adds metres', async () => {
@@ -124,15 +130,17 @@ describe('TodayScreen header', () => {
     const none = { ...content, blocks: content.blocks.slice(0, 2).map((entry) => ({ ...entry, block: { ...entry.block, distance: 0 } })) };
     await render(setup({ kind: 'data', content: none }).ui);
 
-    expect(screen.getByText('2 bloques')).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, Lucía R., 2 bloques' })).toBeOnTheScreen();
+    // The two blocks kept above, so the count is the length of `none`.
+    const summary = `${none.blocks.length} bloques`;
+    expect(screen.getByText(summary)).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Resistencia aeróbica, Lucía R., ${summary}` })).toBeOnTheScreen();
     expect(screen.queryByText(/^0 m/)).toBeNull();
   });
 
   it('leaves no separator hanging when the athlete has no name: the caption and the label agree', async () => {
     await render(<TodayScreen athleteName="" view={{ kind: 'data', content }} onSendNotice={jest.fn()} />);
 
-    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, 950 m · 5 bloques' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Resistencia aeróbica, ${PLAN_SUMMARY}` })).toBeOnTheScreen();
     expect(screen.getByText('Hoy')).toBeOnTheScreen();
     expect(screen.queryByText(/Hoy ·/)).toBeNull();
   });
@@ -146,7 +154,7 @@ describe('TodayScreen header', () => {
   it('treats a blank athlete name as missing', async () => {
     await render(<TodayScreen athleteName="   " view={{ kind: 'data', content }} onSendNotice={jest.fn()} />);
 
-    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, 950 m · 5 bloques' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Resistencia aeróbica, ${PLAN_SUMMARY}` })).toBeOnTheScreen();
     expect(screen.getByText('Hoy')).toBeOnTheScreen();
   });
 
@@ -165,12 +173,12 @@ describe('TodayScreen header', () => {
     const key = `${path}_name_summary`;
     const original = i18n.getResource('es-CO', 'translation', key);
     // The override is only restored, never invented: the key must exist, so the restore below can never write undefined.
-    expect(original).toEqual(expect.any(String));
+    if (typeof original !== 'string') throw new Error(`Missing translation key ${key}`);
     i18n.addResource('es-CO', 'translation', key, '{{summary}} / {{name}} / {{plan}} / {{title}}');
     try {
       await render(setup({ kind: 'data', content }).ui);
 
-      expect(screen.getByRole('header', { name: '950 m · 5 bloques / Lucía R. / Resistencia aeróbica / Hoy' })).toBeOnTheScreen();
+      expect(screen.getByRole('header', { name: `${PLAN_SUMMARY} / Lucía R. / Resistencia aeróbica / Hoy`})).toBeOnTheScreen();
     } finally {
       i18n.addResource('es-CO', 'translation', key, original);
     }
@@ -180,7 +188,7 @@ describe('TodayScreen header', () => {
     const view: TodayView = { kind: 'data', content };
     await render(<TodayScreen view={view} onSendNotice={jest.fn()} />);
 
-    expect(screen.getByRole('header', { name: 'Hoy · Resistencia aeróbica, 950 m · 5 bloques' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: `Hoy · Resistencia aeróbica, ${PLAN_SUMMARY}` })).toBeOnTheScreen();
     expect(screen.getByText('Hoy')).toBeOnTheScreen();
     expect(screen.queryByText(/undefined/)).toBeNull();
   });
@@ -262,10 +270,9 @@ describe('TodayScreen blocks card', () => {
     const drawn = button.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d);
     expect(drawn).toContain(iconPaths.chat_bubble);
     expect(drawn).not.toContain(iconPaths.info);
-    // The bubble sits under a node that hides its descendants from screen readers: it is decorative, the button label carries the meaning.
-    const hidden = button.queryAll((node) => node.props.importantForAccessibility === 'no-hide-descendants');
-    expect(hidden.flatMap((icon) => icon.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d))).toContain(iconPaths.chat_bubble);
-    expect(within(button).queryByRole('image')).toBeNull();
+    // Decorative: an Icon without a label exposes no image even to a query that includes hidden nodes, so the button label carries the meaning.
+    // How the Icon hides itself from screen readers is its own contract, pinned in core/ui/__tests__/Icon.test.tsx.
+    expect(within(button).queryByRole('image', { includeHiddenElements: true })).toBeNull();
   });
 });
 
