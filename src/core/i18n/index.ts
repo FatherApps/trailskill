@@ -16,6 +16,7 @@ i18n.use(initReactI18next).init({
 });
 
 export { i18n };
+export { namedText, trimName } from './namedText';
 
 // A missing translation stays visible as its key (i18next returns the key).
 // `values` fills {{placeholders}} in the translation, for example {{step}}.

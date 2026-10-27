@@ -1,4 +1,4 @@
-import { t } from '../../../core/i18n';
+import { t } from '.';
 
 // The one place that trims an athlete's name: a blank one is "", whoever shows it.
 export const trimName = (name: string) => name.trim();

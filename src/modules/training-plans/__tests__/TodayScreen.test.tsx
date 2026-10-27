@@ -85,6 +85,12 @@ describe('TodayScreen states', () => {
     expect(screen.queryByText(/Solo ,/)).toBeNull();
   });
 
+  it('trims the athlete name before showing it', async () => {
+    await render(<TodayScreen athleteName="  Lucía R. " view={{ kind: 'denied' }} onSendNotice={jest.fn()} />);
+
+    expect(screen.getByText('Solo Lucía R., sus acudientes y sus entrenadores pueden ver este plan.')).toBeOnTheScreen();
+  });
+
   it.each(['', '   '])('leaves the caption under the title empty, with no placeholder, when the athlete name is blank (%j)', async (athleteName) => {
     await render(<TodayScreen athleteName={athleteName} view={{ kind: 'empty' }} onSendNotice={jest.fn()} />);
 

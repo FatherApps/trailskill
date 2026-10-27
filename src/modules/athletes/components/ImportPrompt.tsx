@@ -1,10 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { t } from '../../../core/i18n';
+import { namedText, t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { Banner, Button } from '../../../core/ui';
 import '../i18n';
-import { namedText } from './namedText';
 
 export type ImportPromptProps = {
   // The import provider's name, from data (the provider's `organizations` row). Absent or empty: no provider is
