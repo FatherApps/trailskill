@@ -4,6 +4,7 @@ export { AccountDetailsScreen, type AccountDetailsField, type AccountDetailsScre
 export { SignInScreen, type SignInField, type SignInScreenProps } from './screens/SignInScreen';
 export { AccountDetailsContainer, type AccountDetailsContainerProps } from './screens/AccountDetailsContainer';
 export { SignInContainer, type SignInContainerProps } from './screens/SignInContainer';
+export { SignInLanding, type SignInLandingProps } from './screens/SignInLanding';
 export { InviteLinkContainer, type InviteLinkContainerProps } from './screens/InviteLinkContainer';
 export { WhoSwimsContainer, type WhoSwimsContainerProps } from './screens/WhoSwimsContainer';
 export { WhoSwimsScreen, type SwimmerChoice, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';

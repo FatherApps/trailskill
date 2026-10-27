@@ -32,18 +32,28 @@ beforeEach(() => {
 });
 
 describe('sign-in route', () => {
-  it('renders the sign-in container and sends "Crear cuenta" to the registration', async () => {
+  it('renders the landing and sends "Crear cuenta" to the registration', async () => {
     await render(<SignIn />);
 
-    expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Crear cuenta' })).toBeChecked();
     await fireEvent.press(screen.getByRole('button', { name: 'Crear cuenta' }));
 
     expect(mockPush).toHaveBeenCalledWith('/register');
   });
 
+  it('renders the sign-in container on the "Ingresar" tab', async () => {
+    await render(<SignIn />);
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'Ingresar' }));
+
+    expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
+  });
+
   it('never redirects to the registration nor mentions the draft left on the phone', async () => {
     mockLoadDraft.mockResolvedValue({ swimmer: 'adult', firstName: 'Ana', lastName: 'Mora', email: 'ana@example.com' });
     await render(<SignIn />);
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'Ingresar' }));
 
     expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
     expect(screen.queryByText(/Retomar|Empezar de nuevo|ana@example/)).not.toBeOnTheScreen();
