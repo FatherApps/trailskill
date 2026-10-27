@@ -3,6 +3,7 @@ import { PixelRatio, StyleSheet, Text, type StyleProp, type ViewStyle } from 're
 
 import { colors, contrastRatio, size, space, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { historyFixture, historyResults } from '../__fixtures__/history';
+import { closest, rowLabel } from '../__fixtures__/historyRows';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 
 const themes: ThemeName[] = ['light', 'dark'];
@@ -17,6 +18,11 @@ const flatten = (node: unknown): string[] => {
   return [type, ...(props.accessibilityLabel ? [props.accessibilityLabel] : []), ...flatten(children)];
 };
 const hidden = { includeHiddenElements: true };
+// The two rows the tests look at, by title (the race-pb and the import results) and by row label.
+const raceTitle = 'Libre 50 m';
+const importTitle = 'Mariposa 100 m';
+const raceRow = rowLabel(raceTitle);
+const importRow = rowLabel(importTitle);
 const hiddenText = (text: string | RegExp) => screen.queryAllByText(text, hidden);
 
 describe('HistoryList', () => {
@@ -48,7 +54,7 @@ describe('HistoryList', () => {
     const many = Array.from({ length: 40 }, (_, index) => ({ ...byId('race-pb'), id: `r-${index}` }));
     await render(<HistoryList results={many} />);
 
-    const rows = screen.getAllByLabelText(/^Libre 50 m/);
+    const rows = screen.getAllByLabelText(raceRow);
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.length).toBeLessThan(many.length);
   });
@@ -127,8 +133,11 @@ describe('HistoryList', () => {
   it('insets the rows from the edges when asked, so a full-bleed header can sit above', async () => {
     await render(<HistoryList results={[byId('race-pb')]} inset={space[4]} />);
 
-    const card = screen.getAllByLabelText(/^Libre 50 m/)[0].parent!;
-    expect(StyleSheet.flatten(card.props.style).marginHorizontal).toBe(space[4]);
+    // The card is the row's nearest ancestor with a horizontal margin, however the components nest above the row.
+    const isCard = (node: { props: { style?: StyleProp<ViewStyle> } }) =>
+      StyleSheet.flatten(node.props.style)?.marginHorizontal !== undefined;
+    const card = closest(screen.getByLabelText(raceRow), isCard);
+    expect(StyleSheet.flatten(card?.props.style).marginHorizontal).toBe(space[4]);
   });
 
   it('shows no origin for an own result', async () => {
@@ -204,7 +213,7 @@ describe('HistoryList', () => {
   it('gives every row at least the minimum touch target height and no fixed width', async () => {
     await render(<HistoryList results={[byId('race-pb')]} />);
 
-    const style = StyleSheet.flatten(screen.getAllByLabelText(/^Libre 50 m/)[0].props.style);
+    const style = StyleSheet.flatten(screen.getByLabelText(raceRow).props.style);
     expect(style.minHeight).toBe(size['target-min']);
     expect(style.width).toBeUndefined();
   });
@@ -212,26 +221,39 @@ describe('HistoryList', () => {
   // Jest has no layout engine: these tests pin the styles that produce the layout, not the layout itself. The real
   // wrapping at 200 % is checked visually, in the screenshot.
   describe('large text', () => {
-    const rowStyle = () => StyleSheet.flatten(screen.getAllByLabelText(/^Libre 50 m/)[0].props.style);
+    const rowStyle = () => StyleSheet.flatten(screen.getByLabelText(raceRow).props.style);
     const flat = (style: unknown) => StyleSheet.flatten(style as never);
     // The parts of the one row, found through what they hold (the hidden parts need includeHiddenElements).
+    // shortcut: the text block and the trailing block have no testID, role or label, so each is the parent of the one
+    // thing it holds (the title; the sync status, or its online-only caption). That breaks if another view wraps that
+    // thing; a stable hook needs a production testID, which the maintainer has to approve.
     const partsOf = (row: ReturnType<typeof screen.getAllByLabelText>[number], title: string) => {
       const head = within(row).getByTestId('history-head', hidden);
+      const syncStatus = within(row).queryByTestId('sync-status', hidden) ?? within(row).getByText('Solo en línea', hidden);
       return {
         head,
         dot: within(head).getByTestId('history-dot', hidden),
         text: within(head).getByText(title, hidden).parent!,
-        trailing: within(row).getByTestId('sync-status', hidden).parent!,
+        trailing: syncStatus.parent!,
       };
     };
 
     it('lets the text block shrink and keeps the time width at normal size', async () => {
       await render(<HistoryList results={[byId('import')]} />);
 
-      const { text, trailing } = partsOf(screen.getAllByLabelText(/^Mariposa 100 m/)[0], 'Mariposa 100 m');
+      const { text, trailing } = partsOf(screen.getByLabelText(importRow), importTitle);
       expect(flat(text.props.style).flexShrink).toBe(1);
       expect(flat(text.props.style).minWidth).toBe(0);
       expect(flat(trailing.props.style).flexShrink).toBe(0);
+    });
+
+    it('finds the trailing block of a row without a sync state, whose caption is online only', async () => {
+      const { syncState: _syncState, ...withoutState } = byId('race-pb');
+      await render(<HistoryList results={[withoutState]} />);
+
+      const { trailing } = partsOf(screen.getByLabelText(raceRow), raceTitle);
+      expect(flat(trailing.props.style).flexShrink).toBe(0);
+      expect(within(trailing).getByText('Solo en línea', hidden)).toBeOnTheScreen();
     });
 
     it.each([1, 2])('keeps the origin dot in the same row as the text at font scale %s', async (fontScale) => {
@@ -242,10 +264,12 @@ describe('HistoryList', () => {
       );
 
       // The dot and the text share one row (the head), so the origin never adds a row of its own; the time stays out of it.
-      const { head, dot, text, trailing } = partsOf(screen.getAllByLabelText(/^Mariposa 100 m/)[0], 'Mariposa 100 m');
+      const { head, dot, text, trailing } = partsOf(screen.getByLabelText(importRow), importTitle);
       expect(flat(head.props.style).flexDirection).toBe('row');
       expect(dot.parent).toBe(head);
       expect(text.parent).toBe(head);
+      // The origin is a line of the text block, not a child of the row or of the head: it must not add a row of its own.
+      expect(within(text).getByText(historyFixture.sourceName, hidden)).toBeOnTheScreen();
       expect(within(head).queryByTestId('sync-status', hidden)).toBeNull();
       expect(trailing).not.toBe(head);
     });
@@ -260,9 +284,9 @@ describe('HistoryList', () => {
       // The wrapping itself cannot be measured here: the styles that produce it are pinned.
       // The head fills the row (stretch) and holds the dot and the text; the text takes what the dot leaves (basis 0,
       // shrinkable) instead of the full row width.
-      const row = screen.getAllByLabelText(/^Mariposa 100 m/)[0];
+      const row = screen.getByLabelText(importRow);
       expect(flat(row.props.style).alignItems).toBe('stretch');
-      const { head, dot, text } = partsOf(row, 'Mariposa 100 m');
+      const { head, dot, text } = partsOf(row, importTitle);
       expect(flat(head.props.style).flexDirection).toBe('row');
       expect(flat(head.props.style).flexGrow).toBeUndefined();
       expect(flat(dot.props.style).flexShrink).toBe(0);
@@ -296,7 +320,7 @@ describe('HistoryList', () => {
 
       expect(rowStyle().flexDirection).toBe('column');
       expect(rowStyle().alignItems).toBe('stretch');
-      expect(flat(partsOf(screen.getAllByLabelText(/^Libre 50 m/)[0], 'Libre 50 m').trailing.props.style).alignItems).toBe(
+      expect(flat(partsOf(screen.getByLabelText(raceRow), raceTitle).trailing.props.style).alignItems).toBe(
         'flex-start',
       );
     });
@@ -313,8 +337,8 @@ describe('HistoryList', () => {
       const flat = flatten(screen.toJSON());
       // One scroll container: the header and footer scroll with the rows.
       expect(flat.filter((item) => item === 'RCTScrollView')).toHaveLength(1);
-      expect(flat.indexOf('Encabezado')).toBeLessThan(flat.findIndex((item) => item.startsWith('Libre 50 m')));
-      expect(flat.findIndex((item) => item.startsWith('Libre 50 m'))).toBeLessThan(flat.indexOf('Pie'));
+      expect(flat.indexOf('Encabezado')).toBeLessThan(flat.findIndex((item) => raceRow.test(item)));
+      expect(flat.findIndex((item) => raceRow.test(item))).toBeLessThan(flat.indexOf('Pie'));
     });
 
     it('still renders the header and footer without results', async () => {
