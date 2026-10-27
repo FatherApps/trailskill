@@ -39,6 +39,27 @@ describe('ImportPrompt', () => {
     expect(screen.queryByText(/Actualizar desde/)).toBeNull();
   });
 
+  describe('with a blank athlete name', () => {
+    it.each(['', '   '])('asks without a gap before the first import (%j)', async (blank) => {
+      await render(<ImportPrompt {...base} athleteName={blank} />);
+
+      expect(screen.getByText('¿El deportista compitió antes?', { normalizer: (text) => text })).toBeOnTheScreen();
+      expect(screen.queryByText(/¿ compitió/)).toBeNull();
+    });
+
+    it.each(['', '   '])('confirms the import without a gap (%j)', async (blank) => {
+      await render(<ImportPrompt {...base} athleteName={blank} imported />);
+
+      expect(
+        screen.getByText(
+          'Ya importamos el historial del deportista desde FEDNAT. Puedes actualizarlo cuando quieras.',
+          { normalizer: (text) => text },
+        ),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText(/historial de {2}desde/)).toBeNull();
+    });
+  });
+
   it('calls onDismiss from "Ahora no"', async () => {
     const onDismiss = jest.fn();
     await render(<ImportPrompt {...base} onDismiss={onDismiss} />);

@@ -46,8 +46,10 @@
   },
   "import_prompt": {
     "question": "¿{{name}} compitió antes?",
+    "question_no_name": "¿El deportista compitió antes?",
     "offer": "Puedes traer su historial de {{source}}. Tú lo confirmas antes de importar.",
     "imported": "Ya importamos el historial de {{name}} desde {{source}}. Puedes actualizarlo cuando quieras.",
+    "imported_no_name": "Ya importamos el historial del deportista desde {{source}}. Puedes actualizarlo cuando quieras.",
     "dismiss": "Ahora no",
     "learn_more": "Ver cómo",
     "refresh": "Actualizar desde {{source}}"
@@ -57,7 +59,8 @@
     "retry": "Intentar de nuevo",
     "empty": {
       "title": "Aún no hay tiempos",
-      "message": "Cuando el entrenador registre una medición de {{name}}, aparecerá aquí."
+      "message": "Cuando el entrenador registre una medición de {{name}}, aparecerá aquí.",
+      "message_no_name": "Cuando el entrenador registre una medición del deportista, aparecerá aquí."
     },
     "error": {
       "title": "No pudimos cargar el perfil",
