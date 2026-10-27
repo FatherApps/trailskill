@@ -58,7 +58,7 @@ describe('SignInContainer', () => {
   it('requests a code for the typed email and then asks for it', async () => {
     await openCodeStep();
 
-    // No createUser option: the session then asks for shouldCreateUser: false.
+    // Only the email, never a createUser option: the session's default (pinned in session.test.tsx) is shouldCreateUser: false.
     expect(mockSession.requestCode).toHaveBeenCalledWith(email);
     // The help text is the field's accessibility hint.
     expect(screen.getByLabelText('Código de 6 dígitos').props.accessibilityHint).toBe(
