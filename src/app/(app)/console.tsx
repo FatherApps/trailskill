@@ -5,7 +5,7 @@ import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
-import { StateView } from '../../core/ui';
+import { Button, StateView } from '../../core/ui';
 import {
   AthletesSection,
   AuthorizationsSection,
@@ -56,9 +56,13 @@ export default function ConsoleRoute() {
         <StateView
           kind="error"
           title={t('schoolConsole.screen.access_error_title')}
-          message={t('schoolConsole.screen.error.message')}
+          message={t('schoolConsole.screen.access_error_message')}
           action={{ label: t('schoolConsole.screen.retry'), onPress: access.retry }}
         />
+        {/* Not a sign out: offline it can leave writes unsynced and force a new login. */}
+        <View style={{ alignItems: 'center' }}>
+          <Button variant="secondary" label={t('schoolConsole.screen.access_error_home')} onPress={() => router.replace('/')} />
+        </View>
       </View>
     );
   }

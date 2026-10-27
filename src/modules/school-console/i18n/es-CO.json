@@ -94,6 +94,8 @@
       "message": "Aparecen cuando un acudiente o un deportista adulto crea su cuenta. Invita a un acudiente para empezar."
     },
     "access_error_title": "No pudimos cargar tu escuela",
+    "access_error_message": "Intenta de nuevo. Si sigue pasando, cierra la app y vuelve a abrirla.",
+    "access_error_home": "Volver al inicio",
     "error": {
       "title": "No pudimos cargar los deportistas",
       "message": "Revisa tu conexión e inténtalo de nuevo."

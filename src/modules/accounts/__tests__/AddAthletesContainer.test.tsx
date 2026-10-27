@@ -46,10 +46,17 @@ function setup(invitationToken?: string) {
   return { mount, onContinue, onBack, drafts, profiles, athletes, rows, pending, invitations };
 }
 
+// The registration `setup()` seeds. If it stops seeding, a test that builds on it would exercise another shape of registration without saying so, so it fails here instead.
+async function seededDraft(load: () => ReturnType<ReturnType<typeof setup>['drafts']['load']>) {
+  const draft = await load();
+  if (!draft) throw new Error('setup() no longer seeds a registration draft: this test builds on it');
+  return draft;
+}
+
 // A draft that was saved before the screen started and whose reads are slow: the screen shows the form, the person types, and the read answers afterwards with the draft as it was.
 // `fast()` makes the reads after that instant (the saves after typing); without it every read waits for `open()`.
 async function slowStartDraft(drafts: ReturnType<typeof setup>['drafts']) {
-  await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Anterior', lastName: 'Guardado' } });
+  await drafts.save({ ...(await seededDraft(() => drafts.load())), athlete: { firstName: 'Anterior', lastName: 'Guardado' } });
   const real = drafts.load.bind(drafts);
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
@@ -95,10 +102,13 @@ const settle = () =>
   });
 
 // Lets the held reads go and runs what they unblock, until a settled pass finds none held: reads that start from the ones released are drained too, with no fixed number of turns.
+// A read that starts another every time it is released never ends: past the cap that fails with a message instead of hanging the test.
+const MAX_DRAIN_PASSES = 50;
 async function drainReads(releases: (() => void)[], { newestFirst = false } = {}) {
-  for (;;) {
+  for (let pass = 0; ; pass++) {
     await settle();
     if (!releases.length) return;
+    if (pass === MAX_DRAIN_PASSES) throw new Error(`drainReads: reads were still held after ${MAX_DRAIN_PASSES} passes; a released read keeps starting another`);
     const batch = releases.splice(0);
     for (const release of newestFirst ? batch.reverse() : batch) {
       release();
@@ -112,7 +122,7 @@ async function draftAfterAddEndedAfterUnmount(
   { mount, drafts, profiles }: ReturnType<typeof setup>,
   inDraft: { firstName: string; lastName: string },
 ) {
-  await drafts.save({ ...(await drafts.load())!, athlete: inDraft });
+  await drafts.save({ ...(await seededDraft(() => drafts.load())), athlete: inDraft });
   const real = drafts.load.bind(drafts);
   const create = profiles.createManagedAthlete.bind(profiles);
   let release!: () => void;
@@ -122,15 +132,20 @@ async function draftAfterAddEndedAfterUnmount(
     return create(input);
   });
   const releases = heldReads(drafts);
-  const view = await mount();
-  await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-  await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-  fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
-  await view.unmount();
+  let unmount: (() => void) | undefined;
+  // The screen goes while the add saves, and the gate opens, even when a step before fails: a held add must not outlive the test on a live screen.
+  try {
+    ({ unmount } = await mount());
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+  } finally {
+    await unmount?.();
+    release();
+  }
 
   await act(async () => {
-    release();
     await gate;
   });
   // Every read, the ones the add starts after it saved included, ends now.
@@ -199,6 +214,30 @@ describe('AddAthletesContainer', () => {
 
     await waitFor(() => expect(invitations.accepted).toHaveLength(2));
     expect(invitations.accepted[1]).toEqual({ token: 'tok-1', athleteId: rows[1].athleteId });
+  });
+
+  // The container keeps the category in two places (`categoryId` for the radios, `chosen` for the add); this pins that they never tell different stories.
+  it('the category the radios show is the category the athlete is accepted with, whatever was chosen before, back to none included', async () => {
+    const { mount, rows, invitations } = setup('tok-1');
+    const checked = (name: string) => screen.getByRole('radio', { name }).props.accessibilityState.checked;
+    await mount();
+    await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '11-12' }));
+    expect(checked('11-12')).toBe(true);
+    await addLucia();
+
+    await fireEvent.press(screen.getByRole('radio', { name: '9-10' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Sin categoría' }));
+    expect(checked('Sin categoría')).toBe(true);
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+
+    await waitFor(() => expect(invitations.accepted).toHaveLength(2));
+    expect(invitations.accepted).toEqual([
+      { token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-2' },
+      { token: 'tok-1', athleteId: rows[1].athleteId },
+    ]);
   });
 
   it('without network the acceptance stays pending, outlives the draft and completes by itself later', async () => {
@@ -922,12 +961,13 @@ describe('AddAthletesContainer', () => {
   it('a registration started after the screen went away is left alone even when no read ended while the screen was there', async () => {
     const { mount, drafts } = setup();
     const save = jest.spyOn(drafts, 'save');
+    const real = drafts.load.bind(drafts);
     const releases = heldReads(drafts);
     const view = await mount();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
     await settle();
-    // Nothing ends until released, so the reads held are the ones the screen started: its first one, the invitation's and the keystroke save's. Zero would pass without checking anything.
-    expect(releases).toHaveLength(3);
+    // Nothing ends until released, so the reads held are the ones the screen started. The case needs at least two: the screen's first one and the keystroke save's, which is the newest. Fewer would pass without checking anything; how many more the screen starts is not this test's business.
+    expect(releases.length).toBeGreaterThanOrEqual(2);
     await view.unmount();
     const another = { swimmer: 'adult' as const, firstName: 'Nuevo', lastName: 'Registro', email: 'nuevo@example.com' };
     await drafts.clear();
@@ -939,6 +979,17 @@ describe('AddAthletesContainer', () => {
     await drainReads(releases, { newestFirst: true });
 
     expect(save).toHaveBeenCalledTimes(saves);
+    // What counts is that the draft is not stale: the new registration is exactly as it was started.
+    expect(await real()).toEqual(another);
+  });
+
+  it('drainReads fails with a clear message when every released read starts another', async () => {
+    const releases: (() => void)[] = [];
+    const hold = () => releases.push(hold);
+
+    hold();
+
+    await expect(drainReads(releases)).rejects.toThrow(/still held after \d+ passes/);
   });
 
   // The limit of telling registrations apart by their fields (issue 611): a registration started again with the same data cannot be told from the one the screen belonged to.
@@ -952,7 +1003,7 @@ describe('AddAthletesContainer', () => {
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     await view.unmount();
     // Discarded and started again with the very same data.
-    const first = (await slow.real())!;
+    const first = await seededDraft(slow.real);
     await drafts.clear();
     await drafts.save({ swimmer: first.swimmer, firstName: first.firstName, lastName: first.lastName, email: first.email, invitationToken: first.invitationToken });
     const reads = jest.mocked(drafts.load).mock.calls.length;
@@ -1077,7 +1128,7 @@ describe('AddAthletesContainer', () => {
   // Decision (issue 626): a save that changes nothing does not renew the 24 hours of the draft; only a write that changes it does.
   it('typing what the draft already holds writes nothing, so it does not renew the 24 hours either', async () => {
     const { mount, drafts } = setup();
-    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Lucía', lastName: 'Rojas' } });
+    await drafts.save({ ...(await seededDraft(() => drafts.load())), athlete: { firstName: 'Lucía', lastName: 'Rojas' } });
     const save = jest.spyOn(drafts, 'save');
     await mount();
     await waitFor(() => expect(screen.getByLabelText('Nombre').props.value).toBe('Lucía'));

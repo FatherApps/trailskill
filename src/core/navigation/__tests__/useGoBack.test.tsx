@@ -45,4 +45,28 @@ describe('useGoBack', () => {
 
     expect(result.current).toBe(first);
   });
+
+  it('returns the same callback when the fallback is a new object on every render', async () => {
+    mockRouter.canGoBack.mockReturnValue(false);
+    const { result, rerender } = await renderHook(() => useGoBack({ pathname: '/sign-in' }));
+    const first = result.current;
+
+    await rerender({});
+
+    expect(result.current).toBe(first);
+    result.current();
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/sign-in' });
+  });
+
+  it('uses the latest fallback when it changes', async () => {
+    mockRouter.canGoBack.mockReturnValue(false);
+    let fallback = '/sign-in';
+    const { result, rerender } = await renderHook(() => useGoBack(fallback));
+
+    fallback = '/home';
+    await rerender({});
+    result.current();
+
+    expect(mockRouter.replace).toHaveBeenCalledWith('/home');
+  });
 });

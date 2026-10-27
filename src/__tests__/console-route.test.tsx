@@ -54,16 +54,18 @@ jest.mock('../modules/school-console', () => ({
   }),
 }));
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 jest.mock('expo-router', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     Redirect: ({ href }: { href: string }) => <Text>{`redirected to ${href}`}</Text>,
-    useRouter: () => ({ push: mockPush }),
+    useRouter: () => ({ push: mockPush, replace: mockReplace }),
   };
 });
 
 beforeEach(() => {
   mockUserId = 'user-1';
+  mockReplace.mockReset();
   mockListAdminSchools.mockReset().mockResolvedValue([]);
   mockConsoleAthletes.listAthletes.mockReset().mockResolvedValue([]);
   mockConsoleAthletes.listAthleteGroups.mockReset().mockResolvedValue([]);
@@ -93,7 +95,8 @@ describe('console route', () => {
     await show();
 
     expect(await screen.findByText('No pudimos cargar tu escuela')).toBeOnTheScreen();
-    expect(screen.getByText('Revisa tu conexión e inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(screen.getByText('Intenta de nuevo. Si sigue pasando, cierra la app y vuelve a abrirla.')).toBeOnTheScreen();
+    expect(screen.queryByText('Revisa tu conexión e inténtalo de nuevo.')).toBeNull();
     expect(screen.queryByText(/redirected/)).toBeNull();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
@@ -101,6 +104,21 @@ describe('console route', () => {
     expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
     expect(screen.queryByText('No pudimos cargar tu escuela')).toBeNull();
     expect(mockListAdminSchools).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers a way home below the retry in the error view, and no sign out', async () => {
+    mockListAdminSchools.mockRejectedValue(new Error('db'));
+    await show();
+
+    await screen.findByRole('button', { name: 'Intentar de nuevo' });
+    const home = screen.getByRole('button', { name: 'Volver al inicio' });
+    const labels = screen.getAllByRole('button').map((b) => b.props.accessibilityLabel);
+    expect(labels).toEqual(['Intentar de nuevo', 'Volver al inicio']);
+    expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
+
+    await fireEvent.press(home);
+
+    expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
   it('sends the user home when the retry finds no admin school', async () => {
