@@ -141,6 +141,8 @@ describe('console route', () => {
     const container = screen.getByTestId('access-error');
     const labels = within(container).getAllByRole('button').map((b) => b.props.accessibilityLabel);
     expect(labels).toEqual(['Intentar de nuevo', 'Volver al inicio']);
+    // Nothing else sits in the container: a stray child that is not a button would pass the labels check.
+    expect(container.children).toHaveLength(2);
     // Tree order is not what the user sees: the container must stack its children top to bottom, in that order, in flow.
     expect(StyleSheet.flatten(container.props.style).flexDirection ?? 'column').toBe('column');
     expect(StyleSheet.flatten(screen.getByTestId('access-error-home').props.style).position).toBeUndefined();
@@ -151,7 +153,18 @@ describe('console route', () => {
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
-  // Only the way home: the retry's variant belongs to StateView, which this route does not choose.
+  it('draws the retry as secondary, not as the lime primary', async () => {
+    mockListAdminSchools.mockRejectedValue(new Error('db'));
+    await show('light');
+    const retry = await screen.findByRole('button', { name: 'Intentar de nuevo' });
+
+    // Secondary: surface background, visible outline, label not underlined.
+    const retryStyle = StyleSheet.flatten(retry.props.style);
+    expect(retryStyle.backgroundColor).toBe(colors.light['surface-1']);
+    expect(retryStyle.borderColor).toBe(colors.light.border);
+    expect(StyleSheet.flatten(screen.getByText('Intentar de nuevo').props.style).textDecorationLine).toBeUndefined();
+  });
+
   it('draws the way home as ghost, not as the lime primary', async () => {
     mockListAdminSchools.mockRejectedValue(new Error('db'));
     await show('light');
@@ -162,12 +175,11 @@ describe('console route', () => {
     expect(homeStyle.backgroundColor).toBe('transparent');
     expect(homeStyle.borderColor).toBe('transparent');
     expect(StyleSheet.flatten(screen.getByText('Volver al inicio').props.style).textDecorationLine).toBe('underline');
-    expect(homeStyle.backgroundColor).not.toBe(colors.light.action);
   });
 
   it('separates the way home from the error view with a design-system space', async () => {
     mockListAdminSchools.mockRejectedValue(new Error('db'));
-    await show('light');
+    await show();
     await screen.findByRole('button', { name: 'Volver al inicio' });
 
     expect(StyleSheet.flatten(screen.getByTestId('access-error-home').props.style).marginTop).toBe(space[4]);

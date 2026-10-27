@@ -58,6 +58,7 @@ export default function ConsoleRoute() {
   // A failed lookup says nothing about the role: it does not leave the console, it offers to look again.
   if (access.status === 'error') {
     return (
+      // testID: this layout container has no role, label or text a test can query; the test checks its children and stacking.
       <View testID="access-error" style={{ flex: 1, justifyContent: 'center', padding: space[4], backgroundColor: colors['surface-0'] }}>
         <StateView
           kind="error"
