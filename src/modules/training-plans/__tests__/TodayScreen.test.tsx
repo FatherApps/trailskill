@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { i18n } from '../../../core/i18n';
@@ -376,6 +376,28 @@ describe('TodayScreen content', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Enviar aviso' }));
     expect(screen.getByText('Escribe tu aviso antes de enviarlo.')).toBeOnTheScreen();
     expect(onSendNotice).not.toHaveBeenCalled();
+  });
+
+  it('keeps the text of the note in the open form while its save is pending, and clears it once it ends', async () => {
+    let finish!: () => void;
+    const onSendNotice = jest.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    await render(<TodayScreen athleteName="Lucía R." view={{ kind: 'data', content }} onSendNotice={onSendNotice} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Avisar algo al entrenador' }));
+    await fireEvent.changeText(screen.getByLabelText('Tu aviso'), 'Test note 1');
+    // The press itself ends with the save, so it is started inside act without waiting for it.
+    const send = screen.getByRole('button', { name: 'Enviar aviso' });
+    await act(async () => {
+      void fireEvent.press(send);
+    });
+
+    // A save that does not end (no timeout, issue 625) leaves the form as it was, with the text and no error.
+    expect(onSendNotice).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Tu aviso').props.value).toBe('Test note 1');
+    expect(screen.queryByText('No pudimos guardar el aviso. Inténtalo de nuevo.')).not.toBeOnTheScreen();
+
+    await act(async () => finish());
+    expect(screen.queryByLabelText('Tu aviso')).not.toBeOnTheScreen();
   });
 
   it('nests its ScrollView so it scrolls inside a parent ScrollView on Android', async () => {

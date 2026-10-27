@@ -29,13 +29,14 @@ const settle = () =>
     await new Promise<void>((resolve) => setImmediate(resolve));
   });
 
-// The bodies of the notes on the screen, in a fixed order.
-const noteBodies = () => (shown.view.kind === 'data' ? (shown.view.content.notes ?? []).map((note) => note.body).sort() : []);
+// The bodies of the notes on the screen, in the order shown (the newest first): not sorted here, so a wrong order fails the tests that read it.
+const noteBodies = () => (shown.view.kind === 'data' ? (shown.view.content.notes ?? []).map((note) => note.body) : []);
 
 const showsPlan = (planName: string) => waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { planName } }));
 
 // `synced` is the state of the first render; the first sync is the change from false to true.
-async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstSynced = true } = {}) {
+// `alsoOn`: a day that lists the assignment of DAY too, so one assignment is read under two days.
+async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstSynced = true, alsoOn = '' } = {}) {
   const plans = createInMemoryTrainingPlanRepository();
   await plans.save(plan('p1'));
   await plans.save({ ...plan('p2'), name: 'Plan del otro' });
@@ -57,7 +58,7 @@ async function setup({ failFirstRead = false, ids = ['a1', 'a3'], synced: firstS
         reads.failNext = false;
         throw new Error('read failed');
       }
-      return stored.list(...args);
+      return stored.list(args[0], args[1] === alsoOn ? DAY : args[1]);
     },
   };
   const storedNotices = createInMemoryNoticeRepository();
@@ -197,6 +198,22 @@ describe('TodayContainer races', () => {
 
     expect(shown.view).toMatchObject({ kind: 'data', content: { planName: 'Plan de mañana', notes: [] } });
     expect(await notices.list('a1', one)).toMatchObject([{ body: 'Test note 1' }]);
+  });
+
+  it('shows a note saved under one day in the read of another day that lists the same assignment', async () => {
+    const { reads, update, sendHeld } = await setup({ alsoOn: LATE_DAY });
+    await showsPlan('Plan p1');
+    const finish = await sendHeld('Test note 1');
+
+    // The other day lists the same assignment; its read listed the notes before the note was saved and is still open.
+    let openRead!: () => void;
+    reads.listed = new Promise<void>((resolve) => (openRead = resolve));
+    await update(['a1', 'a3'], LATE_DAY);
+    await finish();
+    openRead();
+    await settle();
+
+    await waitFor(() => expect(shown.view).toMatchObject({ kind: 'data', content: { planName: 'Plan p1', notes: [{ body: 'Test note 1' }] } }));
   });
 
   it('does not read again or go through loading when the athlete already shown is picked', async () => {
@@ -428,14 +445,45 @@ describe('TodayContainer races', () => {
     const first = await startOpen('Test note 1');
     const second = await startOpen('Test note 2');
     await settle();
-    expect(noteBodies()).toEqual(['Test note 1', 'Test note 2']);
+    expect(noteBodies()).toEqual(['Test note 2', 'Test note 1']);
 
     await releaseFirst();
     await act(async () => {
       await Promise.all([first.sending, second.sending]);
     });
 
-    expect(noteBodies()).toEqual(['Test note 1', 'Test note 2']);
+    // The older listing answered last and was dropped: only the newer one, with both notes, newest first.
+    expect(noteBodies()).toEqual(['Test note 2', 'Test note 1']);
+  });
+
+  it('keeps both notes when an older listing answers after a newer one that was dropped because the athlete had changed', async () => {
+    const { startOpen, holdStaleListings, holdListings } = await setup();
+    await showsPlan('Plan p1');
+
+    // The first listing took the notes before the second note was added, and answers last.
+    const releaseFirst = holdStaleListings(1);
+    const first = await startOpen('Test note 1');
+    // The second listing has both notes but answers while a3 is shown, so the screen drops it.
+    const releaseSecond = holdListings(1);
+    const second = await startOpen('Test note 2');
+    await act(async () => shown.onSelectAthlete?.('a3'));
+    await showsPlan('Plan del otro');
+    await act(async () => releaseSecond());
+    await act(async () => {
+      await second.sending;
+    });
+    // Coming back reads a1 again, with both notes.
+    await act(async () => shown.onSelectAthlete?.('a1'));
+    await showsPlan('Plan p1');
+    await waitFor(() => expect(noteBodies()).toEqual(['Test note 2', 'Test note 1']));
+
+    // The older listing still counts as older than the one that was dropped: it must not bring the screen back to one note.
+    await releaseFirst();
+    await act(async () => {
+      await first.sending;
+    });
+
+    expect(noteBodies()).toEqual(['Test note 2', 'Test note 1']);
   });
 
   it('reports a rejected listing after a save, and still reads again to show the note', async () => {
@@ -466,6 +514,7 @@ describe('TodayContainer races', () => {
     await act(async () => shown.onSelectAthlete?.('a1'));
 
     await showsPlan('Plan p1');
+    // The held note was added last, so it is the newest.
     await waitFor(() => expect(noteBodies()).toEqual(['Test note 1', 'Test note 2']));
   });
 
