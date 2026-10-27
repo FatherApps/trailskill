@@ -12,13 +12,16 @@ type Volumetric = Pick<PlanBlock, 'repetitions' | 'distance'>;
 const isPositiveFinite = (n: number) => Number.isFinite(n) && n > 0;
 
 // Product of a block with no usable distance: an invalid factor maps to it, and so does an underflow (1e-200 × 1e-200). An overflow stays Infinity and is caught by the total check below.
+// It must stay 0: the ascending sort puts these products first and the sum adds them as 0 m, and an underflow already produces exactly 0.
 const NOT_MEASURED = 0;
 
 function planVolume(blocks: Volumetric[]): { meters: number; unmeasured: number; count: number } {
   // A block with an invalid factor reads as NOT_MEASURED here, so "no distance" is decided in the loop below and nowhere else.
   const products = blocks.map(({ repetitions, distance }) => (isPositiveFinite(repetitions) && isPositiveFinite(distance) ? repetitions * distance : NOT_MEASURED));
   // Many finite products can still add up to Infinity: a block that would overflow the total is counted apart, so the total stays finite.
-  // Adding from the smallest makes the blocks left out the biggest ones, whatever the order of the plan; and each block is still bigger than the rounding step of the total when it is added, so the loop never skips a block for being too small to change the total.
+  // Adding from the smallest makes the blocks left out the biggest ones, whatever the order of the plan.
+  // The loop never skips a block for being too small to change the total, provided the blocks are added in ascending order and there are far fewer than 2^52 of them: then the total is at most count × the block being added, so its rounding step stays below that block.
+  // That is about skipping. A bigger block added later can still absorb a smaller one into the rounded total, as the shortcut below says.
   // shortcut: the final total is rounded to a double (600 m next to 1e308 is lost in that rounding) and the block still counts as measured; upgrade only if exact sums are ever needed.
   products.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   let meters = 0;
