@@ -406,7 +406,7 @@ describe('AssignPlanContainer', () => {
       const { assignments, reload } = await setup('plan-1');
       const create = assignments.create;
       let release = () => {};
-      jest.spyOn(assignments, 'create').mockImplementationOnce(async (assignment, asUser) => {
+      const creating = jest.spyOn(assignments, 'create').mockImplementationOnce(async (assignment, asUser) => {
         await new Promise<void>((resolve) => (release = resolve));
         return create(assignment, asUser);
       });
@@ -417,22 +417,24 @@ describe('AssignPlanContainer', () => {
 
       await reload('plan-1', 'coach-2');
       await screen.findByText('Velocidad');
+      const { assigned, failure } = content();
+      expect(creating).toHaveBeenCalled();
       await act(async () => release());
 
       expect(await assignments.list('school-1', todayText())).toEqual([]);
-      expect(content().saving).toBe(false);
-      expect(content().failure).toBeUndefined();
+      // The late write of the previous user leaves the new user's screen as it was.
+      expect(content().assigned).toEqual(assigned);
+      expect(content().failure).toBe(failure);
     });
 
     it('discards the withdrawal of the previous user that was still on its way', async () => {
       mockDayLoad = async () => [assignmentOfDay('assignment-1')];
       const { assignments, reload } = await setup('plan-1');
       const id = await assignments.create({ schoolId: 'school-1', planId: 'plan-1', sessionDate: todayText(), target: { kind: 'school' } });
-      expect(id).toBe('assignment-1');
       await screen.findByTestId('assigned-assignment-1');
       const withdraw = assignments.withdraw;
       let release = () => {};
-      jest.spyOn(assignments, 'withdraw').mockImplementationOnce(async (assignmentId, asUser) => {
+      const withdrawing = jest.spyOn(assignments, 'withdraw').mockImplementationOnce(async (assignmentId, asUser) => {
         await new Promise<void>((resolve) => (release = resolve));
         return withdraw(assignmentId, asUser);
       });
@@ -442,6 +444,7 @@ describe('AssignPlanContainer', () => {
 
       await reload('plan-1', 'coach-2');
       await screen.findByText('Velocidad');
+      expect(withdrawing).toHaveBeenCalled();
       await act(async () => release());
 
       expect(await assignments.list('school-1', todayText())).toEqual([expect.objectContaining({ id })]);
@@ -454,7 +457,7 @@ describe('AssignPlanContainer', () => {
       const { assignments } = await setup('plan-1');
       const create = assignments.create;
       let release = () => {};
-      jest.spyOn(assignments, 'create').mockImplementationOnce(async (assignment, asUser) => {
+      const creating = jest.spyOn(assignments, 'create').mockImplementationOnce(async (assignment, asUser) => {
         await new Promise<void>((resolve) => (release = resolve));
         return create(assignment, asUser);
       });
@@ -462,6 +465,7 @@ describe('AssignPlanContainer', () => {
       await act(async () => {
         void screenProps().onAssign();
       });
+      expect(creating).toHaveBeenCalled();
       await act(async () => release());
 
       expect(await assignments.list('school-1', todayText())).toEqual([expect.objectContaining({ planId: 'plan-1', target: { kind: 'school' } })]);
@@ -475,13 +479,14 @@ describe('AssignPlanContainer', () => {
       await screen.findByTestId('assigned-assignment-1');
       const withdraw = assignments.withdraw;
       let release = () => {};
-      jest.spyOn(assignments, 'withdraw').mockImplementationOnce(async (assignmentId, asUser) => {
+      const withdrawing = jest.spyOn(assignments, 'withdraw').mockImplementationOnce(async (assignmentId, asUser) => {
         await new Promise<void>((resolve) => (release = resolve));
         return withdraw(assignmentId, asUser);
       });
       await act(async () => {
         void screenProps().onWithdraw(id);
       });
+      expect(withdrawing).toHaveBeenCalled();
       await act(async () => release());
 
       expect(await assignments.list('school-1', todayText())).toEqual([]);

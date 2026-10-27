@@ -138,6 +138,7 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, day, saving]);
 
+  // save and withdraw need no unmount guard: the setters they reach after the screen is gone are harmless no-ops in React 18+.
   async function save() {
     const target = targetOf(kind, optionId);
     if (busy.current || !ready || !chosenPlanId || !target) return;
