@@ -36,6 +36,8 @@ const keep = (names: typeof empty) => (names.firstName || names.lastName ? names
 const sameRegistration = (a: RegistrationDraft, b: RegistrationDraft) =>
   a.swimmer === b.swimmer && a.firstName === b.firstName && a.lastName === b.lastName && a.email === b.email && a.invitationToken === b.invitationToken;
 // The draft's athlete is exactly these names.
+// shortcut: with no origin known, a registration discarded and started again with the same child is told apart only by these names, so a queued write could remove that draft's athlete (issue 611, decision B);
+// it depends on the stable key named in the `sameRegistration` shortcut above, and the rule here stays as is until that key exists.
 const holds = (draft: RegistrationDraft, names?: typeof empty) =>
   !!names && draft.athlete?.firstName === names.firstName && draft.athlete?.lastName === names.lastName;
 // Stable, so the back subscription is made once while the block holds.
@@ -64,6 +66,7 @@ export function AddAthletesContainer({
   const { categories } = useInvitation(drafts, invitations);
   const [categoryId, setCategoryId] = useState('');
   // The category as chosen right now, for add() to read whichever way it is called.
+  // It and `categoryId` change together, only through `setCategory`: write it from nowhere else.
   const chosen = useRef('');
   const mounted = useRef(true);
   // Reads and saves that end after the screen went away must not touch its state: every such step goes through here.
@@ -129,7 +132,7 @@ export function AddAthletesContainer({
   // shortcut: a save that changes nothing does not renew the 24 hours of the draft (issue 626), so only a write that changes it does; stamp it here if a draft must outlive a session of no typing.
   // shortcut: every keystroke reads the whole draft from the store before comparing, which costs a SecureStore read per key (issue 626); debounce the saves or compare against the last draft read if typing ever lags.
   const persist = useCallback(
-    (athlete: typeof empty | undefined, step?: 'authorizations', added?: typeof empty) =>
+    (athlete: typeof empty | undefined, { step, added }: { step?: 'authorizations'; added?: typeof empty } = {}) =>
       enqueue(async () => {
         const current = await drafts.load();
         if (!current) return;
@@ -171,11 +174,15 @@ export function AddAthletesContainer({
     setValues(next);
   }
 
+  function setCategory(next: string) {
+    chosen.current = next;
+    setCategoryId(next);
+  }
+
   // A person's choice counts as an edit (see `edits`), so an add in flight leaves it for the next athlete.
   function chooseCategory(next: string) {
     edits.current.category++;
-    chosen.current = next;
-    setCategoryId(next);
+    setCategory(next);
   }
 
   function change(field: AddAthleteField, value: string) {
@@ -212,13 +219,10 @@ export function AddAthletesContainer({
       ifMounted(() => {
         show(left);
         // Starting over after an add is not a choice, so it does not count as an edit.
-        if (edits.current.category === savingEdits.category) {
-          chosen.current = '';
-          setCategoryId('');
-        }
+        if (edits.current.category === savingEdits.category) setCategory('');
       });
       // Also after the screen went away: the saved names must leave the draft or the next launch would add them again.
-      void persist(keep(left), undefined, saving);
+      void persist(keep(left), { added: saving });
       // The athlete only exists on this device so far: queue the acceptance, which retries until the server knows them. It never blocks the registration.
       const token = (await drafts.load().catch(() => null))?.invitationToken;
       if (token) void queueInvitation(pending, invitations, { userId, token, athleteId, ...(savingCategory && { categoryId: savingCategory }) }).catch(() => {});
@@ -240,7 +244,7 @@ export function AddAthletesContainer({
     setFailed(false);
     let kept: boolean;
     try {
-      kept = await persist(keep(typed.current), 'authorizations');
+      kept = await persist(keep(typed.current), { step: 'authorizations' });
     } finally {
       finishingRef.current = false;
       setFinishing(false);

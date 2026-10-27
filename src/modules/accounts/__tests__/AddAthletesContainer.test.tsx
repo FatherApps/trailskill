@@ -94,6 +94,50 @@ const settle = () =>
     await new Promise((resolve) => setImmediate(resolve));
   });
 
+// Lets the held reads go and runs what they unblock, until a settled pass finds none held: reads that start from the ones released are drained too, with no fixed number of turns.
+async function drainReads(releases: (() => void)[], { newestFirst = false } = {}) {
+  for (;;) {
+    await settle();
+    if (!releases.length) return;
+    const batch = releases.splice(0);
+    for (const release of newestFirst ? batch.reverse() : batch) {
+      release();
+      await settle();
+    }
+  }
+}
+
+// Leaves the screen while an add saves and no read has ended (so it knows no origin), lets the add end and every read after it, and returns the athlete the draft holds afterwards.
+async function draftAfterAddEndedAfterUnmount(
+  { mount, drafts, profiles }: ReturnType<typeof setup>,
+  inDraft: { firstName: string; lastName: string },
+) {
+  await drafts.save({ ...(await drafts.load())!, athlete: inDraft });
+  const real = drafts.load.bind(drafts);
+  const create = profiles.createManagedAthlete.bind(profiles);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
+    await gate;
+    return create(input);
+  });
+  const releases = heldReads(drafts);
+  const view = await mount();
+  await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+  await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+  fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
+  await view.unmount();
+
+  await act(async () => {
+    release();
+    await gate;
+  });
+  // Every read, the ones the add starts after it saved included, ends now.
+  await drainReads(releases);
+  return (await real())?.athlete;
+}
+
 describe('AddAthletesContainer', () => {
   it('requires both names, then adds the profile to the list showing only the short name', async () => {
     const { mount } = setup();
@@ -649,8 +693,9 @@ describe('AddAthletesContainer', () => {
     });
 
     // Adds Lucía Rojas with `first` chosen while the add is held, makes `choices` meanwhile, lets the add end and adds Mateo Rojas as the next athlete.
-    // The screen goes before the gate opens, so a failing assertion cannot leave the held add running on a live screen.
-    async function addTwoChoosing(first: string, choices: string[], kept: string) {
+    // The screen goes before the gate opens, so a failing assertion cannot leave the held add running on a live screen; the same when mounting throws, which must still open the gate.
+    // `kept` is the category still chosen once the first athlete is added, or null when the choice started over.
+    async function addTwoChoosing(first: string, choices: string[], kept: string | null) {
       const { mount, profiles, rows, pending, invitations } = setup('tok-1');
       const create = profiles.createManagedAthlete.bind(profiles);
       let release!: () => void;
@@ -659,8 +704,9 @@ describe('AddAthletesContainer', () => {
         await gate;
         return create(input);
       });
-      const { unmount } = await mount();
+      let unmount: (() => void) | undefined;
       try {
+        ({ unmount } = await mount());
         await fireEvent.press(await screen.findByRole('radio', { name: first }));
         // The categories are loaded; from here the acceptances stay queued, so what was saved can be read.
         invitations.offline = true;
@@ -672,14 +718,16 @@ describe('AddAthletesContainer', () => {
         release();
         await screen.findByText('Lucía R.');
         await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
-        expect(screen.getByRole('radio', { name: kept }).props.accessibilityState.checked).toBe(true);
+        for (const { name } of invitation.categories) {
+          expect(screen.getByRole('radio', { name }).props.accessibilityState.checked).toBe(name === kept);
+        }
 
         await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
         await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
         await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
         await screen.findByText('Mateo R.');
       } finally {
-        unmount();
+        unmount?.();
         release();
       }
       return { rows, pending, invitations };
@@ -708,6 +756,13 @@ describe('AddAthletesContainer', () => {
       const { pending } = await addTwoChoosing('11-12', ['9-10', '11-12'], '11-12');
 
       await waitFor(async () => expect((await pending.list()).map((item) => item.categoryId)).toEqual(['cat-2', 'cat-2']));
+    });
+
+    // The control of the two above: same saved category, no choice meanwhile. They keep it because it was edited, not because nothing ever clears it.
+    it('the same category saved with no choice meanwhile starts over, so the next athlete has none', async () => {
+      const { pending } = await addTwoChoosing('11-12', [], null);
+
+      await waitFor(async () => expect((await pending.list()).map((item) => item.categoryId)).toEqual(['cat-2', undefined]));
     });
   });
 
@@ -871,18 +926,17 @@ describe('AddAthletesContainer', () => {
     const view = await mount();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
     await settle();
+    // Nothing ends until released, so the reads held are the ones the screen started: its first one, the invitation's and the keystroke save's. Zero would pass without checking anything.
+    expect(releases).toHaveLength(3);
     await view.unmount();
     const another = { swimmer: 'adult' as const, firstName: 'Nuevo', lastName: 'Registro', email: 'nuevo@example.com' };
     await drafts.clear();
     await drafts.save(another);
     const saves = save.mock.calls.length;
 
-    // Newest first, whatever their number: the keystroke save reads the new registration before any other read ends, and with no origin known it is not this screen's.
+    // Newest first: the keystroke save reads the new registration before any other read ends, and with no origin known it is not this screen's.
     // The reads that end after it (the screen's first one included) are no origin either, so nothing is written back from them.
-    for (const release of releases.splice(0).reverse()) {
-      release();
-      await settle();
-    }
+    await drainReads(releases, { newestFirst: true });
 
     expect(save).toHaveBeenCalledTimes(saves);
   });
@@ -1007,69 +1061,17 @@ describe('AddAthletesContainer', () => {
   });
 
   it('an add that ends after the screen went away, before any read ended, still takes the names it saved out of the draft', async () => {
-    const { mount, drafts, profiles } = setup();
-    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Lucía', lastName: 'Rojas' } });
-    const real = drafts.load.bind(drafts);
-    const create = profiles.createManagedAthlete.bind(profiles);
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => (release = resolve));
-    jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
-      await gate;
-      return create(input);
-    });
-    const releases = heldReads(drafts);
-    const view = await mount();
-    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-    fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
-    // The screen goes away while the add saves and no read has ended: it knows no origin.
-    await view.unmount();
-
-    await act(async () => {
-      release();
-      await gate;
-    });
-    // Every read, the ones the add starts after it saved included, ends now.
-    for (let i = 0; i < 5; i++) {
-      releases.splice(0).forEach((end) => end());
-      await settle();
-    }
+    const athlete = await draftAfterAddEndedAfterUnmount(setup(), { firstName: 'Lucía', lastName: 'Rojas' });
 
     // The draft held exactly the names that were just saved as a profile: leaving them would offer to add the same athlete again.
-    expect((await real())?.athlete).toBeUndefined();
+    expect(athlete).toBeUndefined();
   });
 
   it('an add that ends after the screen went away, before any read ended, leaves other names in the draft alone', async () => {
-    const { mount, drafts, profiles } = setup();
-    await drafts.save({ ...(await drafts.load())!, athlete: { firstName: 'Anterior', lastName: 'Guardado' } });
-    const real = drafts.load.bind(drafts);
-    const create = profiles.createManagedAthlete.bind(profiles);
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => (release = resolve));
-    jest.spyOn(profiles, 'createManagedAthlete').mockImplementation(async (input) => {
-      await gate;
-      return create(input);
-    });
-    const releases = heldReads(drafts);
-    const view = await mount();
-    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-    fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
-    await view.unmount();
-
-    await act(async () => {
-      release();
-      await gate;
-    });
-    for (let i = 0; i < 5; i++) {
-      releases.splice(0).forEach((end) => end());
-      await settle();
-    }
+    const athlete = await draftAfterAddEndedAfterUnmount(setup(), { firstName: 'Anterior', lastName: 'Guardado' });
 
     // Those names were never added: with no origin known they are not this screen's to remove.
-    expect((await real())?.athlete).toEqual({ firstName: 'Anterior', lastName: 'Guardado' });
+    expect(athlete).toEqual({ firstName: 'Anterior', lastName: 'Guardado' });
   });
 
   // Decision (issue 626): a save that changes nothing does not renew the 24 hours of the draft; only a write that changes it does.
