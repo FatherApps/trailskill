@@ -1,7 +1,7 @@
 import { Fragment, useState, type ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
-import { t } from '../../../core/i18n';
+import { namedText, t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
 import { Banner, Button, ChipRow, ColorCard, Icon, Segmented, StateView, Tag, TextField, TimeValue, type ColorCardColor, type InitialsDotProps } from '../../../core/ui';
@@ -333,7 +333,7 @@ export function TodayScreen({ athleteName = '', view, athletes, selectedAthleteI
         <StateView
           kind="denied"
           title={t('training_plans.today.denied_title')}
-          message={athleteName.trim() ? t('training_plans.today.denied_message', { name: athleteName }) : t('training_plans.today.denied_message_no_name')}
+          message={namedText('training_plans.today.denied_message', athleteName)}
         />
       )}
       {view.kind === 'offline' && (

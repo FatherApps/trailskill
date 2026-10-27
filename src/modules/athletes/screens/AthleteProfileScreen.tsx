@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
-import { t } from '../../../core/i18n';
+import { namedText, t, trimName } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { Banner, ColorHeader, StateView } from '../../../core/ui';
 import '../i18n';
@@ -9,7 +9,6 @@ import { EventSelector, type EventSelectorProps } from '../components/EventSelec
 import { formatDate } from '../components/formatDate';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 import { ImportPrompt, type ImportPromptProps } from '../components/ImportPrompt';
-import { namedText, trimName } from '../components/namedText';
 import { PersonalBest, type PersonalBestProps } from '../components/PersonalBest';
 import { ProfileHeader, type ProfileHeaderProps } from '../components/ProfileHeader';
 import { profileBandColor } from '../profileBandColor';
