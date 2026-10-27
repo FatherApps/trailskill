@@ -78,6 +78,19 @@ describe('useAdminSchool', () => {
     expect(seen).not.toContain('admin');
   });
 
+  it.each([
+    ['an admin', 'admin-1'],
+    ['a denied user', 'coach-1'],
+  ])('keeps the same result object for %s while nothing changes, so a caller may use it as a dependency', async (_label, userId) => {
+    const { result, rerender } = await renderHook(() => useAdminSchool(repository, userId));
+    await waitFor(() => expect(result.current.status).not.toBe('loading'));
+    const settled = result.current;
+
+    await rerender({});
+
+    expect(result.current).toBe(settled);
+  });
+
   it('looks again when the refresh key changes', async () => {
     let current = rows.slice(2);
     const changing: StaffSchoolRepository = {
