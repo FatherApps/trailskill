@@ -66,8 +66,9 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
   const [attempt, setAttempt] = useState(0);
   const ready = typeof loaded === 'object' ? loaded : null;
   const [day, setDay] = useState(initialDay ?? todayText());
-  // shortcut: the list of the previous day stays until the new day resolves, because clearing it shows an empty list while it loads; upgrade with a loading state for the rows.
-  const [rows, setRows] = useState<AssignedRow[]>([]);
+  // Null while the day just chosen loads, so no row (nor Withdraw button) of the previous day stays on screen.
+  // Reloading after a save keeps the rows, so the list does not flicker.
+  const [rows, setRows] = useState<AssignedRow[] | null>([]);
   // An empty parameter (`?plan=`, or an empty first value of a repeated one) counts as none.
   const preselected = (Array.isArray(initialPlanId) ? initialPlanId.find(Boolean) : initialPlanId) || null;
   // The person's own choice, made under a parameter value. It is dropped from state when the parameter changes, so a value that comes
@@ -162,7 +163,7 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
     setFailure(undefined);
     try {
       await assignments.withdraw(id, userId);
-      setRows((current) => current.filter((row) => row.id !== id));
+      setRows((current) => current && current.filter((row) => row.id !== id));
     } catch {
       setFailure('withdraw');
     } finally {
@@ -175,9 +176,16 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
     setAttempt((n) => n + 1);
   }
 
+  function changeDay(days: number) {
+    setRows(null);
+    setDay((d) => shiftDay(d, days));
+  }
+
   let view: AssignPlanView;
   if (!ready) {
     view = loaded === 'error' ? { kind: 'error', onRetry: retry } : loaded === 'no_school' ? { kind: 'no_school' } : { kind: 'loading' };
+  } else if (!rows) {
+    view = { kind: 'loading' };
   } else {
     const { scope } = ready;
     const kinds: AssignmentKind[] = scope.school ? ['athlete', 'group', 'category', 'school'] : ['athlete', 'group'];
@@ -201,8 +209,8 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
   return (
     <AssignPlanScreen
       view={view}
-      onPreviousDay={() => setDay((d) => shiftDay(d, -1))}
-      onNextDay={() => setDay((d) => shiftDay(d, 1))}
+      onPreviousDay={() => changeDay(-1)}
+      onNextDay={() => changeDay(1)}
       onSelectPlan={(id) => setPick({ param: preselected, id })}
       onSelectKind={(next) => {
         setKind(next);

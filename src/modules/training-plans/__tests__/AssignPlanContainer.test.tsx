@@ -489,6 +489,40 @@ describe('AssignPlanContainer', () => {
     });
   });
 
+  describe('the assignments of the day', () => {
+    it('leaves no row nor Withdraw button of the previous day while the new day loads', async () => {
+      mockDayLoad = async () => [assignmentOfDay('assignment-1')];
+      await setup('plan-1');
+      await screen.findByTestId('assigned-assignment-1');
+      let release = () => {};
+      mockDayLoad = () => new Promise((resolve) => (release = () => resolve([assignmentOfDay('assignment-2')])));
+
+      await act(async () => screenProps().onNextDay());
+
+      expect(screenProps().view.kind).toBe('loading');
+      expect(screen.queryByTestId('assigned-assignment-1')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Quitar asignación' })).toBeNull();
+      await act(async () => release());
+      expect(await screen.findByTestId('assigned-assignment-2')).toBeTruthy();
+      expect(screen.queryByTestId('assigned-assignment-1')).toBeNull();
+    });
+
+    it('keeps the rows visible while the day reloads after a save', async () => {
+      mockDayLoad = async () => [assignmentOfDay('assignment-1')];
+      await setup('plan-1');
+      await screen.findByTestId('assigned-assignment-1');
+      let release = () => {};
+      mockDayLoad = () => new Promise((resolve) => (release = () => resolve([assignmentOfDay('assignment-1')])));
+      await act(async () => screenProps().onSelectKind('school'));
+
+      await act(async () => screenProps().onAssign());
+
+      expect(screenProps().view.kind).toBe('data');
+      expect(screen.getByTestId('assigned-assignment-1')).toBeTruthy();
+      await act(async () => release());
+    });
+  });
+
   describe('the picked plan', () => {
     it('is dropped when a new list of the same user lacks it, and does not come back with a later one', async () => {
       const { hidden } = await setup();
