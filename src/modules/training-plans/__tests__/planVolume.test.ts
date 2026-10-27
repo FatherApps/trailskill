@@ -6,7 +6,12 @@ const block = (repetitions: number, distance: number) => ({ repetitions, distanc
 // Rows read from the database are not checked at runtime: they can hold null, undefined or strings where the type says number.
 const row = (repetitions: unknown, distance: unknown) => ({ repetitions, distance });
 // The production type says number: this test feeds it what the database can hand over.
-const summaryOfRows = (rows: { repetitions: unknown; distance: unknown }[]) => planSummary(rows as Parameters<typeof planSummary>[0]);
+const summaryOfRows = (rows: { repetitions: unknown; distance: unknown }[]) => {
+  // This line stops compiling ("Unused '@ts-expect-error' directive") once planSummary accepts non-number factors: then the cast below is no longer needed and this helper must be revisited.
+  // @ts-expect-error planSummary types both factors as number.
+  planSummary(rows);
+  return planSummary(rows as Parameters<typeof planSummary>[0]);
+};
 
 describe('planSummary', () => {
   it('keeps "metres · blocks" when every block adds metres', () => {
@@ -74,8 +79,11 @@ describe('planSummary', () => {
     const small = block(4e153, 1e154);
     const medium = block(1e154, 1e154);
     const big = block(1.5e154, 1e154);
-    // 1.4e308 is small + medium: any total that kept the big block would be bigger or overflow, so this one proves the big block is the one left out.
-    const expected = `${formatNumber(1.4e308)} m + 1 bloque sin distancia`;
+    // 1.4e308 is small + medium: any total that kept the big block would be bigger or overflow.
+    const withoutBig = `${formatNumber(1.4e308)} m`;
+    // The big block is left out directly: the two smaller ones alone give that same total and no unmeasured block, so the third block adds nothing to the metres.
+    expect(planSummary([small, medium])).toBe(`${withoutBig} · 2 bloques`);
+    const expected = `${withoutBig} + 1 bloque sin distancia`;
     for (const blocks of [
       [small, medium, big],
       [small, big, medium],
@@ -89,7 +97,7 @@ describe('planSummary', () => {
   });
 
   // Blocks are added in ascending order, not in plan order: 0.1 + 0.2 + 0.3 is 0.6000000000000001 that way and 0.6 from the biggest.
-  // formatNumber rounds to three decimals, so the metres shown are the same in any order.
+  // formatNumber rounds to three decimals, so the metres shown are the same in any order: this test cannot tell if the order is removed; the next one can.
   it('shows the same metres for fractional distances in any order', () => {
     expect(planSummary([block(1, 0.1), block(1, 0.2)])).toBe('0,3 m · 2 bloques');
     for (const blocks of [
@@ -98,6 +106,20 @@ describe('planSummary', () => {
       [block(1, 0.2), block(1, 0.3), block(1, 0.1)],
     ]) {
       expect(planSummary(blocks)).toBe('0,6 m · 3 bloques');
+    }
+  });
+
+  // 2^52 has a rounding step of 1: 2^52 + 0.4 rounds back to 2^52, but 0.4 + 0.4 first and then 2^52 gives 2^52 + 1. The two sums differ by 1, far above the 0,0005 that formatNumber hides.
+  it('adds fractional distances from the smallest, so the total does not depend on the order of the plan', () => {
+    const huge = block(1, 2 ** 52);
+    const fraction = block(1, 0.4);
+    const expected = `${formatNumber(2 ** 52 + 1)} m · 3 bloques`;
+    for (const blocks of [
+      [huge, fraction, fraction],
+      [fraction, huge, fraction],
+      [fraction, fraction, huge],
+    ]) {
+      expect(planSummary(blocks)).toBe(expected);
     }
   });
 
