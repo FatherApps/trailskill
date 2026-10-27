@@ -5,12 +5,12 @@ import { CodeMismatchError } from '../../../core/session';
 import type { CodeBusy } from '../components/CodeStep';
 import type { InvitationRepository } from '../data/invitations';
 import type { RegistrationDraft, RegistrationDraftRepository } from '../data/registrationDraft';
+import { SHOW_PROVIDERS } from '../providerAvailability';
 import {
   AccountDetailsScreen,
   type AccountDetailsField,
   type AccountDetailsScreenProps,
 } from './AccountDetailsScreen';
-import { SHOW_PROVIDERS } from '../providerAvailability';
 import { useInvitation } from './useInvitation';
 
 export type AccountDetailsContainerProps = {
