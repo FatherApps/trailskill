@@ -66,9 +66,10 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
   const [attempt, setAttempt] = useState(0);
   const ready = typeof loaded === 'object' ? loaded : null;
   const [day, setDay] = useState(initialDay ?? todayText());
-  // Null while the day just chosen loads, so no row (nor Withdraw button) of the previous day stays on screen.
+  // Null until the day loads (the first time, and again on each day change), so no row (nor Withdraw button) of the previous day stays on screen
+  // and the list shows the loading state, not "no assignments". The form stays mounted, so focus and scroll are kept.
   // Reloading after a save keeps the rows, so the list does not flicker.
-  const [rows, setRows] = useState<AssignedRow[] | null>([]);
+  const [rows, setRows] = useState<AssignedRow[] | null>(null);
   // An empty parameter (`?plan=`, or an empty first value of a repeated one) counts as none.
   const preselected = (Array.isArray(initialPlanId) ? initialPlanId.find(Boolean) : initialPlanId) || null;
   // The person's own choice, made under a parameter value. It is dropped from state when the parameter changes, so a value that comes
@@ -135,8 +136,9 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
       cancelled = true;
     };
     // `saving` going back to false reloads the day after a save.
+    // `ready` is null on the first load and on every retry, so it being set is what loads the day, whatever its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, day, saving]);
+  }, [ready !== null, day, saving]);
 
   // save and withdraw need no unmount guard: the setters they reach after the screen is gone are harmless no-ops in React 18+.
   async function save() {
@@ -185,8 +187,6 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
   let view: AssignPlanView;
   if (!ready) {
     view = loaded === 'error' ? { kind: 'error', onRetry: retry } : loaded === 'no_school' ? { kind: 'no_school' } : { kind: 'loading' };
-  } else if (!rows) {
-    view = { kind: 'loading' };
   } else {
     const { scope } = ready;
     const kinds: AssignmentKind[] = scope.school ? ['athlete', 'group', 'category', 'school'] : ['athlete', 'group'];

@@ -504,7 +504,8 @@ describe('AssignPlanContainer', () => {
 
       await act(async () => screenProps().onNextDay());
 
-      expect(screenProps().view.kind).toBe('loading');
+      expect(content().dateLabel).toBe(dayLabel(shiftDay(todayText(), 1)));
+      expect(content().assigned).toBeNull();
       expect(screen.queryByTestId('assigned-assignment-1')).toBeNull();
       expect(screen.queryByRole('button', { name: 'Quitar asignación' })).toBeNull();
       await act(async () => release());
@@ -512,19 +513,101 @@ describe('AssignPlanContainer', () => {
       expect(screen.queryByTestId('assigned-assignment-1')).toBeNull();
     });
 
-    it('keeps the rows visible while the day reloads after a save', async () => {
+    it('keeps the form mounted and shows the loading in the list while the new day loads', async () => {
       mockDayLoad = async () => [assignmentOfDay('assignment-1')];
       await setup('plan-1');
       await screen.findByTestId('assigned-assignment-1');
+      const nextDay = screen.getByRole('button', { name: 'Día siguiente' });
+      await fireEvent.press(screen.getByRole('radio', { name: 'Toda la escuela' }));
+      let release = () => {};
+      mockDayLoad = () => new Promise((resolve) => (release = () => resolve([])));
+
+      await fireEvent.press(nextDay);
+
+      expect(screen.getByRole('button', { name: 'Día siguiente' })).toBe(nextDay);
+      expect(selected('Resistencia')).toBe(true);
+      expect(screen.getByTestId('state-view')).toBeTruthy();
+      // The same state the button has while saving.
+      expect(screen.getByRole('button', { name: 'Asignar' }).props.accessibilityState).toMatchObject({ busy: true, disabled: true });
+      await act(async () => release());
+      expect(await screen.findByText('Aún no hay asignaciones para este día.')).toBeTruthy();
+      expect(screen.queryByTestId('state-view')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Asignar' }).props.accessibilityState).toMatchObject({ busy: false });
+    });
+
+    it('shows the loading in the list, not an empty list, on the first load', async () => {
       let release = () => {};
       mockDayLoad = () => new Promise((resolve) => (release = () => resolve([assignmentOfDay('assignment-1')])));
-      await act(async () => screenProps().onSelectKind('school'));
 
-      await act(async () => screenProps().onAssign());
+      await setup('plan-1');
+
+      expect(content().assigned).toBeNull();
+      expect(screen.getByTestId('state-view')).toBeTruthy();
+      expect(screen.queryByText('Aún no hay asignaciones para este día.')).toBeNull();
+      await act(async () => release());
+      expect(await screen.findByTestId('assigned-assignment-1')).toBeTruthy();
+    });
+
+    it('keeps the rows visible while the day reloads after a save, then applies the reloaded rows', async () => {
+      mockDayLoad = async () => [assignmentOfDay('assignment-1')];
+      const { assignments } = await setup('plan-1');
+      await screen.findByTestId('assigned-assignment-1');
+      // The save is held so the screen renders with it on its way: the reload runs once it ends.
+      let finish = () => {};
+      jest.spyOn(assignments, 'create').mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => (finish = resolve));
+        return 'assignment-2';
+      });
+      await act(async () => screenProps().onSelectKind('school'));
+      await act(async () => {
+        void screenProps().onAssign();
+      });
+      let release = () => {};
+      mockDayLoad = () => new Promise((resolve) => (release = () => resolve([assignmentOfDay('assignment-2')])));
+      await act(async () => finish());
 
       expect(screenProps().view.kind).toBe('data');
       expect(screen.getByTestId('assigned-assignment-1')).toBeTruthy();
       await act(async () => release());
+      // The reload is applied: the rows it returned replace the ones shown while it was pending.
+      expect(await screen.findByTestId('assigned-assignment-2')).toBeTruthy();
+      expect(screen.queryByTestId('assigned-assignment-1')).toBeNull();
+    });
+
+    it('keeps the rows of the new day when a withdrawal of the previous day finishes after their read', async () => {
+      mockDayLoad = async () => [assignmentOfDay('assignment-1')];
+      const { assignments } = await setup('plan-1');
+      const id = await assignments.create({ schoolId: 'school-1', planId: 'plan-1', sessionDate: todayText(), target: { kind: 'school' } });
+      await screen.findByTestId('assigned-assignment-1');
+      const withdraw = assignments.withdraw;
+      let release = () => {};
+      jest.spyOn(assignments, 'withdraw').mockImplementationOnce(async (assignmentId, asUser) => {
+        await new Promise<void>((resolve) => (release = resolve));
+        return withdraw(assignmentId, asUser);
+      });
+      await act(async () => {
+        void screenProps().onWithdraw(id);
+      });
+      mockDayLoad = async () => [assignmentOfDay('assignment-2')];
+
+      await act(async () => screenProps().onNextDay());
+      await screen.findByTestId('assigned-assignment-2');
+      await act(async () => release());
+
+      expect(screen.getByTestId('assigned-assignment-2')).toBeTruthy();
+      expect(content().failure).toBeUndefined();
+      expect(await assignments.list('school-1', todayText())).toEqual([]);
+    });
+
+    it('loads the day again when the retry follows a failed read', async () => {
+      await setup('plan-1');
+      mockDayLoad = jest.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue([assignmentOfDay('assignment-1')]);
+      await act(async () => screenProps().onNextDay());
+      await waitFor(() => expect(screenProps().view.kind).toBe('error'));
+
+      await act(async () => retryOfError()());
+
+      expect(await screen.findByTestId('assigned-assignment-1')).toBeTruthy();
     });
   });
 
