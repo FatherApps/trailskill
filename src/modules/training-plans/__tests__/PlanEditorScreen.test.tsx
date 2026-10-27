@@ -377,35 +377,48 @@ describe('PlanEditorScreen', () => {
     // Makes the next `save` wait until `finish` or `fail` is called; `finish` stores the plan, `fail` rejects.
     // A hold a test left open is finished after it, so a failed assertion cannot leave a save running into the next test.
     // That happens after the test body, and maybe after the screen unmounted, so a warning (a state update on an unmounted
-    // screen, say) would go unnoticed: the console is watched and checked once the holds are finished. Only the warnings that name
-    // the editor count (React passes the component's name as an argument): one from elsewhere, such as a dependency's
-    // deprecation, is not this block's to fail.
+    // screen, say) would go unnoticed: the console is watched and checked once the holds are finished.
     const holds: (() => void)[] = [];
-    const heldGets: jest.SpyInstance[] = [];
+    const heldSpies: jest.SpyInstance[] = [];
+    const rereads: string[] = [];
     const consoleSpies = {} as { error: jest.SpyInstance; warn: jest.SpyInstance };
-    const editorWarnings = (spy: jest.SpyInstance) =>
-      spy.mock.calls.filter((args: unknown[]) => args.map(String).join(' ').includes('PlanEditorScreen'));
+    // A call counts when it names the editor (React passes the component's name as an argument), says a state update was not wrapped
+    // in act or reached an unmounted component, or has an argument that is not a string, which this cannot read: one from
+    // elsewhere, such as a dependency's deprecation, is not this block's to fail.
+    const concernsEditor = (args: unknown[]) =>
+      args.some((arg) => typeof arg !== 'string') ||
+      /PlanEditorScreen|not wrapped in act|unmounted/.test(args.join(' '));
     beforeEach(() => {
       consoleSpies.error = jest.spyOn(console, 'error');
       consoleSpies.warn = jest.spyOn(console, 'warn');
     });
+    // Ends the holds a test left open and returns what went wrong around them: the console calls that count and the reads held twice.
+    const finishHolds = async () => {
+      await act(async () => holds.splice(0).forEach((release) => release()));
+      const logged = [...consoleSpies.error.mock.calls, ...consoleSpies.warn.mock.calls].filter(concernsEditor);
+      consoleSpies.error.mockClear();
+      consoleSpies.warn.mockClear();
+      return [...logged, ...rereads.splice(0)];
+    };
+    // Whatever a release did, the spies are restored: one left behind would hide the console of the next test.
+    const restoreSpies = () => {
+      consoleSpies.error.mockRestore();
+      consoleSpies.warn.mockRestore();
+      heldSpies.splice(0).forEach((spy) => spy.mockRestore());
+    };
     afterEach(async () => {
-      let logged: unknown[][] = [];
+      let problems: unknown[] = [];
       try {
-        await act(async () => holds.splice(0).forEach((release) => release()));
-        logged = [...editorWarnings(consoleSpies.error), ...editorWarnings(consoleSpies.warn)];
+        problems = await finishHolds();
       } finally {
-        // Whatever a release did, the spies are restored: one left behind would hide the console of the next test.
-        consoleSpies.error.mockRestore();
-        consoleSpies.warn.mockRestore();
-        heldGets.splice(0).forEach((spy) => spy.mockRestore());
+        restoreSpies();
       }
-      expect(logged).toEqual([]);
+      expect(problems).toEqual([]);
     });
     const holdNextSave = (ctx: ReturnType<typeof setup>) => {
       const hold = {} as { finish: () => void; fail: () => void };
       const save = ctx.repository.save.bind(ctx.repository);
-      jest.spyOn(ctx.repository, 'save').mockImplementationOnce(
+      const spy = jest.spyOn(ctx.repository, 'save').mockImplementationOnce(
         (plan) =>
           new Promise<void>((resolve, reject) => {
             let ended = false;
@@ -419,21 +432,27 @@ describe('PlanEditorScreen', () => {
             holds.push(hold.finish);
           }),
       );
+      heldSpies.push(spy);
       return hold;
     };
 
-    // Makes the next `get` wait until `load` or `fail` is called, and restores `get` after the test. `load` and `fail` throw if the
-    // editor never called `get`, so a test that did not reach the read fails saying so instead of on an undefined function.
+    // Makes the next `get` wait until `load` or `fail` is called, and restores `get` after the test; a read the test never loaded
+    // or failed is loaded after it. `load` and `fail` throw if the editor never called `get`, so a test that did not reach the read
+    // fails saying so instead of on an undefined function. Only the first `get` is held: a second one in the same test fails it.
     const holdNextGet = (ctx: ReturnType<typeof setup>) => {
       const get = ctx.repository.get.bind(ctx.repository);
       let pending: { load: () => void; fail: () => void } | undefined;
-      heldGets.push(
-        jest.spyOn(ctx.repository, 'get').mockImplementationOnce(
-          (id) =>
-            new Promise((resolve, reject) => {
-              pending = { load: () => resolve(get(id)), fail: () => reject(new Error('offline')) };
-            }),
-        ),
+      heldSpies.push(
+        jest.spyOn(ctx.repository, 'get').mockImplementation((id) => {
+          if (pending) {
+            rereads.push('repository.get was called a second time in a test that holds its first read');
+            return get(id);
+          }
+          return new Promise((resolve, reject) => {
+            pending = { load: () => resolve(get(id)), fail: () => reject(new Error('offline')) };
+            holds.push(pending.load);
+          });
+        }),
       );
       const held = () => {
         if (!pending) throw new Error('repository.get was never called, so no read is being held');
@@ -441,6 +460,77 @@ describe('PlanEditorScreen', () => {
       };
       return { load: () => held().load(), fail: () => held().fail() };
     };
+
+    describe('the checks that run after each test', () => {
+      const quiet = () => {
+        consoleSpies.error.mockImplementation(() => {});
+        consoleSpies.warn.mockImplementation(() => {});
+      };
+
+      it('fails on a warning that names the editor', async () => {
+        quiet();
+        console.error('Cannot update a component (`%s`) while rendering', 'PlanEditorScreen');
+
+        expect(await finishHolds()).toHaveLength(1);
+      });
+
+      it('fails on a "not wrapped in act" warning that does not name the editor', async () => {
+        quiet();
+        console.error('An update to %s inside a test was not wrapped in act(...)', 'Banner');
+
+        expect(await finishHolds()).toHaveLength(1);
+      });
+
+      it('fails on an update on an unmounted component that does not name the editor', async () => {
+        quiet();
+        console.error("Can't perform a React state update on an unmounted component.");
+
+        expect(await finishHolds()).toHaveLength(1);
+      });
+
+      it('fails on a console call whose argument is not a string', async () => {
+        quiet();
+        console.warn(new Error('boom'));
+
+        expect(await finishHolds()).toHaveLength(1);
+      });
+
+      it('lets a warning from elsewhere through', async () => {
+        quiet();
+        console.warn('Some dependency is deprecated.');
+
+        expect(await finishHolds()).toEqual([]);
+      });
+
+      it('restores the spy of a held save', () => {
+        const ctx = setup();
+        holdNextSave(ctx);
+        restoreSpies();
+
+        expect(jest.isMockFunction(ctx.repository.save)).toBe(false);
+      });
+
+      it('releases a held read the test never loaded or failed', async () => {
+        const ctx = setup();
+        holdNextGet(ctx);
+        let settled = false;
+        const read = Promise.resolve(ctx.repository.get('unknown')).catch(() => {});
+        void read.then(() => (settled = true));
+
+        await finishHolds();
+
+        expect(settled).toBe(true);
+      });
+
+      it('fails on a second read in the same test', async () => {
+        const ctx = setup();
+        holdNextGet(ctx);
+        void Promise.resolve(ctx.repository.get('one')).catch(() => {});
+        void Promise.resolve(ctx.repository.get('two')).catch(() => {});
+
+        expect(await finishHolds()).toHaveLength(1);
+      });
+    });
 
     // Two stored plans; the editor opens the first, edited and with its save held and running.
     async function saveFirst(ctx: ReturnType<typeof setup>, button: string) {
@@ -659,7 +749,7 @@ describe('PlanEditorScreen', () => {
         expect(screen.getByRole('button', { name: 'Guardar como plantilla' })).not.toBeBusy();
       });
 
-      // The template message follows the plan on screen (`showsPlan`, by id) while the report of the save follows the load (`live`).
+      // The template message follows the plan on screen, by id, while the report of the save follows the load.
       it('says the template was made without reporting the plan as saved, since the plan was reopened', async () => {
         const ctx = setup();
         const { hold } = await reopenFirst(ctx, 'Guardar como plantilla');
