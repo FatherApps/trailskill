@@ -25,7 +25,7 @@ function makeCallbacks() {
 
 async function renderScreen(props: Partial<AccountDetailsScreenProps> = {}) {
   const callbacks = makeCallbacks();
-  await render(<AccountDetailsScreen step={2} total={4} values={empty} {...callbacks} {...props} />);
+  await render(<AccountDetailsScreen step={2} total={4} values={empty} providers {...callbacks} {...props} />);
   return callbacks;
 }
 
@@ -181,6 +181,25 @@ describe('AccountDetailsScreen registration states', () => {
     expect(screen.queryByRole('button', { name: 'Continuar con Google' })).toBeNull();
     expect(screen.queryByText('o con un código por correo')).toBeNull();
     expect(screen.getByRole('button', { name: 'Enviarme un código' })).toBeOnTheScreen();
+  });
+
+  it('providers omitted: the buttons stay hidden, and the compiler asks for the prop', async () => {
+    await render(
+      // @ts-expect-error providers is required: a consumer that forgets it must not show the buttons by accident.
+      <AccountDetailsScreen
+        step={2}
+        total={3}
+        values={empty}
+        onChange={jest.fn()}
+        onRequestCode={jest.fn()}
+        onSubmitCode={jest.fn()}
+        onSignIn={jest.fn()}
+        onBack={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Continuar con Google' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Continuar con Microsoft' })).toBeNull();
   });
 
   it('offline failure: explains the missing signal and retries', async () => {

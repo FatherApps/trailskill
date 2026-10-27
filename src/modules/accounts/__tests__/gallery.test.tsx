@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react-native';
 
 import { galleryEntries } from '..';
 import { t } from '../../../core/i18n';
+import { SHOW_PROVIDERS } from '../providerAvailability';
 
 // The accounts index reaches the PowerSync repository; the sync layer is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ db: {}, RecordSyncStatus: () => null }));
@@ -13,6 +14,10 @@ jest.mock('../providerAvailability', () => ({
     return mockShowProviders;
   },
 }));
+
+afterEach(() => {
+  mockShowProviders = false;
+});
 
 const statesOf = (id: string) => Object.keys(galleryEntries.find((entry) => entry.id === id)!.states);
 
@@ -50,7 +55,8 @@ describe('accounts gallery entries', () => {
   });
 
   // Prefix match: the offline button name carries the reason after the provider.
-  describe.each([true, false])('with SHOW_PROVIDERS %s', (showProviders) => {
+  // The last iteration is the one that would leak into later tests, so it is the one that must differ from the reset.
+  describe.each([false, true])('with SHOW_PROVIDERS %s', (showProviders) => {
     beforeEach(() => {
       mockShowProviders = showProviders;
     });
@@ -72,12 +78,23 @@ describe('accounts gallery entries', () => {
       await render(entry.states.offline());
 
       for (const provider of ['google', 'microsoft']) {
-        const name = new RegExp(`^${t(`accounts.providers.${provider}`)}.*${t('accounts.offline.reason')}`);
-        const button = screen.queryByRole('button', { name });
-        if (showProviders) expect(button).toBeDisabled();
-        else expect(button).toBeNull();
+        const label = t(`accounts.providers.${provider}`);
+        const button = screen.queryByRole('button', { name: new RegExp(`^${label}`) });
+        if (!showProviders) {
+          expect(button).toBeNull();
+          continue;
+        }
+        if (button === null) throw new Error(`No button named "${label}…" with the flag on: the provider buttons are missing`);
+        expect(button).toBeDisabled();
+        // The reason is announced in the name or, if it moves, in the hint: either keeps the test valid.
+        const announced = `${button.props.accessibilityLabel} ${button.props.accessibilityHint ?? ''}`;
+        expect(announced).toContain(t('accounts.offline.reason'));
       }
     });
+  });
+
+  it('does not carry the flag of the last SHOW_PROVIDERS iteration into the tests that follow', () => {
+    expect(SHOW_PROVIDERS).toBe(false);
   });
 
   it.each(galleryEntries.flatMap((entry) => Object.keys(entry.states).map((state) => [entry.id, state] as const)))(

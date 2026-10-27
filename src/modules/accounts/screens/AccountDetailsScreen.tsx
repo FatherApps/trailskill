@@ -29,9 +29,8 @@ export type AccountDetailsScreenProps = {
   // A request that failed: explained with a retry, the draft untouched.
   failure?: 'offline' | 'request_failed' | 'verify_failed';
   onRetry?: () => void;
-  // Google and Microsoft sign-in; registration hides them until they can create accounts.
-  // shortcut: defaults to true, so a consumer that forgets SHOW_PROVIDERS shows the buttons; make it required when a third consumer appears (today: the container and the gallery, both pass it).
-  providers?: boolean;
+  // Google and Microsoft sign-in; registration hides them until they can create accounts. Required, so no consumer shows them by omission.
+  providers: boolean;
   invitation?: Invitation;
   // The link was unknown, expired or revoked.
   invalidInvitation?: boolean;
@@ -80,7 +79,7 @@ export function AccountDetailsScreen({
   offline = false,
   failure,
   onRetry,
-  providers = true,
+  providers,
   invitation,
   invalidInvitation,
   onChange,
