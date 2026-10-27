@@ -55,7 +55,7 @@ function targetLabel(scope: AssignScope, target: AssignmentTarget): string {
 
 // Container: finds the school and what the user may assign, and saves the assignments through the local repository.
 // Each user gets a screen of their own: nothing of the previous one (list, day, choices, failure, the saving state) carries over.
-// A save or withdrawal still on its way is not cancelled: the remount only cuts its UI, and the write finishes on the device.
+// A save or withdrawal still on its way only loses its UI on the remount: the write carries `userId`, so it is discarded when it reaches the device under another user.
 // shortcut: no guard for an empty `userId`, the route renders this only with a session so the id is always set; add one if a caller can pass a transient id.
 export function AssignPlanContainer(props: AssignPlanContainerProps) {
   return <AssignPlanBody key={props.userId} {...props} />;
@@ -144,7 +144,7 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
     setFailure(undefined);
     setSaving(true);
     try {
-      await assignPlan(assignments, ready.scope, { planId: chosenPlanId, sessionDate: day, target });
+      await assignPlan(assignments, ready.scope, { planId: chosenPlanId, sessionDate: day, target }, userId);
       setOptionId(null);
     } catch (error) {
       const denied = error instanceof PlanNotAssignableError || error instanceof TargetNotInChargeError || error instanceof TargetOutsideSchoolError;
@@ -161,7 +161,7 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
     busy.current = true;
     setFailure(undefined);
     try {
-      await assignments.withdraw(id);
+      await assignments.withdraw(id, userId);
       setRows((current) => current.filter((row) => row.id !== id));
     } catch {
       setFailure('withdraw');

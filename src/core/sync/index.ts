@@ -8,5 +8,5 @@ export { useQuery } from '@powersync/react';
 export { connectionState, countUnsentRecords, recordSyncState, useGlobalSyncSummary, useRecordSyncState, useRecordSyncStates } from './syncState';
 export type { RecordSyncState, SyncConnection } from './syncState';
 export { RecordSyncStatus } from './RecordSyncStatus';
-export { deleteRecord, editRecord, retryFailedRecord, writeBatch, writeRecord } from './writes';
+export { deleteRecord, editRecord, retryFailedRecord, setSessionUser, writeBatch, writeRecord } from './writes';
 export type { RetryResult, WriteBatch } from './writes';

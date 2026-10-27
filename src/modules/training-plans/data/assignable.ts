@@ -84,9 +84,9 @@ export function canWithdraw(scope: AssignScope, target: AssignmentTarget): boole
 }
 
 /** Saves the assignment when the user may make it; nothing is written otherwise. Returns the assignment id. */
-export async function assignPlan(repository: AssignmentRepository, scope: AssignScope, assignment: Omit<NewAssignment, 'schoolId'>): Promise<string> {
+export async function assignPlan(repository: AssignmentRepository, scope: AssignScope, assignment: Omit<NewAssignment, 'schoolId'>, asUser?: string): Promise<string> {
   checkTarget(scope, assignment.target);
-  return repository.create({ ...assignment, schoolId: scope.schoolId });
+  return repository.create({ ...assignment, schoolId: scope.schoolId }, asUser);
 }
 
 /** The assignments of a day with the athletes each one reaches (6.4 and 6.6 read the day through this). */

@@ -11,7 +11,7 @@ jest.mock('../../../core/sync/db', () => ({ db: {} }));
 async function setup(userId: string, existing: AssignmentTarget[] = []) {
   const plans = createInMemoryTrainingPlanRepository();
   await plans.save(plan('p1'));
-  const assignments = createInMemoryAssignmentRepository(plans);
+  const assignments = createInMemoryAssignmentRepository(plans, () => userId);
   for (const target of existing) await assignments.create({ planId: 'p1', schoolId: 's1', sessionDate: '2026-11-02', target });
   await render(
     <AssignPlanContainer

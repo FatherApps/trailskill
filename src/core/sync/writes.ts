@@ -118,14 +118,24 @@ export type WriteBatch = {
   delete(table: string, id: string): Promise<void>;
 };
 
+// The user signed in now, kept by the session provider; undefined while nobody is.
+let sessionUser: string | undefined;
+
+/** Records who is signed in; the session provider calls it on every change of session, with undefined after signing out. */
+export function setSessionUser(userId: string | undefined): void {
+  sessionUser = userId;
+}
+
 /**
  * Runs several writes and deletions in one local transaction: they are all saved and queued for upload together,
  * or, when one fails or the app dies midway, none of them is. Reads made through the batch see its earlier writes
  * and no other write can interleave. Returns what `writes` returns.
+ * With `asUser`, the user who started the write, the batch is discarded (rolled back, nothing saved or queued, and it rejects)
+ * when the session no longer belongs to that user as it is about to commit: a shared device never saves one person's write for another.
  */
-export async function writeBatch<T>(writes: (batch: WriteBatch) => Promise<T>): Promise<T> {
-  return db.writeTransaction((tx) =>
-    writes({
+export async function writeBatch<T>(writes: (batch: WriteBatch) => Promise<T>, asUser?: string): Promise<T> {
+  return db.writeTransaction(async (tx) => {
+    const result = await writes({
       getAll: (sql, params) => tx.getAll(sql, params),
       write: async (table, values) => {
         assertWritable(table, values);
@@ -139,8 +149,13 @@ export async function writeBatch<T>(writes: (batch: WriteBatch) => Promise<T>): 
         assertIdentifier(table);
         return removeRow(tx, table, id);
       },
-    }),
-  );
+    });
+    // Checked last, so a session that changed while the batch waited or ran is seen.
+    // shortcut: a session change between this check and the commit leaves the row as the previous owner's unsent record; upgrade if the
+    // session provider's owner check stops holding or clearing those records before the next user syncs.
+    if (asUser !== undefined && asUser !== sessionUser) throw new Error(`Discarded a write of user ${asUser}: the session belongs to another user now`);
+    return result;
+  });
 }
 
 // Columns the server fills with a default; sending an explicit null breaks `not null default` (23502).

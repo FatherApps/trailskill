@@ -25,13 +25,17 @@ export type NewAssignment = Omit<Assignment, 'id' | 'versionId' | 'versionChange
 export interface AssignmentRepository {
   /** The assignments of the school for a day (YYYY-MM-DD), oldest first. Withdrawn assignments are not listed. */
   list(schoolId: string, sessionDate: string): Promise<Assignment[]>;
-  /** Saves an assignment of the latest version of the plan; returns its id. Rejects with PlanNotAssignableError when the plan has no version in the school. */
-  create(assignment: NewAssignment): Promise<string>;
+  /**
+   * Saves an assignment of the latest version of the plan; returns its id. Rejects with PlanNotAssignableError when the plan has no version in the school.
+   * With `asUser`, the user who started the save, it is discarded and rejects when the session belongs to someone else as it is written.
+   */
+  create(assignment: NewAssignment, asUser?: string): Promise<string>;
   /**
    * Withdraws an assignment (logical withdrawal, never a delete): it disappears from `list` at once, its marks are kept,
    * and the server records who withdrew it. Withdrawing an already withdrawn assignment changes nothing; rejects when the assignment is not on this device.
+   * `asUser` works like in `create`.
    */
-  withdraw(id: string): Promise<void>;
+  withdraw(id: string, asUser?: string): Promise<void>;
 }
 
 /** The plan does not exist, belongs to another school or has no version, so nothing was written. */

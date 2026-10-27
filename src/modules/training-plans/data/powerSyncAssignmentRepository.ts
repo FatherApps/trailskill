@@ -59,7 +59,7 @@ export function createPowerSyncAssignmentRepository(): AssignmentRepository {
         }),
       );
     },
-    async create({ schoolId, planId, sessionDate, target }) {
+    async create({ schoolId, planId, sessionDate, target }, asUser) {
       validateSessionDate(sessionDate);
       // Reads and write share one transaction, so the version chosen is the one the row is saved with.
       return writeBatch(async (batch) => {
@@ -73,16 +73,16 @@ export function createPowerSyncAssignmentRepository(): AssignmentRepository {
           session_date: sessionDate,
           ...targetColumns(target),
         });
-      });
+      }, asUser);
     },
-    withdraw(id) {
+    withdraw(id, asUser) {
       // One transaction: writing alone would INSERT a broken row for an id that is not here. Only withdrawn_at is sent; the server sets withdrawn_by.
       return writeBatch(async (batch) => {
         const [row] = await batch.getAll<{ withdrawn_at: string | null }>('SELECT withdrawn_at FROM training_plan_assignments WHERE id = ?', [id]);
         if (!row) throw new Error(`Cannot withdraw assignment ${id}: it is not on this device`);
         if (row.withdrawn_at !== null) return;
         await batch.write('training_plan_assignments', { id, withdrawn_at: new Date().toISOString() });
-      });
+      }, asUser);
     },
   };
 }
