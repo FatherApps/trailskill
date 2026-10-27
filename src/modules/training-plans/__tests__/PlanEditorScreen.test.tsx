@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { Dimensions } from 'react-native';
 
 import { createInMemoryStaffSchoolRepository } from '../../school-console';
-import { BlockHasFulfillmentError } from '../data/plans';
+import { BlockHasFulfillmentError, type Plan } from '../data/plans';
 import { createInMemoryTrainingPlanRepository } from '../data/inMemoryTrainingPlanRepository';
 import { PlanEditorScreen } from '../screens/PlanEditorScreen';
 import { planVocabulary } from '../vocabulary';
@@ -840,13 +840,25 @@ describe('PlanEditorScreen', () => {
     const realGet = Dimensions.get.bind(Dimensions);
     afterEach(() => jest.restoreAllMocks());
 
+    // The two blocks are stored, not built through the screen: building them took ~25 awaited presses, each re-rendering the whole
+    // screen, which pushed the case past Jest's 5 s when the machine was busy (issue 654).
+    const twoBlocks: Plan = {
+      id: 'plan-1',
+      schoolId: SCHOOL,
+      name: 'Dos bloques',
+      isTemplate: false,
+      blocks: [
+        { id: 'b1', phase: 'warm_up', repetitions: 2, distance: 100, activity: 'FR', equipment: [], sendOffSeconds: null, recording: 'completion' },
+        { id: 'b2', phase: 'main', repetitions: 4, distance: 50, activity: 'BK', equipment: [], sendOffSeconds: null, recording: 'per_repetition' },
+      ],
+    };
+
     async function openFirstOfTwo() {
       jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), width: 1024, height: 768 }));
       const ctx = setup();
-      await render(ctx.element(null));
-      await screen.findByLabelText('Nombre del plan');
-      await addBlock(everyField[0]);
-      await addBlock(everyField[1]);
+      await ctx.repository.save(twoBlocks);
+      await render(ctx.element(twoBlocks.id));
+      await screen.findByText('400 m · 2 bloques');
       await fireEvent.press(screen.getAllByRole('button', { name: 'Editar' })[0]);
       expect(screen.getByRole('header', { name: 'Editando el bloque 1' })).toBeOnTheScreen();
     }
