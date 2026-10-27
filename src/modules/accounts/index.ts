@@ -13,6 +13,7 @@ export {
 export { AuthorizationsScreen, type AuthorizationsScreenProps } from './screens/AuthorizationsScreen';
 export { ConsentCard, type ConsentCardProps } from './components/ConsentCard';
 export { ResumeRegistration, type ResumeRegistrationProps } from './components/ResumeRegistration';
+export { ExistingAccountSheet, type ExistingAccountSheetProps } from './components/ExistingAccountSheet';
 export { LEGAL_REVIEW_PENDING } from './legalReview';
 export { AddAthletesScreen, type AddAthleteField, type AddAthletesScreenProps, type AddedAthlete } from './screens/AddAthletesScreen';
 export { AddAthletesContainer, type AddAthletesContainerProps, } from './screens/AddAthletesContainer';
@@ -76,6 +77,7 @@ export {
   useFinishRegistration,
   type RegistrationDraft,
   type RegistrationOffer,
+  type ExistingAccountNotice,
   type RegistrationDraftRepository,
   type RegistrationStep,
 } from './data/registrationDraft';

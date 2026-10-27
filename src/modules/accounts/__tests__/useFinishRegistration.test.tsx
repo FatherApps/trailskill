@@ -4,7 +4,13 @@ import { createInMemoryAthleteRepository } from '../../athletes';
 import { createInMemoryAdultProfileRepository } from '../data/adultProfiles';
 import { createInMemoryManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
 import { createInMemoryManagedAthleteRepository, type ManagedAthleteRow } from '../data/managedAthletes';
-import { createInMemoryRegistrationDraftRepository, useFinishRegistration, type RegistrationDraft } from '../data/registrationDraft';
+import {
+  createInMemoryRegistrationDraftRepository,
+  useFinishRegistration,
+  type ExistingAccountNotice,
+  type RegistrationDraft,
+  type RegistrationOffer,
+} from '../data/registrationDraft';
 
 // The Supabase repository sits next to the in-memory one; the sync layer is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ supabase: {}, db: {}, writeBatch: jest.fn() }));
@@ -106,7 +112,7 @@ describe('useFinishRegistration offer', () => {
     await mount({ userId: 'user-1', email: EMAIL });
     await waitFor(() => expect(offer.current).toBeDefined());
 
-    await act(async () => offer.current?.resume());
+    await act(async () => (offer.current as RegistrationOffer).resume());
 
     await waitFor(() => expect(onNext).toHaveBeenCalledWith('authorizations'));
     expect(save).toHaveBeenCalledTimes(1);
@@ -118,7 +124,7 @@ describe('useFinishRegistration offer', () => {
     await mount({ userId: 'user-1', email: EMAIL });
     await waitFor(() => expect(offer.current).toBeDefined());
 
-    await act(async () => offer.current?.startOver());
+    await act(async () => (offer.current as RegistrationOffer).startOver());
 
     await waitFor(async () => expect(await drafts.load()).toBeNull());
     expect(offer.current).toBeUndefined();
@@ -132,6 +138,48 @@ describe('useFinishRegistration offer', () => {
     await mount({ userId: 'user-1', email: EMAIL });
 
     await waitFor(async () => expect(await drafts.load()).toEqual(other));
+    expect(offer.current).toBeUndefined();
+  });
+});
+
+describe('useFinishRegistration existing account', () => {
+  const existing = { userId: 'user-1', firstName: 'Ana', lastName: 'Gomez' };
+  const setupExisting = () => setup({ ...base, swimmer: 'adult' }, createInMemoryAdultProfileRepository({ existing }));
+
+  it('says the account already existed once the session is open, without routing or touching the profile', async () => {
+    const { offer, profiles, drafts, onNext, mount } = setupExisting();
+    await mount({ userId: 'user-1', email: EMAIL });
+
+    await waitFor(() => expect(offer.current).toMatchObject({ existing: true, email: EMAIL }));
+    expect(onNext).not.toHaveBeenCalled();
+    expect(profiles.saved).toEqual([existing]);
+    expect(await drafts.load()).toBeNull();
+  });
+
+  it('says nothing before the session is open, so the code is always checked first', async () => {
+    const { offer, save, drafts, mount } = setupExisting();
+    await mount({});
+
+    expect(offer.current).toBeUndefined();
+    expect(save).not.toHaveBeenCalled();
+    expect(await drafts.load()).not.toBeNull();
+  });
+
+  it('withdraws the notice when it is dismissed', async () => {
+    const { offer, mount } = setupExisting();
+    await mount({ userId: 'user-1', email: EMAIL });
+    await waitFor(() => expect(offer.current).toBeDefined());
+
+    await act(async () => (offer.current as ExistingAccountNotice).dismiss());
+
+    expect(offer.current).toBeUndefined();
+  });
+
+  it('says nothing for a new account', async () => {
+    const { offer, onNext, mount } = setup({ ...base, swimmer: 'adult' });
+    await mount({ userId: 'user-1', email: EMAIL });
+
+    await waitFor(() => expect(onNext).toHaveBeenCalledWith('authorizations'));
     expect(offer.current).toBeUndefined();
   });
 });
