@@ -39,6 +39,13 @@ describe('ColorHeader', () => {
     expect(screen.getByText('Infantil B · Grupo B')).toBeOnTheScreen();
   });
 
+  it('exposes no header to the screen reader when the title is empty, and keeps the back button', async () => {
+    await renderHeader({ title: '' });
+
+    expect(screen.queryByRole('header')).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Volver' })).toBeOnTheScreen();
+  });
+
   it('draws no stray text when the subtitle is an empty string', async () => {
     await renderHeader({ subtitle: '' });
 
