@@ -9,9 +9,10 @@ import { EventSelector, type EventSelectorProps } from '../components/EventSelec
 import { formatDate } from '../components/formatDate';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 import { ImportPrompt, type ImportPromptProps } from '../components/ImportPrompt';
-import { namedText } from '../components/namedText';
+import { namedText, trimName } from '../components/namedText';
 import { PersonalBest, type PersonalBestProps } from '../components/PersonalBest';
-import { ProfileHeader, profileBandColor, type ProfileHeaderProps } from '../components/ProfileHeader';
+import { ProfileHeader, type ProfileHeaderProps } from '../components/ProfileHeader';
+import { profileBandColor } from '../profileBandColor';
 
 export type AthleteProfileContent = {
   header: ProfileHeaderProps;
@@ -60,8 +61,8 @@ export const athleteProfileScreenColors: { title: ColorToken } = {
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
 export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack }: AthleteProfileScreenProps) {
   const { colors, space, typography } = useTheme();
-  // Trimmed once for the band title; `namedText` trims again for the texts that carry the name.
-  const trimmed = name.trim();
+  // The band title and the texts that carry the name share one trimmed value.
+  const trimmed = trimName(name);
   // A list that scrolls fills the height it is given; the gallery preview has none to give.
   const frame = {
     alignSelf: 'stretch',
