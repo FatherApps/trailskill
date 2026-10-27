@@ -213,8 +213,8 @@ describe('AthleteProfileScreen', () => {
       await render(<AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={jest.fn()} />);
 
       expect(screen.getByTestId('state-view')).toBeOnTheScreen();
-      // The band's title is a header with no text: nothing about the athlete, and no placeholder in its place.
-      expect(screen.getByRole('header').props.children).toBe('');
+      // The band's title is empty: nothing about the athlete, no placeholder, and no empty header for the screen reader.
+      expect(screen.queryByRole('header')).toBeNull();
       await act(() => jest.advanceTimersByTime(299));
       expect(screen.queryByText('Cargando')).toBeNull();
 
@@ -269,8 +269,8 @@ describe('AthleteProfileScreen', () => {
     it.each(bandViews)('leaves the band title of the %s view without text', async (_, view) => {
       await render(<AthleteProfileScreen name="   " view={view} onBack={jest.fn()} />);
 
-      // The band is the first header on the screen; the state views below it have their own.
-      expect(screen.getAllByRole('header')[0].props.children).toBe('');
+      // An empty band title is no header; any header left is the state view's, and it has text.
+      expect(screen.queryAllByRole('header').filter((header) => header.props.children === '')).toEqual([]);
     });
   });
 
