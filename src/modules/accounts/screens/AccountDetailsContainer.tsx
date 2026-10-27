@@ -10,6 +10,7 @@ import {
   type AccountDetailsField,
   type AccountDetailsScreenProps,
 } from './AccountDetailsScreen';
+import { SHOW_PROVIDERS } from '../providerAvailability';
 import { useInvitation } from './useInvitation';
 
 export type AccountDetailsContainerProps = {
@@ -25,8 +26,6 @@ type Values = Record<AccountDetailsField, string>;
 type Errors = NonNullable<AccountDetailsScreenProps['errors']>;
 type Failure = NonNullable<AccountDetailsScreenProps['failure']>;
 
-// Google and Microsoft wait for #84 and #85.
-const SHOW_PROVIDERS = false;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validate({ firstName, lastName, email }: Values): Errors {

@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react-native';
 
 import { galleryEntries } from '..';
+import { t } from '../../../core/i18n';
+import { SHOW_PROVIDERS } from '../providerAvailability';
 
 // The accounts index reaches the PowerSync repository; the sync layer is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ db: {}, RecordSyncStatus: () => null }));
@@ -41,16 +43,18 @@ describe('accounts gallery entries', () => {
     expect(statesOf('resumeRegistration')).toEqual(['initial']);
   });
 
-  it.each(statesOf('accountDetails'))(
-    'accountDetails %s hides the provider buttons, as the real registration does',
-    async (state) => {
-      const entry = galleryEntries.find((candidate) => candidate.id === 'accountDetails')!;
-      await render(entry.states[state]());
+  // Prefix match: the offline button name carries the reason after the provider.
+  it.each(statesOf('accountDetails'))('accountDetails %s shows the provider buttons only when SHOW_PROVIDERS is on', async (state) => {
+    const entry = galleryEntries.find((candidate) => candidate.id === 'accountDetails')!;
+    await render(entry.states[state]());
 
-      expect(screen.queryByRole('button', { name: 'Continuar con Google' })).toBeNull();
-      expect(screen.queryByRole('button', { name: 'Continuar con Microsoft' })).toBeNull();
-    },
-  );
+    for (const provider of ['google', 'microsoft']) {
+      const name = new RegExp(`^${t(`accounts.providers.${provider}`)}`);
+      const button = screen.queryByRole('button', { name });
+      if (SHOW_PROVIDERS) expect(button).not.toBeNull();
+      else expect(button).toBeNull();
+    }
+  });
 
   it.each(galleryEntries.flatMap((entry) => Object.keys(entry.states).map((state) => [entry.id, state] as const)))(
     'renders %s %s',
