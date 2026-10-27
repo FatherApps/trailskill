@@ -30,6 +30,7 @@ export type AccountDetailsScreenProps = {
   failure?: 'offline' | 'request_failed' | 'verify_failed';
   onRetry?: () => void;
   // Google and Microsoft sign-in; registration hides them until they can create accounts.
+  // shortcut: defaults to true, so a consumer that forgets SHOW_PROVIDERS shows the buttons; make it required when a third consumer appears (today: the container and the gallery, both pass it).
   providers?: boolean;
   invitation?: Invitation;
   // The link was unknown, expired or revoked.

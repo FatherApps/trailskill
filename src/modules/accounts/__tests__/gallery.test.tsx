@@ -2,11 +2,17 @@ import { render, screen } from '@testing-library/react-native';
 
 import { galleryEntries } from '..';
 import { t } from '../../../core/i18n';
-import { SHOW_PROVIDERS } from '../providerAvailability';
 
 // The accounts index reaches the PowerSync repository; the sync layer is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ db: {}, RecordSyncStatus: () => null }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
+// The flag is set per test, so both values are covered whatever the real constant says.
+let mockShowProviders = false;
+jest.mock('../providerAvailability', () => ({
+  get SHOW_PROVIDERS() {
+    return mockShowProviders;
+  },
+}));
 
 const statesOf = (id: string) => Object.keys(galleryEntries.find((entry) => entry.id === id)!.states);
 
@@ -44,16 +50,34 @@ describe('accounts gallery entries', () => {
   });
 
   // Prefix match: the offline button name carries the reason after the provider.
-  it.each(statesOf('accountDetails'))('accountDetails %s shows the provider buttons only when SHOW_PROVIDERS is on', async (state) => {
-    const entry = galleryEntries.find((candidate) => candidate.id === 'accountDetails')!;
-    await render(entry.states[state]());
+  describe.each([true, false])('with SHOW_PROVIDERS %s', (showProviders) => {
+    beforeEach(() => {
+      mockShowProviders = showProviders;
+    });
 
-    for (const provider of ['google', 'microsoft']) {
-      const name = new RegExp(`^${t(`accounts.providers.${provider}`)}`);
-      const button = screen.queryByRole('button', { name });
-      if (SHOW_PROVIDERS) expect(button).not.toBeNull();
-      else expect(button).toBeNull();
-    }
+    it.each(statesOf('accountDetails'))('accountDetails %s shows the provider buttons only when the flag is on', async (state) => {
+      const entry = galleryEntries.find((candidate) => candidate.id === 'accountDetails')!;
+      await render(entry.states[state]());
+
+      for (const provider of ['google', 'microsoft']) {
+        const name = new RegExp(`^${t(`accounts.providers.${provider}`)}`);
+        const button = screen.queryByRole('button', { name });
+        if (showProviders) expect(button).not.toBeNull();
+        else expect(button).toBeNull();
+      }
+    });
+
+    it('accountDetails offline disables the provider buttons and says why, only when the flag is on', async () => {
+      const entry = galleryEntries.find((candidate) => candidate.id === 'accountDetails')!;
+      await render(entry.states.offline());
+
+      for (const provider of ['google', 'microsoft']) {
+        const name = new RegExp(`^${t(`accounts.providers.${provider}`)}.*${t('accounts.offline.reason')}`);
+        const button = screen.queryByRole('button', { name });
+        if (showProviders) expect(button).toBeDisabled();
+        else expect(button).toBeNull();
+      }
+    });
   });
 
   it.each(galleryEntries.flatMap((entry) => Object.keys(entry.states).map((state) => [entry.id, state] as const)))(

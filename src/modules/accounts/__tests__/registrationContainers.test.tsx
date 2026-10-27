@@ -1,6 +1,7 @@
 import { AuthRetryableFetchError } from '@supabase/supabase-js';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
+import { t } from '../../../core/i18n';
 import { CodeMismatchError } from '../../../core/session';
 import { accountsFixture as fx } from '../__fixtures__/accounts';
 import { createInMemoryInvitationRepository } from '../data/invitations';
@@ -11,6 +12,13 @@ import { WhoSwimsContainer } from '../screens/WhoSwimsContainer';
 // The session module reaches the sync layer, which is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
+// The flag is set per test, so the container is checked against both values whatever the real constant says.
+let mockShowProviders = false;
+jest.mock('../providerAvailability', () => ({
+  get SHOW_PROVIDERS() {
+    return mockShowProviders;
+  },
+}));
 
 const typed = { firstName: fx.person.firstName, lastName: fx.person.lastName, email: fx.person.email };
 
@@ -34,6 +42,20 @@ async function fillIn() {
 }
 
 describe('AccountDetailsContainer', () => {
+  afterEach(() => {
+    mockShowProviders = false;
+  });
+
+  it.each([true, false])('shows the provider buttons exactly when SHOW_PROVIDERS is %s', async (showProviders) => {
+    mockShowProviders = showProviders;
+    await renderDetails();
+
+    for (const provider of ['google', 'microsoft']) {
+      const button = screen.queryByRole('button', { name: new RegExp(`^${t(`accounts.providers.${provider}`)}`) });
+      expect(button !== null).toBe(showProviders);
+    }
+  });
+
   it('keeps what was typed after the screen is closed and opened again', async () => {
     const { drafts, view } = await renderDetails();
     await fillIn();
