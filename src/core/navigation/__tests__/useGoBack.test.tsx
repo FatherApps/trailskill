@@ -69,4 +69,18 @@ describe('useGoBack', () => {
 
     expect(mockRouter.replace).toHaveBeenCalledWith('/home');
   });
+
+  it('uses the latest fallback when an object fallback changes its content', async () => {
+    mockRouter.canGoBack.mockReturnValue(false);
+    let fallback = { pathname: '/sign-in' };
+    const { result, rerender } = await renderHook(() => useGoBack(fallback));
+    const first = result.current;
+
+    fallback = { pathname: '/home' };
+    await rerender({});
+    result.current();
+
+    expect(result.current).toBe(first);
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/home' });
+  });
 });
