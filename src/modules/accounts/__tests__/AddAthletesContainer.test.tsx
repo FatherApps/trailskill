@@ -6,7 +6,7 @@ import { createInMemoryInvitationRepository } from '../data/invitations';
 import { createInMemoryManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
 import { createInMemoryManagedAthleteRepository, type ManagedAthleteRow } from '../data/managedAthletes';
 import { acceptPendingInvitations, createInMemoryPendingInvitationRepository } from '../data/pendingInvitations';
-import { createInMemoryRegistrationDraftRepository } from '../data/registrationDraft';
+import { createInMemoryRegistrationDraftRepository, type RegistrationDraftRepository } from '../data/registrationDraft';
 import { AddAthletesContainer } from '../screens/AddAthletesContainer';
 
 // The accounts index reaches the PowerSync repositories; the sync layer is ESM-only for Jest.
@@ -47,7 +47,7 @@ function setup(invitationToken?: string) {
 }
 
 // The registration `setup()` seeds. If it stops seeding, a test that builds on it would exercise another shape of registration without saying so, so it fails here instead.
-async function seededDraft(load: () => ReturnType<ReturnType<typeof setup>['drafts']['load']>) {
+async function seededDraft(load: RegistrationDraftRepository['load']) {
   const draft = await load();
   if (!draft) throw new Error('setup() no longer seeds a registration draft: this test builds on it');
   return draft;
@@ -101,8 +101,9 @@ const settle = () =>
     await new Promise((resolve) => setImmediate(resolve));
   });
 
-// Lets the held reads go and runs what they unblock, until a settled pass finds none held: reads that start from the ones released are drained too, with no fixed number of turns.
-// A read that starts another every time it is released never ends: past the cap that fails with a message instead of hanging the test.
+// Lets the held reads go and runs what they unblock, until a settled pass finds none held: reads that start from the ones released are drained too.
+// A read that starts another every time it is released never ends: past MAX_DRAIN_PASSES passes that fails with a message instead of hanging the test.
+// shortcut: a legitimate cascade of more than MAX_DRAIN_PASSES passes fails as if it were a loop; raise the cap if a screen ever needs more.
 const MAX_DRAIN_PASSES = 50;
 async function drainReads(releases: (() => void)[], { newestFirst = false } = {}) {
   for (let pass = 0; ; pass++) {
@@ -141,8 +142,12 @@ async function draftAfterAddEndedAfterUnmount(
     fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
   } finally {
-    await unmount?.();
-    release();
+    // The gate opens even when leaving the screen fails.
+    try {
+      await unmount?.();
+    } finally {
+      release();
+    }
   }
 
   await act(async () => {
@@ -186,7 +191,7 @@ describe('AddAthletesContainer', () => {
     await addLucia();
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
 
-    await waitFor(() => expect(invitations.accepted).toEqual([{ token: 'tok-1', athleteId: rows[0].athleteId }]));
+    await waitFor(() => expect(invitations.accepted).toStrictEqual([{ token: 'tok-1', athleteId: rows[0].athleteId }]));
     await waitFor(() => expect(onContinue).toHaveBeenCalled());
   });
 
@@ -197,7 +202,7 @@ describe('AddAthletesContainer', () => {
 
     await addLucia();
 
-    await waitFor(() => expect(invitations.accepted).toEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
+    await waitFor(() => expect(invitations.accepted).toStrictEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
     expect(screen.getByRole('radio', { name: 'Sin categoría' }).props.accessibilityState.checked).toBe(true);
   });
 
@@ -213,7 +218,7 @@ describe('AddAthletesContainer', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
 
     await waitFor(() => expect(invitations.accepted).toHaveLength(2));
-    expect(invitations.accepted[1]).toEqual({ token: 'tok-1', athleteId: rows[1].athleteId });
+    expect(invitations.accepted[1]).toStrictEqual({ token: 'tok-1', athleteId: rows[1].athleteId });
   });
 
   // The container keeps the category in two places (`categoryId` for the radios, `chosen` for the add); this pins that they never tell different stories.
@@ -234,7 +239,7 @@ describe('AddAthletesContainer', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
 
     await waitFor(() => expect(invitations.accepted).toHaveLength(2));
-    expect(invitations.accepted).toEqual([
+    expect(invitations.accepted).toStrictEqual([
       { token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-2' },
       { token: 'tok-1', athleteId: rows[1].athleteId },
     ]);
@@ -249,11 +254,11 @@ describe('AddAthletesContainer', () => {
     await addLucia();
     await drafts.clear();
 
-    expect(await pending.list()).toEqual([{ userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, queuedAt: expect.any(Number) }]);
+    expect(await pending.list()).toStrictEqual([{ userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, queuedAt: expect.any(Number) }]);
     invitations.offline = false;
     await acceptPendingInvitations('guardian-1', pending, invitations);
     expect(invitations.accepted).toHaveLength(1);
-    expect(await pending.list()).toEqual([]);
+    expect(await pending.list()).toStrictEqual([]);
   });
 
   it('without an invitation there is no category choice and nothing is queued', async () => {
@@ -263,8 +268,8 @@ describe('AddAthletesContainer', () => {
     await addLucia();
 
     expect(screen.queryByRole('radio', { name: 'Sin categoría' })).toBeNull();
-    expect(await pending.list()).toEqual([]);
-    expect(invitations.accepted).toEqual([]);
+    expect(await pending.list()).toStrictEqual([]);
+    expect(invitations.accepted).toStrictEqual([]);
   });
 
   it('the typed names survive a restart of the screen', async () => {
@@ -728,7 +733,7 @@ describe('AddAthletesContainer', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
 
       expect(screen.getByRole('radio', { name: '11-12' }).props.accessibilityState.checked).toBe(true);
-      await waitFor(() => expect(invitations.accepted).toEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
+      await waitFor(() => expect(invitations.accepted).toStrictEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
     });
 
     // Adds Lucía Rojas with `first` chosen while the add is held, makes `choices` meanwhile, lets the add end and adds Mateo Rojas as the next athlete.
@@ -777,31 +782,31 @@ describe('AddAthletesContainer', () => {
 
       expect(rows).toHaveLength(2);
       await waitFor(async () =>
-        expect(await pending.list()).toEqual([
+        expect(await pending.list()).toStrictEqual([
           { userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1', queuedAt: expect.any(Number) },
           { userId: 'guardian-1', token: 'tok-1', athleteId: rows[1].athleteId, categoryId: 'cat-2', queuedAt: expect.any(Number) },
         ]),
       );
-      expect(invitations.accepted).toEqual([]);
+      expect(invitations.accepted).toStrictEqual([]);
     });
 
     it('choosing 9-10, 11-12 and 9-10 again while the add is pending: every choice counts as an edit, so 9-10 stays for the next athlete', async () => {
       const { pending } = await addTwoChoosing('9-10', ['11-12', '9-10'], '9-10');
 
-      await waitFor(async () => expect((await pending.list()).map((item) => item.categoryId)).toEqual(['cat-1', 'cat-1']));
+      await waitFor(async () => expect((await pending.list()).map((item) => item.categoryId)).toStrictEqual(['cat-1', 'cat-1']));
     });
 
     it('the same with another category saved: 11-12, 9-10 and 11-12 again keeps 11-12, so it is not tied to the first option nor to comparing the final value', async () => {
       const { pending } = await addTwoChoosing('11-12', ['9-10', '11-12'], '11-12');
 
-      await waitFor(async () => expect((await pending.list()).map((item) => item.categoryId)).toEqual(['cat-2', 'cat-2']));
+      await waitFor(async () => expect((await pending.list()).map((item) => item.categoryId)).toStrictEqual(['cat-2', 'cat-2']));
     });
 
     // The control of the two above: same saved category, no choice meanwhile. They keep it because it was edited, not because nothing ever clears it.
     it('the same category saved with no choice meanwhile starts over, so the next athlete has none', async () => {
       const { pending } = await addTwoChoosing('11-12', [], null);
 
-      await waitFor(async () => expect((await pending.list()).map((item) => item.categoryId)).toEqual(['cat-2', undefined]));
+      await waitFor(async () => expect((await pending.list()).map((item) => item.categoryId)).toStrictEqual(['cat-2', undefined]));
     });
   });
 
@@ -955,7 +960,10 @@ describe('AddAthletesContainer', () => {
     // The write-back looked at the draft in force and left it alone.
     await afterNextRead(drafts, reads);
     expect(save).toHaveBeenCalledTimes(saves);
-    expect(await slow.real()).toEqual(another);
+    // The fields that identify the new registration are intact and no athlete of the old one was written into it.
+    const draft = await slow.real();
+    expect(draft).toMatchObject(another);
+    expect(draft?.athlete).toBeUndefined();
   });
 
   it('a registration started after the screen went away is left alone even when no read ended while the screen was there', async () => {
@@ -966,8 +974,8 @@ describe('AddAthletesContainer', () => {
     const view = await mount();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
     await settle();
-    // Nothing ends until released, so the reads held are the ones the screen started. The case needs at least two: the screen's first one and the keystroke save's, which is the newest. Fewer would pass without checking anything; how many more the screen starts is not this test's business.
-    expect(releases.length).toBeGreaterThanOrEqual(2);
+    // Nothing ends until released, so the reads held are the ones the screen started: its first one, plus the keystroke's saves, the last of which is the newest. The case is only meaningful with exactly this pattern, so a change in how many reads the screen starts fails here and the case has to be reviewed.
+    expect(releases).toHaveLength(3);
     await view.unmount();
     const another = { swimmer: 'adult' as const, firstName: 'Nuevo', lastName: 'Registro', email: 'nuevo@example.com' };
     await drafts.clear();
@@ -979,8 +987,10 @@ describe('AddAthletesContainer', () => {
     await drainReads(releases, { newestFirst: true });
 
     expect(save).toHaveBeenCalledTimes(saves);
-    // What counts is that the draft is not stale: the new registration is exactly as it was started.
-    expect(await real()).toEqual(another);
+    // What counts is that the draft is not stale: the new registration keeps the fields it was started with and gets no athlete.
+    const draft = await real();
+    expect(draft).toMatchObject(another);
+    expect(draft?.athlete).toBeUndefined();
   });
 
   it('drainReads fails with a clear message when every released read starts another', async () => {
@@ -1123,6 +1133,30 @@ describe('AddAthletesContainer', () => {
 
     // Those names were never added: with no origin known they are not this screen's to remove.
     expect(athlete).toEqual({ firstName: 'Anterior', lastName: 'Guardado' });
+  });
+
+  it('draftAfterAddEndedAfterUnmount lets the held add go even when unmount fails', async () => {
+    const context = setup();
+    const failing = {
+      ...context,
+      mount: async () => {
+        const view = await context.mount();
+        return {
+          ...view,
+          unmount: () => {
+            view.unmount();
+            throw new Error('unmount failed');
+          },
+        };
+      },
+    };
+
+    await expect(draftAfterAddEndedAfterUnmount(failing, { firstName: 'Lucía', lastName: 'Rojas' })).rejects.toThrow('unmount failed');
+
+    // A gate left closed keeps the add pending for good: it would outlive the test.
+    const held = jest.mocked(context.profiles.createManagedAthlete).mock.results[0].value;
+    const outcome = await Promise.race([held.then(() => 'released'), new Promise((resolve) => setTimeout(() => resolve('held'), 100))]);
+    expect(outcome).toBe('released');
   });
 
   // Decision (issue 626): a save that changes nothing does not renew the 24 hours of the draft; only a write that changes it does.
