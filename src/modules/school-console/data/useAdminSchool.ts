@@ -73,9 +73,7 @@ export function useAdminSchool(
   refreshKey?: unknown,
 ): AdminSchoolResult {
   const result = useFirstSchool((id) => repository.listAdminSchools(id), repository, userId, refreshKey);
-  return useMemo((): AdminSchoolResult => {
-    return result.status === 'found' ? { status: 'admin', school: result.school } : result;
-  }, [result]);
+  return useMemo((): AdminSchoolResult => (result.status === 'found' ? { status: 'admin', school: result.school } : result), [result]);
 }
 
 // Whether the user belongs to a school with any role (coach or admin): the people who time and plan.

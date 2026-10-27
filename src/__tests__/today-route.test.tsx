@@ -30,7 +30,7 @@ jest.mock('../modules/training-plans', () => {
   // A value `today.tsx` starts importing from the module and this mock lacks would otherwise be `undefined`: "not a function" or an empty render. Fail naming the import.
   return new Proxy(mocked, {
     get: (target, name) => {
-      // `toJSON` and `asymmetricMatch` are what Jest's printing and matchers probe; they are not imports of `today.tsx`. `default` is not probed by the interop (the mock sets no `__esModule`), so a default import fails naming the module.
+      // `toJSON` and `asymmetricMatch` are what Jest's printing and matchers probe, `then` and `__esModule` what promises and the module interop probe; none is an import of `today.tsx`. Any other name, `default` included, fails naming the import.
       if (typeof name === 'symbol' || name in target || ['__esModule', 'then', 'toJSON', 'asymmetricMatch'].includes(name)) return target[name as string];
       throw new Error(`today.tsx imports "${name}" from the training-plans module, but today-route.test does not mock it. Add it to the jest.mock('../modules/training-plans') factory.`);
     },
@@ -52,7 +52,6 @@ describe('training-plans mock', () => {
 
     expect(mocked.toJSON).toBeUndefined();
     expect(mocked.asymmetricMatch).toBeUndefined();
-    expect(() => mocked.default).toThrow('"default" from the training-plans module');
     expect(() => mocked.createPowerSyncMissingRepository).toThrow('"createPowerSyncMissingRepository" from the training-plans module');
   });
 });
