@@ -1,27 +1,30 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { StrictMode } from 'react';
 
 import { createInMemoryStaffSchoolRepository } from '../../school-console';
 import { createInMemoryAssignmentRepository } from '../data/inMemoryAssignmentRepository';
 import { createInMemoryTrainingPlanRepository } from '../data/inMemoryTrainingPlanRepository';
-import { todayText } from '../components/day';
+import { dayLabel, shiftDay, todayText } from '../components/day';
 import { AssignPlanContainer } from '../screens/AssignPlanContainer';
 import type { AssignPlanScreenProps } from '../screens/AssignPlanScreen';
 
 // The barrels pull in the native PowerSync database; these tests use the in-memory repositories only.
 jest.mock('../../../core/sync', () => ({ db: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
+// The assignments of the day shown; a test replaces it to hold, fail or fill the day.
+let mockDayLoad: () => Promise<unknown[]> = async () => [];
 // The school scope has its own tests; here it only has to load.
 jest.mock('../data/assignable', () => ({
   ...jest.requireActual('../data/assignable'),
   loadAssignScope: async () => ({
     schoolId: 'school-1',
-    inSchool: { athletes: [], groups: [], categories: [] },
+    inSchool: { athletes: [], groups: [{ id: 'group-1', name: 'Grupo A' }], categories: [] },
     athletes: [],
-    groups: [],
+    groups: [{ id: 'group-1', name: 'Grupo A' }],
     categories: [],
     school: true,
   }),
-  listAssignmentsOfDay: async () => [],
+  listAssignmentsOfDay: () => mockDayLoad(),
 }));
 
 // The real screen, with its latest props kept so a test can call a handler without going through the UI gate.
@@ -40,6 +43,7 @@ jest.mock('../screens/AssignPlanScreen', () => {
 
 beforeEach(() => {
   mockScreenProps = undefined;
+  mockDayLoad = async () => [];
 });
 
 const screenProps = () => {
@@ -47,7 +51,18 @@ const screenProps = () => {
   return mockScreenProps;
 };
 
-async function setup(initialPlanId?: string | string[]) {
+const content = () => {
+  const { view } = screenProps();
+  if (view.kind !== 'data') throw new Error(`The screen shows ${view.kind}`);
+  return view.content;
+};
+
+const assignmentOfDay = (id: string) => ({
+  assignment: { id, schoolId: 'school-1', planId: 'plan-1', versionId: 'version-1', versionChanged: false, sessionDate: todayText(), target: { kind: 'school' } },
+  athleteIds: [],
+});
+
+async function setup(initialPlanId?: string | string[], strict = false, initialDay?: string) {
   const plans = createInMemoryTrainingPlanRepository();
   for (const [id, name] of [['plan-1', 'Resistencia'], ['plan-2', 'Velocidad']]) {
     await plans.save({ id, schoolId: 'school-1', isTemplate: false, name, blocks: [] });
@@ -57,14 +72,19 @@ async function setup(initialPlanId?: string | string[]) {
   const hidden = new Set<string>();
   // A held load keeps the next list pending, so a test can look at the screen while a new user's list is on its way.
   let held: Promise<void> | null = null;
+  let failNext = false;
   const visiblePlans = {
     ...plans,
     list: async (schoolId: string) => {
       await held;
+      if (failNext) {
+        failNext = false;
+        throw new Error('offline');
+      }
       return (await plans.list(schoolId)).filter((p) => !hidden.has(p.id));
     },
   };
-  const element = (planId?: string | string[], userId = 'coach-1') => (
+  const container = (planId?: string | string[], userId = 'coach-1') => (
     <AssignPlanContainer
       plans={visiblePlans}
       assignments={assignments}
@@ -76,8 +96,10 @@ async function setup(initialPlanId?: string | string[]) {
       ])}
       userId={userId}
       initialPlanId={planId}
+      initialDay={initialDay}
     />
   );
+  const element = (planId?: string | string[], userId?: string) => (strict ? <StrictMode>{container(planId, userId)}</StrictMode> : container(planId, userId));
   const view = await render(element(initialPlanId));
   await screen.findByText('Velocidad');
   return {
@@ -93,6 +115,10 @@ async function setup(initialPlanId?: string | string[]) {
         };
       });
       return release;
+    },
+    // The next load of the school's list fails.
+    failNextLoad: () => {
+      failNext = true;
     },
     changeParam: (planId?: string | string[]) => view.rerender(element(planId)),
     // A new user id is what reloads the school's list with the screen mounted.
@@ -228,6 +254,176 @@ describe('AssignPlanContainer', () => {
 
       expect(selected('Velocidad')).toBe(false);
       expect(selected('Resistencia')).toBe(false);
+    });
+
+    it('shows no assignment of the previous user while the new one loads its day', async () => {
+      mockDayLoad = async () => [assignmentOfDay('assignment-1')];
+      const { reload } = await setup('plan-1');
+      await screen.findByTestId('assigned-assignment-1');
+      let release = () => {};
+      mockDayLoad = () => new Promise((resolve) => (release = () => resolve([])));
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByText('Velocidad');
+
+      expect(screen.queryByTestId('assigned-assignment-1')).toBeNull();
+      await act(async () => release());
+    });
+
+    it.each([
+      ['today', undefined, todayText()],
+      ['the initial day', '2026-03-10', '2026-03-10'],
+    ])('goes back to %s instead of keeping the day of the previous user', async (_name, initialDay, expected) => {
+      const { reload } = await setup('plan-1', false, initialDay);
+      await act(async () => screenProps().onNextDay());
+      expect(content().dateLabel).toBe(dayLabel(shiftDay(expected, 1)));
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByText('Velocidad');
+
+      expect(content().dateLabel).toBe(dayLabel(expected));
+    });
+
+    it('starts over with the group kind', async () => {
+      const { reload } = await setup('plan-1');
+      await act(async () => screenProps().onSelectKind('school'));
+      expect(content().kind).toBe('school');
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByText('Velocidad');
+
+      expect(content().kind).toBe('group');
+    });
+
+    it('does not carry the chosen target over to the new user', async () => {
+      const { reload } = await setup('plan-1');
+      await act(async () => screenProps().onSelectOption('group-1'));
+      expect(content().selectedOptionId).toBe('group-1');
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByText('Velocidad');
+
+      expect(content().selectedOptionId).toBeNull();
+    });
+
+    it('does not carry a failure over to the new user', async () => {
+      const { assignments, reload } = await setup('plan-1');
+      jest.spyOn(assignments, 'create').mockRejectedValueOnce(new Error('offline'));
+      await act(async () => screenProps().onSelectKind('school'));
+      await act(async () => screenProps().onAssign());
+      expect(content().failure).toBe('save');
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByText('Velocidad');
+
+      expect(content().failure).toBeUndefined();
+    });
+
+    it('shows the new user as loading, not the error of the previous one', async () => {
+      const { failNextLoad, holdNextLoad, reload } = await setup('plan-1');
+      failNextLoad();
+      await reload('plan-1', 'coach-2');
+      await waitFor(() => expect(screenProps().view.kind).toBe('error'));
+      const release = holdNextLoad();
+
+      await reload('plan-1', 'coach-1');
+
+      expect(screenProps().view.kind).toBe('loading');
+      await act(async () => release());
+      await screen.findByText('Velocidad');
+    });
+
+    it('shows the new user as loading, not the missing school of the previous one', async () => {
+      const { holdNextLoad, reload } = await setup('plan-1');
+      await reload('plan-1', 'coach-without-school');
+      await waitFor(() => expect(screenProps().view.kind).toBe('no_school'));
+      const release = holdNextLoad();
+
+      await reload('plan-1', 'coach-1');
+
+      expect(screenProps().view.kind).toBe('loading');
+      await act(async () => release());
+      await screen.findByText('Velocidad');
+    });
+
+    it('does not let a save of the previous user hold the new user or write its failure', async () => {
+      const { assignments, reload } = await setup('plan-1');
+      let fail = (_: Error) => {};
+      const create = jest.spyOn(assignments, 'create').mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)));
+      await act(async () => screenProps().onSelectKind('school'));
+      await act(async () => {
+        void screenProps().onAssign();
+      });
+      expect(content().saving).toBe(true);
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByText('Velocidad');
+      expect(content().saving).toBe(false);
+      await act(async () => screenProps().onSelectKind('school'));
+      await act(async () => screenProps().onAssign());
+      expect(create).toHaveBeenCalledTimes(2);
+      await act(async () => fail(new Error('offline')));
+
+      expect(content().failure).toBeUndefined();
+    });
+
+    it('does not let a withdrawal of the previous user hold the new user or write its failure', async () => {
+      mockDayLoad = async () => [assignmentOfDay('assignment-1')];
+      const { assignments, reload } = await setup('plan-1');
+      await screen.findByTestId('assigned-assignment-1');
+      let fail = (_: Error) => {};
+      const withdraw = jest
+        .spyOn(assignments, 'withdraw')
+        .mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)))
+        .mockResolvedValueOnce(undefined);
+      await act(async () => {
+        void screenProps().onWithdraw('assignment-1');
+      });
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByTestId('assigned-assignment-1');
+      await act(async () => screenProps().onWithdraw('assignment-1'));
+      expect(withdraw).toHaveBeenCalledTimes(2);
+      await act(async () => fail(new Error('offline')));
+
+      expect(content().failure).toBeUndefined();
+    });
+  });
+
+  describe('the picked plan', () => {
+    it('is dropped when a new list of the same user lacks it, and does not come back with a later one', async () => {
+      const { hidden } = await setup();
+      const dayLoad = jest.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue([]);
+      mockDayLoad = dayLoad;
+      const reloadList = async () => {
+        // A failing day sends the screen to the error view, whose retry loads the list again.
+        await act(async () => screenProps().onNextDay());
+        await waitFor(() => expect(screenProps().view.kind).toBe('error'));
+        await act(async () => (screenProps().view as { onRetry: () => void }).onRetry());
+      };
+      await fireEvent.press(screen.getByRole('button', { name: 'Resistencia' }));
+
+      hidden.add('plan-1');
+      await reloadList();
+      await waitFor(() => expect(screen.queryByText('Resistencia')).toBeNull());
+      hidden.delete('plan-1');
+      dayLoad.mockRejectedValueOnce(new Error('offline'));
+      await reloadList();
+      await screen.findByText('Resistencia');
+
+      expect(selected('Resistencia')).toBe(false);
+    });
+
+    it.each([false, true])('is dropped when the parameter changes and applied again when it comes back (strict mode %s)', async (strict) => {
+      const { changeParam } = await setup('plan-1', strict);
+      await fireEvent.press(screen.getByRole('button', { name: 'Velocidad' }));
+
+      await changeParam('plan-2');
+      expect(selected('Velocidad')).toBe(true);
+      await changeParam('plan-1');
+
+      expect(selected('Resistencia')).toBe(true);
+      expect(selected('Velocidad')).toBe(false);
     });
   });
 

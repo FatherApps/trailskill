@@ -9,9 +9,9 @@ import { EventSelector, type EventSelectorProps } from '../components/EventSelec
 import { formatDate } from '../components/formatDate';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 import { ImportPrompt, type ImportPromptProps } from '../components/ImportPrompt';
+import { namedText } from '../components/namedText';
 import { PersonalBest, type PersonalBestProps } from '../components/PersonalBest';
-import { ProfileHeader, type ProfileHeaderProps } from '../components/ProfileHeader';
-import { profileBandColor } from '../constants';
+import { ProfileHeader, profileBandColor, type ProfileHeaderProps } from '../components/ProfileHeader';
 
 export type AthleteProfileContent = {
   header: ProfileHeaderProps;
@@ -60,9 +60,8 @@ export const athleteProfileScreenColors: { title: ColorToken } = {
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
 export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack }: AthleteProfileScreenProps) {
   const { colors, space, typography } = useTheme();
-  // Trimmed once: the blank check and every place the name is shown or interpolated see the same value.
+  // Trimmed once for the band title; `namedText` trims again for the texts that carry the name.
   const trimmed = name.trim();
-  const values = { name: trimmed };
   // A list that scrolls fills the height it is given; the gallery preview has none to give.
   const frame = {
     alignSelf: 'stretch',
@@ -74,6 +73,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   // The states without content keep the band and its back button, so the screen never depends on the system back.
   const withBand = (state: ReactNode) => (
     <View style={frame}>
+      {/* A blank name leaves the title empty on purpose (maintainer, issue 644): any placeholder would be new copy. */}
       <ColorHeader color={profileBandColor} title={trimmed} onBack={onBack} />
       {/* testID: this wrapper has no role, label or text; tests read its margin from it. */}
       <View testID="profile-content" style={[frame, padded, { paddingVertical: space[4] }]}>
@@ -104,7 +104,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         <StateView
           kind="offline"
           title={t('athletes.screen.offline.title')}
-          message={trimmed ? t('athletes.screen.offline.message', values) : t('athletes.screen.offline.message_no_name')}
+          message={namedText('athletes.screen.offline.message', trimmed)}
         />
       );
     case 'other-school-offline':
@@ -120,7 +120,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         <StateView
           kind="denied"
           title={t('athletes.screen.denied.title')}
-          message={trimmed ? t('athletes.screen.denied.message', values) : t('athletes.screen.denied.message_no_name')}
+          message={namedText('athletes.screen.denied.message', trimmed)}
           action={
             view.onRequestAccess
               ? {
@@ -174,7 +174,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
           <StateView
             kind="empty"
             title={t('athletes.screen.empty.title')}
-            message={t('athletes.screen.empty.message', values)}
+            message={namedText('athletes.screen.empty.message', trimmed)}
           />
         )}
         {content.otherSchoolOffline && (

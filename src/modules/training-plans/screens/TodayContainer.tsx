@@ -52,8 +52,8 @@ type Flight = {
   unlisted: boolean;
 };
 
-// The athlete and day of a read, and the notes saved per assignment when it started (null once it answered).
-type Reading = { key: string; since: Map<string, number> | null };
+// The athlete of a read, and the notes saved per assignment when it started (null once it answered). The day is not part of it: an assignment can be read under another day, so a save that finishes under one still reaches the read of another.
+type Reading = { athleteId: string; since: Map<string, number> | null };
 
 type SeriesArrivals = Awaited<ReturnType<TodayContainerProps['series']['listArrivals']>>;
 
@@ -110,9 +110,9 @@ export function TodayContainer(props: TodayContainerProps) {
     setAnswer(undefined);
   }
   const loaded = answer ? answer.value : 'loading';
-  // The read that is open or last ended, put by the read effect: the athlete and day it reads, and how many notes had been saved per assignment when it started (null: it already answered).
+  // The read that is open or last ended, put by the read effect: the athlete it reads, and how many notes had been saved per assignment when it started (null: it already answered).
   // A read that started before a save finished may have listed the notes without it; one that started after cannot. A save of another assignment says nothing about it.
-  // Null when nothing is read, so a save that finishes later than the render it started in refreshes only the athlete and day on the screen now.
+  // Null when nothing is read, so a save that finishes later than the render it started in refreshes only the athlete on the screen now.
   const reading = useRef<Reading | null>(null);
   // Per assignment, what its saves left in flight; the entry goes away when its last save finishes, unless a read is open (it compares against `saved`).
   const flights = useRef(new Map<string, Flight>());
@@ -175,7 +175,7 @@ export function TodayContainer(props: TodayContainerProps) {
       return;
     }
     let cancelled = false;
-    const mine: Reading = { key: `${selected.id}|${day}`, since: new Map([...flights.current].map(([id, flight]) => [id, flight.saved])) };
+    const mine: Reading = { athleteId: selected.id, since: new Map([...flights.current].map(([id, flight]) => [id, flight.saved])) };
     reading.current = mine;
     const answered = (value: Answer['value']) => {
       if (cancelled) return;
@@ -202,6 +202,7 @@ export function TodayContainer(props: TodayContainerProps) {
     flight().saving += 1;
     try {
       // The note is saved on the device first, so it never waits for the network.
+      // shortcut: a save that never ends has no timeout, so the form stays on 'sending' with the text kept; upgrade when the maintainer defines what the person sees when a save is cut (issue 625).
       await notices.add({ athleteId: selected.id, assignmentId, versionId: loaded.versionId, blockId, body, authorId: userId });
       flight().saved += 1;
       const ticket = (listingSeq.current += 1);
@@ -215,6 +216,7 @@ export function TodayContainer(props: TodayContainerProps) {
       }
       // A listing that started before a newer one was shown may lack the notes saved meanwhile: it does not replace it.
       if (list && ticket > (shownListing.current.get(assignmentId) ?? 0)) {
+        // shortcut: the ticket is taken even if the screen then drops this listing (other athlete or read), so an older listing is dropped after it too; upgrade if an older listing must apply to a read that started before the dropped one (issue 625).
         shownListing.current.set(assignmentId, ticket);
         const notes = notesOf(list);
         // The person may have moved to another athlete, or the read may have been replaced by another assignment of the same one, while this saved: only the answer this note was written under takes it.
@@ -228,13 +230,13 @@ export function TodayContainer(props: TodayContainerProps) {
     } finally {
       const mine = flight();
       mine.saving -= 1;
-      // The same athlete and day are being read, and that read started before a note was saved: it may have listed its notes without it, so it reads once more and shows it.
+      // The same athlete is being read, and that read started before a note was saved: it may have listed its notes without it, so it reads once more and shows it.
       // A read that started after the saves is left alone: reading again would only replace the data with the read to come. Without an open read, only a failed listing needs one.
       // Saves that overlap read once, when the last of them finishes, after all their notes were added.
       if (mine.saving === 0) {
         const since = reading.current?.since ?? null;
         const stale = since === null ? mine.unlisted : (since.get(assignmentId) ?? 0) < mine.saved;
-        if (stale && reading.current?.key === `${selected.id}|${day}`) setRefreshes((n) => n + 1);
+        if (stale && reading.current?.athleteId === selected.id) setRefreshes((n) => n + 1);
         shownListing.current.delete(assignmentId);
         // An open read compares against the count it started with, so the count stays while one is open.
         if (since === null) flights.current.delete(assignmentId);
