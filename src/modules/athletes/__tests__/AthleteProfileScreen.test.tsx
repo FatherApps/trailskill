@@ -53,6 +53,15 @@ const shownStrings = (node: unknown): string[] => {
 };
 const at = (flat: string[], start: string) => flat.findIndex((item) => item.startsWith(start));
 
+// The states without content: each one shows the band (title and back button) over a state view.
+const bandViews: [string, AthleteProfileView][] = [
+  ['loading', { kind: 'loading' }],
+  ['error', { kind: 'error', onRetry: jest.fn() }],
+  ['offline-empty', { kind: 'offline-empty' }],
+  ['other-school-offline', { kind: 'other-school-offline' }],
+  ['denied', { kind: 'denied' }],
+];
+
 describe('AthleteProfileScreen', () => {
   afterEach(() => jest.useRealTimers());
 
@@ -145,13 +154,7 @@ describe('AthleteProfileScreen', () => {
       expect(StyleSheet.flatten(screen.getAllByLabelText(/^Libre 50 m, /)[0].parent!.props.style).marginHorizontal).toBe(space[4]);
     });
 
-    it.each<[string, AthleteProfileView]>([
-      ['loading', { kind: 'loading' }],
-      ['error', { kind: 'error', onRetry: jest.fn() }],
-      ['offline-empty', { kind: 'offline-empty' }],
-      ['other-school-offline', { kind: 'other-school-offline' }],
-      ['denied', { kind: 'denied' }],
-    ])('keeps the same margin in the %s state', async (_state, view) => {
+    it.each(bandViews)('keeps the same margin in the %s state', async (_state, view) => {
       await show(view);
 
       expect(rootStyle()?.paddingHorizontal).toBeUndefined();
@@ -210,6 +213,8 @@ describe('AthleteProfileScreen', () => {
       await render(<AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={jest.fn()} />);
 
       expect(screen.getByTestId('state-view')).toBeOnTheScreen();
+      // The band's title is a header with no text: nothing about the athlete, and no placeholder in its place.
+      expect(screen.getByRole('header').props.children).toBe('');
       await act(() => jest.advanceTimersByTime(299));
       expect(screen.queryByText('Cargando')).toBeNull();
 
@@ -240,9 +245,10 @@ describe('AthleteProfileScreen', () => {
       expect(screen.getByText(message, { normalizer: verbatim })).toBeOnTheScreen();
     });
 
-    it('is trimmed in the band title of the states without content', async () => {
-      await showPadded({ kind: 'error', onRetry: jest.fn() });
+    it.each(bandViews)('is trimmed in the band title of the %s view', async (_, view) => {
+      await showPadded(view);
 
+      expect(screen.getByRole('header', { name: 'Lucía' })).toBeOnTheScreen();
       expect(screen.getByText('Lucía', { normalizer: verbatim })).toBeOnTheScreen();
     });
   });
@@ -259,16 +265,17 @@ describe('AthleteProfileScreen', () => {
     });
   });
 
-  describe('back in the states without content', () => {
-    const views: [string, AthleteProfileView][] = [
-      ['loading', { kind: 'loading' }],
-      ['error', { kind: 'error', onRetry: jest.fn() }],
-      ['offline-empty', { kind: 'offline-empty' }],
-      ['other-school-offline', { kind: 'other-school-offline' }],
-      ['denied', { kind: 'denied' }],
-    ];
+  describe('a blank name in the band', () => {
+    it.each(bandViews)('leaves the band title of the %s view without text', async (_, view) => {
+      await render(<AthleteProfileScreen name="   " view={view} onBack={jest.fn()} />);
 
-    it.each(views)('the %s view shows the band with a "Volver" button that calls onBack', async (_, view) => {
+      // The band is the first header on the screen; the state views below it have their own.
+      expect(screen.getAllByRole('header')[0].props.children).toBe('');
+    });
+  });
+
+  describe('back in the states without content', () => {
+    it.each(bandViews)('the %s view shows the band with a "Volver" button that calls onBack', async (_, view) => {
       const onBack = jest.fn();
       await render(<AthleteProfileScreen name={name} view={view} onBack={onBack} />);
 
@@ -298,6 +305,17 @@ describe('AthleteProfileScreen', () => {
       await show({ kind: 'empty', content: { ...content, importPrompt } });
 
       expect(screen.getByRole('button', { name: 'Ahora no' })).toBeOnTheScreen();
+    });
+
+    it.each(['', '   '])('does not leave a gap in the sentence when the name is blank (%j)', async (blank) => {
+      await render(<AthleteProfileScreen name={blank} view={{ kind: 'empty', content }} onBack={jest.fn()} />);
+
+      expect(
+        screen.getByText('Cuando el entrenador registre una medición del deportista, aparecerá aquí.', {
+          normalizer: (text) => text,
+        }),
+      ).toBeOnTheScreen();
+      expect(screen.queryByText(/de ,/)).toBeNull();
     });
   });
 

@@ -4,6 +4,7 @@ import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { Banner, Button } from '../../../core/ui';
 import '../i18n';
+import { namedText } from './namedText';
 
 export type ImportPromptProps = {
   // The import provider's name, from data (the provider's `organizations` row). Absent or empty: no provider is
@@ -35,16 +36,18 @@ export function ImportPrompt({
 
   if (!sourceName) return null;
 
-  const values = { name: athleteName, source: sourceName };
+  const values = { source: sourceName };
 
   return (
     <View style={{ alignSelf: 'stretch', gap: space[2] }}>
       <Banner variant="info" icon={imported ? 'cloud_done' : 'cloud_download'}>
         {imported ? (
-          t('athletes.import_prompt.imported', values)
+          namedText('athletes.import_prompt.imported', athleteName, values)
         ) : (
           <>
-            <Text style={typography['body-strong']}>{t('athletes.import_prompt.question', values)}</Text>{' '}
+            <Text style={typography['body-strong']}>
+              {namedText('athletes.import_prompt.question', athleteName, values)}
+            </Text>{' '}
             {t('athletes.import_prompt.offer', values)}
           </>
         )}
