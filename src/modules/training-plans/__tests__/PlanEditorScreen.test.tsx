@@ -377,18 +377,29 @@ describe('PlanEditorScreen', () => {
     // Makes the next `save` wait until `finish` or `fail` is called; `finish` stores the plan, `fail` rejects.
     // A hold a test left open is finished after it, so a failed assertion cannot leave a save running into the next test.
     // That happens after the test body, and maybe after the screen unmounted, so a warning (a state update on an unmounted
-    // screen, say) would go unnoticed: the console is watched and checked once the holds are finished.
+    // screen, say) would go unnoticed: the console is watched and checked once the holds are finished. Only the warnings that name
+    // the editor count (React passes the component's name as an argument): one from elsewhere, such as a dependency's
+    // deprecation, is not this block's to fail.
     const holds: (() => void)[] = [];
+    const heldGets: jest.SpyInstance[] = [];
     const consoleSpies = {} as { error: jest.SpyInstance; warn: jest.SpyInstance };
+    const editorWarnings = (spy: jest.SpyInstance) =>
+      spy.mock.calls.filter((args: unknown[]) => args.map(String).join(' ').includes('PlanEditorScreen'));
     beforeEach(() => {
       consoleSpies.error = jest.spyOn(console, 'error');
       consoleSpies.warn = jest.spyOn(console, 'warn');
     });
     afterEach(async () => {
-      await act(async () => holds.splice(0).forEach((release) => release()));
-      const logged = [...consoleSpies.error.mock.calls, ...consoleSpies.warn.mock.calls];
-      consoleSpies.error.mockRestore();
-      consoleSpies.warn.mockRestore();
+      let logged: unknown[][] = [];
+      try {
+        await act(async () => holds.splice(0).forEach((release) => release()));
+        logged = [...editorWarnings(consoleSpies.error), ...editorWarnings(consoleSpies.warn)];
+      } finally {
+        // Whatever a release did, the spies are restored: one left behind would hide the console of the next test.
+        consoleSpies.error.mockRestore();
+        consoleSpies.warn.mockRestore();
+        heldGets.splice(0).forEach((spy) => spy.mockRestore());
+      }
       expect(logged).toEqual([]);
     });
     const holdNextSave = (ctx: ReturnType<typeof setup>) => {
@@ -409,6 +420,26 @@ describe('PlanEditorScreen', () => {
           }),
       );
       return hold;
+    };
+
+    // Makes the next `get` wait until `load` or `fail` is called, and restores `get` after the test. `load` and `fail` throw if the
+    // editor never called `get`, so a test that did not reach the read fails saying so instead of on an undefined function.
+    const holdNextGet = (ctx: ReturnType<typeof setup>) => {
+      const get = ctx.repository.get.bind(ctx.repository);
+      let pending: { load: () => void; fail: () => void } | undefined;
+      heldGets.push(
+        jest.spyOn(ctx.repository, 'get').mockImplementationOnce(
+          (id) =>
+            new Promise((resolve, reject) => {
+              pending = { load: () => resolve(get(id)), fail: () => reject(new Error('offline')) };
+            }),
+        ),
+      );
+      const held = () => {
+        if (!pending) throw new Error('repository.get was never called, so no read is being held');
+        return pending;
+      };
+      return { load: () => held().load(), fail: () => held().fail() };
     };
 
     // Two stored plans; the editor opens the first, edited and with its save held and running.
@@ -628,6 +659,19 @@ describe('PlanEditorScreen', () => {
         expect(screen.getByRole('button', { name: 'Guardar como plantilla' })).not.toBeBusy();
       });
 
+      // The template message follows the plan on screen (`showsPlan`, by id) while the report of the save follows the load (`live`).
+      it('says the template was made without reporting the plan as saved, since the plan was reopened', async () => {
+        const ctx = setup();
+        const { hold } = await reopenFirst(ctx, 'Guardar como plantilla');
+        ctx.onSaved.mockClear();
+
+        await act(async () => hold.finish());
+
+        expect(await screen.findByText('Plantilla guardada.')).toBeOnTheScreen();
+        expect(screen.queryByText('Plan guardado.')).toBeNull();
+        expect(ctx.onSaved).not.toHaveBeenCalled();
+      });
+
       it('says the template failed when its copy fails after the save ends', async () => {
         const ctx = setup();
         const { hold } = await reopenFirst(ctx, 'Guardar como plantilla');
@@ -657,14 +701,12 @@ describe('PlanEditorScreen', () => {
         const ctx = setup();
         const { second, hold } = await saveFirst(ctx, 'Guardar plan');
         ctx.onSaved.mockClear();
-        let loaded!: () => void;
-        const get = ctx.repository.get.bind(ctx.repository);
-        jest.spyOn(ctx.repository, 'get').mockImplementationOnce((id) => new Promise((resolve) => (loaded = () => resolve(get(id)))));
+        const read = holdNextGet(ctx);
         await screen.rerender(ctx.element(second));
 
         await act(async () => hold.finish());
         await settle();
-        await act(async () => loaded());
+        await act(async () => read.load());
 
         expect(await screen.findByDisplayValue('Segundo')).toBeOnTheScreen();
         expect(ctx.onSaved).not.toHaveBeenCalled();
@@ -674,13 +716,12 @@ describe('PlanEditorScreen', () => {
         const ctx = setup();
         const { second, hold } = await saveFirst(ctx, 'Guardar plan');
         ctx.onSaved.mockClear();
-        let fail!: () => void;
-        jest.spyOn(ctx.repository, 'get').mockImplementationOnce(() => new Promise((_, reject) => (fail = () => reject(new Error('offline')))));
+        const read = holdNextGet(ctx);
         await screen.rerender(ctx.element(second));
 
         await act(async () => hold.finish());
         await settle();
-        await act(async () => fail());
+        await act(async () => read.fail());
 
         expect(await screen.findByText('No pudimos cargar el plan')).toBeOnTheScreen();
         expect(ctx.onSaved).not.toHaveBeenCalled();
@@ -690,14 +731,12 @@ describe('PlanEditorScreen', () => {
         const ctx = setup();
         const { first, hold } = await saveFirstThenOpenSecond(ctx, 'Guardar plan');
         ctx.onSaved.mockClear();
-        let loaded!: () => void;
-        const get = ctx.repository.get.bind(ctx.repository);
-        jest.spyOn(ctx.repository, 'get').mockImplementationOnce((id) => new Promise((resolve) => (loaded = () => resolve(get(id)))));
+        const read = holdNextGet(ctx);
         await screen.rerender(ctx.element(first));
 
         await act(async () => hold.finish());
         await settle();
-        await act(async () => loaded());
+        await act(async () => read.load());
 
         expect(await screen.findByDisplayValue('Primero editado')).toBeOnTheScreen();
         expect(screen.getByRole('button', { name: 'Guardar plan' })).not.toBeBusy();
