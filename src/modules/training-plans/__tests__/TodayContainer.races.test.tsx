@@ -252,8 +252,11 @@ describe('TodayContainer races', () => {
     // The read of the next day, which does not list the assignment of the note, stays open while the save finishes.
     let openRead!: () => void;
     reads.gate = new Promise<void>((resolve) => (openRead = resolve));
+    const beforeDay = reads.count;
     await update(['a1', 'a3'], NEXT_DAY);
     const readsOpen = reads.count;
+    // The read of the day change is already counted here, so the difference after `finish` is the refresh alone.
+    expect(readsOpen).toBe(beforeDay + 1);
     await finish();
     // shortcut in TodayContainer: the day is not compared, so this read is repeated; when a read knows the assignments it lists, this must be `readsOpen`.
     expect(reads.count).toBe(readsOpen + 1);
