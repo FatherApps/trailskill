@@ -66,8 +66,8 @@ export default function ConsoleRoute() {
           action={{ label: t('schoolConsole.screen.retry'), onPress: access.retry }}
         />
         {/* Not a sign out: offline it can leave writes unsynced and force a new login. */}
-        <View style={{ alignItems: 'center' }}>
-          <Button variant="secondary" label={t('schoolConsole.screen.access_error_home')} onPress={() => router.replace('/')} />
+        <View testID="access-error-home" style={{ alignItems: 'center', marginTop: space[4] }}>
+          <Button variant="ghost" label={t('schoolConsole.screen.access_error_home')} onPress={() => router.replace('/')} />
         </View>
       </View>
     );

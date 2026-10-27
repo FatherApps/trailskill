@@ -4,7 +4,7 @@ import type { StaffSchool, StaffSchoolRepository } from './staffSchools';
 
 export type AdminSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'error'; retry: () => void } | { status: 'admin'; school: StaffSchool };
 // `school` is the first school by name (the console shows that one); `schools` are all of them, for the timing to ask which one when there are several.
-// 'error': the lookup itself failed, so nothing is known about the user. Each caller handles it: console.tsx shows an error view with `retry`, today.tsx offers `retry` in its notice, _layout.tsx keeps the bar, timing.tsx sends the user home, and index.tsx and athletes/[id].tsx treat it as not staff.
+// 'error': the lookup itself failed, so nothing is known about the user, which is not the same as `denied` (the lookup worked and the user has no school). Callers decide what an error means for them.
 // `retry` looks again: the result goes back to 'loading', so the old error does not stay on screen. Callers must offer it: an error with no way to look again leaves the person stuck.
 // shortcut: `retry` does nothing while a lookup started by a `refreshKey` change is running (the old error stays on screen until that lookup answers, then the answer replaces it); a retry then would cancel it and start the same lookup again. If that lookup never answers, the error stays and `retry` stays dead: the local database answers or fails, it does not hang, and a sync restarts the lookup. Upgrade by going to 'loading' when any lookup starts, which also changes what a sync shows, or when the lookup gets a timeout.
 export type StaffSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'error'; retry: () => void } | { status: 'staff'; school: StaffSchool; schools: StaffSchool[] };
@@ -73,7 +73,9 @@ export function useAdminSchool(
   refreshKey?: unknown,
 ): AdminSchoolResult {
   const result = useFirstSchool((id) => repository.listAdminSchools(id), repository, userId, refreshKey);
-  return useMemo((): AdminSchoolResult => (result.status === 'found' ? { status: 'admin', school: result.school } : result), [result]);
+  return useMemo((): AdminSchoolResult => {
+    return result.status === 'found' ? { status: 'admin', school: result.school } : result;
+  }, [result]);
 }
 
 // Whether the user belongs to a school with any role (coach or admin): the people who time and plan.
