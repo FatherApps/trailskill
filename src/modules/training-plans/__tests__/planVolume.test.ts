@@ -1,4 +1,8 @@
+import * as i18n from '../../../core/i18n';
 import { planSummary } from '../components/planVolume';
+
+// formatNumber has its own test. Here it is String, so the totals do not depend on the ICU data of Node, and they are not rounded: a different order of the sum changes the text.
+jest.mock('../components/formatNumber', () => ({ formatNumber: (value: number) => String(value) }));
 
 const block = (repetitions: number, distance: number) => ({ repetitions, distance });
 
@@ -7,16 +11,22 @@ const row = (repetitions: unknown, distance: unknown) => ({ repetitions, distanc
 // The production type says number: this test feeds it what the database can hand over.
 type Blocks = Parameters<typeof planSummary>[0];
 const summaryOfRows = (rows: { repetitions: unknown; distance: unknown }[]) => {
-  // This line stops compiling ("Unused '@ts-expect-error' directive") once planSummary accepts non-number factors: then the directive must go and this helper must be revisited.
+  // The directive covers only the assignment below. Once planSummary accepts non-number factors, tsc reports it as unused ("Unused '@ts-expect-error' directive"): delete the directive and the Blocks alias, and pass rows straight to planSummary.
   // @ts-expect-error planSummary types both factors as number.
   const blocks: Blocks = rows;
   return planSummary(blocks);
 };
 
-// Every expected text is written out. The huge totals are spelled as digits with es-CO thousands dots, since 1e308 has 309 of them.
-const grouped = (digits: string) => digits.replace(/\B(?=(\d{3})+$)/g, '.');
-const HUGE = grouped('1' + '0'.repeat(308)); // 1e308
-const BIG = grouped('14' + '0'.repeat(307)); // 1.4e308
+// The totals are the plain String of the number (see the formatNumber mock): 1e308 is '1e+308'.
+const HUGE = '1e+308';
+const BIG = '1.4e+308';
+
+// Every rotation of the plan, and the same rotations backwards.
+const rotationsAndReverses = <T>(items: T[]): T[][] =>
+  items.flatMap((_, i) => {
+    const rotated = [...items.slice(i), ...items.slice(0, i)];
+    return [rotated, [...rotated].reverse()];
+  });
 
 describe('summaryOfRows', () => {
   it('reads the rows through planSummary and shows their summary', () => {
@@ -28,7 +38,7 @@ describe('summaryOfRows', () => {
 describe('planSummary', () => {
   it('keeps "metres · blocks" when every block adds metres', () => {
     expect(planSummary([block(1, 200), block(8, 50)])).toBe('600 m · 2 bloques');
-    expect(planSummary([block(8, 250)])).toBe('2.000 m · 1 bloque');
+    expect(planSummary([block(8, 250)])).toBe('2000 m · 1 bloque');
   });
 
   it('adds the blocks without distance next to the metres', () => {
@@ -108,19 +118,19 @@ describe('planSummary', () => {
   });
 
   // Blocks are added in ascending order, not in plan order: 0.1 + 0.2 + 0.3 is 0.6000000000000001 that way and 0.6 from the biggest.
-  // formatNumber rounds to three decimals, so the metres shown are the same in any order: this test cannot tell if the order is removed; the next one can.
+  // The formatNumber mock does not round, so this test shows the unrounded total and fails if the order of the plan is used.
   it('shows the same metres for fractional distances in any order', () => {
-    expect(planSummary([block(1, 0.1), block(1, 0.2)])).toBe('0,3 m · 2 bloques');
+    expect(planSummary([block(1, 0.1), block(1, 0.2)])).toBe('0.30000000000000004 m · 2 bloques');
     for (const blocks of [
       [block(1, 0.1), block(1, 0.2), block(1, 0.3)],
       [block(1, 0.3), block(1, 0.2), block(1, 0.1)],
       [block(1, 0.2), block(1, 0.3), block(1, 0.1)],
     ]) {
-      expect(planSummary(blocks)).toBe('0,6 m · 3 bloques');
+      expect(planSummary(blocks)).toBe('0.6000000000000001 m · 3 bloques');
     }
   });
 
-  // 2^52 has a rounding step of 1: 2^52 + 0.4 rounds back to 2^52, but 0.4 + 0.4 first and then 2^52 gives 2^52 + 1. The two sums differ by 1, far above the 0,0005 that formatNumber hides.
+  // 2^52 has a rounding step of 1: 2^52 + 0.4 rounds back to 2^52, but 0.4 + 0.4 first and then 2^52 gives 2^52 + 1. The two sums differ by 1.
   // The test assumes IEEE-754 doubles with round-to-nearest. No sum here is a tie (0.4 and 0.8 are not halves of the step), so how ties are broken (half-even) does not matter.
   it('adds fractional distances from the smallest, so the total does not depend on the order of the plan', () => {
     // If the engine rounds differently, these two lines fail first and say so, instead of the order check below failing with an unrelated total.
@@ -128,7 +138,7 @@ describe('planSummary', () => {
     expect(0.4 + 0.4 + 2 ** 52).toBe(2 ** 52 + 1);
     const huge = block(1, 2 ** 52);
     const fraction = block(1, 0.4);
-    const expected = '4.503.599.627.370.497 m · 3 bloques';
+    const expected = '4503599627370497 m · 3 bloques';
     for (const blocks of [
       [huge, fraction, fraction],
       [fraction, huge, fraction],
@@ -154,10 +164,19 @@ describe('planSummary', () => {
       expect(planSummary([one])).toMatch(/ m · 1 bloque$/);
     }
     const all = [...unmeasured.slice(0, 2), measured[0], unmeasured[2], measured[1], unmeasured[3], measured[2], unmeasured[4]];
-    for (let i = 0; i < all.length; i += 1) {
-      const rotated = [...all.slice(i), ...all.slice(0, i)];
-      expect(planSummary(rotated)).toBe('650 m + 5 bloques sin distancia');
-      expect(planSummary([...rotated].reverse())).toBe('650 m + 5 bloques sin distancia');
+    for (const order of rotationsAndReverses(all)) {
+      expect(planSummary(order)).toBe('650 m + 5 bloques sin distancia');
+    }
+  });
+
+  // Same rotation with a sum that rounds differently by order (see the 2^52 test). Every unmeasured block here is decided by its factor (NaN, negative, 0, Infinity), never by how a product rounds.
+  // If an unmeasured block were sorted among the others by a value that breaks the order (a NaN sentinel), the fractions would be added in another order and the total would be 2^52 instead of 2^52 + 1.
+  it('keeps the total of a sum that depends on the order when unmeasured blocks sit between the measured ones', () => {
+    const unmeasured = [block(NaN, 5), block(-2, 5), block(0, 50), block(8, Infinity), block(-2, -25)];
+    const [huge, fraction] = [block(1, 2 ** 52), block(1, 0.4)];
+    const all = [unmeasured[0], fraction, unmeasured[1], huge, unmeasured[2], unmeasured[3], fraction, unmeasured[4]];
+    for (const order of rotationsAndReverses(all)) {
+      expect(planSummary(order)).toBe('4503599627370497 m + 5 bloques sin distancia');
     }
   });
 
@@ -183,5 +202,25 @@ describe('planSummary', () => {
 
   it('has no summary without blocks', () => {
     expect(planSummary([])).toBeUndefined();
+  });
+
+  // The summary is one text: a second call to t would build it twice.
+  describe('translations', () => {
+    // The spy calls through to the real t. afterEach runs when an assertion fails too, so the spy never leaks into the next test.
+    let tSpy: jest.SpyInstance;
+    beforeEach(() => {
+      tSpy = jest.spyOn(i18n, 't');
+    });
+    afterEach(() => tSpy.mockRestore());
+
+    it.each([
+      ['every block adds metres', [block(1, 200), block(8, 50)], 1],
+      ['some blocks add no metres', [block(8, 50), block(4, 0)], 1],
+      ['no block adds metres', [block(4, 0), block(0, 50)], 1],
+      ['no blocks', [], 0],
+    ])('asks for the text once per summary when %s', (_name, blocks, calls) => {
+      planSummary(blocks);
+      expect(tSpy).toHaveBeenCalledTimes(calls);
+    });
   });
 });
