@@ -150,8 +150,9 @@ export async function writeBatch<T>(writes: (batch: WriteBatch) => Promise<T>, a
         return removeRow(tx, table, id);
       },
     });
-    // Checked last, so a session that changed while the batch waited or ran is seen. A change between this check and the commit
-    // lands the write as the previous owner's unsent record, which the session provider's owner check holds or clears before the next user syncs.
+    // Checked last, so a session that changed while the batch waited or ran is seen.
+    // shortcut: a session change between this check and the commit leaves the row as the previous owner's unsent record; upgrade if the
+    // session provider's owner check stops holding or clearing those records before the next user syncs.
     if (asUser !== undefined && asUser !== sessionUser) throw new Error(`Discarded a write of user ${asUser}: the session belongs to another user now`);
     return result;
   });
