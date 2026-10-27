@@ -201,7 +201,11 @@ export function TodayContainer(props: TodayContainerProps) {
     flight.saving += 1;
     try {
       // The note is saved on the device first, so it never waits for the network.
-      // shortcut: a save that never ends has no timeout, so the form stays on 'sending' with the text kept, and its entries in `flights` and `shownListing` stay too (one small record per assignment, gone with the screen); `flight.saving` never returns to 0, so the read after the saves does not run for this assignment (the notes saved meanwhile show only when another read runs); upgrade when the maintainer defines what the person sees when a save is cut (issue 625).
+      // shortcut: a save that never ends has no timeout, so the form stays on 'sending' with the text kept.
+      // `flight.saving` never returns to 0, so the `finally` below never reaches its cleanup for this assignment: the read after the saves does not run (the notes saved meanwhile show only when another read runs),
+      // and its entries in `flights` and `shownListing` stay (one small record per assignment, gone with the screen).
+      // The reads that start meanwhile compare `since` against the `saved` of that assignment's earlier saves, which nothing resets, so they cannot tell a note saved after them from one saved before.
+      // Upgrade when the maintainer defines what the person sees when a save is cut (issue 625).
       await notices.add({ athleteId: selected.id, assignmentId, versionId: loaded.versionId, blockId, body, authorId: userId });
       flight.saved += 1;
       const ticket = (listingSeq.current += 1);
