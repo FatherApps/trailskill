@@ -58,7 +58,7 @@ export default function ConsoleRoute() {
   // A failed lookup says nothing about the role: it does not leave the console, it offers to look again.
   if (access.status === 'error') {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', padding: space[4], backgroundColor: colors['surface-0'] }}>
+      <View testID="access-error" style={{ flex: 1, justifyContent: 'center', padding: space[4], backgroundColor: colors['surface-0'] }}>
         <StateView
           kind="error"
           title={t('schoolConsole.screen.access_error_title')}
