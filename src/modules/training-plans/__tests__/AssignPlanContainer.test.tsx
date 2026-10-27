@@ -57,6 +57,13 @@ const content = () => {
   return view.content;
 };
 
+// The retry of the error view; throws when the screen shows anything else.
+const retryOfError = () => {
+  const { view } = screenProps();
+  if (view.kind !== 'error') throw new Error(`The screen shows ${view.kind}`);
+  return view.onRetry;
+};
+
 const assignmentOfDay = (id: string) => ({
   assignment: { id, schoolId: 'school-1', planId: 'plan-1', versionId: 'version-1', versionChanged: false, sessionDate: todayText(), target: { kind: 'school' } },
   athleteIds: [],
@@ -388,6 +395,53 @@ describe('AssignPlanContainer', () => {
 
       expect(content().failure).toBeUndefined();
     });
+
+    // The remount only cuts the UI: the repository write of the previous user still finishes on the device.
+    it('still writes the save of the previous user to the repository', async () => {
+      const { assignments, reload } = await setup('plan-1');
+      const create = assignments.create;
+      let release = () => {};
+      jest.spyOn(assignments, 'create').mockImplementationOnce(async (assignment) => {
+        await new Promise<void>((resolve) => (release = resolve));
+        return create(assignment);
+      });
+      await act(async () => screenProps().onSelectKind('school'));
+      await act(async () => {
+        void screenProps().onAssign();
+      });
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByText('Velocidad');
+      expect(await assignments.list('school-1', todayText())).toEqual([]);
+      await act(async () => release());
+
+      expect(await assignments.list('school-1', todayText())).toEqual([expect.objectContaining({ planId: 'plan-1', target: { kind: 'school' } })]);
+      expect(content().saving).toBe(false);
+    });
+
+    it('still writes the withdrawal of the previous user to the repository', async () => {
+      mockDayLoad = async () => [assignmentOfDay('assignment-1')];
+      const { assignments, reload } = await setup('plan-1');
+      const id = await assignments.create({ schoolId: 'school-1', planId: 'plan-1', sessionDate: todayText(), target: { kind: 'school' } });
+      expect(id).toBe('assignment-1');
+      await screen.findByTestId('assigned-assignment-1');
+      const withdraw = assignments.withdraw;
+      let release = () => {};
+      jest.spyOn(assignments, 'withdraw').mockImplementationOnce(async (assignmentId) => {
+        await new Promise<void>((resolve) => (release = resolve));
+        return withdraw(assignmentId);
+      });
+      await act(async () => {
+        void screenProps().onWithdraw(id);
+      });
+
+      await reload('plan-1', 'coach-2');
+      await screen.findByText('Velocidad');
+      expect(await assignments.list('school-1', todayText())).toHaveLength(1);
+      await act(async () => release());
+
+      expect(await assignments.list('school-1', todayText())).toEqual([]);
+    });
   });
 
   describe('the picked plan', () => {
@@ -399,7 +453,7 @@ describe('AssignPlanContainer', () => {
         // A failing day sends the screen to the error view, whose retry loads the list again.
         await act(async () => screenProps().onNextDay());
         await waitFor(() => expect(screenProps().view.kind).toBe('error'));
-        await act(async () => (screenProps().view as { onRetry: () => void }).onRetry());
+        await act(async () => retryOfError()());
       };
       await fireEvent.press(screen.getByRole('button', { name: 'Resistencia' }));
 
