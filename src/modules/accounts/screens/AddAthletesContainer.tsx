@@ -35,6 +35,9 @@ const keep = (names: typeof empty) => (names.firstName || names.lastName ? names
 // move to a stable key in the draft (id or createdAt) if the draft outlives a session or another flow rewrites it.
 const sameRegistration = (a: RegistrationDraft, b: RegistrationDraft) =>
   a.swimmer === b.swimmer && a.firstName === b.firstName && a.lastName === b.lastName && a.email === b.email && a.invitationToken === b.invitationToken;
+// The draft's athlete is exactly these names.
+const holds = (draft: RegistrationDraft, names?: typeof empty) =>
+  !!names && draft.athlete?.firstName === names.firstName && draft.athlete?.lastName === names.lastName;
 // Stable, so the back subscription is made once while the block holds.
 const swallowBack = () => {};
 
@@ -118,15 +121,18 @@ export function AddAthletesContainer({
   // Losing a draft must not block typing. A missing draft stays missing: this screen only continues one the registration started.
   // Once the screen went away the draft may be another registration's (discarded and started again meanwhile): it is left alone.
   // A read that ends after that cannot be trusted to name the origin, so with none known the draft is left alone too: the last keystrokes of a screen left before any read ended are lost.
+  // The one exception is `added`, the names an add just saved as a profile: a draft that holds exactly those names loses them even with no origin known, or the next launch would offer to add the athlete again.
   // Known limits (issue 611): the read, the comparison and the save are not one step, so another flow's clear+save in between is overwritten (the queue only orders this screen's writes);
   // and while the screen is there the draft is not compared, since nothing but this screen is expected to restart the registration.
+  // shortcut: a save that changes nothing does not renew the 24 hours of the draft (issue 626), so only a write that changes it does; stamp it here if a draft must outlive a session of no typing.
+  // shortcut: every keystroke reads the whole draft from the store before comparing, which costs a SecureStore read per key (issue 626); debounce the saves or compare against the last draft read if typing ever lags.
   const persist = useCallback(
-    (athlete: typeof empty | undefined, step?: 'authorizations') =>
+    (athlete: typeof empty | undefined, step?: 'authorizations', added?: typeof empty) =>
       enqueue(async () => {
         const current = await drafts.load();
         if (!current) return;
         if (mounted.current) origin.current ??= current;
-        else if (!origin.current || !sameRegistration(origin.current, current)) return;
+        else if (origin.current ? !sameRegistration(origin.current, current) : !holds(current, added)) return;
         // Nothing to change: the keystroke saves already left the draft as the form shows it.
         if (!step && current.athlete?.firstName === athlete?.firstName && current.athlete?.lastName === athlete?.lastName) return;
         await drafts.save({ ...current, athlete, ...(step && { step }) });
@@ -207,7 +213,7 @@ export function AddAthletesContainer({
         if (edits.current.category === savingEdits.category) setCategoryId('');
       });
       // Also after the screen went away: the saved names must leave the draft or the next launch would add them again.
-      void persist(keep(left));
+      void persist(keep(left), undefined, saving);
       // The athlete only exists on this device so far: queue the acceptance, which retries until the server knows them. It never blocks the registration.
       const token = (await drafts.load().catch(() => null))?.invitationToken;
       if (token) void queueInvitation(pending, invitations, { userId, token, athleteId, ...(savingCategory && { categoryId: savingCategory }) }).catch(() => {});
