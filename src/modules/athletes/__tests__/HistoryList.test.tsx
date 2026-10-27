@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, within } from '@testing-library/react-native';
 import { PixelRatio, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, contrastRatio, size, space, ThemeProvider, type ThemeName } from '../../../core/theme';
@@ -16,7 +16,8 @@ const flatten = (node: unknown): string[] => {
   const { type, props, children } = node as Json;
   return [type, ...(props.accessibilityLabel ? [props.accessibilityLabel] : []), ...flatten(children)];
 };
-const hiddenText = (text: string | RegExp) => screen.queryAllByText(text, { includeHiddenElements: true });
+const hidden = { includeHiddenElements: true };
+const hiddenText = (text: string | RegExp) => screen.queryAllByText(text, hidden);
 
 describe('HistoryList', () => {
   // Jest reports a system font scale of 2; the tests run at the system's normal size unless they say otherwise.
@@ -208,23 +209,26 @@ describe('HistoryList', () => {
     expect(style.width).toBeUndefined();
   });
 
+  // Jest has no layout engine: these tests pin the styles that produce the layout, not the layout itself. The real
+  // wrapping at 200 % is checked visually, in the screenshot.
   describe('large text', () => {
     const rowStyle = () => StyleSheet.flatten(screen.getAllByLabelText(/^Libre 50 m/)[0].props.style);
-    const trailingStyle = () =>
-      StyleSheet.flatten(
-        screen.getAllByLabelText(/^Libre 50 m/)[0].children
-          .map((child) => child as { props?: { style?: unknown } })
-          .at(-1)?.props?.style as never,
-      );
-
-    type Part = { props: { style: unknown }; children: Part[] };
     const flat = (style: unknown) => StyleSheet.flatten(style as never);
+    // The parts of the one row, found through what they hold (the hidden parts need includeHiddenElements).
+    const partsOf = (row: ReturnType<typeof screen.getAllByLabelText>[number], title: string) => {
+      const head = within(row).getByTestId('history-head', hidden);
+      return {
+        head,
+        dot: within(head).getByTestId('history-dot', hidden),
+        text: within(head).getByText(title, hidden).parent!,
+        trailing: within(row).getByTestId('sync-status', hidden).parent!,
+      };
+    };
 
     it('lets the text block shrink and keeps the time width at normal size', async () => {
       await render(<HistoryList results={[byId('import')]} />);
 
-      const [head, trailing] = screen.getAllByLabelText(/^Mariposa 100 m/)[0].children as unknown as Part[];
-      const [, text] = head.children;
+      const { text, trailing } = partsOf(screen.getAllByLabelText(/^Mariposa 100 m/)[0], 'Mariposa 100 m');
       expect(flat(text.props.style).flexShrink).toBe(1);
       expect(flat(text.props.style).minWidth).toBe(0);
       expect(flat(trailing.props.style).flexShrink).toBe(0);
@@ -237,11 +241,13 @@ describe('HistoryList', () => {
         </ThemeProvider>,
       );
 
-      // The dot and the text share one row, so the origin never adds a row of its own: the time is the only other part.
-      const parts = screen.getAllByLabelText(/^Mariposa 100 m/)[0].children as unknown as Part[];
-      expect(parts).toHaveLength(2);
-      expect(flat(parts[0].props.style).flexDirection).toBe('row');
-      expect(parts[0].children).toHaveLength(2);
+      // The dot and the text share one row (the head), so the origin never adds a row of its own; the time stays out of it.
+      const { head, dot, text, trailing } = partsOf(screen.getAllByLabelText(/^Mariposa 100 m/)[0], 'Mariposa 100 m');
+      expect(flat(head.props.style).flexDirection).toBe('row');
+      expect(dot.parent).toBe(head);
+      expect(text.parent).toBe(head);
+      expect(within(head).queryByTestId('sync-status', hidden)).toBeNull();
+      expect(trailing).not.toBe(head);
     });
 
     it('keeps the text sharing the row with the dot, wrapping at the row width minus the dot, at 200 %', async () => {
@@ -251,13 +257,12 @@ describe('HistoryList', () => {
         </ThemeProvider>,
       );
 
-      // Jest has no layout engine, so the wrapping itself cannot be measured: the styles that produce it are pinned.
+      // The wrapping itself cannot be measured here: the styles that produce it are pinned.
       // The head fills the row (stretch) and holds the dot and the text; the text takes what the dot leaves (basis 0,
       // shrinkable) instead of the full row width.
       const row = screen.getAllByLabelText(/^Mariposa 100 m/)[0];
       expect(flat(row.props.style).alignItems).toBe('stretch');
-      const [head] = row.children as unknown as Part[];
-      const [dot, text] = head.children;
+      const { head, dot, text } = partsOf(row, 'Mariposa 100 m');
       expect(flat(head.props.style).flexDirection).toBe('row');
       expect(flat(head.props.style).flexGrow).toBeUndefined();
       expect(flat(dot.props.style).flexShrink).toBe(0);
@@ -291,7 +296,9 @@ describe('HistoryList', () => {
 
       expect(rowStyle().flexDirection).toBe('column');
       expect(rowStyle().alignItems).toBe('stretch');
-      expect(trailingStyle().alignItems).toBe('flex-start');
+      expect(flat(partsOf(screen.getAllByLabelText(/^Libre 50 m/)[0], 'Libre 50 m').trailing.props.style).alignItems).toBe(
+        'flex-start',
+      );
     });
   });
 

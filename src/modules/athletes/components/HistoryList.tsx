@@ -180,7 +180,9 @@ function HistoryRow({ result }: { result: HistoryResult }) {
         },
       ]}
     >
+      {/* testID: the head is hidden from screen readers and has no role, label or text of its own to query. */}
       <View testID="history-head" {...hidden} style={[styles.head, !large && styles.headFill, { gap: space[3] }]}>
+        {/* testID: the dot is hidden and carries colour only; tests read its token and icon from it. */}
         <View
           testID="history-dot"
           style={[
@@ -233,7 +235,6 @@ export function HistoryList({ results, scrollEnabled = true, header, footer, ins
         // The card is drawn row by row, so the header and footer sit outside it.
         renderItem={({ item, index }) => (
           <View
-            testID="history-card"
             style={{
               marginHorizontal: inset,
               backgroundColor: colors[historyListColors.card],
