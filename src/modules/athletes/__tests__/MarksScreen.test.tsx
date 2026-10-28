@@ -24,7 +24,8 @@ const data: Extract<MarksView, { kind: 'data' }> = {
   ],
 };
 
-const widthOf = (label: RegExp) => StyleSheet.flatten((screen.getByLabelText(label).props as { style: never }).style).flexBasis;
+// How the cards of the screen are laid out: the direction of the container that holds the card.
+const layoutOf = (label: RegExp) => StyleSheet.flatten((screen.getByLabelText(label).parent!.props as { style: never }).style).flexDirection;
 const libre50 = /^Libre 50: /;
 
 const show = (view: MarksView, { onSelectAthlete = jest.fn(), onPoolChange = jest.fn() } = {}) =>
@@ -93,17 +94,17 @@ describe('MarksScreen', () => {
     const realGet = Dimensions.get.bind(Dimensions);
     afterEach(() => jest.restoreAllMocks());
 
-    it('puts two cards on a row with normal text', async () => {
+    it('lays the cards out in rows with normal text', async () => {
       jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 }));
       await show(data);
 
-      expect(widthOf(libre50)).toBe('47%');
+      expect(layoutOf(libre50)).toBe('row');
     });
 
     it.each([
       ['the gallery scales the text', { themeScale: 2, osScale: 1 }],
       ['the system scales the text', { themeScale: 1, osScale: 2 }],
-    ])('puts one card on a row when %s, so no word or time breaks', async (_who, { themeScale, osScale }) => {
+    ])('stacks the cards in one column when %s, so no word or time breaks', async (_who, { themeScale, osScale }) => {
       jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: osScale }));
       await render(
         <ThemeProvider fontScale={themeScale}>
@@ -111,7 +112,7 @@ describe('MarksScreen', () => {
         </ThemeProvider>,
       );
 
-      expect(widthOf(libre50)).toBe('100%');
+      expect(layoutOf(libre50)).toBe('column');
     });
   });
 });
