@@ -2,20 +2,38 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { colors, ThemeProvider } from '../../../core/theme';
-import { MyAthletesScreen, type MyAthletesView } from '..';
+import { MyAthletesScreen, type MyAthleteCard, type MyAthletesView } from '..';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 // Synthetic data only.
-const data: MyAthletesView = {
-  kind: 'data',
-  athletes: [
-    { id: 'a1', name: 'Tomás R.', color: 'athlete-2', school: 'Delfines', group: 'Grupo B', category: 'Infantil A', authorized: true },
-    { id: 'a2', name: 'Lucía R.', color: 'athlete-4', authorized: false },
-    { id: 'a3', name: 'Mateo C.', color: 'athlete-1' },
-  ],
+const paula: MyAthleteCard = { id: 'a0', name: 'Paula G.', firstName: 'Paula', lastName: 'Gómez', color: 'athlete-1', category: 'Máster', authorized: true, isSelf: true };
+const tomas: MyAthleteCard = {
+  id: 'a1',
+  name: 'Tomás R.',
+  firstName: 'Tomás',
+  lastName: 'Rojas',
+  color: 'athlete-2',
+  school: 'Delfines',
+  group: 'Grupo B',
+  category: 'Infantil A',
+  authorized: false,
 };
+const lucia: MyAthleteCard = {
+  id: 'a2',
+  name: 'Lucía R.',
+  firstName: 'Lucía',
+  lastName: 'Ramírez',
+  color: 'athlete-3',
+  school: 'Delfines',
+  group: 'Grupo B',
+  category: 'Infantil B',
+  authorized: true,
+};
+const mateo: MyAthleteCard = { id: 'a3', name: 'Mateo C.', firstName: 'Mateo', lastName: 'Castro', color: 'athlete-4' };
+
+const stack = (...athletes: MyAthleteCard[]): MyAthletesView => ({ kind: 'data', athletes });
 
 const show = (view: MyAthletesView, { onOpen = jest.fn(), onAdd = jest.fn() } = {}) =>
   render(
@@ -24,79 +42,116 @@ const show = (view: MyAthletesView, { onOpen = jest.fn(), onAdd = jest.fn() } = 
     </ThemeProvider>,
   );
 
-describe('MyAthletesScreen', () => {
-  it('shows the title and, on each card, the school and group, the category and the name', async () => {
-    await show(data);
+// The Historial button belongs to the card at the front: its hint names the athlete.
+const historial = () => screen.getByRole('button', { name: 'Historial' });
 
-    expect(screen.getByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
-    expect(screen.getByText('Tomás R.')).toBeOnTheScreen();
-    expect(screen.getByText('Delfines · Grupo B')).toBeOnTheScreen();
-    expect(screen.getByText('Infantil A')).toBeOnTheScreen();
-    expect(screen.getByText('Lucía R.')).toBeOnTheScreen();
+describe('MyAthletesScreen', () => {
+  it('brings the first athlete to the front, with the others collapsed above it in order', async () => {
+    await show(stack(paula, tomas, lucia));
+
+    expect(historial().props.accessibilityHint).toBe('Abre el perfil de Paula G.');
+    const collapsed = screen.getAllByRole('button', { name: /^(Tomás R\.|Lucía R\.)/ });
+    expect(collapsed.map((card) => card.props.accessibilityLabel)).toEqual(['Tomás R., Infantil A', 'Lucía R., Infantil B']);
   });
 
-  it('leaves out the school, group and category lines of an athlete the device knows nothing about', async () => {
-    await show({ kind: 'data', athletes: [{ id: 'a3', name: 'Mateo C.', color: 'athlete-1' }] });
+  it('shows on the front card the school and group, the category in capitals, the full name and the tag', async () => {
+    await show(stack(tomas, lucia));
 
-    expect(screen.getByText('Mateo C.')).toBeOnTheScreen();
-    // Only the name and the history button: no school, group or category line.
-    expect(screen.getByText('Mateo C.').parent!.children).toHaveLength(2);
+    expect(screen.getByText('Delfines · Grupo B')).toBeOnTheScreen();
+    expect(screen.getByText('INFANTIL A')).toBeOnTheScreen();
+    expect(screen.getByText('Tomás\nRojas')).toBeOnTheScreen();
+    expect(screen.getByRole('text', { name: 'Autorización pendiente' })).toBeOnTheScreen();
+  });
+
+  it('shows on a collapsed card only the short name and the category', async () => {
+    await show(stack(tomas, lucia));
+
+    expect(screen.getByText('Lucía R.')).toBeOnTheScreen();
+    expect(screen.getByText('Infantil B')).toBeOnTheScreen();
+    // Nothing of a collapsed card but its two texts: no second school line, no tag, no button.
+    expect(screen.getAllByText('Delfines · Grupo B')).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Historial' })).toHaveLength(1);
+  });
+
+  it('brings a collapsed card to the front when it is pressed, keeping the order of the others', async () => {
+    await show(stack(paula, tomas, lucia));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Lucía R., Infantil B' }));
+
+    expect(historial().props.accessibilityHint).toBe('Abre el perfil de Lucía R.');
+    expect(screen.getByText('Lucía\nRamírez')).toBeOnTheScreen();
+    const collapsed = screen.getAllByRole('button', { name: /Paula G\.|Tomás R\./ });
+    expect(collapsed.map((card) => card.props.accessibilityLabel)).toEqual(['Paula G. · tú, Máster', 'Tomás R., Infantil A']);
+  });
+
+  it('labels the card of the adult themselves with "tú"', async () => {
+    await show(stack(paula, tomas));
+
+    expect(screen.getByText('Tomás R.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Tomás R., Infantil A' }));
+    expect(screen.getByText('Paula G. · tú')).toBeOnTheScreen();
+    expect(screen.queryByText('Tomás R. · tú')).toBeNull();
+  });
+
+  it('opens the profile of the athlete at the front when "Historial" is pressed', async () => {
+    const onOpen = jest.fn();
+    await show(stack(paula, tomas, lucia), { onOpen });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Tomás R., Infantil A' }));
+    await fireEvent.press(historial());
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith('a1');
+  });
+
+  it('tags the front athlete as authorized, as pending, or with no tag while the state is unknown', async () => {
+    await show(stack(lucia, tomas, mateo));
+
+    expect(screen.getByRole('text', { name: 'Autorizado' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Tomás R., Infantil A' }));
+    expect(screen.getByRole('text', { name: 'Autorización pendiente' })).toBeOnTheScreen();
+    expect(screen.queryByRole('text', { name: 'Autorizado' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Mateo C.' }));
+    expect(screen.queryByRole('text', { name: /Autoriz/ })).toBeNull();
+  });
+
+  it('leaves out the lines of an athlete the device knows nothing about', async () => {
+    await show(stack(mateo));
+
+    expect(screen.getByText('Mateo\nCastro')).toBeOnTheScreen();
+    expect(screen.getAllByRole('button')).toHaveLength(2);
   });
 
   it('shows the school alone, or the group alone, when only one of them is known', async () => {
-    await show({
-      kind: 'data',
-      athletes: [
-        { id: 'a1', name: 'Tomás R.', color: 'athlete-2', school: 'Delfines' },
-        { id: 'a2', name: 'Lucía R.', color: 'athlete-4', group: 'Grupo B' },
-      ],
-    });
-
+    await show(stack({ ...tomas, group: undefined }));
     expect(screen.getByText('Delfines')).toBeOnTheScreen();
-    expect(screen.getByText('Grupo B')).toBeOnTheScreen();
   });
 
   it('paints each card with the colour of its athlete', async () => {
-    await show(data);
+    await show(stack(tomas, lucia));
 
-    const card = screen.getByText('Tomás R.').parent!;
-    expect(StyleSheet.flatten(card.props.style).backgroundColor).toBe(colors.light['athlete-2']);
+    const front = screen.getByText('Tomás\nRojas').parent!;
+    expect(StyleSheet.flatten(front.props.style).backgroundColor).toBe(colors.light['athlete-2']);
+    const collapsed = screen.getByRole('button', { name: 'Lucía R., Infantil B' }).children[0] as unknown as { props: { style: never } };
+    expect(StyleSheet.flatten(collapsed.props.style).backgroundColor).toBe(colors.light['athlete-3']);
   });
 
-  it('tags an athlete with a valid authorization as authorized', async () => {
-    await show(data);
+  it('draws the decorative ring on the front card only', async () => {
+    await show(stack(tomas, lucia));
 
-    expect(screen.getAllByRole('text', { name: 'Autorizado' })).toHaveLength(1);
+    // The decoration is hidden from screen readers, so the query must ask for hidden elements too.
+    expect(screen.getAllByTestId('color-card-ring', { includeHiddenElements: true })).toHaveLength(1);
   });
 
-  it('tags an athlete without a valid authorization as pending, and an unknown state with no tag', async () => {
-    await show(data);
+  it('sits on the background of the screens', async () => {
+    const { toJSON } = await show(stack(tomas));
 
-    expect(screen.getAllByRole('text', { name: 'Autorización pendiente' })).toHaveLength(1);
-    // Mateo C.: neither tag, the card only has its name and the history button.
-    expect(screen.getByText('Mateo C.').parent!.children).toHaveLength(2);
-  });
-
-  it('opens the profile of the athlete whose "Historial" button is pressed', async () => {
-    const onOpen = jest.fn();
-    await show(data, { onOpen });
-
-    await fireEvent.press(screen.getAllByRole('button', { name: 'Historial' })[1]!);
-
-    expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(onOpen).toHaveBeenCalledWith('a2');
-  });
-
-  it('tells a screen reader whose history each "Historial" button opens', async () => {
-    await show(data);
-
-    const [first] = screen.getAllByRole('button', { name: 'Historial' });
-    expect(first!.props.accessibilityHint).toBe('Abre el perfil de Tomás R.');
+    expect(StyleSheet.flatten((toJSON() as unknown as { props: { style: never } }).props.style).backgroundColor).toBe(colors.light['surface-0']);
   });
 
   it('asks to add an athlete when "Agregar deportista" is pressed', async () => {
     const onAdd = jest.fn();
-    await show(data, { onAdd });
+    await show(stack(tomas), { onAdd });
 
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
 

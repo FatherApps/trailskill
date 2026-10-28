@@ -90,6 +90,9 @@
   },
   "my": {
     "title": "Deportistas",
+    "card_label": "{{name}}, {{detail}}",
+    "name_you": "{{name}} · tú",
+    "bring_forward": "Muestra la tarjeta de {{name}}",
     "add": "Agregar deportista",
     "history": "Historial",
     "history_hint": "Abre el perfil de {{name}}",

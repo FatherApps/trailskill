@@ -31,8 +31,9 @@ const structure = createInMemorySchoolStructureRepository({
   coachMemberships: [],
 });
 const managed = createInMemoryManagedAthleteRepository([
-  { userId: 'guardian-1', athleteId: 'a1' },
-  { userId: 'guardian-1', athleteId: 'a2' },
+  // Ana is the adult themselves, so hers is the card in front; Ben is their child.
+  { userId: 'guardian-1', athleteId: 'a1', relation: 'self' },
+  { userId: 'guardian-1', athleteId: 'a2', relation: 'guardian' },
 ]);
 // Ana's authorization to record times is in force; Ben never answered; Cleo's is not Ben's or Ana's business.
 const authorizations = createInMemoryAuthorizationStatusRepository([
@@ -64,31 +65,47 @@ describe('MyAthletesContainer', () => {
   it('shows a card for each managed athlete and none for another guardian’s', async () => {
     await show('guardian-1');
 
+    // The first athlete is in front with the full name, the other one is collapsed.
     expect(await screen.findByText('Ben A.')).toBeOnTheScreen();
-    expect(screen.getByText('Ana M.')).toBeOnTheScreen();
+    expect(screen.getByText('Ana\nMarin')).toBeOnTheScreen();
     expect(screen.queryByText('Cleo O.')).toBeNull();
   });
 
-  it('shows the school and group, and the category, of the athlete when the device knows them', async () => {
+  it('shows the school and group, and the category, of the athlete in front when the device knows them', async () => {
     await show('guardian-1');
 
     expect(await screen.findByText('Delfines · Grupo A')).toBeOnTheScreen();
-    expect(screen.getByText('Infantil B')).toBeOnTheScreen();
+    expect(screen.getByText('INFANTIL B')).toBeOnTheScreen();
+    expect(screen.getByText('Ana\nMarin')).toBeOnTheScreen();
+  });
+
+  it('puts the athlete the user is first, in front, and labels the card "tú" once it is collapsed', async () => {
+    const withSelf = createInMemoryManagedAthleteRepository([
+      { userId: 'adult-1', athleteId: 'a1', relation: 'guardian' },
+      { userId: 'adult-1', athleteId: 'a2', relation: 'self' },
+    ]);
+    await show('adult-1', { managed: withSelf });
+
+    expect((await screen.findByRole('button', { name: 'Historial' })).props.accessibilityHint).toBe('Abre el perfil de Ben A.');
+    expect(screen.getByText('Ana M.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: /^Ana M\./ }));
+    expect(screen.getByText('Ben A. · tú')).toBeOnTheScreen();
   });
 
   it('tags each athlete by the authorization to record times that the device holds', async () => {
     await show('guardian-1');
 
+    // Ana is in front and authorized; Ben, collapsed, has not answered.
     expect(await screen.findByRole('text', { name: 'Autorizado' })).toBeOnTheScreen();
-    expect(screen.getAllByRole('text', { name: 'Autorizado' })).toHaveLength(1);
-    expect(screen.getAllByRole('text', { name: 'Autorización pendiente' })).toHaveLength(1);
+    await fireEvent.press(screen.getByRole('button', { name: /^Ben A\./ }));
+    expect(screen.getByRole('text', { name: 'Autorización pendiente' })).toBeOnTheScreen();
   });
 
   it('shows no authorization tag while it is not read, and none when the read fails', async () => {
     const failing = { ...authorizations, listGrantedAthleteIds: () => Promise.reject(new Error('offline')) };
     await show('guardian-1', { authorizations: failing });
 
-    expect(await screen.findByText('Ana M.')).toBeOnTheScreen();
+    expect(await screen.findByText('Ana\nMarin')).toBeOnTheScreen();
     expect(screen.queryByRole('text', { name: 'Autorizado' })).toBeNull();
     expect(screen.queryByRole('text', { name: 'Autorización pendiente' })).toBeNull();
   });
@@ -97,10 +114,10 @@ describe('MyAthletesContainer', () => {
     const onOpen = jest.fn();
     await show('guardian-1', { onOpen });
 
-    await fireEvent.press((await screen.findAllByRole('button', { name: 'Historial' }))[0]!);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Historial' }));
 
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(onOpen.mock.calls[0]![0]).toMatch(/^a[12]$/);
+    expect(onOpen).toHaveBeenCalledWith('a1');
   });
 
   it('asks to add an athlete', async () => {
@@ -130,13 +147,13 @@ describe('MyAthletesContainer', () => {
   it('still shows the cards when the category lookup fails', async () => {
     await show('guardian-1', { structure: { ...structure, listCategories: () => Promise.reject(new Error('offline')) } });
 
-    expect(await screen.findByText('Ana M.')).toBeOnTheScreen();
+    expect(await screen.findByText('Ana\nMarin')).toBeOnTheScreen();
   });
 
   it('still shows the cards when the school name lookup fails', async () => {
     await show('guardian-1', { schoolNames: { listByIds: () => Promise.reject(new Error('offline')) } });
 
-    expect(await screen.findByText('Ana M.')).toBeOnTheScreen();
+    expect(await screen.findByText('Ana\nMarin')).toBeOnTheScreen();
     expect(await screen.findByText('Grupo A')).toBeOnTheScreen();
   });
 });
