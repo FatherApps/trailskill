@@ -105,6 +105,24 @@ describe('MarksContainer', () => {
     expect(screen.queryByText('Aún sin tiempo')).toBeNull();
   });
 
+  it('reads the history again when refreshKey changes, so a time that arrives by sync shows up', async () => {
+    let stored: HistoryMeasurement[] = [];
+    const synced = { listByAthlete: jest.fn(async () => stored) };
+    const tree = (refreshKey: number) => (
+      <ThemeProvider>
+        <MarksContainer userId="guardian-1" managed={managed} athletes={athletes} history={synced} refreshKey={refreshKey} scrollEnabled={false} />
+      </ThemeProvider>
+    );
+    const view = await render(tree(1));
+    await waitFor(() => expect(screen.getAllByText('Aún sin tiempo').length).toBe(7));
+
+    stored = [result('m9', 'a1', 3482, '2026-10-18T08:00:00Z')];
+    await view.rerender(tree(2));
+
+    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+    expect(synced.listByAthlete).toHaveBeenCalledTimes(2);
+  });
+
   it('says there are no athletes when the person manages none', async () => {
     await show({ userId: 'nobody' });
 

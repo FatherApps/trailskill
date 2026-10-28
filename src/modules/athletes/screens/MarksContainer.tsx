@@ -16,7 +16,7 @@ export type MarksContainerProps = {
   managed: ManagedAthleteRepository;
   athletes: SchoolAthleteRepository;
   history: Pick<HistoryRepository, 'listByAthlete'>;
-  // Changing it looks the athletes up again (the route passes the last sync).
+  // Changing it looks the athletes and their history up again (the route passes the last sync).
   refreshKey?: unknown;
   scrollEnabled?: boolean;
 };
@@ -49,7 +49,7 @@ export function MarksContainer({ userId, managed, athletes, history, refreshKey,
     return () => {
       active = false;
     };
-  }, [history, selectedId, attempt]);
+  }, [history, selectedId, attempt, refreshKey]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   let view: MarksView;
