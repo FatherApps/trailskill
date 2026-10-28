@@ -1,64 +1,47 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { ColorCard, StateView, useFocusRing } from '../../../core/ui';
+import { Button, Icon, StateView } from '../../../core/ui';
+import { AthleteStack, type MyAthleteCard } from '../components/AthleteStack';
+import { useLargeText } from '../components/useLargeText';
 import '../i18n';
-import type { AthleteColor } from '../athleteDisplay';
 
-export type MyAthleteCard = {
-  id: string;
-  // The short name ("Tomás R.").
-  name: string;
-  color: AthleteColor;
-  // Category and group, when the device knows them. Never an empty string: it would render outside a <Text>.
-  detail?: string;
-};
+export type { MyAthleteCard };
 
 export type MyAthletesView = { kind: 'loading' } | { kind: 'empty' } | { kind: 'data'; athletes: MyAthleteCard[] };
 
 export type MyAthletesScreenProps = {
   view: MyAthletesView;
+  // Opens the profile (and with it the history) of the athlete in front.
   onOpen: (athleteId: string) => void;
+  onAdd: () => void;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
 };
 
-export const myAthletesScreenColors: { title: ColorToken } = { title: 'ink' };
+export const myAthletesScreenColors: { title: ColorToken; background: ColorToken } = { title: 'ink', background: 'surface-0' };
 
-function AthleteCardButton({ card, onOpen }: { card: MyAthleteCard; onOpen: (athleteId: string) => void }) {
-  const { focusProps, ring } = useFocusRing();
-  const { radius } = useTheme();
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={card.detail ? t('athletes.my.card_label', { name: card.name, detail: card.detail }) : card.name}
-      onPress={() => onOpen(card.id)}
-      {...focusProps}
-      style={[{ borderRadius: radius.md }, ring]}
-    >
-      <ColorCard color={card.color} title={card.name} detail={card.detail} />
-    </Pressable>
-  );
-}
-
-// Presentational: no network, database or repository; the caller supplies the athletes and handles the press.
-export function MyAthletesScreen({ view, onOpen, scrollEnabled = true }: MyAthletesScreenProps) {
+// Presentational: no network, database or repository; the caller supplies the athletes and handles the presses.
+export function MyAthletesScreen({ view, onOpen, onAdd, scrollEnabled = true }: MyAthletesScreenProps) {
   const { colors, space, typography } = useTheme();
-  const frame = { alignSelf: 'stretch', flex: scrollEnabled ? 1 : undefined } as const;
+  const largeText = useLargeText();
+  const frame = { alignSelf: 'stretch', flex: scrollEnabled ? 1 : undefined, backgroundColor: colors[myAthletesScreenColors.background] } as const;
   const padding = { paddingHorizontal: space[4], paddingVertical: space[4], gap: space[3] };
 
-  const title = (
-    <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors[myAthletesScreenColors.title] }]}>
-      {t('athletes.my.title')}
-    </Text>
+  const header = (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[3] }}>
+      <Text accessibilityRole="header" style={[typography[largeText ? 'title' : 'title-lg'], { color: colors[myAthletesScreenColors.title] }]}>
+        {t('athletes.my.title')}
+      </Text>
+      <Button variant="secondary" label={t('athletes.my.add')} icon={<Icon name="person_add" />} onPress={onAdd} />
+    </View>
   );
 
   if (view.kind === 'loading') {
     return (
       <View style={[frame, padding]}>
-        {title}
+        {header}
         <StateView kind="loading" />
       </View>
     );
@@ -66,7 +49,7 @@ export function MyAthletesScreen({ view, onOpen, scrollEnabled = true }: MyAthle
   if (view.kind === 'empty') {
     return (
       <View style={[frame, padding]}>
-        {title}
+        {header}
         <StateView kind="empty" icon="group" title={t('athletes.my.empty.title')} message={t('athletes.my.empty.message')} />
       </View>
     );
@@ -74,10 +57,8 @@ export function MyAthletesScreen({ view, onOpen, scrollEnabled = true }: MyAthle
 
   const cards = (
     <>
-      {title}
-      {view.athletes.map((card) => (
-        <AthleteCardButton key={card.id} card={card} onOpen={onOpen} />
-      ))}
+      {header}
+      <AthleteStack athletes={view.athletes} onOpen={onOpen} />
     </>
   );
   return scrollEnabled ? (

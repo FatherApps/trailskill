@@ -14,19 +14,25 @@ jest.mock('../modules/accounts', () => ({
   // The real container: only the repositories it receives are replaced.
   ...jest.requireActual('../modules/accounts/screens/SignOutContainer'),
   createPowerSyncManagedAthleteRepository: () => ({}),
+  createPowerSyncAuthorizationStatusRepository: () => ({}),
   createSecureStoreRegistrationDraftRepository: () => ({ clear: () => mockClearDraft() }),
   createSecureStorePendingInvitationRepository: () => ({ clear: (userId: string) => mockClearPending(userId) }),
 }));
+let mockContainerProps: { onAdd: () => void } | undefined;
 jest.mock('../modules/athletes', () => ({
   // The list itself is tested in the athletes module.
-  MyAthletesContainer: () => {
+  MyAthletesContainer: (props: { onAdd: () => void }) => {
     const { Text } = jest.requireActual('react-native');
+    mockContainerProps = props;
     return <Text>list of athletes</Text>;
   },
   createPowerSyncAthleteSchoolRepository: () => ({}),
   createPowerSyncSchoolAthleteRepository: () => ({}),
 }));
-jest.mock('../modules/school-console', () => ({ createPowerSyncSchoolStructureRepository: () => ({}) }));
+jest.mock('../modules/school-console', () => ({
+  createPowerSyncSchoolStructureRepository: () => ({}),
+  createPowerSyncSchoolNameRepository: () => ({}),
+}));
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 
@@ -53,6 +59,14 @@ describe.each([
     expect(screen.getByText('list of athletes')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Autorizaciones' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeOnTheScreen();
+  });
+
+  it('opens the form to add an athlete', async () => {
+    await render(<MyAthletesRoute />);
+
+    mockContainerProps!.onAdd();
+
+    expect(mockPush).toHaveBeenCalledWith('/athletes/add');
   });
 
   it('opens the authorizations', async () => {

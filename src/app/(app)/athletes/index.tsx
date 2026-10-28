@@ -7,6 +7,7 @@ import { useGlobalSyncSummary } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import { Button } from '../../../core/ui';
 import {
+  createPowerSyncAuthorizationStatusRepository,
   createPowerSyncManagedAthleteRepository,
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
@@ -17,9 +18,11 @@ import {
   createPowerSyncSchoolAthleteRepository,
   MyAthletesContainer,
 } from '../../../modules/athletes';
-import { createPowerSyncSchoolStructureRepository } from '../../../modules/school-console';
+import { createPowerSyncSchoolNameRepository, createPowerSyncSchoolStructureRepository } from '../../../modules/school-console';
 
 const managedAthletes = createPowerSyncManagedAthleteRepository();
+const authorizations = createPowerSyncAuthorizationStatusRepository();
+const schoolNames = createPowerSyncSchoolNameRepository();
 const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const schoolLinks = createPowerSyncAthleteSchoolRepository();
 const structure = createPowerSyncSchoolStructureRepository();
@@ -41,9 +44,12 @@ export default function MyAthletesRoute() {
         managed={managedAthletes}
         athletes={schoolAthletes}
         schoolLinks={schoolLinks}
+        schoolNames={schoolNames}
         structure={structure}
+        authorizations={authorizations}
         refreshKey={lastSyncedAt?.getTime()}
         onOpen={(id) => router.push(`/athletes/${id}`)}
+        onAdd={() => router.push('/athletes/add')}
       />
       {/* Bridge: a guardian and an adult athlete land here and have no other way to sign out or manage authorizations; the account screen (#778) takes these two out. */}
       <View style={{ padding: space[4], gap: space[3] }}>
