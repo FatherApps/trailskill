@@ -1,17 +1,17 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 import { namedText, t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { ChipRow, ColorCard, Icon, LogoSymbol, StateView, SyncStatus, Tag, TimeValue, type ColorCardColor } from '../../../core/ui';
+import { Button, ChipRow, ColorCard, Icon, InitialsDot, LogoSymbol, StateView, SyncStatus, Tag, TimeValue } from '../../../core/ui';
 import '../i18n';
 
 export type HomeAthlete = { id: string; name: string; initials: string; color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4' };
 
 export type HomeWeekDay = { day: string; weekday: string; date: number; today: boolean };
 
-export type HomeNext = { athleteId: string; athleteName: string; title: string; whenLabel: string; color: ColorCardColor };
+export type HomeNext = { athleteId: string; athleteName: string; initials: string; title: string; whenLabel: string; color: HomeAthlete['color'] };
 
 export type HomeMark = { id: string; athleteName: string; event: string; detail: string; hundredths: Hundredths; color: HomeAthlete['color'] };
 
@@ -66,29 +66,26 @@ function WeekStrip({ week }: { week: HomeWeekDay[] }) {
 }
 
 function NextCard({ next, onOpen }: { next: HomeNext; onOpen: () => void }) {
-  const { colors, space, typography } = useTheme();
+  const { colors, space, radius, typography } = useTheme();
   return (
     <>
       <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
         {t('training_plans.home.next_title')}
       </Text>
-      {/* The whole card opens the day's plan; it reads as one button, from the same data as the visible text. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('training_plans.home.next_label', { title: next.title, when: next.whenLabel, name: next.athleteName })}
-        onPress={onOpen}
-      >
-        <ColorCard color={next.color} title={next.title} decoration={{ dot: 'sky' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' }}>
-            <Tag icon="schedule" label={next.whenLabel} />
-            <Text style={[typography.label, { color: colors['on-color'] }]}>{next.athleteName}</Text>
+      <ColorCard color={next.color} title={next.title} decoration={{ dot: 'sky' }}>
+        {/* shortcut: ColorCard puts its title first, so the day tag sits under it; the mockup has it above. Upgrade with a slot above the title in core. */}
+        <Tag icon="schedule" label={next.whenLabel} />
+        {/* The athlete on the left and the action on the right; with large text they wrap onto two lines. */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2], marginTop: space[2] }}>
+          <View
+            style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], paddingRight: space[3], borderRadius: radius.full, backgroundColor: colors['surface-1'] }}
+          >
+            <InitialsDot initials={next.initials} color={next.color} />
+            <Text style={[typography.label, { color: colors.ink }]}>{next.athleteName}</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[1], alignSelf: 'flex-end' }}>
-            <Text style={[typography['body-strong'], { color: colors['on-color'] }]}>{t('training_plans.home.next_action')}</Text>
-            <Icon name="arrow_forward" color="on-color" />
-          </View>
-        </ColorCard>
-      </Pressable>
+          <Button variant="dark" label={t('training_plans.home.next_action')} onPress={onOpen} trailingIcon={<Icon name="arrow_forward" color="on-primary" size="icon-sm" />} />
+        </View>
+      </ColorCard>
     </>
   );
 }
@@ -123,7 +120,7 @@ export function HomeScreen({ view, greetingName = '', athletes, selectedId, onSe
         <LogoSymbol size={space[8]} decorative />
         <View style={{ flexGrow: 1, minWidth: space[12] * 3 + space[8] }}>
           {content?.schoolName ? <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{content.schoolName}</Text> : null}
-          <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
+          <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
             {namedText('training_plans.home.greeting', greetingName)}
           </Text>
         </View>

@@ -99,7 +99,7 @@ function contentOf(loaded: Loaded, selectedId: string, today: string): HomeConte
   const shown = loaded.reads.filter(({ athlete }) => selectedId === ALL_ATHLETES || athlete.id === selectedId);
   // The earliest assignment among the athletes shown; on a tie, the first athlete.
   const soonest = shown.reduce<Read | null>((best, r) => (r.next && (!best?.next || r.next.day < best.next.day) ? r : best), null);
-  const { shortName, color } = soonest ? athleteDisplay(soonest.athlete) : { shortName: '', color: 'athlete-1' as const };
+  const { shortName, initials, color } = soonest ? athleteDisplay(soonest.athlete) : { shortName: '', initials: '', color: 'athlete-1' as const };
   return {
     schoolName: loaded.schoolName,
     week: weekOf(today).map((day, index) => ({
@@ -109,7 +109,7 @@ function contentOf(loaded: Loaded, selectedId: string, today: string): HomeConte
       today: day === today,
     })),
     next: soonest?.next
-      ? { athleteId: soonest.athlete.id, athleteName: shortName, title: soonest.next.title, whenLabel: whenLabel(soonest.next.day, today), color }
+      ? { athleteId: soonest.athlete.id, athleteName: shortName, initials, title: soonest.next.title, whenLabel: whenLabel(soonest.next.day, today), color }
       : null,
     marks: shown
       .flatMap((r) => r.marks)

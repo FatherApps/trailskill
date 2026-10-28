@@ -111,27 +111,28 @@ describe('HomeContainer', () => {
       const { onOpenToday } = await show();
 
       expect(screen.getByText('Lo próximo')).toBeOnTheScreen();
-      const card = screen.getByRole('button', { name: /^Lo próximo: Toma de tiempos, Hoy, / });
-      await fireEvent.press(card);
+      expect(screen.getByText('Toma de tiempos')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Hoy')).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Ver entreno' }));
 
       expect(onOpenToday).toHaveBeenCalledWith('a1');
     });
 
     it('says Mañana for the next day and a short date after that', async () => {
       await show({ p1Days: ['2026-11-03'] });
-      expect(screen.getByRole('button', { name: /^Lo próximo: Toma de tiempos, Mañana, / })).toBeOnTheScreen();
+      expect(screen.getByLabelText('Mañana')).toBeOnTheScreen();
     });
 
     it('looks for the next assignment among the following days', async () => {
       await show({ p1Days: ['2026-11-06'] });
-      expect(screen.getByRole('button', { name: /^Lo próximo: Toma de tiempos, vie,? 6 (de )?nov/i })).toBeOnTheScreen();
+      expect(screen.getByLabelText(/vie,? 6 (de )?nov/i)).toBeOnTheScreen();
     });
 
     it('is left out when no assignment is coming', async () => {
       await show({ p1Days: [] });
 
       expect(screen.queryByText('Lo próximo')).toBeNull();
-      expect(screen.queryByRole('button', { name: /^Lo próximo/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Ver entreno' })).toBeNull();
     });
 
     it('does not offer a plan of a past day', async () => {
@@ -146,10 +147,11 @@ describe('HomeContainer', () => {
       await show({ ids: ['a1', 'a3'], p1Days: ['2026-11-05'], p2Days: ['2026-11-03'] });
 
       expect(screen.getByRole('radio', { name: /Todos/ })).toBeSelected();
-      expect(screen.getByRole('button', { name: /^Lo próximo: Plan del otro, Mañana/ })).toBeOnTheScreen();
+      expect(screen.getByText('Plan del otro')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Mañana')).toBeOnTheScreen();
 
       await fireEvent.press(screen.getByRole('radio', { name: /^A1/ }));
-      expect(screen.getByRole('button', { name: /^Lo próximo: Toma de tiempos, / })).toBeOnTheScreen();
+      expect(screen.getByText('Toma de tiempos')).toBeOnTheScreen();
     });
 
     it('shows no chips for a single athlete', async () => {

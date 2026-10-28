@@ -90,7 +90,6 @@
     "athlete_picker": "Deportista",
     "all": "Todos",
     "next_title": "Lo próximo",
-    "next_label": "Lo próximo: {{title}}, {{when}}, {{name}}",
     "next_action": "Ver entreno",
     "today": "Hoy",
     "tomorrow": "Mañana",
