@@ -24,6 +24,9 @@ const ring = { size: spaces[12] * 4, width: spaces[5], top: -spaces[8], right: -
 const dot = { size: spaces[12], top: spaces[6], right: spaces[6] };
 const accent = { size: spaces[6], top: spaces[12] + spaces[6], right: spaces[12] + spaces[8] };
 
+// Measured from the reference screen: the decorated card is about 5 x space[12] tall and its text sits at the bottom, below the circles.
+const decorated = { overflow: 'hidden', minHeight: spaces[12] * 5, justifyContent: 'flex-end' } as const;
+
 const hidden = {
   accessible: false,
   importantForAccessibility: 'no-hide-descendants',
@@ -44,7 +47,7 @@ export function ColorCard({ color, title, detail, decoration, children }: ColorC
         padding: space[4],
         borderRadius: radius.md,
         backgroundColor: colors[color],
-        ...(decoration && { overflow: 'hidden' as const }),
+        ...(decoration && decorated),
       }}
     >
       {decoration && (

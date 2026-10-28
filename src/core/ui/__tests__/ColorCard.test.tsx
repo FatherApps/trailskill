@@ -100,7 +100,7 @@ describe('ColorCard', () => {
       </ThemeProvider>,
     );
 
-    expect(rootStyle()).toMatchObject({ backgroundColor: colors.light.lime, overflow: 'hidden' });
+    expect(rootStyle()).toMatchObject({ backgroundColor: colors.light.lime, overflow: 'hidden', minHeight: space[12] * 5, justifyContent: 'flex-end' });
     expect(StyleSheet.flatten(screen.getByTestId('color-card-ring', { includeHiddenElements: true }).props.style)).toMatchObject({
       borderColor: colors.light['card-ring'],
     });
