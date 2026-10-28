@@ -1,5 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
+import * as WebBrowser from 'expo-web-browser';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, View } from 'react-native';
 
@@ -11,7 +13,13 @@ import { Button, ConfirmSheet, StateView } from '../ui';
 // The id of the user whose data the local database holds. SecureStore keys allow only letters, digits, ".", "-" and "_".
 const LOCAL_OWNER_KEY = 'trailskill-local-owner';
 
-type SignOutResult = { status: 'signed_out' } | { status: 'blocked_pending'; unsent: number; rejected: number };
+/** `azure` is how Supabase names Microsoft. */
+export type AuthProvider = 'google' | 'azure';
+
+// trailskill://auth-callback: the server settings (#84) must allow exactly this URL.
+const AUTH_CALLBACK_PATH = 'auth-callback';
+
+type SignOutResult ={ status: 'signed_out' } | { status: 'blocked_pending'; unsent: number; rejected: number };
 
 type SessionValue = {
   /** Null until the local database holds only this user's data, so no screen shows another person's records. */
@@ -22,6 +30,8 @@ type SessionValue = {
   configError: string | null;
   requestCode(email: string, options?: { createUser?: boolean }): Promise<void>;
   verifyCode(email: string, code: string): Promise<void>;
+  /** Opens the provider in the system browser. 'cancelled' when the person closes it or declines; rejects on a failure. */
+  signInWithProvider(provider: AuthProvider): Promise<'signed_in' | 'cancelled'>;
   signOut(options?: { force?: boolean }): Promise<SignOutResult>;
 };
 
@@ -175,6 +185,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     throw error.code === 'otp_expired' ? new CodeMismatchError() : error;
   }, []);
 
+  const signInWithProvider = useCallback(async (provider: AuthProvider): Promise<'signed_in' | 'cancelled'> => {
+    if (supabaseConfigError) throw new Error(supabaseConfigError);
+    const redirectTo = Linking.createURL(AUTH_CALLBACK_PATH);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      // The browser is opened here, not by supabase-js, so its result comes back to this call.
+      options: { redirectTo, skipBrowserRedirect: true, ...(provider === 'azure' ? { scopes: 'email' } : {}) },
+    });
+    if (error) throw error;
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    if (result.type !== 'success') return 'cancelled';
+    const { queryParams } = Linking.parse(result.url);
+    if (queryParams?.error === 'access_denied') return 'cancelled';
+    if (queryParams?.error) throw new Error(String(queryParams.error_description ?? queryParams.error));
+    const code = queryParams?.code;
+    if (typeof code !== 'string' || !code) throw new Error('The provider did not return a code');
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+    if (exchangeError) throw exchangeError;
+    // The auth listener delivers the session: from here on it is the same path as the emailed code.
+    return 'signed_in';
+  }, []);
+
   const signOut = useCallback(async (options?: { force?: boolean }): Promise<SignOutResult> => {
     // Awaits the real count: the sync hook reports 0 until its first query lands.
     const { unsent, rejected } = await countUnsentRecords();
@@ -193,8 +225,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const visibleSession = ready ? session : null;
   const value = useMemo(
-    () => ({ session: visibleSession, syncConnectFailed, configError: supabaseConfigError, requestCode, verifyCode, signOut }),
-    [visibleSession, syncConnectFailed, requestCode, verifyCode, signOut],
+    () => ({ session: visibleSession, syncConnectFailed, configError: supabaseConfigError, requestCode, verifyCode, signInWithProvider, signOut }),
+    [visibleSession, syncConnectFailed, requestCode, verifyCode, signInWithProvider, signOut],
   );
 
   // Render nothing until the stored session and the owner of the local data are known,

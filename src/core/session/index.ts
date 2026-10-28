@@ -1,1 +1,1 @@
-export { CodeMismatchError, SessionProvider, signOutDecision, useSession } from './SessionProvider';
+export { type AuthProvider, CodeMismatchError, SessionProvider, signOutDecision, useSession } from './SessionProvider';

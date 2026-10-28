@@ -34,5 +34,7 @@ export const supabase = createClient(url, anonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // Google and Microsoft sign-in returns a one-time code to trade for the session, never the tokens in the link.
+    flowType: 'pkce',
   },
 });

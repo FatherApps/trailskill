@@ -22,6 +22,19 @@ const mockSignInWithOtp = jest.fn();
 const mockVerifyOtp = jest.fn();
 const mockSignOut = jest.fn();
 const mockGetSession = jest.fn();
+const mockSignInWithOAuth = jest.fn();
+const mockExchangeCode = jest.fn();
+const mockOpenAuthSession = jest.fn();
+
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: (...args: unknown[]) => mockOpenAuthSession(...args),
+}));
+
+// The real createURL and parse read the Expo manifest, which does not exist under Jest.
+jest.mock('expo-linking', () => ({
+  createURL: (path: string) => `trailskill://${path}`,
+  parse: (url: string) => ({ queryParams: Object.fromEntries(new URL(url).searchParams) }),
+}));
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: async () => {
@@ -62,12 +75,15 @@ jest.mock('../../sync', () => ({
       signInWithOtp: (...args: unknown[]) => mockSignInWithOtp(...args),
       verifyOtp: (...args: unknown[]) => mockVerifyOtp(...args),
       signOut: (...args: unknown[]) => mockSignOut(...args),
+      signInWithOAuth: (...args: unknown[]) => mockSignInWithOAuth(...args),
+      exchangeCodeForSession: (...args: unknown[]) => mockExchangeCode(...args),
       getSession: () => mockGetSession(),
     },
   },
 }));
 
 beforeEach(() => {
+  (SupabaseConnector as unknown as jest.Mock).mockClear();
   mockCalls.length = 0;
   mockConfigError = null;
   mockInitialSession = mockSignedIn;
@@ -85,6 +101,11 @@ beforeEach(() => {
     return { error: null };
   });
   mockGetSession.mockReset().mockResolvedValue({ data: { session: null } });
+  mockSignInWithOAuth.mockReset().mockResolvedValue({ data: { url: 'https://provider.example.test/authorize' }, error: null });
+  mockExchangeCode.mockReset().mockResolvedValue({ data: { session: mockSignedIn }, error: null });
+  mockOpenAuthSession
+    .mockReset()
+    .mockResolvedValue({ type: 'success', url: 'trailskill://auth-callback?code=one-time-code' });
 });
 
 async function renderSession() {
@@ -106,6 +127,108 @@ async function renderProbe() {
     </SessionProvider>,
   );
 }
+
+describe('signInWithProvider', () => {
+  const redirectTo = 'trailskill://auth-callback';
+
+  it('opens the provider in the system browser, then trades the returned code for the session', async () => {
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).resolves.toBe('signed_in');
+
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo, skipBrowserRedirect: true } });
+    expect(mockOpenAuthSession).toHaveBeenCalledWith('https://provider.example.test/authorize', redirectTo);
+    expect(mockExchangeCode).toHaveBeenCalledWith('one-time-code');
+  });
+
+  it('asks Microsoft for the email scope, which its accounts do not share by default', async () => {
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('azure')).resolves.toBe('signed_in');
+
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'azure',
+      options: { redirectTo, skipBrowserRedirect: true, scopes: 'email' },
+    });
+  });
+
+  it.each(['cancel', 'dismiss', 'locked'])('returns cancelled, with no error, when the browser ends as %s', async (type) => {
+    mockOpenAuthSession.mockResolvedValue({ type });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).resolves.toBe('cancelled');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('returns cancelled when the person declines on the provider consent screen', async () => {
+    mockOpenAuthSession.mockResolvedValue({ type: 'success', url: `${redirectTo}?error=access_denied&error_description=denied` });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).resolves.toBe('cancelled');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the provider returns another error, without trading anything', async () => {
+    mockOpenAuthSession.mockResolvedValue({ type: 'success', url: `${redirectTo}?error=server_error&error_description=boom` });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('azure')).rejects.toThrow('boom');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the browser comes back without a code', async () => {
+    mockOpenAuthSession.mockResolvedValue({ type: 'success', url: redirectTo });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).rejects.toThrow('code');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects with the Supabase error when the code cannot be traded', async () => {
+    const failure = new Error('invalid flow state');
+    mockExchangeCode.mockResolvedValue({ data: { session: null }, error: failure });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).rejects.toBe(failure);
+  });
+
+  it('rejects with the Supabase error when the sign-in cannot start, without opening the browser', async () => {
+    const failure = new Error('provider is not enabled');
+    mockSignInWithOAuth.mockResolvedValue({ data: { url: null }, error: failure });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).rejects.toBe(failure);
+
+    expect(mockOpenAuthSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects at once, without calling Supabase, when the build has no server settings', async () => {
+    mockConfigError = 'Missing EXPO_PUBLIC_SUPABASE_URL';
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).rejects.toThrow('Missing EXPO_PUBLIC_SUPABASE_URL');
+
+    expect(mockSignInWithOAuth).not.toHaveBeenCalled();
+  });
+
+  it('lands on the same connected session as the emailed code once Supabase announces it', async () => {
+    mockInitialSession = null;
+    const session = await renderSession();
+    expect(session.current.session).toBeNull();
+
+    await act(async () => {
+      await session.current.signInWithProvider('google');
+      mockAuthCallback('SIGNED_IN', mockSignedIn);
+    });
+
+    await waitFor(() => expect(session.current.session).toBe(mockSignedIn));
+    expect(mockCalls).toContain('db.connect');
+  });
+});
 
 describe('signOutDecision', () => {
   it.each([

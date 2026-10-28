@@ -54,4 +54,14 @@ describe('supabase client configuration', () => {
     expect(supabaseConfigError).toBeNull();
     expect(console.error).not.toHaveBeenCalled();
   });
+
+  it('uses the PKCE flow, so a provider sign-in returns a code to trade and not the tokens', () => {
+    process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://api.example.test';
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon';
+
+    const { supabase } = load();
+
+    // flowType is protected in supabase-js and has no getter.
+    expect((supabase.auth as unknown as { flowType: string }).flowType).toBe('pkce');
+  });
 });
