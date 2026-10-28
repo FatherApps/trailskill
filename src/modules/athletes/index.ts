@@ -45,6 +45,8 @@ export { athleteDisplay, type AthleteColor } from './athleteDisplay';
 export { useManagedAthletes, type ManagedAthletesResult } from './data/useManagedAthletes';
 export { AthleteProfileContainer, type AthleteProfileContainerProps } from './screens/AthleteProfileContainer';
 export { MyAthletesScreen, type MyAthleteCard, type MyAthletesScreenProps, type MyAthletesView } from './screens/MyAthletesScreen';
+export { MarksScreen, type MarkCard, type MarksScreenProps, type MarksView } from './screens/MarksScreen';
+export { MarksContainer, type MarksContainerProps } from './screens/MarksContainer';
 export { MyAthletesContainer, type MyAthletesContainerProps } from './screens/MyAthletesContainer';
 export type { AthleteStructure } from './data/useAthleteDetails';
 export {
