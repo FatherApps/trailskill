@@ -121,4 +121,41 @@ describe('supabase client configuration', () => {
     expect(calls[0].url).toContain('/auth/v1/verify');
     expect(calls[0].body).toMatchObject({ email: 'ana@example.test', token: '123456', type: 'email' });
   });
+
+  // With PKCE, signInWithOtp also sends a code challenge and keeps a verifier; the emailed code must still sign in.
+  it('still asks for the emailed code and signs in with it with the PKCE flow', async () => {
+    process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://api.example.test';
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon';
+    const calls: { url: string; method?: string; body: Record<string, unknown> }[] = [];
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      calls.push({ url, method: init?.method, body: JSON.parse(String(init?.body ?? 'null')) });
+      if (url.includes('/auth/v1/otp')) return json({});
+      return json({
+        access_token: 'access',
+        refresh_token: 'refresh',
+        token_type: 'bearer',
+        expires_in: 3600,
+        user: { id: 'user-1', aud: 'authenticated', email: 'ana@example.test', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' },
+      });
+    });
+    const { supabase } = load();
+
+    try {
+      const requested = await supabase.auth.signInWithOtp({ email: 'ana@example.test', options: { shouldCreateUser: true } });
+      const verified = await supabase.auth.verifyOtp({ email: 'ana@example.test', token: '123456', type: 'email' });
+
+      expect(requested.error).toBeNull();
+      expect(verified.error).toBeNull();
+      expect(verified.data.session?.access_token).toBe('access');
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    expect(calls.map((call) => call.url)).toEqual([expect.stringContaining('/auth/v1/otp'), expect.stringContaining('/auth/v1/verify')]);
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].body).toMatchObject({ email: 'ana@example.test', create_user: true, code_challenge_method: 's256' });
+    expect(calls[1].body).toMatchObject({ email: 'ana@example.test', token: '123456', type: 'email' });
+  });
 });
