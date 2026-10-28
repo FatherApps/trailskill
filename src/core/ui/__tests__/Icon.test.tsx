@@ -14,7 +14,7 @@ const fillOf = (token: keyof (typeof colors)['light']) => ({
 });
 
 describe('Icon', () => {
-  it('bundles exactly the design system subset plus the icons of Banner and the registration screens and the console screen', () => {
+  it('bundles exactly the design system subset plus the icons of Banner and the registration screens, the console screen and the phone navigation bar', () => {
     expect([...names].sort()).toEqual(
       [
         'timer',
@@ -58,6 +58,8 @@ describe('Icon', () => {
         'arrow_forward',
         'person_search',
         'chat_bubble',
+        'timeline',
+        'fitness_center',
       ].sort(),
     );
   });
