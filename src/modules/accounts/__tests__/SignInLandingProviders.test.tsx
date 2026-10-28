@@ -1,5 +1,5 @@
 import { AuthRetryableFetchError } from '@supabase/supabase-js';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 
 import { t } from '../i18n';
 import { SignInLanding } from '../screens/SignInLanding';
@@ -101,6 +101,16 @@ describe('SignInLanding provider sign-in', () => {
     await waitFor(() => expect(mockSession.signInWithProvider).toHaveBeenCalledTimes(2));
     expect(mockSession.signInWithProvider).toHaveBeenLastCalledWith('azure');
     await waitFor(() => expect(screen.queryByText(t('accounts.failure.offline_title'))).toBeNull());
+  });
+
+  // The buttons push the footer below the fold on a phone: it must stay inside the scroll to be reachable.
+  it('keeps the help line and the offline notice inside the scroll on "Ingresar" with the providers shown', async () => {
+    await renderLanding('sign-in');
+
+    const scroll = within(screen.getByTestId('sign-in-scroll'));
+
+    expect(scroll.getByText('¿No puedes entrar? Pide ayuda a tu escuela')).toBeOnTheScreen();
+    expect(scroll.getByTestId('offline-notice')).toBeOnTheScreen();
   });
 
   it('opens the browser once when a button is pressed again before it returns', async () => {
