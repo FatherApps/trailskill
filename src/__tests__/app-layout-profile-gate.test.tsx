@@ -9,6 +9,7 @@ type World = {
   // Rows already on the device.
   localStaff: boolean;
   localManaged: boolean;
+  localAuthorizations: boolean;
   // Rows on the server; `failing` is the lack of signal.
   online: { rows: { source: string; userId: string }[]; failing: boolean; pending?: boolean };
   draft: Record<string, unknown> | null;
@@ -93,6 +94,8 @@ jest.mock('../modules/accounts', () => ({
     })),
   createPowerSyncManagedAthleteRepository: () =>
     mockLazy((w) => ({ listManagedAthleteIds: async () => (w.localManaged ? ['a1'] : []) })),
+  createPowerSyncOwnAuthorizationEvidence: () => async () =>
+    (globalThis as unknown as { mockWorld: { current: { localAuthorizations: boolean } } }).mockWorld.current.localAuthorizations,
   createPowerSyncManagedAthleteProfileRepository: () => ({ createManagedAthlete: async () => 'a1' }),
   createSecureStorePendingInvitationRepository: () => ({}),
   createSupabaseInvitationRepository: () => ({ resolve: async () => null }),
@@ -119,6 +122,7 @@ function arrange(overrides: Partial<World> = {}) {
     synced: true,
     localStaff: false,
     localManaged: false,
+    localAuthorizations: false,
     online: { rows: [], failing: false },
     draft: null,
     savedProfile: null,
@@ -158,6 +162,7 @@ describe('app layout: an account with a profile enters as today', () => {
   it.each([
     ['a guardian or an adult athlete (managed athletes on the device)', { localManaged: true }],
     ['a coach or an admin (memberships on the device)', { localStaff: true }],
+    ['a guardian who has not added an athlete yet (own authorizations on the device)', { localAuthorizations: true }],
     ['a platform admin (found online)', { synced: false, online: { rows: [{ source: 'platform_admins', userId: USER }], failing: false } }],
     ['an invited account (adult profile found online)', { online: { rows: [{ source: 'adult_profiles', userId: USER }], failing: false } }],
   ])('%s', async (_who, overrides: Partial<World>) => {

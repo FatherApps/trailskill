@@ -29,8 +29,9 @@ async function setup({ draft: stored = null, synced = true, staff = [], managed 
   const staffSchools = createInMemoryStaffSchoolRepository(staff.map((row) => ({ ...row, schoolId: 's1', schoolName: 'School' })));
   const managedAthletes = createInMemoryManagedAthleteRepository(managed);
   const evidence = createInMemoryProfileEvidenceRepository(online);
+  const local = { arrived: false };
   const hasLocalProfile = async (userId: string) =>
-    (await staffSchools.listStaffSchools(userId)).length > 0 || (await managedAthletes.listManagedAthleteIds(userId)).length > 0;
+    local.arrived || (await staffSchools.listStaffSchools(userId)).length > 0 || (await managedAthletes.listManagedAthleteIds(userId)).length > 0;
   const gate: { current?: ProfileGate } = {};
   const history: ProfileGate['status'][] = [];
   function Probe({ synced: ready, email = EMAIL }: { synced: boolean; email?: string }) {
@@ -39,7 +40,7 @@ async function setup({ draft: stored = null, synced = true, staff = [], managed 
     return null;
   }
   const view = await render(<Probe synced={synced} />);
-  return { gate, history, evidence, view, Probe };
+  return { gate, history, evidence, local, view, Probe };
 }
 
 const status = (gate: { current?: ProfileGate }) => gate.current?.status;
@@ -161,10 +162,18 @@ describe('useProfileGate: first sync and no signal', () => {
     await waitFor(() => expect(status(gate)).toBe('register'));
   });
 
+  it('rows already on the device count before the first sync is reported (offline cold start)', async () => {
+    const { gate, evidence } = await setup({ synced: false, staff: [{ userId: USER, role: 'coach' }], online: { failing: true } });
+
+    await waitFor(() => expect(status(gate)).toBe('ready'));
+    expect(evidence.calls).toBe(0);
+  });
+
   it('looks again when the first sync arrives with the rows', async () => {
-    const { gate, view, Probe } = await setup({ synced: false, staff: [{ userId: USER, role: 'coach' }], online: { failing: true } });
+    const { gate, local, view, Probe } = await setup({ synced: false, online: { failing: true } });
     await waitFor(() => expect(status(gate)).toBe('unreachable'));
 
+    local.arrived = true;
     await view.rerender(<Probe synced />);
 
     await waitFor(() => expect(status(gate)).toBe('ready'));

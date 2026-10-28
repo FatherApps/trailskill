@@ -11,7 +11,10 @@ export {
   type ProviderAccount,
   type ProviderRegistrationContainerProps,
 } from './screens/ProviderRegistrationContainer';
-export { createSupabaseProfileEvidenceRepository, useProfileGate, type ProfileEvidenceRepository, type ProfileGate } from './data/profileGate';
+export {
+  createPowerSyncOwnAuthorizationEvidence,
+  createSupabaseProfileEvidenceRepository,
+  useProfileGate, type ProfileEvidenceRepository, type ProfileGate } from './data/profileGate';
 export { SignInLanding, type SignInLandingProps } from './screens/SignInLanding';
 export { InviteLinkContainer, type InviteLinkContainerProps } from './screens/InviteLinkContainer';
 export { WhoSwimsContainer, type WhoSwimsContainerProps } from './screens/WhoSwimsContainer';

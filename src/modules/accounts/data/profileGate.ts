@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { supabase } from '../../../core/sync';
+import { db, supabase } from '../../../core/sync';
 import type { RegistrationDraftRepository } from './registrationDraft';
 
 // The tables whose row says an account is already registered: the adult's own profile, a platform admin, a school member
@@ -32,6 +32,12 @@ export function createSupabaseProfileEvidenceRepository(): ProfileEvidenceReposi
   };
 }
 
+// A person who finished the registration has accepted the mandatory authorizations, so own rows exist on the device even for a guardian
+// who has not added an athlete yet (no managed athlete, no membership). Local database only.
+export function createPowerSyncOwnAuthorizationEvidence(): (userId: string) => Promise<boolean> {
+  return async (userId) => (await db.getAll('SELECT 1 FROM authorizations WHERE user_id = ? LIMIT 1', [userId])).length > 0;
+}
+
 export function createInMemoryProfileEvidenceRepository(options: { rows?: { source: EvidenceSource; userId: string }[]; failing?: boolean } = {}) {
   const repository = {
     calls: 0,
@@ -53,9 +59,10 @@ export type ProfileGateInput = {
   userId: string | undefined;
   email: string | undefined;
   drafts: RegistrationDraftRepository;
-  // The first sync reached this device: before it the local database is empty for everyone, so it proves nothing.
+  // The first sync reached this device. Rows on the device prove a profile whenever they are there, but their absence proves nothing
+  // before this: it only makes the check run again when the sync lands.
   localReady: boolean;
-  // Rows already on the device (a membership or a managed athlete). Local database only, so it works with no signal.
+  // Rows already on the device (a membership, a managed athlete or an own authorization). Local database only, so it works with no signal.
   hasLocalProfile: (userId: string) => Promise<boolean>;
   evidence: ProfileEvidenceRepository;
 };
@@ -75,7 +82,7 @@ export function useProfileGate({ userId, email, drafts, localReady, hasLocalProf
     (async (): Promise<ProfileGate['status']> => {
       const draft = await drafts.load().catch(() => null);
       if (draft && same(draft.email, email)) return 'ready';
-      if (localReady && (await hasLocalProfile(userId).catch(() => false))) return 'ready';
+      if (await hasLocalProfile(userId).catch(() => false)) return 'ready';
       try {
         return (await evidence.hasProfile(userId)) ? 'ready' : 'register';
       } catch {

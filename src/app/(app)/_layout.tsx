@@ -10,6 +10,7 @@ import { NavBar, StateView, type NavBarItem } from '../../core/ui';
 import {
   createPowerSyncManagedAthleteProfileRepository,
   createPowerSyncManagedAthleteRepository,
+  createPowerSyncOwnAuthorizationEvidence,
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
   createSupabaseAdultProfileRepository,
@@ -36,6 +37,7 @@ const managedProfiles = createPowerSyncManagedAthleteProfileRepository(
   createPowerSyncAthleteRepository(createPowerSyncManagedAthleteRepository(), createPowerSyncSchoolAthleteRepository()),
 );
 const profileEvidence = createSupabaseProfileEvidenceRepository();
+const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
 const invitation = { pending: createSecureStorePendingInvitationRepository(), invitations: createSupabaseInvitationRepository() };
 
 type Destination = 'athletes' | 'today' | 'history';
@@ -88,9 +90,13 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
   return <NavBar items={navItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
 }
 
-// A membership or a managed athlete already on the device: the proof that works with no signal.
+// A membership, a managed athlete or an own authorization already on the device: the proof that works with no signal.
 async function hasLocalProfile(userId: string) {
-  return (await staffSchools.listStaffSchools(userId)).length > 0 || (await managedAthletes.listManagedAthleteIds(userId)).length > 0;
+  return (
+    (await staffSchools.listStaffSchools(userId)).length > 0 ||
+    (await managedAthletes.listManagedAthleteIds(userId)).length > 0 ||
+    (await hasOwnAuthorizations(userId))
+  );
 }
 
 // A session with no profile goes to the registration steps, not to the app. The person who already uses the app is let in by what the
