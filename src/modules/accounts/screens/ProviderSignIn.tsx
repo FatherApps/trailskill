@@ -7,7 +7,7 @@ import { useTheme } from '../../../core/theme';
 import { StateView } from '../../../core/ui';
 import { ProviderOptions } from '../components/ProviderOptions';
 import { t } from '../i18n';
-import { SHOW_PROVIDERS } from '../providerAvailability';
+import { ENABLED_PROVIDERS } from '../providerAvailability';
 
 // Google and Microsoft on the landing, both tabs. Cancelling is not a failure; a success needs nothing here, because
 // the session gate moves to the app. A failure leaves the email code available below.
@@ -33,10 +33,10 @@ export function ProviderSignIn() {
     }
   }
 
-  if (!SHOW_PROVIDERS) return null;
+  if (ENABLED_PROVIDERS.length === 0) return null;
   return (
     <View style={{ gap: space[4] }}>
-      <ProviderOptions onGoogle={() => void signInWith('google')} onMicrosoft={() => void signInWith('azure')} />
+      <ProviderOptions providers={ENABLED_PROVIDERS} onGoogle={() => void signInWith('google')} onMicrosoft={() => void signInWith('azure')} />
       {failure === 'offline' && (
         <StateView
           kind="offline"

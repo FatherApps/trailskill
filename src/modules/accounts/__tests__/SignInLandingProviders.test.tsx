@@ -6,11 +6,11 @@ import { SignInLanding } from '../screens/SignInLanding';
 
 // Avoids loading the native PowerSync database.
 jest.mock('../../../core/sync', () => ({}));
-// The flag is set per test, so the landing is checked against both values whatever the real constant says.
-let mockShowProviders = false;
+// The list is set per test, so the landing is checked against any list whatever the real constant says.
+let mockEnabledProviders: string[] = [];
 jest.mock('../providerAvailability', () => ({
-  get SHOW_PROVIDERS() {
-    return mockShowProviders;
+  get ENABLED_PROVIDERS() {
+    return mockEnabledProviders;
   },
 }));
 
@@ -38,25 +38,29 @@ async function renderLanding(tab: 'create' | 'sign-in') {
 }
 
 beforeEach(() => {
-  mockShowProviders = true;
+  mockEnabledProviders = ['google', 'microsoft'];
   mockSession.configError = null;
   mockSession.signInWithProvider.mockReset().mockResolvedValue('signed_in');
 });
 
 describe('SignInLanding provider sign-in', () => {
-  it.each(['create', 'sign-in'] as const)('shows the provider buttons on the "%s" tab exactly when SHOW_PROVIDERS is on', async (tab) => {
+  it.each(['create', 'sign-in'] as const)('with only Google enabled, shows Google and not Microsoft on the "%s" tab', async (tab) => {
+    mockEnabledProviders = ['google'];
+
     await renderLanding(tab);
+
     expect(hasProviderButton('google')).toBe(true);
-    expect(hasProviderButton('microsoft')).toBe(true);
+    expect(hasProviderButton('microsoft')).toBe(false);
   });
 
-  it.each(['create', 'sign-in'] as const)('hides them on the "%s" tab when SHOW_PROVIDERS is off', async (tab) => {
-    mockShowProviders = false;
+  it.each(['create', 'sign-in'] as const)('with no provider enabled, shows no button or divider on the "%s" tab', async (tab) => {
+    mockEnabledProviders = [];
 
     await renderLanding(tab);
 
     expect(hasProviderButton('google')).toBe(false);
     expect(hasProviderButton('microsoft')).toBe(false);
+    expect(screen.queryByText(t('accounts.providers.divider'))).toBeNull();
   });
 
   it.each(['create', 'sign-in'] as const)('signs in with Google and Microsoft from the "%s" tab', async (tab) => {

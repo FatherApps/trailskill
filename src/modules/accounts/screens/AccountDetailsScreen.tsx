@@ -4,6 +4,7 @@ import { useTheme } from '../../../core/theme';
 import { Button, StateView, StepHeader, TextField } from '../../../core/ui';
 import { CodeStep, type CodeBusy } from '../components/CodeStep';
 import { InvalidInvitationBanner, InvitationBanner, OfflineBanner, type Invitation } from '../components/notices';
+import type { Provider } from '../components/ProviderButton';
 import { ProviderOptions } from '../components/ProviderOptions';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { t } from '../i18n';
@@ -29,8 +30,8 @@ export type AccountDetailsScreenProps = {
   // A request that failed: explained with a retry, the draft untouched.
   failure?: 'offline' | 'request_failed' | 'verify_failed' | 'provider_failed';
   onRetry?: () => void;
-  // Google and Microsoft sign-in; registration hides them until they can create accounts. Required, so no consumer shows them by omission.
-  providers: boolean;
+  // The Google and Microsoft buttons to show, none when empty. Required, so no consumer shows them by omission.
+  providers: readonly Provider[];
   invitation?: Invitation;
   // The link was unknown, expired or revoked.
   invalidInvitation?: boolean;
@@ -102,7 +103,7 @@ export function AccountDetailsScreen({
       {invitation && <InvitationBanner {...invitation} />}
       {invalidInvitation && <InvalidInvitationBanner />}
       {offline && <OfflineBanner />}
-      {providers && <ProviderOptions offline={offline} onGoogle={onGoogle ?? noop} onMicrosoft={onMicrosoft ?? noop} />}
+      <ProviderOptions providers={providers ?? []} offline={offline} onGoogle={onGoogle ?? noop} onMicrosoft={onMicrosoft ?? noop} />
       {failure && <FailureNotice failure={failure} onRetry={onRetry} />}
       <TextField
         label={t('accounts.details.first_name_label')}

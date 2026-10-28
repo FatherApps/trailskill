@@ -5,7 +5,7 @@ import { type AuthProvider, CodeMismatchError } from '../../../core/session';
 import type { CodeBusy } from '../components/CodeStep';
 import type { InvitationRepository } from '../data/invitations';
 import type { RegistrationDraft, RegistrationDraftRepository } from '../data/registrationDraft';
-import { SHOW_PROVIDERS } from '../providerAvailability';
+import { ENABLED_PROVIDERS } from '../providerAvailability';
 import {
   AccountDetailsScreen,
   type AccountDetailsField,
@@ -163,7 +163,7 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
       failure={failure}
       invitation={invitation}
       invalidInvitation={invalid}
-      providers={SHOW_PROVIDERS}
+      providers={ENABLED_PROVIDERS}
       onChange={change}
       onGoogle={() => void signInWith('google')}
       onMicrosoft={() => void signInWith('azure')}

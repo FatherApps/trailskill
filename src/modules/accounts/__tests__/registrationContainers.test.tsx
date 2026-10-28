@@ -12,11 +12,11 @@ import { WhoSwimsContainer } from '../screens/WhoSwimsContainer';
 // The session module reaches the sync layer, which is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
-// The flag is set per test, so the container is checked against both values whatever the real constant says.
-let mockShowProviders = false;
+// The list is set per test, so the container is checked against any list whatever the real constant says.
+let mockEnabledProviders: string[] = [];
 jest.mock('../providerAvailability', () => ({
-  get SHOW_PROVIDERS() {
-    return mockShowProviders;
+  get ENABLED_PROVIDERS() {
+    return mockEnabledProviders;
   },
 }));
 
@@ -55,21 +55,31 @@ async function fillIn() {
 
 describe('AccountDetailsContainer', () => {
   afterEach(() => {
-    mockShowProviders = false;
+    mockEnabledProviders = [];
   });
 
-  it.each([true, false])('shows the provider buttons exactly when SHOW_PROVIDERS is %s', async (showProviders) => {
-    mockShowProviders = showProviders;
+  it.each([
+    [[], []],
+    [['google'], ['google']],
+    [['google', 'microsoft'], ['google', 'microsoft']],
+  ])('with the providers %j enabled it shows exactly %j', async (enabled, shown) => {
+    mockEnabledProviders = enabled;
     await renderDetails();
 
     for (const provider of ['google', 'microsoft']) {
       const button = screen.queryByRole('button', { name: new RegExp(`^${t(`accounts.providers.${provider}`)}`) });
-      expect(button !== null).toBe(showProviders);
+      expect(button !== null).toBe(shown.includes(provider));
     }
   });
 
+  it('shows no divider either when no provider is enabled', async () => {
+    await renderDetails();
+
+    expect(screen.queryByText(t('accounts.providers.divider'))).toBeNull();
+  });
+
   it('signs in with Google and with Microsoft through the session, Microsoft being azure', async () => {
-    mockShowProviders = true;
+    mockEnabledProviders = ['google', 'microsoft'];
     const { signInWithProvider } = await renderDetails();
 
     await fireEvent.press(providerButton('google'));
@@ -79,7 +89,7 @@ describe('AccountDetailsContainer', () => {
   });
 
   it('shows no error when the person cancels in the browser', async () => {
-    mockShowProviders = true;
+    mockEnabledProviders = ['google', 'microsoft'];
     const { signInWithProvider } = await renderDetails(undefined, { signInWithProvider: jest.fn().mockResolvedValue('cancelled') });
 
     await fireEvent.press(providerButton('google'));
@@ -90,7 +100,7 @@ describe('AccountDetailsContainer', () => {
   });
 
   it('tells the person the provider failed and keeps the email code available', async () => {
-    mockShowProviders = true;
+    mockEnabledProviders = ['google', 'microsoft'];
     await renderDetails(undefined, { signInWithProvider: jest.fn().mockRejectedValue(new Error('provider is not enabled')) });
 
     await fireEvent.press(providerButton('microsoft'));
@@ -101,7 +111,7 @@ describe('AccountDetailsContainer', () => {
   });
 
   it('says there is no signal when the provider cannot be reached', async () => {
-    mockShowProviders = true;
+    mockEnabledProviders = ['google', 'microsoft'];
     await renderDetails(undefined, { signInWithProvider: jest.fn().mockRejectedValue(new AuthRetryableFetchError('offline', 0)) });
 
     await fireEvent.press(providerButton('google'));
@@ -110,7 +120,7 @@ describe('AccountDetailsContainer', () => {
   });
 
   it('retries the provider that failed offline, and never asks for an emailed code instead', async () => {
-    mockShowProviders = true;
+    mockEnabledProviders = ['google', 'microsoft'];
     const signInWithProvider = jest.fn().mockRejectedValueOnce(new AuthRetryableFetchError('offline', 0)).mockResolvedValue('cancelled');
     const { requestCode } = await renderDetails(undefined, { signInWithProvider });
     await fireEvent.press(providerButton('microsoft'));
@@ -125,7 +135,7 @@ describe('AccountDetailsContainer', () => {
   });
 
   it('clears the failure when the person tries again', async () => {
-    mockShowProviders = true;
+    mockEnabledProviders = ['google', 'microsoft'];
     const signInWithProvider = jest.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue('cancelled');
     await renderDetails(undefined, { signInWithProvider });
     await fireEvent.press(providerButton('google'));
@@ -137,7 +147,7 @@ describe('AccountDetailsContainer', () => {
   });
 
   it('opens the browser once when the button is pressed again before it returns', async () => {
-    mockShowProviders = true;
+    mockEnabledProviders = ['google', 'microsoft'];
     let finish: (result: 'cancelled') => void = () => {};
     const signInWithProvider = jest.fn(() => new Promise<'cancelled'>((resolve) => (finish = resolve)));
     await renderDetails(undefined, { signInWithProvider });
