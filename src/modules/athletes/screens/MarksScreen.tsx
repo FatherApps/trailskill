@@ -129,7 +129,7 @@ export function MarksScreen({ view, onSelectAthlete, onPoolChange, scrollEnabled
         value={view.pool}
         onChange={onPoolChange}
       />
-      <View style={{ flexDirection: largeText ? 'column' : 'row', flexWrap: 'wrap', gap: space[3] }}>
+      <View style={{ flexDirection: largeText ? 'column' : 'row', flexWrap: largeText ? 'nowrap' : 'wrap', gap: space[3] }}>
         {view.cards.map((card) => (
           <Card key={card.id} card={card} wide={largeText} />
         ))}

@@ -25,7 +25,8 @@ const data: Extract<MarksView, { kind: 'data' }> = {
 };
 
 // How the cards of the screen are laid out: the direction of the container that holds the card.
-const layoutOf = (label: RegExp) => StyleSheet.flatten((screen.getByLabelText(label).parent!.props as { style: never }).style).flexDirection;
+const containerStyle = (label: RegExp) => StyleSheet.flatten((screen.getByLabelText(label).parent!.props as { style: never }).style);
+const layoutOf = (label: RegExp) => containerStyle(label).flexDirection;
 const libre50 = /^Libre 50: /;
 
 const show = (view: MarksView, { onSelectAthlete = jest.fn(), onPoolChange = jest.fn() } = {}) =>
@@ -99,6 +100,7 @@ describe('MarksScreen', () => {
       await show(data);
 
       expect(layoutOf(libre50)).toBe('row');
+      expect(containerStyle(libre50).flexWrap).toBe('wrap');
     });
 
     it.each([
@@ -113,6 +115,8 @@ describe('MarksScreen', () => {
       );
 
       expect(layoutOf(libre50)).toBe('column');
+      // A wrapping column shrinks each card to the content width instead of filling the screen.
+      expect(containerStyle(libre50).flexWrap).not.toBe('wrap');
     });
   });
 });
