@@ -16,6 +16,28 @@ const stored = (email: string): RegistrationDraft => ({ firstName: '', lastName:
 // The token is a real invitation: an unknown one would be dropped from the draft by the invitation check itself.
 const invitations = createInMemoryInvitationRepository({ invitations: { [TOKEN]: { school: 'Escuela Sintética', group: 'Grupo A', categories: [] } } });
 
+describe('ProviderRegistrationContainer: one title', () => {
+  it('has a single heading, «Casi listo, {name}», and not the frame title as well', async () => {
+    await showPanelWith(stored('paula@example.test'));
+
+    const headings = screen.getAllByRole('header');
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent('Casi listo, Paula');
+    expect(screen.queryByText('Crear cuenta')).toBeNull();
+  });
+
+  it('without a name the single heading is «Casi listo»', async () => {
+    const drafts = createInMemoryRegistrationDraftRepository(null);
+    await render(
+      <ProviderRegistrationContainer account={{ ...account, firstName: '' }} drafts={drafts} invitations={invitations} onSaved={jest.fn()} />,
+    );
+
+    const headings = screen.getAllByRole('header');
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent(/^Casi listo$/);
+  });
+});
+
 async function submitWith(draft: RegistrationDraft | null, who: ProviderAccount = account) {
   const drafts = createInMemoryRegistrationDraftRepository(draft);
   const onSaved = jest.fn();
@@ -38,8 +60,7 @@ describe('ProviderRegistrationContainer: the school of the invitation', () => {
   it('shows the school of a draft typed for the same email', async () => {
     await showPanelWith(stored('paula@example.test'));
 
-    // The school is in the subtitle and in the banner.
-    expect(await screen.findAllByText(/Escuela Sintética/)).toHaveLength(2);
+    expect(await screen.findByText(/Escuela Sintética/)).toBeOnTheScreen();
   });
 
   it('shows nothing of the invitation left by another email on a shared phone, and leaves that draft as it is', async () => {

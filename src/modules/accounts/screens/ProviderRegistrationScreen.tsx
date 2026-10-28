@@ -75,8 +75,6 @@ export function ProviderRegistrationScreen({
 
   return (
     <ScreenFrame
-      title={t('accounts.create_title')}
-      subtitle={invitation?.school}
       footer={
         <View style={{ gap: space[3] }}>
           <Button label={t('accounts.who.continue')} onPress={onSubmit} loading={busy} />
