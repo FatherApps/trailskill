@@ -3,10 +3,9 @@ import { ScrollView, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type Theme } from '../../../core/theme';
-import { useHardwareBack } from '../../../core/ui';
+import { IconButton, useHardwareBack } from '../../../core/ui';
 import '../i18n';
 import { ConsoleNav, type ConsoleDestinationId } from './ConsoleNav';
-import { IconButton } from './IconButton';
 import { DETAIL_WIDTH, SideSheet } from './SideSheet';
 import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 

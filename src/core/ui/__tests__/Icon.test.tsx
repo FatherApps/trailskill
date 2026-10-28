@@ -60,6 +60,7 @@ describe('Icon', () => {
         'chat_bubble',
         'timeline',
         'fitness_center',
+        'add',
       ].sort(),
     );
   });

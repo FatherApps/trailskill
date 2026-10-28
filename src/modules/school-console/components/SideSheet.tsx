@@ -3,9 +3,8 @@ import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { useHardwareBack } from '../../../core/ui';
+import { IconButton, useHardwareBack } from '../../../core/ui';
 import '../i18n';
-import { IconButton } from './IconButton';
 
 export type SideSheetProps = {
   // Names the sheet for screen readers, for example "Detalle de Lucía Ramírez".

@@ -11,6 +11,7 @@ export function useAuthorizedAthletes(authorizations: AuthorizationStatusReposit
     authorizations.listGrantedAthleteIds('record_times').then(
       (ids) => active && setGranted(new Set(ids)),
       (error: unknown) => {
+        if (active) setGranted(undefined);
         if (__DEV__) console.warn('[athletes] Authorization lookup failed', error);
       },
     );

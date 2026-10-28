@@ -2,10 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet, type ViewStyle } from 'react-native';
 
 import { colors } from '../../../core/theme';
+import { IconButton } from '../../../core/ui';
 import { AthleteFilters } from '../components/AthleteFilters';
 import { AthleteTable } from '../components/AthleteTable';
 import { ConsoleNav } from '../components/ConsoleNav';
-import { IconButton } from '../components/IconButton';
 import { athletesFixture } from '../__fixtures__/athletes';
 
 const ring: ViewStyle = { outlineColor: colors.light.focus, outlineWidth: 2 };
