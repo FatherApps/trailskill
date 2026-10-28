@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
 import { ThemeProvider } from '../../../core/theme';
 import { MarksScreen, type MarksView } from '..';
@@ -22,6 +23,9 @@ const data: Extract<MarksView, { kind: 'data' }> = {
     { id: 'BK-100m', event: 'Espalda 100', time: null },
   ],
 };
+
+const widthOf = (label: RegExp) => StyleSheet.flatten((screen.getByLabelText(label).props as { style: never }).style).flexBasis;
+const libre50 = /^Libre 50: /;
 
 const show = (view: MarksView, { onSelectAthlete = jest.fn(), onPoolChange = jest.fn() } = {}) =>
   render(
@@ -83,5 +87,31 @@ describe('MarksScreen', () => {
     await show({ kind: 'empty' });
 
     expect(screen.getByText('Aún no hay deportistas')).toBeOnTheScreen();
+  });
+
+  describe('with large text', () => {
+    const realGet = Dimensions.get.bind(Dimensions);
+    afterEach(() => jest.restoreAllMocks());
+
+    it('puts two cards on a row with normal text', async () => {
+      jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 }));
+      await show(data);
+
+      expect(widthOf(libre50)).toBe('47%');
+    });
+
+    it.each([
+      ['the gallery scales the text', { themeScale: 2, osScale: 1 }],
+      ['the system scales the text', { themeScale: 1, osScale: 2 }],
+    ])('puts one card on a row when %s, so no word or time breaks', async (_who, { themeScale, osScale }) => {
+      jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: osScale }));
+      await render(
+        <ThemeProvider fontScale={themeScale}>
+          <MarksScreen view={data} onSelectAthlete={jest.fn()} onPoolChange={jest.fn()} scrollEnabled={false} />
+        </ThemeProvider>,
+      );
+
+      expect(widthOf(libre50)).toBe('100%');
+    });
   });
 });

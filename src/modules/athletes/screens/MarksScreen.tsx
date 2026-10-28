@@ -48,17 +48,18 @@ export const marksScreenColors: { title: ColorToken; background: ColorToken; car
   background: 'surface-0',
   card: 'surface-1',
   empty: 'ink-muted',
-  emptyBorder: 'border',
+  emptyBorder: 'border-strong',
 };
 
-function Card({ card }: { card: MarkCard }) {
+// `wide`: one card per row, for large text, where two columns would break a word or a time.
+function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
   const { colors, space, radius, typography } = useTheme();
   const shortDate = card.date ? formatDate(card.date, 'day_month') : null;
   const detail =
     card.origin && shortDate
       ? t('athletes.marks.origin_and_date', { origin: t(`athletes.marks.origin.${card.origin}`), date: shortDate })
       : null;
-  const box = { flexBasis: '47%', flexGrow: 1, padding: space[4], gap: space[1], borderRadius: radius.md } as const;
+  const box = { flexBasis: wide ? '100%' : '47%', flexGrow: 1, padding: space[4], gap: space[1], borderRadius: radius.md } as const;
 
   if (card.time === null) {
     return (
@@ -130,7 +131,7 @@ export function MarksScreen({ view, onSelectAthlete, onPoolChange, scrollEnabled
       />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3] }}>
         {view.cards.map((card) => (
-          <Card key={card.id} card={card} />
+          <Card key={card.id} card={card} wide={largeText} />
         ))}
       </View>
     </>
