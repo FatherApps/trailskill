@@ -233,6 +233,8 @@ describe('signInWithProvider', () => {
 // Android can close the app while the system browser is open: the link then starts the app on its own and no
 // signInWithProvider call is waiting. The PKCE verifier is in the session storage, so the code can still be traded.
 describe('resumeProviderSignIn', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   it('trades the code of a link that opened the app on its own', async () => {
     const session = await renderSession();
 
@@ -255,6 +257,76 @@ describe('resumeProviderSignIn', () => {
 
     await expect(waiting).resolves.toBe('signed_in');
     expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('trades the code that arrived while a sign-in waited, once that sign-in ends without trading it', async () => {
+    let finishBrowser: (result: unknown) => void = () => {};
+    mockOpenAuthSession.mockReturnValue(new Promise((resolve) => (finishBrowser = resolve)));
+    const session = await renderSession();
+    const waiting = session.current.signInWithProvider('google');
+
+    // The link reached the router, then the browser ended as dismissed: the sign-in never saw the code.
+    await session.current.resumeProviderSignIn('late-code');
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+    finishBrowser({ type: 'dismiss' });
+
+    await expect(waiting).resolves.toBe('cancelled');
+    await waitFor(() => expect(mockExchangeCode).toHaveBeenCalledWith('late-code'));
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the code waiting while another sign-in still waits, as after a second press', async () => {
+    const finishBrowser: ((result: unknown) => void)[] = [];
+    mockOpenAuthSession.mockImplementation(() => new Promise((resolve) => finishBrowser.push(resolve)));
+    const session = await renderSession();
+    const first = session.current.signInWithProvider('google');
+    const second = session.current.signInWithProvider('azure');
+    await waitFor(() => expect(finishBrowser).toHaveLength(2));
+
+    // The first one ends while the second still waits for the browser.
+    finishBrowser[0]({ type: 'cancel' });
+    await expect(first).resolves.toBe('cancelled');
+    await session.current.resumeProviderSignIn('shared-code');
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+    finishBrowser[1]({ type: 'success', url: 'trailskill://auth-callback?code=shared-code' });
+
+    await expect(second).resolves.toBe('signed_in');
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a code be traded again after its trade failed, but not after it worked', async () => {
+    mockExchangeCode
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({ data: { session: null }, error: new Error('flow state not found') });
+    const session = await renderSession();
+
+    await expect(session.current.resumeProviderSignIn('retry-code')).rejects.toThrow('network down');
+    await expect(session.current.resumeProviderSignIn('retry-code')).rejects.toThrow('flow state not found');
+    await session.current.resumeProviderSignIn('retry-code');
+    await session.current.resumeProviderSignIn('retry-code');
+
+    expect(mockExchangeCode).toHaveBeenCalledTimes(3);
+  });
+
+  it('logs a failed trade of the waiting code only in development, without the code or the email', async () => {
+    const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockExchangeCode.mockResolvedValue({
+      data: { session: null },
+      error: Object.assign(new Error('bad flow state for late-code ana@example.test'), { name: 'AuthApiError', code: 'flow_state_not_found', status: 400 }),
+    });
+    let finishBrowser: (result: unknown) => void = () => {};
+    mockOpenAuthSession.mockReturnValue(new Promise((resolve) => (finishBrowser = resolve)));
+    const session = await renderSession();
+    const waiting = session.current.signInWithProvider('google');
+    await session.current.resumeProviderSignIn('late-code');
+    finishBrowser({ type: 'dismiss' });
+    await waiting;
+
+    await waitFor(() => expect(logged).toHaveBeenCalledTimes(1));
+    const output = JSON.stringify(logged.mock.calls);
+    expect(output).toContain('flow_state_not_found');
+    expect(output).not.toContain('late-code');
+    expect(output).not.toContain('example.test');
   });
 
   it('does not trade a code a sign-in already traded', async () => {

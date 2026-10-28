@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AccessibilityInfo, View } from 'react-native';
 
 import { t } from '../i18n';
+import { authFailureSummary } from './authFailureSummary';
 import { connectOptions, countUnsentRecords, db, setSessionUser, supabase, supabaseConfigError, SupabaseConnector } from '../sync';
 import { useTheme } from '../theme';
 import { Button, ConfirmSheet, StateView } from '../ui';
@@ -45,6 +46,10 @@ export class CodeMismatchError extends Error {
   }
 }
 
+function logFailure(error: unknown) {
+  if (__DEV__) console.error('[session] Could not finish the provider sign-in', authFailureSummary(error));
+}
+
 export function signOutDecision(pendingCount: number, force: boolean): 'proceed' | 'blocked_pending' {
   return pendingCount > 0 && !force ? 'blocked_pending' : 'proceed';
 }
@@ -66,9 +71,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const { colors, space } = useTheme();
   // The user of the session stored before launch: before owners were recorded, the local data was always theirs.
   const restoredUserId = useRef<string>(undefined);
-  // A provider sign-in is waiting for the browser, and the codes already traded.
-  const signingIn = useRef(false);
+  // How many provider sign-ins wait for the browser (a second press adds one), the codes traded or being traded,
+  // and the code of a link that arrived while one waited.
+  const waiting = useRef(0);
   const tradedCodes = useRef(new Set<string>());
+  const parkedCode = useRef<string>(undefined);
   // Bumped to run the local data check again after discarding or after a failed check.
   const [check, setCheck] = useState(0);
   // One connector, so cancelWaits() reaches the upload wait in progress.
@@ -193,13 +200,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // A code is good for one trade: the sign-in that waits for the browser and the auth-callback route must not both make it.
   const tradeCode = useCallback(async (code: string) => {
     tradedCodes.current.add(code);
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+    } catch (error) {
+      // A failed trade can be tried again with the same code; only a trade that worked is final.
+      tradedCodes.current.delete(code);
+      throw error;
+    }
   }, []);
 
   const signInWithProvider = useCallback(async (provider: AuthProvider): Promise<'signed_in' | 'cancelled'> => {
     if (supabaseConfigError) throw new Error(supabaseConfigError);
-    signingIn.current = true;
+    waiting.current += 1;
     try {
       const redirectTo = Linking.createURL(AUTH_CALLBACK_PATH);
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -215,19 +228,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (queryParams?.error) throw new Error(String(queryParams.error_description ?? queryParams.error));
       const code = queryParams?.code;
       if (typeof code !== 'string' || !code) throw new Error('The provider did not return a code');
+      // This sign-in trades it, so the same code parked by the route is not tried a second time.
+      if (parkedCode.current === code) parkedCode.current = undefined;
       await tradeCode(code);
       // The auth listener delivers the session: from here on it is the same path as the emailed code.
       return 'signed_in';
     } finally {
-      signingIn.current = false;
+      waiting.current -= 1;
+      // The last sign-in to end trades a code that arrived while it waited and that it never saw.
+      const parked = parkedCode.current;
+      if (waiting.current === 0 && parked !== undefined) {
+        parkedCode.current = undefined;
+        if (!tradedCodes.current.has(parked)) tradeCode(parked).catch(logFailure);
+      }
     }
   }, [tradeCode]);
 
   // Android can close the app while the browser is open: the link then starts it on its own and no sign-in is waiting.
-  // The PKCE verifier is in the session storage, so the code still trades.
+  // The PKCE verifier is in the session storage, so the code still trades. While a sign-in waits, the code is parked:
+  // that sign-in trades it itself, or hands it back here if the browser ended without it (dismissed after the link).
   const resumeProviderSignIn = useCallback(async (code: string) => {
     if (supabaseConfigError) throw new Error(supabaseConfigError);
-    if (signingIn.current || tradedCodes.current.has(code)) return;
+    if (tradedCodes.current.has(code)) return;
+    if (waiting.current > 0) {
+      parkedCode.current = code;
+      return;
+    }
     await tradeCode(code);
   }, [tradeCode]);
 

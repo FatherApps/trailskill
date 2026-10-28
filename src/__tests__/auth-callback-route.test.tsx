@@ -7,7 +7,10 @@ let mockParams: { code?: string | string[] } = {};
 const mockRouter = { back: jest.fn(), replace: jest.fn(), canGoBack: () => mockCanGoBack };
 const mockResume = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams }));
-jest.mock('../core/session', () => ({ useSession: () => ({ resumeProviderSignIn: (...args: unknown[]) => mockResume(...args) }) }));
+jest.mock('../core/session', () => ({
+  ...jest.requireActual('../core/session/authFailureSummary'),
+  useSession: () => ({ resumeProviderSignIn: (...args: unknown[]) => mockResume(...args) }),
+}));
 
 beforeEach(() => {
   mockCanGoBack = true;
@@ -57,6 +60,47 @@ describe('auth-callback route', () => {
     await render(<AuthCallback />);
 
     expect(mockResume).not.toHaveBeenCalled();
+  });
+
+  describe('when the code cannot be traded', () => {
+    const failure = Object.assign(new Error('bad flow state for one-time-code ana@example.test'), {
+      name: 'AuthApiError',
+      code: 'flow_state_not_found',
+      status: 400,
+    });
+    const flags = globalThis as { __DEV__?: boolean };
+    const dev = flags.__DEV__;
+
+    afterEach(() => {
+      flags.__DEV__ = dev;
+      jest.restoreAllMocks();
+    });
+
+    it('logs the failure in development, never the code, the tokens or the email', async () => {
+      const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      mockParams = { code: 'one-time-code' };
+      mockResume.mockRejectedValue(failure);
+
+      await render(<AuthCallback />);
+
+      await waitFor(() => expect(logged).toHaveBeenCalledTimes(1));
+      const output = JSON.stringify(logged.mock.calls);
+      expect(output).toContain('flow_state_not_found');
+      expect(output).not.toContain('one-time-code');
+      expect(output).not.toContain('example.test');
+    });
+
+    it('logs nothing outside development', async () => {
+      const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      flags.__DEV__ = false;
+      mockParams = { code: 'one-time-code' };
+      mockResume.mockRejectedValue(failure);
+
+      await render(<AuthCallback />);
+
+      await waitFor(() => expect(mockResume).toHaveBeenCalled());
+      expect(logged).not.toHaveBeenCalled();
+    });
   });
 
   it('does not break when the code cannot be traded: the person stays signed out', async () => {

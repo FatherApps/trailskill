@@ -104,13 +104,18 @@ describe('supabase client configuration', () => {
     process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://api.example.test';
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon';
     const calls: { url: string; body: unknown }[] = [];
-    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       calls.push({ url: String(input), body: JSON.parse(String(init?.body ?? 'null')) });
       return new Response(JSON.stringify({ message: 'stop here' }), { status: 400, headers: { 'content-type': 'application/json' } });
     });
     const { supabase } = load();
 
-    await supabase.auth.verifyOtp({ email: 'ana@example.test', token: '123456', type: 'email' });
+    try {
+      await supabase.auth.verifyOtp({ email: 'ana@example.test', token: '123456', type: 'email' });
+    } finally {
+      // The real fetch is back before any other test runs.
+      fetchSpy.mockRestore();
+    }
 
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toContain('/auth/v1/verify');
