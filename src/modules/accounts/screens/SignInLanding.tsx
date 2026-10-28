@@ -33,9 +33,9 @@ export function SignInLanding({ onCreateAccount }: SignInLandingProps) {
         <Logo />
       </View>
       {tab === 'create' ? (
-        <ColorCard color="lime" title={t('accounts.landing.create_card_title')} detail={t('accounts.landing.create_card_detail')} />
+        <ColorCard color="lime" decoration={{ dot: 'coral', accent: 'lilac' }} title={t('accounts.landing.create_card_title')} detail={t('accounts.landing.create_card_detail')} />
       ) : (
-        <ColorCard color="lilac" title={t('accounts.landing.sign_in_title')} detail={t('accounts.landing.sign_in_detail')} />
+        <ColorCard color="lilac" decoration={{ dot: 'lime' }} title={t('accounts.landing.sign_in_title')} detail={t('accounts.landing.sign_in_detail')} />
       )}
       <Segmented options={options} value={tab} onChange={setTab} accessibilityLabel={t('accounts.landing.tabs_label')} />
       {tab === 'create' ? (

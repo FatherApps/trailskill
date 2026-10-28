@@ -42,6 +42,8 @@ describe('SignInLanding', () => {
     expect(screen.getByText('Cada entreno suma a tu camino.')).toBeOnTheScreen();
     expect(screen.getByText('Tiempos, historial y marcas de cada deportista.')).toBeOnTheScreen();
     expect(screen.getByText('Cada entreno suma a tu camino.').parent).toHaveStyle({ backgroundColor: colors.light.lime });
+    expect(screen.getByTestId('color-card-ring', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByTestId('color-card-accent', { includeHiddenElements: true })).toBeTruthy();
     expect(screen.getByText('Los menores no crean cuenta: los registra su acudiente.')).toBeOnTheScreen();
     expect(screen.getByText('¿Te invitó una escuela? Abre el enlace de tu invitación.')).toBeOnTheScreen();
     expect(screen.queryByText('Hola de nuevo')).not.toBeOnTheScreen();
@@ -77,6 +79,7 @@ describe('SignInLanding', () => {
     expect(screen.getByRole('radio', { name: 'Ingresar' })).toBeChecked();
     expect(screen.getByText('Hola de nuevo')).toBeOnTheScreen();
     expect(screen.getByText('Hola de nuevo').parent).toHaveStyle({ backgroundColor: colors.light.lilac });
+    expect(screen.getByTestId('color-card-ring', { includeHiddenElements: true })).toBeTruthy();
     expect(screen.getByText('Ingresa con la misma opción que usaste al crear tu cuenta.')).toBeOnTheScreen();
     expect(screen.queryByText('Ingresa a TrailSkill')).not.toBeOnTheScreen();
     expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
