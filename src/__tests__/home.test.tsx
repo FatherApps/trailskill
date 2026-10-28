@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import Home from '../app/(app)/index';
 import { t } from '../core/i18n';
@@ -28,6 +28,8 @@ const mockListManagedAthleteIds = jest.fn();
 const mockClearDraft = jest.fn();
 const mockClearPending = jest.fn();
 jest.mock('../modules/accounts', () => ({
+  // The real container: only the repositories it receives are replaced.
+  ...jest.requireActual('../modules/accounts/screens/SignOutContainer'),
   createSecureStoreRegistrationDraftRepository: () => ({ clear: () => mockClearDraft() }),
   createSecureStorePendingInvitationRepository: () => ({ clear: (userId: string) => mockClearPending(userId) }),
   createPowerSyncManagedAthleteRepository: () => ({ listManagedAthleteIds: (...args: unknown[]) => mockListManagedAthleteIds(...args) }),
@@ -168,104 +170,27 @@ describe('console button', () => {
   });
 });
 
+// The sign-out rules are tested on SignOutContainer; here only that the screen keeps showing it and wires its repositories.
 describe('sign out from home', () => {
-  const pendingTitle = '¿Cerrar sesión con registros sin enviar?';
-
-  it('signs out at once when nothing is unsent', async () => {
-    await render(<Home />);
-
-    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
-
-    expect(mockSignOut).toHaveBeenCalledWith();
-    expect(screen.queryByRole('header', { name: pendingTitle })).toBeNull();
-    await waitFor(() => expect(mockClearDraft).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(mockClearPending).toHaveBeenCalledWith('user-1'));
-  });
-
-  it('keeps the registration draft when the sign-out is blocked', async () => {
-    mockSignOut.mockResolvedValue({ status: 'blocked_pending', unsent: 1, rejected: 0 });
-    await render(<Home />);
-
-    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
-    await screen.findByRole('header', { name: pendingTitle });
-
-    expect(mockClearDraft).not.toHaveBeenCalled();
-    expect(mockClearPending).not.toHaveBeenCalled();
-  });
-
-  it('warns with the number of unsent records, and continuing keeps the session', async () => {
-    mockSignOut.mockResolvedValue({ status: 'blocked_pending', unsent: 3, rejected: 0 });
-    await render(<Home />);
-
-    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
-
-    expect(await screen.findByRole('header', { name: pendingTitle })).toBeOnTheScreen();
-    expect(screen.getByText(/Hay 3 registros sin enviar/)).toBeOnTheScreen();
-    expect(screen.queryByText(/no se pudieron enviar/)).toBeNull();
-
-    await fireEvent.press(screen.getByRole('button', { name: 'Seguir y enviar' }));
-
-    expect(screen.queryByRole('header', { name: pendingTitle })).toBeNull();
-    expect(mockSignOut).toHaveBeenCalledTimes(1);
-  });
-
-  it('uses the singular for one unsent record', async () => {
-    mockSignOut.mockResolvedValue({ status: 'blocked_pending', unsent: 1, rejected: 0 });
-    await render(<Home />);
-
-    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
-
-    expect(await screen.findByText(/Hay 1 registro sin enviar/)).toBeOnTheScreen();
-  });
-
-  it('says that rejected records will not be sent on their own', async () => {
+  it('shows the sign-out button and the same warning texts as before', async () => {
     mockSignOut.mockResolvedValue({ status: 'blocked_pending', unsent: 3, rejected: 2 });
     await render(<Home />);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
 
-    expect(await screen.findByText(/2 de ellos no se pudieron enviar/)).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: '¿Cerrar sesión con registros sin enviar?' })).toBeOnTheScreen();
+    expect(screen.getByText(/Hay 3 registros sin enviar/)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Cerrar sesión igual' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Seguir y enviar' })).toBeOnTheScreen();
   });
 
-  it('signs out anyway with force', async () => {
-    mockSignOut.mockResolvedValueOnce({ status: 'blocked_pending', unsent: 3, rejected: 0 });
-    await render(<Home />);
-    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
-
-    await fireEvent.press(await screen.findByRole('button', { name: 'Cerrar sesión igual' }));
-
-    expect(mockSignOut).toHaveBeenLastCalledWith({ force: true });
-  });
-
-  it('ignores a second press while signing out is in progress', async () => {
-    let finish: (result: { status: 'signed_out' }) => void = () => {};
-    mockSignOut.mockReturnValue(new Promise((resolve) => (finish = resolve)));
-    await render(<Home />);
-    const button = screen.getByRole('button', { name: 'Cerrar sesión' });
-
-    // Both presses land before React re-renders the button as loading, so only the handler itself can ignore the second (Pressable's onClick is the keyboard and accessibility press).
-    const click = () => button.props.onClick({ stopPropagation() {}, nativeEvent: {} });
-    await act(async () => {
-      click();
-      click();
-      finish({ status: 'signed_out' });
-    });
-
-    expect(mockSignOut).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([
-    [true, true],
-    [false, false],
-  ])('with sync connect failed %p the warning says records go out on reconnect: %p', async (connectFailed, shown) => {
-    mockSyncConnectFailed = connectFailed;
-    mockSignOut.mockResolvedValue({ status: 'blocked_pending', unsent: 3, rejected: 0 });
+  it('clears the draft and the queued invitations of the signed-in user', async () => {
     await render(<Home />);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Cerrar sesión' }));
 
-    await screen.findByRole('header', { name: pendingTitle });
-    expect(screen.queryByText(/si sigues en la sesión, se envían cuando vuelva la conexión/) !== null).toBe(shown);
+    await waitFor(() => expect(mockClearDraft).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockClearPending).toHaveBeenCalledWith('user-1'));
   });
 
   it('tells the person when signing out failed', async () => {

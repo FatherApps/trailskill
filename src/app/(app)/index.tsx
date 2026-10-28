@@ -1,16 +1,16 @@
 import { Link, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
-import { Button, ConfirmSheet, SyncStatus } from '../../core/ui';
+import { Button, SyncStatus } from '../../core/ui';
 import {
   createPowerSyncManagedAthleteRepository,
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
+  SignOutContainer,
 } from '../../modules/accounts';
 import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useAdminSchool, useStaffSchool } from '../../modules/school-console';
@@ -25,7 +25,7 @@ const conflictReview = createSupabaseConflictReviewRepository();
 
 export default function Home() {
   const router = useRouter();
-  const { syncConnectFailed, signOut, session } = useSession();
+  const { syncConnectFailed, session } = useSession();
   const userId = session?.user.id;
   const { space } = useTheme();
   const summary = useGlobalSyncSummary();
@@ -40,41 +40,6 @@ export default function Home() {
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, lastSyncedAt);
   const isAdmin = useAdminSchool(staffSchools, userId, lastSyncedAt).status === 'admin';
   const isPlatformAdmin = usePlatformAdmin(conflictReview, userId);
-  const [blocked, setBlocked] = useState<{ unsent: number; rejected: number }>();
-  const [signingOut, setSigningOut] = useState(false);
-  const [signOutFailed, setSignOutFailed] = useState(false);
-  // State updates land after the render: a ref blocks a second press made before the loading state shows.
-  const signOutInFlight = useRef(false);
-
-  // A successful sign-out needs no navigation: the session gate moves to sign-in on its own.
-  async function signOutWith(force: boolean) {
-    if (signOutInFlight.current) return;
-    signOutInFlight.current = true;
-    setBlocked(undefined);
-    setSignOutFailed(false);
-    setSigningOut(true);
-    try {
-      const result = await (force ? signOut({ force }) : signOut());
-      if (result.status === 'blocked_pending') setBlocked(result);
-      // The next person on this phone must not find a registration someone left half done, nor an invitation token queued for it.
-      else await Promise.all([registrationDrafts.clear(), userId ? pendingInvitations.clear(userId) : undefined].map((cleared) => cleared?.catch(() => {})));
-    } catch {
-      setSignOutFailed(true);
-    } finally {
-      signOutInFlight.current = false;
-      setSigningOut(false);
-    }
-  }
-
-  const pendingMessage = blocked
-    ? [
-        t('session.sign_out_pending_message', { count: blocked.unsent }),
-        // Rejected records are not retried on their own: "Seguir y enviar" must not promise to send them.
-        ...(blocked.rejected > 0 ? [t('session.sign_out_rejected', { count: blocked.rejected })] : []),
-        // Without a connection nothing is being sent: the records wait for it.
-        ...(syncConnectFailed ? [t('session.sign_out_offline')] : []),
-      ].join(' ')
-    : '';
 
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: space[3] }}>
@@ -93,20 +58,8 @@ export default function Home() {
       {isStaff && <Button label={t('home.plans')} onPress={() => router.push('/plans')} />}
       {isAdmin && <Button label={t('home.console')} onPress={() => router.push('/console')} />}
       {isPlatformAdmin && <Button label={t('home.review_conflicts')} onPress={() => router.push('/review-conflicts')} />}
-      <Button variant="secondary" label={t('session.sign_out')} onPress={() => signOutWith(false)} loading={signingOut} />
-      {signOutFailed && <Text accessibilityLiveRegion="polite">{t('session.sign_out_failed')}</Text>}
+      <SignOutContainer drafts={registrationDrafts} pending={pendingInvitations} />
       {__DEV__ && <Link href="/gallery">{t('dev.gallery.open')}</Link>}
-      <ConfirmSheet
-        visible={blocked !== undefined}
-        title={t('session.sign_out_pending_title')}
-        message={pendingMessage}
-        confirmLabel={t('session.sign_out_anyway')}
-        cancelLabel={t('session.sign_out_keep')}
-        destructive
-        onConfirm={() => signOutWith(true)}
-        // Nothing to trigger: PowerSync keeps retrying the pending records while connected.
-        onCancel={() => setBlocked(undefined)}
-      />
     </View>
   );
 }
