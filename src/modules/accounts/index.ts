@@ -53,7 +53,7 @@ export {
   type ManagedAthleteRepository,
   type ManagedAthleteRow,
 } from './data/managedAthletes';
-export { resolveLanding, useOwnLandingEvidence, type Landing, type LandingEvidence, type OwnLandingEvidence } from './data/landing';
+export { resolveLanding, useFirstSyncWaitExpired, useOwnLandingEvidence, type Landing, type LandingEvidence, type OwnLandingEvidence } from './data/landing';
 export {
   createInMemoryManagedAthleteProfileRepository,
   createPowerSyncManagedAthleteProfileRepository,

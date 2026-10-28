@@ -11,9 +11,14 @@ export type OwnLandingEvidence = {
   authorized: boolean;
 };
 
+// How long "/" waits for the first sync before it shows the home screen, which shows the sync state and signs out.
+export const FIRST_SYNC_WAIT_MS = 5000;
+
 export type LandingEvidence = {
   // The first sync reached this device. Before it, a coach's membership may not be here and would look like a guardian.
   synced: boolean;
+  // The sync could not connect, or the wait for the first one ran out: nothing says it will come, so the wait ends in the home screen.
+  syncGaveUp: boolean;
   staff: boolean | 'loading';
   own: OwnLandingEvidence | 'loading';
   // Online only: the one answer the device cannot give.
@@ -28,8 +33,9 @@ const home: Landing = { kind: 'home' };
 
 // Where a signed-in user lands on "/". School staff and platform admins keep the home screen, their only way to the timing, the plans, the
 // console and the conflicts. Only a guardian or an adult athlete is sent away, so an unclear account never loses an entry it has today.
-export function resolveLanding({ synced, staff, own, platformAdmin }: LandingEvidence): Landing {
-  if (!synced || staff === 'loading' || own === 'loading') return loading;
+export function resolveLanding({ synced, syncGaveUp, staff, own, platformAdmin }: LandingEvidence): Landing {
+  if (!synced) return syncGaveUp ? home : loading;
+  if (staff === 'loading' || own === 'loading') return loading;
   if (staff) return home;
   if (own.managedCount === 0 && !own.authorized) return home;
   // The platform admin is asked online, so it is waited for only now that someone would be sent away.
@@ -40,7 +46,17 @@ export function resolveLanding({ synced, staff, own, platformAdmin }: LandingEvi
   return { kind: 'athletes' };
 }
 
-const nothing: OwnLandingEvidence = { managedCount: 0, selfAthleteId: null, authorized: false };
+// True once FIRST_SYNC_WAIT_MS have passed since the screen opened.
+export function useFirstSyncWaitExpired(): boolean {
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setExpired(true), FIRST_SYNC_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  return expired;
+}
+
+const nothing: OwnLandingEvidence ={ managedCount: 0, selfAthleteId: null, authorized: false };
 
 // Reads the evidence of the user from the device. A failed lookup reads as nothing, which keeps the home screen. Stored with the user who
 // asked, so another user never inherits it. Changing `refreshKey` looks again.

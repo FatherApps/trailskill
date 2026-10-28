@@ -8,6 +8,7 @@ import AuthorizationsRoute from '../app/(app)/athletes/authorizations';
 // Everything the landing reads lives in `mockWorld`, read when a repository is used, so each test builds its own.
 type World = {
   synced: boolean;
+  syncConnectFailed: boolean;
   // Memberships on the device; the second list is the school_admin ones.
   schools: string[];
   adminSchools: string[];
@@ -18,14 +19,14 @@ type World = {
   // true / false, or 'silent' when the server never answers.
   platformAdmin: boolean | 'silent';
 };
-const mockWorld: World = { synced: true, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false };
+const mockWorld: World = { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false };
 
 jest.mock('../core/sync', () => ({
   ...jest.requireActual('../core/sync/syncState'),
   useGlobalSyncSummary: () => ({ pending: 0, failed: 0, uploading: false, lastSyncedAt: mockWorld.synced ? new Date(1000) : null }),
 }));
 jest.mock('../core/session', () => ({
-  useSession: () => ({ syncConnectFailed: false, signOut: jest.fn(), session: { user: { id: 'user-1' } } }),
+  useSession: () => ({ syncConnectFailed: mockWorld.syncConnectFailed, signOut: jest.fn(), session: { user: { id: 'user-1' } } }),
 }));
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
@@ -82,7 +83,7 @@ const routes = {
 };
 
 beforeEach(() => {
-  Object.assign(mockWorld, { synced: true, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false });
+  Object.assign(mockWorld, { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false });
 });
 
 const guardian = () => Object.assign(mockWorld, { managedIds: ['a1', 'a2'], ownAuthorizations: true });
@@ -178,6 +179,17 @@ describe('landing while data is missing', () => {
     await act(async () => {});
     expect(screen.queryByText('TrailSkill')).toBeNull();
     expect(screen.queryByText('my athletes')).toBeNull();
+  });
+
+  it('shows the home screen, with the sync failure and the sign-out, when the first sync cannot connect', async () => {
+    guardian();
+    mockWorld.synced = false;
+    mockWorld.syncConnectFailed = true;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    await landsOnHome();
+    expect(screen.getByText(/No pudimos conectar la sincronización/)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeOnTheScreen();
   });
 
   it('waits for the platform admin answer before sending a guardian away', async () => {

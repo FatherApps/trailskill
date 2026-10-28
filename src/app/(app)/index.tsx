@@ -13,6 +13,7 @@ import {
   createSecureStoreRegistrationDraftRepository,
   resolveLanding,
   SignOutContainer,
+  useFirstSyncWaitExpired,
   useOwnLandingEvidence,
 } from '../../modules/accounts';
 import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
@@ -30,15 +31,17 @@ const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
 // "/" is the landing of every role: a guardian opens My athletes and an adult athlete their own profile. Everyone else, school staff and
 // platform admins included, keeps the home screen below. This only decides the screen; the backend still decides what each person sees.
 export default function Landing() {
-  const { session } = useSession();
+  const { session, syncConnectFailed } = useSession();
   const userId = session?.user.id;
   const { colors, space } = useTheme();
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();
+  const waitExpired = useFirstSyncWaitExpired();
   const staff = useStaffSchool(staffSchools, userId, lastSyncedAt);
   const own = useOwnLandingEvidence(managedAthletes, hasOwnAuthorizations, userId, lastSyncedAt);
   const platformAdmin = usePlatformAdminStatus(conflictReview, userId);
   const landing = resolveLanding({
     synced: lastSyncedAt != null,
+    syncGaveUp: syncConnectFailed || waitExpired,
     // A failed lookup says nothing about the person, so it counts as staff: the home screen keeps every entry they may have.
     staff: staff.status === 'loading' ? 'loading' : staff.status !== 'denied',
     own,

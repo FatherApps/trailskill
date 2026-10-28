@@ -1,7 +1,14 @@
-import { render, waitFor } from '@testing-library/react-native';
+import { act, render, renderHook, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryManagedAthleteRepository, type ManagedAthleteRow } from '../data/managedAthletes';
-import { resolveLanding, useOwnLandingEvidence, type LandingEvidence, type OwnLandingEvidence } from '../data/landing';
+import {
+  FIRST_SYNC_WAIT_MS,
+  resolveLanding,
+  useFirstSyncWaitExpired,
+  useOwnLandingEvidence,
+  type LandingEvidence,
+  type OwnLandingEvidence,
+} from '../data/landing';
 
 // The sync layer is ESM-only for Jest; the in-memory repositories never reach it.
 jest.mock('../../../core/sync', () => ({ db: {} }));
@@ -9,7 +16,7 @@ jest.mock('../../../core/sync', () => ({ db: {} }));
 const guardian: OwnLandingEvidence = { managedCount: 2, selfAthleteId: null, authorized: true };
 const adult: OwnLandingEvidence = { managedCount: 1, selfAthleteId: 'self-1', authorized: true };
 const nobody: OwnLandingEvidence = { managedCount: 0, selfAthleteId: null, authorized: false };
-const base: LandingEvidence = { synced: true, staff: false, own: nobody, platformAdmin: false };
+const base: LandingEvidence = { synced: true, syncGaveUp: false, staff: false, own: nobody, platformAdmin: false };
 const landing = (evidence: Partial<LandingEvidence>) => resolveLanding({ ...base, ...evidence });
 
 describe('resolveLanding: one landing per role', () => {
@@ -63,6 +70,11 @@ describe('resolveLanding: waiting for data', () => {
     expect(landing({ synced: false, staff: true })).toEqual({ kind: 'loading' });
   });
 
+  it('ends the wait for the first sync in the home screen, which shows the sync state and signs out', () => {
+    expect(landing({ synced: false, syncGaveUp: true, own: guardian })).toEqual({ kind: 'home' });
+    expect(landing({ synced: false, syncGaveUp: true, staff: 'loading', own: 'loading' })).toEqual({ kind: 'home' });
+  });
+
   it('waits while the membership lookup runs, without showing the home screen', () => {
     expect(landing({ staff: 'loading', own: guardian })).toEqual({ kind: 'loading' });
   });
@@ -76,6 +88,26 @@ describe('resolveLanding: waiting for data', () => {
     expect(landing({ platformAdmin: 'loading', own: adult })).toEqual({ kind: 'loading' });
     expect(landing({ platformAdmin: 'loading', own: nobody })).toEqual({ kind: 'home' });
     expect(landing({ platformAdmin: 'loading', staff: true, own: guardian })).toEqual({ kind: 'home' });
+  });
+});
+
+describe('useFirstSyncWaitExpired', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('turns true once the wait for the first sync has passed, and not before', async () => {
+    const { result } = await renderHook(() => useFirstSyncWaitExpired());
+    expect(result.current).toBe(false);
+
+    await act(async () => {
+      jest.advanceTimersByTime(FIRST_SYNC_WAIT_MS - 1);
+    });
+    expect(result.current).toBe(false);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(result.current).toBe(true);
   });
 });
 
