@@ -24,7 +24,7 @@ const managed = createInMemoryManagedAthleteRepository([
 
 describe('useManagedAthletes', () => {
   it('is loading until the lookup answers', async () => {
-    const pending = { listManagedAthleteIds: () => new Promise<string[]>(() => {}) };
+    const pending = { listManagedAthleteIds: () => new Promise<string[]>(() => {}), getSelfAthleteId: async () => null };
     const { result } = await renderHook(() => useManagedAthletes(pending, athletes, 'guardian-1'));
 
     expect(result.current).toEqual({ status: 'loading' });
@@ -49,7 +49,7 @@ describe('useManagedAthletes', () => {
   it('gives nobody when the lookup fails, and logs the failure in development', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const error = new Error('db');
-    const failing = { listManagedAthleteIds: () => Promise.reject(error) };
+    const failing = { listManagedAthleteIds: () => Promise.reject(error), getSelfAthleteId: async () => null };
     const { result } = await renderHook(() => useManagedAthletes(failing, athletes, 'guardian-1'));
 
     await waitFor(() => expect(result.current).toEqual({ status: 'ready', athletes: [] }));

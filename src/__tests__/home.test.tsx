@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
-import Home from '../app/(app)/index';
+import { Home } from '../app/(app)/index';
 import { t } from '../core/i18n';
 
 let mockSummary: { pending: number; failed: number; uploading: boolean; lastSyncedAt: Date | null };
@@ -33,6 +33,8 @@ jest.mock('../modules/accounts', () => ({
   createSecureStoreRegistrationDraftRepository: () => ({ clear: () => mockClearDraft() }),
   createSecureStorePendingInvitationRepository: () => ({ clear: (userId: string) => mockClearPending(userId) }),
   createPowerSyncManagedAthleteRepository: () => ({ listManagedAthleteIds: (...args: unknown[]) => mockListManagedAthleteIds(...args) }),
+  // Only the landing reads it; the home screen below does not.
+  createPowerSyncOwnAuthorizationEvidence: () => async () => false,
 }));
 const mockListByIds = jest.fn();
 jest.mock('../modules/athletes', () => ({
