@@ -102,6 +102,27 @@
       "message": "Los deportistas que administras aparecerán aquí."
     }
   },
+  "marks": {
+    "title": "Marcas de {{name}}",
+    "athlete": "Deportista",
+    "pool_group": "Piscina",
+    "pool": {
+      "SCM": "Piscina 25 m",
+      "LCM": "Piscina 50 m"
+    },
+    "no_time": "Aún sin tiempo",
+    "no_time_spoken": "{{event}}: aún sin tiempo",
+    "origin": {
+      "competition": "Comp.",
+      "training": "Entreno"
+    },
+    "origin_and_date": "{{origin}} · {{date}}",
+    "card_spoken": "{{event}}: {{time}}. {{detail}}",
+    "empty": {
+      "title": "Aún no hay deportistas",
+      "message": "Las marcas de los deportistas que administras aparecerán aquí."
+    }
+  },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",

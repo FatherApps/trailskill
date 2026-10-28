@@ -29,8 +29,9 @@ const sourceFiles = filesIn(moduleDir).filter((file) => !file.includes('__tests_
 
 describe('athletes gallery entries', () => {
   it('have unique ids and the expected states', () => {
-    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'importPrompt', 'athleteProfileScreen', 'myAthletesScreen']);
+    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'importPrompt', 'athleteProfileScreen', 'myAthletesScreen', 'marksScreen']);
     expect(stateKeys('myAthletesScreen')).toEqual(['with-data', 'long-text', 'empty', 'loading']);
+    expect(stateKeys('marksScreen')).toEqual(['with-data', 'long-pool', 'long-text', 'empty', 'loading', 'error']);
     expect(stateKeys('profileHeader')).toEqual(['one-school', 'several-schools', 'pending-authorization', 'with-event-chips', 'no-sync-info', 'long-text']);
     expect(stateKeys('eventSelector')).toEqual(['one-pool', 'two-pools']);
     expect(stateKeys('personalBest')).toEqual(['with-improvement', 'no-improvement', 'missing', 'training']);
