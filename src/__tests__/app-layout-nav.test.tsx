@@ -68,10 +68,10 @@ describe('app layout phone navigation', () => {
     mockOwn = { managedCount: 1, selfAthleteId: 'self-1', authorized: true };
   };
 
-  it('shows Inicio, Historial and Deportistas, in that order, to a guardian on a phone', async () => {
+  it('shows Inicio, Historial, Marcas and Deportistas, in that order, to a guardian on a phone', async () => {
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Deportistas']);
+    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Deportistas']);
   });
 
   const drawn = () => screen.container.queryAll((node) => node.type === 'RNSVGPath').map((path) => path.props.d);
@@ -79,29 +79,29 @@ describe('app layout phone navigation', () => {
   it('draws the design icons of the guardian bar, in order', async () => {
     await render(<AppLayout />);
 
-    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.group]);
+    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.group]);
   });
 
   it('draws the design icons of the adult bar, in order', async () => {
     adult();
     await render(<AppLayout />);
 
-    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.group]);
+    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.group]);
   });
 
   // Until #778 the adult reaches the sign-out and the authorizations, which live in the footer of "Mis deportistas", through this tab.
-  it('shows Inicio, Historial and Deportistas to an adult athlete', async () => {
+  it('shows Inicio, Historial, Marcas and Deportistas to an adult athlete', async () => {
     adult();
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Deportistas']);
+    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Deportistas']);
   });
 
   it('keeps Deportistas for an adult who also manages other athletes', async () => {
     mockOwn = { managedCount: 2, selfAthleteId: 'self-1', authorized: true };
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Deportistas']);
+    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Deportistas']);
   });
 
   it('waits for what the device says about the user before it draws the bar', async () => {
@@ -195,6 +195,25 @@ describe('app layout phone navigation', () => {
     await render(<AppLayout />);
     await fireEvent.press(screen.getAllByRole('tab', { name: 'Inicio' }).at(-1)!);
     expect(mockNavigate).toHaveBeenLastCalledWith('/home');
+  });
+
+  it('marks Marcas on its own route', async () => {
+    mockSegments = ['(app)', 'marks'];
+    await render(<AppLayout />);
+
+    expect(screen.getByRole('tab', { name: 'Marcas' })).toBeSelected();
+    expect(screen.getByRole('tab', { name: 'Historial' })).not.toBeSelected();
+  });
+
+  it('opens Marcas from the bar of a guardian and of an adult athlete', async () => {
+    await render(<AppLayout />);
+    await fireEvent.press(screen.getByRole('tab', { name: 'Marcas' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/marks');
+
+    adult();
+    await render(<AppLayout />);
+    await fireEvent.press(screen.getAllByRole('tab', { name: 'Marcas' }).at(-1)!);
+    expect(mockNavigate).toHaveBeenLastCalledWith('/marks');
   });
 
   it('marks Historial on an athlete profile', async () => {

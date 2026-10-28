@@ -42,23 +42,25 @@ const profileEvidence = createSupabaseProfileEvidenceRepository();
 const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
 const invitation = { pending: createSecureStorePendingInvitationRepository(), invitations: createSupabaseInvitationRepository() };
 
-type Destination = 'home' | 'history' | 'athletes';
+type Destination = 'home' | 'history' | 'marks' | 'athletes';
 
-// Only the destinations that have a screen, in the order of the design. Marcas joins with its own issue; "Entreno" is reached from "Lo próximo" on Inicio.
+// Only the destinations that have a screen, in the order of the design. "Entreno" is reached from "Lo próximo" on Inicio.
 const home: NavBarItem & { id: Destination } = { id: 'home', label: t('home.nav.home'), icon: 'home' };
 const history: NavBarItem & { id: Destination } = { id: 'history', label: t('home.nav.history'), icon: 'timeline' };
+const marks: NavBarItem & { id: Destination } = { id: 'marks', label: t('home.nav.marks'), icon: 'emoji_events' };
 const athletes: NavBarItem & { id: Destination } = { id: 'athletes', label: t('home.nav.athletes'), icon: 'group' };
-const familyItems = [home, history, athletes];
+const familyItems = [home, history, marks, athletes];
 // Until the account screen (#778) takes sign-out and authorizations out of "Mis deportistas", the adult keeps Deportistas to reach them.
 const adultItems = familyItems;
 
-// Route segments of the three destinations: "/home", "/athletes" and "/athletes/[id]" (the profile). Every other route,
+// Route segments of the four destinations: "/home", "/marks", "/athletes" and "/athletes/[id]" (the profile). Every other route,
 // the registration flows included, has no tab and no bar; a static route added under /athletes is not a profile.
 function destinationOf(segments: string[]): Destination | '' {
   const [, first, second, ...rest] = segments;
   if (rest.length > 0) return '';
   if (first === 'athletes') return second === undefined ? 'athletes' : second === '[id]' ? 'history' : '';
-  return first === 'home' && second === undefined ? 'home' : '';
+  if (second !== undefined) return '';
+  return first === 'home' || first === 'marks' ? first : '';
 }
 
 // The floating phone bar of guardians and adult athletes. School staff and tablets use other navigation. Only the width
@@ -94,6 +96,7 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
   const href: Record<Destination, string> = {
     athletes: '/athletes',
     home: '/home',
+    marks: '/marks',
     history: only ? `/athletes/${only.id}` : '/athletes',
   };
   return <NavBar items={adult ? adultItems : familyItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
