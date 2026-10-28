@@ -1,6 +1,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { View } from 'react-native';
 
+import { useTheme } from '../../core/theme';
 import type { GalleryEntry } from '../../core/ui';
 import { historyFixture as h, historyLongTextResults, historyResults } from './__fixtures__/history';
 import { marksFixture, marksLongPoolFixture, marksLongTextFixture } from './__fixtures__/marks';
@@ -88,9 +89,19 @@ const screenPreview = (view: (content: AthleteProfileContent) => AthleteProfileV
     return <AthleteProfileScreenPreview view={view} />;
   };
 
+// The preview box and the page padding narrow a screen to about 250 dp; marks are drawn at the full width of a phone instead,
+// so a tag fits one line here as it does on the device (the box padding plus the gallery page padding).
+function MarksPreview({ view }: { view: MarksView }) {
+  const { space } = useTheme();
+  return (
+    <View style={{ alignSelf: 'stretch', marginHorizontal: -(space[4] + space[5]) }}>
+      <MarksScreen view={view} onSelectAthlete={noop} onPoolChange={noop} scrollEnabled={false} />
+    </View>
+  );
+}
 const marksPreview = (view: MarksView) =>
-  function MarksPreview() {
-    return <MarksScreen view={view} onSelectAthlete={noop} onPoolChange={noop} scrollEnabled={false} />;
+  function MarksStatePreview() {
+    return <MarksPreview view={view} />;
   };
 
 const myAthletesPreview = (view: MyAthletesView) =>
