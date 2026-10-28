@@ -8,6 +8,7 @@
     "console": "Consola",
     "review_conflicts": "Revisar conflictos",
     "nav": {
+      "home": "Inicio",
       "athletes": "Deportistas",
       "today": "Entreno",
       "history": "Historial"

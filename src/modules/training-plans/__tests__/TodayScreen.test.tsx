@@ -20,6 +20,19 @@ function setup(view: TodayView) {
   return { onSendNotice, ui: <TodayScreen athleteName="Lucía R." view={view} onSendNotice={onSendNotice} /> };
 }
 
+describe('TodayScreen back', () => {
+  it('shows Volver only when the caller can leave the screen', async () => {
+    const onBack = jest.fn();
+    await render(<TodayScreen athleteName="Lucía R." view={{ kind: 'loading' }} onSendNotice={jest.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Volver' })).toBeNull();
+
+    await render(<TodayScreen athleteName="Lucía R." view={{ kind: 'loading' }} onSendNotice={jest.fn()} onBack={onBack} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('TodayScreen states', () => {
   it('shows the skeleton state while loading', async () => {
     await render(setup({ kind: 'loading' }).ui);

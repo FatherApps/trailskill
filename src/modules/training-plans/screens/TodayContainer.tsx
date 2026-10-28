@@ -37,6 +37,8 @@ export type TodayContainerProps = {
   // Set when the caller could not decide `onOpenAthletes` because its lookup failed: without athletes, the error view with this retry shows instead of the message.
   onRetryAction?: () => void;
   renderNoticeStatus?: (noticeId: string) => ReactNode;
+  // Leaves the screen; it has no navigation bar, so "Volver" shows when this is given.
+  onBack?: () => void;
 };
 
 type Loaded = { content: TodayContent; assignmentId: string; versionId: string };
@@ -267,6 +269,7 @@ export function TodayContainer(props: TodayContainerProps) {
       onSelectAthlete={select}
       onSendNotice={sendNotice}
       renderNoticeStatus={renderNoticeStatus}
+      onBack={props.onBack}
     />
   );
 }

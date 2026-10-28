@@ -40,7 +40,13 @@ jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   createPowerSyncStaffSchoolRepository: () => ({ listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args) }),
 }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: () => ({ push: jest.fn() }) }));
+let mockCanGoBack = true;
+const mockBack = jest.fn();
+const mockReplace = jest.fn();
+jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({}),
+  useRouter: () => ({ push: jest.fn(), canGoBack: () => mockCanGoBack, back: mockBack, replace: mockReplace }),
+}));
 
 const school = { id: 's1', name: 'Escuela Delfines' };
 const MESSAGE = 'Aún no hay un deportista vinculado';
@@ -107,5 +113,34 @@ describe('today route, athlete-less message', () => {
     expect(mockListStaffSchools).toHaveBeenCalledTimes(2);
     expect(await screen.findByText(MESSAGE)).toBeOnTheScreen();
     expect(screen.getByRole('button', ACTION)).toBeOnTheScreen();
+  });
+});
+
+// The plan of the day has no navigation bar, so "Volver" is the way out: back to Inicio, which opened it.
+describe('today route, leaving the screen', () => {
+  beforeEach(() => {
+    mockListStaffSchools.mockReset().mockResolvedValue([]);
+    mockBack.mockClear();
+    mockReplace.mockClear();
+    mockCanGoBack = true;
+  });
+
+  it('goes back to the screen it came from', async () => {
+    await render(<TodayRoute />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Volver' }));
+
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('goes to Inicio when there is no history, as after a deep link', async () => {
+    mockCanGoBack = false;
+    await render(<TodayRoute />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Volver' }));
+
+    expect(mockReplace).toHaveBeenCalledWith('/home');
+    expect(mockBack).not.toHaveBeenCalled();
   });
 });

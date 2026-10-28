@@ -13,6 +13,13 @@ export function shiftDay(day: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, date + days)).toISOString().slice(0, 10);
 }
 
+/** The seven days, Monday to Sunday, of the week of a YYYY-MM-DD day. */
+export function weekOf(day: string): string[] {
+  const [year, month, date] = day.split('-').map(Number) as [number, number, number];
+  const sinceMonday = (new Date(Date.UTC(year, month - 1, date)).getUTCDay() + 6) % 7;
+  return Array.from({ length: 7 }, (_, index) => shiftDay(day, index - sinceMonday));
+}
+
 /** For example "lunes, 2 de noviembre de 2026". */
 export function dayLabel(day: string): string {
   const [year, month, date] = day.split('-').map(Number) as [number, number, number];

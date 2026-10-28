@@ -2,16 +2,19 @@ import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../core/i18n';
+import type { RecordSyncState } from '../../core/sync';
 import { breakpoint, space } from '../../core/theme';
 import type { GalleryEntry } from '../../core/ui';
 import { BlockCard } from './components/BlockCard';
 import { cellKey, type FulfillmentCell, type FulfillmentContent } from './components/fulfillment';
 import { fulfillmentFixture } from './__fixtures__/fulfillment';
 import { blockErrors, newDraftBlock, snapshot, type BlockErrors, type DraftBlock } from './draft';
+import { homeFixture } from './__fixtures__/home';
 import { plansFixture } from './__fixtures__/plans';
 import { FulfillmentScreen, type FulfillmentView } from './screens/FulfillmentScreen';
 import { AssignPlanScreen, type AssignPlanView } from './screens/AssignPlanScreen';
 import { PlanBuilderScreen } from './screens/PlanBuilderScreen';
+import { HomeScreen, type HomeView } from './screens/HomeScreen';
 import { PlanListScreen, type PlanListView } from './screens/PlanListScreen';
 import { TodayScreen, type TodayView } from './screens/TodayScreen';
 import { phases, recordings, type BlockStatus } from './types';
@@ -129,6 +132,24 @@ function TodayPreview({ view, withPicker = false }: { view: TodayView; withPicke
         selectedAthleteId={selectedId}
         onSelectAthlete={setSelectedId}
         onSendNotice={noop}
+      />
+    </ScreenFrame>
+  );
+}
+
+// Holds the chosen athlete, so the chips really filter in the gallery.
+function HomePreview({ view, withPicker = false, syncState = 'synced' }: { view: HomeView; withPicker?: boolean; syncState?: RecordSyncState }) {
+  const [selectedId, setSelectedId] = useState('all');
+  return (
+    <ScreenFrame>
+      <HomeScreen
+        view={view}
+        greetingName={homeFixture.greetingName}
+        athletes={withPicker ? homeFixture.athletes : []}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        syncState={syncState}
+        onOpenToday={noop}
       />
     </ScreenFrame>
   );
@@ -289,6 +310,19 @@ export const galleryEntries: GalleryEntry[] = [
       offline: () => <TodayPreview view={{ kind: 'offline', storedOnLabel, content: today }} />,
       'offline-empty': () => <TodayPreview view={{ kind: 'offline-empty' }} />,
       denied: () => <TodayPreview view={{ kind: 'denied' }} />,
+    },
+  },
+  {
+    id: 'home',
+    title: 'HomeScreen',
+    states: {
+      data: () => <HomePreview view={{ kind: 'data', content: homeFixture.content }} />,
+      'several-athletes': () => <HomePreview withPicker view={{ kind: 'data', content: homeFixture.content }} />,
+      'no-upcoming': () => <HomePreview view={{ kind: 'data', content: homeFixture.noUpcoming }} />,
+      empty: () => <HomePreview view={{ kind: 'data', content: homeFixture.nothing }} />,
+      'sync-pending': () => <HomePreview syncState="on_device" view={{ kind: 'data', content: homeFixture.content }} />,
+      loading: () => <HomePreview view={{ kind: 'loading' }} />,
+      error: () => <HomePreview view={{ kind: 'error', onRetry: noop }} />,
     },
   },
   {

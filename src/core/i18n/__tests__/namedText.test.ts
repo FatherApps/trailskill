@@ -45,6 +45,7 @@ describe('namedText keys', () => {
       'athletes.screen.denied.message',
       'athletes.screen.empty.message',
       'athletes.screen.offline.message',
+      'training_plans.home.greeting',
       'training_plans.today.denied_message',
     ]);
   });
