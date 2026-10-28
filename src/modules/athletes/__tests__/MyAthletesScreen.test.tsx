@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
-import { colors, ThemeProvider, typography } from '../../../core/theme';
+import { colors, radius, size, ThemeProvider, typography } from '../../../core/theme';
 import { MyAthletesScreen, type MyAthleteCard, type MyAthletesView } from '..';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
@@ -199,6 +199,17 @@ describe('MyAthletesScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
 
     expect(onAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers "Agregar deportista" as the round icon-only "+" button, with no visible label', async () => {
+    await show(stack(tomas));
+
+    expect(screen.queryByText('Agregar deportista')).toBeNull();
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Agregar deportista' }).props.style)).toMatchObject({
+      width: size['target-min'],
+      height: size['target-min'],
+      borderRadius: radius.full,
+    });
   });
 
   it.each([

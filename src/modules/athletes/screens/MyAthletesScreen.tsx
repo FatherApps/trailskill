@@ -2,7 +2,7 @@ import { ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { Button, Icon, StateView } from '../../../core/ui';
+import { IconButton, StateView } from '../../../core/ui';
 import { AthleteStack, type MyAthleteCard } from '../components/AthleteStack';
 import { useLargeText } from '../components/useLargeText';
 import '../i18n';
@@ -34,7 +34,7 @@ export function MyAthletesScreen({ view, onOpen, onAdd, scrollEnabled = true }: 
       <Text accessibilityRole="header" style={[typography[largeText ? 'title' : 'title-lg'], { color: colors[myAthletesScreenColors.title] }]}>
         {t('athletes.my.title')}
       </Text>
-      <Button variant="secondary" label={t('athletes.my.add')} icon={<Icon name="person_add" />} onPress={onAdd} />
+      <IconButton icon="add" label={t('athletes.my.add')} onPress={onAdd} />
     </View>
   );
 
