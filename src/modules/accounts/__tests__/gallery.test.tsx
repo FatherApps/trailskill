@@ -30,6 +30,7 @@ describe('accounts gallery entries', () => {
       'authorizations',
       'consentCard',
       'addAthletes',
+      'providerRegistration',
       'resumeRegistration',
       'existingAccountSheet',
     ]);
@@ -52,6 +53,7 @@ describe('accounts gallery entries', () => {
     expect(statesOf('authorizations')).toEqual(['initial']);
     expect(statesOf('consentCard')).toEqual(['unchecked', 'accepted']);
     expect(statesOf('addAthletes')).toEqual(['empty', 'withData', 'error', 'withCategories']);
+    expect(statesOf('providerRegistration')).toEqual(['google', 'email']);
     expect(statesOf('resumeRegistration')).toEqual(['initial']);
     expect(statesOf('existingAccountSheet')).toEqual(['initial']);
   });
@@ -97,6 +99,28 @@ describe('accounts gallery entries', () => {
 
   it('does not carry the list of the last iteration into the tests that follow', () => {
     expect(ENABLED_PROVIDERS).toEqual([]);
+  });
+
+  describe('providerRegistration', () => {
+    const state = (name: string) => galleryEntries.find((entry) => entry.id === 'providerRegistration')!.states[name]();
+
+    it('google shows the verified email, the provider and the names it gives', async () => {
+      await render(state('google'));
+
+      expect(screen.getByText('camila@example.test')).toBeOnTheScreen();
+      expect(screen.getByText('Cuenta de Google · correo verificado')).toBeOnTheScreen();
+      expect(screen.getByDisplayValue('Camila')).toBeOnTheScreen();
+      expect(screen.getByDisplayValue('Rojas')).toBeOnTheScreen();
+    });
+
+    it('email shows the verified email with no provider and no names', async () => {
+      await render(state('email'));
+
+      expect(screen.getByText('camila@example.test')).toBeOnTheScreen();
+      expect(screen.getByText('Correo verificado')).toBeOnTheScreen();
+      expect(screen.queryByText(/Cuenta de/)).toBeNull();
+      expect(screen.queryByDisplayValue('Camila')).toBeNull();
+    });
   });
 
   it.each(galleryEntries.flatMap((entry) => Object.keys(entry.states).map((state) => [entry.id, state] as const)))(

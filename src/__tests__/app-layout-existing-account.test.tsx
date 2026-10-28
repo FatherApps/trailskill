@@ -28,6 +28,8 @@ jest.mock('../modules/accounts', () => ({
       : undefined;
   },
   usePendingInvitations: jest.fn(),
+  // This suite is about the app once the account has a profile; the gate has its own suite.
+  useProfileGate: () => ({ status: 'ready', recheck: () => {} }),
 }));
 
 const IN_USE = 'Ya hay una cuenta con este correo. Inicia sesión';

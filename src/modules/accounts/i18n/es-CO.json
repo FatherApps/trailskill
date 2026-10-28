@@ -117,6 +117,25 @@
       "name_limit": "Hasta {{max}} caracteres.",
       "add_failed": "No pudimos guardar el deportista. Inténtalo de nuevo.",
       "continue_failed": "No pudimos guardar el avance. Inténtalo de nuevo."
+    },
+    "provider_registration": {
+      "title": "Casi listo, {{name}}",
+      "title_plain": "Casi listo",
+      "verified": "Cuenta de {{provider}} · correo verificado",
+      "verified_email": "Correo verificado",
+      "registering_as": "Me registro como",
+      "guardian_title": "Acudiente",
+      "guardian_detail": "Registro a mis hijos",
+      "adult_title": "Deportista adulto",
+      "adult_detail": "Me registro yo",
+      "choose": "Elige cómo te registras.",
+      "name_hint": "Lo trajimos de {{provider}}. Puedes corregirlo.",
+      "privacy": "Solo usamos tu nombre y correo de {{provider}}. Nunca publicamos nada.",
+      "privacy_email": "Solo usamos tu nombre y correo. Nunca publicamos nada.",
+      "failed": "No pudimos guardar tus datos. Lo que escribiste sigue aquí: inténtalo de nuevo."
+    },
+    "profile_check": {
+      "offline_message": "La primera vez en este celular necesitamos señal para revisar tu cuenta."
     }
   }
 }

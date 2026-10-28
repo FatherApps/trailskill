@@ -19,6 +19,9 @@ jest.mock('../modules/accounts', () => ({
   createSupabaseAdultProfileRepository: () => ({}),
   createSupabaseInvitationRepository: () => ({}),
   usePendingInvitations: () => {},
+  createSupabaseProfileEvidenceRepository: () => ({}),
+  createPowerSyncOwnAuthorizationEvidence: () => async () => false,
+  useProfileGate: () => ({ status: 'ready', recheck: () => {} }),
   useFinishRegistration: (...args: unknown[]) => {
     mockOnNext = args[5] as typeof mockOnNext;
     return mockOffer;

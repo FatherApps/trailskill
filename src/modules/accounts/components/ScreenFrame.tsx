@@ -4,7 +4,8 @@ import { ScrollView, Text, View } from 'react-native';
 import { useTheme } from '../../../core/theme';
 
 export type ScreenFrameProps = {
-  title: string;
+  // A frame whose step header already carries the heading has none of its own: one heading per screen.
+  title?: string;
   // The display size of the lima boards, for the first screen of a flow.
   large?: boolean;
   // Only with an invitation: the school that invited.
@@ -27,9 +28,11 @@ export function ScreenFrame({ title, large = false, subtitle, before, children, 
       contentContainerStyle={{ flexGrow: 1, padding: space[4], gap: space[4] }}
     >
       {before}
-      <Text accessibilityRole="header" style={[typography[large ? 'title-lg' : 'title'], { color: colors.ink }]}>
-        {title}
-      </Text>
+      {title ? (
+        <Text accessibilityRole="header" style={[typography[large ? 'title-lg' : 'title'], { color: colors.ink }]}>
+          {title}
+        </Text>
+      ) : null}
       {subtitle ? <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{subtitle}</Text> : null}
       {children}
       {footer ? (
