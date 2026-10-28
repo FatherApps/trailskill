@@ -98,7 +98,7 @@ export type FinishRegistrationInput = {
 // A draft typed for another email is left alone, and a failed save keeps the draft so the next launch retries.
 // A draft that was only typed (its code was never asked for here) is not stored until the person confirms: the result is 'offer'.
 // An account that already had a profile under another name was signing in through registration: its profile stays as it is,
-// the draft is dropped and nothing is routed.
+// the draft is dropped and the result is 'existing', so the person is told instead of being left on a screen that does nothing.
 export async function finishRegistration({
   userId,
   email,
@@ -108,7 +108,7 @@ export async function finishRegistration({
   pending,
   invitations,
   confirmed = false,
-}: FinishRegistrationInput): Promise<RegistrationStep | 'offer' | undefined> {
+}: FinishRegistrationInput): Promise<RegistrationStep | 'offer' | 'existing' | undefined> {
   const draft = await drafts.load();
   if (!draft) return;
   const firstName = draft.firstName?.trim();
@@ -126,7 +126,7 @@ export async function finishRegistration({
   const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
   if (!sameName(stored.firstName, firstName) || !sameName(stored.lastName, lastName)) {
     await drafts.clear();
-    return;
+    return 'existing';
   }
   if (draft.swimmer === 'child') {
     await drafts.save({ swimmer: 'child', firstName: '', lastName: '', email: draft.email, invitationToken: draft.invitationToken });
@@ -146,7 +146,11 @@ export async function finishRegistration({
 
 export type RegistrationOffer = { email: string; resume: () => void; startOver: () => void };
 
-// Returns the offer to resume a draft typed here, shown after the sign-in; undefined when there is nothing to ask.
+// The account typed in the registration already existed. It only appears once the session is open, that is, after the code checked out.
+export type ExistingAccountNotice = { existing: true; email: string; dismiss: () => void };
+
+// Returns the offer to resume a draft typed here, or the notice that the account already existed; both are shown after the sign-in.
+// Undefined when there is nothing to ask.
 export function useFinishRegistration(
   userId: string | undefined,
   email: string | undefined,
@@ -155,23 +159,26 @@ export function useFinishRegistration(
   managedProfiles: ManagedAthleteProfileRepository,
   onNext: (step: RegistrationStep) => void,
   invitation?: { pending: PendingInvitationRepository; invitations: InvitationRepository },
-): RegistrationOffer | undefined {
+): RegistrationOffer | ExistingAccountNotice | undefined {
   const [offered, setOffered] = useState(false);
+  const [existing, setExisting] = useState(false);
 
   useEffect(() => {
     if (!userId || !email) return;
     finishRegistration({ userId, email, drafts, profiles, managedProfiles, ...invitation })
-      .then((next) => (next === 'offer' ? setOffered(true) : next && onNext(next)))
+      .then((next) => (next === 'offer' ? setOffered(true) : next === 'existing' ? setExisting(true) : next && onNext(next)))
       .catch(() => {});
   }, [userId, email, drafts, profiles, managedProfiles, invitation, onNext]);
 
-  if (!offered || !userId || !email) return undefined;
+  if (!userId || !email) return undefined;
+  if (existing && !offered) return { existing: true, email, dismiss: () => setExisting(false) };
+  if (!offered) return undefined;
   return {
     email,
     resume: () => {
       setOffered(false);
       finishRegistration({ userId, email, drafts, profiles, managedProfiles, ...invitation, confirmed: true })
-        .then((next) => next && next !== 'offer' && onNext(next))
+        .then((next) => (next === 'existing' ? setExisting(true) : next && next !== 'offer' && onNext(next)))
         .catch(() => setOffered(true));
     },
     startOver: () => {

@@ -9,6 +9,7 @@ import { AddAthletesScreen, type AddAthletesScreenProps } from './screens/AddAth
 import { SignInScreen, type SignInScreenProps } from './screens/SignInScreen';
 import { AuthorizationsScreen } from './screens/AuthorizationsScreen';
 import { ConsentCard } from './components/ConsentCard';
+import { ExistingAccountSheet } from './components/ExistingAccountSheet';
 import { ResumeRegistration } from './components/ResumeRegistration';
 import type { AuthorizationRecord, AuthorizationText } from './data/authorizations';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';
@@ -244,6 +245,13 @@ export const galleryEntries: GalleryEntry[] = [
           <ResumeRegistration email={fx.person.email} onResume={noop} onRestart={noop} />
         </FullWidth>
       ),
+    },
+  },
+  {
+    id: 'existingAccountSheet',
+    title: 'ExistingAccountSheet',
+    states: {
+      initial: () => <ExistingAccountSheet email={fx.person.email} signOut={async () => ({ status: 'signed_out' })} onClose={noop} />,
     },
   },
 ];

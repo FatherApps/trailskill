@@ -13,12 +13,14 @@ export type ConfirmSheetProps = {
   message: string;
   // Verb + object, never "Sí" or "Aceptar".
   confirmLabel: string;
-  // The safe alternative; dismissing the sheet in any way chooses it.
+  // The safe alternative; dismissing the sheet in any way chooses it, unless onDismiss says otherwise.
   cancelLabel: string;
   // Discarding or withdrawing uses the stop button; a non-destructive confirmation uses primary.
   destructive?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  // Dismissing without choosing (Android back, tap outside); defaults to onCancel. For a sheet whose cancel action is not the safe one.
+  onDismiss?: () => void;
 };
 
 export const confirmSheetColors: Record<'background' | 'title' | 'message' | 'grab' | 'scrim', ColorToken> = {
@@ -45,6 +47,7 @@ export function ConfirmSheet({
   destructive = false,
   onConfirm,
   onCancel,
+  onDismiss = onCancel,
 }: ConfirmSheetProps) {
   const { colors, space, radius, typography } = useTheme();
   const titleRef = useRef<ComponentRef<typeof Text>>(null);
@@ -63,7 +66,7 @@ export function ConfirmSheet({
       animationType="slide"
       statusBarTranslucent
       navigationBarTranslucent
-      onRequestClose={onCancel}
+      onRequestClose={onDismiss}
       onShow={focusTitle}
     >
       <View style={[styles.scrim, { backgroundColor: colors[confirmSheetColors.scrim] }]}>
@@ -71,7 +74,7 @@ export function ConfirmSheet({
           testID="confirm-sheet-scrim"
           accessible={false}
           importantForAccessibility="no"
-          onPress={onCancel}
+          onPress={onDismiss}
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView

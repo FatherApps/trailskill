@@ -63,6 +63,21 @@ describe('ConfirmSheet', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+  it('with onDismiss, back and the scrim use it instead, and the cancel button still takes the safe option', async () => {
+    const onDismiss = jest.fn();
+    const { onConfirm, onCancel } = await renderSheet({ onDismiss });
+
+    await fireEvent(modalOf(), 'requestClose');
+    await fireEvent.press(screen.getByTestId('confirm-sheet-scrim'));
+    expect(onDismiss).toHaveBeenCalledTimes(2);
+    expect(onCancel).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Seguir revisando' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledTimes(2);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it('uses the native Modal with a slide animation', async () => {
     await renderSheet();
 

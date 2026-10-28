@@ -248,14 +248,14 @@ describe('finishRegistration', () => {
   describe.each(['adult', 'child'] as const)('%s: an account that already has a profile', (swimmer) => {
     const existing = { userId: 'user-1', firstName: 'Lucía', lastName: 'Pardo' };
 
-    it('keeps the stored name, drops the draft and routes nowhere', async () => {
+    it('keeps the stored name, drops the draft and reports the account as existing', async () => {
       const profiles = createInMemoryAdultProfileRepository({ existing });
       const { drafts, athletes, next } = await run(createInMemoryRegistrationDraftRepository({ ...draft, swimmer }), profiles);
 
       expect(profiles.saved).toEqual([existing]);
       expect(await drafts.load()).toBeNull();
       await expect(athletes.listManaged('user-1')).resolves.toEqual([]);
-      expect(next).toBeUndefined();
+      expect(next).toBe('existing');
     });
 
     it('goes on when the stored name is the one typed, as in a retry after a failed step', async () => {

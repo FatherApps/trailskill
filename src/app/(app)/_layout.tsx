@@ -14,6 +14,7 @@ import {
   createSecureStoreRegistrationDraftRepository,
   createSupabaseAdultProfileRepository,
   createSupabaseInvitationRepository,
+  ExistingAccountSheet,
   ResumeRegistration,
   useFinishRegistration,
   usePendingInvitations,
@@ -84,7 +85,7 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
 
 export default function Layout() {
   const router = useRouter();
-  const { session } = useSession();
+  const { session, signOut } = useSession();
   // Stable: useFinishRegistration runs again whenever it changes.
   const openNext = useCallback(
     (step: RegistrationStep) => router.replace(step === 'add_athletes' ? '/athletes/add' : '/athletes/authorizations'),
@@ -97,7 +98,7 @@ export default function Layout() {
   usePendingInvitations(session?.user.id, invitation.pending, invitation.invitations, lastSyncedAt?.getTime());
   const { colors, space } = useTheme();
   // A draft typed here and never confirmed by a code is offered once the person is in with the same email.
-  if (offer) {
+  if (offer && !('existing' in offer)) {
     return (
       <View style={{ flex: 1, padding: space[4], justifyContent: 'center', backgroundColor: colors['surface-0'] }}>
         <ResumeRegistration email={offer.email} onResume={offer.resume} onRestart={offer.startOver} />
@@ -108,6 +109,8 @@ export default function Layout() {
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }} />
       <PhoneNavBar />
+      {/* The code already checked out (the session is open) and the account had a profile: tell the person instead of leaving them still. */}
+      {offer && 'existing' in offer && <ExistingAccountSheet email={offer.email} signOut={signOut} onClose={offer.dismiss} />}
     </View>
   );
 }

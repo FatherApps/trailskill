@@ -31,6 +31,7 @@ describe('accounts gallery entries', () => {
       'consentCard',
       'addAthletes',
       'resumeRegistration',
+      'existingAccountSheet',
     ]);
     expect(statesOf('whoSwims')).toEqual(['initial', 'child', 'adult', 'invitation', 'invalidInvitation']);
     expect(statesOf('accountDetails')).toEqual([
@@ -52,6 +53,7 @@ describe('accounts gallery entries', () => {
     expect(statesOf('consentCard')).toEqual(['unchecked', 'accepted']);
     expect(statesOf('addAthletes')).toEqual(['empty', 'withData', 'error', 'withCategories']);
     expect(statesOf('resumeRegistration')).toEqual(['initial']);
+    expect(statesOf('existingAccountSheet')).toEqual(['initial']);
   });
 
   // Prefix match: the offline button name carries the reason after the provider.
