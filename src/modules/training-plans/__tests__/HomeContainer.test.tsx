@@ -154,6 +154,15 @@ describe('HomeContainer', () => {
       expect(screen.getByText('Toma de tiempos')).toBeOnTheScreen();
     });
 
+    it('shows Todos and one chip per athlete when there are several', async () => {
+      await show({ ids: ['a1', 'a3'] });
+
+      expect(screen.getAllByRole('radio')).toHaveLength(3);
+      expect(screen.getByRole('radio', { name: /Todos/ })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: /^A1/ })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: /^A3/ })).toBeOnTheScreen();
+    });
+
     it('shows no chips for a single athlete', async () => {
       await show();
 

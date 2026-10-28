@@ -5,6 +5,7 @@ import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
 import { Button, ChipRow, ColorCard, Icon, InitialsDot, LogoSymbol, StateView, SyncStatus, Tag, TimeValue } from '../../../core/ui';
+import { useLargeText } from '../components/useLargeText';
 import '../i18n';
 
 export type HomeAthlete = { id: string; name: string; initials: string; color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4' };
@@ -67,25 +68,51 @@ function WeekStrip({ week }: { week: HomeWeekDay[] }) {
 
 function NextCard({ next, onOpen }: { next: HomeNext; onOpen: () => void }) {
   const { colors, space, radius, typography } = useTheme();
+  const large = useLargeText();
+  const when = <Tag icon="schedule" label={next.whenLabel} />;
   return (
     <>
       <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
         {t('training_plans.home.next_title')}
       </Text>
-      <ColorCard color={next.color} title={next.title} decoration={{ dot: 'sky' }}>
-        {/* shortcut: ColorCard puts its title first, so the day tag sits under it; the mockup has it above. Upgrade with a slot above the title in core. */}
-        <Tag icon="schedule" label={next.whenLabel} />
-        {/* The athlete on the left and the action on the right; with large text they wrap onto two lines. */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2], marginTop: space[2] }}>
+      <View>
+        <ColorCard color={next.color} title={next.title} decoration={{ dot: 'sky' }}>
+          {/* With large text the tag stays in the flow under the title, where it cannot overlap it. */}
+          {large && when}
+          {/* The athlete on the left and the action on the right, in one row; with large text they stack. */}
           <View
-            style={{ flexDirection: 'row', alignItems: 'center', gap: space[1], padding: space[1], paddingRight: space[2], borderRadius: radius.full, backgroundColor: colors['surface-1'] }}
+            style={{
+              flexDirection: 'row',
+              flexWrap: large ? 'wrap' : 'nowrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: large ? space[2] : space[1],
+              marginTop: space[2],
+            }}
           >
-            <InitialsDot initials={next.initials} color={next.color} />
-            <Text style={[typography.label, { color: colors.ink }]}>{next.athleteName}</Text>
+            <View
+              style={{
+                flexShrink: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space[1],
+                padding: space[1],
+                paddingRight: space[2],
+                borderRadius: radius.full,
+                backgroundColor: colors['surface-1'],
+              }}
+            >
+              <InitialsDot initials={next.initials} color={next.color} />
+              <Text numberOfLines={large ? undefined : 1} style={[typography.label, { flexShrink: 1, color: colors.ink }]}>
+                {next.athleteName}
+              </Text>
+            </View>
+            <Button variant="dark" label={t('training_plans.home.next_action')} onPress={onOpen} trailingIcon={<Icon name="arrow_forward" color="on-primary" size="icon-sm" />} />
           </View>
-          <Button variant="dark" label={t('training_plans.home.next_action')} onPress={onOpen} trailingIcon={<Icon name="arrow_forward" color="on-primary" size="icon-sm" />} />
-        </View>
-      </ColorCard>
+        </ColorCard>
+        {/* shortcut: ColorCard puts its title first, so the day tag is laid over the empty top of the card, where the mockup has it; upgrade with a slot above the title in core. */}
+        {!large && <View style={{ position: 'absolute', top: space[4], left: space[4] }}>{when}</View>}
+      </View>
     </>
   );
 }
