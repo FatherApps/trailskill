@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
-import { colors, ThemeProvider } from '../../../core/theme';
+import { colors, ThemeProvider, typography } from '../../../core/theme';
 import { MyAthletesScreen, type MyAthleteCard, type MyAthletesView } from '..';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
@@ -145,6 +145,38 @@ describe('MyAthletesScreen', () => {
     expect(style.height).toBeUndefined();
     expect(style.paddingTop).toBeGreaterThan(0);
     expect(style.paddingBottom).toBeGreaterThan(0);
+  });
+
+  describe('with large text', () => {
+    const fontSizeOf = (node: { props: Record<string, unknown> }) => StyleSheet.flatten(node.props.style as never).fontSize;
+    const realGet = Dimensions.get.bind(Dimensions);
+    afterEach(() => jest.restoreAllMocks());
+
+    const showAt = async ({ themeScale = 1, osScale = 1 }) => {
+      jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: osScale }));
+      await render(
+        <ThemeProvider fontScale={themeScale}>
+          <MyAthletesScreen view={stack(tomas, lucia)} onOpen={jest.fn()} onAdd={jest.fn()} scrollEnabled={false} />
+        </ThemeProvider>,
+      );
+    };
+
+    it('keeps the title and the name at their size with normal text', async () => {
+      await showAt({});
+
+      expect(fontSizeOf(screen.getByRole('header'))).toBe(typography['title-lg'].fontSize);
+      expect(fontSizeOf(screen.getByText('Tomás\nRojas'))).toBe(typography['display-xl'].fontSize);
+    });
+
+    it.each([
+      ['the gallery scales the text', { themeScale: 2 }, 2],
+      ['the system scales the text', { osScale: 2 }, 1],
+    ])('steps the title and the name down one size when %s, so no word breaks', async (_who, scale, themeScale) => {
+      await showAt(scale);
+
+      expect(fontSizeOf(screen.getByRole('header'))).toBe(typography.title.fontSize * themeScale);
+      expect(fontSizeOf(screen.getByText('Tomás\nRojas'))).toBe(typography['title-lg'].fontSize * themeScale);
+    });
   });
 
   it('draws the decorative ring on the front card only', async () => {

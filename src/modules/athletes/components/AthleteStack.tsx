@@ -6,6 +6,7 @@ import { useTheme, type ColorToken } from '../../../core/theme';
 import { Button, ColorCard, Tag, useFocusRing } from '../../../core/ui';
 import '../i18n';
 import type { AthleteColor } from '../athleteDisplay';
+import { useLargeText } from './useLargeText';
 
 export type MyAthleteCard = {
   id: string;
@@ -78,6 +79,7 @@ function CollapsedCard({ card, hidden, first, onPress }: { card: MyAthleteCard; 
 
 function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidden: number; covers: boolean; onOpen: () => void }) {
   const { colors, space, typography } = useTheme();
+  const largeText = useLargeText();
   const text = { color: colors[athleteStackColors.text] };
   const place = [card.school, card.group].filter(Boolean).join(' · ');
   // The ring and dot are brand colours that stand out on the athlete's own colour.
@@ -89,7 +91,7 @@ function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidd
       <ColorCard color={card.color} title="" decoration={{ dot }}>
         {place ? <Text style={[typography.caption, text]}>{place}</Text> : null}
         {card.category ? <Text style={[typography.label, text]}>{card.category.toUpperCase()}</Text> : null}
-        <Text style={[typography['display-xl'], text]}>{`${card.firstName}\n${card.lastName}`}</Text>
+        <Text style={[typography[largeText ? 'title-lg' : 'display-xl'], text]}>{`${card.firstName}\n${card.lastName}`}</Text>
         {card.authorized === undefined ? null : (
           <View style={{ flexDirection: 'row', paddingTop: space[1] }}>
             {card.authorized ? (
