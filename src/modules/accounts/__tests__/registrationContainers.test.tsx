@@ -109,6 +109,21 @@ describe('AccountDetailsContainer', () => {
     expect(await screen.findByText(t('accounts.failure.offline_title'))).toBeOnTheScreen();
   });
 
+  it('retries the provider that failed offline, and never asks for an emailed code instead', async () => {
+    mockShowProviders = true;
+    const signInWithProvider = jest.fn().mockRejectedValueOnce(new AuthRetryableFetchError('offline', 0)).mockResolvedValue('cancelled');
+    const { requestCode } = await renderDetails(undefined, { signInWithProvider });
+    await fireEvent.press(providerButton('microsoft'));
+    await screen.findByText(t('accounts.failure.offline_title'));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+    await waitFor(() => expect(signInWithProvider).toHaveBeenCalledTimes(2));
+    expect(signInWithProvider).toHaveBeenLastCalledWith('azure');
+    expect(requestCode).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByText(t('accounts.failure.offline_title'))).toBeNull());
+  });
+
   it('clears the failure when the person tries again', async () => {
     mockShowProviders = true;
     const signInWithProvider = jest.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue('cancelled');

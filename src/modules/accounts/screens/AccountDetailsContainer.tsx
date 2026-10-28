@@ -48,7 +48,7 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
   const [busy, setBusy] = useState<CodeBusy>();
   const [failure, setFailure] = useState<Failure>();
   const { invitation, invalid } = useInvitation(drafts, invitations);
-  const lastAction = useRef<'request' | 'verify'>('request');
+  const lastAction = useRef<'request' | 'verify' | AuthProvider>('request');
   const writes = useRef<Promise<void>>(Promise.resolve());
   // A second press while the browser is open must not open another one.
   const providerBusy = useRef(false);
@@ -132,6 +132,8 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
   async function signInWith(provider: AuthProvider) {
     if (providerBusy.current) return;
     providerBusy.current = true;
+    // The retry of an offline failure repeats this sign-in, not the emailed code.
+    lastAction.current = provider;
     setFailure(undefined);
     try {
       await signInWithProvider(provider);
@@ -140,6 +142,13 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
     } finally {
       providerBusy.current = false;
     }
+  }
+
+  function retry() {
+    const action = lastAction.current;
+    if (action === 'verify') return verify();
+    if (action === 'request') return request();
+    return signInWith(action);
   }
 
   if (loaded === undefined) return null;
@@ -158,7 +167,7 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
       onChange={change}
       onGoogle={() => void signInWith('google')}
       onMicrosoft={() => void signInWith('azure')}
-      onRetry={() => (lastAction.current === 'verify' ? verify() : request())}
+      onRetry={retry}
       onRequestCode={request}
       onSubmitCode={verify}
       onSignIn={onSignIn}
