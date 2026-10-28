@@ -28,6 +28,37 @@ async function submitWith(draft: RegistrationDraft | null, who: ProviderAccount 
   return drafts.load();
 }
 
+async function showPanelWith(draft: RegistrationDraft, repository = invitations) {
+  const drafts = createInMemoryRegistrationDraftRepository(draft);
+  await render(<ProviderRegistrationContainer account={account} drafts={drafts} invitations={repository} onSaved={jest.fn()} />);
+  return drafts;
+}
+
+describe('ProviderRegistrationContainer: the school of the invitation', () => {
+  it('shows the school of a draft typed for the same email', async () => {
+    await showPanelWith(stored('paula@example.test'));
+
+    // The school is in the subtitle and in the banner.
+    expect(await screen.findAllByText(/Escuela Sintética/)).toHaveLength(2);
+  });
+
+  it('shows nothing of the invitation left by another email on a shared phone, and leaves that draft as it is', async () => {
+    const repository = createInMemoryInvitationRepository({ invitations: { [TOKEN]: { school: 'Escuela Sintética', group: 'Grupo A', categories: [] } } });
+    const drafts = await showPanelWith(stored('someone@example.test'), repository);
+
+    expect(screen.queryAllByText(/Escuela Sintética/)).toHaveLength(0);
+    expect(repository.resolveCalls).toBe(0);
+    expect((await drafts.load())?.invitationToken).toBe(TOKEN);
+  });
+
+  it('does not report as invalid, nor clear, the unknown token of another email', async () => {
+    const drafts = await showPanelWith(stored('someone@example.test'), createInMemoryInvitationRepository());
+
+    expect(screen.queryByText(/invitación/i)).toBeNull();
+    expect((await drafts.load())?.invitationToken).toBe(TOKEN);
+  });
+});
+
 describe('ProviderRegistrationContainer: the invitation of the stored draft', () => {
   it('keeps the invitation token of a draft typed for the same email', async () => {
     const saved = await submitWith(stored('paula@example.test'));

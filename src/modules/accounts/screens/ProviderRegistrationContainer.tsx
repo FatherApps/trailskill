@@ -52,7 +52,7 @@ export function ProviderRegistrationContainer({ account, drafts, invitations, on
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const { invitation, invalid } = useInvitation(drafts, invitations);
+  const { invitation, invalid } = useInvitation(drafts, invitations, account.email);
 
   function change(field: ProviderRegistrationField, value: string) {
     setValues((typed) => ({ ...typed, [field]: value }));
