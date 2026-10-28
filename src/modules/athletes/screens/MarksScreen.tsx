@@ -12,7 +12,7 @@ import '../i18n';
 
 export type MarkCard = {
   id: string;
-  // "Libre 50 m".
+  // "Libre 50": the meters go without the unit, as in the design.
   event: string;
   // null while the athlete has no valid time in the event: it reads "Aún sin tiempo", never zero.
   time: Hundredths | null;
@@ -53,7 +53,7 @@ export const marksScreenColors: { title: ColorToken; background: ColorToken; car
 
 function Card({ card }: { card: MarkCard }) {
   const { colors, space, radius, typography } = useTheme();
-  const shortDate = card.date ? formatDate(card.date, 'short') : null;
+  const shortDate = card.date ? formatDate(card.date, 'day_month') : null;
   const detail =
     card.origin && shortDate
       ? t('athletes.marks.origin_and_date', { origin: t(`athletes.marks.origin.${card.origin}`), date: shortDate })

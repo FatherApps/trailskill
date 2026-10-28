@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { PoolCode } from '../../../core/sport';
+import { distances, type PoolCode } from '../../../core/sport';
 import type { ManagedAthleteRepository } from '../../accounts';
 import { athleteDisplay } from '../athleteDisplay';
-import { distanceLabel, strokeLabel } from '../components/sportLabel';
+import { strokeLabel } from '../components/sportLabel';
 import type { HistoryMeasurement, HistoryRepository } from '../data/history';
 import type { SchoolAthleteRepository } from '../data/schoolAthletes';
 import { useManagedAthletes } from '../data/useManagedAthletes';
@@ -69,7 +69,7 @@ export function MarksContainer({ userId, managed, athletes, history, refreshKey,
       pool,
       cards: marksByEvent(read.result, pool).map(({ id, stroke, distance, best }) => ({
         id,
-        event: `${strokeLabel(stroke)} ${distanceLabel(distance)}`,
+        event: `${strokeLabel(stroke)} ${distances.find((d) => d.code === distance)?.meters ?? distance}`,
         time: best?.hundredths ?? null,
         // Same rule as the profile: a race is a competition, any other eligible kind is training.
         ...(best ? { origin: best.kind === 'race' ? ('competition' as const) : ('training' as const), date: day(best.date) } : {}),

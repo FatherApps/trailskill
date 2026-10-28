@@ -72,6 +72,7 @@ describe('MarksContainer', () => {
     const profile = personalBest(await history.listByEvent('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' }));
     await waitFor(() => expect(screen.getByText(formatTime(profile!.hundredths))).toBeOnTheScreen());
     expect(screen.getByRole('header', { name: 'Marcas de Lucía' })).toBeOnTheScreen();
+    expect(screen.getByText('Libre 50')).toBeOnTheScreen();
     // The other events of the design have no time yet.
     expect(screen.getAllByText('Aún sin tiempo').length).toBe(6);
   });

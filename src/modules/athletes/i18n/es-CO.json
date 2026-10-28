@@ -126,6 +126,7 @@
   "date": {
     "short": "{{day}} {{month}} {{year}}",
     "long": "{{day}} de {{month}} de {{year}}",
+    "day_month": "{{day}} {{month}}",
     "month_short": {
       "1": "ene",
       "2": "feb",

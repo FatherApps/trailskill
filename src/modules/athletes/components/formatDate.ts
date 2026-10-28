@@ -2,7 +2,7 @@ import { t } from '../../../core/i18n';
 import '../i18n';
 
 // Hermes' Intl support for es-CO is not guaranteed, so months come from translations; returns null for a malformed date.
-export function formatDate(iso: string, style: 'short' | 'long'): string | null {
+export function formatDate(iso: string, style: 'short' | 'long' | 'day_month'): string | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!match) return null;
   const year = Number(match[1]);
@@ -14,7 +14,7 @@ export function formatDate(iso: string, style: 'short' | 'long'): string | null 
   if (probe.getUTCFullYear() !== year || probe.getUTCMonth() + 1 !== month || probe.getUTCDate() !== day) return null;
   return t(`athletes.date.${style}`, {
     day,
-    month: t(`athletes.date.month_${style}.${month}`),
+    month: t(`athletes.date.month_${style === 'long' ? 'long' : 'short'}.${month}`),
     year: match[1],
   });
 }

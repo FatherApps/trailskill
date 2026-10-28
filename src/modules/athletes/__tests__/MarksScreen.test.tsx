@@ -17,9 +17,9 @@ const data: Extract<MarksView, { kind: 'data' }> = {
   firstName: 'Lucía',
   pool: 'SCM',
   cards: [
-    { id: 'FR-50m', event: 'Libre 50 m', time: 3482, origin: 'competition', date: '2026-10-18' },
-    { id: 'BK-50m', event: 'Espalda 50 m', time: 4108, origin: 'training', date: '2026-10-02' },
-    { id: 'BK-100m', event: 'Espalda 100 m', time: null },
+    { id: 'FR-50m', event: 'Libre 50', time: 3482, origin: 'competition', date: '2026-10-18' },
+    { id: 'BK-50m', event: 'Espalda 50', time: 4108, origin: 'training', date: '2026-10-02' },
+    { id: 'BK-100m', event: 'Espalda 100', time: null },
   ],
 };
 
@@ -40,16 +40,16 @@ describe('MarksScreen', () => {
   it('shows the time, the origin and the date of an event with a mark', async () => {
     await show(data);
 
-    expect(screen.getByText('Libre 50 m')).toBeOnTheScreen();
+    expect(screen.getByText('Libre 50')).toBeOnTheScreen();
     expect(screen.getByText('34,82')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Comp. · 18 oct 2026')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Entreno · 2 oct 2026')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Comp. · 18 oct')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Entreno · 2 oct')).toBeOnTheScreen();
   });
 
   it('says "Aún sin tiempo" for an event with no time, never zero', async () => {
     await show(data);
 
-    expect(screen.getByText('Espalda 100 m')).toBeOnTheScreen();
+    expect(screen.getByText('Espalda 100')).toBeOnTheScreen();
     expect(screen.getByText('Aún sin tiempo')).toBeOnTheScreen();
     expect(screen.queryByText(/^0[,:.]0/)).toBeNull();
   });
