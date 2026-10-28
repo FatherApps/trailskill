@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { colors, contrastRatio, radius, space, ThemeProvider, type ThemeName } from '../../theme';
+import { colors, contrastRatio, radius, space, ThemeProvider, typography, type ThemeName } from '../../theme';
 import { ColorCard, colorCardColors, type ColorCardColor } from '../ColorCard';
 
 // The test renderer drops '' before it reaches the tree; React Native's renderer throws on it. Record what each View is given instead.
@@ -91,12 +91,13 @@ describe('ColorCard', () => {
     expect(rootStyle()).toEqual({ gap: space[1], padding: space[4], borderRadius: radius.md, backgroundColor: colors.light.lime });
     expect(screen.toJSON()).toMatchObject({ children: [expect.objectContaining({ type: 'Text' }), expect.objectContaining({ type: 'Text' })] });
     expect(screen.queryByTestId('color-card-ring')).not.toBeOnTheScreen();
+    expect(StyleSheet.flatten(screen.getByText('Tomás R.').props.style)).toMatchObject({ fontSize: typography.title.fontSize });
   });
 
   it('draws a ring, a dot and an accent dot from tokens behind the text, clipped to the card', async () => {
     await render(
       <ThemeProvider>
-        <ColorCard color="lime" title="Cada entreno suma." decoration={{ dot: 'coral', accent: 'lilac' }} />
+        <ColorCard color="lime" title="Cada entreno suma." decoration={{ dot: 'coral', titleDot: 'lilac' }} />
       </ThemeProvider>,
     );
 
@@ -105,11 +106,37 @@ describe('ColorCard', () => {
       borderColor: colors.light['card-ring'],
     });
     expect(StyleSheet.flatten(screen.getByTestId('color-card-dot', { includeHiddenElements: true }).props.style).backgroundColor).toBe(colors.light.coral);
-    expect(StyleSheet.flatten(screen.getByTestId('color-card-accent', { includeHiddenElements: true }).props.style).backgroundColor).toBe(colors.light.lilac);
     expect(screen.getByText('Cada entreno suma.')).toBeOnTheScreen();
   });
 
-  it('leaves the accent dot out when none is given', async () => {
+  it('prints a decorated title at title-lg size, the display scale of the hero card', async () => {
+    await render(
+      <ThemeProvider>
+        <ColorCard color="lime" title="Cada entreno suma." decoration={{ dot: 'coral' }} />
+      </ThemeProvider>,
+    );
+
+    expect(StyleSheet.flatten(screen.getByText('Cada entreno suma.').props.style)).toMatchObject({
+      fontFamily: typography['title-lg'].fontFamily,
+      fontSize: typography['title-lg'].fontSize,
+      lineHeight: typography['title-lg'].lineHeight,
+    });
+  });
+
+  it('puts the title dot inside the title text, in its token colour, hidden from screen readers', async () => {
+    await render(
+      <ThemeProvider>
+        <ColorCard color="lime" title="Cada entreno suma." decoration={{ dot: 'coral', titleDot: 'lilac' }} />
+      </ThemeProvider>,
+    );
+
+    const titleDot = screen.getByTestId('color-card-title-dot', { includeHiddenElements: true });
+    expect(screen.getByText('Cada entreno suma.')).toContainElement(titleDot);
+    expect(StyleSheet.flatten(titleDot.props.style)).toMatchObject({ backgroundColor: colors.light.lilac, width: space[6], height: space[6], borderRadius: radius.full });
+    expect(titleDot.props).toMatchObject({ accessible: false, importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true });
+  });
+
+  it('leaves the title dot out when none is given', async () => {
     await render(
       <ThemeProvider>
         <ColorCard color="lilac" title="Hola de nuevo" decoration={{ dot: 'lime' }} />
@@ -117,7 +144,7 @@ describe('ColorCard', () => {
     );
 
     expect(screen.getByTestId('color-card-dot', { includeHiddenElements: true })).toBeTruthy();
-    expect(screen.queryByTestId('color-card-accent', { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByTestId('color-card-title-dot', { includeHiddenElements: true })).toBeNull();
   });
 
   it('hides the decoration from screen readers and touches', async () => {
