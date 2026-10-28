@@ -1,8 +1,10 @@
 import type { ComponentRef, Ref } from 'react';
 import { Pressable } from 'react-native';
 
-import { useTheme, type ColorToken } from '../../../core/theme';
-import { Icon, type IconName, useFocusRing } from '../../../core/ui';
+import { useTheme, type ColorToken } from '../theme';
+import { useFocusRing } from './focusRing';
+import { Icon } from './Icon';
+import type { IconName } from './icons';
 
 export type IconButtonProps = {
   icon: IconName;

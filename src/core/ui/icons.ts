@@ -17,6 +17,7 @@
 // - Icons used by the timed series reference screens LSerieLlegadas, LSerieAsignar and LSerieMovil (issue 338): undo, arrow_forward, person_search.
 // - Icon used by the lima Today board (LPlanHoy, "Avisar algo al entrenador" button) (issue 480): chat_bubble.
 // - Icons used by the phone navigation bar (LPlanHoy, issue 777): timeline, fitness_center.
+// - Icon used by the round "+" button of VibDeportistas (issue 791): add.
 // Every path uses the viewBox "0 -960 960 960".
 export const iconPaths = {
   timer:
@@ -95,6 +96,7 @@ export const iconPaths = {
     'M120-240q-33 0-56.5-23.5T40-320q0-33 23.5-56.5T120-400h10.5q4.5 0 9.5 2l182-182q-2-5-2-9.5V-600q0-33 23.5-56.5T400-680q33 0 56.5 23.5T480-600q0 2-2 20l102 102q5-2 9.5-2h21q4.5 0 9.5 2l142-142q-2-5-2-9.5V-640q0-33 23.5-56.5T840-720q33 0 56.5 23.5T920-640q0 33-23.5 56.5T840-560h-10.5q-4.5 0-9.5-2L678-420q2 5 2 9.5v10.5q0 33-23.5 56.5T600-320q-33 0-56.5-23.5T520-400v-10.5q0-4.5 2-9.5L420-522q-5 2-9.5 2H400q-2 0-20-2L198-340q2 5 2 9.5v10.5q0 33-23.5 56.5T120-240Z',
   fitness_center:
     'm536-84-56-56 142-142-340-340-142 142-56-56 56-58-56-56 84-84-56-58 56-56 58 56 84-84 56 56 58-56 56 56-142 142 340 340 142-142 56 56-56 58 56 56-84 84 56 58-56 56-58-56-84 84-56-56-58 56Z',
+  add: 'M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z',
 } as const;
 
 export type IconName = keyof typeof iconPaths;
