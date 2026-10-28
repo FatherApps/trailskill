@@ -3,7 +3,7 @@ import './i18n';
 export { AccountDetailsScreen, type AccountDetailsField, type AccountDetailsScreenProps } from './screens/AccountDetailsScreen';
 export { SignInScreen, type SignInField, type SignInScreenProps } from './screens/SignInScreen';
 export { AccountDetailsContainer, type AccountDetailsContainerProps } from './screens/AccountDetailsContainer';
-export { SignInContainer, type SignInContainerProps } from './screens/SignInContainer';
+export { SignInContainer } from './screens/SignInContainer';
 export { SignInLanding, type SignInLandingProps } from './screens/SignInLanding';
 export { InviteLinkContainer, type InviteLinkContainerProps } from './screens/InviteLinkContainer';
 export { WhoSwimsContainer, type WhoSwimsContainerProps } from './screens/WhoSwimsContainer';
