@@ -15,3 +15,11 @@ export function planVocabulary(): PlanVocabulary {
     distances: distances.map((distance) => distance.meters),
   };
 }
+
+// "Libre 50 m": the stroke name and the meters of a measurement's event, from the sport catalogs. An unknown code stays visible as itself.
+export function eventLabel(stroke: string, distance: string): string {
+  return t('training_plans.home.event', {
+    stroke: t(strokes.find((entry) => entry.code === stroke)?.nameKey ?? stroke),
+    meters: distances.find((entry) => entry.code === distance)?.meters ?? distance,
+  });
+}
