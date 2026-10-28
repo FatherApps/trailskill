@@ -78,7 +78,7 @@ function NextCard({ next, onOpen }: { next: HomeNext; onOpen: () => void }) {
         {/* The athlete on the left and the action on the right; with large text they wrap onto two lines. */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2], marginTop: space[2] }}>
           <View
-            style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], paddingRight: space[3], borderRadius: radius.full, backgroundColor: colors['surface-1'] }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: space[1], padding: space[1], paddingRight: space[2], borderRadius: radius.full, backgroundColor: colors['surface-1'] }}
           >
             <InitialsDot initials={next.initials} color={next.color} />
             <Text style={[typography.label, { color: colors.ink }]}>{next.athleteName}</Text>
