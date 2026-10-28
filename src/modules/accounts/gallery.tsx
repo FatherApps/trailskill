@@ -6,6 +6,7 @@ import { accountsFixture as fx } from './__fixtures__/accounts';
 import { ENABLED_PROVIDERS } from './providerAvailability';
 import { AccountDetailsScreen, type AccountDetailsScreenProps } from './screens/AccountDetailsScreen';
 import { AddAthletesScreen, type AddAthletesScreenProps } from './screens/AddAthletesScreen';
+import { ProviderRegistrationScreen, type ProviderRegistrationScreenProps } from './screens/ProviderRegistrationScreen';
 import { SignInScreen, type SignInScreenProps } from './screens/SignInScreen';
 import { AuthorizationsScreen } from './screens/AuthorizationsScreen';
 import { ConsentCard } from './components/ConsentCard';
@@ -96,6 +97,27 @@ const whoSwims = (props: Partial<WhoSwimsScreenProps> = {}): ReactElement => (
     <WhoSwimsScreen onSelect={noop} onBack={noop} {...props} />
   </FullScreen>
 );
+
+// The first step after Google, Microsoft or the emailed code: the provider already verified the email, the names are a suggestion to correct.
+// Holds what is typed and the choice, so the panel can be tried in the gallery.
+function ProviderRegistrationPreview(props: Partial<ProviderRegistrationScreenProps>) {
+  const [swimmer, setSwimmer] = useState(props.swimmer);
+  const [values, setValues] = useState(props.values ?? { firstName: '', lastName: '' });
+  return (
+    <FullScreen>
+      <ProviderRegistrationScreen
+        email={person.email}
+        {...props}
+        swimmer={swimmer}
+        values={values}
+        onSelect={setSwimmer}
+        onChange={(field, value) => setValues((typed) => ({ ...typed, [field]: value }))}
+        onSubmit={noop}
+        onBack={noop}
+      />
+    </FullScreen>
+  );
+}
 
 // Synthetic text and acceptance for the consent card states.
 const consentText: AuthorizationText = { id: 'gallery-text', purpose: 'record_times', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' };
@@ -234,6 +256,16 @@ export const galleryEntries: GalleryEntry[] = [
       ),
       // The school invitation brings categories: choosing one is optional.
       withCategories: () => <AddAthletesPreview athletes={[...fx.addedAthletes]} categories={[...fx.categories]} />,
+    },
+  },
+  {
+    id: 'providerRegistration',
+    title: 'ProviderRegistrationScreen',
+    states: {
+      // Google gives the names: they come filled in and the person can correct them.
+      google: () => <ProviderRegistrationPreview provider="google" values={{ firstName: person.firstName, lastName: person.lastName }} />,
+      // A session from the emailed code: the email is verified all the same, but no provider vouches for it and there are no names to suggest.
+      email: () => <ProviderRegistrationPreview />,
     },
   },
   {
