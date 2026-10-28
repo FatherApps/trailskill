@@ -19,6 +19,8 @@ export type LandingEvidence = {
   synced: boolean;
   // The sync could not connect, or the wait for the first one ran out: nothing says it will come, so the wait ends in the home screen.
   syncGaveUp: boolean;
+  // The phone navigation bar is on screen (the width is below the tablet breakpoint). Without it the profile has no way back to My athletes.
+  phoneBar: boolean;
   staff: boolean | 'loading';
   own: OwnLandingEvidence | 'loading';
   // Online only: the one answer the device cannot give.
@@ -33,7 +35,7 @@ const home: Landing = { kind: 'home' };
 
 // Where a signed-in user lands on "/". School staff and platform admins keep the home screen, their only way to the timing, the plans, the
 // console and the conflicts. Only a guardian or an adult athlete is sent away, so an unclear account never loses an entry it has today.
-export function resolveLanding({ synced, syncGaveUp, staff, own, platformAdmin }: LandingEvidence): Landing {
+export function resolveLanding({ synced, syncGaveUp, phoneBar, staff, own, platformAdmin }: LandingEvidence): Landing {
   if (!synced) return syncGaveUp ? home : loading;
   if (staff === 'loading' || own === 'loading') return loading;
   if (staff) return home;
@@ -41,7 +43,7 @@ export function resolveLanding({ synced, syncGaveUp, staff, own, platformAdmin }
   // The platform admin is asked online, so it is waited for only now that someone would be sent away.
   if (platformAdmin === 'loading') return loading;
   if (platformAdmin) return home;
-  if (own.selfAthleteId && own.managedCount === 1) return { kind: 'athlete', athleteId: own.selfAthleteId };
+  if (own.selfAthleteId && own.managedCount === 1 && phoneBar) return { kind: 'athlete', athleteId: own.selfAthleteId };
   // A guardian, and an adult who also manages others: not decided yet. My athletes holds the own card too.
   return { kind: 'athletes' };
 }

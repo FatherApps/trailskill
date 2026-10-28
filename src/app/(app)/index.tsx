@@ -1,5 +1,5 @@
 import { Link, Redirect, useRouter } from 'expo-router';
-import { Text, View } from 'react-native';
+import { Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
@@ -33,7 +33,8 @@ const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
 export default function Landing() {
   const { session, syncConnectFailed } = useSession();
   const userId = session?.user.id;
-  const { colors, space } = useTheme();
+  const { colors, space, breakpoint } = useTheme();
+  const { width } = useWindowDimensions();
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();
   const waitExpired = useFirstSyncWaitExpired();
   const staff = useStaffSchool(staffSchools, userId, lastSyncedAt);
@@ -42,6 +43,8 @@ export default function Landing() {
   const landing = resolveLanding({
     synced: lastSyncedAt != null,
     syncGaveUp: syncConnectFailed || waitExpired,
+    // The same width the phone navigation bar checks in _layout.tsx.
+    phoneBar: width < breakpoint['bp-medium'],
     // A failed lookup says nothing about the person, so it counts as staff: the home screen keeps every entry they may have.
     staff: staff.status === 'loading' ? 'loading' : staff.status !== 'denied',
     own,

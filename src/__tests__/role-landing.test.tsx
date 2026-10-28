@@ -69,6 +69,10 @@ jest.mock('../modules/timing', () => ({
 }));
 jest.mock('@powersync/react', () => ({}));
 jest.mock('../core/sync/db', () => ({ db: {} }));
+let mockWidth = 390;
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  default: () => ({ width: mockWidth, height: 844, scale: 1, fontScale: 1 }),
+}));
 
 function Profile() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -83,6 +87,7 @@ const routes = {
 };
 
 beforeEach(() => {
+  mockWidth = 390;
   Object.assign(mockWorld, { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false });
 });
 
@@ -111,6 +116,15 @@ describe('landing by role', () => {
 
     expect(await screen.findByText('profile self-1')).toBeOnTheScreen();
     expect(screen.queryByText('TrailSkill')).toBeNull();
+  });
+
+  it('takes an adult athlete on a tablet, which has no phone bar, to My athletes', async () => {
+    adult();
+    mockWidth = 800;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('my athletes')).toBeOnTheScreen();
+    expect(screen.queryByText(/^profile /)).toBeNull();
   });
 
   it('keeps a coach on the old home screen, with the timing', async () => {

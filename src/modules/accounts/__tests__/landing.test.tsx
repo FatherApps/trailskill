@@ -16,7 +16,7 @@ jest.mock('../../../core/sync', () => ({ db: {} }));
 const guardian: OwnLandingEvidence = { managedCount: 2, selfAthleteId: null, authorized: true };
 const adult: OwnLandingEvidence = { managedCount: 1, selfAthleteId: 'self-1', authorized: true };
 const nobody: OwnLandingEvidence = { managedCount: 0, selfAthleteId: null, authorized: false };
-const base: LandingEvidence = { synced: true, syncGaveUp: false, staff: false, own: nobody, platformAdmin: false };
+const base: LandingEvidence = { synced: true, syncGaveUp: false, phoneBar: true, staff: false, own: nobody, platformAdmin: false };
 const landing = (evidence: Partial<LandingEvidence>) => resolveLanding({ ...base, ...evidence });
 
 describe('resolveLanding: one landing per role', () => {
@@ -26,6 +26,17 @@ describe('resolveLanding: one landing per role', () => {
 
   it('sends an adult athlete straight to their own profile', () => {
     expect(landing({ own: adult })).toEqual({ kind: 'athlete', athleteId: 'self-1' });
+  });
+
+  // Without the phone bar the profile has no way to My athletes, where the sign-out and the authorizations are (until the account screen).
+  it('sends an adult athlete to My athletes when the screen has no phone bar', () => {
+    expect(landing({ own: adult, phoneBar: false })).toEqual({ kind: 'athletes' });
+  });
+
+  it('does not change where a guardian, staff or a platform admin land when there is no phone bar', () => {
+    expect(landing({ own: guardian, phoneBar: false })).toEqual({ kind: 'athletes' });
+    expect(landing({ staff: true, own: adult, phoneBar: false })).toEqual({ kind: 'home' });
+    expect(landing({ platformAdmin: true, own: adult, phoneBar: false })).toEqual({ kind: 'home' });
   });
 
   it('sends a guardian who has not added an athlete yet to My athletes', () => {
