@@ -12,7 +12,8 @@
       "school_invitation": "¿Te invitó una escuela? Abre el enlace de tu invitación.",
       "offline_label": "Sin señal:",
       "offline_message": " para ingresar necesitas conexión. Si ya habías ingresado en este celular, tus datos guardados siguen disponibles.",
-      "help": "¿No puedes entrar? Pide ayuda a tu escuela"
+      "help_question": "¿No puedes entrar?",
+      "help_action": "Pide ayuda a tu escuela"
     },
     "who": {
       "title": "¿Quién va a nadar?",

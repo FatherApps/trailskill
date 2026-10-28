@@ -18,36 +18,32 @@ jest.mock('../../../core/session', () => ({
   useSession: () => mockSession,
 }));
 
-const onCreateAccount = jest.fn();
 
 const email = 'ana@example.com';
 
 beforeEach(() => {
   mockSession.configError = null;
-  onCreateAccount.mockClear();
   mockSession.requestCode.mockReset().mockResolvedValue(undefined);
   mockSession.verifyCode.mockReset().mockResolvedValue(undefined);
 });
 
 async function openCodeStep() {
-  await render(<SignInContainer onCreateAccount={onCreateAccount} />);
+  await render(<SignInContainer />);
   await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), email);
   await fireEvent.press(screen.getByRole('button', { name: 'Enviar código' }));
   await screen.findByLabelText('Código de 6 dígitos');
 }
 
 describe('SignInContainer', () => {
-  it('offers to create an account', async () => {
-    await render(<SignInContainer onCreateAccount={onCreateAccount} />);
+  it('leaves creating an account to the screen around it', async () => {
+    await render(<SignInContainer />);
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Crear cuenta' }));
-
-    expect(onCreateAccount).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Crear cuenta' })).not.toBeOnTheScreen();
   });
 
   it('replaces the form with a not-ready notice when the server is not configured', async () => {
     mockSession.configError = 'Missing EXPO_PUBLIC_SUPABASE_URL';
-    await render(<SignInContainer onCreateAccount={onCreateAccount} />);
+    await render(<SignInContainer />);
 
     expect(screen.getByText('La app no está lista para ingresar')).toBeTruthy();
     expect(screen.getByText('Falta la configuración del servidor. Avísale a quien administra la app.')).toBeTruthy();
@@ -170,7 +166,7 @@ describe('SignInContainer', () => {
 
   it('shows a generic error and stays on the email step when the request fails', async () => {
     mockSession.requestCode.mockRejectedValueOnce(new Error('unknown email'));
-    await render(<SignInContainer onCreateAccount={onCreateAccount} />);
+    await render(<SignInContainer />);
 
     await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), email);
     await fireEvent.press(screen.getByRole('button', { name: 'Enviar código' }));

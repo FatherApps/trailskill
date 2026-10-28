@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, ColorCard, Logo, Segmented, type SegmentedOption } from '../../../core/ui';
+import { Button, ColorCard, Icon, Logo, Segmented, type SegmentedOption } from '../../../core/ui';
+import { OfflineNotice } from '../components/OfflineNotice';
 import { t } from '../i18n';
 import { SignInContainer } from './SignInContainer';
 
@@ -21,6 +22,8 @@ export function SignInLanding({ onCreateAccount }: SignInLandingProps) {
     { value: 'sign-in', label: t('accounts.landing.sign_in_tab') },
   ];
   const footer = [typography.caption, { color: colors['ink-muted'], textAlign: 'center' as const }];
+  // Sticks to the bottom when the content is short; with large text the scroll takes over.
+  const footerBox = { flex: 1, justifyContent: 'flex-end', gap: space[4] } as const;
 
   return (
     <ScrollView
@@ -33,7 +36,7 @@ export function SignInLanding({ onCreateAccount }: SignInLandingProps) {
         <Logo />
       </View>
       {tab === 'create' ? (
-        <ColorCard color="lime" decoration={{ dot: 'coral', accent: 'lilac' }} title={t('accounts.landing.create_card_title')} detail={t('accounts.landing.create_card_detail')} />
+        <ColorCard color="lime" decoration={{ dot: 'coral', titleDot: 'lilac' }} title={t('accounts.landing.create_card_title')} detail={t('accounts.landing.create_card_detail')} />
       ) : (
         <ColorCard color="lilac" decoration={{ dot: 'lime' }} title={t('accounts.landing.sign_in_title')} detail={t('accounts.landing.sign_in_detail')} />
       )}
@@ -41,20 +44,29 @@ export function SignInLanding({ onCreateAccount }: SignInLandingProps) {
       {tab === 'create' ? (
         <>
           <Button label={t('auth.create_account')} onPress={onCreateAccount} />
-          <View style={{ gap: space[2] }}>
-            <Text style={footer}>{t('accounts.landing.minors_notice')}</Text>
+          <View testID="sign-in-footer" style={footerBox}>
+            <View testID="minors-notice" style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space[2] }}>
+              <View testID="minors-notice-icon">
+                <Icon name="shield_person" color="ink-muted" />
+              </View>
+              <Text style={[typography.caption, { flex: 1, color: colors['ink-muted'] }]}>{t('accounts.landing.minors_notice')}</Text>
+            </View>
             <Text style={footer}>{t('accounts.landing.school_invitation')}</Text>
           </View>
         </>
       ) : (
         <>
-          {/* The container keeps its own "Crear cuenta" link: here it only switches tab, the registration starts from the button above. */}
-          <SignInContainer onCreateAccount={() => setTab('create')} />
-          <Banner variant="warn" icon="wifi_off">
-            <Text style={typography['body-strong']}>{t('accounts.landing.offline_label')}</Text>
-            {t('accounts.landing.offline_message')}
-          </Banner>
-          <Text style={footer}>{t('accounts.landing.help')}</Text>
+          <SignInContainer />
+          <View testID="sign-in-footer" style={footerBox}>
+            <OfflineNotice>
+              <Text style={typography['body-strong']}>{t('accounts.landing.offline_label')}</Text>
+              {t('accounts.landing.offline_message')}
+            </OfflineNotice>
+            <Text style={footer}>
+              {t('accounts.landing.help_question')}{' '}
+              <Text style={[typography['body-strong'], { color: colors.ink, textDecorationLine: 'underline' }]}>{t('accounts.landing.help_action')}</Text>
+            </Text>
+          </View>
         </>
       )}
     </ScrollView>

@@ -6,14 +6,10 @@ import { useTheme } from '../../../core/theme';
 import { Button, StateView, StepHeader, TextField } from '../../../core/ui';
 import { t } from '../i18n';
 
-export type SignInContainerProps = {
-  onCreateAccount: () => void;
-};
-
 const CODE_LENGTH = 6;
 
 // Email, then the 6-digit code. Signing in never asks for a name: the session gate moves on once the code checks out.
-export function SignInContainer({ onCreateAccount }: SignInContainerProps) {
+export function SignInContainer() {
   const { requestCode, verifyCode, configError } = useSession();
   const { colors, space, typography } = useTheme();
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -94,7 +90,6 @@ export function SignInContainer({ onCreateAccount }: SignInContainerProps) {
             <StateView kind="error" title={t('auth.request_failed_title')} message={t('auth.request_failed_message')} />
           )}
           <Button label={t('auth.send_code')} onPress={sendCode} loading={sending} />
-          <Button variant="ghost" label={t('auth.create_account')} onPress={onCreateAccount} />
         </>
       ) : (
         <>

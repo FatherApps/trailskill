@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
 import { colors } from '../../../core/theme';
 import { SignInLanding } from '../screens/SignInLanding';
@@ -43,7 +44,7 @@ describe('SignInLanding', () => {
     expect(screen.getByText('Tiempos, historial y marcas de cada deportista.')).toBeOnTheScreen();
     expect(screen.getByText('Cada entreno suma a tu camino.').parent).toHaveStyle({ backgroundColor: colors.light.lime });
     expect(screen.getByTestId('color-card-ring', { includeHiddenElements: true })).toBeTruthy();
-    expect(screen.getByTestId('color-card-accent', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByTestId('color-card-title-dot', { includeHiddenElements: true })).toBeTruthy();
     expect(screen.getByText('Los menores no crean cuenta: los registra su acudiente.')).toBeOnTheScreen();
     expect(screen.getByText('¿Te invitó una escuela? Abre el enlace de tu invitación.')).toBeOnTheScreen();
     expect(screen.queryByText('Hola de nuevo')).not.toBeOnTheScreen();
@@ -87,6 +88,7 @@ describe('SignInLanding', () => {
     expect(screen.getByText(/para ingresar necesitas conexión/)).toBeOnTheScreen();
     expect(screen.getByText(/tus datos guardados siguen disponibles/)).toBeOnTheScreen();
     expect(screen.getByText('¿No puedes entrar? Pide ayuda a tu escuela')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Crear cuenta' })).not.toBeOnTheScreen();
     expect(screen.queryByText('Cada entreno suma a tu camino.')).not.toBeOnTheScreen();
   });
 
@@ -101,12 +103,38 @@ describe('SignInLanding', () => {
     expect(await screen.findByLabelText('Código de 6 dígitos')).toBeOnTheScreen();
   });
 
-  it('goes back to the "Crear cuenta" tab from the sign-in form instead of leaving the screen', async () => {
+  it('shows "Sin señal" as a white status card with the wifi_off icon, not as a yellow banner or a button', async () => {
     await openSignInTab();
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Crear cuenta' }));
+    const notice = screen.getByTestId('offline-notice');
+    expect(notice).toHaveStyle({ backgroundColor: colors.light['surface-1'] });
+    expect(notice).toHaveProp('accessibilityLiveRegion', 'polite');
+    expect(notice.props.accessibilityRole).toBeUndefined();
+    expect(notice.props.onPress).toBeUndefined();
+    expect(screen.queryByTestId('banner')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('offline-notice-icon', { includeHiddenElements: true })).toBeTruthy();
+  });
 
-    expect(screen.getByRole('radio', { name: 'Crear cuenta' })).toBeChecked();
-    expect(onCreateAccount).not.toHaveBeenCalled();
+  it('underlines "Pide ayuda a tu escuela" without making it a link', async () => {
+    await openSignInTab();
+
+    const action = screen.getByText('Pide ayuda a tu escuela');
+    expect(StyleSheet.flatten(action.props.style)).toMatchObject({ textDecorationLine: 'underline' });
+    expect(screen.queryByRole('link')).not.toBeOnTheScreen();
+  });
+
+  it.each(['create', 'sign-in'] as const)('sticks the %s footer to the bottom of the screen', async (tab) => {
+    if (tab === 'sign-in') await openSignInTab();
+    else await render(<SignInLanding onCreateAccount={onCreateAccount} />);
+
+    expect(StyleSheet.flatten(screen.getByTestId('sign-in-footer').props.style)).toMatchObject({ flex: 1, justifyContent: 'flex-end' });
+  });
+
+  it('puts the shield icon beside the minors notice on "Crear cuenta"', async () => {
+    await render(<SignInLanding onCreateAccount={onCreateAccount} />);
+
+    const notice = screen.getByTestId('minors-notice');
+    expect(notice).toContainElement(screen.getByTestId('minors-notice-icon', { includeHiddenElements: true }));
+    expect(notice).toContainElement(screen.getByText('Los menores no crean cuenta: los registra su acudiente.'));
   });
 });
