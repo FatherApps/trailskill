@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { useGoBack } from '../../core/navigation';
 import { useSession } from '../../core/session';
 import { RecordSyncStatus, useGlobalSyncSummary } from '../../core/sync';
 import { createPowerSyncManagedAthleteRepository } from '../../modules/accounts';
@@ -28,6 +29,8 @@ const series = createPowerSyncSeriesRepository();
 export default function TodayRoute() {
   const { athlete } = useLocalSearchParams<{ athlete?: string }>();
   const router = useRouter();
+  // The plan of the day has no bar: it opens from "Lo próximo" on Inicio and goes back to it.
+  const goBack = useGoBack('/home');
   const { session } = useSession();
   const summary = useGlobalSyncSummary();
   // Managed athletes arrive with a sync, so the lookup runs again when one completes.
@@ -54,6 +57,7 @@ export default function TodayRoute() {
       actionPending={staff.status === 'loading'}
       onOpenAthletes={staff.status === 'denied' ? () => router.push('/athletes') : undefined}
       onRetryAction={staff.status === 'error' ? staff.retry : undefined}
+      onBack={goBack}
       renderNoticeStatus={(id) => <RecordSyncStatus table="training_plan_notices" id={id} />}
     />
   );

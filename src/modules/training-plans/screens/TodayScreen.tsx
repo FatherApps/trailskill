@@ -66,6 +66,8 @@ export type TodayScreenProps = {
   renderNoticeStatus?: (noticeId: string) => ReactNode;
   // Set to false when a parent ScrollView scrolls instead.
   scrollEnabled?: boolean;
+  // Shows "Volver" on top, for when the screen has no navigation bar to leave by.
+  onBack?: () => void;
 };
 
 function TimeRow({ label, value }: { label: string; value: Hundredths | null }) {
@@ -266,7 +268,7 @@ function TodayContentView({
 }
 
 // Presentational: no network, database or repository; the caller supplies the state and handles the events.
-export function TodayScreen({ athleteName = '', view, athletes, selectedAthleteId, onSelectAthlete, onSendNotice, renderNoticeStatus, scrollEnabled = true }: TodayScreenProps) {
+export function TodayScreen({ athleteName = '', view, athletes, selectedAthleteId, onSelectAthlete, onSendNotice, renderNoticeStatus, scrollEnabled = true, onBack }: TodayScreenProps) {
   const { colors, space, typography } = useTheme();
   const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
 
@@ -278,6 +280,11 @@ export function TodayScreen({ athleteName = '', view, athletes, selectedAthleteI
       style={{ backgroundColor: colors['surface-0'] }}
       contentContainerStyle={{ padding: space[4], gap: space[4] }}
     >
+      {onBack && (
+        <View style={{ alignSelf: 'flex-start' }}>
+          <Button variant="ghost" label={t('common.back')} onPress={onBack} />
+        </View>
+      )}
       {/* With data the colour header below carries the title; the other states keep a plain one. */}
       {!content && (
         <View style={{ gap: space[1] }}>
