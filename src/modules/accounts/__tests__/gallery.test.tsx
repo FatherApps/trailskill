@@ -2,21 +2,21 @@ import { render, screen } from '@testing-library/react-native';
 
 import { galleryEntries } from '..';
 import { t } from '../../../core/i18n';
-import { SHOW_PROVIDERS } from '../providerAvailability';
+import { ENABLED_PROVIDERS } from '../providerAvailability';
 
 // The accounts index reaches the PowerSync repository; the sync layer is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ db: {}, RecordSyncStatus: () => null }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
-// The flag is set per test, so both values are covered whatever the real constant says.
-let mockShowProviders = false;
+// The list is set per test, so any list is covered whatever the real constant says.
+let mockEnabledProviders: string[] = [];
 jest.mock('../providerAvailability', () => ({
-  get SHOW_PROVIDERS() {
-    return mockShowProviders;
+  get ENABLED_PROVIDERS() {
+    return mockEnabledProviders;
   },
 }));
 
 afterEach(() => {
-  mockShowProviders = false;
+  mockEnabledProviders = [];
 });
 
 const statesOf = (id: string) => Object.keys(galleryEntries.find((entry) => entry.id === id)!.states);
@@ -58,35 +58,35 @@ describe('accounts gallery entries', () => {
 
   // Prefix match: the offline button name carries the reason after the provider.
   // The last iteration is the one that would leak into later tests, so it is the one that must differ from the reset.
-  describe.each([false, true])('with SHOW_PROVIDERS %s', (showProviders) => {
+  describe.each([[[]], [['google']], [['google', 'microsoft']]] as string[][][])('with the providers %j enabled', (enabled) => {
     beforeEach(() => {
-      mockShowProviders = showProviders;
+      mockEnabledProviders = enabled;
     });
 
-    it.each(statesOf('accountDetails'))('accountDetails %s shows the provider buttons only when the flag is on', async (state) => {
+    it.each(statesOf('accountDetails'))('accountDetails %s shows exactly the enabled provider buttons', async (state) => {
       const entry = galleryEntries.find((candidate) => candidate.id === 'accountDetails')!;
       await render(entry.states[state]());
 
       for (const provider of ['google', 'microsoft']) {
         const name = new RegExp(`^${t(`accounts.providers.${provider}`)}`);
         const button = screen.queryByRole('button', { name });
-        if (showProviders) expect(button).not.toBeNull();
+        if (enabled.includes(provider)) expect(button).not.toBeNull();
         else expect(button).toBeNull();
       }
     });
 
-    it('accountDetails offline disables the provider buttons and says why, only when the flag is on', async () => {
+    it('accountDetails offline disables the enabled provider buttons and says why', async () => {
       const entry = galleryEntries.find((candidate) => candidate.id === 'accountDetails')!;
       await render(entry.states.offline());
 
       for (const provider of ['google', 'microsoft']) {
         const label = t(`accounts.providers.${provider}`);
         const button = screen.queryByRole('button', { name: new RegExp(`^${label}`) });
-        if (!showProviders) {
+        if (!enabled.includes(provider)) {
           expect(button).toBeNull();
           continue;
         }
-        if (button === null) throw new Error(`No button named "${label}…" with the flag on: the provider buttons are missing`);
+        if (button === null) throw new Error(`No button named "${label}…" with the provider enabled: the provider buttons are missing`);
         expect(button).toBeDisabled();
         // The reason is announced in the name or, if it moves, in the hint: either keeps the test valid.
         const announced = `${button.props.accessibilityLabel} ${button.props.accessibilityHint ?? ''}`;
@@ -95,8 +95,8 @@ describe('accounts gallery entries', () => {
     });
   });
 
-  it('does not carry the flag of the last SHOW_PROVIDERS iteration into the tests that follow', () => {
-    expect(SHOW_PROVIDERS).toBe(false);
+  it('does not carry the list of the last iteration into the tests that follow', () => {
+    expect(ENABLED_PROVIDERS).toEqual([]);
   });
 
   it.each(galleryEntries.flatMap((entry) => Object.keys(entry.states).map((state) => [entry.id, state] as const)))(

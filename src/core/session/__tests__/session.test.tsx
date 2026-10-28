@@ -22,6 +22,19 @@ const mockSignInWithOtp = jest.fn();
 const mockVerifyOtp = jest.fn();
 const mockSignOut = jest.fn();
 const mockGetSession = jest.fn();
+const mockSignInWithOAuth = jest.fn();
+const mockExchangeCode = jest.fn();
+const mockOpenAuthSession = jest.fn();
+
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: (...args: unknown[]) => mockOpenAuthSession(...args),
+}));
+
+// The real createURL and parse read the Expo manifest, which does not exist under Jest.
+jest.mock('expo-linking', () => ({
+  createURL: (path: string) => `trailskill://${path}`,
+  parse: (url: string) => ({ queryParams: Object.fromEntries(new URL(url).searchParams) }),
+}));
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: async () => {
@@ -62,12 +75,15 @@ jest.mock('../../sync', () => ({
       signInWithOtp: (...args: unknown[]) => mockSignInWithOtp(...args),
       verifyOtp: (...args: unknown[]) => mockVerifyOtp(...args),
       signOut: (...args: unknown[]) => mockSignOut(...args),
+      signInWithOAuth: (...args: unknown[]) => mockSignInWithOAuth(...args),
+      exchangeCodeForSession: (...args: unknown[]) => mockExchangeCode(...args),
       getSession: () => mockGetSession(),
     },
   },
 }));
 
 beforeEach(() => {
+  (SupabaseConnector as unknown as jest.Mock).mockClear();
   mockCalls.length = 0;
   mockConfigError = null;
   mockInitialSession = mockSignedIn;
@@ -85,6 +101,11 @@ beforeEach(() => {
     return { error: null };
   });
   mockGetSession.mockReset().mockResolvedValue({ data: { session: null } });
+  mockSignInWithOAuth.mockReset().mockResolvedValue({ data: { url: 'https://provider.example.test/authorize' }, error: null });
+  mockExchangeCode.mockReset().mockResolvedValue({ data: { session: mockSignedIn }, error: null });
+  mockOpenAuthSession
+    .mockReset()
+    .mockResolvedValue({ type: 'success', url: 'trailskill://auth-callback?code=one-time-code' });
 });
 
 async function renderSession() {
@@ -106,6 +127,244 @@ async function renderProbe() {
     </SessionProvider>,
   );
 }
+
+describe('signInWithProvider', () => {
+  const redirectTo = 'trailskill://auth-callback';
+
+  it('opens the provider in the system browser, then trades the returned code for the session', async () => {
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).resolves.toBe('signed_in');
+
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo, skipBrowserRedirect: true } });
+    expect(mockOpenAuthSession).toHaveBeenCalledWith('https://provider.example.test/authorize', redirectTo);
+    expect(mockExchangeCode).toHaveBeenCalledWith('one-time-code');
+  });
+
+  it('asks Microsoft for the email scope, which its accounts do not share by default', async () => {
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('azure')).resolves.toBe('signed_in');
+
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'azure',
+      options: { redirectTo, skipBrowserRedirect: true, scopes: 'email' },
+    });
+  });
+
+  it.each(['cancel', 'dismiss', 'locked'])('returns cancelled, with no error, when the browser ends as %s', async (type) => {
+    mockOpenAuthSession.mockResolvedValue({ type });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).resolves.toBe('cancelled');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('returns cancelled when the person declines on the provider consent screen', async () => {
+    mockOpenAuthSession.mockResolvedValue({ type: 'success', url: `${redirectTo}?error=access_denied&error_description=denied` });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).resolves.toBe('cancelled');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the provider returns another error, without trading anything', async () => {
+    mockOpenAuthSession.mockResolvedValue({ type: 'success', url: `${redirectTo}?error=server_error&error_description=boom` });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('azure')).rejects.toThrow('boom');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the browser comes back without a code', async () => {
+    mockOpenAuthSession.mockResolvedValue({ type: 'success', url: redirectTo });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).rejects.toThrow('code');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects with the Supabase error when the code cannot be traded', async () => {
+    const failure = new Error('invalid flow state');
+    mockExchangeCode.mockResolvedValue({ data: { session: null }, error: failure });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).rejects.toBe(failure);
+  });
+
+  it('rejects with the Supabase error when the sign-in cannot start, without opening the browser', async () => {
+    const failure = new Error('provider is not enabled');
+    mockSignInWithOAuth.mockResolvedValue({ data: { url: null }, error: failure });
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).rejects.toBe(failure);
+
+    expect(mockOpenAuthSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects at once, without calling Supabase, when the build has no server settings', async () => {
+    mockConfigError = 'Missing EXPO_PUBLIC_SUPABASE_URL';
+    const session = await renderSession();
+
+    await expect(session.current.signInWithProvider('google')).rejects.toThrow('Missing EXPO_PUBLIC_SUPABASE_URL');
+
+    expect(mockSignInWithOAuth).not.toHaveBeenCalled();
+  });
+
+  it('lands on the same connected session as the emailed code once Supabase announces it', async () => {
+    mockInitialSession = null;
+    const session = await renderSession();
+    expect(session.current.session).toBeNull();
+
+    await act(async () => {
+      await session.current.signInWithProvider('google');
+      mockAuthCallback('SIGNED_IN', mockSignedIn);
+    });
+
+    await waitFor(() => expect(session.current.session).toBe(mockSignedIn));
+    expect(mockCalls).toContain('db.connect');
+  });
+});
+
+// Android can close the app while the system browser is open: the link then starts the app on its own and no
+// signInWithProvider call is waiting. The PKCE verifier is in the session storage, so the code can still be traded.
+describe('resumeProviderSignIn', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('trades the code of a link that opened the app on its own', async () => {
+    const session = await renderSession();
+
+    await session.current.resumeProviderSignIn('cold-start-code');
+
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+    expect(mockExchangeCode).toHaveBeenCalledWith('cold-start-code');
+  });
+
+  it('leaves the code to the sign-in that is waiting for it, so it is traded once', async () => {
+    let finishBrowser: (result: unknown) => void = () => {};
+    mockOpenAuthSession.mockReturnValue(new Promise((resolve) => (finishBrowser = resolve)));
+    const session = await renderSession();
+    const waiting = session.current.signInWithProvider('google');
+
+    // The link reaches the router before the browser call returns.
+    await session.current.resumeProviderSignIn('one-time-code');
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+    finishBrowser({ type: 'success', url: 'trailskill://auth-callback?code=one-time-code' });
+
+    await expect(waiting).resolves.toBe('signed_in');
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('trades the code that arrived while a sign-in waited, once that sign-in ends without trading it', async () => {
+    let finishBrowser: (result: unknown) => void = () => {};
+    mockOpenAuthSession.mockReturnValue(new Promise((resolve) => (finishBrowser = resolve)));
+    const session = await renderSession();
+    const waiting = session.current.signInWithProvider('google');
+
+    // The link reached the router, then the browser ended as dismissed: the sign-in never saw the code.
+    await session.current.resumeProviderSignIn('late-code');
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+    finishBrowser({ type: 'dismiss' });
+
+    await expect(waiting).resolves.toBe('cancelled');
+    await waitFor(() => expect(mockExchangeCode).toHaveBeenCalledWith('late-code'));
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the code waiting while another sign-in still waits, as after a second press', async () => {
+    const finishBrowser: ((result: unknown) => void)[] = [];
+    mockOpenAuthSession.mockImplementation(() => new Promise((resolve) => finishBrowser.push(resolve)));
+    const session = await renderSession();
+    const first = session.current.signInWithProvider('google');
+    const second = session.current.signInWithProvider('azure');
+    await waitFor(() => expect(finishBrowser).toHaveLength(2));
+
+    // The first one ends while the second still waits for the browser.
+    finishBrowser[0]({ type: 'cancel' });
+    await expect(first).resolves.toBe('cancelled');
+    await session.current.resumeProviderSignIn('shared-code');
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+    finishBrowser[1]({ type: 'success', url: 'trailskill://auth-callback?code=shared-code' });
+
+    await expect(second).resolves.toBe('signed_in');
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a code be traded again after its trade failed, but not after it worked', async () => {
+    mockExchangeCode
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({ data: { session: null }, error: new Error('flow state not found') });
+    const session = await renderSession();
+
+    await expect(session.current.resumeProviderSignIn('retry-code')).rejects.toThrow('network down');
+    await expect(session.current.resumeProviderSignIn('retry-code')).rejects.toThrow('flow state not found');
+    await session.current.resumeProviderSignIn('retry-code');
+    await session.current.resumeProviderSignIn('retry-code');
+
+    expect(mockExchangeCode).toHaveBeenCalledTimes(3);
+  });
+
+  it('logs a failed trade of the waiting code only in development, without the code or the email', async () => {
+    const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockExchangeCode.mockResolvedValue({
+      data: { session: null },
+      error: Object.assign(new Error('bad flow state for late-code ana@example.test'), { name: 'AuthApiError', code: 'flow_state_not_found', status: 400 }),
+    });
+    let finishBrowser: (result: unknown) => void = () => {};
+    mockOpenAuthSession.mockReturnValue(new Promise((resolve) => (finishBrowser = resolve)));
+    const session = await renderSession();
+    const waiting = session.current.signInWithProvider('google');
+    await session.current.resumeProviderSignIn('late-code');
+    finishBrowser({ type: 'dismiss' });
+    await waiting;
+
+    await waitFor(() => expect(logged).toHaveBeenCalledTimes(1));
+    const output = JSON.stringify(logged.mock.calls);
+    expect(output).toContain('flow_state_not_found');
+    expect(output).not.toContain('late-code');
+    expect(output).not.toContain('example.test');
+  });
+
+  it('does not trade a code a sign-in already traded', async () => {
+    const session = await renderSession();
+    await session.current.signInWithProvider('google');
+
+    await session.current.resumeProviderSignIn('one-time-code');
+
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('trades the code of a later link after the sign-in that was waiting has ended', async () => {
+    mockOpenAuthSession.mockResolvedValue({ type: 'cancel' });
+    const session = await renderSession();
+    await session.current.signInWithProvider('google');
+
+    await session.current.resumeProviderSignIn('cold-start-code');
+
+    expect(mockExchangeCode).toHaveBeenCalledWith('cold-start-code');
+  });
+
+  it('rejects with the Supabase error when the code cannot be traded', async () => {
+    const failure = new Error('invalid flow state');
+    mockExchangeCode.mockResolvedValue({ data: { session: null }, error: failure });
+    const session = await renderSession();
+
+    await expect(session.current.resumeProviderSignIn('cold-start-code')).rejects.toBe(failure);
+  });
+
+  it('rejects at once, without calling Supabase, when the build has no server settings', async () => {
+    mockConfigError = 'Missing EXPO_PUBLIC_SUPABASE_URL';
+    const session = await renderSession();
+
+    await expect(session.current.resumeProviderSignIn('cold-start-code')).rejects.toThrow('Missing EXPO_PUBLIC_SUPABASE_URL');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+});
 
 describe('signOutDecision', () => {
   it.each([

@@ -25,7 +25,7 @@ function makeCallbacks() {
 
 async function renderScreen(props: Partial<AccountDetailsScreenProps> = {}) {
   const callbacks = makeCallbacks();
-  await render(<AccountDetailsScreen step={2} total={4} values={empty} providers {...callbacks} {...props} />);
+  await render(<AccountDetailsScreen step={2} total={4} values={empty} providers={['google', 'microsoft']} {...callbacks} {...props} />);
   return callbacks;
 }
 
@@ -169,7 +169,7 @@ describe('AccountDetailsScreen registration states', () => {
         step={2}
         total={3}
         values={empty}
-        providers={false}
+        providers={[]}
         onChange={jest.fn()}
         onRequestCode={jest.fn()}
         onSubmitCode={jest.fn()}

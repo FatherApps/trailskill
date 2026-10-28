@@ -3,7 +3,7 @@ import { useWindowDimensions, View } from 'react-native';
 
 import { SyncStatus, type GalleryEntry } from '../../core/ui';
 import { accountsFixture as fx } from './__fixtures__/accounts';
-import { SHOW_PROVIDERS } from './providerAvailability';
+import { ENABLED_PROVIDERS } from './providerAvailability';
 import { AccountDetailsScreen, type AccountDetailsScreenProps } from './screens/AccountDetailsScreen';
 import { AddAthletesScreen, type AddAthletesScreenProps } from './screens/AddAthletesScreen';
 import { SignInScreen, type SignInScreenProps } from './screens/SignInScreen';
@@ -59,7 +59,7 @@ function AccountDetailsPreview(props: Partial<AccountDetailsScreenProps>) {
       <AccountDetailsScreen
         step={2}
         total={4}
-        providers={SHOW_PROVIDERS}
+        providers={ENABLED_PROVIDERS}
         onRequestCode={noop}
         onSubmitCode={noop}
         onSignIn={noop}

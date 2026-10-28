@@ -60,7 +60,10 @@
     "failure": {
       "offline_title": "Sin señal",
       "offline_message": "Guardamos lo que escribiste. Pedir y verificar el código necesita señal.",
-      "kept": "Lo que escribiste sigue guardado."
+      "kept": "Lo que escribiste sigue guardado.",
+      "provider_title": "No pudimos ingresar con esa cuenta",
+      "provider_message": "Inténtalo de nuevo o continúa con un código por correo.",
+      "provider_offline_message": "Ingresar con tu cuenta necesita señal."
     },
     "offline": {
       "notice": "Estás sin conexión. Guardamos lo que escribiste; verificar el código necesita señal.",

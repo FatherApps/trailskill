@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
+import { installPkceCrypto } from './pkceCrypto';
+
 // Expo inlines EXPO_PUBLIC_* only on direct `process.env.NAME` access.
 const envUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const envAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -20,6 +22,9 @@ if (supabaseConfigError) console.error(supabaseConfigError);
 const url = envUrl || 'https://missing-supabase-url.invalid';
 const anonKey = envAnonKey || 'missing-anon-key';
 
+// Before the client exists: auth-js reads the crypto it finds when a provider sign-in starts.
+installPkceCrypto();
+
 const secureStorage = {
   getItem: (key: string) => SecureStore.getItemAsync(key),
   setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
@@ -34,5 +39,7 @@ export const supabase = createClient(url, anonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // Google and Microsoft sign-in returns a one-time code to trade for the session, never the tokens in the link.
+    flowType: 'pkce',
   },
 });

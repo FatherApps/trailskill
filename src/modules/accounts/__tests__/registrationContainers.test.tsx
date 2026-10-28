@@ -1,5 +1,5 @@
 import { AuthRetryableFetchError } from '@supabase/supabase-js';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { t } from '../../../core/i18n';
 import { CodeMismatchError } from '../../../core/session';
@@ -12,11 +12,11 @@ import { WhoSwimsContainer } from '../screens/WhoSwimsContainer';
 // The session module reaches the sync layer, which is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
-// The flag is set per test, so the container is checked against both values whatever the real constant says.
-let mockShowProviders = false;
+// The list is set per test, so the container is checked against any list whatever the real constant says.
+let mockEnabledProviders: string[] = [];
 jest.mock('../providerAvailability', () => ({
-  get SHOW_PROVIDERS() {
-    return mockShowProviders;
+  get ENABLED_PROVIDERS() {
+    return mockEnabledProviders;
   },
 }));
 
@@ -24,16 +24,28 @@ const typed = { firstName: fx.person.firstName, lastName: fx.person.lastName, em
 
 async function renderDetails(
   drafts = createInMemoryRegistrationDraftRepository(),
-  session: { requestCode?: jest.Mock; verifyCode?: jest.Mock } = {},
+  session: { requestCode?: jest.Mock; verifyCode?: jest.Mock; signInWithProvider?: jest.Mock } = {},
 ) {
   const requestCode = session.requestCode ?? jest.fn().mockResolvedValue(undefined);
   const verifyCode = session.verifyCode ?? jest.fn().mockResolvedValue(undefined);
+  const signInWithProvider = session.signInWithProvider ?? jest.fn().mockResolvedValue('signed_in');
   const view = await render(
-    <AccountDetailsContainer drafts={drafts} invitations={createInMemoryInvitationRepository()} requestCode={requestCode} verifyCode={verifyCode} onBack={jest.fn()} onSignIn={jest.fn()} />,
+    <AccountDetailsContainer
+      drafts={drafts}
+      invitations={createInMemoryInvitationRepository()}
+      requestCode={requestCode}
+      verifyCode={verifyCode}
+      signInWithProvider={signInWithProvider}
+      onBack={jest.fn()}
+      onSignIn={jest.fn()}
+    />,
   );
   await screen.findByLabelText('Nombre');
-  return { drafts, requestCode, verifyCode, view };
+  return { drafts, requestCode, verifyCode, signInWithProvider, view };
 }
+
+const providerButton = (provider: 'google' | 'microsoft') =>
+  screen.getByRole('button', { name: new RegExp(`^${t(`accounts.providers.${provider}`)}`) });
 
 async function fillIn() {
   await fireEvent.changeText(screen.getByLabelText('Nombre'), typed.firstName);
@@ -43,17 +55,108 @@ async function fillIn() {
 
 describe('AccountDetailsContainer', () => {
   afterEach(() => {
-    mockShowProviders = false;
+    mockEnabledProviders = [];
   });
 
-  it.each([true, false])('shows the provider buttons exactly when SHOW_PROVIDERS is %s', async (showProviders) => {
-    mockShowProviders = showProviders;
+  it.each([
+    [[], []],
+    [['google'], ['google']],
+    [['google', 'microsoft'], ['google', 'microsoft']],
+  ])('with the providers %j enabled it shows exactly %j', async (enabled, shown) => {
+    mockEnabledProviders = enabled;
     await renderDetails();
 
     for (const provider of ['google', 'microsoft']) {
       const button = screen.queryByRole('button', { name: new RegExp(`^${t(`accounts.providers.${provider}`)}`) });
-      expect(button !== null).toBe(showProviders);
+      expect(button !== null).toBe(shown.includes(provider));
     }
+  });
+
+  it('shows no divider either when no provider is enabled', async () => {
+    await renderDetails();
+
+    expect(screen.queryByText(t('accounts.providers.divider'))).toBeNull();
+  });
+
+  it('signs in with Google and with Microsoft through the session, Microsoft being azure', async () => {
+    mockEnabledProviders = ['google', 'microsoft'];
+    const { signInWithProvider } = await renderDetails();
+
+    await fireEvent.press(providerButton('google'));
+    await waitFor(() => expect(signInWithProvider).toHaveBeenLastCalledWith('google'));
+    await fireEvent.press(providerButton('microsoft'));
+    await waitFor(() => expect(signInWithProvider).toHaveBeenLastCalledWith('azure'));
+  });
+
+  it('shows no error when the person cancels in the browser', async () => {
+    mockEnabledProviders = ['google', 'microsoft'];
+    const { signInWithProvider } = await renderDetails(undefined, { signInWithProvider: jest.fn().mockResolvedValue('cancelled') });
+
+    await fireEvent.press(providerButton('google'));
+
+    await waitFor(() => expect(signInWithProvider).toHaveBeenCalled());
+    expect(screen.queryByText(t('accounts.failure.provider_title'))).toBeNull();
+    expect(providerButton('google')).toBeOnTheScreen();
+  });
+
+  it('tells the person the provider failed and keeps the email code available', async () => {
+    mockEnabledProviders = ['google', 'microsoft'];
+    await renderDetails(undefined, { signInWithProvider: jest.fn().mockRejectedValue(new Error('provider is not enabled')) });
+
+    await fireEvent.press(providerButton('microsoft'));
+
+    expect(await screen.findByText(t('accounts.failure.provider_title'))).toBeOnTheScreen();
+    expect(screen.getByText(t('accounts.failure.provider_message'))).toBeOnTheScreen();
+    expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
+  });
+
+  it('says there is no signal when the provider cannot be reached', async () => {
+    mockEnabledProviders = ['google', 'microsoft'];
+    await renderDetails(undefined, { signInWithProvider: jest.fn().mockRejectedValue(new AuthRetryableFetchError('offline', 0)) });
+
+    await fireEvent.press(providerButton('google'));
+
+    expect(await screen.findByText(t('accounts.failure.offline_title'))).toBeOnTheScreen();
+  });
+
+  it('retries the provider that failed offline, and never asks for an emailed code instead', async () => {
+    mockEnabledProviders = ['google', 'microsoft'];
+    const signInWithProvider = jest.fn().mockRejectedValueOnce(new AuthRetryableFetchError('offline', 0)).mockResolvedValue('cancelled');
+    const { requestCode } = await renderDetails(undefined, { signInWithProvider });
+    await fireEvent.press(providerButton('microsoft'));
+    await screen.findByText(t('accounts.failure.offline_title'));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+    await waitFor(() => expect(signInWithProvider).toHaveBeenCalledTimes(2));
+    expect(signInWithProvider).toHaveBeenLastCalledWith('azure');
+    expect(requestCode).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByText(t('accounts.failure.offline_title'))).toBeNull());
+  });
+
+  it('clears the failure when the person tries again', async () => {
+    mockEnabledProviders = ['google', 'microsoft'];
+    const signInWithProvider = jest.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue('cancelled');
+    await renderDetails(undefined, { signInWithProvider });
+    await fireEvent.press(providerButton('google'));
+    await screen.findByText(t('accounts.failure.provider_title'));
+
+    await fireEvent.press(providerButton('google'));
+
+    await waitFor(() => expect(screen.queryByText(t('accounts.failure.provider_title'))).toBeNull());
+  });
+
+  it('opens the browser once when the button is pressed again before it returns', async () => {
+    mockEnabledProviders = ['google', 'microsoft'];
+    let finish: (result: 'cancelled') => void = () => {};
+    const signInWithProvider = jest.fn(() => new Promise<'cancelled'>((resolve) => (finish = resolve)));
+    await renderDetails(undefined, { signInWithProvider });
+
+    await fireEvent.press(providerButton('google'));
+    await fireEvent.press(providerButton('microsoft'));
+    await act(async () => finish('cancelled'));
+
+    expect(signInWithProvider).toHaveBeenCalledTimes(1);
   });
 
   it('keeps what was typed after the screen is closed and opened again', async () => {
@@ -266,6 +369,7 @@ describe('invitation in the registration containers', () => {
         invitations={createInMemoryInvitationRepository({ offline: true })}
         requestCode={jest.fn()}
         verifyCode={jest.fn()}
+        signInWithProvider={jest.fn()}
         onBack={jest.fn()}
         onSignIn={jest.fn()}
       />,

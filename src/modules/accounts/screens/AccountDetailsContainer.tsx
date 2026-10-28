@@ -1,11 +1,11 @@
 import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { useEffect, useRef, useState } from 'react';
 
-import { CodeMismatchError } from '../../../core/session';
+import { type AuthProvider, CodeMismatchError } from '../../../core/session';
 import type { CodeBusy } from '../components/CodeStep';
 import type { InvitationRepository } from '../data/invitations';
 import type { RegistrationDraft, RegistrationDraftRepository } from '../data/registrationDraft';
-import { SHOW_PROVIDERS } from '../providerAvailability';
+import { ENABLED_PROVIDERS } from '../providerAvailability';
 import {
   AccountDetailsScreen,
   type AccountDetailsField,
@@ -18,6 +18,7 @@ export type AccountDetailsContainerProps = {
   invitations: InvitationRepository;
   requestCode: (email: string, options?: { createUser?: boolean }) => Promise<void>;
   verifyCode: (email: string, code: string) => Promise<void>;
+  signInWithProvider: (provider: AuthProvider) => Promise<'signed_in' | 'cancelled'>;
   onBack: () => void;
   onSignIn: () => void;
 };
@@ -39,7 +40,7 @@ function validate({ firstName, lastName, email }: Values): Errors {
 
 // Step 2: what is typed is saved to the draft at once (never the code), so a lost signal or a closed app loses nothing.
 // Once the code checks out the session gate moves to the app, which stores the profile and clears the draft.
-export function AccountDetailsContainer({ drafts, invitations, requestCode, verifyCode, onBack, onSignIn }: AccountDetailsContainerProps) {
+export function AccountDetailsContainer({ drafts, invitations, requestCode, verifyCode, signInWithProvider, onBack, onSignIn }: AccountDetailsContainerProps) {
   const [loaded, setLoaded] = useState<RegistrationDraft | null>();
   const [values, setValues] = useState<Values>({ firstName: '', lastName: '', email: '', code: '' });
   const [errors, setErrors] = useState<Errors>({});
@@ -47,8 +48,10 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
   const [busy, setBusy] = useState<CodeBusy>();
   const [failure, setFailure] = useState<Failure>();
   const { invitation, invalid } = useInvitation(drafts, invitations);
-  const lastAction = useRef<'request' | 'verify'>('request');
+  const lastAction = useRef<'request' | 'verify' | AuthProvider>('request');
   const writes = useRef<Promise<void>>(Promise.resolve());
+  // A second press while the browser is open must not open another one.
+  const providerBusy = useRef(false);
 
   useEffect(() => {
     let current = true;
@@ -125,6 +128,29 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
     }
   }
 
+  // Cancelling is not a failure. A success needs nothing here: the session gate moves to the app.
+  async function signInWith(provider: AuthProvider) {
+    if (providerBusy.current) return;
+    providerBusy.current = true;
+    // The retry of an offline failure repeats this sign-in, not the emailed code.
+    lastAction.current = provider;
+    setFailure(undefined);
+    try {
+      await signInWithProvider(provider);
+    } catch (error) {
+      setFailure(failureOf(error, 'provider_failed'));
+    } finally {
+      providerBusy.current = false;
+    }
+  }
+
+  function retry() {
+    const action = lastAction.current;
+    if (action === 'verify') return verify();
+    if (action === 'request') return request();
+    return signInWith(action);
+  }
+
   if (loaded === undefined) return null;
   return (
     <AccountDetailsScreen
@@ -137,9 +163,11 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
       failure={failure}
       invitation={invitation}
       invalidInvitation={invalid}
-      providers={SHOW_PROVIDERS}
+      providers={ENABLED_PROVIDERS}
       onChange={change}
-      onRetry={() => (lastAction.current === 'verify' ? verify() : request())}
+      onGoogle={() => void signInWith('google')}
+      onMicrosoft={() => void signInWith('azure')}
+      onRetry={retry}
       onRequestCode={request}
       onSubmitCode={verify}
       onSignIn={onSignIn}
