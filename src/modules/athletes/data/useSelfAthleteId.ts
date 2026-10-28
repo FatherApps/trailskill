@@ -12,6 +12,7 @@ export function useSelfAthleteId(managed: ManagedAthleteRepository, userId: stri
     managed.getSelfAthleteId(userId).then(
       (athleteId) => active && setAnswer({ userId, athleteId }),
       (error: unknown) => {
+        if (active) setAnswer(undefined);
         if (__DEV__) console.warn('[athletes] Self athlete lookup failed', error);
       },
     );
