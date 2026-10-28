@@ -17,6 +17,8 @@ const mockDiscardStaleDraft = jest.fn().mockResolvedValue(undefined);
 jest.mock('../modules/accounts', () => ({
   ...jest.requireActual('../modules/accounts'),
   discardStaleDraft: () => mockDiscardStaleDraft(),
+  // The root only opens the app for a session here; the profile check has its own suite.
+  useProfileGate: () => ({ status: 'ready', recheck: () => {} }),
 }));
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ default: jest.fn() }));

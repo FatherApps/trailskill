@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
 // Decorative: the label already says which provider this is.
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
-function Mark({ provider }: { provider: Provider }) {
+export function Mark({ provider }: { provider: Provider }) {
   if (provider === 'google') {
     return (
       <View testID="provider-mark-disc" style={[styles.disc, { backgroundColor: googleMark.background }]}>

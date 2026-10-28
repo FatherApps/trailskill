@@ -6,7 +6,7 @@ import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
-import { NavBar, type NavBarItem } from '../../core/ui';
+import { NavBar, StateView, type NavBarItem } from '../../core/ui';
 import {
   createPowerSyncManagedAthleteProfileRepository,
   createPowerSyncManagedAthleteRepository,
@@ -14,10 +14,14 @@ import {
   createSecureStoreRegistrationDraftRepository,
   createSupabaseAdultProfileRepository,
   createSupabaseInvitationRepository,
+  createSupabaseProfileEvidenceRepository,
   ExistingAccountSheet,
+  ProviderRegistrationContainer,
+  providerAccountOf,
   ResumeRegistration,
   useFinishRegistration,
   usePendingInvitations,
+  useProfileGate,
   type RegistrationStep,
 } from '../../modules/accounts';
 import { createPowerSyncAthleteRepository, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
@@ -31,6 +35,7 @@ const profiles = createSupabaseAdultProfileRepository();
 const managedProfiles = createPowerSyncManagedAthleteProfileRepository(
   createPowerSyncAthleteRepository(createPowerSyncManagedAthleteRepository(), createPowerSyncSchoolAthleteRepository()),
 );
+const profileEvidence = createSupabaseProfileEvidenceRepository();
 const invitation = { pending: createSecureStorePendingInvitationRepository(), invitations: createSupabaseInvitationRepository() };
 
 type Destination = 'athletes' | 'today' | 'history';
@@ -83,7 +88,56 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
   return <NavBar items={navItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
 }
 
+// A membership or a managed athlete already on the device: the proof that works with no signal.
+async function hasLocalProfile(userId: string) {
+  return (await staffSchools.listStaffSchools(userId)).length > 0 || (await managedAthletes.listManagedAthleteIds(userId)).length > 0;
+}
+
+// A session with no profile goes to the registration steps, not to the app. The person who already uses the app is let in by what the
+// device holds, so the server is asked only the first time on a phone; with no signal then, it waits instead of guessing.
 export default function Layout() {
+  const { session, signOut } = useSession();
+  const { lastSyncedAt } = useGlobalSyncSummary();
+  const { colors, space } = useTheme();
+  const gate = useProfileGate({
+    userId: session?.user.id,
+    email: session?.user.email,
+    drafts,
+    localReady: lastSyncedAt != null,
+    hasLocalProfile,
+    evidence: profileEvidence,
+  });
+  if (gate.status === 'ready') return <AppShell />;
+  return (
+    <View style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
+      {gate.status === 'register' && session ? (
+        <ProviderRegistrationContainer
+          account={providerAccountOf(session.user)}
+          drafts={drafts}
+          invitations={invitation.invitations}
+          onSaved={gate.recheck}
+          // Back from the first step leaves the registration, and the session with it; the draft goes too, so the next person starts clean.
+          onBack={() => void signOut().then(async (result) => result.status === 'signed_out' && (await drafts.clear())).catch(() => {})}
+        />
+      ) : (
+        <View style={{ flex: 1, padding: space[4], justifyContent: 'center' }}>
+          {gate.status === 'unreachable' ? (
+            <StateView
+              kind="offline"
+              title={t('accounts.failure.offline_title')}
+              message={t('accounts.profile_check.offline_message')}
+              action={{ label: t('sync.retry'), onPress: gate.recheck }}
+            />
+          ) : (
+            <StateView kind="loading" />
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function AppShell() {
   const router = useRouter();
   const { session, signOut } = useSession();
   // Stable: useFinishRegistration runs again whenever it changes.

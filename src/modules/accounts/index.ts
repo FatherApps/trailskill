@@ -5,6 +5,13 @@ export { SignInScreen, type SignInField, type SignInScreenProps } from './screen
 export { AccountDetailsContainer, type AccountDetailsContainerProps } from './screens/AccountDetailsContainer';
 export { SignInContainer } from './screens/SignInContainer';
 export { SignOutContainer } from './screens/SignOutContainer';
+export {
+  ProviderRegistrationContainer,
+  providerAccountOf,
+  type ProviderAccount,
+  type ProviderRegistrationContainerProps,
+} from './screens/ProviderRegistrationContainer';
+export { createSupabaseProfileEvidenceRepository, useProfileGate, type ProfileEvidenceRepository, type ProfileGate } from './data/profileGate';
 export { SignInLanding, type SignInLandingProps } from './screens/SignInLanding';
 export { InviteLinkContainer, type InviteLinkContainerProps } from './screens/InviteLinkContainer';
 export { WhoSwimsContainer, type WhoSwimsContainerProps } from './screens/WhoSwimsContainer';

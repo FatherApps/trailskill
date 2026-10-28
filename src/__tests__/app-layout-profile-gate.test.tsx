@@ -1,0 +1,264 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { View } from 'react-native';
+
+import AppLayout from '../app/(app)/_layout';
+
+// Everything the layout reaches for lives in `world`, read when a repository is used, so each test builds its own.
+type World = {
+  synced: boolean;
+  // Rows already on the device.
+  localStaff: boolean;
+  localManaged: boolean;
+  // Rows on the server; `failing` is the lack of signal.
+  online: { rows: { source: string; userId: string }[]; failing: boolean; pending?: boolean };
+  draft: Record<string, unknown> | null;
+  savedProfile: { userId: string; firstName: string; lastName: string } | null;
+};
+const USER = 'user-1';
+const EMAIL = 'paula.gomez@example.test';
+const world: { current: World } = { current: undefined as unknown as World };
+(globalThis as unknown as { mockWorld: typeof world }).mockWorld = world;
+
+// Avoid loading the native PowerSync database.
+jest.mock('../core/sync', () => ({
+  db: {},
+  supabase: {},
+  useGlobalSyncSummary: () => ({
+    lastSyncedAt: (globalThis as unknown as { mockWorld: { current: { synced: boolean } } }).mockWorld.current.synced ? new Date(1) : null,
+  }),
+}));
+jest.mock('expo-secure-store', () => ({}));
+
+const mockSignOut = jest.fn();
+jest.mock('../core/session', () => ({
+  ...jest.requireActual('../core/session'),
+  useSession: () => ({
+    session: {
+      user: {
+        id: 'user-1',
+        email: 'paula.gomez@example.test',
+        app_metadata: { provider: 'google' },
+        user_metadata: { given_name: 'Paula', family_name: 'Gómez' },
+      },
+    },
+    signOut: mockSignOut,
+  }),
+}));
+
+const mockReplace = jest.fn();
+jest.mock('expo-router', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Stack: () => require('react').createElement(require('react-native').View, { testID: 'app-stack' }),
+  useSegments: () => ['(app)'],
+  useRouter: () => ({ replace: mockReplace, navigate: jest.fn() }),
+}));
+
+// A repository that reads its data from the test's world when it is used, not when the layout module loads.
+function mockLazy<T extends object>(build: (w: World) => T): T {
+  return new Proxy({} as T, {
+    get:
+      (_target, key) =>
+      (...args: unknown[]) =>
+        (build((globalThis as unknown as { mockWorld: { current: World } }).mockWorld.current) as Record<string | symbol, (...a: unknown[]) => unknown>)[key](...args),
+  });
+}
+
+jest.mock('../modules/accounts', () => ({
+  ...jest.requireActual('../modules/accounts'),
+  createSecureStoreRegistrationDraftRepository: () =>
+    mockLazy((w) => ({
+      load: async () => w.draft,
+      save: async (draft: Record<string, unknown>) => {
+        w.draft = draft;
+      },
+      clear: async () => {
+        w.draft = null;
+      },
+    })),
+  createSupabaseProfileEvidenceRepository: () =>
+    mockLazy((w) => ({
+      hasProfile: async (userId: string) => {
+        if (w.online.failing) throw new Error('no signal');
+        // Never answers: the lookup is still running.
+        if (w.online.pending) return new Promise<boolean>(() => {});
+        return w.online.rows.some((row) => row.userId === userId);
+      },
+    })),
+  createSupabaseAdultProfileRepository: () =>
+    mockLazy((w) => ({
+      save: async (profile: World['savedProfile']) => {
+        w.savedProfile = profile;
+        return profile;
+      },
+    })),
+  createPowerSyncManagedAthleteRepository: () =>
+    mockLazy((w) => ({ listManagedAthleteIds: async () => (w.localManaged ? ['a1'] : []) })),
+  createPowerSyncManagedAthleteProfileRepository: () => ({ createManagedAthlete: async () => 'a1' }),
+  createSecureStorePendingInvitationRepository: () => ({}),
+  createSupabaseInvitationRepository: () => ({ resolve: async () => null }),
+  usePendingInvitations: jest.fn(),
+}));
+jest.mock('../modules/school-console', () => ({
+  ...jest.requireActual('../modules/school-console'),
+  createPowerSyncStaffSchoolRepository: () =>
+    mockLazy((w) => ({
+      listStaffSchools: async () => (w.localStaff ? [{ id: 's1', name: 'School' }] : []),
+      listAdminSchools: async () => [],
+    })),
+}));
+jest.mock('../modules/athletes', () => ({
+  ...jest.requireActual('../modules/athletes'),
+  createPowerSyncAthleteRepository: () => ({}),
+  createPowerSyncSchoolAthleteRepository: () => ({}),
+}));
+
+const PANEL_TITLE = 'Casi listo, Paula';
+
+function arrange(overrides: Partial<World> = {}) {
+  world.current = {
+    synced: true,
+    localStaff: false,
+    localManaged: false,
+    online: { rows: [], failing: false },
+    draft: null,
+    savedProfile: null,
+    ...overrides,
+  };
+  mockReplace.mockClear();
+}
+
+describe('app layout: a session with no profile', () => {
+  it('a new Google account goes to the registration steps and not to the app', async () => {
+    arrange();
+    await render(<AppLayout />);
+
+    expect(await screen.findByText(PANEL_TITLE)).toBeOnTheScreen();
+    expect(screen.queryByTestId('app-stack')).not.toBeOnTheScreen();
+  });
+
+  it('the panel shows the verified email and takes the names from the provider', async () => {
+    arrange();
+    await render(<AppLayout />);
+
+    expect(await screen.findByText(EMAIL)).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('Paula')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('Gómez')).toBeOnTheScreen();
+  });
+
+  it('shows neither the panel nor the app while the lookup has not answered', async () => {
+    arrange({ online: { rows: [], failing: false, pending: true } });
+    await render(<AppLayout />);
+
+    expect(screen.queryByText(PANEL_TITLE)).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('app-stack')).not.toBeOnTheScreen();
+  });
+});
+
+describe('app layout: an account with a profile enters as today', () => {
+  it.each([
+    ['a guardian or an adult athlete (managed athletes on the device)', { localManaged: true }],
+    ['a coach or an admin (memberships on the device)', { localStaff: true }],
+    ['a platform admin (found online)', { synced: false, online: { rows: [{ source: 'platform_admins', userId: USER }], failing: false } }],
+    ['an invited account (adult profile found online)', { online: { rows: [{ source: 'adult_profiles', userId: USER }], failing: false } }],
+  ])('%s', async (_who, overrides: Partial<World>) => {
+    arrange(overrides);
+    await render(<AppLayout />);
+
+    expect(await screen.findByTestId('app-stack')).toBeOnTheScreen();
+    expect(screen.queryByText(PANEL_TITLE)).not.toBeOnTheScreen();
+  });
+
+  it('staff with memberships and no adult profile enters and never sees the registration', async () => {
+    arrange({ localStaff: true });
+    await render(<AppLayout />);
+
+    expect(await screen.findByTestId('app-stack')).toBeOnTheScreen();
+    expect(screen.queryByText(PANEL_TITLE)).not.toBeOnTheScreen();
+  });
+
+  it('a draft for the same email keeps today\'s path: the registration is finished and the next step opens', async () => {
+    arrange({ draft: { swimmer: 'child', firstName: 'Paula', lastName: 'Gómez', email: EMAIL, codeRequested: true } });
+    await render(<AppLayout />);
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/athletes/add'));
+    expect(screen.queryByText(PANEL_TITLE)).not.toBeOnTheScreen();
+    expect(world.current.savedProfile).toEqual({ userId: USER, firstName: 'Paula', lastName: 'Gómez' });
+  });
+});
+
+describe('app layout: first sign-in with no signal', () => {
+  it('waits with a retry and never shows the registration or the app, however it is asked', async () => {
+    arrange({ synced: false, online: { rows: [], failing: true } });
+    await render(<AppLayout />);
+
+    expect(await screen.findByRole('button', { name: 'Intentar de nuevo' })).toBeOnTheScreen();
+    expect(screen.queryByText(PANEL_TITLE)).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('app-stack')).not.toBeOnTheScreen();
+  });
+
+  it('a failed lookup is not a missing profile', async () => {
+    arrange({ synced: true, online: { rows: [], failing: true } });
+    await render(<AppLayout />);
+
+    await screen.findByRole('button', { name: 'Intentar de nuevo' });
+    expect(screen.queryByText(PANEL_TITLE)).not.toBeOnTheScreen();
+  });
+
+  it('retry asks again once there is signal', async () => {
+    arrange({ synced: false, online: { rows: [], failing: true } });
+    await render(<AppLayout />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Intentar de nuevo' }));
+    world.current.online.failing = false;
+    world.current.online.rows = [{ source: 'adult_profiles', userId: USER }];
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(await screen.findByTestId('app-stack')).toBeOnTheScreen();
+  });
+
+  it('a person who already uses the app opens it with no signal', async () => {
+    arrange({ synced: true, localManaged: true, online: { rows: [], failing: true } });
+    await render(<AppLayout />);
+
+    expect(await screen.findByTestId('app-stack')).toBeOnTheScreen();
+  });
+});
+
+describe('app layout: the registration steps after the panel', () => {
+  it.each([
+    ['Acudiente', '/athletes/add'],
+    ['Deportista adulto', '/athletes/authorizations'],
+  ])('%s: saves the profile and goes on to the next existing step, then the app', async (who, next) => {
+    arrange();
+    await render(<AppLayout />);
+    await fireEvent.press(await screen.findByRole('radio', { name: new RegExp(who) }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith(next));
+    expect(world.current.savedProfile).toEqual({ userId: USER, firstName: 'Paula', lastName: 'Gómez' });
+    expect(await screen.findByTestId('app-stack')).toBeOnTheScreen();
+  });
+
+  it('the person has to say who registers before going on', async () => {
+    arrange();
+    await render(<AppLayout />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Continuar' }));
+
+    expect(screen.getByText('Elige cómo te registras.')).toBeOnTheScreen();
+    expect(world.current.savedProfile).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('asks for the name when it was cleared', async () => {
+    arrange();
+    await render(<AppLayout />);
+    await fireEvent.changeText(await screen.findByDisplayValue('Paula'), '');
+    await fireEvent.press(screen.getByRole('radio', { name: /Acudiente/ }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(screen.getByText('Escribe tu nombre.')).toBeOnTheScreen();
+    expect(world.current.savedProfile).toBeNull();
+  });
+});
+
+// Keeps the View import used by the Stack mock typing in strict lint setups.
+void View;
