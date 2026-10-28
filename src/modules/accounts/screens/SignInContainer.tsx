@@ -6,14 +6,10 @@ import { useTheme } from '../../../core/theme';
 import { Button, StateView, StepHeader, TextField } from '../../../core/ui';
 import { t } from '../i18n';
 
-export type SignInContainerProps = {
-  onCreateAccount: () => void;
-};
-
 const CODE_LENGTH = 6;
 
 // Email, then the 6-digit code. Signing in never asks for a name: the session gate moves on once the code checks out.
-export function SignInContainer({ onCreateAccount }: SignInContainerProps) {
+export function SignInContainer() {
   const { requestCode, verifyCode, configError } = useSession();
   const { colors, space, typography } = useTheme();
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -76,14 +72,11 @@ export function SignInContainer({ onCreateAccount }: SignInContainerProps) {
   }
 
   return (
-    <View style={{ flex: 1, padding: space[4], gap: space[4], backgroundColor: colors['surface-0'] }}>
+    <View style={{ gap: space[4] }}>
       {configError ? (
         <StateView kind="error" title={t('auth.not_configured_title')} message={t('auth.not_configured_message')} />
       ) : step === 'email' ? (
         <>
-          <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
-            {t('auth.email_title')}
-          </Text>
           <TextField
             label={t('auth.email_label')}
             value={email}
@@ -97,7 +90,6 @@ export function SignInContainer({ onCreateAccount }: SignInContainerProps) {
             <StateView kind="error" title={t('auth.request_failed_title')} message={t('auth.request_failed_message')} />
           )}
           <Button label={t('auth.send_code')} onPress={sendCode} loading={sending} />
-          <Button variant="ghost" label={t('auth.create_account')} onPress={onCreateAccount} />
         </>
       ) : (
         <>

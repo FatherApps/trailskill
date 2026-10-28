@@ -3,10 +3,17 @@
     "create_title": "Crear cuenta",
     "landing": {
       "tabs_label": "Crear cuenta o ingresar",
-      "create_tab": "Crear cuenta",
       "sign_in_tab": "Ingresar",
-      "create_card_title": "Cada entreno suma a tu camino.",
-      "sign_in_title": "Hola de nuevo"
+      "create_card_title": "Cada entreno{{dot}} suma a tu camino.",
+      "create_card_detail": "Tiempos, historial y marcas de cada deportista.",
+      "sign_in_title": "Hola de nuevo",
+      "sign_in_detail": "Ingresa con la misma opción que usaste al crear tu cuenta.",
+      "minors_notice": "Los menores no crean cuenta: los registra su acudiente.",
+      "school_invitation": "¿Te invitó una escuela? Abre el enlace de tu invitación.",
+      "offline_label": "Sin señal:",
+      "offline_message": " para ingresar necesitas conexión. Si ya habías ingresado en este celular, tus datos guardados siguen disponibles.",
+      "help_question": "¿No puedes entrar?",
+      "help_action": "Pide ayuda a tu escuela"
     },
     "who": {
       "title": "¿Quién va a nadar?",

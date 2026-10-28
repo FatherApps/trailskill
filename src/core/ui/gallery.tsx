@@ -371,6 +371,8 @@ export const galleryEntries: GalleryEntry[] = [
       'athlete-3': () => <FullWidth><ColorCard color="athlete-3" {...cc.sky} /></FullWidth>,
       'athlete-4': () => <FullWidth><ColorCard color="athlete-4" {...cc.lime} /></FullWidth>,
       'long-text': () => <FullWidth><ColorCard color="athlete-1" {...cc.longText} /></FullWidth>,
+      'decoration-lime': () => <FullWidth><ColorCard color="lime" {...cc.hero} decoration={{ dot: 'coral', titleDot: 'lilac' }} /></FullWidth>,
+      'decoration-lilac': () => <FullWidth><ColorCard color="lilac" {...cc.heroLilac} decoration={{ dot: 'lime' }} /></FullWidth>,
     },
   },
   {
