@@ -1,20 +1,24 @@
-import { Link, useRouter } from 'expo-router';
-import { Text, View } from 'react-native';
+import { Link, Redirect, useRouter } from 'expo-router';
+import { Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
-import { Button, SyncStatus } from '../../core/ui';
+import { Button, StateView, SyncStatus } from '../../core/ui';
 import {
   createPowerSyncManagedAthleteRepository,
+  createPowerSyncOwnAuthorizationEvidence,
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
+  resolveLanding,
   SignOutContainer,
+  useFirstSyncWaitExpired,
+  useOwnLandingEvidence,
 } from '../../modules/accounts';
 import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useAdminSchool, useStaffSchool } from '../../modules/school-console';
-import { createSupabaseConflictReviewRepository, usePlatformAdmin } from '../../modules/timing';
+import { createSupabaseConflictReviewRepository, usePlatformAdmin, usePlatformAdminStatus } from '../../modules/timing';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
@@ -22,8 +26,47 @@ const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 const pendingInvitations = createSecureStorePendingInvitationRepository();
 const conflictReview = createSupabaseConflictReviewRepository();
+const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
 
-export default function Home() {
+// "/" is the landing of every role: a guardian opens My athletes and an adult athlete their own profile. Everyone else, school staff and
+// platform admins included, keeps the home screen below. This only decides the screen; the backend still decides what each person sees.
+export default function Landing() {
+  const { session, syncConnectFailed } = useSession();
+  const userId = session?.user.id;
+  const { colors, space, breakpoint } = useTheme();
+  const { width } = useWindowDimensions();
+  const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();
+  const waitExpired = useFirstSyncWaitExpired();
+  const staff = useStaffSchool(staffSchools, userId, lastSyncedAt);
+  const own = useOwnLandingEvidence(managedAthletes, hasOwnAuthorizations, userId, lastSyncedAt);
+  const platformAdmin = usePlatformAdminStatus(conflictReview, userId);
+  const landing = resolveLanding({
+    synced: lastSyncedAt != null,
+    syncGaveUp: syncConnectFailed || waitExpired,
+    // The same width the phone navigation bar checks in _layout.tsx.
+    phoneBar: width < breakpoint['bp-medium'],
+    // A failed lookup says nothing about the person, so it counts as staff: the home screen keeps every entry they may have.
+    staff: staff.status === 'loading' ? 'loading' : staff.status !== 'denied',
+    own,
+    platformAdmin,
+  });
+  switch (landing.kind) {
+    case 'loading':
+      return (
+        <View style={{ flex: 1, padding: space[4], justifyContent: 'center', backgroundColor: colors['surface-0'] }}>
+          <StateView kind="loading" />
+        </View>
+      );
+    case 'athletes':
+      return <Redirect href="/athletes" />;
+    case 'athlete':
+      return <Redirect href={`/athletes/${landing.athleteId}`} />;
+    case 'home':
+      return <Home />;
+  }
+}
+
+export function Home() {
   const router = useRouter();
   const { syncConnectFailed, session } = useSession();
   const userId = session?.user.id;

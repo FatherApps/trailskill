@@ -1,7 +1,7 @@
 import { act, fireEvent, renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { StyleSheet } from 'react-native';
 
-import Home from '../app/(app)/index';
+import { Home } from '../app/(app)/index';
 import DevLayout from '../app/(dev)/_layout';
 import GalleryIndex from '../app/(dev)/gallery/index';
 import GalleryEntryScreen from '../app/(dev)/gallery/[id]';

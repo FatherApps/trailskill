@@ -80,7 +80,7 @@ describe('MyAthletesContainer', () => {
   });
 
   it('shows no card while the managed athletes are loading', async () => {
-    await show('guardian-1', jest.fn(), { listManagedAthleteIds: () => new Promise<string[]>(() => {}) } as typeof managed);
+    await show('guardian-1', jest.fn(), { listManagedAthleteIds: () => new Promise<string[]>(() => {}), getSelfAthleteId: async () => null });
 
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.queryByText('Aún no hay deportistas')).toBeNull();

@@ -54,4 +54,5 @@ export {
   type ConflictReviewRepository,
 } from './data/conflictReview';
 export { usePlatformAdmin } from './data/usePlatformAdmin';
+export { usePlatformAdminStatus } from './data/usePlatformAdminStatus';
 export { ReviewConflictsFlow, type ReviewConflictsFlowProps } from './screens/ReviewConflictsFlow';
