@@ -32,6 +32,8 @@ type SessionValue = {
   verifyCode(email: string, code: string): Promise<void>;
   /** Opens the provider in the system browser. 'cancelled' when the person closes it or declines; rejects on a failure. */
   signInWithProvider(provider: AuthProvider): Promise<'signed_in' | 'cancelled'>;
+  /** Trades the code of a provider link that reached the app with no sign-in waiting for it. A no-op when one is. */
+  resumeProviderSignIn(code: string): Promise<void>;
   signOut(options?: { force?: boolean }): Promise<SignOutResult>;
 };
 
@@ -64,6 +66,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const { colors, space } = useTheme();
   // The user of the session stored before launch: before owners were recorded, the local data was always theirs.
   const restoredUserId = useRef<string>(undefined);
+  // A provider sign-in is waiting for the browser, and the codes already traded.
+  const signingIn = useRef(false);
+  const tradedCodes = useRef(new Set<string>());
   // Bumped to run the local data check again after discarding or after a failed check.
   const [check, setCheck] = useState(0);
   // One connector, so cancelWaits() reaches the upload wait in progress.
@@ -185,27 +190,46 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     throw error.code === 'otp_expired' ? new CodeMismatchError() : error;
   }, []);
 
+  // A code is good for one trade: the sign-in that waits for the browser and the auth-callback route must not both make it.
+  const tradeCode = useCallback(async (code: string) => {
+    tradedCodes.current.add(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+  }, []);
+
   const signInWithProvider = useCallback(async (provider: AuthProvider): Promise<'signed_in' | 'cancelled'> => {
     if (supabaseConfigError) throw new Error(supabaseConfigError);
-    const redirectTo = Linking.createURL(AUTH_CALLBACK_PATH);
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      // The browser is opened here, not by supabase-js, so its result comes back to this call.
-      options: { redirectTo, skipBrowserRedirect: true, ...(provider === 'azure' ? { scopes: 'email' } : {}) },
-    });
-    if (error) throw error;
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-    if (result.type !== 'success') return 'cancelled';
-    const { queryParams } = Linking.parse(result.url);
-    if (queryParams?.error === 'access_denied') return 'cancelled';
-    if (queryParams?.error) throw new Error(String(queryParams.error_description ?? queryParams.error));
-    const code = queryParams?.code;
-    if (typeof code !== 'string' || !code) throw new Error('The provider did not return a code');
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-    if (exchangeError) throw exchangeError;
-    // The auth listener delivers the session: from here on it is the same path as the emailed code.
-    return 'signed_in';
-  }, []);
+    signingIn.current = true;
+    try {
+      const redirectTo = Linking.createURL(AUTH_CALLBACK_PATH);
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        // The browser is opened here, not by supabase-js, so its result comes back to this call.
+        options: { redirectTo, skipBrowserRedirect: true, ...(provider === 'azure' ? { scopes: 'email' } : {}) },
+      });
+      if (error) throw error;
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== 'success') return 'cancelled';
+      const { queryParams } = Linking.parse(result.url);
+      if (queryParams?.error === 'access_denied') return 'cancelled';
+      if (queryParams?.error) throw new Error(String(queryParams.error_description ?? queryParams.error));
+      const code = queryParams?.code;
+      if (typeof code !== 'string' || !code) throw new Error('The provider did not return a code');
+      await tradeCode(code);
+      // The auth listener delivers the session: from here on it is the same path as the emailed code.
+      return 'signed_in';
+    } finally {
+      signingIn.current = false;
+    }
+  }, [tradeCode]);
+
+  // Android can close the app while the browser is open: the link then starts it on its own and no sign-in is waiting.
+  // The PKCE verifier is in the session storage, so the code still trades.
+  const resumeProviderSignIn = useCallback(async (code: string) => {
+    if (supabaseConfigError) throw new Error(supabaseConfigError);
+    if (signingIn.current || tradedCodes.current.has(code)) return;
+    await tradeCode(code);
+  }, [tradeCode]);
 
   const signOut = useCallback(async (options?: { force?: boolean }): Promise<SignOutResult> => {
     // Awaits the real count: the sync hook reports 0 until its first query lands.
@@ -225,8 +249,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const visibleSession = ready ? session : null;
   const value = useMemo(
-    () => ({ session: visibleSession, syncConnectFailed, configError: supabaseConfigError, requestCode, verifyCode, signInWithProvider, signOut }),
-    [visibleSession, syncConnectFailed, requestCode, verifyCode, signInWithProvider, signOut],
+    () => ({ session: visibleSession, syncConnectFailed, configError: supabaseConfigError, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut }),
+    [visibleSession, syncConnectFailed, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut],
   );
 
   // Render nothing until the stored session and the owner of the local data are known,

@@ -230,6 +230,70 @@ describe('signInWithProvider', () => {
   });
 });
 
+// Android can close the app while the system browser is open: the link then starts the app on its own and no
+// signInWithProvider call is waiting. The PKCE verifier is in the session storage, so the code can still be traded.
+describe('resumeProviderSignIn', () => {
+  it('trades the code of a link that opened the app on its own', async () => {
+    const session = await renderSession();
+
+    await session.current.resumeProviderSignIn('cold-start-code');
+
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+    expect(mockExchangeCode).toHaveBeenCalledWith('cold-start-code');
+  });
+
+  it('leaves the code to the sign-in that is waiting for it, so it is traded once', async () => {
+    let finishBrowser: (result: unknown) => void = () => {};
+    mockOpenAuthSession.mockReturnValue(new Promise((resolve) => (finishBrowser = resolve)));
+    const session = await renderSession();
+    const waiting = session.current.signInWithProvider('google');
+
+    // The link reaches the router before the browser call returns.
+    await session.current.resumeProviderSignIn('one-time-code');
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+    finishBrowser({ type: 'success', url: 'trailskill://auth-callback?code=one-time-code' });
+
+    await expect(waiting).resolves.toBe('signed_in');
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not trade a code a sign-in already traded', async () => {
+    const session = await renderSession();
+    await session.current.signInWithProvider('google');
+
+    await session.current.resumeProviderSignIn('one-time-code');
+
+    expect(mockExchangeCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('trades the code of a later link after the sign-in that was waiting has ended', async () => {
+    mockOpenAuthSession.mockResolvedValue({ type: 'cancel' });
+    const session = await renderSession();
+    await session.current.signInWithProvider('google');
+
+    await session.current.resumeProviderSignIn('cold-start-code');
+
+    expect(mockExchangeCode).toHaveBeenCalledWith('cold-start-code');
+  });
+
+  it('rejects with the Supabase error when the code cannot be traded', async () => {
+    const failure = new Error('invalid flow state');
+    mockExchangeCode.mockResolvedValue({ data: { session: null }, error: failure });
+    const session = await renderSession();
+
+    await expect(session.current.resumeProviderSignIn('cold-start-code')).rejects.toBe(failure);
+  });
+
+  it('rejects at once, without calling Supabase, when the build has no server settings', async () => {
+    mockConfigError = 'Missing EXPO_PUBLIC_SUPABASE_URL';
+    const session = await renderSession();
+
+    await expect(session.current.resumeProviderSignIn('cold-start-code')).rejects.toThrow('Missing EXPO_PUBLIC_SUPABASE_URL');
+
+    expect(mockExchangeCode).not.toHaveBeenCalled();
+  });
+});
+
 describe('signOutDecision', () => {
   it.each([
     [0, false, 'proceed'],
