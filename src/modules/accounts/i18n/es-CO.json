@@ -135,7 +135,6 @@
       "failed": "No pudimos guardar tus datos. Lo que escribiste sigue aquí: inténtalo de nuevo."
     },
     "profile_check": {
-      "offline_title": "Sin señal",
       "offline_message": "La primera vez en este celular necesitamos señal para revisar tu cuenta."
     }
   }

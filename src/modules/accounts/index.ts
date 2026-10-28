@@ -5,6 +5,7 @@ export { SignInScreen, type SignInField, type SignInScreenProps } from './screen
 export { AccountDetailsContainer, type AccountDetailsContainerProps } from './screens/AccountDetailsContainer';
 export { SignInContainer } from './screens/SignInContainer';
 export { SignOutContainer } from './screens/SignOutContainer';
+export { useSignOut } from './screens/useSignOut';
 export {
   ProviderRegistrationContainer,
   providerAccountOf,

@@ -97,8 +97,8 @@ jest.mock('../modules/accounts', () => ({
   createPowerSyncOwnAuthorizationEvidence: () => async () =>
     (globalThis as unknown as { mockWorld: { current: { localAuthorizations: boolean } } }).mockWorld.current.localAuthorizations,
   createPowerSyncManagedAthleteProfileRepository: () => ({ createManagedAthlete: async () => 'a1' }),
-  createSecureStorePendingInvitationRepository: () => ({}),
-  createSupabaseInvitationRepository: () => ({ resolve: async () => null }),
+  createSecureStorePendingInvitationRepository: () => ({ clear: async () => {} }),
+  createSupabaseInvitationRepository: () => ({ resolve: async () => ({ school: 'School', group: 'Group', categories: [] }) }),
   usePendingInvitations: jest.fn(),
 }));
 jest.mock('../modules/school-console', () => ({
@@ -129,6 +129,7 @@ function arrange(overrides: Partial<World> = {}) {
     ...overrides,
   };
   mockReplace.mockClear();
+  mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
 }
 
 describe('app layout: a session with no profile', () => {
@@ -262,6 +263,52 @@ describe('app layout: the registration steps after the panel', () => {
 
     expect(screen.getByText('Escribe tu nombre.')).toBeOnTheScreen();
     expect(world.current.savedProfile).toBeNull();
+  });
+});
+
+describe('app layout: leaving the registration with Volver', () => {
+  const leftOver = { swimmer: 'child', firstName: '', lastName: '', email: 'someone@example.test', codeRequested: true, invitationToken: 'a'.repeat(32) };
+  const pendingTitle = '¿Cerrar sesión con registros sin enviar?';
+
+  it('signs out and deletes the draft the next person would find', async () => {
+    arrange({ draft: leftOver });
+    await render(<AppLayout />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Volver' }));
+
+    await waitFor(() => expect(world.current.draft).toBeNull());
+    expect(mockSignOut).toHaveBeenCalledWith();
+  });
+
+  it('with unsent records it asks first, as the sign-out button does, and keeps the draft', async () => {
+    arrange({ draft: leftOver });
+    mockSignOut.mockResolvedValue({ status: 'blocked_pending', unsent: 2, rejected: 0 });
+    await render(<AppLayout />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Volver' }));
+
+    expect(await screen.findByRole('header', { name: pendingTitle })).toBeOnTheScreen();
+    expect(screen.getByText(/Hay 2 registros sin enviar/)).toBeOnTheScreen();
+    expect(world.current.draft).toEqual(leftOver);
+  });
+
+  it('signs out anyway when the person insists, and then deletes the draft', async () => {
+    arrange({ draft: leftOver });
+    mockSignOut.mockResolvedValueOnce({ status: 'blocked_pending', unsent: 2, rejected: 0 });
+    await render(<AppLayout />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Volver' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Cerrar sesión igual' }));
+
+    await waitFor(() => expect(world.current.draft).toBeNull());
+    expect(mockSignOut).toHaveBeenLastCalledWith({ force: true });
+  });
+
+  it('tells the person when signing out failed instead of staying silent', async () => {
+    arrange({ draft: leftOver });
+    mockSignOut.mockRejectedValue(new Error('storage'));
+    await render(<AppLayout />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Volver' }));
+
+    expect(await screen.findByText('No pudimos cerrar la sesión. Inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(world.current.draft).toEqual(leftOver);
   });
 });
 

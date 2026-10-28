@@ -23,6 +23,7 @@ import {
   useFinishRegistration,
   usePendingInvitations,
   useProfileGate,
+  useSignOut,
   type RegistrationStep,
 } from '../../modules/accounts';
 import { createPowerSyncAthleteRepository, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
@@ -102,7 +103,7 @@ async function hasLocalProfile(userId: string) {
 // A session with no profile goes to the registration steps, not to the app. The person who already uses the app is let in by what the
 // device holds, so the server is asked only the first time on a phone; with no signal then, it waits instead of guessing.
 export default function Layout() {
-  const { session, signOut } = useSession();
+  const { session } = useSession();
   const { lastSyncedAt } = useGlobalSyncSummary();
   const { colors, space } = useTheme();
   const gate = useProfileGate({
@@ -117,14 +118,7 @@ export default function Layout() {
   return (
     <View style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       {gate.status === 'register' && session ? (
-        <ProviderRegistrationContainer
-          account={providerAccountOf(session.user)}
-          drafts={drafts}
-          invitations={invitation.invitations}
-          onSaved={gate.recheck}
-          // Back from the first step leaves the registration, and the session with it; the draft goes too, so the next person starts clean.
-          onBack={() => void signOut().then(async (result) => result.status === 'signed_out' && (await drafts.clear())).catch(() => {})}
-        />
+        <Registration user={session.user} onSaved={gate.recheck} />
       ) : (
         <View style={{ flex: 1, padding: space[4], justifyContent: 'center' }}>
           {gate.status === 'unreachable' ? (
@@ -140,6 +134,25 @@ export default function Layout() {
         </View>
       )}
     </View>
+  );
+}
+
+// The registration steps of a session with no profile. Back from the first step leaves the registration, and the session with it: it is the
+// sign-out button's flow (the unsent-records warning, the failure message), and the draft goes too, so the next person starts clean.
+function Registration({ user, onSaved }: { user: Parameters<typeof providerAccountOf>[0]; onSaved: () => void }) {
+  const { signOut, failed, sheet } = useSignOut(drafts, invitation.pending);
+  return (
+    <>
+      <ProviderRegistrationContainer
+        account={providerAccountOf(user)}
+        drafts={drafts}
+        invitations={invitation.invitations}
+        onSaved={onSaved}
+        onBack={() => void signOut()}
+        exitFailed={failed}
+      />
+      {sheet}
+    </>
   );
 }
 

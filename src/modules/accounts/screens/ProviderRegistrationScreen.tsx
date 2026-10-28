@@ -29,6 +29,8 @@ export type ProviderRegistrationScreenProps = {
   onSubmit: () => void;
   // Leaves the registration: the session is open, so going back means signing out.
   onBack?: () => void;
+  // Leaving did not work: the session could not be closed.
+  exitFailed?: boolean;
 };
 
 const largeTextScale = 1.5;
@@ -61,6 +63,7 @@ export function ProviderRegistrationScreen({
   onChange,
   onSubmit,
   onBack,
+  exitFailed = false,
 }: ProviderRegistrationScreenProps) {
   const { colors, space, radius, typography } = useTheme();
   // The gallery preview scale (theme) and the system scale both apply: side by side no longer fits with large text.
@@ -177,6 +180,11 @@ export function ProviderRegistrationScreen({
       {failed && (
         <Banner variant="warn" icon="error">
           {t('accounts.provider_registration.failed')}
+        </Banner>
+      )}
+      {exitFailed && (
+        <Banner variant="warn" icon="error">
+          {t('session.sign_out_failed')}
         </Banner>
       )}
     </ScreenFrame>
