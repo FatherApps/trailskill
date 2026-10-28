@@ -21,10 +21,12 @@ type Options = {
   staff?: { userId: string; role: string }[];
   managed?: ManagedAthleteRow[];
   online?: Parameters<typeof createInMemoryProfileEvidenceRepository>[0];
+  // The email of the session; null is a session with none.
+  email?: string | null;
 };
 
 // The local lookup is what the layout builds from the two local repositories: a membership or a managed athlete.
-async function setup({ draft: stored = null, synced = true, staff = [], managed = [], online = {} }: Options = {}) {
+async function setup({ draft: stored = null, synced = true, staff = [], managed = [], online = {}, email: sessionEmail = EMAIL }: Options = {}) {
   const drafts = createInMemoryRegistrationDraftRepository(stored);
   const staffSchools = createInMemoryStaffSchoolRepository(staff.map((row) => ({ ...row, schoolId: 's1', schoolName: 'School' })));
   const managedAthletes = createInMemoryManagedAthleteRepository(managed);
@@ -34,8 +36,8 @@ async function setup({ draft: stored = null, synced = true, staff = [], managed 
     local.arrived || (await staffSchools.listStaffSchools(userId)).length > 0 || (await managedAthletes.listManagedAthleteIds(userId)).length > 0;
   const gate: { current?: ProfileGate } = {};
   const history: ProfileGate['status'][] = [];
-  function Probe({ synced: ready, email = EMAIL }: { synced: boolean; email?: string }) {
-    gate.current = useProfileGate({ userId: USER, email, drafts, localReady: ready, hasLocalProfile, evidence });
+  function Probe({ synced: ready }: { synced: boolean }) {
+    gate.current = useProfileGate({ userId: USER, email: sessionEmail ?? undefined, drafts, localReady: ready, hasLocalProfile, evidence });
     history.push(gate.current.status);
     return null;
   }
@@ -117,6 +119,17 @@ describe('useProfileGate: the registration draft', () => {
 
   it('a draft typed for another email does not let the account skip the registration', async () => {
     const { gate } = await setup({ draft: { ...draft, email: 'someone@example.test' } });
+
+    await waitFor(() => expect(status(gate)).toBe('register'));
+  });
+
+  it.each([
+    ['a session with no email and a draft with none', null, ''],
+    ['a session with an empty email and a draft with none', '', ''],
+    ['a session with no email and a draft with an email', null, EMAIL],
+    ['a blank email on both sides', '  ', '  '],
+  ])('an empty or missing email never matches: %s', async (_case, session, typed) => {
+    const { gate } = await setup({ draft: { ...draft, email: typed }, email: session });
 
     await waitFor(() => expect(status(gate)).toBe('register'));
   });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type { Provider } from '../components/ProviderButton';
 import type { InvitationRepository } from '../data/invitations';
+import { sameEmail } from '../data/profileGate';
 import type { RegistrationDraftRepository } from '../data/registrationDraft';
 import {
   ProviderRegistrationScreen,
@@ -37,13 +38,15 @@ export type ProviderRegistrationContainerProps = {
   // The draft is saved: the profile is stored and the next step opens from it, as after the code.
   onSaved: () => void;
   onBack?: () => void;
+  // Leaving did not work (signing out failed): the screen says so instead of staying still.
+  exitFailed?: boolean;
 };
 
 type Errors = NonNullable<ProviderRegistrationScreenProps['errors']>;
 
 // Registers an account whose email the provider already verified. It saves the same draft the code flow leaves behind
 // (with the code marked as checked), so the profile, the next step and the authorizations are the ones that already exist.
-export function ProviderRegistrationContainer({ account, drafts, invitations, onSaved, onBack }: ProviderRegistrationContainerProps) {
+export function ProviderRegistrationContainer({ account, drafts, invitations, onSaved, onBack, exitFailed }: ProviderRegistrationContainerProps) {
   const [swimmer, setSwimmer] = useState<SwimmerChoice>();
   const [values, setValues] = useState({ firstName: account.firstName, lastName: account.lastName });
   const [errors, setErrors] = useState<Errors>({});
@@ -69,8 +72,10 @@ export function ProviderRegistrationContainer({ account, drafts, invitations, on
     setBusy(true);
     setFailed(false);
     try {
-      // The token is read from the store: the invitation check may have just cleared it.
-      const invitationToken = (await drafts.load().catch(() => null))?.invitationToken;
+      // The token is read from the store: the invitation check may have just cleared it. Only a draft typed for this email lends its token:
+      // on a shared phone the one left by someone else is not this person's invitation.
+      const stored = await drafts.load().catch(() => null);
+      const invitationToken = stored && sameEmail(stored.email, account.email) ? stored.invitationToken : undefined;
       await drafts.save({ swimmer, firstName, lastName, email: account.email, codeRequested: true, invitationToken });
       onSaved();
     } catch {
@@ -98,6 +103,7 @@ export function ProviderRegistrationContainer({ account, drafts, invitations, on
       onChange={change}
       onSubmit={submit}
       onBack={onBack}
+      exitFailed={exitFailed}
     />
   );
 }

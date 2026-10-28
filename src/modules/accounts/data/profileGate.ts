@@ -67,7 +67,10 @@ export type ProfileGateInput = {
   evidence: ProfileEvidenceRepository;
 };
 
-const same = (a: string | undefined, b: string | undefined) => (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase();
+const normalized = (email: string | undefined) => (email ?? '').trim().toLowerCase();
+
+// An empty or missing email is nobody's: it never matches, not even another empty one.
+export const sameEmail = (a: string | undefined, b: string | undefined) => normalized(a) !== '' && normalized(a) === normalized(b);
 
 // Decides whether a signed-in session goes to the app or to the registration steps. The server is asked only when nothing local
 // says the account is registered, so someone who already uses the app opens it with no signal. A draft for this email keeps
@@ -81,7 +84,7 @@ export function useProfileGate({ userId, email, drafts, localReady, hasLocalProf
     let active = true;
     (async (): Promise<ProfileGate['status']> => {
       const draft = await drafts.load().catch(() => null);
-      if (draft && same(draft.email, email)) return 'ready';
+      if (draft && sameEmail(draft.email, email)) return 'ready';
       if (await hasLocalProfile(userId).catch(() => false)) return 'ready';
       try {
         return (await evidence.hasProfile(userId)) ? 'ready' : 'register';

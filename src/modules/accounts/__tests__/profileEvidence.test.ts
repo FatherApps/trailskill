@@ -1,12 +1,22 @@
-import { createSupabaseProfileEvidenceRepository } from "../data/profileGate";
+import {
+  createPowerSyncOwnAuthorizationEvidence,
+  createSupabaseProfileEvidenceRepository,
+} from "../data/profileGate";
 import { providerAccountOf } from "../screens/ProviderRegistrationContainer";
 
 type Answer = { data: unknown[] | null; error: Error | null };
 const mockAnswers: Record<string, Answer> = {};
 const mockAsked: { table: string; column: string; value: string }[] = [];
+// The authorizations on the device. The fake answers like the SQL it is given: the rows of the user in the WHERE, all of them without it.
+const mockAuthorizationRows: { user_id: string }[] = [];
 
 jest.mock("../../../core/sync", () => ({
-  db: {},
+  db: {
+    getAll: async (sql: string, params: string[]) =>
+      /WHERE user_id = \?/.test(sql)
+        ? mockAuthorizationRows.filter((row) => row.user_id === params[0])
+        : mockAuthorizationRows,
+  },
   supabase: {
     from: (table: string) => ({
       select: (column: string) => ({
@@ -26,6 +36,7 @@ jest.mock("expo-secure-store", () => ({}));
 beforeEach(() => {
   for (const key of Object.keys(mockAnswers)) delete mockAnswers[key];
   mockAsked.length = 0;
+  mockAuthorizationRows.length = 0;
 });
 
 describe("the server evidence of a profile", () => {
@@ -74,6 +85,26 @@ describe("the server evidence of a profile", () => {
     await expect(
       createSupabaseProfileEvidenceRepository().hasProfile("user-1"),
     ).rejects.toThrow("Network request failed");
+  });
+});
+
+describe("the authorizations on the device as evidence of a profile", () => {
+  const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
+
+  it("counts an authorization of the user", async () => {
+    mockAuthorizationRows.push({ user_id: "user-1" });
+
+    await expect(hasOwnAuthorizations("user-1")).resolves.toBe(true);
+  });
+
+  it("does not count the authorization of another user on the same device", async () => {
+    mockAuthorizationRows.push({ user_id: "someone-else" });
+
+    await expect(hasOwnAuthorizations("user-1")).resolves.toBe(false);
+  });
+
+  it("no authorizations is a no", async () => {
+    await expect(hasOwnAuthorizations("user-1")).resolves.toBe(false);
   });
 });
 
