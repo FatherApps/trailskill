@@ -49,8 +49,8 @@ const today: NavBarItem & { id: Destination } = { id: 'today', label: t('home.na
 const history: NavBarItem & { id: Destination } = { id: 'history', label: t('home.nav.history'), icon: 'timeline' };
 const athletes: NavBarItem & { id: Destination } = { id: 'athletes', label: t('home.nav.athletes'), icon: 'group' };
 const familyItems = [today, history, athletes];
-// An adult athlete has no other athletes to pick from, so the bar has no Deportistas.
-const adultItems = [today, history];
+// Until the account screen (#778) takes sign-out and authorizations out of "Mis deportistas", the adult keeps Deportistas to reach them.
+const adultItems = familyItems;
 
 // Route segments of the three destinations: "/athletes", "/today" and "/athletes/[id]" (the profile). Every other route,
 // the registration flows included, has no tab and no bar; a static route added under /athletes is not a profile.

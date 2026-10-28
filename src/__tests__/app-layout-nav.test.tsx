@@ -86,14 +86,15 @@ describe('app layout phone navigation', () => {
     adult();
     await render(<AppLayout />);
 
-    expect(drawn()).toEqual([iconPaths.fitness_center, iconPaths.timeline]);
+    expect(drawn()).toEqual([iconPaths.fitness_center, iconPaths.timeline, iconPaths.group]);
   });
 
-  it('shows only Entreno and Historial to an adult athlete', async () => {
+  // Until #778 the adult reaches the sign-out and the authorizations, which live in the footer of "Mis deportistas", through this tab.
+  it('shows Entreno, Historial and Deportistas to an adult athlete', async () => {
     adult();
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Entreno', 'Historial']);
+    expect(tabNames()).toEqual(['Entreno', 'Historial', 'Deportistas']);
   });
 
   it('keeps Deportistas for an adult who also manages other athletes', async () => {
@@ -187,7 +188,7 @@ describe('app layout phone navigation', () => {
     expect(mockNavigate).toHaveBeenLastCalledWith('/athletes');
   });
 
-  it('opens the screens of an adult athlete: Entreno and their own profile', async () => {
+  it('opens the screens of an adult athlete: Entreno, their own profile and Mis deportistas', async () => {
     adult();
     await render(<AppLayout />);
 
@@ -196,6 +197,10 @@ describe('app layout phone navigation', () => {
 
     await fireEvent.press(screen.getByRole('tab', { name: 'Historial' }));
     expect(mockNavigate).toHaveBeenLastCalledWith('/athletes/self-1');
+
+    // The footer of that screen, with the authorizations and the sign-out, is tested in my-athletes-route.test.tsx.
+    await fireEvent.press(screen.getByRole('tab', { name: 'Deportistas' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/athletes');
   });
 
   it('shows the adult athlete no bar on a tablet', async () => {
