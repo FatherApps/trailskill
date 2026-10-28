@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
+import { installPkceCrypto } from './pkceCrypto';
+
 // Expo inlines EXPO_PUBLIC_* only on direct `process.env.NAME` access.
 const envUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const envAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -19,6 +21,9 @@ if (supabaseConfigError) console.error(supabaseConfigError);
 // Invalid placeholders keep createClient from throwing at import; every request to them fails like being offline.
 const url = envUrl || 'https://missing-supabase-url.invalid';
 const anonKey = envAnonKey || 'missing-anon-key';
+
+// Before the client exists: auth-js reads the crypto it finds when a provider sign-in starts.
+installPkceCrypto();
 
 const secureStorage = {
   getItem: (key: string) => SecureStore.getItemAsync(key),
