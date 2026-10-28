@@ -1,6 +1,13 @@
 {
   "accounts": {
     "create_title": "Crear cuenta",
+    "landing": {
+      "tabs_label": "Crear cuenta o ingresar",
+      "create_tab": "Crear cuenta",
+      "sign_in_tab": "Ingresar",
+      "create_card_title": "Cada entreno suma a tu camino.",
+      "sign_in_title": "Hola de nuevo"
+    },
     "who": {
       "title": "¿Quién va a nadar?",
       "child_title": "Mi hijo o hija",
