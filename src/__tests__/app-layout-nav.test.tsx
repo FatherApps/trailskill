@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import AppLayout from '../app/(app)/_layout';
+import { iconPaths } from '../core/ui/icons';
 
 // Avoid loading the native PowerSync database.
 let mockSynced: Date | null = new Date(0);
@@ -37,8 +38,11 @@ jest.mock('../modules/athletes', () => ({
   useManagedAthletes: () => mockUseManagedAthletes(),
 }));
 
+// What the device says about the user: a guardian by default, an adult athlete when the only managed athlete is their own.
+let mockOwn: 'loading' | { managedCount: number; selfAthleteId: string | null; authorized: boolean } = { managedCount: 2, selfAthleteId: null, authorized: true };
 jest.mock('../modules/accounts', () => ({
   ...jest.requireActual('../modules/accounts'),
+  useOwnLandingEvidence: () => mockOwn,
   useFinishRegistration: () => null,
   usePendingInvitations: jest.fn(),
   // This suite is about the app once the account has a profile; the gate has its own suite.
@@ -55,14 +59,56 @@ describe('app layout phone navigation', () => {
     mockWidth = 390;
     mockStaff = 'denied';
     mockManaged = [{ id: 'a1' }, { id: 'a2' }];
+    mockOwn = { managedCount: 2, selfAthleteId: null, authorized: true };
   });
 
-  it('shows the three destinations to a guardian on a phone', async () => {
+  const tabNames = () => screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel);
+  const adult = () => {
+    mockManaged = [{ id: 'self-1' }];
+    mockOwn = { managedCount: 1, selfAthleteId: 'self-1', authorized: true };
+  };
+
+  it('shows Entreno, Historial and Deportistas, in that order, to a guardian on a phone', async () => {
     await render(<AppLayout />);
 
-    expect(screen.getByRole('tab', { name: 'Deportistas' })).toBeOnTheScreen();
-    expect(screen.getByRole('tab', { name: 'Entreno' })).toBeOnTheScreen();
-    expect(screen.getByRole('tab', { name: 'Historial' })).toBeOnTheScreen();
+    expect(tabNames()).toEqual(['Entreno', 'Historial', 'Deportistas']);
+  });
+
+  const drawn = () => screen.container.queryAll((node) => node.type === 'RNSVGPath').map((path) => path.props.d);
+
+  it('draws the design icons of the guardian bar, in order', async () => {
+    await render(<AppLayout />);
+
+    expect(drawn()).toEqual([iconPaths.fitness_center, iconPaths.timeline, iconPaths.group]);
+  });
+
+  it('draws the design icons of the adult bar, in order', async () => {
+    adult();
+    await render(<AppLayout />);
+
+    expect(drawn()).toEqual([iconPaths.fitness_center, iconPaths.timeline, iconPaths.group]);
+  });
+
+  // Until #778 the adult reaches the sign-out and the authorizations, which live in the footer of "Mis deportistas", through this tab.
+  it('shows Entreno, Historial and Deportistas to an adult athlete', async () => {
+    adult();
+    await render(<AppLayout />);
+
+    expect(tabNames()).toEqual(['Entreno', 'Historial', 'Deportistas']);
+  });
+
+  it('keeps Deportistas for an adult who also manages other athletes', async () => {
+    mockOwn = { managedCount: 2, selfAthleteId: 'self-1', authorized: true };
+    await render(<AppLayout />);
+
+    expect(tabNames()).toEqual(['Entreno', 'Historial', 'Deportistas']);
+  });
+
+  it('waits for what the device says about the user before it draws the bar', async () => {
+    mockOwn = 'loading';
+    await render(<AppLayout />);
+
+    expect(screen.queryByRole('tab')).toBeNull();
   });
 
   it('keeps the bar when the staff lookup failed, as before the failure had a status of its own', async () => {
@@ -140,6 +186,29 @@ describe('app layout phone navigation', () => {
 
     await fireEvent.press(screen.getByRole('tab', { name: 'Deportistas' }));
     expect(mockNavigate).toHaveBeenLastCalledWith('/athletes');
+  });
+
+  it('opens the screens of an adult athlete: Entreno, their own profile and Mis deportistas', async () => {
+    adult();
+    await render(<AppLayout />);
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Entreno' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/today');
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Historial' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/athletes/self-1');
+
+    // The footer of that screen, with the authorizations and the sign-out, is tested in my-athletes-route.test.tsx.
+    await fireEvent.press(screen.getByRole('tab', { name: 'Deportistas' }));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/athletes');
+  });
+
+  it('shows the adult athlete no bar on a tablet', async () => {
+    adult();
+    mockWidth = 768;
+    await render(<AppLayout />);
+
+    expect(screen.queryByRole('tab')).toBeNull();
   });
 
   it('opens the profile of the only athlete from Historial', async () => {
