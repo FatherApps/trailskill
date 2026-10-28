@@ -21,6 +21,7 @@ import {
   providerAccountOf,
   ResumeRegistration,
   useFinishRegistration,
+  useOwnLandingEvidence,
   usePendingInvitations,
   useProfileGate,
   useSignOut,
@@ -43,11 +44,13 @@ const invitation = { pending: createSecureStorePendingInvitationRepository(), in
 
 type Destination = 'athletes' | 'today' | 'history';
 
-const navItems: (NavBarItem & { id: Destination })[] = [
-  { id: 'athletes', label: t('home.nav.athletes'), icon: 'group' },
-  { id: 'today', label: t('home.nav.today'), icon: 'sports' },
-  { id: 'history', label: t('home.nav.history'), icon: 'leaderboard' },
-];
+// Only the destinations that have a screen, in the order of the design. Home and Marcas join with their own issues.
+const today: NavBarItem & { id: Destination } = { id: 'today', label: t('home.nav.today'), icon: 'fitness_center' };
+const history: NavBarItem & { id: Destination } = { id: 'history', label: t('home.nav.history'), icon: 'timeline' };
+const athletes: NavBarItem & { id: Destination } = { id: 'athletes', label: t('home.nav.athletes'), icon: 'group' };
+const familyItems = [today, history, athletes];
+// An adult athlete has no other athletes to pick from, so the bar has no Deportistas.
+const adultItems = [today, history];
 
 // Route segments of the three destinations: "/athletes", "/today" and "/athletes/[id]" (the profile). Every other route,
 // the registration flows included, has no tab and no bar; a static route added under /athletes is not a profile.
@@ -76,10 +79,15 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
   const userId = session?.user.id;
   const staff = useStaffSchool(staffSchools, userId, lastSyncedAt?.getTime());
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, lastSyncedAt?.getTime());
+  const own = useOwnLandingEvidence(managedAthletes, hasOwnAuthorizations, userId, lastSyncedAt?.getTime());
   // shortcut: before the first sync the memberships of a coach or admin may not be on the device and look like a guardian, so the bar waits for the first sync.
   // A failed lookup ('error') keeps the bar, as it did when it counted as 'denied'; any other state hides it.
   const showsBar = lastSyncedAt != null && (staff.status === 'denied' || staff.status === 'error');
-  if (!showsBar) return null;
+  // The bar waits for the device's answer, so a guardian never sees the adult's bar for a moment.
+  if (!showsBar || own === 'loading') return null;
+
+  // The same rule as the landing: the only athlete the person manages is their own.
+  const adult = own.selfAthleteId != null && own.managedCount === 1;
 
   // The design says only "Historial = perfil": with one athlete it opens that profile, with several the person picks one.
   const only = managed.status === 'ready' && managed.athletes.length === 1 ? managed.athletes[0] : undefined;
@@ -88,7 +96,7 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
     today: '/today',
     history: only ? `/athletes/${only.id}` : '/athletes',
   };
-  return <NavBar items={navItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
+  return <NavBar items={adult ? adultItems : familyItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
 }
 
 // A membership, a managed athlete or an own authorization already on the device: the proof that works with no signal.
