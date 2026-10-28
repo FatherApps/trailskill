@@ -27,7 +27,7 @@ export type AccountDetailsScreenProps = {
   // No signal: the draft stays as typed and what needs the network says so.
   offline?: boolean;
   // A request that failed: explained with a retry, the draft untouched.
-  failure?: 'offline' | 'request_failed' | 'verify_failed';
+  failure?: 'offline' | 'request_failed' | 'verify_failed' | 'provider_failed';
   onRetry?: () => void;
   // Google and Microsoft sign-in; registration hides them until they can create accounts. Required, so no consumer shows them by omission.
   providers: boolean;
@@ -56,6 +56,10 @@ function FailureNotice({ failure, onRetry }: { failure: NonNullable<AccountDetai
   const action = onRetry ? { label: t('sync.retry'), onPress: onRetry } : undefined;
   if (failure === 'offline') {
     return <StateView kind="offline" title={t('accounts.failure.offline_title')} message={t('accounts.failure.offline_message')} action={action} />;
+  }
+  // No retry action: the provider buttons above stay available, and so does the code below.
+  if (failure === 'provider_failed') {
+    return <StateView kind="error" title={t('accounts.failure.provider_title')} message={t('accounts.failure.provider_message')} />;
   }
   const request = failure === 'request_failed';
   return (

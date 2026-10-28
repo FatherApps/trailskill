@@ -1,7 +1,7 @@
 import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { useEffect, useRef, useState } from 'react';
 
-import { CodeMismatchError } from '../../../core/session';
+import { type AuthProvider, CodeMismatchError } from '../../../core/session';
 import type { CodeBusy } from '../components/CodeStep';
 import type { InvitationRepository } from '../data/invitations';
 import type { RegistrationDraft, RegistrationDraftRepository } from '../data/registrationDraft';
@@ -18,6 +18,7 @@ export type AccountDetailsContainerProps = {
   invitations: InvitationRepository;
   requestCode: (email: string, options?: { createUser?: boolean }) => Promise<void>;
   verifyCode: (email: string, code: string) => Promise<void>;
+  signInWithProvider: (provider: AuthProvider) => Promise<'signed_in' | 'cancelled'>;
   onBack: () => void;
   onSignIn: () => void;
 };
@@ -39,7 +40,7 @@ function validate({ firstName, lastName, email }: Values): Errors {
 
 // Step 2: what is typed is saved to the draft at once (never the code), so a lost signal or a closed app loses nothing.
 // Once the code checks out the session gate moves to the app, which stores the profile and clears the draft.
-export function AccountDetailsContainer({ drafts, invitations, requestCode, verifyCode, onBack, onSignIn }: AccountDetailsContainerProps) {
+export function AccountDetailsContainer({ drafts, invitations, requestCode, verifyCode, signInWithProvider, onBack, onSignIn }: AccountDetailsContainerProps) {
   const [loaded, setLoaded] = useState<RegistrationDraft | null>();
   const [values, setValues] = useState<Values>({ firstName: '', lastName: '', email: '', code: '' });
   const [errors, setErrors] = useState<Errors>({});
@@ -49,6 +50,8 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
   const { invitation, invalid } = useInvitation(drafts, invitations);
   const lastAction = useRef<'request' | 'verify'>('request');
   const writes = useRef<Promise<void>>(Promise.resolve());
+  // A second press while the browser is open must not open another one.
+  const providerBusy = useRef(false);
 
   useEffect(() => {
     let current = true;
@@ -125,6 +128,20 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
     }
   }
 
+  // Cancelling is not a failure. A success needs nothing here: the session gate moves to the app.
+  async function signInWith(provider: AuthProvider) {
+    if (providerBusy.current) return;
+    providerBusy.current = true;
+    setFailure(undefined);
+    try {
+      await signInWithProvider(provider);
+    } catch (error) {
+      setFailure(failureOf(error, 'provider_failed'));
+    } finally {
+      providerBusy.current = false;
+    }
+  }
+
   if (loaded === undefined) return null;
   return (
     <AccountDetailsScreen
@@ -139,6 +156,8 @@ export function AccountDetailsContainer({ drafts, invitations, requestCode, veri
       invalidInvitation={invalid}
       providers={SHOW_PROVIDERS}
       onChange={change}
+      onGoogle={() => void signInWith('google')}
+      onMicrosoft={() => void signInWith('azure')}
       onRetry={() => (lastAction.current === 'verify' ? verify() : request())}
       onRequestCode={request}
       onSubmitCode={verify}
