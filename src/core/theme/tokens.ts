@@ -43,6 +43,7 @@ export type ColorToken =
   | 'athlete-3'
   | 'athlete-4'
   | 'scrim'
+  | 'card-ring'
   | 'viz-series-1'
   | 'viz-series-2'
   | 'viz-best'
@@ -91,6 +92,7 @@ export const colors: Record<ThemeName, Record<ColorToken, string>> = {
     'athlete-3': '#4CC3F0',
     'athlete-4': '#C8EF55',
     scrim: 'rgba(20, 20, 20, 0.5)',
+    'card-ring': 'rgba(255, 255, 255, 0.44)',
     'viz-series-1': '#141414',
     'viz-series-2': '#1A7FAB',
     'viz-best': '#D93A22',
@@ -138,6 +140,7 @@ export const colors: Record<ThemeName, Record<ColorToken, string>> = {
     'athlete-3': '#4CC3F0',
     'athlete-4': '#C8EF55',
     scrim: 'rgba(0, 0, 0, 0.64)',
+    'card-ring': 'rgba(255, 255, 255, 0.44)',
     'viz-series-1': '#F4F2EC',
     'viz-series-2': '#4CC3F0',
     'viz-best': '#FF7A63',

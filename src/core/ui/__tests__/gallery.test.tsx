@@ -53,7 +53,7 @@ describe('core/ui gallery entries', () => {
       'time-and-tag',
     ]);
     expect(stateKeys('navBar')).toEqual(['home-active', 'times-active', 'long-labels']);
-    expect(stateKeys('colorCard')).toEqual(['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4', 'long-text']);
+    expect(stateKeys('colorCard')).toEqual(['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4', 'long-text', 'decoration-lime', 'decoration-lilac']);
     expect(stateKeys('colorHeader')).toEqual(['default', 'with-chips', 'long-text']);
     expect(stateKeys('chip')).toEqual(['rest', 'selected', 'with-dot', 'selected-with-dot', 'disabled', 'selected-disabled', 'long-text']);
     expect(stateKeys('chipRow')).toEqual(['athletes', 'events', 'long-list']);
