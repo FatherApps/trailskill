@@ -4,7 +4,7 @@
     "landing": {
       "tabs_label": "Crear cuenta o ingresar",
       "sign_in_tab": "Ingresar",
-      "create_card_title": "Cada entreno suma a tu camino.",
+      "create_card_title": "Cada entreno{{dot}} suma a tu camino.",
       "create_card_detail": "Tiempos, historial y marcas de cada deportista.",
       "sign_in_title": "Hola de nuevo",
       "sign_in_detail": "Ingresa con la misma opción que usaste al crear tu cuenta.",

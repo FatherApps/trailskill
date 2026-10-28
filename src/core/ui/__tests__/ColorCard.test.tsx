@@ -136,6 +136,54 @@ describe('ColorCard', () => {
     expect(titleDot.props).toMatchObject({ accessible: false, importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true });
   });
 
+  // What the title Text renders, in order: strings and the dot View (as its test id).
+  const titleParts = (text: string) =>
+    screen.getByText(text).children.map((child) => (typeof child === 'string' ? child : (child.props.testID as string)));
+
+  it('puts the title dot at the {{dot}} marker of the title', async () => {
+    await render(
+      <ThemeProvider>
+        <ColorCard color="lime" title="Cada entreno{{dot}} suma." decoration={{ dot: 'coral', titleDot: 'lilac' }} />
+      </ThemeProvider>,
+    );
+
+    expect(titleParts('Cada entreno suma.')).toEqual(['Cada entreno', 'color-card-title-dot', ' suma.']);
+  });
+
+  it('puts the title dot at the end of the title when it has no marker', async () => {
+    await render(
+      <ThemeProvider>
+        <ColorCard color="lime" title="Cada entreno suma." decoration={{ dot: 'coral', titleDot: 'lilac' }} />
+      </ThemeProvider>,
+    );
+
+    expect(titleParts('Cada entreno suma.')).toEqual(['Cada entreno suma.', 'color-card-title-dot']);
+  });
+
+  it('reads the title without the marker and never shows it', async () => {
+    await render(
+      <ThemeProvider>
+        <ColorCard color="lime" title="Cada entreno{{dot}} suma." decoration={{ dot: 'coral', titleDot: 'lilac' }} />
+        <ColorCard color="lilac" title="Hola{{dot}} de nuevo" decoration={{ dot: 'lime' }} />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByText('Cada entreno suma.')).toBeOnTheScreen();
+    expect(screen.getByText('Hola de nuevo')).toBeOnTheScreen();
+    expect(screen.queryByText(/\{\{dot\}\}/)).not.toBeOnTheScreen();
+    expect(screen.getByText('Cada entreno suma.').props.accessibilityLabel).toBeUndefined();
+  });
+
+  it('leaves a title with a marker untouched when there is no decoration', async () => {
+    await render(
+      <ThemeProvider>
+        <ColorCard color="lime" title="Cada entreno{{dot}} suma." />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByText('Cada entreno{{dot}} suma.')).toBeOnTheScreen();
+  });
+
   it('leaves the title dot out when none is given', async () => {
     await render(
       <ThemeProvider>

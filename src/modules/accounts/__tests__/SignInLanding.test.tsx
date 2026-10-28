@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { colors } from '../../../core/theme';
+import { t } from '../i18n';
 import { SignInLanding } from '../screens/SignInLanding';
 
 // Avoids loading the native PowerSync database.
@@ -50,6 +51,16 @@ describe('SignInLanding', () => {
     expect(screen.queryByText('Hola de nuevo')).not.toBeOnTheScreen();
     expect(screen.queryByLabelText('Correo electrónico')).not.toBeOnTheScreen();
     expect(screen.queryByText(/Términos|Política de datos/)).not.toBeOnTheScreen();
+  });
+
+  it('keeps the {{dot}} marker of the translated title through t() and puts the lilac dot after "entreno"', async () => {
+    expect(t('accounts.landing.create_card_title')).toBe('Cada entreno{{dot}} suma a tu camino.');
+
+    await render(<SignInLanding onCreateAccount={onCreateAccount} />);
+
+    const parts = screen.getByText('Cada entreno suma a tu camino.').children.map((child) => (typeof child === 'string' ? child : child.props.testID));
+    expect(parts).toEqual(['Cada entreno', 'color-card-title-dot', ' suma a tu camino.']);
+    expect(screen.queryByText(/\{\{dot\}\}/)).not.toBeOnTheScreen();
   });
 
   it('puts the card above the tabs', async () => {
