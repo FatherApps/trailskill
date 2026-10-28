@@ -52,8 +52,13 @@ function WeekStrip({ week }: { week: HomeWeekDay[] }) {
           accessibilityState={{ selected: today }}
           style={{ flex: 1, alignItems: 'center', paddingVertical: space[2], borderRadius: radius.md, backgroundColor: colors[today ? 'primary' : 'surface-1'] }}
         >
-          <Text style={[typography.caption, { color: colors[today ? 'on-primary' : 'ink-muted'] }]}>{weekday}</Text>
-          <Text style={[typography['body-strong'], { color: colors[today ? 'on-primary' : 'ink'] }]}>{date}</Text>
+          {/* Seven cells cannot grow with the text: the abbreviation shrinks to fit its cell instead of breaking letter by letter. */}
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={[typography.caption, { color: colors[today ? 'on-primary' : 'ink-muted'] }]}>
+            {weekday}
+          </Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={[typography['body-strong'], { color: colors[today ? 'on-primary' : 'ink'] }]}>
+            {date}
+          </Text>
         </View>
       ))}
     </View>
@@ -93,11 +98,14 @@ function MarkRow({ mark }: { mark: HomeMark }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
       <View style={{ width: space[1], alignSelf: 'stretch', borderRadius: radius.full, backgroundColor: colors[mark.color] }} />
-      <View style={{ flex: 1 }}>
-        <Text style={[typography['body-strong'], { color: colors.ink }]}>{t('training_plans.home.mark_title', { name: mark.athleteName, event: mark.event })}</Text>
-        <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{mark.detail}</Text>
+      {/* With large text the time drops below the lines instead of squeezing them into a narrow column. */}
+      <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
+        <View style={{ flexGrow: 1, flexBasis: space[12] * 3 }}>
+          <Text style={[typography['body-strong'], { color: colors.ink }]}>{t('training_plans.home.mark_title', { name: mark.athleteName, event: mark.event })}</Text>
+          <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{mark.detail}</Text>
+        </View>
+        <TimeValue value={mark.hundredths} size="time-md" />
       </View>
-      <TimeValue value={mark.hundredths} size="time-md" />
     </View>
   );
 }
@@ -110,9 +118,10 @@ export function HomeScreen({ view, greetingName = '', athletes, selectedId, onSe
 
   return (
     <ScrollView nestedScrollEnabled scrollEnabled={scrollEnabled} style={{ backgroundColor: colors['surface-0'] }} contentContainerStyle={{ padding: space[4], gap: space[4] }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+      {/* The greeting keeps a width that holds "Hola," at twice the text size; the sync pill drops below when it does not fit next to it, instead of squeezing the greeting into a column of letters. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3] }}>
         <LogoSymbol size={space[8]} decorative />
-        <View style={{ flex: 1 }}>
+        <View style={{ flexGrow: 1, minWidth: space[12] * 3 + space[8] }}>
           {content?.schoolName ? <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{content.schoolName}</Text> : null}
           <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
             {namedText('training_plans.home.greeting', greetingName)}
