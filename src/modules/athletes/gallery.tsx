@@ -88,7 +88,7 @@ const screenPreview = (view: (content: AthleteProfileContent) => AthleteProfileV
 
 const myAthletesPreview = (view: MyAthletesView) =>
   function MyAthletesPreview() {
-    return <MyAthletesScreen view={view} onOpen={noop} scrollEnabled={false} />;
+    return <MyAthletesScreen view={view} onOpen={noop} onAdd={noop} scrollEnabled={false} />;
   };
 
 const entry = (id: string, title: string, states: Record<string, () => ReactElement>): GalleryEntry => ({

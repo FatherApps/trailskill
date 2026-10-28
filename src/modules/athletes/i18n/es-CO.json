@@ -90,7 +90,10 @@
   },
   "my": {
     "title": "Deportistas",
-    "card_label": "{{name}}, {{detail}}",
+    "add": "Agregar deportista",
+    "history": "Historial",
+    "history_hint": "Abre el perfil de {{name}}",
+    "authorized": "Autorizado",
     "empty": {
       "title": "Aún no hay deportistas",
       "message": "Los deportistas que administras aparecerán aquí."
