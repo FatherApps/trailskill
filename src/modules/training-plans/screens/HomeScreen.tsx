@@ -1,0 +1,162 @@
+import { Pressable, ScrollView, Text, View } from 'react-native';
+
+import { namedText, t } from '../../../core/i18n';
+import type { RecordSyncState } from '../../../core/sync';
+import { useTheme } from '../../../core/theme';
+import type { Hundredths } from '../../../core/time';
+import { ChipRow, ColorCard, Icon, LogoSymbol, StateView, SyncStatus, Tag, TimeValue, type ColorCardColor } from '../../../core/ui';
+import '../i18n';
+
+export type HomeAthlete = { id: string; name: string; initials: string; color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4' };
+
+export type HomeWeekDay = { day: string; weekday: string; date: number; today: boolean };
+
+export type HomeNext = { athleteId: string; athleteName: string; title: string; whenLabel: string; color: ColorCardColor };
+
+export type HomeMark = { id: string; athleteName: string; event: string; detail: string; hundredths: Hundredths; color: HomeAthlete['color'] };
+
+export type HomeContent = {
+  schoolName: string | null;
+  week: HomeWeekDay[];
+  // Nothing to show when no assignment is coming: the section is left out, not filled in.
+  next: HomeNext | null;
+  marks: HomeMark[];
+};
+
+export type HomeView = { kind: 'loading' } | { kind: 'error'; onRetry: () => void } | { kind: 'data'; content: HomeContent };
+
+export const ALL_ATHLETES = 'all';
+
+export type HomeScreenProps = {
+  view: HomeView;
+  // The first name of the person; blank or absent greets without a name.
+  greetingName?: string;
+  athletes: HomeAthlete[];
+  // ALL_ATHLETES or the id of one of `athletes`.
+  selectedId: string;
+  onSelect: (id: string) => void;
+  syncState: RecordSyncState;
+  onOpenToday: (athleteId: string) => void;
+  scrollEnabled?: boolean;
+};
+
+function WeekStrip({ week }: { week: HomeWeekDay[] }) {
+  const { colors, space, radius, typography } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: space[1] }}>
+      {week.map(({ day, weekday, date, today }) => (
+        <View
+          key={day}
+          accessible
+          accessibilityLabel={t('training_plans.home.week_day', { weekday, date })}
+          accessibilityState={{ selected: today }}
+          style={{ flex: 1, alignItems: 'center', paddingVertical: space[2], borderRadius: radius.md, backgroundColor: colors[today ? 'primary' : 'surface-1'] }}
+        >
+          <Text style={[typography.caption, { color: colors[today ? 'on-primary' : 'ink-muted'] }]}>{weekday}</Text>
+          <Text style={[typography['body-strong'], { color: colors[today ? 'on-primary' : 'ink'] }]}>{date}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function NextCard({ next, onOpen }: { next: HomeNext; onOpen: () => void }) {
+  const { colors, space, typography } = useTheme();
+  return (
+    <>
+      <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+        {t('training_plans.home.next_title')}
+      </Text>
+      {/* The whole card opens the day's plan; it reads as one button, from the same data as the visible text. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('training_plans.home.next_label', { title: next.title, when: next.whenLabel, name: next.athleteName })}
+        onPress={onOpen}
+      >
+        <ColorCard color={next.color} title={next.title} decoration={{ dot: 'sky' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' }}>
+            <Tag icon="schedule" label={next.whenLabel} />
+            <Text style={[typography.label, { color: colors['on-color'] }]}>{next.athleteName}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[1], alignSelf: 'flex-end' }}>
+            <Text style={[typography['body-strong'], { color: colors['on-color'] }]}>{t('training_plans.home.next_action')}</Text>
+            <Icon name="arrow_forward" color="on-color" />
+          </View>
+        </ColorCard>
+      </Pressable>
+    </>
+  );
+}
+
+function MarkRow({ mark }: { mark: HomeMark }) {
+  const { colors, space, radius, typography } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
+      <View style={{ width: space[1], alignSelf: 'stretch', borderRadius: radius.full, backgroundColor: colors[mark.color] }} />
+      <View style={{ flex: 1 }}>
+        <Text style={[typography['body-strong'], { color: colors.ink }]}>{t('training_plans.home.mark_title', { name: mark.athleteName, event: mark.event })}</Text>
+        <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{mark.detail}</Text>
+      </View>
+      <TimeValue value={mark.hundredths} size="time-md" />
+    </View>
+  );
+}
+
+// Presentational: no network, database or repository; the caller supplies the state and handles the events.
+export function HomeScreen({ view, greetingName = '', athletes, selectedId, onSelect, syncState, onOpenToday, scrollEnabled = true }: HomeScreenProps) {
+  const { colors, space, typography } = useTheme();
+  const content = view.kind === 'data' ? view.content : null;
+  const empty = content && !content.next && content.marks.length === 0;
+
+  return (
+    <ScrollView nestedScrollEnabled scrollEnabled={scrollEnabled} style={{ backgroundColor: colors['surface-0'] }} contentContainerStyle={{ padding: space[4], gap: space[4] }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+        <LogoSymbol size={space[8]} decorative />
+        <View style={{ flex: 1 }}>
+          {content?.schoolName ? <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{content.schoolName}</Text> : null}
+          <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
+            {namedText('training_plans.home.greeting', greetingName)}
+          </Text>
+        </View>
+        <SyncStatus state={syncState} />
+      </View>
+      {athletes.length > 1 && (
+        <ChipRow
+          accessibilityLabel={t('training_plans.home.athlete_picker')}
+          value={selectedId}
+          onChange={onSelect}
+          options={[
+            { value: ALL_ATHLETES, label: t('training_plans.home.all') },
+            ...athletes.map(({ id, name, initials, color }) => ({ value: id, label: name, dot: { initials, color } })),
+          ]}
+        />
+      )}
+      {view.kind === 'loading' && <StateView kind="loading" />}
+      {view.kind === 'error' && (
+        <StateView
+          kind="error"
+          title={t('training_plans.home.error_title')}
+          message={t('training_plans.home.error_message')}
+          action={{ label: t('training_plans.home.retry'), onPress: view.onRetry }}
+        />
+      )}
+      {content && (
+        <>
+          {content.next && <NextCard next={content.next} onOpen={() => onOpenToday(content.next!.athleteId)} />}
+          <WeekStrip week={content.week} />
+          {content.marks.length > 0 && (
+            <>
+              <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+                {t('training_plans.home.week_title')}
+              </Text>
+              {content.marks.map((mark) => (
+                <MarkRow key={mark.id} mark={mark} />
+              ))}
+            </>
+          )}
+          {empty && <StateView kind="empty" icon="home" title={t('training_plans.home.empty_title')} message={t('training_plans.home.empty_message')} />}
+        </>
+      )}
+    </ScrollView>
+  );
+}
