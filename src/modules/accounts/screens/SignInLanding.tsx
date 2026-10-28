@@ -5,6 +5,7 @@ import { useTheme } from '../../../core/theme';
 import { Button, ColorCard, Icon, Logo, Segmented, type SegmentedOption } from '../../../core/ui';
 import { OfflineNotice } from '../components/OfflineNotice';
 import { t } from '../i18n';
+import { ProviderSignIn } from './ProviderSignIn';
 import { SignInContainer } from './SignInContainer';
 
 export type SignInLandingProps = {
@@ -41,6 +42,7 @@ export function SignInLanding({ onCreateAccount }: SignInLandingProps) {
         <ColorCard color="lilac" decoration={{ dot: 'lime' }} title={t('accounts.landing.sign_in_title')} detail={t('accounts.landing.sign_in_detail')} />
       )}
       <Segmented options={options} value={tab} onChange={setTab} accessibilityLabel={t('accounts.landing.tabs_label')} />
+      <ProviderSignIn />
       {tab === 'create' ? (
         <>
           <Button label={t('auth.create_account')} onPress={onCreateAccount} />
