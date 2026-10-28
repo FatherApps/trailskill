@@ -46,7 +46,7 @@ function CollapsedCard({ card, hidden, first, onPress }: { card: MyAthleteCard; 
       accessibilityHint={t('athletes.my.bring_forward', { name: card.name })}
       onPress={onPress}
       {...focusProps}
-      // Only the top strip shows: the next card covers the rest.
+      // Only the top strip shows: the next card covers the last `hidden` points.
       style={[{ marginTop: first ? 0 : -hidden, borderRadius: radius.md }, ring]}
     >
       <View
@@ -55,9 +55,10 @@ function CollapsedCard({ card, hidden, first, onPress }: { card: MyAthleteCard; 
           justifyContent: 'space-between',
           alignItems: 'flex-start',
           gap: space[3],
-          height: space[12] + hidden,
           paddingHorizontal: space[5],
           paddingTop: space[4],
+          // The strip grows with the text (large font sizes); `hidden` is the part the next card covers.
+          paddingBottom: space[3] + hidden,
           borderRadius: radius.md,
           backgroundColor: colors[card.color],
         }}

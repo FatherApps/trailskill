@@ -136,6 +136,17 @@ describe('MyAthletesScreen', () => {
     expect(StyleSheet.flatten(collapsed.props.style).backgroundColor).toBe(colors.light['athlete-3']);
   });
 
+  it('lets the visible strip of a collapsed card grow with the text instead of fixing its height', async () => {
+    await show(stack(tomas, lucia));
+
+    const strip = screen.getByRole('button', { name: 'Lucía R., Infantil B' }).children[0] as unknown as { props: { style: never } };
+    const style = StyleSheet.flatten(strip.props.style);
+    // A fixed height would cut the name at a large font size; the strip is padding around the text.
+    expect(style.height).toBeUndefined();
+    expect(style.paddingTop).toBeGreaterThan(0);
+    expect(style.paddingBottom).toBeGreaterThan(0);
+  });
+
   it('draws the decorative ring on the front card only', async () => {
     await show(stack(tomas, lucia));
 
