@@ -6,7 +6,7 @@
 # timing_hide_after_withdrawal, training-plans_assignments,
 # training-plans_assignment_scope_and_withdrawal, timing_school_id,
 # school-console_coach_assignment_school, timing_admin_measurement_conflicts,
-# training-plans_notices):
+# training-plans_notices, results-import_provenance):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -29,6 +29,7 @@ with:
   coach_direct_category_ids: SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id())
   coach_group_category_ids: SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM athlete_groups WHERE group_id IN (SELECT group_id FROM coach_group_assignments WHERE coach_user_id = auth.user_id()))
   managed_assignment_ids: SELECT id FROM training_plan_assignments WHERE withdrawn_at IS NULL AND (athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()) OR group_id IN (SELECT group_id FROM athlete_groups WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR category_id IN (SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR (target = 'school' AND school_id IN (SELECT school_id FROM athlete_schools WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()))))
+  import_authorized_athlete_ids: SELECT athlete_id FROM authorization_status WHERE purpose = 'import_official_results' AND is_granted = true AND athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())
 
 streams:
   athletes_visible:
@@ -167,3 +168,14 @@ streams:
     auto_subscribe: true
     queries:
       - SELECT * FROM school_invitations WHERE school_id IN admin_school_ids
+
+  # Imported official results, their provenance and the pending differences, only for
+  # guardians and adult athletes of an athlete with the import authorization in force
+  # (same condition as the select policies). Nobody else gets them; they hold no
+  # identity data (no document, no birth date, no key of the athlete at the source).
+  results_import_imported:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM results_imports WHERE athlete_id IN import_authorized_athlete_ids
+      - SELECT * FROM imported_results WHERE athlete_id IN import_authorized_athlete_ids
+      - SELECT * FROM imported_result_changes WHERE athlete_id IN import_authorized_athlete_ids
