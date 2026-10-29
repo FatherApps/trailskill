@@ -303,6 +303,17 @@ describe('the identity number held from the registration', () => {
     expect(identityNumbers.take('a1')).toBeUndefined();
   });
 
+  it('leaving the step without saving drops the number', async () => {
+    const { identityNumbers, identityDocuments } = held();
+    const { view } = await renderContainer({ mode: 'registration', drafts: drafts(), identityNumbers, identityDocuments });
+    await screen.findByRole('checkbox', { name: IMPORT });
+
+    await view.unmount();
+
+    expect(identityNumbers.take('a1')).toBeUndefined();
+    expect(identityDocuments.saved).toEqual([]);
+  });
+
   it('a failed send does not stop the registration, and the number is dropped', async () => {
     const { identityNumbers, identityDocuments } = held();
     identityDocuments.failing = true;

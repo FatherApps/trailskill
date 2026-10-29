@@ -85,6 +85,9 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
     };
   }, [mode, drafts]);
 
+  // A registration cut before saving discards the numbers; after a save they are already gone, so this clears nothing.
+  useEffect(() => () => identityNumbers?.clear(), [identityNumbers]);
+
   // Only for an athlete whose import of official results is in force (just accepted or already). Whatever is not sent is dropped: it is never kept for later.
   function sendIdentityNumbers(selected: { athleteId: string; text: AuthorizationText }[]) {
     const inForce = loaded ? inForceOf(loaded.rows, loaded.gate) : {};

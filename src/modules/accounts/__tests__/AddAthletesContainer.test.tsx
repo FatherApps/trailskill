@@ -1182,7 +1182,7 @@ describe('the optional identity number', () => {
   function setupWithHold() {
     const base = setup();
     const identityNumbers = createIdentityNumberHold();
-    const mount = () =>
+    const mount = (props: { blockSystemBack?: boolean } = {}) =>
       render(
         <AddAthletesContainer
           userId="guardian-1"
@@ -1194,6 +1194,7 @@ describe('the optional identity number', () => {
           identityNumbers={identityNumbers}
           onContinue={base.onContinue}
           onBack={base.onBack}
+          {...props}
         />,
       );
     return { ...base, mount, identityNumbers };
@@ -1240,6 +1241,32 @@ describe('the optional identity number', () => {
 
     await waitFor(() => expect(onContinue).toHaveBeenCalled());
     expect(identityNumbers.take(rows[0]!.athleteId)).toBeUndefined();
+  });
+
+  it('leaving through back drops it, so a later registration cannot send it', async () => {
+    const subscriptions: { handler: Parameters<typeof BackHandler.addEventListener>[1]; remove: jest.Mock }[] = [];
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      const remove = jest.fn();
+      subscriptions.push({ handler, remove });
+      return { remove };
+    });
+    const { mount, drafts, identityNumbers, rows, onBack } = setupWithHold();
+    await mount({ blockSystemBack: true });
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.changeText(screen.getByLabelText(NUMBER_LABEL), '987654321');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await screen.findByText('Lucía R.');
+    // Back only leaves once Continuar failed.
+    jest.spyOn(drafts, 'save').mockRejectedValue(new Error('store failed'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+    await screen.findByText('No pudimos guardar el avance. Inténtalo de nuevo.');
+
+    subscriptions.filter((s) => s.remove.mock.calls.length === 0).at(-1)!.handler(undefined as never);
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(identityNumbers.take(rows[0]!.athleteId)).toBeUndefined();
+    jest.restoreAllMocks();
   });
 
   it('rejects anything but letters and digits, or more than 20, and keeps what was typed', async () => {

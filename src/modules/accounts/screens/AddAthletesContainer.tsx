@@ -110,7 +110,12 @@ export function AddAthletesContainer({
 
   // The route asked for it because "Continuar" is the only way out of this step. When that way is shut (the step cannot be kept, or adding failed and nobody is known to be added to continue with), back leaves through `onBack`.
   const noWayOut = failed === 'continue' || (failed === 'add' && !unreadable && added.length === 0);
-  useHardwareBack(blockSystemBack ? (noWayOut ? onBack : swallowBack) : undefined);
+  // Leaving here cuts the registration, so the held number is dropped (Continuar keeps it for the authorizations step).
+  const leave = useCallback(() => {
+    identityNumbers?.clear();
+    onBack?.();
+  }, [identityNumbers, onBack]);
+  useHardwareBack(blockSystemBack ? (noWayOut ? onBack && leave : swallowBack) : undefined);
 
   useEffect(() => {
     mounted.current = true;
