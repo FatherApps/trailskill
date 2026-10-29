@@ -10,6 +10,7 @@ import {
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
   createSupabaseInvitationRepository,
+  identityNumbers,
 } from '../../../modules/accounts';
 import { createPowerSyncAthleteRepository, createPowerSyncSchoolAthleteRepository } from '../../../modules/athletes';
 
@@ -33,6 +34,7 @@ export default function AddAthletesRoute() {
       drafts={drafts}
       invitations={invitations}
       pending={pending}
+      identityNumbers={identityNumbers}
       // The account exists already: back must not drop the person on a half-done registration.
       blockSystemBack
       onBack={goBack}

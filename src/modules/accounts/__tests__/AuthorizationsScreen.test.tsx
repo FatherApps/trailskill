@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryAuthorizationRepository, type AuthorizationRecord, type AuthorizationRepository, type AuthorizationText } from '../data/authorizations';
+import { createIdentityNumberHold, createInMemoryIdentityDocumentRepository } from '../data/identityDocuments';
 import { createInMemoryRegistrationDraftRepository } from '../data/registrationDraft';
 import { AuthorizationsContainer } from '../screens/AuthorizationsContainer';
 import { AuthorizationsScreen } from '../screens/AuthorizationsScreen';
@@ -266,5 +267,52 @@ describe('AuthorizationsContainer', () => {
     await fireEvent.press(buttons[buttons.length - 1]!);
 
     expect(await screen.findByText(/No pudimos guardar en el teléfono/)).toBeOnTheScreen();
+  });
+});
+
+// Synthetic number only: never a real identity document.
+describe('the identity number held from the registration', () => {
+  function held() {
+    const identityNumbers = createIdentityNumberHold();
+    identityNumbers.put('a1', '987654321');
+    return { identityNumbers, identityDocuments: createInMemoryIdentityDocumentRepository() };
+  }
+  const drafts = () => createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: '' });
+
+  it('is sent once the import of official results is accepted, and then forgotten', async () => {
+    const { identityNumbers, identityDocuments } = held();
+    const { onDone } = await renderContainer({ mode: 'registration', drafts: drafts(), identityNumbers, identityDocuments });
+
+    await fireEvent.press(await screen.findByRole('checkbox', { name: IMPORT }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(identityDocuments.saved).toEqual([{ athleteId: 'a1', identityNumber: '987654321' }]);
+    expect(identityNumbers.take('a1')).toBeUndefined();
+  });
+
+  it('without accepting the import of official results it is never sent, and is dropped', async () => {
+    const { identityNumbers, identityDocuments } = held();
+    const { onDone } = await renderContainer({ mode: 'registration', drafts: drafts(), identityNumbers, identityDocuments });
+
+    await fireEvent.press(await screen.findByRole('checkbox', { name: RECORD }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(identityDocuments.saved).toEqual([]);
+    expect(identityNumbers.take('a1')).toBeUndefined();
+  });
+
+  it('a failed send does not stop the registration, and the number is dropped', async () => {
+    const { identityNumbers, identityDocuments } = held();
+    identityDocuments.failing = true;
+    const { onDone } = await renderContainer({ mode: 'registration', drafts: drafts(), identityNumbers, identityDocuments });
+
+    await fireEvent.press(await screen.findByRole('checkbox', { name: IMPORT }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(identityDocuments.saved).toEqual([]);
+    expect(identityNumbers.take('a1')).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { useHardwareBack } from '../../../core/ui';
 import { athleteDisplay, type AthleteRepository } from '../../athletes';
+import { isValidIdentityNumber, normalizeIdentityNumber, type IdentityNumberHold } from '../data/identityDocuments';
 import type { InvitationRepository } from '../data/invitations';
 import { queueInvitation, type PendingInvitationRepository } from '../data/pendingInvitations';
 import type { RegistrationDraft, RegistrationDraftRepository } from '../data/registrationDraft';
@@ -19,6 +20,8 @@ export type AddAthletesContainerProps = {
   // The school invitation of the draft is accepted for each athlete added; it waits in `pending` until the athlete reaches the server.
   invitations: InvitationRepository;
   pending: PendingInvitationRepository;
+  // Where the optional identity number waits for the authorizations step. Memory only: it never goes to the draft.
+  identityNumbers?: IdentityNumberHold;
   renderStatus?: (athleteId: string) => ReactNode;
   // Opt-in: the route that makes "Continuar" the only way out asks to ignore the system back button.
   blockSystemBack?: boolean;
@@ -52,6 +55,7 @@ export function AddAthletesContainer({
   drafts,
   invitations,
   pending,
+  identityNumbers,
   renderStatus,
   blockSystemBack = false,
   onBack,
@@ -62,6 +66,11 @@ export function AddAthletesContainer({
   const typed = useRef(empty);
   // How many times each field, and the category, was edited: one edited while something saved is the next athlete's even when it ends up with the same value (siblings share a last name; a category can go A, B, A).
   const edits = useRef({ firstName: 0, lastName: 0, category: 0 });
+  // Kept apart from `values`, `typed` and `persist`: those end in the draft, and the number must not.
+  const [identityNumber, setIdentityNumber] = useState('');
+  const identityTyped = useRef('');
+  const identityEdits = useRef(0);
+  const [identityInvalid, setIdentityInvalid] = useState(false);
   const [added, setAdded] = useState<AddedAthlete[]>([]);
   const { categories } = useInvitation(drafts, invitations);
   const [categoryId, setCategoryId] = useState('');
@@ -192,9 +201,20 @@ export function AddAthletesContainer({
     void persist(next);
   }
 
+  function changeIdentityNumber(text: string) {
+    identityEdits.current++;
+    identityTyped.current = normalizeIdentityNumber(text);
+    setIdentityNumber(identityTyped.current);
+    setIdentityInvalid(false);
+  }
+
   async function add() {
     // An add in flight, or Continuar saving the step, blocks a second add.
     if (addingRef.current || finishingRef.current) return;
+    const savingNumber = identityTyped.current;
+    // The names stay in the form: nothing is added until the number is right or empty.
+    if (savingNumber && !isValidIdentityNumber(savingNumber)) return setIdentityInvalid(true);
+    const savingNumberEdits = identityEdits.current;
     addingRef.current = true;
     setBusy(true);
     setFailed(false);
@@ -211,6 +231,7 @@ export function AddAthletesContainer({
         ifMounted(() => setFailed('add'));
         return;
       }
+      if (savingNumber) identityNumbers?.put(athleteId, savingNumber);
       // Only what was saved goes: what the person edited while it saved is the next athlete's (see `edits`).
       const left = {
         firstName: edits.current.firstName === savingEdits.firstName ? '' : typed.current.firstName,
@@ -220,6 +241,10 @@ export function AddAthletesContainer({
         show(left);
         // Starting over after an add is not a choice, so it does not count as an edit.
         if (edits.current.category === savingEdits.category) setCategory('');
+        if (identityEdits.current === savingNumberEdits) {
+          identityTyped.current = '';
+          setIdentityNumber('');
+        }
       });
       // Also after the screen went away: the saved names must leave the draft or the next launch would add them again.
       void persist(keep(left), { added: saving });
@@ -266,6 +291,9 @@ export function AddAthletesContainer({
       categories={categories}
       categoryId={categoryId}
       onCategoryChange={chooseCategory}
+      identityNumber={identityNumber}
+      identityNumberInvalid={identityInvalid}
+      onIdentityNumberChange={changeIdentityNumber}
       renderStatus={renderStatus}
       onChange={change}
       onAdd={() => void add()}
