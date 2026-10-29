@@ -39,11 +39,14 @@ function createFakeGate(authorized = true) {
   return { gate, claims, advance: (ms: number) => (now += ms), now: () => now };
 }
 
-function createFakeIdentityNumbers(initial: string | null): IdentityNumbers & { saved: [string, string][] } {
+function createFakeIdentityNumbers(initial: string | null): IdentityNumbers & { saved: [string, string][]; reads: string[] } {
   const saved: [string, string][] = [];
+  const reads: string[] = [];
   return {
     saved,
-    async read() {
+    reads,
+    async read(athleteId) {
+      reads.push(athleteId);
       return initial;
     },
     async save(athleteId, identityNumber) {
@@ -137,9 +140,10 @@ describe('refreshResults', () => {
     expect(s.provider.calls).toHaveLength(2);
   });
 
-  it('does not query the source when the user is not authorized', async () => {
+  it('does not read the identity number nor query the source when import_official_results is not in force', async () => {
     const s = setup({ authorized: false });
     expect(await refresh(s)).toEqual({ ok: false, error: { code: 'not_authorized' } });
+    expect(s.identityNumbers.reads).toEqual([]);
     expect(s.provider.calls).toEqual([]);
   });
 
@@ -239,6 +243,7 @@ describe('findCandidates', () => {
   it('does not query the source when the user is not authorized, nor without a provider', async () => {
     const denied = setup({ authorized: false });
     expect(await search(denied)).toEqual({ ok: false, error: { code: 'not_authorized' } });
+    expect(denied.identityNumbers.reads).toEqual([]);
     expect(denied.provider.calls).toEqual([]);
     const none = setup({ withProvider: false });
     expect(await search(none)).toEqual({ ok: false, error: { code: 'no_provider' } });

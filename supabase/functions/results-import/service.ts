@@ -18,6 +18,9 @@ export interface QueryGate {
 /**
  * Implemented by #799's service_role functions `public.athlete_identity_number(athlete_id)` and
  * `public.save_athlete_identity_number_as_service(athlete_id, identity_number)`. The number lives only in memory here.
+ * Implementations pass the number only as a bound RPC parameter, never interpolated into SQL text, so it does not reach a
+ * statement or the Postgres log. `read` must only be called after the gate confirmed `import_official_results` is in force,
+ * because #799's read does not re-check it.
  */
 export interface IdentityNumbers {
   read(athleteId: string): Promise<string | null>;
