@@ -23,3 +23,4 @@ export { OfficialUpdateContainer, type OfficialUpdateContainerProps } from './sc
 export { OfficialUpdateButton, type OfficialUpdateButtonProps } from './components/OfficialUpdateButton';
 export { PendingChangeCard, type PendingChangeCardProps } from './components/PendingChangeCard';
 export { ResultRow, type ResultRowProps } from './components/ResultRow';
+export { galleryEntries } from './gallery';

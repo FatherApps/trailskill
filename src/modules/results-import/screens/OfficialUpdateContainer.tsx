@@ -65,7 +65,7 @@ export function OfficialUpdateContainer({ athleteId, update, repository, identit
   const [failedChange, setFailedChange] = useState<string>();
   const [busyChange, setBusyChange] = useState<string>();
 
-  const load = useCallback(async () => {
+  const read = useCallback(async (): Promise<Loaded> => {
     const [identityConfirmed, granted, lastImportedAt, imported, pending] = await Promise.all([
       identity.isConfirmed(athleteId),
       authorizations.listGrantedAthleteIds('import_official_results'),
@@ -73,13 +73,21 @@ export function OfficialUpdateContainer({ athleteId, update, repository, identit
       repository.listByAthlete(athleteId),
       repository.listPendingChanges(athleteId),
     ]);
-    setLoaded({ identityConfirmed, authorized: granted.includes(athleteId), lastImportedAt, imported, pending });
+    return { identityConfirmed, authorized: granted.includes(athleteId), lastImportedAt, imported, pending };
   }, [athleteId, identity, authorizations, repository]);
 
   // A failed read leaves the button hidden: nothing is offered that cannot be checked.
+  const load = useCallback(async () => setLoaded(await read().catch(() => undefined)), [read]);
   useEffect(() => {
-    load().catch(() => setLoaded(undefined));
-  }, [load, syncKey]);
+    let active = true;
+    read().then(
+      (now) => active && setLoaded(now),
+      () => active && setLoaded(undefined),
+    );
+    return () => {
+      active = false;
+    };
+  }, [read, syncKey]);
 
   const check = useCallback(async () => {
     setChecking(true);
@@ -108,7 +116,7 @@ export function OfficialUpdateContainer({ athleteId, update, repository, identit
     } else {
       setOutcome(undefined);
       setNotice({ inserted: result.inserted, changes: result.changes });
-      await load().catch(() => {});
+      await load();
     }
   }, [outcome, selected, update, athleteId, check, load]);
 
