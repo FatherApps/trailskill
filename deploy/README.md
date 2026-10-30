@@ -84,6 +84,18 @@ Passwords go inside connection URIs, so they must be URL-safe: letters and digit
 - The app receives only `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` and `EXPO_PUBLIC_POWERSYNC_URL`.
 - The `service_role` key and the database passwords never go to the app.
 
+### Identity number key (Vault)
+
+The identity number of an athlete (issue #799) is stored encrypted with a key kept in Supabase Vault under the name `athlete_identity_key`. The migration does not create it and the key is never committed: create it once on the server, as a privileged role (Supabase Studio SQL editor, or `psql` as `postgres`):
+
+```sql
+select vault.create_secret('<output of: openssl rand -base64 32>', 'athlete_identity_key');
+```
+
+- Generate the key with `openssl rand -base64 32` and keep a copy in the team's password manager; losing it makes the stored numbers unreadable.
+- Without the secret, saving a number fails with `athlete identity key is not configured` (SQLSTATE `TS001`) and registration goes on without the number.
+- Rotating the key means decrypting every row with the old key and encrypting it again with the new one in a single transaction, then updating the secret. Do not just replace the secret: the rows already stored could no longer be decrypted.
+
 ## Public and internal
 
 The Dokploy server never publishes ports (0 published ports). Public traffic enters through a Cloudflare Tunnel (named "Dokploy Server", managed in the Cloudflare dashboard). Its rules send each hostname to the server's Traefik on `http://localhost`, or to the Dokploy panel on `http://localhost:3000`. HTTPS ends at Cloudflare's edge, so Dokploy domains are created with HTTPS off.

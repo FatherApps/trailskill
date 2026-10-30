@@ -42,6 +42,7 @@ jest.mock('../modules/accounts', () => ({
   createSecureStoreRegistrationDraftRepository: () => ({}),
   createSecureStorePendingInvitationRepository: () => ({}),
   createPowerSyncAuthorizationRepository: () => ({}),
+  createSupabaseIdentityDocumentRepository: () => ({}),
   createPowerSyncOwnAuthorizationEvidence: () => async () => mockWorld.ownAuthorizations,
   createPowerSyncManagedAthleteRepository: () => ({
     listManagedAthleteIds: async () => mockWorld.managedIds,

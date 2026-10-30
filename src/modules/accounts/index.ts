@@ -68,6 +68,14 @@ export {
   type AdultProfileRepository,
 } from './data/adultProfiles';
 export {
+  createIdentityNumberHold,
+  createInMemoryIdentityDocumentRepository,
+  createSupabaseIdentityDocumentRepository,
+  identityNumbers,
+  type IdentityDocumentRepository,
+  type IdentityNumberHold,
+} from './data/identityDocuments';
+export {
   createInMemoryInvitationRepository,
   createSupabaseInvitationRepository,
   type CreatedInvitation,

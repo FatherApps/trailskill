@@ -34,6 +34,10 @@ export type AddAthletesScreenProps = {
   categories?: { id: string; name: string }[];
   categoryId?: string;
   onCategoryChange?: (categoryId: string) => void;
+  // Optional, for the official results import. It lives in memory only (see the container): this screen just shows it.
+  identityNumber?: string;
+  identityNumberInvalid?: boolean;
+  onIdentityNumberChange?: (text: string) => void;
   // The sync state of one profile, supplied by the caller (src/core/sync owns it).
   renderStatus?: (athleteId: string) => ReactNode;
   onChange: (field: AddAthleteField, value: string) => void;
@@ -57,6 +61,9 @@ export function AddAthletesScreen({
   categories = [],
   categoryId = '',
   onCategoryChange,
+  identityNumber = '',
+  identityNumberInvalid = false,
+  onIdentityNumberChange,
   renderStatus,
   onChange,
   onAdd,
@@ -120,6 +127,17 @@ export function AddAthletesScreen({
         autoCapitalize="words"
         autoComplete="family-name"
         textContentType="familyName"
+      />
+      <TextField
+        label={t('accounts.athletes.identity_number_label')}
+        value={identityNumber}
+        help={t('accounts.athletes.identity_number_help')}
+        error={identityNumberInvalid ? t('accounts.athletes.identity_number_invalid') : undefined}
+        onChangeText={(text) => onIdentityNumberChange?.(text)}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        autoComplete="off"
+        importantForAutofill="no"
       />
       {categories.length > 0 && (
         <Segmented

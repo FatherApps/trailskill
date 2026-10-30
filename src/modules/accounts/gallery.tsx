@@ -246,11 +246,13 @@ export const galleryEntries: GalleryEntry[] = [
           renderStatus={() => <SyncStatus state="on_device" />}
         />
       ),
-      // The add did not work: nothing was saved and the typed names are still there.
+      // The add did not work: nothing was saved and the typed names are still there. The identity number holds a character the server rejects, and the field says so.
       error: () => (
         <AddAthletesPreview
           athletes={[...fx.addedAthletes]}
           failed="add"
+          identityNumber="AB/12"
+          identityNumberInvalid
           values={{ firstName: fx.person.firstName, lastName: fx.person.lastName }}
         />
       ),

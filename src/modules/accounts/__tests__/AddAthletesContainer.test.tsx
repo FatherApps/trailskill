@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { BackHandler } from 'react-native';
 
 import { createInMemoryAthleteRepository } from '../../athletes';
+import { createIdentityNumberHold } from '../data/identityDocuments';
 import { createInMemoryInvitationRepository } from '../data/invitations';
 import { createInMemoryManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
 import { createInMemoryManagedAthleteRepository, type ManagedAthleteRow } from '../data/managedAthletes';
@@ -1171,5 +1172,117 @@ describe('AddAthletesContainer', () => {
     await settle();
 
     expect(save).not.toHaveBeenCalled();
+  });
+});
+
+// Synthetic numbers only: never a real identity document.
+describe('the optional identity number', () => {
+  const NUMBER_LABEL = 'Número de identificación (opcional)';
+
+  function setupWithHold() {
+    const base = setup();
+    const identityNumbers = createIdentityNumberHold();
+    const mount = (props: { blockSystemBack?: boolean } = {}) =>
+      render(
+        <AddAthletesContainer
+          userId="guardian-1"
+          profiles={base.profiles}
+          athletes={base.athletes}
+          drafts={base.drafts}
+          invitations={base.invitations}
+          pending={base.pending}
+          identityNumbers={identityNumbers}
+          onContinue={base.onContinue}
+          onBack={base.onBack}
+          {...props}
+        />,
+      );
+    return { ...base, mount, identityNumbers };
+  }
+
+  it('says what it is for, naming no organization', async () => {
+    await setupWithHold().mount();
+
+    expect(screen.getByLabelText(NUMBER_LABEL)).toBeOnTheScreen();
+    expect(screen.getByText('Es fundamental para importar los resultados oficiales de la federación.', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('is kept in memory, normalized, and never reaches the saved draft', async () => {
+    const { mount, drafts, identityNumbers, rows, onContinue } = setupWithHold();
+    const saved = jest.spyOn(drafts, 'save');
+    await mount();
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.changeText(screen.getByLabelText(NUMBER_LABEL), '9 876.543-21');
+    expect(screen.getByDisplayValue('987654321')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await screen.findByText('Lucía R.');
+    // Cleared for the next athlete, like the names.
+    expect(screen.queryByDisplayValue('987654321')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(onContinue).toHaveBeenCalled());
+
+    expect(identityNumbers.take(rows[0]!.athleteId)).toBe('987654321');
+    expect(saved).toHaveBeenCalled();
+    for (const [draft] of saved.mock.calls) expect(JSON.stringify(draft)).not.toMatch(/987654321|9 876\.543-21/);
+    expect(JSON.stringify(await drafts.load())).not.toMatch(/987654321/);
+  });
+
+  it('registration goes on without it: nothing is held', async () => {
+    const { mount, identityNumbers, rows, onContinue } = setupWithHold();
+    await mount();
+
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await screen.findByText('Lucía R.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(onContinue).toHaveBeenCalled());
+    expect(identityNumbers.take(rows[0]!.athleteId)).toBeUndefined();
+  });
+
+  it('leaving through back drops it, so a later registration cannot send it', async () => {
+    const subscriptions: { handler: Parameters<typeof BackHandler.addEventListener>[1]; remove: jest.Mock }[] = [];
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      const remove = jest.fn();
+      subscriptions.push({ handler, remove });
+      return { remove };
+    });
+    const { mount, drafts, identityNumbers, rows, onBack } = setupWithHold();
+    await mount({ blockSystemBack: true });
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    await fireEvent.changeText(screen.getByLabelText(NUMBER_LABEL), '987654321');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    await screen.findByText('Lucía R.');
+    // Back only leaves once Continuar failed.
+    jest.spyOn(drafts, 'save').mockRejectedValue(new Error('store failed'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+    await screen.findByText('No pudimos guardar el avance. Inténtalo de nuevo.');
+
+    subscriptions.filter((s) => s.remove.mock.calls.length === 0).at(-1)!.handler(undefined as never);
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(identityNumbers.take(rows[0]!.athleteId)).toBeUndefined();
+    jest.restoreAllMocks();
+  });
+
+  it('rejects anything but letters and digits, or more than 20, and keeps what was typed', async () => {
+    const { mount, rows } = setupWithHold();
+    await mount();
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+    await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+
+    await fireEvent.changeText(screen.getByLabelText(NUMBER_LABEL), 'AB/12');
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    expect(screen.getByText('Usa solo letras y números, hasta 20.')).toBeOnTheScreen();
+
+    await fireEvent.changeText(screen.getByLabelText(NUMBER_LABEL), '1'.repeat(21));
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+    expect(screen.getByText('Usa solo letras y números, hasta 20.')).toBeOnTheScreen();
+    expect(rows).toHaveLength(0);
+    expect(screen.getByDisplayValue('Lucía')).toBeOnTheScreen();
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { AuthorizationRecord, AuthorizationRepository, AuthorizationText } from '../data/authorizations';
+import type { IdentityDocumentRepository, IdentityNumberHold } from '../data/identityDocuments';
 import type { RegistrationDraftRepository } from '../data/registrationDraft';
 import { AuthorizationsScreen, type AuthorizationsScreenProps } from './AuthorizationsScreen';
 
@@ -11,6 +12,9 @@ export type AuthorizationsContainerProps = {
   mode: 'registration' | 'manage';
   // Registration only: the draft says how many steps there are and is dropped when the last one is done.
   drafts?: RegistrationDraftRepository;
+  // Registration only: the identity numbers typed while adding athletes are sent for those who accepted the import of official results, and dropped for the rest.
+  identityNumbers?: IdentityNumberHold;
+  identityDocuments?: IdentityDocumentRepository;
   onDone: () => void;
   onBack?: () => void;
   // Changes when new data may have synced (for example the last sync time); the texts and authorizations are read again.
@@ -31,7 +35,7 @@ function inForceOf(rows: AuthorizationRecord[], gate: Set<string>): Authorizatio
 }
 
 // Loads the current texts and this adult's authorizations from the local database; accepting and withdrawing reload them.
-export function AuthorizationsContainer({ repository, userId, athletes, mode, drafts, onDone, onBack, refreshKey }: AuthorizationsContainerProps) {
+export function AuthorizationsContainer({ repository, userId, athletes, mode, drafts, identityNumbers, identityDocuments, onDone, onBack, refreshKey }: AuthorizationsContainerProps) {
   const [loaded, setLoaded] = useState<Loaded>();
   // 4 steps unless the draft says an adult swims, who skips the athlete details.
   // Registration waits for the draft before showing a count, so an adult never sees "4 of 4" first.
@@ -81,6 +85,21 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
     };
   }, [mode, drafts]);
 
+  // A registration cut before saving discards the numbers; after a save they are already gone, so this clears nothing.
+  useEffect(() => () => identityNumbers?.clear(), [identityNumbers]);
+
+  // Only for an athlete whose import of official results is in force (just accepted or already). Whatever is not sent is dropped: it is never kept for later.
+  function sendIdentityNumbers(selected: { athleteId: string; text: AuthorizationText }[]) {
+    const inForce = loaded ? inForceOf(loaded.rows, loaded.gate) : {};
+    for (const { id } of athletes) {
+      const number = identityNumbers?.take(id);
+      const imports = selected.some((s) => s.athleteId === id && s.text.purpose === 'import_official_results') || !!inForce[id]?.import_official_results;
+      // Fire and forget: a failed or slow send never blocks the registration, and #81 asks again.
+      if (number && imports) void identityDocuments?.save({ athleteId: id, identityNumber: number }).catch(() => {});
+    }
+    identityNumbers?.clear();
+  }
+
   // Resolves false when a local write failed, so the screen keeps the checked boxes.
   async function save(selected: { athleteId: string; text: AuthorizationText }[]): Promise<boolean> {
     setFailed(false);
@@ -93,6 +112,7 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
       return false;
     }
     if (mode === 'registration') {
+      sendIdentityNumbers(selected);
       // A failed draft cleanup must not block the flow.
       await drafts?.clear().catch(() => {});
       onDone();
