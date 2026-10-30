@@ -35,7 +35,7 @@ type Action = (userId: string, body: Body) => Promise<Response> | Response;
 
 /**
  * One POST endpoint, `{ action, ... }`. Each action validates its own fields and answers `{ ok, value | error }`.
- * #82 adds `status`, `results`, `import` and `refresh` to `actions`.
+ * #82 adds `status`, `results` and `import` to `actions`.
  */
 export function createHandler({ authenticate, service }: HandlerDeps) {
   const answer = <T>(outcome: { ok: true; value: T } | { ok: false; error: ImportError }, value: (v: T) => unknown) =>
