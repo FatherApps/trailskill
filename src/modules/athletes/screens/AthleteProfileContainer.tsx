@@ -4,6 +4,7 @@ import type { AuthorizationStatusRepository } from '../../accounts';
 import { distances, pools, strokes } from '../../../core/sport';
 import { useRecordSyncStates } from '../../../core/sync';
 import type { EventValue } from '../components/EventSelector';
+import type { ImportPromptProps } from '../components/ImportPrompt';
 import type { HistoryOrigin, HistoryResult } from '../components/HistoryList';
 import type { AthleteSchoolRepository } from '../data/athleteSchools';
 import type { HistoryMeasurement, HistoryRepository } from '../data/history';
@@ -28,6 +29,8 @@ export type AthleteProfileContainerProps = {
   otherSchoolResults?: OtherSchoolResultsRepository;
   // Whether the device is connected. Without a connection no result of another school is asked for or shown.
   online?: boolean;
+  // Only guardians and adults get it: the route decides by passing it or not.
+  importPrompt?: ImportPromptProps;
   // Where the band's back button goes; the route decides (the module has no router).
   onBack: () => void;
 };
@@ -119,6 +122,7 @@ export function AthleteProfileContainer({
   lastSyncedAt,
   otherSchoolResults,
   online = false,
+  importPrompt,
   onBack,
 }: AthleteProfileContainerProps) {
   const [event, setEvent] = useState<EventValue>(initialEvent);
@@ -218,6 +222,7 @@ export function AthleteProfileContainer({
       ...(best ? { kind: best.kind === 'race' ? ('competition' as const) : ('training' as const), date: day(best.date) } : {}),
     },
     history: rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)),
+    ...(importPrompt ? { importPrompt } : {}),
     ...(otherSchoolResults && !online ? { otherSchoolOffline: true } : {}),
     // Connected but the server failed or did not answer: not the offline notice, a retry of this section only.
     ...(other === null ? { otherSchoolError: { onRetry: retryOtherSchool } } : {}),

@@ -11,7 +11,11 @@ jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
 jest.mock('../core/sync', () => ({ useGlobalSyncSummary: () => ({ lastSyncedAt: null, connection: 'connected' }) }));
-jest.mock('../modules/accounts', () => ({ createPowerSyncAuthorizationStatusRepository: () => ({}) }));
+jest.mock('../modules/accounts', () => ({
+  createPowerSyncAuthorizationStatusRepository: () => ({}),
+  createPowerSyncManagedAthleteRepository: () => ({}),
+}));
+jest.mock('../modules/results-import', () => ({ createSupabaseImportSourcesRepository: () => ({}), useImportSources: () => [] }));
 jest.mock('../modules/athletes', () => {
   const { Pressable, Text } = jest.requireActual('react-native');
   return {
@@ -19,6 +23,7 @@ jest.mock('../modules/athletes', () => {
     createPowerSyncHistoryRepository: () => ({}),
     createPowerSyncAthleteSchoolRepository: () => ({}),
     createSupabaseOtherSchoolResultsRepository: () => ({}),
+    useManagedAthletes: () => ({ status: 'loading' }),
     AthleteProfileContainer: ({
       athleteId,
       otherSchoolResults,
