@@ -11,6 +11,7 @@ const oldestFirst = (a: PendingResultChange, b: PendingResultChange) =>
 export function createInMemoryImportedResultsRepository(
   results: ImportedResult[],
   changes: StoredChange[],
+  imports: { athleteId: string; requestedAt: string }[] = [],
 ): ImportedResultsRepository {
   const superseded = new Set(results.flatMap((r) => (r.supersedesId ? [r.supersedesId] : [])));
   return {
@@ -22,6 +23,10 @@ export function createInMemoryImportedResultsRepository(
         .filter((c) => c.athleteId === athleteId && c.status === 'pending')
         .map(({ status: _status, ...change }) => change)
         .sort(oldestFirst);
+    },
+    async lastImportedAt(athleteId) {
+      const times = imports.filter((i) => i.athleteId === athleteId).map((i) => i.requestedAt);
+      return times.length === 0 ? null : times.reduce((a, b) => (a > b ? a : b));
     },
   };
 }

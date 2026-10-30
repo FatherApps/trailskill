@@ -1,4 +1,5 @@
 import {
+  createIdentityConfirmation,
   createInMemoryImportedResultsRepository,
   createOfficialUpdate,
   sortOutFound,
@@ -9,126 +10,120 @@ import {
   type PendingResultChange,
 } from '..';
 
-const found = (overrides: Partial<FoundResult> = {}): FoundResult => ({
-  sourceResultKey: 'k1',
-  stroke: 'FR',
-  distance: '50m',
-  pool: 'LCM',
-  hundredths: 2890,
-  swumOn: '2026-03-14',
-  competition: 'Synthetic Open',
-  ...overrides,
-});
+// The public entry also exports the PowerSync repository, which loads the ESM-only sync stack.
+jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
+
+const values = { stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: 2890, swumOn: '2026-03-14', competition: 'Synthetic Open' } as const;
+const found = (overrides: Partial<FoundResult> = {}): FoundResult => ({ id: 'f1', ...values, ...overrides });
 
 const imported = (overrides: Partial<ImportedResult> = {}): ImportedResult => ({
   id: 'r1',
   athleteId: 'a1',
   importId: 'i1',
   provider: 'zz-test',
+  sourceResultKey: 'k1',
   revision: 1,
   supersedesId: null,
   createdAt: '2026-10-28T10:00:00Z',
-  ...found(),
+  ...values,
   ...overrides,
 });
 
-const pending = (overrides: Partial<PendingResultChange> = {}): PendingResultChange => ({
+const pending = (overrides: Partial<PendingResultChange> = {}): PendingResultChange & { status: 'pending' } => ({
   id: 'c1',
   importedResultId: 'r1',
   athleteId: 'a1',
   importId: 'i2',
   createdAt: '2026-10-28T11:00:00Z',
-  ...found({ hundredths: 2850 }),
+  status: 'pending',
+  ...values,
+  hundredths: 2850,
   ...overrides,
 });
 
 describe('sortOutFound', () => {
-  it('lists a result the athlete does not have as new', () => {
-    expect(sortOutFound([found({ sourceResultKey: 'k9' })], [imported()], [])).toEqual([
-      { kind: 'new', result: found({ sourceResultKey: 'k9' }) },
-    ]);
+  it('lists a result the app does not show yet', () => {
+    expect(sortOutFound([found({ swumOn: '2026-05-02' })], [imported()])).toEqual([found({ swumOn: '2026-05-02' })]);
   });
 
-  it('drops a result that is already imported with the same values', () => {
-    expect(sortOutFound([found()], [imported()], [])).toEqual([]);
+  it('drops a result with the values the app already shows', () => {
+    expect(sortOutFound([found()], [imported()])).toEqual([]);
   });
 
-  it('lists a result whose values changed at the source, with the value the app shows now', () => {
-    const items = sortOutFound([found({ hundredths: 2850 })], [imported()], []);
-    expect(items).toEqual([{ kind: 'changed', result: found({ hundredths: 2850 }), current: imported() }]);
+  it('keeps a result whose time moved at the source: importing it records a pending change', () => {
+    expect(sortOutFound([found({ hundredths: 2850 })], [imported()])).toHaveLength(1);
   });
 
-  it('drops a change the guardian has not answered yet', () => {
-    expect(sortOutFound([found({ hundredths: 2850 })], [imported()], [pending()])).toEqual([]);
+  it('drops a result whose difference already waits for a choice', () => {
+    expect(sortOutFound([found({ hundredths: 2850 })], [imported(), pending()])).toEqual([]);
   });
 
   it('keeps a missing time as null, never zero', () => {
-    const [item] = sortOutFound([found({ sourceResultKey: 'k9', hundredths: null })], [], []);
-    expect(item?.result.hundredths).toBeNull();
+    const [item] = sortOutFound([found({ hundredths: null })], []);
+    expect(item?.hundredths).toBeNull();
   });
 
-  it('compares a missing time with a time as a change', () => {
-    const items = sortOutFound([found({ hundredths: null })], [imported()], []);
-    expect(items.map((item) => item.kind)).toEqual(['changed']);
+  it('tells a missing time from a time', () => {
+    expect(sortOutFound([found({ hundredths: null })], [imported()])).toHaveLength(1);
   });
 
-  it('lists the same result once when the source repeats it', () => {
-    expect(sortOutFound([found({ sourceResultKey: 'k9' }), found({ sourceResultKey: 'k9' })], [], [])).toHaveLength(1);
+  it('lists the same id once', () => {
+    expect(sortOutFound([found(), found()], [])).toHaveLength(1);
   });
 });
 
+const ok = <T,>(value: T) => ({ ok: true as const, value });
+const fail = (error: object) => ({ ok: false as const, error });
+const summary = { importId: 'i9', inserted: 1, duplicates: 0, changes: 0 };
+
 function service(overrides: Partial<OfficialResultsService> = {}): jest.Mocked<OfficialResultsService> {
   return {
-    refresh: jest.fn().mockResolvedValue({ ok: true, value: [found({ sourceResultKey: 'k9' })] }),
-    importChosen: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+    status: jest.fn(),
+    results: jest.fn().mockResolvedValue(ok([found({ swumOn: '2026-05-02' })])),
+    importChosen: jest.fn().mockResolvedValue(ok(summary)),
     ...overrides,
   } as jest.Mocked<OfficialResultsService>;
 }
 
-const setup = (svc = service(), results: ImportedResult[] = [imported()], changes: (PendingResultChange & { status: 'pending' })[] = []) =>
+const setup = (svc = service(), results: ImportedResult[] = [imported()], changes: ReturnType<typeof pending>[] = []) =>
   createOfficialUpdate({ service: svc, repository: createInMemoryImportedResultsRepository(results, changes) });
 
 describe('createOfficialUpdate.check', () => {
-  it('offers the new results, preselected', async () => {
-    const outcome = await setup().check('a1');
-    expect(outcome).toEqual({ kind: 'found', items: [{ kind: 'new', result: found({ sourceResultKey: 'k9' }) }] });
+  it('offers the new results', async () => {
+    expect(await setup().check('a1')).toEqual({ kind: 'found', results: [found({ swumOn: '2026-05-02' })] });
   });
 
-  it('says there is nothing new when every result is already imported', async () => {
-    const svc = service({ refresh: jest.fn().mockResolvedValue({ ok: true, value: [found()] }) });
+  it('says there is nothing new when the app shows every result', async () => {
+    const svc = service({ results: jest.fn().mockResolvedValue(ok([found()])) });
     expect(await setup(svc).check('a1')).toEqual({ kind: 'none' });
   });
 
   it('reports when the next try is allowed', async () => {
-    const svc = service({ refresh: jest.fn().mockResolvedValue({ ok: false, error: { code: 'rate_limited', retryAt: '2026-10-29T12:10:00Z' } }) });
+    const svc = service({ results: jest.fn().mockResolvedValue(fail({ code: 'rate_limited', retryAt: '2026-10-29T12:10:00Z' })) });
     expect(await setup(svc).check('a1')).toEqual({ kind: 'rate_limited', retryAt: '2026-10-29T12:10:00Z' });
   });
 
-  it.each([
-    ['unavailable', { code: 'unavailable' }],
-    ['not authorized', { code: 'not_authorized' }],
-    ['no provider', { code: 'no_provider' }],
-  ])('says unavailable when the server answers %s', async (_name, error) => {
-    const svc = service({ refresh: jest.fn().mockResolvedValue({ ok: false, error }) });
+  it.each(['unavailable', 'not_authorized', 'no_provider', 'not_confirmed'])('says unavailable when the server answers %s', async (code) => {
+    const svc = service({ results: jest.fn().mockResolvedValue(fail({ code })) });
     expect(await setup(svc).check('a1')).toEqual({ kind: 'unavailable' });
   });
 
   it('says unavailable when the request throws, as when offline', async () => {
-    const svc = service({ refresh: jest.fn().mockRejectedValue(new Error('network')) });
+    const svc = service({ results: jest.fn().mockRejectedValue(new Error('network')) });
     expect(await setup(svc).check('a1')).toEqual({ kind: 'unavailable' });
   });
 
   it('does not start a second query while one is running', async () => {
     let finish!: (value: unknown) => void;
-    const svc = service({ refresh: jest.fn().mockReturnValue(new Promise((resolve) => (finish = resolve))) });
+    const svc = service({ results: jest.fn().mockReturnValue(new Promise((resolve) => (finish = resolve))) });
     const update = setup(svc);
 
     const first = update.check('a1');
     const second = update.check('a1');
-    finish({ ok: true, value: [] });
+    finish(ok([]));
 
     expect(await first).toEqual(await second);
-    expect(svc.refresh).toHaveBeenCalledTimes(1);
+    expect(svc.results).toHaveBeenCalledTimes(1);
   });
 
   it('can query again once the previous query ended', async () => {
@@ -136,35 +131,55 @@ describe('createOfficialUpdate.check', () => {
     const update = setup(svc);
     await update.check('a1');
     await update.check('a1');
-    expect(svc.refresh).toHaveBeenCalledTimes(2);
+    expect(svc.results).toHaveBeenCalledTimes(2);
   });
 });
 
 describe('createOfficialUpdate.importChosen', () => {
-  it('sends only the results the guardian chose', async () => {
-    const svc = service();
-    const chosen = [found({ sourceResultKey: 'k9' })];
-    expect(await setup(svc).importChosen('a1', chosen)).toEqual({ kind: 'imported', count: 1 });
-    expect(svc.importChosen).toHaveBeenCalledWith('a1', chosen);
+  it('sends the ids of the results the guardian chose, and reports what the server did', async () => {
+    const svc = service({ importChosen: jest.fn().mockResolvedValue(ok({ importId: 'i9', inserted: 1, duplicates: 1, changes: 2 })) });
+    expect(await setup(svc).importChosen('a1', [found({ id: 'f7' })])).toEqual({ kind: 'imported', inserted: 1, duplicates: 1, changes: 2 });
+    expect(svc.importChosen).toHaveBeenCalledWith('a1', ['f7']);
   });
 
-  it('sends a result once even if it was chosen twice', async () => {
+  it('sends an id once even if it was chosen twice', async () => {
     const svc = service();
-    await setup(svc).importChosen('a1', [found({ sourceResultKey: 'k9' }), found({ sourceResultKey: 'k9' })]);
-    expect(svc.importChosen).toHaveBeenCalledWith('a1', [found({ sourceResultKey: 'k9' })]);
+    await setup(svc).importChosen('a1', [found({ id: 'f7' }), found({ id: 'f7' })]);
+    expect(svc.importChosen).toHaveBeenCalledWith('a1', ['f7']);
   });
 
   it('does not call the server with nothing chosen', async () => {
     const svc = service();
-    expect(await setup(svc).importChosen('a1', [])).toEqual({ kind: 'imported', count: 0 });
+    expect(await setup(svc).importChosen('a1', [])).toEqual({ kind: 'imported', inserted: 0, duplicates: 0, changes: 0 });
     expect(svc.importChosen).not.toHaveBeenCalled();
   });
 
+  it('says the list expired when the server forgot it, so the screen asks again', async () => {
+    const svc = service({ importChosen: jest.fn().mockResolvedValue(fail({ code: 'unknown_id' })) });
+    expect(await setup(svc).importChosen('a1', [found()])).toEqual({ kind: 'expired' });
+  });
+
   it.each([
-    ['a refusal', jest.fn().mockResolvedValue({ ok: false, error: { code: 'unavailable' } })],
+    ['a refusal', jest.fn().mockResolvedValue(fail({ code: 'unavailable' }))],
     ['a thrown error', jest.fn().mockRejectedValue(new Error('network'))],
   ])('reports a failed import after %s', async (_name, importChosen) => {
-    expect(await setup(service({ importChosen })).importChosen('a1', [found({ sourceResultKey: 'k9' })])).toEqual({ kind: 'failed' });
+    expect(await setup(service({ importChosen })).importChosen('a1', [found()])).toEqual({ kind: 'failed' });
+  });
+});
+
+describe('createIdentityConfirmation', () => {
+  const status = { confirmed: true, organizationId: 'o1', confirmedAt: '2026-10-28T10:00:00Z', candidateName: 'Synthetic Swimmer', hasNumber: true, lastThree: '123' };
+
+  it('is confirmed when the server says so', async () => {
+    expect(await createIdentityConfirmation(service({ status: jest.fn().mockResolvedValue(ok(status)) })).isConfirmed('a1')).toBe(true);
+  });
+
+  it.each([
+    ['not confirmed', jest.fn().mockResolvedValue(ok({ ...status, confirmed: false }))],
+    ['refused', jest.fn().mockResolvedValue(fail({ code: 'not_authorized' }))],
+    ['offline', jest.fn().mockRejectedValue(new Error('network'))],
+  ])('is not confirmed when %s', async (_name, statusCall) => {
+    expect(await createIdentityConfirmation(service({ status: statusCall })).isConfirmed('a1')).toBe(false);
   });
 });
 

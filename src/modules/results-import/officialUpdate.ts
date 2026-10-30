@@ -1,40 +1,36 @@
-import type { FoundResult, OfficialResultsService } from './data/officialResults';
-import type { ImportedResult, ImportedResultsRepository, PendingResultChange } from './data/importedResults';
+import type { FoundResult, ImportSummary, OfficialResultsService } from './data/officialResults';
+import type { ImportedResultsRepository } from './data/importedResults';
 
-/** A result the guardian can choose: new to the app, or changed at the source since it was imported. */
-export type FoundItem = { kind: 'new'; result: FoundResult } | { kind: 'changed'; result: FoundResult; current: ImportedResult };
+type Values = Omit<FoundResult, 'id'>;
 
-const sameValues = (a: FoundResult, b: Omit<FoundResult, 'sourceResultKey'>) =>
+const sameValues = (a: Values, b: Values) =>
   a.stroke === b.stroke && a.distance === b.distance && a.pool === b.pool && a.hundredths === b.hundredths && a.swumOn === b.swumOn && a.competition === b.competition;
 
 /**
- * Compares what the source reports with what the app already has. A result with the values the app shows, or whose
- * difference already waits for a choice, is left out; the same key twice counts once.
+ * What the guardian can choose: the listed results the app does not already show. A result with the values the app has,
+ * or whose difference already waits for a choice, is left out; the same id twice counts once. A result that moved at the
+ * source stays: importing it never overwrites, the server records a pending change.
  */
-export function sortOutFound(found: FoundResult[], imported: ImportedResult[], pending: PendingResultChange[]): FoundItem[] {
-  const currentByKey = new Map(imported.map((result) => [result.sourceResultKey, result]));
-  const pendingById = new Map(pending.map((change) => [change.importedResultId, change]));
+export function sortOutFound(found: FoundResult[], shown: Values[]): FoundResult[] {
   const seen = new Set<string>();
-  const items: FoundItem[] = [];
-  for (const result of found) {
-    if (seen.has(result.sourceResultKey)) continue;
-    seen.add(result.sourceResultKey);
-    const current = currentByKey.get(result.sourceResultKey);
-    if (!current) items.push({ kind: 'new', result });
-    else if (!sameValues(result, current) && !(pendingById.has(current.id) && sameValues(result, pendingById.get(current.id)!))) {
-      items.push({ kind: 'changed', result, current });
-    }
-  }
-  return items;
+  return found.filter((result) => {
+    if (seen.has(result.id)) return false;
+    seen.add(result.id);
+    return !shown.some((known) => sameValues(result, known));
+  });
 }
 
 export type CheckOutcome =
-  | { kind: 'found'; items: FoundItem[] }
+  | { kind: 'found'; results: FoundResult[] }
   | { kind: 'none' }
   | { kind: 'rate_limited'; retryAt: string }
   | { kind: 'unavailable' };
 
-export type ImportOutcome = { kind: 'imported'; count: number } | { kind: 'failed' };
+export type ImportOutcome =
+  | ({ kind: 'imported' } & Pick<ImportSummary, 'inserted' | 'duplicates' | 'changes'>)
+  // The server forgot the list (it lives 15 minutes): the screen asks again.
+  | { kind: 'expired' }
+  | { kind: 'failed' };
 
 type Dependencies = { service: OfficialResultsService; repository: ImportedResultsRepository };
 
@@ -43,11 +39,11 @@ export function createOfficialUpdate({ service, repository }: Dependencies) {
 
   async function run(athleteId: string): Promise<CheckOutcome> {
     try {
-      const outcome = await service.refresh(athleteId);
+      const outcome = await service.results(athleteId);
       if (!outcome.ok) return outcome.error.code === 'rate_limited' ? { kind: 'rate_limited', retryAt: outcome.error.retryAt } : { kind: 'unavailable' };
       const [imported, pending] = await Promise.all([repository.listByAthlete(athleteId), repository.listPendingChanges(athleteId)]);
-      const items = sortOutFound(outcome.value, imported, pending);
-      return items.length === 0 ? { kind: 'none' } : { kind: 'found', items };
+      const results = sortOutFound(outcome.value, [...imported, ...pending]);
+      return results.length === 0 ? { kind: 'none' } : { kind: 'found', results };
     } catch {
       return { kind: 'unavailable' };
     }
@@ -61,11 +57,12 @@ export function createOfficialUpdate({ service, repository }: Dependencies) {
     },
 
     async importChosen(athleteId: string, chosen: FoundResult[]): Promise<ImportOutcome> {
-      const unique = [...new Map(chosen.map((result) => [result.sourceResultKey, result])).values()];
-      if (unique.length === 0) return { kind: 'imported', count: 0 };
+      const ids = [...new Set(chosen.map((result) => result.id))];
+      if (ids.length === 0) return { kind: 'imported', inserted: 0, duplicates: 0, changes: 0 };
       try {
-        const outcome = await service.importChosen(athleteId, unique);
-        return outcome.ok ? { kind: 'imported', count: unique.length } : { kind: 'failed' };
+        const outcome = await service.importChosen(athleteId, ids);
+        if (outcome.ok) return { kind: 'imported', inserted: outcome.value.inserted, duplicates: outcome.value.duplicates, changes: outcome.value.changes };
+        return outcome.error.code === 'unknown_id' ? { kind: 'expired' } : { kind: 'failed' };
       } catch {
         return { kind: 'failed' };
       }

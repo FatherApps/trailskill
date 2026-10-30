@@ -1,5 +1,8 @@
 import { createInMemoryImportedResultsRepository, type ImportedResult, type PendingResultChange } from '..';
 
+// The public entry also exports the PowerSync repository, which loads the ESM-only sync stack.
+jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
+
 const result = (overrides: Partial<ImportedResult>): ImportedResult => ({
   id: 'r1',
   athleteId: 'a1',
