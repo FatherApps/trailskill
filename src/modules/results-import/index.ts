@@ -1,6 +1,7 @@
 export type { ImportedResult, ImportedResultsRepository, PendingResultChange } from './data/importedResults';
 export { createInMemoryImportedResultsRepository } from './data/inMemoryImportedResultsRepository';
 export { createPowerSyncImportedResultsRepository } from './data/powerSyncImportedResultsRepository';
+export { createHttpOfficialResultsService, createSupabaseOfficialResultsService } from './data/httpOfficialResultsService';
 export { createSupabasePendingChangeResolver } from './data/supabasePendingChangeResolver';
 export { createIdentityConfirmation, unconfirmedIdentity } from './data/officialResults';
 export type {
