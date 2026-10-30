@@ -30,19 +30,19 @@ export function PendingChangeCard({ event, date, current, proposed, busy, failed
         {date !== '' && <Text style={[typography.body, { color: colors['ink-muted'] }]}>{date}</Text>}
       </View>
       <View style={{ flexDirection: 'row', gap: space[4] }}>
-        <View accessible accessibilityLabel={t('resultsImport.changes.current')}>
-          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('resultsImport.changes.current')}</Text>
+        <View accessible accessibilityLabel={t('results_import.update.changes.current')}>
+          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('results_import.update.changes.current')}</Text>
           <TimeValue value={current} size="time-md" />
         </View>
-        <View accessible accessibilityLabel={t('resultsImport.changes.proposed')}>
-          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('resultsImport.changes.proposed')}</Text>
+        <View accessible accessibilityLabel={t('results_import.update.changes.proposed')}>
+          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('results_import.update.changes.proposed')}</Text>
           <TimeValue value={proposed} size="time-md" />
         </View>
       </View>
-      {failed && <Banner variant="warn" icon="error">{t('resultsImport.changes.failed')}</Banner>}
+      {failed && <Banner variant="warn" icon="error">{t('results_import.update.changes.failed')}</Banner>}
       <View style={{ gap: space[2] }}>
-        <Button label={t('resultsImport.changes.use_new')} onPress={onUseNew} loading={busy} variant="secondary" />
-        <Button label={t('resultsImport.changes.keep_current')} onPress={onKeepCurrent} loading={busy} variant="ghost" />
+        <Button label={t('results_import.update.changes.use_new')} onPress={onUseNew} loading={busy} variant="secondary" />
+        <Button label={t('results_import.update.changes.keep_current')} onPress={onKeepCurrent} loading={busy} variant="ghost" />
       </View>
     </View>
   );

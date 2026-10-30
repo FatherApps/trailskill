@@ -20,13 +20,13 @@ export type ResultRowProps = {
 // Presentational: one result the guardian can choose to import.
 export function ResultRow({ event, date, competition, time, selected, onToggle }: ResultRowProps) {
   const { colors, space, radius, size, typography } = useTheme();
-  const label = [event, date, competition, time === null ? t('resultsImport.row.no_time_spoken') : spokenTime(time)].filter(Boolean).join(', ');
+  const label = [event, date, competition, time === null ? t('results_import.update.row.no_time_spoken') : spokenTime(time)].filter(Boolean).join(', ');
 
   return (
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={t(selected ? 'resultsImport.row.selected' : 'resultsImport.row.not_selected', { label })}
+      accessibilityLabel={t(selected ? 'results_import.update.row.selected' : 'results_import.update.row.not_selected', { label })}
       onPress={onToggle}
       style={{
         flexDirection: 'row',

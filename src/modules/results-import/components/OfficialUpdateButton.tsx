@@ -21,13 +21,13 @@ export function OfficialUpdateButton({ checking, lastUpdated, onPress }: Officia
     <View style={{ alignSelf: 'stretch', gap: space[1] }}>
       <Button
         variant="secondary"
-        label={t('resultsImport.button.label')}
+        label={t('results_import.update.button.label')}
         loading={checking}
-        loadingLabel={t('resultsImport.button.checking')}
+        loadingLabel={t('results_import.update.button.checking')}
         onPress={checking ? () => {} : onPress}
       />
       {lastUpdated !== null && (
-        <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('resultsImport.button.last_updated', { date: lastUpdated })}</Text>
+        <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('results_import.update.button.last_updated', { date: lastUpdated })}</Text>
       )}
     </View>
   );

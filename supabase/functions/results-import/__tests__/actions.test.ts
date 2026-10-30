@@ -1,13 +1,11 @@
 import type { NormalizedResult } from '../port.ts';
 import { createProviderRegistry, type OrganizationData } from '../registry.ts';
-import { createResultsImport, type Claim, type Confirmations, type IdentityNumbers, type QueryGate } from '../service.ts';
+import { createResultsImport, type Claim, type Confirmations, type IdentityNumbers, type PendingEntry, type PendingStore, type QueryGate } from '../service.ts';
 import {
   createOfficialResultsActions,
   MAX_IDS,
   PENDING_TTL_MS,
   type ImportRecorder,
-  type PendingResults,
-  type PendingRow,
 } from '../actions.ts';
 import { createFakeProvider } from './fakeProvider.ts';
 
@@ -28,12 +26,14 @@ const result = (key: string, overrides: Partial<NormalizedResult> = {}): Normali
   ...overrides,
 });
 
-// Same semantics as results_import_pending_put / _take: one row per id, deleted when taken, bound to user and athlete.
+// Same semantics as results_import_pending_put / _take: one row per id, deleted when taken, bound to kind, user and athlete.
 const clock = { now: Date.parse('2026-10-29T12:00:00Z') };
 
-function createFakePending(): PendingResults & { rows: Map<string, PendingRow & { requestedBy: string; athleteId: string }>; puts: Parameters<PendingResults['put']>[0][] } {
-  const rows = new Map<string, PendingRow & { requestedBy: string; athleteId: string }>();
-  const puts: Parameters<PendingResults['put']>[0][] = [];
+type Row = PendingEntry & { expiresAt: number };
+
+function createFakePending(): PendingStore & { rows: Map<string, Row>; puts: Parameters<PendingStore['put']>[0][] } {
+  const rows = new Map<string, Row>();
+  const puts: Parameters<PendingStore['put']>[0][] = [];
   let next = 0;
   return {
     rows,
@@ -41,16 +41,16 @@ function createFakePending(): PendingResults & { rows: Map<string, PendingRow & 
     async put(input) {
       puts.push(input);
       if (input.ttlMs < 0 || input.ttlMs > PENDING_TTL_MS) throw new Error('22023');
-      const id = input.pendingId ?? `p${++next}`;
-      rows.set(id, { organizationId: input.organizationId, provider: input.provider, reference: input.reference, payload: input.payload, expiresAt: new Date(clock.now + input.ttlMs).toISOString(), requestedBy: input.requestedBy, athleteId: input.athleteId });
+      const id = input.id ?? `p${++next}`;
+      const { ttlMs, id: _id, restoreUntil, ...entry } = input;
+      rows.set(id, { ...entry, expiresAt: restoreUntil ?? clock.now + ttlMs });
       return id;
     },
-    async take({ id, requestedBy, athleteId }) {
+    async take({ id, kind, userId, athleteId }) {
       const row = rows.get(id);
-      if (!row || row.requestedBy !== requestedBy || row.athleteId !== athleteId) return null;
+      if (!row || row.kind !== kind || row.userId !== userId || row.athleteId !== athleteId) return null;
       rows.delete(id);
-      const { requestedBy: _by, athleteId: _athlete, ...taken } = row;
-      return taken;
+      return row;
     },
   };
 }
@@ -79,15 +79,23 @@ function setup(
     async read() {
       return options.number === undefined ? NUMBER : options.number;
     },
-    async save() {},
+    async keep() {
+      return true;
+    },
   };
-  const confirmations: Confirmations = { async record() {} };
+  const confirmations: Confirmations = {
+    async record() {
+      return 'evidence-1';
+    },
+    async remove() {},
+  };
   const service = createResultsImport({
     registry: createProviderRegistry([provider]),
     gate,
     identityNumbers,
     confirmations,
     organizationChain: async () => chain,
+    pending,
   });
   const recorded: Parameters<ImportRecorder['record']>[0][] = [];
   const recorder: ImportRecorder = {
@@ -160,7 +168,7 @@ describe('results', () => {
     });
     expect(JSON.stringify(outcome)).not.toContain('r-1');
     // The key and the values wait on the server for the import, for 15 minutes.
-    expect(pending.puts[0]).toMatchObject({ requestedBy: USER, athleteId: ATHLETE, organizationId: ORG, provider: 'zz-test', reference: 'r-1', ttlMs: PENDING_TTL_MS });
+    expect(pending.puts[0]).toMatchObject({ kind: 'results', userId: USER, athleteId: ATHLETE, organizationId: ORG, provider: 'zz-test', reference: 'r-1', ttlMs: PENDING_TTL_MS });
   });
 
   it('keeps a missing time as null, never zero', async () => {
@@ -248,9 +256,9 @@ describe('import', () => {
     clock.now += 6 * 60 * 1000;
     await actions.import({ ...who, resultIds: ids });
 
-    const restored = pending.puts.filter((put) => put.pendingId !== undefined);
+    const restored = pending.puts.filter((put) => put.id !== undefined);
     expect(restored).toHaveLength(ids.length);
-    expect(restored.every((put) => put.ttlMs === PENDING_TTL_MS - 6 * 60 * 1000)).toBe(true);
+    expect(restored.every((put) => put.ttlMs === PENDING_TTL_MS - 6 * 60 * 1000 && put.restoreUntil === clock.now - 6 * 60 * 1000 + PENDING_TTL_MS)).toBe(true);
     clock.now -= 6 * 60 * 1000;
   });
 
@@ -259,7 +267,7 @@ describe('import', () => {
     clock.now += PENDING_TTL_MS + 1;
     await actions.import({ ...who, resultIds: ids });
     // Taken before it expired in the fake, so there is nothing left to restore.
-    expect(pending.puts.filter((put) => put.pendingId !== undefined)).toEqual([]);
+    expect(pending.puts.filter((put) => put.id !== undefined)).toEqual([]);
     clock.now -= PENDING_TTL_MS + 1;
   });
 

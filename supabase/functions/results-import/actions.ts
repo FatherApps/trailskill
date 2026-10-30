@@ -1,5 +1,5 @@
 import type { NormalizedResult } from './port.ts';
-import type { IdentityNumbers, ImportError, Outcome, createResultsImport } from './service.ts';
+import { NotAuthorizedError, type ImportError, type Outcome, type PendingEntry, type PendingStore, type createResultsImport } from './service.ts';
 
 // The ids of offered results live this long on the server, as `public.results_import_pending_put` limits them.
 export const PENDING_TTL_MS = 15 * 60 * 1000;
@@ -12,29 +12,6 @@ export type ActionOutcome<T> = { ok: true; value: T } | { ok: false; error: Acti
 /** What waits on the server for an offered result: its values, never the source key (that is the `reference`). */
 export type ResultPayload = Omit<NormalizedResult, 'sourceResultKey'>;
 
-/** `expiresAt` (ISO) is when the row was due to expire; a restore keeps what was left of it, never more. */
-export type PendingRow = { organizationId: string; provider: string; reference: string; payload: ResultPayload; expiresAt: string };
-
-/**
- * Implemented by `public.results_import_pending_put` / `results_import_pending_take` (service_role only, owned by #81):
- * single use, 15 minutes, bound to user, athlete and kind (this port is always kind 'results'; the adapter passes it). `take` returns null for an expired, used or foreign id.
- */
-export interface PendingResults {
-  put(input: {
-    requestedBy: string;
-    athleteId: string;
-    organizationId: string;
-    provider: string;
-    reference: string;
-    payload: ResultPayload;
-    // 0 to 15 minutes; anything else is rejected by the database (22023).
-    ttlMs: number;
-    // Put a taken row back under its own id, with the time it had left.
-    pendingId?: string;
-  }): Promise<string>;
-  take(input: { id: string; requestedBy: string; athleteId: string }): Promise<PendingRow | null>;
-}
-
 export type ImportSummary = { importId: string; inserted: number; duplicates: number; changes: number };
 
 /** Implemented by `public.record_imported_results(athlete, organization, requested_by, results)`. */
@@ -44,14 +21,15 @@ export interface ImportRecorder {
 
 type Dependencies = {
   service: ReturnType<typeof createResultsImport>;
-  identityNumbers: IdentityNumbers;
-  pending: PendingResults;
+  identityNumbers: { read(athleteId: string): Promise<string | null> };
+  /** Kind 'results' only: the ids of what the source offered, single use, 15 minutes. */
+  pending: PendingStore;
   recorder: ImportRecorder;
-  /** The user manages the athlete and `import_official_results` is in force. Spends no rate limit. */
+  /** The user manages the athlete and `import_official_results` is in force (`public.results_import_access`). Spends no rate limit. */
   access: { allowed(input: { userId: string; athleteId: string }): Promise<boolean> };
   /** The latest "¿Es esta persona?" confirmation of the athlete, from `results_import_confirmations`. */
   confirmations: { latest(athleteId: string): Promise<{ organizationId: string; confirmedAt: string; candidateName: string } | null> };
-  /** The provider key registered for the organization (`results_import_sources`), or null. */
+  /** The provider key the organization resolves to, or null when it has none. */
   providerKeyFor(organizationId: string): Promise<string | null>;
   now?: () => number;
 };
@@ -78,11 +56,11 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
 
   // A taken row goes back under its own id with the time it had left, never more; one already expired stays gone.
   // Best effort: if this fails too, the ids expire and the guardian asks again.
-  async function restore(taken: Map<string, PendingRow>, who: Who) {
+  async function restore(taken: Map<string, PendingEntry & { expiresAt: number }>) {
     await Promise.allSettled(
-      [...taken].flatMap(([id, { expiresAt, ...row }]) => {
-        const ttlMs = Math.min(PENDING_TTL_MS, Date.parse(expiresAt) - now());
-        return ttlMs > 0 ? [pending.put({ ...row, requestedBy: who.userId, athleteId: who.athleteId, ttlMs, pendingId: id })] : [];
+      [...taken].flatMap(([id, { expiresAt, ...entry }]) => {
+        const ttlMs = Math.min(PENDING_TTL_MS, expiresAt - now());
+        return ttlMs > 0 ? [pending.put({ ...entry, ttlMs, restoreUntil: expiresAt, id })] : [];
       }),
     );
   }
@@ -110,13 +88,13 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
         if (provider === null) return fail({ code: 'no_provider' });
         const offered = await Promise.all(
           results.map(async ({ sourceResultKey, ...payload }) => {
-            const id = await pending.put({ requestedBy: who.userId, athleteId: who.athleteId, organizationId, provider, reference: sourceResultKey, payload, ttlMs: PENDING_TTL_MS });
+            const id = await pending.put({ kind: 'results', userId: who.userId, athleteId: who.athleteId, organizationId, provider, reference: sourceResultKey, payload, ttlMs: PENDING_TTL_MS });
             return { id, ...payload };
           }),
         );
         return { ok: true, value: { results: offered } };
-      } catch {
-        return UNAVAILABLE;
+      } catch (error) {
+        return error instanceof NotAuthorizedError ? fail({ code: 'not_authorized' }) : UNAVAILABLE;
       }
     },
 
@@ -127,12 +105,12 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
       if (!Array.isArray(resultIds) || resultIds.length === 0 || resultIds.length > MAX_IDS || !resultIds.every((id) => typeof id === 'string' && id !== '')) {
         return fail({ code: 'bad_request' });
       }
-      const taken = new Map<string, PendingRow>();
+      const taken = new Map<string, PendingEntry & { expiresAt: number }>();
       try {
         for (const id of new Set(resultIds as string[])) {
-          const row = await pending.take({ id, requestedBy: who.userId, athleteId: who.athleteId });
+          const row = await pending.take({ id, kind: 'results', userId: who.userId, athleteId: who.athleteId });
           if (row === null) {
-            await restore(taken, who);
+            await restore(taken);
             return fail({ code: 'unknown_id' });
           }
           taken.set(id, row);
@@ -140,18 +118,18 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
         const rows = [...taken.values()];
         const [first] = rows;
         if (rows.some((row) => row.organizationId !== first!.organizationId || row.provider !== first!.provider)) {
-          await restore(taken, who);
+          await restore(taken);
           return fail({ code: 'bad_request' });
         }
         const summary = await recorder.record({
           athleteId: who.athleteId,
           organizationId: first!.organizationId,
           requestedBy: who.userId,
-          results: rows.map(({ reference, payload }) => ({ sourceResultKey: reference, ...payload })),
+          results: rows.map(({ reference, payload }) => ({ sourceResultKey: reference, ...(payload as ResultPayload) })),
         });
         return { ok: true, value: summary };
       } catch {
-        await restore(taken, who);
+        await restore(taken);
         return UNAVAILABLE;
       }
     },

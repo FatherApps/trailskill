@@ -1,58 +1,125 @@
 {
-  "button": {
-    "label": "Actualizar resultados oficiales",
-    "checking": "Consultando…",
-    "last_updated": "Última actualización: {{date}}"
+  "start": {
+    "title": "Buscar el historial oficial",
+    "intro": "Buscaremos a {{name}} en {{source}}. Tú confirmas que es la misma persona antes de importar.",
+    "number_label": "Número de identificación (opcional)",
+    "number_help": "Se guarda cifrado en el servidor y nunca se muestra completo.",
+    "number_invalid": "Usa solo letras y números, hasta 20.",
+    "number_saved": "Ya hay un número de identificación guardado.",
+    "number_saved_ending": "Ya hay un número de identificación guardado, termina en {{ending}}.",
+    "search_stored": "Buscar con el número guardado",
+    "save_and_search": "Guardar número y buscar",
+    "by_name": "Seguir por nombre",
+    "searching": "Buscando…"
   },
-  "panel": {
-    "title": "Resultados oficiales"
+  "candidates": {
+    "title": "¿Es esta persona?",
+    "intro": "Encontramos este historial en {{source}}. Revisa que sea de {{name}} antes de confirmar.",
+    "affiliation_note": "La afiliación que se muestra puede ser una anterior. Confirma si el historial es de la misma persona.",
+    "club_and_league": "{{club}} · {{league}}",
+    "no_affiliation": "Sin afiliación registrada",
+    "years": "Años: {{years}}",
+    "results_one": "1 resultado",
+    "results_other": "{{count}} resultados",
+    "confirm": "Sí, es esta persona",
+    "confirming": "Confirmando…",
+    "none": "No es ninguna de estas"
   },
-  "none": {
-    "title": "No hay resultados nuevos",
-    "message": "No cambiamos nada. Lo que ya importaste sigue igual."
+  "empty": {
+    "title": "No encontramos a nadie",
+    "message": "No hay un historial en {{source}} para {{name}}. Revisa el nombre o prueba con el número de identificación.",
+    "action": "Volver a buscar"
+  },
+  "confirmed": {
+    "title": "Confirmado",
+    "message": "Confirmaste que el historial de {{source}} es de {{name}}. Falta elegir qué resultados importar.",
+    "action": "Listo"
+  },
+  "unauthorized": {
+    "title": "Falta la autorización",
+    "message": "Para importar resultados oficiales de {{name}}, primero hay que aceptar la autorización de importación.",
+    "action": "Ir a Autorizaciones"
   },
   "unavailable": {
-    "title": "No disponible",
-    "message": "No pudimos consultar el origen ahora. Lo que ya importaste sigue igual.",
-    "retry": "Reintentar"
+    "title": "El origen no está disponible",
+    "message": "No pudimos consultar el origen de resultados oficiales o no tiene registro para esta búsqueda. El resto de la app sigue funcionando; puedes intentar más tarde."
+  },
+  "offline": {
+    "title": "Sin conexión",
+    "message": "Necesitas conexión para buscar en el origen oficial. El resto de la app sigue funcionando."
   },
   "rate_limited": {
-    "title": "Ya consultamos hace poco",
-    "message": "Podrás volver a intentarlo a las {{time}}."
+    "title": "Espera un momento",
+    "message": "Ya consultamos el origen hace poco. Podrás volver a intentar a las {{time}}."
   },
-  "list": {
-    "title": "Resultados nuevos",
-    "hint": "Elige cuáles importar. No se importa nada hasta que lo confirmes.",
-    "import_one": "Importar {{count}} resultado",
-    "import_other": "Importar {{count}} resultados",
-    "importing": "Importando…",
-    "dismiss": "Ahora no",
-    "none_selected": "Elige al menos un resultado",
-    "expired": "La lista venció. La consultamos de nuevo: vuelve a elegir.",
-    "failed": "No pudimos importar. Lo que ya tenías sigue igual."
+  "loading_error": {
+    "title": "No pudimos cargar",
+    "message": "No pudimos preparar la búsqueda. Intenta de nuevo.",
+    "action": "Reintentar"
   },
-  "row": {
-    "selected": "Elegido: {{label}}",
-    "not_selected": "No elegido: {{label}}",
-    "no_time_spoken": "sin tiempo"
+  "errors": {
+    "unexpected": "Algo salió mal. Intenta de nuevo.",
+    "expired": "La búsqueda venció. Vuelve a buscar.",
+    "number_conflict": "Este historial no coincide con el número que ya está guardado, así que no lo confirmamos.",
+    "save_failed": "No pudimos guardar el número. Intenta de nuevo."
   },
-  "done": {
-    "inserted_one": "Importamos {{count}} resultado.",
-    "inserted_other": "Importamos {{count}} resultados.",
-    "nothing": "No se importó ningún resultado nuevo.",
-    "changes_one": "{{count}} resultado cambió en el origen: decide abajo.",
-    "changes_other": "{{count}} resultados cambiaron en el origen: decide abajo."
-  },
-  "changes": {
-    "title": "Cambiaron en el origen",
-    "hint": "Mientras no elijas, seguimos mostrando el valor importado antes.",
-    "current": "Importado antes",
-    "proposed": "Nuevo en el origen",
-    "use_new": "Usar el valor nuevo",
-    "keep_current": "Mantener el actual",
-    "failed": "No pudimos guardar tu elección. Intenta de nuevo."
-  },
-  "event": {
-    "label": "{{stroke}} {{distance}} · {{pool}}"
+  "back": "Volver",
+  "update": {
+    "button": {
+      "label": "Actualizar resultados oficiales",
+      "checking": "Consultando…",
+      "last_updated": "Última actualización: {{date}}"
+    },
+    "panel": {
+      "title": "Resultados oficiales"
+    },
+    "none": {
+      "title": "No hay resultados nuevos",
+      "message": "No cambiamos nada. Lo que ya importaste sigue igual."
+    },
+    "unavailable": {
+      "title": "No disponible",
+      "message": "No pudimos consultar el origen ahora. Lo que ya importaste sigue igual.",
+      "retry": "Reintentar"
+    },
+    "rate_limited": {
+      "title": "Ya consultamos hace poco",
+      "message": "Podrás volver a intentarlo a las {{time}}."
+    },
+    "list": {
+      "title": "Resultados nuevos",
+      "hint": "Elige cuáles importar. No se importa nada hasta que lo confirmes.",
+      "import_one": "Importar {{count}} resultado",
+      "import_other": "Importar {{count}} resultados",
+      "importing": "Importando…",
+      "dismiss": "Ahora no",
+      "none_selected": "Elige al menos un resultado",
+      "expired": "La lista venció. La consultamos de nuevo: vuelve a elegir.",
+      "failed": "No pudimos importar. Lo que ya tenías sigue igual."
+    },
+    "row": {
+      "selected": "Elegido: {{label}}",
+      "not_selected": "No elegido: {{label}}",
+      "no_time_spoken": "sin tiempo"
+    },
+    "done": {
+      "inserted_one": "Importamos {{count}} resultado.",
+      "inserted_other": "Importamos {{count}} resultados.",
+      "nothing": "No se importó ningún resultado nuevo.",
+      "changes_one": "{{count}} resultado cambió en el origen: decide abajo.",
+      "changes_other": "{{count}} resultados cambiaron en el origen: decide abajo."
+    },
+    "changes": {
+      "title": "Cambiaron en el origen",
+      "hint": "Mientras no elijas, seguimos mostrando el valor importado antes.",
+      "current": "Importado antes",
+      "proposed": "Nuevo en el origen",
+      "use_new": "Usar el valor nuevo",
+      "keep_current": "Mantener el actual",
+      "failed": "No pudimos guardar tu elección. Intenta de nuevo."
+    },
+    "event": {
+      "label": "{{stroke}} {{distance}} · {{pool}}"
+    }
   }
 }

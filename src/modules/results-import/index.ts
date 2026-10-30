@@ -24,3 +24,17 @@ export { OfficialUpdateButton, type OfficialUpdateButtonProps } from './componen
 export { PendingChangeCard, type PendingChangeCardProps } from './components/PendingChangeCard';
 export { ResultRow, type ResultRowProps } from './components/ResultRow';
 export { galleryEntries } from './gallery';
+export { ConfirmPersonContainer, formatRetryTime, type ConfirmPersonContainerProps } from './screens/ConfirmPersonContainer';
+export { ConfirmPersonScreen, type ConfirmPersonScreenProps, type ConfirmPersonView } from './screens/ConfirmPersonScreen';
+export {
+  createInMemoryOfficialSearchRepository,
+  createSupabaseImportSourcesRepository,
+  createSupabaseOfficialSearchRepository,
+  type ImportSource,
+  type ImportSourcesRepository,
+  type OfficialSearchRepository,
+  type SearchCandidate,
+  type SearchFailure,
+  type SearchOutcome,
+} from './data/officialSearch';
+export { useImportSources } from './data/useImportSources';

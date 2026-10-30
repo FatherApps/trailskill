@@ -48,6 +48,7 @@
     "question": "¿{{name}} compitió antes?",
     "question_no_name": "¿El deportista compitió antes?",
     "offer": "Puedes traer su historial de {{source}}. Tú lo confirmas antes de importar.",
+    "start": "Buscar en {{source}}",
     "imported": "Ya importamos el historial de {{name}} desde {{source}}. Puedes actualizarlo cuando quieras.",
     "imported_no_name": "Ya importamos el historial del deportista desde {{source}}. Puedes actualizarlo cuando quieras.",
     "dismiss": "Ahora no",

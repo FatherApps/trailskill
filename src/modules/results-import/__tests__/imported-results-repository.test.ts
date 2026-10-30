@@ -1,7 +1,8 @@
 import { createInMemoryImportedResultsRepository, type ImportedResult, type PendingResultChange } from '..';
 
-// The public entry also exports the PowerSync repository, which loads the ESM-only sync stack.
-jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
+// The module index reaches the accounts index, which reaches the PowerSync repositories; the sync layer is ESM-only for Jest.
+jest.mock('../../../core/sync', () => ({ db: {}, writeBatch: jest.fn(), supabase: {} }));
+jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 const result = (overrides: Partial<ImportedResult>): ImportedResult => ({
   id: 'r1',

@@ -40,13 +40,13 @@ export type OfficialResultsScreenProps = {
 };
 
 function Notice({ notice }: { notice: ImportNotice }) {
-  if (notice === 'expired') return <Banner variant="warn" icon="schedule">{t('resultsImport.list.expired')}</Banner>;
-  if (notice === 'failed') return <Banner variant="warn" icon="error">{t('resultsImport.list.failed')}</Banner>;
+  if (notice === 'expired') return <Banner variant="warn" icon="schedule">{t('results_import.update.list.expired')}</Banner>;
+  if (notice === 'failed') return <Banner variant="warn" icon="error">{t('results_import.update.list.failed')}</Banner>;
   return (
     <Banner variant="success" icon="check_circle">
       {[
-        notice.inserted > 0 ? t('resultsImport.done.inserted', { count: notice.inserted }) : t('resultsImport.done.nothing'),
-        notice.changes > 0 ? t('resultsImport.done.changes', { count: notice.changes }) : null,
+        notice.inserted > 0 ? t('results_import.update.done.inserted', { count: notice.inserted }) : t('results_import.update.done.nothing'),
+        notice.changes > 0 ? t('results_import.update.done.changes', { count: notice.changes }) : null,
       ]
         .filter(Boolean)
         .join(' ')}
@@ -68,44 +68,44 @@ export function OfficialResultsScreen({ view, notice, changes, onUseNew, onKeepC
       {notice && <Notice notice={notice} />}
       {view.kind === 'checking' && <StateView kind="loading" />}
       {view.kind === 'none' && (
-        <StateView kind="empty" icon="cloud_done" title={t('resultsImport.none.title')} message={t('resultsImport.none.message')} />
+        <StateView kind="empty" icon="cloud_done" title={t('results_import.update.none.title')} message={t('results_import.update.none.message')} />
       )}
       {view.kind === 'unavailable' && (
         <StateView
           kind="offline"
-          title={t('resultsImport.unavailable.title')}
-          message={t('resultsImport.unavailable.message')}
-          action={{ label: t('resultsImport.unavailable.retry'), onPress: view.onRetry }}
+          title={t('results_import.update.unavailable.title')}
+          message={t('results_import.update.unavailable.message')}
+          action={{ label: t('results_import.update.unavailable.retry'), onPress: view.onRetry }}
         />
       )}
       {view.kind === 'rate_limited' && (
         <StateView
           kind="empty"
           icon="schedule"
-          title={t('resultsImport.rate_limited.title')}
-          message={t('resultsImport.rate_limited.message', { time: view.retryAt })}
+          title={t('results_import.update.rate_limited.title')}
+          message={t('results_import.update.rate_limited.message', { time: view.retryAt })}
         />
       )}
       {view.kind === 'list' && (
         <View style={{ gap: space[2] }}>
-          {heading('resultsImport.list.title')}
-          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('resultsImport.list.hint')}</Text>
+          {heading('results_import.update.list.title')}
+          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('results_import.update.list.hint')}</Text>
           {view.items.map(({ id, ...row }) => (
             <ResultRow key={id} {...row} selected={view.selectedIds.includes(id)} onToggle={() => view.onToggle(id)} />
           ))}
           <Button
-            label={view.selectedIds.length === 0 ? t('resultsImport.list.none_selected') : t('resultsImport.list.import', { count: view.selectedIds.length })}
+            label={view.selectedIds.length === 0 ? t('results_import.update.list.none_selected') : t('results_import.update.list.import', { count: view.selectedIds.length })}
             loading={view.importing}
-            loadingLabel={t('resultsImport.list.importing')}
+            loadingLabel={t('results_import.update.list.importing')}
             onPress={view.selectedIds.length === 0 || view.importing ? () => {} : view.onImport}
           />
-          <Button variant="ghost" label={t('resultsImport.list.dismiss')} onPress={view.onDismiss} />
+          <Button variant="ghost" label={t('results_import.update.list.dismiss')} onPress={view.onDismiss} />
         </View>
       )}
       {changes.length > 0 && (
         <View style={{ gap: space[2] }}>
-          {heading('resultsImport.changes.title')}
-          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('resultsImport.changes.hint')}</Text>
+          {heading('results_import.update.changes.title')}
+          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('results_import.update.changes.hint')}</Text>
           {changes.map(({ id, ...card }) => (
             <PendingChangeCard key={id} {...card} onUseNew={() => onUseNew(id)} onKeepCurrent={() => onKeepCurrent(id)} />
           ))}

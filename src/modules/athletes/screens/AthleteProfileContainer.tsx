@@ -5,6 +5,7 @@ import { distances, pools, strokes, type DistanceCode, type PoolCode, type Strok
 import type { Hundredths } from '../../../core/time';
 import { useRecordSyncStates } from '../../../core/sync';
 import type { EventValue } from '../components/EventSelector';
+import type { ImportPromptProps } from '../components/ImportPrompt';
 import type { HistoryOrigin, HistoryResult } from '../components/HistoryList';
 import type { AthleteSchoolRepository } from '../data/athleteSchools';
 import type { HistoryMeasurement, HistoryRepository } from '../data/history';
@@ -45,6 +46,8 @@ export type AthleteProfileContainerProps = {
   importedResults?: { listByAthlete(athleteId: string): Promise<ImportedHistoryResult[]> };
   // The official-results update of the results-import module. Pass it only to viewers that may import.
   officialUpdate?: ReactNode;
+  // Only guardians and adults get it: the route decides by passing it or not.
+  importPrompt?: ImportPromptProps;
   // Where the band's back button goes; the route decides (the module has no router).
   onBack: () => void;
 };
@@ -143,6 +146,7 @@ export function AthleteProfileContainer({
   online = false,
   importedResults,
   officialUpdate,
+  importPrompt,
   onBack,
 }: AthleteProfileContainerProps) {
   const [event, setEvent] = useState<EventValue>(initialEvent);
@@ -246,6 +250,7 @@ export function AthleteProfileContainer({
     // Stable by date: the device's own rows keep their order within a day.
     history: [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map(toImportedResult)].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
     ...(officialUpdate ? { officialUpdate } : {}),
+    ...(importPrompt ? { importPrompt } : {}),
     ...(otherSchoolResults && !online ? { otherSchoolOffline: true } : {}),
     // Connected but the server failed or did not answer: not the offline notice, a retry of this section only.
     ...(other === null ? { otherSchoolError: { onRetry: retryOtherSchool } } : {}),
