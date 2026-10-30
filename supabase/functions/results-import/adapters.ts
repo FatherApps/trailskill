@@ -172,6 +172,7 @@ export function createImportRecorder(db: Db): ImportRecorder {
         requested_by: requestedBy,
         results,
       });
+      if (error?.code === NOT_AUTHORIZED) throw new NotAuthorizedError();
       const summary = data as Record<string, unknown> | null;
       if (
         error || typeof summary !== 'object' || summary === null || typeof summary.importId !== 'string' ||

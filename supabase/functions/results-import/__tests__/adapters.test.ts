@@ -250,8 +250,12 @@ describe('createImportRecorder', () => {
     expect(fake.calls).toEqual([{ fn: 'record_imported_results', args: { athlete: ATHLETE, organization: 'org-1', requested_by: USER, results: [] } }]);
   });
 
+  it('turns 42501 (access lost) into NotAuthorizedError', async () => {
+    await expect(createImportRecorder(createFakeDb([{ error: { code: '42501', message: NUMBER } }]).db).record(input)).rejects.toBeInstanceOf(NotAuthorizedError);
+  });
+
   it('throws, repeating nothing of the message, when the database fails or answers something else', async () => {
-    await expect(createImportRecorder(createFakeDb([{ error: { code: '42501', message: NUMBER } }]).db).record(input)).rejects.toThrow('Recording the imported results failed (42501)');
+    await expect(createImportRecorder(createFakeDb([{ error: { code: 'XX000', message: NUMBER } }]).db).record(input)).rejects.toThrow('Recording the imported results failed (XX000)');
     await expect(createImportRecorder(createFakeDb([{ data: { importId: 'i1' } }]).db).record(input)).rejects.toThrow();
   });
 });

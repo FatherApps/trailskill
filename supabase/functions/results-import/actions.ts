@@ -5,6 +5,8 @@ import { NotAuthorizedError, type ImportError, type Outcome, type PendingEntry, 
 export const PENDING_TTL_MS = 15 * 60 * 1000;
 // shortcut: a source with more than 500 results cannot be imported in one call (bad_request), upgrade to chunked imports if a real athlete reaches it.
 export const MAX_IDS = 500;
+// The database issues uuids; anything else can only be a mistake or an attack, and never reaches it.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ActionError = ImportError | { code: 'unknown_id' } | { code: 'not_confirmed' } | { code: 'bad_request' };
 export type ActionOutcome<T> = { ok: true; value: T } | { ok: false; error: ActionError };
@@ -102,7 +104,7 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
     async import(input: Who & { resultIds: unknown }): Promise<ActionOutcome<ImportSummary>> {
       const { resultIds, ...who } = input;
       if (!(await access.allowed(who))) return fail({ code: 'not_authorized' });
-      if (!Array.isArray(resultIds) || resultIds.length === 0 || resultIds.length > MAX_IDS || !resultIds.every((id) => typeof id === 'string' && id !== '')) {
+      if (!Array.isArray(resultIds) || resultIds.length === 0 || resultIds.length > MAX_IDS || !resultIds.every((id) => typeof id === 'string' && UUID.test(id))) {
         return fail({ code: 'bad_request' });
       }
       const taken = new Map<string, PendingEntry & { expiresAt: number }>();
@@ -128,9 +130,10 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
           results: rows.map(({ reference, payload }) => ({ sourceResultKey: reference, ...(payload as ResultPayload) })),
         });
         return { ok: true, value: summary };
-      } catch {
+      } catch (error) {
         await restore(taken);
-        return UNAVAILABLE;
+        // Access lost between take and record: the database refuses the import.
+        return error instanceof NotAuthorizedError ? fail({ code: 'not_authorized' }) : UNAVAILABLE;
       }
     },
   };

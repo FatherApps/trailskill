@@ -1,6 +1,6 @@
 import type { NormalizedResult } from '../port.ts';
 import { createProviderRegistry, type OrganizationData } from '../registry.ts';
-import { createResultsImport, type Claim, type Confirmations, type IdentityNumbers, type PendingEntry, type PendingStore, type QueryGate } from '../service.ts';
+import { createResultsImport, NotAuthorizedError, type Claim, type Confirmations, type IdentityNumbers, type PendingEntry, type PendingStore, type QueryGate } from '../service.ts';
 import {
   createOfficialResultsActions,
   MAX_IDS,
@@ -26,6 +26,9 @@ const result = (key: string, overrides: Partial<NormalizedResult> = {}): Normali
   ...overrides,
 });
 
+// The database issues uuids.
+const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
 // Same semantics as results_import_pending_put / _take: one row per id, deleted when taken, bound to kind, user and athlete.
 const clock = { now: Date.parse('2026-10-29T12:00:00Z') };
 
@@ -41,7 +44,7 @@ function createFakePending(): PendingStore & { rows: Map<string, Row>; puts: Par
     async put(input) {
       puts.push(input);
       if (input.ttlMs < 0 || input.ttlMs > PENDING_TTL_MS) throw new Error('22023');
-      const id = input.id ?? `p${++next}`;
+      const id = input.id ?? uuid(++next);
       const { ttlMs, id: _id, restoreUntil, ...entry } = input;
       rows.set(id, { ...entry, expiresAt: restoreUntil ?? clock.now + ttlMs });
       return id;
@@ -63,6 +66,7 @@ function setup(
     results?: NormalizedResult[];
     claim?: Claim;
     recordFails?: boolean;
+    recordDenied?: boolean;
     providerKey?: string | null;
   } = {},
 ) {
@@ -101,6 +105,8 @@ function setup(
   const recorder: ImportRecorder = {
     async record(input) {
       if (options.recordFails) throw new Error('db down');
+      // Access lost between take and record: the database refuses with 42501, which the adapter turns into this error.
+      if (options.recordDenied) throw new NotAuthorizedError();
       recorded.push(input);
       return { importId: 'import-1', inserted: input.results.length, duplicates: 0, changes: 0 };
     },
@@ -161,8 +167,8 @@ describe('results', () => {
       ok: true,
       value: {
         results: [
-          { id: 'p1', stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: 2890, swumOn: '2026-03-14', competition: 'Synthetic Open' },
-          { id: 'p2', stroke: 'FR', distance: '100m', pool: 'LCM', hundredths: 2890, swumOn: '2026-03-14', competition: 'Synthetic Open' },
+          { id: uuid(1), stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: 2890, swumOn: '2026-03-14', competition: 'Synthetic Open' },
+          { id: uuid(2), stroke: 'FR', distance: '100m', pool: 'LCM', hundredths: 2890, swumOn: '2026-03-14', competition: 'Synthetic Open' },
         ],
       },
     });
@@ -243,7 +249,7 @@ describe('import', () => {
 
   it('rejects everything and takes none when only part of the ids are valid', async () => {
     const { actions, pending, recorded, ids } = await offered();
-    expect(await actions.import({ ...who, resultIds: [ids[0]!, 'never-issued'] })).toEqual({ ok: false, error: { code: 'unknown_id' } });
+    expect(await actions.import({ ...who, resultIds: [ids[0]!, uuid(99)] })).toEqual({ ok: false, error: { code: 'unknown_id' } });
 
     // The valid one was put back, so the guardian can try again with it.
     expect(pending.rows.has(ids[0]!)).toBe(true);
@@ -283,11 +289,19 @@ describe('import', () => {
     expect([...failing.pending.rows.keys()].sort()).toEqual([...failing.ids].sort());
   });
 
+  it('answers not_authorized, and puts the ids back, when access is lost between take and record', async () => {
+    const denied = await offered({ recordDenied: true });
+    expect(await denied.actions.import({ ...who, resultIds: denied.ids })).toEqual({ ok: false, error: { code: 'not_authorized' } });
+    expect([...denied.pending.rows.keys()].sort()).toEqual([...denied.ids].sort());
+    expect(denied.recorded).toEqual([]);
+  });
+
   it.each([
     ['no ids', []],
     ['an id that is not a string', [1]],
     ['an empty id', ['']],
-    ['too many ids', Array.from({ length: MAX_IDS + 1 }, (_, i) => `p${i}`)],
+    ['an id that is a string but not a uuid', ['p1']],
+    ['too many ids', Array.from({ length: MAX_IDS + 1 }, (_, i) => uuid(i + 1))],
   ])('answers bad_request for %s, and takes nothing', async (_name, resultIds) => {
     const { actions, pending, ids } = await offered();
     expect(await actions.import({ ...who, resultIds: resultIds as string[] })).toEqual({ ok: false, error: { code: 'bad_request' } });
