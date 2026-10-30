@@ -29,6 +29,7 @@ export { createInMemoryHistoryRepository } from './data/inMemoryHistoryRepositor
 export { createHistoryRepository, createPowerSyncHistoryRepository } from './data/measurementHistoryRepository';
 export { personalBest, personalBestKinds, personalBestTime, type PersonalBestResult } from './personalBest';
 export { formatShortName } from './formatShortName';
+export { formatDate } from './components/formatDate';
 export {
   createInMemoryAthleteSchoolRepository,
   createPowerSyncAthleteSchoolRepository,
@@ -43,7 +44,7 @@ export {
 } from './data/athleteRepository';
 export { athleteDisplay, type AthleteColor } from './athleteDisplay';
 export { useManagedAthletes, type ManagedAthletesResult } from './data/useManagedAthletes';
-export { AthleteProfileContainer, type AthleteProfileContainerProps } from './screens/AthleteProfileContainer';
+export { AthleteProfileContainer, type AthleteProfileContainerProps, type ImportedHistoryResult } from './screens/AthleteProfileContainer';
 export { MyAthletesScreen, type MyAthleteCard, type MyAthletesScreenProps, type MyAthletesView } from './screens/MyAthletesScreen';
 export { MarksScreen, type MarkCard, type MarksScreenProps, type MarksView } from './screens/MarksScreen';
 export { MarksContainer, type MarksContainerProps } from './screens/MarksContainer';

@@ -42,4 +42,8 @@ export interface ImportedResultsRepository {
   listByAthlete(athleteId: string): Promise<ImportedResult[]>;
   /** Changes still waiting for "Usar el valor nuevo" or "Mantener el actual", oldest first. Reads the local database only. */
   listPendingChanges(athleteId: string): Promise<PendingResultChange[]>;
+  /** Every change the source ever proposed for the athlete, answered or not, oldest first. Reads the local database only. */
+  listAllChanges(athleteId: string): Promise<PendingResultChange[]>;
+  /** When the athlete's results were last imported (ISO), or null before any import. Reads the local database only. */
+  lastImportedAt(athleteId: string): Promise<string | null>;
 }

@@ -23,6 +23,8 @@ export type AthleteProfileContent = {
   chart?: ReactNode;
   // Only guardians and adults get it: the caller decides by passing it or not.
   importPrompt?: ImportPromptProps;
+  // The official-results update (button, choices) of another module; only guardians and adults get it: the caller passes it or not.
+  officialUpdate?: ReactNode;
   // Another school's results are online only: set while offline to explain why none show, in place of them.
   otherSchoolOffline?: boolean;
   // Connected, but the server failed or did not answer: an error for this section only, with its own retry.
@@ -168,7 +170,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   );
 
   const footer =
-    empty || content.importPrompt || content.otherSchoolOffline || content.otherSchoolError ? (
+    empty || content.importPrompt || content.officialUpdate || content.otherSchoolOffline || content.otherSchoolError ? (
       <View style={[padded, { gap: space[4], paddingVertical: space[4] }]}>
         {empty && (
           <StateView
@@ -196,6 +198,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
           />
         )}
         {content.importPrompt && <ImportPrompt {...content.importPrompt} />}
+        {content.officialUpdate}
       </View>
     ) : undefined;
 

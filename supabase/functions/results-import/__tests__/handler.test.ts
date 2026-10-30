@@ -1,4 +1,5 @@
 import { createHandler } from '../handler.ts';
+import type { ActionOutcome } from '../actions.ts';
 import { OrphanedConfirmationError, type ImportError, type Outcome, type PublicCandidate } from '../service.ts';
 
 const ATHLETE = '11111111-1111-4111-8111-111111111111';
@@ -8,7 +9,7 @@ const SECRET = 'secret-internal-detail';
 
 type Calls = { method: string; argument: unknown }[];
 
-function setup(options: { userId?: string | null; search?: Outcome<PublicCandidate[]>; confirm?: Outcome<void> | Error } = {}) {
+function setup(options: { userId?: string | null; search?: Outcome<PublicCandidate[]>; confirm?: Outcome<void> | Error; official?: ActionOutcome<unknown> } = {}) {
   const calls: Calls = [];
   const handle = createHandler({
     authenticate: async () => (options.userId === undefined ? USER : options.userId),
@@ -21,6 +22,20 @@ function setup(options: { userId?: string | null; search?: Outcome<PublicCandida
         calls.push({ method: 'confirmCandidate', argument });
         if (options.confirm instanceof Error) throw options.confirm;
         return options.confirm ?? { ok: true, value: undefined };
+      },
+    },
+    official: {
+      async status(argument) {
+        calls.push({ method: 'status', argument });
+        return (options.official ?? { ok: true, value: { confirmed: false } }) as Awaited<ReturnType<Parameters<typeof createHandler>[0]['official']['status']>>;
+      },
+      async results(argument) {
+        calls.push({ method: 'results', argument });
+        return (options.official ?? { ok: true, value: { results: [] } }) as Awaited<ReturnType<Parameters<typeof createHandler>[0]['official']['results']>>;
+      },
+      async import(argument) {
+        calls.push({ method: 'import', argument });
+        return (options.official ?? { ok: true, value: { importId: 'i1', inserted: 1, duplicates: 0, changes: 0 } }) as Awaited<ReturnType<Parameters<typeof createHandler>[0]['official']['import']>>;
       },
     },
   });
@@ -113,5 +128,48 @@ describe('results-import handler', () => {
     expect(await response.json()).toEqual({ ok: false, error: { code: 'internal' } });
     expect(JSON.stringify(logged)).toContain('OrphanedConfirmationError');
     expect(JSON.stringify(logged)).not.toContain(SECRET);
+  });
+});
+
+describe('results-import handler: official results update', () => {
+  it.each(['status', 'results'])('%s asks for the athlete of the body and the user of the JWT', async (action) => {
+    const s = setup();
+    const response = await s.post({ action, athleteId: ATHLETE, userId: 'someone-else' });
+    expect(response.status).toBe(200);
+    expect(s.calls).toEqual([{ method: action, argument: { userId: USER, athleteId: ATHLETE } }]);
+  });
+
+  it('passes the chosen ids to import untouched, so the action checks them', async () => {
+    const s = setup();
+    const response = await s.post({ action: 'import', athleteId: ATHLETE, resultIds: ['p1', 'p2'] });
+    expect(await response.json()).toEqual({ ok: true, value: { importId: 'i1', inserted: 1, duplicates: 0, changes: 0 } });
+    expect(s.calls).toEqual([{ method: 'import', argument: { userId: USER, athleteId: ATHLETE, resultIds: ['p1', 'p2'] } }]);
+  });
+
+  it.each(['status', 'results', 'import'])('answers 400 to %s with an athlete id that is not a uuid, and calls nothing', async (action) => {
+    const s = setup();
+    expect((await s.post({ action, athleteId: 'athlete-1', resultIds: ['p1'] })).status).toBe(400);
+    expect(s.calls).toEqual([]);
+  });
+
+  it.each([
+    ['not_confirmed', 409],
+    ['not_authorized', 403],
+    ['unknown_id', 410],
+    ['bad_request', 400],
+    ['no_provider', 404],
+    ['unavailable', 502],
+  ])('answers %s with %i and the typed error', async (code, status) => {
+    const s = setup({ official: { ok: false, error: { code } as never } });
+    const response = await s.post({ action: 'results', athleteId: ATHLETE });
+    expect(response.status).toBe(status);
+    expect(await response.json()).toEqual({ ok: false, error: { code } });
+  });
+
+  it('answers rate_limited with 429 and when to retry', async () => {
+    const s = setup({ official: { ok: false, error: { code: 'rate_limited', retryAt: '2026-10-29T12:10:00.000Z' } } });
+    const response = await s.post({ action: 'results', athleteId: ATHLETE });
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: '2026-10-29T12:10:00.000Z' } });
   });
 });

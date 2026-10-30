@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { colors, ThemeProvider } from '../../../core/theme';
 import { spokenTime } from '../../../core/time';
@@ -399,5 +399,52 @@ describe('athlete profile container', () => {
         expect(screen.getByRole('button', { name: 'Intentar de nuevo' })).toBeOnTheScreen();
       });
     });
+  });
+  describe('imported official results', () => {
+    const imported = (over: Record<string, unknown> = {}) => ({
+      id: 'i1',
+      stroke: 'FR',
+      distance: '50m',
+      pool: 'SCM',
+      hundredths: 2910,
+      swumOn: '2026-09-05',
+      ...over,
+    });
+    const repo = (rows: ReturnType<typeof imported>[]) => ({ listByAthlete: jest.fn().mockResolvedValue(rows) });
+
+    it('lists them in the history of the chosen event, labelled with their origin', async () => {
+      await show({ importedResults: repo([imported(), imported({ id: 'i2', stroke: 'BK', hundredths: 3333 })]) });
+
+      expect(await screen.findByLabelText(/Importado/)).toBeOnTheScreen();
+      expect(screen.getAllByText('29,10', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+      expect(screen.queryAllByText('33,33', { includeHiddenElements: true })).toHaveLength(0);
+    });
+
+    it('shows a missing time as a dash, never zero', async () => {
+      await show({ importedResults: repo([imported({ hundredths: null })]) });
+
+      await screen.findByLabelText(/Importado/);
+      expect(screen.queryAllByText(/0[,.]00/, { includeHiddenElements: true })).toHaveLength(0);
+    });
+
+    it('never makes an imported time the personal best', async () => {
+      await show({ importedResults: repo([imported({ hundredths: 2000 })]) });
+
+      await screen.findByLabelText(/Importado/);
+      expect(screen.queryAllByText('20,00', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+      expect(screen.getAllByText('34,82', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+    });
+
+    it('shows the profile without them when the repository is not given', async () => {
+      await show();
+      await screen.findByRole('header', { name: 'Ana Marin' });
+      expect(screen.queryByLabelText(/Importado/)).toBeNull();
+    });
+  });
+
+  it('renders the official update content it is given', async () => {
+    await show({ officialUpdate: <Text>Actualizar resultados oficiales</Text> });
+
+    expect(await screen.findByText('Actualizar resultados oficiales')).toBeOnTheScreen();
   });
 });

@@ -95,7 +95,14 @@ describe('createInMemoryOfficialSearchRepository', () => {
 
 describe('createSupabaseImportSourcesRepository', () => {
   const answer = (result: { data: unknown; error: { code: string } | null }) =>
-    (supabase.from as jest.Mock).mockReturnValue({ select: async () => result });
+    (supabase.from as jest.Mock).mockReturnValue({ select: () => ({ order: async () => result }) });
+
+  it('asks the sources in a fixed order, so the profile and the import route pick the same one', async () => {
+    const order = jest.fn().mockResolvedValue({ data: [], error: null });
+    (supabase.from as jest.Mock).mockReturnValue({ select: () => ({ order }) });
+    await createSupabaseImportSourcesRepository().list();
+    expect(order).toHaveBeenCalledWith('organization_id');
+  });
 
   it('lists the federations that have a source, with the name from data', async () => {
     answer({

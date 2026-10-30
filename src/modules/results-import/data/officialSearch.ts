@@ -73,7 +73,7 @@ export function createSupabaseOfficialSearchRepository(client: FunctionsClient =
 export function createSupabaseImportSourcesRepository(): ImportSourcesRepository {
   return {
     async list() {
-      const { data, error } = await supabase.from('results_import_sources').select('organization_id, organizations(name)');
+      const { data, error } = await supabase.from('results_import_sources').select('organization_id, organizations(name)').order('organization_id');
       if (error) throw new Error(`Reading the import sources failed (${error.code})`);
       return (data ?? []).flatMap((row) => {
         // PostgREST embeds the one related row as an object, or as a list of one.
