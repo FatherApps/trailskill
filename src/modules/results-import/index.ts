@@ -17,3 +17,9 @@ export type {
 } from './data/officialResults';
 export { createOfficialUpdate, sortOutFound, updateButtonState } from './officialUpdate';
 export type { CheckOutcome, ImportOutcome, UpdateButtonState } from './officialUpdate';
+export { OfficialResultsScreen } from './screens/OfficialResultsScreen';
+export type { ChangeItem, ImportNotice, OfficialResultsScreenProps, OfficialResultsView, ResultItem } from './screens/OfficialResultsScreen';
+export { OfficialUpdateContainer, type OfficialUpdateContainerProps } from './screens/OfficialUpdateContainer';
+export { OfficialUpdateButton, type OfficialUpdateButtonProps } from './components/OfficialUpdateButton';
+export { PendingChangeCard, type PendingChangeCardProps } from './components/PendingChangeCard';
+export { ResultRow, type ResultRowProps } from './components/ResultRow';

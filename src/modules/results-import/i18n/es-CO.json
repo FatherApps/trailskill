@@ -1,0 +1,58 @@
+{
+  "button": {
+    "label": "Actualizar resultados oficiales",
+    "checking": "Consultando…",
+    "last_updated": "Última actualización: {{date}}"
+  },
+  "panel": {
+    "title": "Resultados oficiales"
+  },
+  "none": {
+    "title": "No hay resultados nuevos",
+    "message": "No cambiamos nada. Lo que ya importaste sigue igual."
+  },
+  "unavailable": {
+    "title": "No disponible",
+    "message": "No pudimos consultar el origen ahora. Lo que ya importaste sigue igual.",
+    "retry": "Reintentar"
+  },
+  "rate_limited": {
+    "title": "Ya consultamos hace poco",
+    "message": "Podrás volver a intentarlo a las {{time}}."
+  },
+  "list": {
+    "title": "Resultados nuevos",
+    "hint": "Elige cuáles importar. No se importa nada hasta que lo confirmes.",
+    "import_one": "Importar {{count}} resultado",
+    "import_other": "Importar {{count}} resultados",
+    "importing": "Importando…",
+    "dismiss": "Ahora no",
+    "none_selected": "Elige al menos un resultado",
+    "expired": "La lista venció. La consultamos de nuevo: vuelve a elegir.",
+    "failed": "No pudimos importar. Lo que ya tenías sigue igual."
+  },
+  "row": {
+    "selected": "Elegido: {{label}}",
+    "not_selected": "No elegido: {{label}}",
+    "no_time_spoken": "sin tiempo"
+  },
+  "done": {
+    "inserted_one": "Importamos {{count}} resultado.",
+    "inserted_other": "Importamos {{count}} resultados.",
+    "nothing": "No se importó ningún resultado nuevo.",
+    "changes_one": "{{count}} resultado cambió en el origen: decide abajo.",
+    "changes_other": "{{count}} resultados cambiaron en el origen: decide abajo."
+  },
+  "changes": {
+    "title": "Cambiaron en el origen",
+    "hint": "Mientras no elijas, seguimos mostrando el valor importado antes.",
+    "current": "Importado antes",
+    "proposed": "Nuevo en el origen",
+    "use_new": "Usar el valor nuevo",
+    "keep_current": "Mantener el actual",
+    "failed": "No pudimos guardar tu elección. Intenta de nuevo."
+  },
+  "event": {
+    "label": "{{stroke}} {{distance}} · {{pool}}"
+  }
+}
