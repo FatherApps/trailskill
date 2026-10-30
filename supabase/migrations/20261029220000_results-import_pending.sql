@@ -44,10 +44,13 @@ revoke all on table public.results_import_pending from public, anon, authenticat
 -- to put back a row that a confirmation consumed and then failed on (nothing was
 -- recorded), with the time it had left, so the device's id keeps working. The
 -- service never calls it after a success; only service_role can call it at all.
+-- `restore_until` is the instant that entry was due to expire (the one `take` answered): the
+-- row never lives past it, whatever the caller's clock or latency, so failed retries cannot
+-- stretch an entry's life. It must still be in the future (22023).
 -- 22023: invalid input. TS001: the Vault secret is missing.
 create function public.results_import_pending_put(
   kind text, requested_by uuid, athlete uuid, organization uuid, provider text,
-  reference text, payload jsonb, ttl interval, pending_id uuid default null
+  reference text, payload jsonb, ttl interval, pending_id uuid default null, restore_until timestamptz default null
 )
 returns uuid
 language plpgsql
@@ -61,6 +64,8 @@ begin
   if results_import_pending_put.ttl is null
      or results_import_pending_put.ttl <= interval '0'
      or results_import_pending_put.ttl > interval '15 minutes'
+     or (results_import_pending_put.restore_until is not null
+         and results_import_pending_put.restore_until <= clock_timestamp())
      or coalesce(results_import_pending_put.reference, '') = ''
      or jsonb_typeof(results_import_pending_put.payload) is distinct from 'object' then
     raise exception 'the pending entry is not valid' using errcode = '22023';
@@ -103,7 +108,10 @@ begin
     results_import_pending_put.provider,
     extensions.pgp_sym_encrypt(results_import_pending_put.reference, v_key),
     results_import_pending_put.payload,
-    clock_timestamp() + results_import_pending_put.ttl
+    least(
+      clock_timestamp() + results_import_pending_put.ttl,
+      coalesce(results_import_pending_put.restore_until, 'infinity'::timestamptz)
+    )
   )
   returning id into v_id;
   return v_id;
@@ -152,12 +160,50 @@ begin
 end;
 $$;
 
+-- Keeps the identity number the source returned for a confirmed person: saves it when the
+-- athlete has none, answers true when the stored one is the same, false when it differs
+-- (nothing is replaced). One step under the same lock as every identity number write, so two
+-- concurrent confirmations cannot both save and the second silently replace the first.
+-- Formatting (spaces, dots, hyphens) is ignored on both sides. 55000: import_official_results
+-- not in force. 22023: invalid number. TS001: the Vault secret is missing.
+create function public.results_import_keep_identity_number(athlete uuid, identity_number text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_stored text;
+begin
+  perform pg_advisory_xact_lock(
+    hashtextextended(results_import_keep_identity_number.athlete::text || ':' || 'import_official_results', 0)
+  );
+  if not coalesce(app.authorization_in_force_at(
+    results_import_keep_identity_number.athlete, 'import_official_results', 'infinity', 'infinity'
+  ), false) then
+    raise exception 'import_official_results is not in force for the athlete' using errcode = '55000';
+  end if;
+
+  v_stored := app.read_athlete_identity_number(results_import_keep_identity_number.athlete);
+  if v_stored is not null then
+    return v_stored = regexp_replace(coalesce(results_import_keep_identity_number.identity_number, ''), '[ .-]', '', 'g');
+  end if;
+  perform app.store_athlete_identity_number(
+    results_import_keep_identity_number.athlete, results_import_keep_identity_number.identity_number
+  );
+  return true;
+end;
+$$;
+
+revoke execute on function public.results_import_keep_identity_number(uuid, text) from public, anon, authenticated;
+grant execute on function public.results_import_keep_identity_number(uuid, text) to service_role;
+
 revoke execute on function
-  public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid),
+  public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid, timestamptz),
   public.results_import_pending_take(uuid, text, uuid, uuid)
 from public, anon, authenticated;
 grant execute on function
-  public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid),
+  public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid, timestamptz),
   public.results_import_pending_take(uuid, text, uuid, uuid)
 to service_role;
 

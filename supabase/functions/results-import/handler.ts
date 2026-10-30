@@ -50,7 +50,7 @@ export function createHandler({ authenticate, service }: HandlerDeps) {
     },
     async confirm(userId, body) {
       const [athleteId, organizationId] = [id(body.athleteId), id(body.organizationId)];
-      const candidateId = text(body.candidateId, 100);
+      const candidateId = id(body.candidateId);
       if (!athleteId || !organizationId || !candidateId) return refuse({ code: 'bad_request' });
       return answer(await service.confirmCandidate({ userId, athleteId, organizationId, candidateId }), () => ({}));
     },

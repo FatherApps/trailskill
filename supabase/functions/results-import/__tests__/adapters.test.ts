@@ -1,5 +1,5 @@
 import { createConfirmations, createIdentityNumbers, createOrganizationChain, createPendingStore, createQueryGate, type Db, type DbError } from '../adapters.ts';
-import { NotAuthorizedError, QUERY_INTERVAL_MS } from '../service.ts';
+import { InvalidSourceKeyError, NotAuthorizedError, QUERY_INTERVAL_MS } from '../service.ts';
 
 const ATHLETE = 'athlete-1';
 const USER = 'user-1';
@@ -74,15 +74,22 @@ describe('createIdentityNumbers', () => {
     expect(await createIdentityNumbers(createFakeDb([{ data: null }]).db).read(ATHLETE)).toBeNull();
   });
 
-  it('saves with the service function and the number as a bound parameter', async () => {
-    const fake = createFakeDb([{}]);
-    await createIdentityNumbers(fake.db).save(ATHLETE, NUMBER);
-    expect(fake.calls).toEqual([{ fn: 'save_athlete_identity_number_as_service', args: { athlete_id: ATHLETE, identity_number: NUMBER } }]);
+  it('keeps with the one-step function and the number as a bound parameter, and answers whether it was kept', async () => {
+    const fake = createFakeDb([{ data: true }, { data: false }]);
+    expect(await createIdentityNumbers(fake.db).keep(ATHLETE, NUMBER)).toBe(true);
+    expect(await createIdentityNumbers(fake.db).keep(ATHLETE, NUMBER)).toBe(false);
+    expect(fake.calls[0]).toEqual({ fn: 'results_import_keep_identity_number', args: { athlete: ATHLETE, identity_number: NUMBER } });
+  });
+
+  it('tells a key that is not a number, and a withdrawn authorization, from any other failure', async () => {
+    await expect(createIdentityNumbers(createFakeDb([{ error: { code: '22023' } }]).db).keep(ATHLETE, NUMBER)).rejects.toBeInstanceOf(InvalidSourceKeyError);
+    await expect(createIdentityNumbers(createFakeDb([{ error: { code: '55000' } }]).db).keep(ATHLETE, NUMBER)).rejects.toBeInstanceOf(NotAuthorizedError);
+    await expect(createIdentityNumbers(createFakeDb([{ data: 'yes' }]).db).keep(ATHLETE, NUMBER)).rejects.toThrow('Keeping the identity number failed');
   });
 
   it('never puts the number in an error', async () => {
-    const saving = createIdentityNumbers(createFakeDb([{ error: { code: '23514', message: `bad ${NUMBER}` } }]).db).save(ATHLETE, NUMBER);
-    await expect(saving).rejects.toThrow('Saving the identity number failed (23514)');
+    const saving = createIdentityNumbers(createFakeDb([{ error: { code: '23514', message: `bad ${NUMBER}` } }]).db).keep(ATHLETE, NUMBER);
+    await expect(saving).rejects.toThrow('Keeping the identity number failed (23514)');
     await saving.catch((error: Error) => expect(error.message).not.toContain(NUMBER));
     const reading = createIdentityNumbers(createFakeDb([{ error: { code: 'XX000', message: NUMBER } }]).db).read(ATHLETE);
     await expect(reading).rejects.toThrow('Reading the identity number failed (XX000)');
@@ -158,15 +165,15 @@ describe('createPendingStore', () => {
     expect(fake.calls).toEqual([
       {
         fn: 'results_import_pending_put',
-        args: { kind: 'search', requested_by: USER, athlete: ATHLETE, organization: 'org-1', provider: 'zz-test', reference: 'REF-SECRET-1', payload: entry.payload, ttl: '900 seconds', pending_id: null },
+        args: { kind: 'search', requested_by: USER, athlete: ATHLETE, organization: 'org-1', provider: 'zz-test', reference: 'REF-SECRET-1', payload: entry.payload, ttl: '900 seconds', pending_id: null, restore_until: null },
       },
     ]);
   });
 
   it('puts back under an old id', async () => {
     const fake = createFakeDb([{ data: 'pending-1' }]);
-    await createPendingStore(fake.db).put({ ...entry, ttlMs: 1500, id: 'pending-1' });
-    expect(fake.calls[0].args).toMatchObject({ pending_id: 'pending-1', ttl: '1.5 seconds' });
+    await createPendingStore(fake.db).put({ ...entry, ttlMs: 1500, id: 'pending-1', restoreUntil: Date.parse('2026-10-29T10:15:00Z') });
+    expect(fake.calls[0].args).toMatchObject({ pending_id: 'pending-1', ttl: '1.5 seconds', restore_until: '2026-10-29T10:15:00.000Z' });
   });
 
   it('translates 42501 on put to NotAuthorizedError, and any other error to one with only the code', async () => {

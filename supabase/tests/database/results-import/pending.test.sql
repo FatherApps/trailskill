@@ -8,7 +8,7 @@
 -- All users, athletes and keys here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(54);
+select plan(63);
 
 -- Users: guardian G (manages e1 and e2, both authorized), guardian H (manages e3,
 -- not authorized), stranger S (manages nothing).
@@ -68,18 +68,18 @@ select is_empty(
   'the table is not in the powersync publication'
 );
 select ok(
-  has_function_privilege('service_role', 'public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid)', 'execute')
+  has_function_privilege('service_role', 'public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid, timestamptz)', 'execute')
     and has_function_privilege('service_role', 'public.results_import_pending_take(uuid, text, uuid, uuid)', 'execute')
-    and not has_function_privilege('authenticated', 'public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid)', 'execute')
+    and not has_function_privilege('authenticated', 'public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid, timestamptz)', 'execute')
     and not has_function_privilege('authenticated', 'public.results_import_pending_take(uuid, text, uuid, uuid)', 'execute')
-    and not has_function_privilege('anon', 'public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid)', 'execute')
+    and not has_function_privilege('anon', 'public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid, timestamptz)', 'execute')
     and not has_function_privilege('anon', 'public.results_import_pending_take(uuid, text, uuid, uuid)', 'execute')
     and not has_function_privilege('public', 'public.results_import_pending_take(uuid, text, uuid, uuid)', 'execute'),
   'only service_role executes put and take'
 );
 select is(
   (select count(*) from pg_proc
-   where oid in ('public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid)'::regprocedure,
+   where oid in ('public.results_import_pending_put(text, uuid, uuid, uuid, text, text, jsonb, interval, uuid, timestamptz)'::regprocedure,
                  'public.results_import_pending_take(uuid, text, uuid, uuid)'::regprocedure,
                  'public.results_import_pending_purge_on_withdrawal()'::regprocedure)
      and prosecdef and coalesce(proconfig, '{}') @> array['search_path=""']),
@@ -257,6 +257,45 @@ select is(
   (select count(*) from public.results_import_pending_take((select id from ids where name = 'e1'), 'search', '81a00000-0000-4000-8000-0000000000a1', '81a00000-0000-4000-8000-0000000000e1')),
   1::bigint,
   'and then it is taken again'
+);
+
+-- 6b. A restored entry never lives past the instant it was due to expire, and cannot be restored once past.
+select throws_ok(
+  $$ select public.results_import_pending_put('search', '81a00000-0000-4000-8000-0000000000a1', '81a00000-0000-4000-8000-0000000000e1',
+       '81a00000-0000-4000-8000-0000000000b1', 'zz-test', 'REF-SECRET-123', '{"name": "Payload Name"}', interval '15 minutes',
+       '81a00000-0000-4000-8000-0000000000c1', now() - interval '1 second') $$,
+  '22023', 'the pending entry is not valid', 'an entry whose time already ran out is not put back'
+);
+select public.results_import_pending_put('search', '81a00000-0000-4000-8000-0000000000a1', '81a00000-0000-4000-8000-0000000000e1',
+  '81a00000-0000-4000-8000-0000000000b1', 'zz-test', 'REF-SECRET-123', '{"name": "Payload Name"}', interval '15 minutes',
+  '81a00000-0000-4000-8000-0000000000c2', clock_timestamp() + interval '1 minute');
+select ok(
+  (select expires_at <= now() + interval '1 minute 1 second' from public.results_import_pending where id = '81a00000-0000-4000-8000-0000000000c2'),
+  'a restored entry expires no later than the instant it had'
+);
+select public.results_import_pending_put('search', '81a00000-0000-4000-8000-0000000000a1', '81a00000-0000-4000-8000-0000000000e1',
+  '81a00000-0000-4000-8000-0000000000b1', 'zz-test', 'REF-SECRET-123', '{"name": "Payload Name"}', interval '1 minute',
+  '81a00000-0000-4000-8000-0000000000c3', clock_timestamp() + interval '1 hour');
+select ok(
+  (select expires_at <= now() + interval '1 minute 1 second' from public.results_import_pending where id = '81a00000-0000-4000-8000-0000000000c3'),
+  'and no later than the time the caller asked for either'
+);
+delete from public.results_import_pending where id in ('81a00000-0000-4000-8000-0000000000c2', '81a00000-0000-4000-8000-0000000000c3');
+
+-- 6c. Keeping the identity number is one step: saves when empty, true for the same, false (and untouched) for another.
+select is(public.results_import_keep_identity_number('81a00000-0000-4000-8000-0000000000e1', 'ZZ-111.222'), true, 'an athlete without a number gets the one the source returned');
+select is(public.results_import_keep_identity_number('81a00000-0000-4000-8000-0000000000e1', 'zz111222'), false, 'a different number is a conflict (case differs)');
+select is(public.results_import_keep_identity_number('81a00000-0000-4000-8000-0000000000e1', ' ZZ 111.222 '), true, 'the same number with other formatting is not a conflict');
+select is(app.read_athlete_identity_number('81a00000-0000-4000-8000-0000000000e1'), 'ZZ111222', 'the conflicting number replaced nothing');
+select throws_ok(
+  $$ select public.results_import_keep_identity_number('81a00000-0000-4000-8000-0000000000e3', 'ZZ111222') $$,
+  '55000', 'import_official_results is not in force for the athlete', 'without the authorization nothing is kept'
+);
+select ok(
+  has_function_privilege('service_role', 'public.results_import_keep_identity_number(uuid, text)', 'execute')
+    and not has_function_privilege('authenticated', 'public.results_import_keep_identity_number(uuid, text)', 'execute')
+    and not has_function_privilege('anon', 'public.results_import_keep_identity_number(uuid, text)', 'execute'),
+  'only service_role executes keep_identity_number'
 );
 
 -- 7. Expiry.

@@ -1,5 +1,5 @@
 import type { OrganizationData } from './registry.ts';
-import { NotAuthorizedError, type Claim, type Confirmations, type IdentityNumbers, type PendingStore, type QueryGate } from './service.ts';
+import { InvalidSourceKeyError, NotAuthorizedError, type Claim, type Confirmations, type IdentityNumbers, type PendingStore, type QueryGate } from './service.ts';
 
 // The message is typed so it can be seen and dropped: errors built here never repeat it.
 export type DbError = { code?: string; message?: string };
@@ -15,6 +15,8 @@ export interface Db {
 }
 
 const NOT_AUTHORIZED = '42501';
+const NOT_IN_FORCE = '55000';
+const INVALID_VALUE = '22023';
 
 // An error carries the Postgres code and nothing else: the message of a failed call could echo an argument.
 const failure = (what: string, error: DbError | null) => new Error(`${what} failed${error ? ` (${error.code ?? 'unknown'})` : ''}`);
@@ -38,7 +40,7 @@ export function createQueryGate(db: Db): QueryGate {
   };
 }
 
-/** #799's service_role functions. `read` must only follow a check that `import_official_results` is in force. */
+/** #799's service_role functions and this issue's `keep`. `read` must only follow a check that `import_official_results` is in force. */
 export function createIdentityNumbers(db: Db): IdentityNumbers {
   return {
     async read(athleteId) {
@@ -46,9 +48,12 @@ export function createIdentityNumbers(db: Db): IdentityNumbers {
       if (error || (data !== null && typeof data !== 'string')) throw failure('Reading the identity number', error);
       return data;
     },
-    async save(athleteId, identityNumber) {
-      const { error } = await db.rpc('save_athlete_identity_number_as_service', { athlete_id: athleteId, identity_number: identityNumber });
-      if (error) throw failure('Saving the identity number', error);
+    async keep(athleteId, identityNumber) {
+      const { data, error } = await db.rpc('results_import_keep_identity_number', { athlete: athleteId, identity_number: identityNumber });
+      if (error?.code === INVALID_VALUE) throw new InvalidSourceKeyError();
+      if (error?.code === NOT_IN_FORCE) throw new NotAuthorizedError();
+      if (error || typeof data !== 'boolean') throw failure('Keeping the identity number', error);
+      return data;
     },
   };
 }
@@ -96,7 +101,7 @@ export function createOrganizationChain(db: Db) {
 /** `public.results_import_pending_put` / `_take`: the source's key is encrypted inside the database; here it is only a bound parameter. */
 export function createPendingStore(db: Db): PendingStore {
   return {
-    async put({ kind, userId, athleteId, organizationId, provider, reference, payload, ttlMs, id }) {
+    async put({ kind, userId, athleteId, organizationId, provider, reference, payload, ttlMs, id, restoreUntil }) {
       const { data, error } = await db.rpc('results_import_pending_put', {
         kind,
         requested_by: userId,
@@ -107,6 +112,7 @@ export function createPendingStore(db: Db): PendingStore {
         payload,
         ttl: `${ttlMs / 1000} seconds`,
         pending_id: id ?? null,
+        restore_until: restoreUntil === undefined ? null : new Date(restoreUntil).toISOString(),
       });
       if (error?.code === NOT_AUTHORIZED) throw new NotAuthorizedError();
       if (error || typeof data !== 'string') throw failure('Storing the pending entry', error);

@@ -17,14 +17,27 @@ export interface QueryGate {
 
 /**
  * Implemented by #799's service_role functions `public.athlete_identity_number(athlete_id)` and
- * `public.save_athlete_identity_number_as_service(athlete_id, identity_number)`. The number lives only in memory here.
+ * `public.athlete_identity_number(athlete_id)` and `public.results_import_keep_identity_number(athlete, identity_number)`. The number lives only in memory here.
  * Implementations pass the number only as a bound RPC parameter, never interpolated into SQL text, so it does not reach a
  * statement or the Postgres log. `read` must only be called after the gate confirmed `import_official_results` is in force,
  * because #799's read does not re-check it.
  */
 export interface IdentityNumbers {
   read(athleteId: string): Promise<string | null>;
-  save(athleteId: string, identityNumber: string): Promise<void>;
+  /**
+   * Keeps the number the source returned, in one database step: saves it when the athlete has none, `true` when the stored one is
+   * the same, `false` when it differs (nothing is replaced). Throws `InvalidSourceKeyError` when the source's key is not a valid
+   * number and `NotAuthorizedError` when `import_official_results` is no longer in force.
+   */
+  keep(athleteId: string, identityNumber: string): Promise<boolean>;
+}
+
+/** The source returned a key that is not an identity number; retrying the same entry can never work. */
+export class InvalidSourceKeyError extends Error {
+  constructor() {
+    super('The source returned an invalid key');
+    this.name = 'InvalidSourceKeyError';
+  }
 }
 
 /**
@@ -79,8 +92,11 @@ type PendingEntry = {
  * for at most 15 minutes, and one `take` consumes it. The device only ever holds the id.
  */
 export interface PendingStore {
-  /** Returns the id. With `id`, puts back a taken entry so the device's id keeps working; `ttlMs` is the time it had left. */
-  put(entry: PendingEntry & { ttlMs: number; id?: string }): Promise<string>;
+  /**
+   * Returns the id. With `id`, puts back a taken entry so the device's id keeps working; `ttlMs` is the time it had left and
+   * `restoreUntil` the absolute instant it was due to expire, which the database never exceeds, whatever the clocks say.
+   */
+  put(entry: PendingEntry & { ttlMs: number; id?: string; restoreUntil?: number }): Promise<string>;
   /** Atomic and single-use: null for an id that is expired, already taken, never issued, or of another kind, user or athlete. */
   take(request: { id: string; kind: PendingKind; userId: string; athleteId: string }): Promise<(PendingEntry & { expiresAt: number }) | null>;
 }
@@ -258,17 +274,20 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
           }
         };
         try {
-          // Authorization was just confirmed by `record`, so reading the number is allowed.
-          const stored = await identityNumbers.read(athleteId);
-          // A number that is already saved is never replaced in silence.
-          if (stored !== null && stored !== taken.reference) {
+          // One database step: it saves a first number and never replaces another one, even when two confirmations race.
+          if (!(await identityNumbers.keep(athleteId, taken.reference))) {
             await undo();
             return fail({ code: 'identity_number_conflict' });
           }
-          if (stored === null) await identityNumbers.save(athleteId, taken.reference);
         } catch (error) {
           if (error instanceof OrphanedConfirmationError) throw error;
           await undo();
+          if (error instanceof NotAuthorizedError) return fail({ code: 'not_authorized' });
+          if (error instanceof InvalidSourceKeyError) {
+            // The entry is spent: putting it back would only repeat the same failure until it expires.
+            confirmed = true;
+            return fail({ code: 'unavailable' });
+          }
           throw error;
         }
         confirmed = true;
@@ -276,7 +295,7 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
       } finally {
         // Only the failure path puts the entry back. If this fails too, the person searches again.
         const { expiresAt, ...entry } = taken;
-        if (!confirmed && expiresAt > now()) await pending.put({ ...entry, ttlMs: expiresAt - now(), id: candidateId }).catch(() => undefined);
+        if (!confirmed && expiresAt > now()) await pending.put({ ...entry, ttlMs: expiresAt - now(), restoreUntil: expiresAt, id: candidateId }).catch(() => undefined);
       }
     },
   };

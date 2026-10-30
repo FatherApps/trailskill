@@ -30,7 +30,8 @@ function setup(options: { userId?: string | null; search?: Outcome<PublicCandida
 }
 
 const searchBody = { action: 'search', athleteId: ATHLETE, organizationId: ORG, firstName: 'Ana', lastName: 'Example' };
-const confirmBody = { action: 'confirm', athleteId: ATHLETE, organizationId: ORG, candidateId: 'candidate-1' };
+const CANDIDATE = '81a00000-0000-4000-8000-0000000000c1';
+const confirmBody = { action: 'confirm', athleteId: ATHLETE, organizationId: ORG, candidateId: CANDIDATE };
 
 describe('results-import handler', () => {
   it('answers 401 without a verified user, and calls nothing', async () => {
@@ -54,6 +55,7 @@ describe('results-import handler', () => {
     ['a search with a name that is too long', { ...searchBody, lastName: 'a'.repeat(101) }],
     ['a search with a non-text name', { ...searchBody, firstName: 5 }],
     ['a confirm without a candidate id', { ...confirmBody, candidateId: '' }],
+    ['a confirm with a candidate id that is not a UUID', { ...confirmBody, candidateId: 'candidate-1' }],
     ['an athlete id that is not a uuid', { ...searchBody, athleteId: 'athlete-1' }],
     ['an organization id that is not a uuid', { ...searchBody, organizationId: 7 }],
   ])('answers 400 for %s, and calls nothing', async (_name, body) => {
@@ -81,7 +83,7 @@ describe('results-import handler', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, value: {} });
     expect(s.calls).toEqual([
-      { method: 'confirmCandidate', argument: { userId: USER, athleteId: ATHLETE, organizationId: ORG, candidateId: 'candidate-1' } },
+      { method: 'confirmCandidate', argument: { userId: USER, athleteId: ATHLETE, organizationId: ORG, candidateId: CANDIDATE } },
     ]);
   });
 

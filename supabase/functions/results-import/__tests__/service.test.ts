@@ -3,6 +3,7 @@ import { createProviderRegistry, type OrganizationData } from '../registry.ts';
 import {
   CANDIDATE_TTL_MS,
   createResultsImport,
+  InvalidSourceKeyError,
   NotAuthorizedError,
   OrphanedConfirmationError,
   QUERY_INTERVAL_MS,
@@ -62,9 +63,11 @@ function createFakeIdentityNumbers(initial: string | null) {
       reads.push(athleteId);
       return initial;
     },
-    async save(athleteId: string, identityNumber: string) {
+    async keep(athleteId: string, identityNumber: string) {
       if (saveFailure) throw saveFailure;
+      if (initial !== null) return initial === identityNumber;
       saved.push([athleteId, identityNumber]);
+      return true;
     },
   } satisfies IdentityNumbers & Record<string, unknown>;
 }
@@ -107,7 +110,7 @@ function createFakePending(now: () => number) {
   const store: PendingStore = {
     async put({ ttlMs, id, ...entry }) {
       const key = id ?? `candidate-${++issued}`;
-      rows.set(key, { ...entry, expiresAt: now() + ttlMs });
+      rows.set(key, { ...entry, expiresAt: Math.min(now() + ttlMs, entry.restoreUntil ?? Infinity) });
       return key;
     },
     async take({ id, kind, userId, athleteId }) {
@@ -522,6 +525,30 @@ describe('confirmCandidate', () => {
     s.identityNumbers.failSave(new Error('database down'));
     await expect(confirm(s, candidateId)).rejects.toThrow('database down');
     expect(s.pending.rows.get(candidateId)?.expiresAt).toBe(expiresAt);
+  });
+
+  it('asks the store not to let the restored entry live past the instant it was due to expire', async () => {
+    const { s, candidateId } = await searched();
+    const expiresAt = s.pending.rows.get(candidateId)!.expiresAt;
+    s.identityNumbers.failSave(new Error('database down'));
+    await expect(confirm(s, candidateId)).rejects.toThrow('database down');
+    expect(s.pending.rows.get(candidateId)).toMatchObject({ restoreUntil: expiresAt });
+  });
+
+  it('removes the evidence and spends the entry when the source key is not a valid number: retrying cannot work', async () => {
+    const { s, candidateId } = await searched();
+    s.identityNumbers.failSave(new InvalidSourceKeyError());
+    expect(await confirm(s, candidateId)).toEqual({ ok: false, error: { code: 'unavailable' } });
+    expect(s.confirmations.stored()).toEqual([]);
+    expect(s.pending.rows.has(candidateId)).toBe(false);
+  });
+
+  it('answers not_authorized, with the evidence removed, when the authorization is withdrawn while keeping the number', async () => {
+    const { s, candidateId } = await searched();
+    s.identityNumbers.failSave(new NotAuthorizedError());
+    expect(await confirm(s, candidateId)).toEqual({ ok: false, error: { code: 'not_authorized' } });
+    expect(s.confirmations.stored()).toEqual([]);
+    expect(s.pending.rows.has(candidateId)).toBe(true);
   });
 
   it.each([
