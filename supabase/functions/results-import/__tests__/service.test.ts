@@ -540,4 +540,14 @@ describe('confirmCandidate', () => {
     expect(await confirm(s, candidateId)).toEqual({ ok: false, error: { code: 'unknown_id' } });
     expect(s.pending.rows.has(candidateId)).toBe(false);
   });
+
+  it('records one piece of evidence when two requests confirm the same id at once, and the other gets unknown_id', async () => {
+    const { s, candidateId } = await searched();
+    const [first, second] = await Promise.all([confirm(s, candidateId), confirm(s, candidateId)]);
+    expect([first, second].filter((outcome) => outcome.ok)).toHaveLength(1);
+    expect([first, second].filter((outcome) => !outcome.ok && outcome.error.code === 'unknown_id')).toHaveLength(1);
+    expect(s.confirmations.recorded).toHaveLength(1);
+    expect(s.confirmations.stored()).toHaveLength(1);
+    expect(s.identityNumbers.saved).toEqual([[ATHLETE, 'k-1']]);
+  });
 });
