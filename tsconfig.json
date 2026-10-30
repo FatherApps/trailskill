@@ -2,7 +2,8 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "allowImportingTsExtensions": true,
     "types": ["jest", "node"]
   },
-  "include": ["src", "app.config.ts"]
+  "include": ["src", "supabase/functions", "app.config.ts"]
 }
