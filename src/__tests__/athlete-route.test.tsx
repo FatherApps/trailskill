@@ -6,6 +6,7 @@ let mockUserId: string | undefined;
 let mockStaff = false;
 let mockCanGoBack = true;
 let mockImportedAt: string | null = null;
+let mockConfirmed = false;
 let mockManaged: { status: string; athletes?: object[] } = { status: 'loading' };
 let mockSources: object[] = [];
 const mockBack = jest.fn();
@@ -24,7 +25,7 @@ jest.mock('../modules/results-import', () => ({
   createPowerSyncImportedResultsRepository: () => ({ lastImportedAt: async () => mockImportedAt }),
   createSupabaseOfficialResultsService: () => ({}),
   createOfficialUpdate: () => ({}),
-  createIdentityConfirmation: () => ({}),
+  createIdentityConfirmation: () => ({ isConfirmed: async () => mockConfirmed }),
   createSupabasePendingChangeResolver: () => ({}),
   OfficialUpdateContainer: () => null,
 }));
@@ -89,6 +90,7 @@ describe('athlete profile route', () => {
       mockManaged = { status: 'loading' };
       mockSources = [];
       mockImportedAt = null;
+      mockConfirmed = false;
     });
 
     it('invites a guardian to import before anything was imported', async () => {
@@ -98,6 +100,16 @@ describe('athlete profile route', () => {
       await render(<AthleteRoute />);
 
       expect(await screen.findByText('profile of a1 online with import prompt')).toBeOnTheScreen();
+    });
+
+    it('lets the results panel replace the invitation once the identity is confirmed, even with nothing imported', async () => {
+      mockUserId = 'user-1';
+      mockManaged = managed;
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation' }];
+      mockConfirmed = true;
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('profile of a1 online')).toBeOnTheScreen();
     });
 
     it('stops inviting once something was imported: updating is the results panel', async () => {

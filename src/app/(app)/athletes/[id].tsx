@@ -55,14 +55,12 @@ export default function AthleteProfileRoute() {
   const [importDismissed, setImportDismissed] = useState(false);
   const lastSyncedAt = summary.lastSyncedAt ?? null;
   const syncedAt = lastSyncedAt?.getTime();
-  // Once something was imported the invitation is over: updating is the panel's button, so the prompt never shows "refresh".
-  const [alreadyImported, setAlreadyImported] = useState(false);
+  // The invitation is only for a guardian who has not started: once the identity is confirmed or something was imported, the
+  // results panel takes over (updating is its button), even before the first import.
+  const [started, setStarted] = useState(false);
   useEffect(() => {
     let active = true;
-    importedResults.lastImportedAt(id).then(
-      (at) => active && setAlreadyImported(at !== null),
-      () => active && setAlreadyImported(false),
-    );
+    Promise.all([importedResults.lastImportedAt(id).catch(() => null), identity.isConfirmed(id)]).then(([at, confirmed]) => active && setStarted(at !== null || confirmed));
     return () => {
       active = false;
     };
@@ -77,7 +75,7 @@ export default function AthleteProfileRoute() {
   // Only a guardian or an adult athlete is offered the import; the source's name comes from data.
   const managedAthlete = managed.status === 'ready' ? managed.athletes.find((candidate) => candidate.id === id) : undefined;
   const importPrompt =
-    managedAthlete && sources[0] && !importDismissed && !alreadyImported
+    managedAthlete && sources[0] && !importDismissed && !started
       ? {
           sourceName: sources[0].name,
           athleteName: managedAthlete.firstName,
