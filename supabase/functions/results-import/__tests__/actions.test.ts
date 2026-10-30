@@ -300,31 +300,3 @@ describe('import', () => {
     expect(denied.recorded).toEqual([]);
   });
 });
-
-describe('refresh', () => {
-  it('asks the source and imports everything it found, with the differences left pending by the server', async () => {
-    const { actions, recorded } = setup();
-    expect(await actions.refresh(who)).toEqual({ ok: true, value: { importId: 'import-1', inserted: 2, duplicates: 0, changes: 0 } });
-    expect(recorded[0]?.results.map((r) => r.sourceResultKey)).toEqual(['r-1', 'r-2']);
-  });
-
-  it('spends the rate limit once', async () => {
-    const { actions, claims } = setup();
-    await actions.refresh(who);
-    expect(claims).toHaveLength(1);
-  });
-
-  it.each([
-    ['not confirmed', { confirmed: false }, { code: 'not_confirmed' }],
-    ['not authorized', { allowed: false }, { code: 'not_authorized' }],
-    ['rate limited', { claim: { status: 'rate_limited', retryAt: 'later' } as const }, { code: 'rate_limited', retryAt: 'later' }],
-  ])('records nothing when %s', async (_name, options, error) => {
-    const { actions, recorded } = setup(options);
-    expect(await actions.refresh(who)).toEqual({ ok: false, error });
-    expect(recorded).toEqual([]);
-  });
-
-  it('is unavailable, with nothing recorded, when recording fails', async () => {
-    expect(await setup({ recordFails: true }).actions.refresh(who)).toEqual({ ok: false, error: { code: 'unavailable' } });
-  });
-});

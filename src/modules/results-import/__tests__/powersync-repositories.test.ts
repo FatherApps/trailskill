@@ -125,6 +125,10 @@ describe.each(factories)('%s imported results repository', (_name, create) => {
     expect((await create().listPendingChanges('a1')).map((c) => c.id)).toEqual(['c1']);
   });
 
+  it('lists every change of the athlete whatever its status, oldest first', async () => {
+    expect((await create().listAllChanges('a1')).map((c) => c.id)).toEqual(['c2', 'c1']);
+  });
+
   it('does not expose the status column on a change', async () => {
     expect(Object.keys((await create().listPendingChanges('a1'))[0]!)).not.toContain('status');
   });

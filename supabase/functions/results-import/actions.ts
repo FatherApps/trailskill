@@ -3,6 +3,7 @@ import type { IdentityNumbers, ImportError, Outcome, createResultsImport } from 
 
 // The ids of offered results live this long on the server, as `public.results_import_pending_put` limits them.
 export const PENDING_TTL_MS = 15 * 60 * 1000;
+// shortcut: a source with more than 500 results cannot be imported in one call (bad_request), upgrade to chunked imports if a real athlete reaches it.
 export const MAX_IDS = 500;
 
 export type ActionError = ImportError | { code: 'unknown_id' } | { code: 'not_confirmed' } | { code: 'bad_request' };
@@ -151,18 +152,6 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
         return { ok: true, value: summary };
       } catch {
         await restore(taken, who);
-        return UNAVAILABLE;
-      }
-    },
-
-    // "Actualizar": asks the source and imports everything it found; the differences become pending changes on the server.
-    async refresh(who: Who): Promise<ActionOutcome<ImportSummary>> {
-      const asked = await ask(who);
-      if (!asked.ok) return asked;
-      try {
-        const summary = await recorder.record({ athleteId: who.athleteId, organizationId: asked.value.organizationId, requestedBy: who.userId, results: asked.value.results });
-        return { ok: true, value: summary };
-      } catch {
         return UNAVAILABLE;
       }
     },

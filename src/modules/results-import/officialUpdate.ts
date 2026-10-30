@@ -8,8 +8,9 @@ const sameValues = (a: Values, b: Values) =>
 
 /**
  * What the guardian can choose: the listed results the app does not already show. A result with the values the app has,
- * or whose difference already waits for a choice, is left out; the same id twice counts once. A result that moved at the
- * source stays: importing it never overwrites, the server records a pending change.
+ * or that matches any change the source already proposed (waiting, kept or used), is left out: a decided change is not
+ * offered again. The same id twice counts once. A result that moved to another value stays: importing it never
+ * overwrites, the server records a pending change.
  */
 export function sortOutFound(found: FoundResult[], shown: Values[]): FoundResult[] {
   const seen = new Set<string>();
@@ -41,8 +42,8 @@ export function createOfficialUpdate({ service, repository }: Dependencies) {
     try {
       const outcome = await service.results(athleteId);
       if (!outcome.ok) return outcome.error.code === 'rate_limited' ? { kind: 'rate_limited', retryAt: outcome.error.retryAt } : { kind: 'unavailable' };
-      const [imported, pending] = await Promise.all([repository.listByAthlete(athleteId), repository.listPendingChanges(athleteId)]);
-      const results = sortOutFound(outcome.value, [...imported, ...pending]);
+      const [imported, changes] = await Promise.all([repository.listByAthlete(athleteId), repository.listAllChanges(athleteId)]);
+      const results = sortOutFound(outcome.value, [...imported, ...changes]);
       return results.length === 0 ? { kind: 'none' } : { kind: 'found', results };
     } catch {
       return { kind: 'unavailable' };

@@ -22,6 +22,9 @@ export function createPowerSyncImportedResultsRepository(): ImportedResultsRepos
         [athleteId],
       );
     },
+    async listAllChanges(athleteId) {
+      return db.getAll<PendingResultChange>(`SELECT ${changeColumns} FROM imported_result_changes WHERE athlete_id = ? ORDER BY created_at ASC, id ASC`, [athleteId]);
+    },
     async lastImportedAt(athleteId) {
       const [row] = await db.getAll<{ at: string | null }>('SELECT MAX(requested_at) AS at FROM results_imports WHERE athlete_id = ?', [athleteId]);
       return row?.at ?? null;

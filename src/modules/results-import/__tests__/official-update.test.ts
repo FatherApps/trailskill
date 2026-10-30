@@ -29,7 +29,7 @@ const imported = (overrides: Partial<ImportedResult> = {}): ImportedResult => ({
   ...overrides,
 });
 
-const pending = (overrides: Partial<PendingResultChange> = {}): PendingResultChange & { status: 'pending' } => ({
+const pending = (overrides: Partial<PendingResultChange & { status: 'kept_current' }> = {}): PendingResultChange & { status: 'pending' | 'kept_current' } => ({
   id: 'c1',
   importedResultId: 'r1',
   athleteId: 'a1',
@@ -56,6 +56,12 @@ describe('sortOutFound', () => {
 
   it('drops a result whose difference already waits for a choice', () => {
     expect(sortOutFound([found({ hundredths: 2850 })], [imported(), pending()])).toEqual([]);
+  });
+
+  it('drops a result whose change the guardian already decided, and offers it again when the source moves to another value', () => {
+    const kept = pending({ status: 'kept_current' });
+    expect(sortOutFound([found({ hundredths: 2850 })], [imported(), kept])).toEqual([]);
+    expect(sortOutFound([found({ hundredths: 2840 })], [imported(), kept])).toHaveLength(1);
   });
 
   it('keeps a missing time as null, never zero', () => {
@@ -91,6 +97,11 @@ const setup = (svc = service(), results: ImportedResult[] = [imported()], change
 describe('createOfficialUpdate.check', () => {
   it('offers the new results', async () => {
     expect(await setup().check('a1')).toEqual({ kind: 'found', results: [found({ swumOn: '2026-05-02' })] });
+  });
+
+  it('does not offer again a change the guardian kept', async () => {
+    const svc = service({ results: jest.fn().mockResolvedValue(ok([found({ hundredths: 2850 })])) });
+    expect(await setup(svc, [imported()], [pending({ status: 'kept_current' })]).check('a1')).toEqual({ kind: 'none' });
   });
 
   it('says there is nothing new when the app shows every result', async () => {

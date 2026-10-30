@@ -24,6 +24,12 @@ export function createInMemoryImportedResultsRepository(
         .map(({ status: _status, ...change }) => change)
         .sort(oldestFirst);
     },
+    async listAllChanges(athleteId) {
+      return changes
+        .filter((c) => c.athleteId === athleteId)
+        .map(({ status: _status, ...change }) => change)
+        .sort(oldestFirst);
+    },
     async lastImportedAt(athleteId) {
       const times = imports.filter((i) => i.athleteId === athleteId).map((i) => i.requestedAt);
       return times.length === 0 ? null : times.reduce((a, b) => (a > b ? a : b));
