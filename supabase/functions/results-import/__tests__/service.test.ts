@@ -1,6 +1,17 @@
 import { ProviderUnavailableError, type NormalizedResult } from '../port.ts';
 import { createProviderRegistry, type OrganizationData } from '../registry.ts';
-import { createResultsImport, QUERY_INTERVAL_MS, type Claim, type Confirmations, type IdentityNumbers, type QueryGate } from '../service.ts';
+import {
+  CANDIDATE_TTL_MS,
+  createResultsImport,
+  NotAuthorizedError,
+  OrphanedConfirmationError,
+  QUERY_INTERVAL_MS,
+  type Claim,
+  type Confirmations,
+  type IdentityNumbers,
+  type PendingStore,
+  type QueryGate,
+} from '../service.ts';
 import { createFakeProvider } from './fakeProvider.ts';
 
 const ORG = 'fed';
@@ -39,49 +50,104 @@ function createFakeGate(authorized = true) {
   return { gate, claims, advance: (ms: number) => (now += ms), now: () => now };
 }
 
-function createFakeIdentityNumbers(initial: string | null): IdentityNumbers & { saved: [string, string][]; reads: string[] } {
+function createFakeIdentityNumbers(initial: string | null) {
   const saved: [string, string][] = [];
   const reads: string[] = [];
+  let saveFailure: Error | undefined;
   return {
     saved,
     reads,
-    async read(athleteId) {
+    failSave: (error: Error | undefined) => void (saveFailure = error),
+    async read(athleteId: string) {
       reads.push(athleteId);
       return initial;
     },
-    async save(athleteId, identityNumber) {
+    async save(athleteId: string, identityNumber: string) {
+      if (saveFailure) throw saveFailure;
       saved.push([athleteId, identityNumber]);
     },
-  };
+  } satisfies IdentityNumbers & Record<string, unknown>;
 }
 
-function createFakeConfirmations(rejectWith?: Error): Confirmations & { recorded: Parameters<Confirmations['record']>[0][] } {
+function createFakeConfirmations() {
   const recorded: Parameters<Confirmations['record']>[0][] = [];
+  const recordedIds: string[] = [];
+  const removed: string[] = [];
+  const live = new Set<string>();
+  let rejection: Error | undefined;
+  let removeFailure: Error | undefined;
   return {
     recorded,
-    async record(input) {
-      if (rejectWith) throw rejectWith;
+    recordedIds,
+    removed,
+    stored: () => [...live],
+    reject: (error: Error | undefined) => void (rejection = error),
+    failRemove: (error: Error | undefined) => void (removeFailure = error),
+    async record(input: Parameters<Confirmations['record']>[0]) {
+      if (rejection) throw rejection;
+      const id = `confirmation-${recordedIds.length + 1}`;
       recorded.push(input);
+      recordedIds.push(id);
+      live.add(id);
+      return id;
     },
-  };
+    async remove(id: string) {
+      if (removeFailure) throw removeFailure;
+      removed.push(id);
+      live.delete(id);
+    },
+  } satisfies Confirmations & Record<string, unknown>;
 }
 
-function setup(options: { number?: string | null; authorized?: boolean; rejectConfirmation?: Error; providerOptions?: Parameters<typeof createFakeProvider>[0]; withProvider?: boolean } = {}) {
+// Same rules as results_import_pending_put / _take: single use, only for the user, athlete and kind that stored it, and not after it expires.
+function createFakePending(now: () => number) {
+  type Put = Parameters<PendingStore['put']>[0];
+  const rows = new Map<string, Omit<Put, 'ttlMs' | 'id'> & { expiresAt: number }>();
+  let issued = 0;
+  const store: PendingStore = {
+    async put({ ttlMs, id, ...entry }) {
+      const key = id ?? `candidate-${++issued}`;
+      rows.set(key, { ...entry, expiresAt: now() + ttlMs });
+      return key;
+    },
+    async take({ id, kind, userId, athleteId }) {
+      const row = rows.get(id);
+      if (!row || row.expiresAt <= now() || row.kind !== kind || row.userId !== userId || row.athleteId !== athleteId) return null;
+      rows.delete(id);
+      return row;
+    },
+  };
+  return { store, rows };
+}
+
+function setup(options: { number?: string | null; authorized?: boolean; providerOptions?: Parameters<typeof createFakeProvider>[0]; withProvider?: boolean } = {}) {
   const provider = createFakeProvider({ results: [validResult], ...options.providerOptions });
   const fakeGate = createFakeGate(options.authorized ?? true);
   const identityNumbers = createFakeIdentityNumbers(options.number === undefined ? NUMBER : options.number);
-  const confirmations = createFakeConfirmations(options.rejectConfirmation);
-  const data = options.withProvider === false ? [{ ...chain[0], provider: null }] : chain;
+  const confirmations = createFakeConfirmations();
+  let data = options.withProvider === false ? [{ ...chain[0], provider: null }] : chain;
+  let clock = Date.parse('2026-10-28T10:00:00Z');
+  const pending = createFakePending(() => clock);
   const service = createResultsImport({
     registry: createProviderRegistry([provider]),
     gate: fakeGate.gate,
     identityNumbers,
     confirmations,
     organizationChain: async () => data,
+    pending: pending.store,
+    now: () => clock,
   });
-  return { provider, fakeGate, identityNumbers, confirmations, service };
+  return {
+    provider,
+    fakeGate,
+    identityNumbers,
+    confirmations,
+    pending,
+    service,
+    advanceClock: (ms: number) => void (clock += ms),
+    removeProvider: () => void (data = [{ ...chain[0], provider: null }]),
+  };
 }
-
 const refresh = (s: ReturnType<typeof setup>) => s.service.refreshResults({ userId: USER, athleteId: ATHLETE, organizationId: ORG });
 const search = (s: ReturnType<typeof setup>) =>
   s.service.findCandidates({ userId: USER, athleteId: ATHLETE, organizationId: ORG, firstName: 'Ana', lastName: 'Example' });
@@ -207,10 +273,11 @@ describe('refreshResults', () => {
 
 describe('findCandidates', () => {
   const candidate = { sourceAthleteKey: 'k-1', name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [2025, 2026] }], resultCount: 3 };
+  const shown = { id: expect.any(String), name: 'Ana Example', affiliations: candidate.affiliations, resultCount: 3 };
 
   it('passes the stored number when there is one', async () => {
     const s = setup({ providerOptions: { candidates: [candidate] } });
-    expect(await search(s)).toEqual({ ok: true, value: [candidate] });
+    expect(await search(s)).toEqual({ ok: true, value: [shown] });
     expect(s.provider.calls).toEqual([{ method: 'findCandidates', argument: { firstName: 'Ana', lastName: 'Example', identityNumber: NUMBER } }]);
   });
 
@@ -218,6 +285,22 @@ describe('findCandidates', () => {
     const s = setup({ number: null, providerOptions: { candidates: [candidate] } });
     await search(s);
     expect(s.provider.calls).toEqual([{ method: 'findCandidates', argument: { firstName: 'Ana', lastName: 'Example', identityNumber: null } }]);
+  });
+
+  it('never returns the source reference to the device', async () => {
+    const s = setup({ providerOptions: { candidates: [candidate, { ...candidate, sourceAthleteKey: 'k-2' }] } });
+    const outcome = await search(s);
+    expect(outcome.ok && outcome.value.every((c) => !('sourceAthleteKey' in c))).toBe(true);
+    expect(JSON.stringify(outcome)).not.toMatch(/k-1|k-2/);
+  });
+
+  it('gives each candidate its own opaque id that does not contain the reference', async () => {
+    const s = setup({ providerOptions: { candidates: [candidate, { ...candidate, sourceAthleteKey: 'k-2' }] } });
+    const outcome = await search(s);
+    if (!outcome.ok) throw new Error('expected candidates');
+    const [first, second] = outcome.value;
+    expect(first.id).not.toEqual(second.id);
+    expect(first.id).not.toContain('k-1');
   });
 
   it('shares the rate limit with refresh', async () => {
@@ -252,7 +335,10 @@ describe('findCandidates', () => {
 
   it('keeps only the candidate fields', async () => {
     const s = setup({ providerOptions: { candidates: [{ ...candidate, idNumber: NUMBER, birthDate: '2012-01-01' }] } });
-    expect(await search(s)).toEqual({ ok: true, value: [candidate] });
+    const outcome = await search(s);
+    expect(outcome).toEqual({ ok: true, value: [shown] });
+    expect(JSON.stringify(outcome)).not.toContain(NUMBER);
+    expect(JSON.stringify(outcome)).not.toContain('2012-01-01');
   });
 
   it.each<[string, Record<string, unknown>]>([
@@ -276,30 +362,182 @@ describe('findCandidates', () => {
 });
 
 describe('confirmCandidate', () => {
-  const confirmed = { sourceAthleteKey: 'k-1', name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [2025, 2026] }], resultCount: 3 };
-  const confirm = (s: ReturnType<typeof setup>) =>
-    s.service.confirmCandidate({ userId: USER, athleteId: ATHLETE, organizationId: ORG, candidate: confirmed });
+  const candidate = { sourceAthleteKey: 'k-1', name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [2025, 2026] }], resultCount: 3 };
 
-  it('records the evidence without the source reference, then saves the reference, touching neither gate nor provider', async () => {
-    const s = setup();
-    expect(await confirm(s)).toEqual({ ok: true, value: undefined });
+  async function searched(options: Parameters<typeof setup>[0] = {}) {
+    const s = setup({ number: null, ...options, providerOptions: { candidates: [candidate] } });
+    const outcome = await search(s);
+    if (!outcome.ok) throw new Error('search failed');
+    return { s, candidateId: outcome.value[0].id };
+  }
+  const confirm = (s: ReturnType<typeof setup>, candidateId: string, overrides: Partial<{ userId: string; athleteId: string; organizationId: string }> = {}) =>
+    s.service.confirmCandidate({ userId: USER, athleteId: ATHLETE, organizationId: ORG, candidateId, ...overrides });
+
+  it('records the evidence without the source reference, then saves the reference', async () => {
+    const { s, candidateId } = await searched();
+    expect(await confirm(s, candidateId)).toEqual({ ok: true, value: undefined });
     expect(s.confirmations.recorded).toEqual([
       {
         athleteId: ATHLETE,
         organizationId: ORG,
         userId: USER,
-        evidence: { name: 'Ana Example', affiliations: confirmed.affiliations, resultCount: 3 },
+        evidence: { name: 'Ana Example', affiliations: candidate.affiliations, resultCount: 3 },
       },
     ]);
     expect(JSON.stringify(s.confirmations.recorded)).not.toContain('k-1');
     expect(s.identityNumbers.saved).toEqual([[ATHLETE, 'k-1']]);
-    expect(s.fakeGate.claims).toEqual([]);
-    expect(s.provider.calls).toEqual([]);
+    expect(s.confirmations.recorded).toHaveLength(1);
+    expect(s.confirmations.removed).toEqual([]);
   });
 
-  it('does not save the reference when the confirmation is rejected, and propagates the error', async () => {
-    const s = setup({ rejectConfirmation: new Error('not allowed') });
-    await expect(confirm(s)).rejects.toThrow('not allowed');
+  it('does not spend the rate-limit claim, so the first results query after confirming is allowed', async () => {
+    const { s, candidateId } = await searched();
+    const claimsBefore = s.fakeGate.claims.length;
+    await confirm(s, candidateId);
+    expect(s.fakeGate.claims).toHaveLength(claimsBefore);
+  });
+
+  it('rejects an id that findCandidates did not return, with nothing recorded or saved', async () => {
+    const { s } = await searched();
+    expect(await confirm(s, 'made-up-id')).toEqual({ ok: false, error: { code: 'unknown_id' } });
+    expect(s.confirmations.recorded).toEqual([]);
     expect(s.identityNumbers.saved).toEqual([]);
+  });
+
+  it('never uses a candidate built by the caller: the source reference of the request is ignored', async () => {
+    const { s, candidateId } = await searched();
+    const forged = { userId: USER, athleteId: ATHLETE, organizationId: ORG, candidateId, candidate: { ...candidate, sourceAthleteKey: 'forged-key', name: 'Someone Else' } };
+    await s.service.confirmCandidate(forged as unknown as Parameters<typeof s.service.confirmCandidate>[0]);
+    expect(s.identityNumbers.saved).toEqual([[ATHLETE, 'k-1']]);
+    expect(s.confirmations.recorded[0].evidence.name).toBe('Ana Example');
+  });
+
+  it.each<[string, Partial<{ userId: string; athleteId: string; organizationId: string }>]>([
+    ['another user', { userId: 'user-2' }],
+    ['another athlete', { athleteId: 'athlete-2' }],
+    ['another organization', { organizationId: 'other-org' }],
+  ])('rejects an id issued for %s', async (_name, overrides) => {
+    const { s, candidateId } = await searched();
+    expect(await confirm(s, candidateId, overrides)).toEqual({ ok: false, error: { code: 'unknown_id' } });
+    expect(s.confirmations.recorded).toEqual([]);
+  });
+
+  it('rejects an id after its lifetime', async () => {
+    const { s, candidateId } = await searched();
+    s.advanceClock(CANDIDATE_TTL_MS + 1);
+    expect(await confirm(s, candidateId)).toEqual({ ok: false, error: { code: 'unknown_id' } });
+  });
+
+  it('accepts an id only once', async () => {
+    const { s, candidateId } = await searched();
+    await confirm(s, candidateId);
+    expect(await confirm(s, candidateId)).toEqual({ ok: false, error: { code: 'unknown_id' } });
+    expect(s.confirmations.recorded).toHaveLength(1);
+  });
+
+  it('is not confirmed when import_official_results is not in force, and saves nothing', async () => {
+    const { s, candidateId } = await searched();
+    const readsBefore = s.identityNumbers.reads.length;
+    s.confirmations.reject(new NotAuthorizedError());
+    expect(await confirm(s, candidateId)).toEqual({ ok: false, error: { code: 'not_authorized' } });
+    expect(s.identityNumbers.saved).toEqual([]);
+    expect(s.identityNumbers.reads).toHaveLength(readsBefore);
+  });
+
+  it('answers no_provider when the organization lost its provider after the search', async () => {
+    const { s, candidateId } = await searched();
+    s.removeProvider();
+    expect(await confirm(s, candidateId)).toEqual({ ok: false, error: { code: 'no_provider' } });
+    expect(s.confirmations.recorded).toEqual([]);
+  });
+
+  it('removes the evidence when saving the number fails, so none is left without a number', async () => {
+    const { s, candidateId } = await searched();
+    s.identityNumbers.failSave(new Error('database down'));
+    await expect(confirm(s, candidateId)).rejects.toThrow('database down');
+    expect(s.confirmations.recorded).toHaveLength(1);
+    expect(s.confirmations.removed).toEqual(s.confirmations.recordedIds);
+    expect(s.confirmations.stored()).toEqual([]);
+  });
+
+  it('can be retried after a failed save', async () => {
+    const { s, candidateId } = await searched();
+    s.identityNumbers.failSave(new Error('database down'));
+    await expect(confirm(s, candidateId)).rejects.toThrow();
+    s.identityNumbers.failSave(undefined);
+    expect(await confirm(s, candidateId)).toEqual({ ok: true, value: undefined });
+    expect(s.confirmations.stored()).toHaveLength(1);
+  });
+
+  it('reports the failure and the orphan when the compensation fails too', async () => {
+    const { s, candidateId } = await searched();
+    s.identityNumbers.failSave(new Error('database down'));
+    s.confirmations.failRemove(new Error('also down'));
+    await expect(confirm(s, candidateId)).rejects.toThrow(OrphanedConfirmationError);
+  });
+
+  it('keeps a stored number when it is the same one, without saving it again', async () => {
+    const { s, candidateId } = await searched({ number: 'k-1' });
+    expect(await confirm(s, candidateId)).toEqual({ ok: true, value: undefined });
+    expect(s.identityNumbers.saved).toEqual([]);
+    expect(s.confirmations.stored()).toHaveLength(1);
+  });
+
+  it('never replaces a different stored number: nothing is saved and the evidence is removed', async () => {
+    const { s, candidateId } = await searched({ number: NUMBER });
+    const outcome = await confirm(s, candidateId);
+    expect(outcome).toEqual({ ok: false, error: { code: 'identity_number_conflict' } });
+    expect(JSON.stringify(outcome)).not.toContain(NUMBER);
+    expect(s.identityNumbers.saved).toEqual([]);
+    expect(s.confirmations.stored()).toEqual([]);
+  });
+
+  it('leaves no pending entry after confirming', async () => {
+    const { s, candidateId } = await searched();
+    expect(s.pending.rows.has(candidateId)).toBe(true);
+    await confirm(s, candidateId);
+    expect(s.pending.rows.size).toBe(0);
+  });
+
+  it('keeps the source reference only in the pending entry, never in anything the device receives', async () => {
+    const { s, candidateId } = await searched();
+    expect(s.pending.rows.get(candidateId)).toMatchObject({ reference: 'k-1', provider: 'zz-test' });
+  });
+
+  it('rejects an entry of another provider than the organization resolves to now', async () => {
+    const { s } = await searched();
+    const id = await s.pending.store.put({
+      kind: 'search', userId: USER, athleteId: ATHLETE, organizationId: ORG, provider: 'zz-other', reference: 'k-9',
+      payload: { name: 'Ana Example', affiliations: [], resultCount: 1 }, ttlMs: 60_000,
+    });
+    expect(await confirm(s, id)).toEqual({ ok: false, error: { code: 'unknown_id' } });
+    expect(s.confirmations.recorded).toEqual([]);
+    expect(s.identityNumbers.saved).toEqual([]);
+  });
+
+  it('puts the entry back with the time it had left after a failure, never with a longer life', async () => {
+    const { s, candidateId } = await searched();
+    const expiresAt = s.pending.rows.get(candidateId)!.expiresAt;
+    s.advanceClock(5 * 60 * 1000);
+    s.identityNumbers.failSave(new Error('database down'));
+    await expect(confirm(s, candidateId)).rejects.toThrow('database down');
+    expect(s.pending.rows.get(candidateId)?.expiresAt).toBe(expiresAt);
+  });
+
+  it.each([
+    ['a conflicting number', { number: NUMBER }],
+    ['a missing authorization', { number: null }],
+  ])('keeps the id usable for another try after %s', async (name, options) => {
+    const { s, candidateId } = await searched(options);
+    if (name === 'a missing authorization') s.confirmations.reject(new NotAuthorizedError());
+    expect((await confirm(s, candidateId)).ok).toBe(false);
+    expect(s.pending.rows.has(candidateId)).toBe(true);
+  });
+
+  it('does not put the entry back after a success: the id cannot be reused', async () => {
+    const { s, candidateId } = await searched();
+    await confirm(s, candidateId);
+    expect(await confirm(s, candidateId)).toEqual({ ok: false, error: { code: 'unknown_id' } });
+    expect(s.pending.rows.has(candidateId)).toBe(false);
   });
 });
