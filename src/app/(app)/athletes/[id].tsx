@@ -12,6 +12,14 @@ import {
   createSupabaseOtherSchoolResultsRepository,
 } from '../../../modules/athletes';
 import {
+  createIdentityConfirmation,
+  createOfficialUpdate,
+  createPowerSyncImportedResultsRepository,
+  createSupabaseOfficialResultsService,
+  createSupabasePendingChangeResolver,
+  OfficialUpdateContainer,
+} from '../../../modules/results-import';
+import {
   createPowerSyncSchoolNameRepository,
   createPowerSyncSchoolStructureRepository,
   createPowerSyncStaffSchoolRepository,
@@ -26,6 +34,11 @@ const schoolNames = createPowerSyncSchoolNameRepository();
 const categories = createPowerSyncSchoolStructureRepository();
 const staffSchools = createPowerSyncStaffSchoolRepository();
 const otherSchoolResults = createSupabaseOtherSchoolResultsRepository();
+const importedResults = createPowerSyncImportedResultsRepository();
+const officialResults = createSupabaseOfficialResultsService();
+const officialUpdate = createOfficialUpdate({ service: officialResults, repository: importedResults });
+const identity = createIdentityConfirmation(officialResults);
+const changeResolver = createSupabasePendingChangeResolver();
 
 export default function AthleteProfileRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -49,6 +62,19 @@ export default function AthleteProfileRoute() {
       categories={categories}
       lastSyncedAt={lastSyncedAt}
       otherSchoolResults={isStaff ? otherSchoolResults : undefined}
+      importedResults={importedResults}
+      // The server decides who may update: without a confirmed identity and a manager with the authorization in force, nothing shows.
+      officialUpdate={
+        <OfficialUpdateContainer
+          athleteId={id}
+          update={officialUpdate}
+          repository={importedResults}
+          identity={identity}
+          authorizations={authorizations}
+          resolver={changeResolver}
+          syncKey={lastSyncedAt?.getTime()}
+        />
+      }
       online={summary.connection === 'connected'}
       onBack={goBack}
     />

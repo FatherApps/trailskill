@@ -29,17 +29,20 @@ const result = (key: string, overrides: Partial<NormalizedResult> = {}): Normali
 });
 
 // Same semantics as results_import_pending_put / _take: one row per id, deleted when taken, bound to user and athlete.
-function createFakePending(): PendingResults & { rows: Map<string, PendingRow & { requestedBy: string; athleteId: string }>; puts: unknown[] } {
+const clock = { now: Date.parse('2026-10-29T12:00:00Z') };
+
+function createFakePending(): PendingResults & { rows: Map<string, PendingRow & { requestedBy: string; athleteId: string }>; puts: Parameters<PendingResults['put']>[0][] } {
   const rows = new Map<string, PendingRow & { requestedBy: string; athleteId: string }>();
-  const puts: unknown[] = [];
+  const puts: Parameters<PendingResults['put']>[0][] = [];
   let next = 0;
   return {
     rows,
     puts,
     async put(input) {
       puts.push(input);
+      if (input.ttlMs < 0 || input.ttlMs > PENDING_TTL_MS) throw new Error('22023');
       const id = input.pendingId ?? `p${++next}`;
-      rows.set(id, { organizationId: input.organizationId, provider: input.provider, reference: input.reference, payload: input.payload, requestedBy: input.requestedBy, athleteId: input.athleteId });
+      rows.set(id, { organizationId: input.organizationId, provider: input.provider, reference: input.reference, payload: input.payload, expiresAt: new Date(clock.now + input.ttlMs).toISOString(), requestedBy: input.requestedBy, athleteId: input.athleteId });
       return id;
     },
     async take({ id, requestedBy, athleteId }) {
@@ -104,6 +107,7 @@ function setup(
       latest: async () => (options.confirmed === false ? null : { organizationId: ORG, confirmedAt: '2026-10-28T10:00:00Z', candidateName: 'Synthetic Swimmer' }),
     },
     providerKeyFor: async () => (options.providerKey === undefined ? 'zz-test' : options.providerKey),
+    now: () => clock.now,
   });
   return { actions, pending, recorded, claims, provider };
 }
@@ -237,6 +241,26 @@ describe('import', () => {
     expect(pending.rows.has(ids[0]!)).toBe(true);
     expect(recorded).toEqual([]);
     expect(await actions.import({ ...who, resultIds: [ids[0]!] })).toMatchObject({ ok: true });
+  });
+
+  it('puts a taken id back with the time it had left, never more', async () => {
+    const { actions, pending, ids } = await offered({ recordFails: true });
+    clock.now += 6 * 60 * 1000;
+    await actions.import({ ...who, resultIds: ids });
+
+    const restored = pending.puts.filter((put) => put.pendingId !== undefined);
+    expect(restored).toHaveLength(ids.length);
+    expect(restored.every((put) => put.ttlMs === PENDING_TTL_MS - 6 * 60 * 1000)).toBe(true);
+    clock.now -= 6 * 60 * 1000;
+  });
+
+  it('does not bring back an id that expired while it was taken', async () => {
+    const { actions, pending, ids } = await offered({ recordFails: true });
+    clock.now += PENDING_TTL_MS + 1;
+    await actions.import({ ...who, resultIds: ids });
+    // Taken before it expired in the fake, so there is nothing left to restore.
+    expect(pending.puts.filter((put) => put.pendingId !== undefined)).toEqual([]);
+    clock.now -= PENDING_TTL_MS + 1;
   });
 
   it('treats an id of another user or another athlete as unknown_id', async () => {

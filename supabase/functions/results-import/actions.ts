@@ -11,7 +11,8 @@ export type ActionOutcome<T> = { ok: true; value: T } | { ok: false; error: Acti
 /** What waits on the server for an offered result: its values, never the source key (that is the `reference`). */
 export type ResultPayload = Omit<NormalizedResult, 'sourceResultKey'>;
 
-export type PendingRow = { organizationId: string; provider: string; reference: string; payload: ResultPayload };
+/** `expiresAt` (ISO) is when the row was due to expire; a restore keeps what was left of it, never more. */
+export type PendingRow = { organizationId: string; provider: string; reference: string; payload: ResultPayload; expiresAt: string };
 
 /**
  * Implemented by `public.results_import_pending_put` / `results_import_pending_take` (service_role only, owned by #81):
@@ -25,8 +26,9 @@ export interface PendingResults {
     provider: string;
     reference: string;
     payload: ResultPayload;
+    // 0 to 15 minutes; anything else is rejected by the database (22023).
     ttlMs: number;
-    // Put a taken row back under its own id.
+    // Put a taken row back under its own id, with the time it had left.
     pendingId?: string;
   }): Promise<string>;
   take(input: { id: string; requestedBy: string; athleteId: string }): Promise<PendingRow | null>;
@@ -50,6 +52,7 @@ type Dependencies = {
   confirmations: { latest(athleteId: string): Promise<{ organizationId: string; confirmedAt: string; candidateName: string } | null> };
   /** The provider key registered for the organization (`results_import_sources`), or null. */
   providerKeyFor(organizationId: string): Promise<string | null>;
+  now?: () => number;
 };
 
 type Who = { userId: string; athleteId: string };
@@ -57,7 +60,7 @@ type Who = { userId: string; athleteId: string };
 const fail = (error: ActionError): { ok: false; error: ActionError } => ({ ok: false, error });
 const UNAVAILABLE = fail({ code: 'unavailable' });
 
-export function createOfficialResultsActions({ service, identityNumbers, pending, recorder, access, confirmations, providerKeyFor }: Dependencies) {
+export function createOfficialResultsActions({ service, identityNumbers, pending, recorder, access, confirmations, providerKeyFor, now = Date.now }: Dependencies) {
   // Authorization first, so a caller who may not import learns nothing; then the confirmation, before any rate limit is spent.
   async function begin({ userId, athleteId }: Who): Promise<{ organizationId: string } | { error: ActionError }> {
     if (!(await access.allowed({ userId, athleteId }))) return { error: { code: 'not_authorized' } };
@@ -72,10 +75,14 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
     return outcome.ok ? { ok: true, value: { organizationId: started.organizationId, results: outcome.value } } : fail(outcome.error);
   }
 
-  // A taken row goes back under its own id. Best effort: if this fails too, the ids expire and the guardian asks again.
+  // A taken row goes back under its own id with the time it had left, never more; one already expired stays gone.
+  // Best effort: if this fails too, the ids expire and the guardian asks again.
   async function restore(taken: Map<string, PendingRow>, who: Who) {
     await Promise.allSettled(
-      [...taken].map(([id, row]) => pending.put({ ...row, requestedBy: who.userId, athleteId: who.athleteId, ttlMs: PENDING_TTL_MS, pendingId: id })),
+      [...taken].flatMap(([id, { expiresAt, ...row }]) => {
+        const ttlMs = Math.min(PENDING_TTL_MS, Date.parse(expiresAt) - now());
+        return ttlMs > 0 ? [pending.put({ ...row, requestedBy: who.userId, athleteId: who.athleteId, ttlMs, pendingId: id })] : [];
+      }),
     );
   }
 
