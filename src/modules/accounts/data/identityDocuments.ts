@@ -31,9 +31,14 @@ export function createIdentityNumberHold(): IdentityNumberHold {
 // It dies with the app, so a registration cut in between loses the numbers.
 export const identityNumbers = createIdentityNumberHold();
 
+/** All the screen may know about a saved number: that there is one and, when it is longer than three characters, how it ends. */
+export type IdentityNumberHint = { present: boolean; lastThree: string | null };
+
 export interface IdentityDocumentRepository {
   /** Online, signed in. Throws on failure; the number is never part of the error. */
   save(input: { athleteId: string; identityNumber: string }): Promise<void>;
+  /** Online, signed in, only for a manager of the athlete. Throws on failure. */
+  hint(athleteId: string): Promise<IdentityNumberHint>;
 }
 
 const WAIT_STEP_MS = 1000;
@@ -51,6 +56,12 @@ export function createSupabaseIdentityDocumentRepository(): IdentityDocumentRepo
       const { error } = await supabase.rpc('save_athlete_identity_number', { athlete_id: athleteId, identity_number: identityNumber });
       if (error) throw new Error(`Saving the identity number failed (${error.code})`);
     },
+    async hint(athleteId) {
+      const { data, error } = await supabase.rpc('athlete_identity_number_hint', { athlete_id: athleteId });
+      if (error) throw new Error(`Reading the identity number hint failed (${error.code})`);
+      const row = data?.[0];
+      return { present: row?.present === true, lastThree: typeof row?.last_three === 'string' ? row.last_three : null };
+    },
   };
 }
 
@@ -59,9 +70,14 @@ export function createInMemoryIdentityDocumentRepository() {
   return {
     saved,
     failing: false as boolean,
+    hints: {} as Record<string, IdentityNumberHint>,
     async save(input: { athleteId: string; identityNumber: string }) {
       if (this.failing) throw new Error('Saving the identity number failed');
       saved.push(input);
     },
-  } satisfies IdentityDocumentRepository & { saved: unknown[]; failing: boolean };
+    async hint(athleteId: string) {
+      if (this.failing) throw new Error('Reading the identity number hint failed');
+      return this.hints[athleteId] ?? { present: false, lastThree: null };
+    },
+  } satisfies IdentityDocumentRepository & { saved: unknown[]; failing: boolean; hints: Record<string, IdentityNumberHint> };
 }
