@@ -95,6 +95,21 @@ const show = (props: Partial<Parameters<typeof AthleteProfileContainer>[0]> = {}
   );
 
 describe('athlete profile container', () => {
+  it('offers the official import only when the route passes the prompt', async () => {
+    const onStart = jest.fn();
+    await show({ importPrompt: { sourceName: 'FEDNAT', athleteName: 'Ana', imported: false, onDismiss: noop, onRefresh: noop, onStart } });
+
+    fireEvent.press(await screen.findByRole('button', { name: 'Buscar en FEDNAT' }));
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no import prompt when the route passes none', async () => {
+    await show();
+
+    expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /Buscar en/ })).toBeNull();
+  });
+
   it('shows the name, the personal best and the history of the athlete', async () => {
     await show();
 

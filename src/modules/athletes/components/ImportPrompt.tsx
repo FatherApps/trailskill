@@ -16,6 +16,8 @@ export type ImportPromptProps = {
   onRefresh: () => void;
   // Only before the first import.
   onLearnMore?: () => void;
+  // Only before the first import: starts the search of the athlete's history at the source.
+  onStart?: () => void;
 };
 
 const styles = StyleSheet.create({
@@ -30,6 +32,7 @@ export function ImportPrompt({
   onDismiss,
   onRefresh,
   onLearnMore,
+  onStart,
 }: ImportPromptProps) {
   const { space, typography } = useTheme();
 
@@ -55,6 +58,7 @@ export function ImportPrompt({
         {imported && (
           <Button variant="secondary" label={t('athletes.import_prompt.refresh', values)} onPress={onRefresh} />
         )}
+        {!imported && onStart && <Button variant="secondary" label={t('athletes.import_prompt.start', values)} onPress={onStart} />}
         <Button variant="ghost" label={t('athletes.import_prompt.dismiss')} onPress={onDismiss} />
         {!imported && onLearnMore && (
           <Button variant="ghost" label={t('athletes.import_prompt.learn_more')} onPress={onLearnMore} />

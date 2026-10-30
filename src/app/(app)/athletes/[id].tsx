@@ -1,16 +1,19 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 
 import { useGoBack } from '../../../core/navigation';
 import { useSession } from '../../../core/session';
 import { useGlobalSyncSummary } from '../../../core/sync';
-import { createPowerSyncAuthorizationStatusRepository } from '../../../modules/accounts';
+import { createPowerSyncAuthorizationStatusRepository, createPowerSyncManagedAthleteRepository } from '../../../modules/accounts';
 import {
   AthleteProfileContainer,
   createPowerSyncAthleteSchoolRepository,
   createPowerSyncHistoryRepository,
   createPowerSyncSchoolAthleteRepository,
   createSupabaseOtherSchoolResultsRepository,
+  useManagedAthletes,
 } from '../../../modules/athletes';
+import { createSupabaseImportSourcesRepository, useImportSources } from '../../../modules/results-import';
 import {
   createPowerSyncSchoolNameRepository,
   createPowerSyncSchoolStructureRepository,
@@ -26,17 +29,38 @@ const schoolNames = createPowerSyncSchoolNameRepository();
 const categories = createPowerSyncSchoolStructureRepository();
 const staffSchools = createPowerSyncStaffSchoolRepository();
 const otherSchoolResults = createSupabaseOtherSchoolResultsRepository();
+const managedAthletes = createPowerSyncManagedAthleteRepository();
+const importSources = createSupabaseImportSourcesRepository();
 
 export default function AthleteProfileRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const goBack = useGoBack();
   const { session } = useSession();
   const summary = useGlobalSyncSummary();
+  const [importDismissed, setImportDismissed] = useState(false);
   const lastSyncedAt = summary.lastSyncedAt ?? null;
   // Only school staff can be entitled to another school's results; the server decides which.
   const isStaff = useStaffSchool(staffSchools, session?.user.id, summary.lastSyncedAt?.getTime()).status === 'staff';
 
+  const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, summary.lastSyncedAt?.getTime());
+  const sources = useImportSources(importSources, summary.connection === 'connected');
+
   if (!session) return null;
+  // Only a guardian or an adult athlete is offered the import; the source's name comes from data.
+  const managedAthlete = managed.status === 'ready' ? managed.athletes.find((candidate) => candidate.id === id) : undefined;
+  const importPrompt =
+    managedAthlete && sources[0] && !importDismissed
+      ? {
+          sourceName: sources[0].name,
+          athleteName: managedAthlete.firstName,
+          imported: false,
+          onDismiss: () => setImportDismissed(true),
+          // Updating an import is #82.
+          onRefresh: () => undefined,
+          onStart: () => router.push(`/athletes/import/${id}`),
+        }
+      : undefined;
   // The container shows "private" for an athlete that is not on this device; the backend decides what reaches it.
   return (
     <AthleteProfileContainer
@@ -50,6 +74,7 @@ export default function AthleteProfileRoute() {
       lastSyncedAt={lastSyncedAt}
       otherSchoolResults={isStaff ? otherSchoolResults : undefined}
       online={summary.connection === 'connected'}
+      importPrompt={importPrompt}
       onBack={goBack}
     />
   );
