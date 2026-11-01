@@ -1,3 +1,4 @@
+import type { ImportRecorder } from './actions.ts';
 import type { OrganizationData } from './registry.ts';
 import { InvalidSourceKeyError, NotAuthorizedError, type Claim, type Confirmations, type IdentityNumbers, type PendingStore, type QueryGate } from './service.ts';
 
@@ -132,6 +133,54 @@ export function createPendingStore(db: Db): PendingStore {
         throw failure('Taking the pending entry', null);
       }
       return { kind, userId, athleteId, organizationId, provider, reference, payload: payload as Record<string, unknown>, expiresAt };
+    },
+  };
+}
+
+/** `public.results_import_access`: the user manages the athlete and `import_official_results` is in force. It spends no rate limit. */
+export function createAccess(db: Db) {
+  return {
+    async allowed({ userId, athleteId }: { userId: string; athleteId: string }): Promise<boolean> {
+      const { data, error } = await db.rpc('results_import_access', { athlete: athleteId, requested_by: userId });
+      if (error || typeof data !== 'boolean') throw failure('Checking the import access', error);
+      return data;
+    },
+  };
+}
+
+/** `public.results_import_latest_confirmation`: the newest "is this the person?" confirmation of the athlete, or null. */
+export function createConfirmationReader(db: Db) {
+  return {
+    async latest(athleteId: string): Promise<{ organizationId: string; confirmedAt: string; candidateName: string } | null> {
+      const { data, error } = await db.rpc('results_import_latest_confirmation', { athlete: athleteId });
+      if (error || !Array.isArray(data)) throw failure('Reading the confirmation', error);
+      if (data.length === 0) return null;
+      const { organization_id: organizationId, confirmed_at: confirmedAt, candidate_name: candidateName } = data[0] as Record<string, unknown>;
+      if (typeof organizationId !== 'string' || typeof confirmedAt !== 'string' || typeof candidateName !== 'string') throw failure('Reading the confirmation', null);
+      return { organizationId, confirmedAt: new Date(confirmedAt).toISOString(), candidateName };
+    },
+  };
+}
+
+/** `public.record_imported_results`: one import with its provenance; the differences become pending changes inside the database. */
+export function createImportRecorder(db: Db): ImportRecorder {
+  return {
+    async record({ athleteId, organizationId, requestedBy, results }) {
+      const { data, error } = await db.rpc('record_imported_results', {
+        athlete: athleteId,
+        organization: organizationId,
+        requested_by: requestedBy,
+        results,
+      });
+      if (error?.code === NOT_AUTHORIZED) throw new NotAuthorizedError();
+      const summary = data as Record<string, unknown> | null;
+      if (
+        error || typeof summary !== 'object' || summary === null || typeof summary.importId !== 'string' ||
+        typeof summary.inserted !== 'number' || typeof summary.duplicates !== 'number' || typeof summary.changes !== 'number'
+      ) {
+        throw failure('Recording the imported results', error);
+      }
+      return { importId: summary.importId, inserted: summary.inserted, duplicates: summary.duplicates, changes: summary.changes };
     },
   };
 }

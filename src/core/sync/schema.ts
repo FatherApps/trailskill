@@ -132,6 +132,48 @@ export const AppSchema = new Schema({
     },
     { indexes: { athlete: ['athlete_id'], assignment: ['assignment_id'] } },
   ),
+  // Imported official results, their provenance and the pending differences (module results-import). Written by the server only.
+  results_imports: new Table(
+    { created_at: column.text, athlete_id: column.text, organization_id: column.text, provider: column.text, requested_by: column.text, requested_at: column.text },
+    { indexes: { athlete: ['athlete_id'] } },
+  ),
+  imported_results: new Table(
+    {
+      created_at: column.text,
+      import_id: column.text,
+      athlete_id: column.text,
+      provider: column.text,
+      source_result_key: column.text,
+      revision: column.integer,
+      supersedes_id: column.text,
+      stroke: column.text,
+      distance: column.text,
+      pool: column.text,
+      // Null is a missing time, never 0.
+      hundredths: column.integer,
+      swum_on: column.text,
+      competition: column.text,
+    },
+    { indexes: { athlete: ['athlete_id'] } },
+  ),
+  imported_result_changes: new Table(
+    {
+      created_at: column.text,
+      imported_result_id: column.text,
+      athlete_id: column.text,
+      import_id: column.text,
+      stroke: column.text,
+      distance: column.text,
+      pool: column.text,
+      hundredths: column.integer,
+      swum_on: column.text,
+      competition: column.text,
+      status: column.text,
+      resolved_by: column.text,
+      resolved_at: column.text,
+    },
+    { indexes: { athlete: ['athlete_id'] } },
+  ),
   authorization_texts: new Table({
     ...audit,
     purpose: column.text,

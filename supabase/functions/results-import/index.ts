@@ -2,7 +2,18 @@
 // The service_role key is read from the runtime's own environment and never leaves this process.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-import { createConfirmations, createIdentityNumbers, createOrganizationChain, createPendingStore, createQueryGate, type Db } from './adapters.ts';
+import { createOfficialResultsActions } from './actions.ts';
+import {
+  createAccess,
+  createConfirmationReader,
+  createConfirmations,
+  createIdentityNumbers,
+  createImportRecorder,
+  createOrganizationChain,
+  createPendingStore,
+  createQueryGate,
+  type Db,
+} from './adapters.ts';
 import { createHandler } from './handler.ts';
 import { createProviderRegistry } from './registry.ts';
 import { createResultsImport } from './service.ts';
@@ -26,13 +37,26 @@ const db: Db = {
 };
 
 // Adapters are added here as federations are supported: createProviderRegistry([...adapters]).
+const registry = createProviderRegistry([]);
+const identityNumbers = createIdentityNumbers(db);
+const organizationChain = createOrganizationChain(db);
+const pending = createPendingStore(db);
 const service = createResultsImport({
-  registry: createProviderRegistry([]),
+  registry,
   gate: createQueryGate(db),
-  identityNumbers: createIdentityNumbers(db),
+  identityNumbers,
   confirmations: createConfirmations(db),
-  organizationChain: createOrganizationChain(db),
-  pending: createPendingStore(db),
+  organizationChain,
+  pending,
+});
+const official = createOfficialResultsActions({
+  service,
+  identityNumbers,
+  pending,
+  recorder: createImportRecorder(db),
+  access: createAccess(db),
+  confirmations: createConfirmationReader(db),
+  providerKeyFor: async (organizationId) => registry.resolve(await organizationChain(organizationId), organizationId)?.key ?? null,
 });
 
 // The platform verifies the JWT (verify_jwt in config.toml); this asks the auth server who it belongs to.
@@ -47,4 +71,4 @@ const authenticate = async (request: Request) => {
   return error ? null : (data.user?.id ?? null);
 };
 
-Deno.serve(createHandler({ authenticate, service }));
+Deno.serve(createHandler({ authenticate, service, official }));

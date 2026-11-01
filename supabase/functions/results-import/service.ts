@@ -76,7 +76,7 @@ export class OrphanedConfirmationError extends Error {
 export const CANDIDATE_TTL_MS = 15 * 60 * 1000;
 
 export type PendingKind = 'search' | 'results';
-type PendingEntry = {
+export type PendingEntry = {
   kind: PendingKind;
   userId: string;
   athleteId: string;

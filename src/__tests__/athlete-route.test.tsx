@@ -5,6 +5,10 @@ import AthleteRoute from '../app/(app)/athletes/[id]';
 let mockUserId: string | undefined;
 let mockStaff = false;
 let mockCanGoBack = true;
+let mockImportedAt: string | null = null;
+let mockConfirmed = false;
+let mockManaged: { status: string; athletes?: object[] } = { status: 'loading' };
+let mockSources: object[] = [];
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 jest.mock('../core/session', () => ({
@@ -15,7 +19,16 @@ jest.mock('../modules/accounts', () => ({
   createPowerSyncAuthorizationStatusRepository: () => ({}),
   createPowerSyncManagedAthleteRepository: () => ({}),
 }));
-jest.mock('../modules/results-import', () => ({ createSupabaseImportSourcesRepository: () => ({}), useImportSources: () => [] }));
+jest.mock('../modules/results-import', () => ({
+  createSupabaseImportSourcesRepository: () => ({}),
+  useImportSources: () => mockSources,
+  createPowerSyncImportedResultsRepository: () => ({ lastImportedAt: async () => mockImportedAt }),
+  createSupabaseOfficialResultsService: () => ({}),
+  createOfficialUpdate: () => ({}),
+  createIdentityConfirmation: () => ({ isConfirmed: async () => mockConfirmed }),
+  createSupabasePendingChangeResolver: () => ({}),
+  OfficialUpdateContainer: () => null,
+}));
 jest.mock('../modules/athletes', () => {
   const { Pressable, Text } = jest.requireActual('react-native');
   return {
@@ -23,20 +36,22 @@ jest.mock('../modules/athletes', () => {
     createPowerSyncHistoryRepository: () => ({}),
     createPowerSyncAthleteSchoolRepository: () => ({}),
     createSupabaseOtherSchoolResultsRepository: () => ({}),
-    useManagedAthletes: () => ({ status: 'loading' }),
+    useManagedAthletes: () => mockManaged,
     AthleteProfileContainer: ({
       athleteId,
       otherSchoolResults,
       online,
+      importPrompt,
       onBack,
     }: {
       athleteId: string;
       otherSchoolResults?: object;
       online?: boolean;
+      importPrompt?: object;
       onBack: () => void;
     }) => (
       <Pressable accessibilityRole="button" onPress={onBack}>
-        <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}`}</Text>
+        <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}`}</Text>
       </Pressable>
     ),
   };
@@ -67,6 +82,45 @@ describe('athlete profile route', () => {
     mockStaff = false;
 
     expect(await screen.findByText('profile of a1 with other schools online')).toBeOnTheScreen();
+  });
+
+  describe('import prompt', () => {
+    const managed = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
+    afterEach(() => {
+      mockManaged = { status: 'loading' };
+      mockSources = [];
+      mockImportedAt = null;
+      mockConfirmed = false;
+    });
+
+    it('invites a guardian to import before anything was imported', async () => {
+      mockUserId = 'user-1';
+      mockManaged = managed;
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation' }];
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('profile of a1 online with import prompt')).toBeOnTheScreen();
+    });
+
+    it('lets the results panel replace the invitation once the identity is confirmed, even with nothing imported', async () => {
+      mockUserId = 'user-1';
+      mockManaged = managed;
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation' }];
+      mockConfirmed = true;
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('profile of a1 online')).toBeOnTheScreen();
+    });
+
+    it('stops inviting once something was imported: updating is the results panel', async () => {
+      mockUserId = 'user-1';
+      mockManaged = managed;
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation' }];
+      mockImportedAt = '2026-10-28T10:00:00Z';
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('profile of a1 online')).toBeOnTheScreen();
+    });
   });
 
   it('goes back through the stack when there is one', async () => {

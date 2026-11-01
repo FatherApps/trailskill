@@ -1,4 +1,4 @@
-import { createConfirmations, createIdentityNumbers, createOrganizationChain, createPendingStore, createQueryGate, type Db, type DbError } from '../adapters.ts';
+import { createAccess, createConfirmationReader, createConfirmations, createIdentityNumbers, createImportRecorder, createOrganizationChain, createPendingStore, createQueryGate, type Db, type DbError } from '../adapters.ts';
 import { InvalidSourceKeyError, NotAuthorizedError, QUERY_INTERVAL_MS } from '../service.ts';
 
 const ATHLETE = 'athlete-1';
@@ -204,5 +204,58 @@ describe('createPendingStore', () => {
     const take = (fake: ReturnType<typeof createFakeDb>) => createPendingStore(fake.db).take({ id: 'x', kind: 'search', userId: USER, athleteId: ATHLETE });
     await expect(take(createFakeDb([{ error: { code: 'TS001' } }]))).rejects.toThrow('Taking the pending entry failed (TS001)');
     await expect(take(createFakeDb([{ data: [{ organization_id: 'org-1' }] }]))).rejects.toThrow('Taking the pending entry failed');
+  });
+});
+
+describe('createAccess', () => {
+  it('asks results_import_access with the user and the athlete as bound arguments', async () => {
+    const fake = createFakeDb([{ data: true }]);
+    expect(await createAccess(fake.db).allowed({ userId: USER, athleteId: ATHLETE })).toBe(true);
+    expect(fake.calls).toEqual([{ fn: 'results_import_access', args: { athlete: ATHLETE, requested_by: USER } }]);
+  });
+
+  it('is false when the function answers false', async () => {
+    expect(await createAccess(createFakeDb([{ data: false }]).db).allowed({ userId: USER, athleteId: ATHLETE })).toBe(false);
+  });
+
+  it('throws, never allows, on an error or an answer that is not a boolean', async () => {
+    await expect(createAccess(createFakeDb([{ error: { code: 'XX000', message: NUMBER } }]).db).allowed({ userId: USER, athleteId: ATHLETE })).rejects.toThrow('(XX000)');
+    await expect(createAccess(createFakeDb([{ data: 'true' }]).db).allowed({ userId: USER, athleteId: ATHLETE })).rejects.toThrow();
+  });
+});
+
+describe('createConfirmationReader', () => {
+  it('reads the newest confirmation of the athlete', async () => {
+    const fake = createFakeDb([{ data: [{ organization_id: 'org-1', confirmed_at: '2026-10-28T10:00:00+00:00', candidate_name: 'Synthetic Swimmer' }] }]);
+    expect(await createConfirmationReader(fake.db).latest(ATHLETE)).toEqual({ organizationId: 'org-1', confirmedAt: '2026-10-28T10:00:00.000Z', candidateName: 'Synthetic Swimmer' });
+    expect(fake.calls).toEqual([{ fn: 'results_import_latest_confirmation', args: { athlete: ATHLETE } }]);
+  });
+
+  it('is null when the athlete was never confirmed', async () => {
+    expect(await createConfirmationReader(createFakeDb([{ data: [] }]).db).latest(ATHLETE)).toBeNull();
+  });
+
+  it('throws on an error or a row it does not understand', async () => {
+    await expect(createConfirmationReader(createFakeDb([{ error: { code: 'XX000' } }]).db).latest(ATHLETE)).rejects.toThrow('(XX000)');
+    await expect(createConfirmationReader(createFakeDb([{ data: [{ organization_id: 1 }] }]).db).latest(ATHLETE)).rejects.toThrow();
+  });
+});
+
+describe('createImportRecorder', () => {
+  const input = { athleteId: ATHLETE, organizationId: 'org-1', requestedBy: USER, results: [] };
+
+  it('records through record_imported_results and returns the summary', async () => {
+    const fake = createFakeDb([{ data: { importId: 'i1', inserted: 2, duplicates: 1, changes: 1 } }]);
+    expect(await createImportRecorder(fake.db).record(input)).toEqual({ importId: 'i1', inserted: 2, duplicates: 1, changes: 1 });
+    expect(fake.calls).toEqual([{ fn: 'record_imported_results', args: { athlete: ATHLETE, organization: 'org-1', requested_by: USER, results: [] } }]);
+  });
+
+  it('turns 42501 (access lost) into NotAuthorizedError', async () => {
+    await expect(createImportRecorder(createFakeDb([{ error: { code: '42501', message: NUMBER } }]).db).record(input)).rejects.toBeInstanceOf(NotAuthorizedError);
+  });
+
+  it('throws, repeating nothing of the message, when the database fails or answers something else', async () => {
+    await expect(createImportRecorder(createFakeDb([{ error: { code: 'XX000', message: NUMBER } }]).db).record(input)).rejects.toThrow('Recording the imported results failed (XX000)');
+    await expect(createImportRecorder(createFakeDb([{ data: { importId: 'i1' } }]).db).record(input)).rejects.toThrow();
   });
 });
