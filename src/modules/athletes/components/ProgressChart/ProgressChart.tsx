@@ -11,7 +11,7 @@ import { personalBestKinds } from '../../personalBest';
 import { formatDate } from '../formatDate';
 import type { HistoryResult } from '../HistoryList';
 import { distanceLabel, strokeLabel } from '../sportLabel';
-import { dateScale, filterByRange, timeScale, xFor, yFor, type RangeKey } from './scales';
+import { dateScale, filterByRange, isIsoDay, timeScale, xFor, yFor, type RangeKey } from './scales';
 
 export type ProgressChartProps = {
   // The results of ONE event (stroke, distance and pool), in any order. Those without a time, or of a kind that
@@ -76,8 +76,9 @@ const originText = (result: HistoryResult): string => {
 
 type Plotted = HistoryResult & { time: number };
 
+// A result whose date is not a real day stays out of the chart (the history still lists it): it has no place on the time axis.
 const isPlotted = (result: HistoryResult): result is Plotted =>
-  result.time !== null && (personalBestKinds as readonly string[]).includes(result.value.kind);
+  result.time !== null && isIsoDay(result.date) && (personalBestKinds as readonly string[]).includes(result.value.kind);
 
 const byDate = (a: Plotted, b: Plotted) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 

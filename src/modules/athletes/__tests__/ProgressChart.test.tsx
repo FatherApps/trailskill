@@ -42,6 +42,46 @@ const allNodes = (node: unknown): { type: string; props: Record<string, unknown>
 const svgNodes = () =>
   allNodes(screen.toJSON()).filter((n) => n.type.startsWith('RNSVG') && String(n.props.testID).startsWith('chart-'));
 
+describe('ProgressChart dates', () => {
+  const invalid: HistoryResult[] = [
+    ...progressChartResults,
+    { id: 'bad-1', stroke: 'FR', distance: '50m', date: 'not-a-date', context: 'training', origin: 'own', value: { kind: 'race' }, time: 3000 },
+    { id: 'bad-2', stroke: 'FR', distance: '50m', date: '2026-02-30', context: 'training', origin: 'own', value: { kind: 'race' }, time: 3001 },
+  ];
+
+  it('leaves a result with an invalid date out of the chart without an error', async () => {
+    await show(invalid);
+
+    expect(byId('chart-marker-p7')).toBeOnTheScreen();
+    expect(maybeById('chart-marker-bad-1')).toBeNull();
+    expect(maybeById('chart-marker-bad-2')).toBeNull();
+  });
+
+  it('keeps the chart when a range is picked and today carries a time', async () => {
+    await render(
+      <ThemeProvider>
+        <ProgressChart results={invalid} today="2026-10-24T15:30:00.000Z" />
+      </ThemeProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole('radio', { name: '3 m' }));
+
+    expect(byId('chart-marker-p7')).toBeOnTheScreen();
+  });
+
+  it('does not throw when today is not a date', async () => {
+    await render(
+      <ThemeProvider>
+        <ProgressChart results={progressChartResults} today="hoy" />
+      </ThemeProvider>,
+    );
+
+    await fireEvent.press(screen.getByRole('radio', { name: '3 m' }));
+
+    expect(byId('chart-marker-p7')).toBeOnTheScreen();
+  });
+});
+
 describe('ProgressChart', () => {
   describe('axis', () => {
     it('says the fastest is up and reads the ticks as times', async () => {

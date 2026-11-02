@@ -77,4 +77,15 @@ describe('filterByRange', () => {
 
     expect(result.map((item) => item.id)).toEqual(['x']);
   });
+
+  it('reads a today that carries a time as its day', () => {
+    const result = filterByRange(items, '3m', '2026-10-24T15:30:00.000Z');
+
+    expect(result.map((item) => item.id)).toEqual(['c', 'd']);
+  });
+
+  it.each(['', 'hoy', '2026-13-45', '2026-02-30', '24/10/2026'])('keeps everything, without throwing, when today is %j', (today) => {
+    expect(() => filterByRange(items, '3m', today)).not.toThrow();
+    expect(filterByRange(items, '3m', today).map((item) => item.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
 });
