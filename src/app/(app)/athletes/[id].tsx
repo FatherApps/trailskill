@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useGoBack } from '../../../core/navigation';
 import { useSession } from '../../../core/session';
@@ -70,6 +70,8 @@ export default function AthleteProfileRoute() {
 
   const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, summary.lastSyncedAt?.getTime());
   const sources = useImportSources(importSources, summary.connection === 'connected');
+  // The organization behind each imported result, from data; without a connection the marks show the generic origin.
+  const sourceNames = useMemo(() => Object.fromEntries(sources.map((source) => [source.provider, source.name])), [sources]);
 
   if (!session) return null;
   // Only a guardian or an adult athlete is offered the import; the source's name comes from data.
@@ -99,6 +101,7 @@ export default function AthleteProfileRoute() {
       lastSyncedAt={lastSyncedAt}
       otherSchoolResults={isStaff ? otherSchoolResults : undefined}
       importedResults={importedResults}
+      sourceNames={sourceNames}
       // The server decides who may update: without a confirmed identity and a manager with the authorization in force, nothing shows.
       officialUpdate={
         <OfficialUpdateContainer

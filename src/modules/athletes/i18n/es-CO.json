@@ -115,7 +115,9 @@
     "no_time_spoken": "{{event}}: aún sin tiempo",
     "origin": {
       "competition": "Comp.",
-      "training": "Entreno"
+      "training": "Entreno",
+      "official": "Oficial",
+      "official_named": "Oficial · {{source}}"
     },
     "origin_and_date": "{{origin}} · {{date}}",
     "card_spoken": "{{event}}: {{time}}. {{detail}}",

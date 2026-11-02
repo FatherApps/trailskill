@@ -1,4 +1,5 @@
 import type { Hundredths } from '../../../core/time';
+import { importedAchievement } from '../achievements';
 import type { HistoryMeasurement } from '../data/history';
 import { createInMemoryHistoryRepository } from '../data/inMemoryHistoryRepository';
 import { listedEvents, marksByEvent } from '../marks';
@@ -85,6 +86,40 @@ describe('marksByEvent', () => {
 
     expect(rowOf(marksByEvent(measurements, 'SCM'), 'FR', '50m')?.best?.hundredths).toBe(3482);
     expect(rowOf(marksByEvent(measurements, 'LCM'), 'FR', '50m')?.best?.hundredths).toBe(3300);
+  });
+
+  describe('with imported official results', () => {
+    const official = (id: string, hundredths: number | null, swumOn: string, over: Partial<Parameters<typeof importedAchievement>[0]> = {}) =>
+      importedAchievement({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: hundredths as Hundredths | null, swumOn, ...over }, 'Federación Demo');
+
+    it('shows the marks of an athlete who only has imported results', () => {
+      const rows = marksByEvent([official('i1', 3300, '2026-09-12'), official('i2', 7100, '2026-09-13', { distance: '100m' })], 'LCM');
+
+      expect(rowOf(rows, 'FR', '50m')?.best).toMatchObject({ id: 'i1', hundredths: 3300, origin: 'import', sourceName: 'Federación Demo' });
+      expect(rowOf(rows, 'FR', '100m')?.best?.hundredths).toBe(7100);
+    });
+
+    it('compares the measured and the imported times of the same event and pool together', () => {
+      const rows = marksByEvent([result('a', 3482, '2026-10-18T08:00:00Z', { pool: 'LCM' }), official('i1', 3300, '2026-09-12')], 'LCM');
+
+      expect(rowOf(rows, 'FR', '50m')?.best).toMatchObject({ id: 'i1', improvement: null });
+    });
+
+    it('gives a tie between a measured and an imported time to the first one achieved, whatever the source', () => {
+      const early = result('a', 3300, '2026-08-01T08:00:00Z', { pool: 'LCM' });
+      const late = official('i1', 3300, '2026-09-12');
+      const lateMeasured = result('b', 3300, '2026-10-01T08:00:00Z', { pool: 'LCM' });
+      const earlyImported = official('i2', 3300, '2026-07-01');
+
+      expect(rowOf(marksByEvent([early, late], 'LCM'), 'FR', '50m')?.best?.id).toBe('a');
+      expect(rowOf(marksByEvent([lateMeasured, earlyImported], 'LCM'), 'FR', '50m')?.best?.id).toBe('i2');
+    });
+
+    it('keeps the pools apart', () => {
+      const rows = marksByEvent([official('i1', 3300, '2026-09-12')], 'SCM');
+
+      expect(rowOf(rows, 'FR', '50m')?.best).toBeNull();
+    });
   });
 
   it('adds the other events with a mark after the seven, in catalog order (stroke, then distance)', () => {
