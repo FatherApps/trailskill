@@ -188,6 +188,24 @@ describe('co-fecna provider', () => {
   describe('the total time of a search', () => {
     afterEach(() => jest.useRealTimers());
 
+    it('tells the source when the total time is over, so a history can stop asking for more', async () => {
+      jest.useFakeTimers();
+      let expired: (() => boolean) | undefined;
+      const source: Source = {
+        roster: async () => [entry(NUMBER)],
+        history: (_entry, over) => {
+          expired = over;
+          return new Promise(() => undefined);
+        },
+      };
+      const pending = createCoFecnaProvider(source).fetchResults(NUMBER).catch((caught: unknown) => caught);
+      await jest.advanceTimersByTimeAsync(1);
+      expect(expired?.()).toBe(false);
+      await jest.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS);
+      expect(expired?.()).toBe(true);
+      expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+    });
+
     it('asks for one history at a time, never in parallel', async () => {
       let running = 0;
       let peak = 0;

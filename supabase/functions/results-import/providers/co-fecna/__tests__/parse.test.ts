@@ -1,6 +1,6 @@
-import { HEADERS, historyPage, option, rosterPage, table } from './fixtures.ts';
+import { AGE, BIRTH_DATE, CATEGORY, GENDER, IDENTITY, PROFILE_LABELS, historyPage, historyRow, option, profileCard, rosterPage } from './fixtures.ts';
 import { decodeEntities, cellText } from '../html.ts';
-import { normalizeNumber, parseHistory, parseRoster } from '../parse.ts';
+import { normalizeNumber, parseProfile, parseRoster, parseRows } from '../parse.ts';
 
 describe('decodeEntities', () => {
   it('decodes named, decimal and hexadecimal entities', () => {
@@ -61,86 +61,187 @@ describe('parseRoster', () => {
   });
 });
 
-describe('parseHistory', () => {
-  const row = { time: '1:05.30', date: '14/03/2026', pool: '25m', competition: 'Copa&nbsp;Sint&eacute;tica' };
+describe('the synthetic fixtures', () => {
+  it('have the keys of the real shape, with invented values', () => {
+    expect(Object.keys(historyRow()).sort()).toEqual(
+      ['0', '1', '2', '3', '4', '5', '6', 'prueba_id', 'tiempo', 'torneo', 'fecha_torneo', 'piscina', 'diferencia', 'segundos', 'puntos', 'genero', 'fecha_nac', 'edad', 'categoria'].sort(),
+    );
+    expect(historyRow()).toMatchObject({ 1: '00:00:28.45', tiempo: '00:00:28.45', fecha_torneo: '2026-03-14', piscina: 'LC', segundos: 28.45 });
+  });
+});
 
-  it('turns each row into a normalized result using the table id for the event', () => {
-    const page = historyPage([table('50l', [{}]), table('200e', [row]), table('400c', [{ pool: '50 m' }])]);
-    expect(parseHistory(page).results).toEqual([
-      { sourceResultKey: '50l|LCM|2026-03-14|28.45|Synthetic Open', stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: 2845, swumOn: '2026-03-14', competition: 'Synthetic Open' },
-      { sourceResultKey: '200e|SCM|2026-03-14|1:05.30|Copa Sintética', stroke: 'BK', distance: '200m', pool: 'SCM', hundredths: 6530, swumOn: '2026-03-14', competition: 'Copa Sintética' },
-      { sourceResultKey: '400c|LCM|2026-03-14|28.45|Synthetic Open', stroke: 'IM', distance: '400m', pool: 'LCM', hundredths: 2845, swumOn: '2026-03-14', competition: 'Synthetic Open' },
+describe('parseProfile', () => {
+  it('reads the club and the league, and nothing else of the card', () => {
+    const profile = parseProfile(historyPage());
+    expect(profile).toEqual({ club: 'Club Sintético', league: 'Liga Sintética' });
+    expect(JSON.stringify(profile)).not.toMatch(new RegExp(`${IDENTITY}|${GENDER}|${BIRTH_DATE}`));
+  });
+
+  it('keeps an empty club or league badge as null, without failing', () => {
+    expect(parseProfile(historyPage(profileCard([...PROFILE_LABELS.slice(0, 3), ['Club', ' '], ['Liga', '']])))).toEqual({ club: null, league: null });
+  });
+
+  it('is unexpected when the whole card is missing', () => {
+    expect(() => parseProfile(historyPage(''))).toThrow();
+  });
+
+  it.each([
+    ['a card without the league', PROFILE_LABELS.filter(([label]) => label !== 'Liga')],
+    ['a card without the club', PROFILE_LABELS.filter(([label]) => label !== 'Club')],
+    ['a repeated club', [...PROFILE_LABELS, ['Club', 'Otro Club']] as [string, string][]],
+  ])('is unexpected with %s', (_label, entries) => {
+    expect(() => parseProfile(historyPage(profileCard(entries)))).toThrow();
+  });
+
+  it('is unexpected on a page without the swimmer list, even with a card', () => {
+    expect(() => parseProfile(`<html><h3>Mantenimiento</h3>${profileCard()}</html>`)).toThrow();
+  });
+});
+
+describe('parseRows', () => {
+  const body = (...rows: Record<string, unknown>[]) => JSON.stringify(rows);
+
+  it('turns each row into a normalized result, with the event from the event number', () => {
+    expect(parseRows(2, body(historyRow(), historyRow({ tiempo: '00:01:05.30', piscina: 'SC', torneo: 'Copa Sint?tica' })))).toEqual([
+      { sourceResultKey: '2|LCM|2026-03-14|2845|Synthetic Open', stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: 2845, swumOn: '2026-03-14', competition: 'Synthetic Open' },
+      { sourceResultKey: '2|SCM|2026-03-14|6530|Copa Sint?tica', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: 6530, swumOn: '2026-03-14', competition: 'Copa Sint?tica' },
     ]);
   });
 
   it.each([
-    ['50l', 'FR', '50m'],
-    ['100e', 'BK', '100m'],
-    ['200p', 'BR', '200m'],
-    ['100m', 'FL', '100m'],
-    ['1500l', 'FR', '1500m'],
-  ])('maps table %s to %s %s', (id, stroke, distance) => {
-    expect(parseHistory(historyPage([table(id, [{}])])).results[0]).toMatchObject({ stroke, distance });
+    [2, 'FR', '50m'],
+    [7, 'FR', '1500m'],
+    [9, 'BK', '50m'],
+    [11, 'BK', '200m'],
+    [13, 'BR', '50m'],
+    [15, 'BR', '200m'],
+    [17, 'FL', '50m'],
+    [19, 'FL', '200m'],
+    [21, 'IM', '200m'],
+    [22, 'IM', '400m'],
+  ])('maps event number %i to %s %s', (prueba, stroke, distance) => {
+    expect(parseRows(prueba, body(historyRow({}, prueba)))[0]).toMatchObject({ stroke, distance });
   });
 
-  it('lists the years with results as the only affiliation, since the page gives no club or league in the known structure', () => {
-    const page = historyPage([table('50l', [{ date: '2026-03-14' }, { date: '2024-05-01' }, { date: '2026-06-01' }])]);
-    expect(parseHistory(page).affiliations).toEqual([{ club: null, league: null, years: [2024, 2026] }]);
+  it.each([0, 1, 8, 12, 16, 20, 23])('does not know event number %i', (prueba) => {
+    expect(() => parseRows(prueba, body(historyRow({}, prueba)))).toThrow();
   });
 
-  it('never uses the heading, the category or anything else outside the declared columns', () => {
-    const page = historyPage([table('50l', [{ category: 'BIRTH-2014-05' }])], '<h3>ANA PEREZ</h3>');
-    expect(JSON.stringify(parseHistory(page))).not.toMatch(/ANA|PEREZ|2014|BIRTH/);
+  it('accepts the event number as a string or a number in the row', () => {
+    expect(parseRows(3, body(historyRow({}, '3')))).toHaveLength(1);
+    expect(parseRows(3, body(historyRow({}, 3)))).toHaveLength(1);
   });
 
-  it('keeps a missing time as null, never 0', () => {
-    expect(parseHistory(historyPage([table('50l', [{ time: '' }, { time: '-' }])])).results.map((result) => result.hundredths)).toEqual([null, null]);
+  it('is unexpected when a row belongs to another event than the one asked for', () => {
+    expect(() => parseRows(2, body(historyRow({}, 3)))).toThrow();
+  });
+
+  it('turns an empty answer into no results', () => {
+    expect(parseRows(2, '[]')).toEqual([]);
+  });
+
+  it.each([
+    ['00:00:28.45', 2845],
+    ['00:01:05.30', 6530],
+    ['01:02:03.04', 372304],
+    ['00:59:59.99', 359999],
+  ])('reads the time %s as %i hundredths', (tiempo, hundredths) => {
+    expect(parseRows(2, body(historyRow({ tiempo })))[0].hundredths).toBe(hundredths);
+  });
+
+  it.each([null, '', '  '])('keeps a missing time (%j) as null, never 0', (tiempo) => {
+    expect(parseRows(2, body(historyRow({ tiempo })))[0].hundredths).toBeNull();
+  });
+
+  it.each(['28.45', '1:05.30', '00:60:00.00', '00:00:60.00', '00:00:28.4', 'abc', '00:00:00.00', 2845])('is unexpected with the time %j', (tiempo) => {
+    expect(() => parseRows(2, body(historyRow({ tiempo })))).toThrow();
+  });
+
+  it.each([
+    ['LC', 'LCM'],
+    ['SC', 'SCM'],
+  ])('maps the pool %s to the catalog value %s', (piscina, pool) => {
+    expect(parseRows(2, body(historyRow({ piscina })))[0].pool).toBe(pool);
+  });
+
+  it.each(['XX', 'lc', '25', '50', 'LCM', '', null])('rejects the pool %j instead of guessing', (piscina) => {
+    expect(() => parseRows(2, body(historyRow({ piscina })))).toThrow();
+  });
+
+  it.each(['14/03/2026', '2026-02-31', '2026-3-14', 'March 14', '', null])('is unexpected with the date %j', (fecha_torneo) => {
+    expect(() => parseRows(2, body(historyRow({ fecha_torneo })))).toThrow();
+  });
+
+  it('keeps the tournament as the source writes it, and an empty one as null', () => {
+    const [named, empty, absent] = parseRows(2, body(historyRow({ torneo: '  Copa  Sint?tica ' }), historyRow({ torneo: '' }), historyRow({ torneo: null })));
+    expect([named.competition, empty.competition, absent.competition]).toEqual(['Copa Sint?tica', null, null]);
+  });
+
+  it('never copies the gender, the birth date, the age, the category or anything outside the declared fields', () => {
+    const [result] = parseRows(2, body(historyRow()));
+    expect(Object.keys(result).sort()).toEqual(['competition', 'distance', 'hundredths', 'pool', 'sourceResultKey', 'stroke', 'swumOn']);
+    expect(JSON.stringify(result)).not.toMatch(new RegExp(`${GENDER}|${BIRTH_DATE}|${AGE}|${CATEGORY}|segundos|text-success`));
+  });
+
+  it('does not import the age category (a number like 10 or 11) or the difference, which derive from personal data', () => {
+    const rows = [historyRow({ categoria: 10, 0: 10, diferencia: '<span>DIFF-SENTINEL</span>', 2: '<span>DIFF-SENTINEL</span>' }), historyRow({ categoria: 11 })];
+    const output = JSON.stringify(parseRows(2, body(...rows)));
+    expect(output).not.toMatch(/DIFF-SENTINEL|categoria|diferencia/);
+    expect(output).not.toMatch(/"(10|11)"|:(10|11)[,}]/);
+  });
+
+  it('keeps tournament names cut at about 40 characters and with ? for accents exactly as they arrive', () => {
+    const torneo = 'Campeonato Sint?tico Departamental de Na';
+    expect(parseRows(2, body(historyRow({ torneo })))[0].competition).toBe(torneo);
+  });
+
+  it('does not fail on two rows that differ only in the difference: removing duplicates belongs to #824', () => {
+    const results = parseRows(2, body(historyRow({ diferencia: '<span>-0.10</span>' }), historyRow({ diferencia: '<span>-0.20</span>' })));
+    expect(results).toHaveLength(2);
+    expect(new Set(results.map((result) => result.sourceResultKey)).size).toBe(2);
+  });
+
+  it('keeps several rows of one year in one event, and does not depend on the order of the rows', () => {
+    const rows = [
+      historyRow({ tiempo: '00:01:05.52', fecha_torneo: '2026-06-01' }),
+      historyRow({ tiempo: '00:01:06.10', fecha_torneo: '2026-01-10' }),
+      historyRow({ tiempo: '00:01:07.00', fecha_torneo: '2026-09-09' }),
+    ];
+    const byTime = parseRows(2, body(...rows));
+    const byDate = parseRows(2, body(...[...rows].sort((a, b) => String(a.fecha_torneo).localeCompare(String(b.fecha_torneo)))));
+    expect(byTime).toHaveLength(3);
+    expect(byTime[0].hundredths).toBe(6552);
+    const key = (result: { sourceResultKey: string }) => result.sourceResultKey;
+    expect(byDate.map(key).sort()).toEqual(byTime.map(key).sort());
   });
 
   it('gives repeated rows different keys', () => {
-    const keys = parseHistory(historyPage([table('50l', [{}, {}])])).results.map((result) => result.sourceResultKey);
+    const keys = parseRows(2, body(historyRow(), historyRow())).map((result) => result.sourceResultKey);
     expect(new Set(keys).size).toBe(2);
   });
 
-  it('gives unique keys even when a competition looks like a repeat counter', () => {
-    const rows = [{}, {}, { competition: 'Synthetic Open#1' }];
-    const keys = parseHistory(historyPage([table('50l', rows)])).results.map((result) => result.sourceResultKey);
-    expect(new Set(keys).size).toBe(3);
+  it('gives unique keys even when a tournament looks like a repeat counter', () => {
+    const rows = [historyRow(), historyRow(), historyRow({ torneo: 'Synthetic Open#1' })];
+    expect(new Set(parseRows(2, body(...rows)).map((result) => result.sourceResultKey)).size).toBe(3);
+  });
+
+  it('reads a valid JSON array whatever the page called it: the content type is never looked at', () => {
+    expect(parseRows(2, ` \n${body(historyRow())}\n`)).toHaveLength(1);
   });
 
   it.each([
-    ['all tables empty', historyPage([table('50l'), table('100l')])],
-    ['no tables at all', historyPage([])],
-  ])('treats %s as no results', (_label, page) => {
-    expect(parseHistory(page)).toEqual({ affiliations: [], results: [] });
-  });
-
-  it('ignores tables it does not recognize by id', () => {
-    expect(parseHistory(historyPage(['<table id="other"><tr><td>x</td></tr></table>']))).toEqual({ affiliations: [], results: [] });
-  });
-
-  const swapped = [...HEADERS];
-  [swapped[1], swapped[4]] = [swapped[4], swapped[1]];
-  it.each([
-    ['a table without a header', `<table id="50l"><tr><td>x</td></tr></table>`],
-    ['columns in another order', historyPage([table('50l', [{}], swapped)])],
-    ['a missing column', historyPage([table('50l', [{}], HEADERS.slice(0, 6))])],
-    ['an extra column', historyPage([table('50l', [{}], [...HEADERS, 'Extra'])])],
-    ['a row with fewer cells', historyPage([table('50l').replace('</table>', '<tr><td>1</td></tr></table>')])],
-    ['an event the catalog does not have', historyPage([table('75l', [{}])])],
-    ['an unknown stroke letter', historyPage([table('50x', [{}])])],
-    ['a repeated table', historyPage([table('50l', [{}]), table('50l', [{}])])],
-    ['an upper-case table id', historyPage([table('50L', [{}]), table('50l', [{}])])],
-    ['an unclosed table', historyPage([table('50l', [{}]).replace('</table>', '')])],
-    ['an unclosed row', historyPage([table('50l', [{}]).replace('</tr></table>', '</table>')])],
-    ['an unclosed cell', historyPage([table('50l', [{}]).replace('</td></tr></table>', '</tr></table>')])],
-    ['a page without the swimmer list', '<html><h3>Mantenimiento</h3></html>'],
-    ['a time in another format', historyPage([table('50l', [{ time: '28 seconds' }])])],
-    ['a zero time', historyPage([table('50l', [{ time: '0.00' }])])],
-    ['a date in another format', historyPage([table('50l', [{ date: 'March 14' }])])],
-    ['a date that does not exist', historyPage([table('50l', [{ date: '31/02/2026' }])])],
-    ['a pool in another format', historyPage([table('50l', [{ pool: 'olympic' }])])],
-  ])('is unexpected with %s', (_label, page) => {
-    expect(() => parseHistory(page)).toThrow();
+    ['text that is not JSON', '<html>maintenance</html>'],
+    ['an empty body', ''],
+    ['a JSON object', '{"0":1}'],
+    ['a JSON string', '"[]"'],
+    ['null', 'null'],
+    ['a row that is not an object', '[1]'],
+    ['a row that is null', '[null]'],
+    ['a row that is an array', '[[]]'],
+    ['a row without the event number', body(Object.fromEntries(Object.entries(historyRow()).filter(([key]) => key !== 'prueba_id')))],
+    ['a row without the date', body(Object.fromEntries(Object.entries(historyRow()).filter(([key]) => key !== 'fecha_torneo')))],
+    ['a row without the pool', body(Object.fromEntries(Object.entries(historyRow()).filter(([key]) => key !== 'piscina')))],
+  ])('is unexpected with %s', (_label, text) => {
+    expect(() => parseRows(2, text)).toThrow();
   });
 });
