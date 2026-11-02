@@ -755,6 +755,68 @@ describe('athlete profile container', () => {
         expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
       });
 
+      describe('other schools while the sync reads again', () => {
+        const otherRow = {
+          athleteId: 'a1',
+          id: 'o1',
+          kind: 'race',
+          hundredths: 3300,
+          stroke: 'FR',
+          distance: '50m',
+          pool: 'SCM',
+          sessionType: 'competition',
+          capturedAt: '2026-10-19T10:00:00.000Z',
+          arrivalPosition: null,
+        } as const;
+        const otherSchool = () => {
+          const results = createInMemoryOtherSchoolResultsRepository([otherRow]);
+          return { results, listByEvent: jest.spyOn(results, 'listByEvent') };
+        };
+
+        it('does not ask the server again, nor empty the section, when a new sync leaves the event as it was', async () => {
+          const { results, listByEvent } = otherSchool();
+          // An imported result is the latest: each read builds its achievement anew, so `latest` is a new object on every silent read.
+          const importedResults = { listByAthlete: jest.fn().mockResolvedValue([imported({ id: 'i9', swumOn: '2026-10-20' })]) };
+          const props = { otherSchoolResults: results, online: true, importedResults };
+          const view = await render(tree(props));
+          expect(await screen.findByLabelText(/Otra escuela.*Solo en línea/)).toBeOnTheScreen();
+          expect(listByEvent).toHaveBeenCalledTimes(1);
+
+          await view.rerender(tree({ ...props, lastSyncedAt: newer }));
+
+          expect(screen.getByLabelText(/Otra escuela.*Solo en línea/)).toBeOnTheScreen();
+          expect(listByEvent).toHaveBeenCalledTimes(1);
+        });
+
+        it('asks again when the person chooses another event', async () => {
+          const { results, listByEvent } = otherSchool();
+          await render(tree({ otherSchoolResults: results, online: true }));
+          await fireEvent.press(await screen.findByRole('radio', { name: 'Espalda 50 m' }));
+
+          await waitFor(() => expect(listByEvent).toHaveBeenCalledTimes(2));
+          expect(listByEvent).toHaveBeenLastCalledWith('a1', { stroke: 'BK', distance: '50m', pool: 'SCM' });
+        });
+
+        it('asks again when the sync brings a latest result of another event and the person had not chosen', async () => {
+          const { results, listByEvent } = otherSchool();
+          let current = races;
+          const history = {
+            ...createInMemoryHistoryRepository(races),
+            listByAthlete: jest.fn(async () => current),
+          };
+          const props = { otherSchoolResults: results, online: true, history };
+          const view = await render(tree(props));
+          expect(await screen.findByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
+          expect(listByEvent).toHaveBeenCalledTimes(1);
+
+          current = [...races, measurement({ id: 'm10', stroke: 'FL', hundredths: 3300, capturedAt: '2026-10-20T10:00:00.000Z' })];
+          await view.rerender(tree({ ...props, lastSyncedAt: newer }));
+
+          await waitFor(() => expect(listByEvent).toHaveBeenCalledTimes(2));
+          expect(listByEvent).toHaveBeenLastCalledWith('a1', { stroke: 'FL', distance: '50m', pool: 'SCM' });
+        });
+      });
+
       it('does not read again when the sync is the same', async () => {
         const history = createInMemoryHistoryRepository(races);
         const byAthlete = jest.spyOn(history, 'listByAthlete');
