@@ -35,7 +35,8 @@ export function MarksContainer({ userId, managed, athletes, history, importedRes
   const result = useManagedAthletes(managed, athletes, userId, refreshKey);
   const selfId = useSelfAthleteId(managed, userId, refreshKey);
   const [chosenId, setChosenId] = useState<string>();
-  const [chosenPool, setChosenPool] = useState<PoolCode>();
+  // The pool is chosen for one athlete: another athlete opens in the pool of their own latest result.
+  const [chosenPool, setChosenPool] = useState<{ athleteId: string; pool: PoolCode }>();
   const [attempt, setAttempt] = useState(0);
   const [read, setRead] = useState<Read>();
 
@@ -65,7 +66,7 @@ export function MarksContainer({ userId, managed, athletes, history, importedRes
   else {
     const achievements = [...read.result.measured, ...read.result.imported.map((r) => importedAchievement(r, sourceNames?.[r.provider]))];
     // Without a choice the screen opens in the pool of the most recent result; with no results at all, as before, in the short one.
-    const pool = chosenPool ?? latestAchievement(achievements)?.pool ?? 'SCM';
+    const pool = (chosenPool?.athleteId === selected.id ? chosenPool.pool : undefined) ?? latestAchievement(achievements)?.pool ?? 'SCM';
     view = {
       kind: 'data',
       athletes: list.map((a) => {
@@ -90,5 +91,5 @@ export function MarksContainer({ userId, managed, athletes, history, importedRes
       })),
     };
   }
-  return <MarksScreen view={view} onSelectAthlete={setChosenId} onPoolChange={setChosenPool} scrollEnabled={scrollEnabled} />;
+  return <MarksScreen view={view} onSelectAthlete={setChosenId} onPoolChange={(pool) => selectedId && setChosenPool({ athleteId: selectedId, pool })} scrollEnabled={scrollEnabled} />;
 }

@@ -87,6 +87,30 @@ describe('MarksContainer', () => {
     expect(screen.queryByText('34,82')).toBeNull();
   });
 
+  it('keeps the screen, its chips and its title when the pool changes, with no loading in between', async () => {
+    await show();
+    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 50 m' }));
+
+    expect(screen.getByRole('header', { name: 'Marcas de Lucía' })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: /Tomás R\./ })).toBeOnTheScreen();
+    expect(screen.queryByText('Cargando')).toBeNull();
+  });
+
+  it('opens the next athlete in the pool of their own latest result, not in the pool chosen for the previous one', async () => {
+    await show();
+    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 50 m' }));
+    expect(screen.getByRole('radio', { name: 'Piscina 50 m' })).toBeChecked();
+
+    await fireEvent.press(screen.getByRole('radio', { name: /Tomás R\./ }));
+
+    await waitFor(() => expect(screen.getByRole('header', { name: 'Marcas de Tomás' })).toBeOnTheScreen());
+    expect(screen.getByRole('radio', { name: 'Piscina 25 m' })).toBeChecked();
+    expect(screen.getByText('42,00')).toBeOnTheScreen();
+  });
+
   it('shows the marks of another athlete when the chip is pressed', async () => {
     await show();
     await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
