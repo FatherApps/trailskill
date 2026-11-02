@@ -119,7 +119,7 @@ describe('athlete profile container', () => {
 
   it('does not reload the profile when the connection flaps for a viewer without other-school results', async () => {
     const history = createInMemoryHistoryRepository([measurement({ id: 'm1' })]);
-    const listByEvent = jest.spyOn(history, 'listByEvent');
+    const listByAthlete = jest.spyOn(history, 'listByAthlete');
     const granted = authorizations(true);
     const tree = (online: boolean) => (
       <ThemeProvider>
@@ -143,7 +143,7 @@ describe('athlete profile container', () => {
     await view.rerender(tree(false));
 
     expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
-    expect(listByEvent).toHaveBeenCalledTimes(1);
+    expect(listByAthlete).toHaveBeenCalledTimes(1);
   });
 
   it('shows the authorization as pending when the athlete has not granted recording times', async () => {
@@ -175,8 +175,8 @@ describe('athlete profile container', () => {
 
   it('shows the error with a retry when the history cannot be read', async () => {
     const history: HistoryRepository = {
-      listByEvent: jest.fn().mockRejectedValueOnce(new Error('db')).mockResolvedValue([measurement({ id: 'm1' })]),
-      listByAthlete: jest.fn(),
+      listByEvent: jest.fn(),
+      listByAthlete: jest.fn().mockRejectedValueOnce(new Error('db')).mockResolvedValue([measurement({ id: 'm1' })]),
       listByAthletesEvent: jest.fn(),
     };
     await show({ history });
@@ -280,7 +280,7 @@ describe('athlete profile container', () => {
     it('keeps the profile and offers a retry, not the offline notice, when only the other school fails while connected', async () => {
       const results = { listByEvent: jest.fn().mockRejectedValueOnce(new Error('server')).mockResolvedValue([]) };
       const history = createInMemoryHistoryRepository([measurement({ id: 'm1' })]);
-      const localReads = jest.spyOn(history, 'listByEvent');
+      const localReads = jest.spyOn(history, 'listByAthlete');
       await show({ otherSchoolResults: results, history, online: true });
 
       expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
@@ -301,7 +301,7 @@ describe('athlete profile container', () => {
       const granted = authorizations(true);
       const reads = [
         jest.spyOn(athletes, 'listByIds'),
-        jest.spyOn(history, 'listByEvent'),
+        jest.spyOn(history, 'listByAthlete'),
         jest.spyOn(schoolLinks, 'listByAthlete'),
         jest.spyOn(schoolNames, 'listByIds'),
         jest.spyOn(granted, 'listGrantedAthleteIds'),
@@ -321,7 +321,7 @@ describe('athlete profile container', () => {
 
     it('does not reload the local profile when the other-school repository arrives after the first load', async () => {
       const history = createInMemoryHistoryRepository([measurement({ id: 'm1' })]);
-      const localReads = jest.spyOn(history, 'listByEvent');
+      const localReads = jest.spyOn(history, 'listByAthlete');
       const props = { history, authorizations: authorizations(true), online: true };
       const view = await render(tree(props));
       expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
@@ -479,7 +479,9 @@ describe('athlete profile container', () => {
     });
 
     it('does not move the event the person chose when the data loads again', async () => {
-      await show({ importedResults: repo([imported({ hundredths: 2000 })]) });
+      // The event to move to must have results: only those are on offer.
+      const history = createInMemoryHistoryRepository([measurement({ id: 'm1' }), measurement({ id: 'm9', stroke: 'BK', hundredths: 4100, capturedAt: '2026-09-01T10:00:00.000Z' })]);
+      await show({ history, importedResults: repo([imported({ hundredths: 2000 })]) });
       await screen.findByLabelText(/Importado/);
 
       fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
@@ -499,5 +501,287 @@ describe('athlete profile container', () => {
     await show({ officialUpdate: <Text>Actualizar resultados oficiales</Text> });
 
     expect(await screen.findByText('Actualizar resultados oficiales')).toBeOnTheScreen();
+  });
+
+  describe('event chips and reactivity (issue 838)', () => {
+    const hidden = { includeHiddenElements: true };
+    const imported = (over: Record<string, unknown> = {}) => ({
+      id: 'i1',
+      provider: 'xx-demo',
+      stroke: 'FR',
+      distance: '50m',
+      pool: 'SCM',
+      hundredths: 3600,
+      swumOn: '2026-08-01',
+      ...over,
+    });
+    const races = [
+      measurement({ id: 'm1', hundredths: 3710, capturedAt: '2026-04-18T10:00:00.000Z' }),
+      measurement({ id: 'm2', hundredths: 3482, capturedAt: '2026-10-18T10:00:00.000Z' }),
+      measurement({ id: 'm3', stroke: 'BK', hundredths: 4100, kind: 'repetition', sessionType: 'training', capturedAt: '2026-10-02T10:00:00.000Z' }),
+      measurement({ id: 'm4', stroke: 'BR', distance: '100m', pool: 'LCM', hundredths: 11000, capturedAt: '2026-09-01T10:00:00.000Z' }),
+    ];
+    // A history whose per-event read never answers: the profile must not wait for it when the event changes.
+    const stalledByEvent = () => {
+      const stalled = createInMemoryHistoryRepository(races);
+      // The first per-event read answers (a profile that reads per event needs it to open); every later one never does.
+      const first = stalled.listByEvent.bind(stalled);
+      jest.spyOn(stalled, 'listByEvent').mockImplementationOnce(first).mockImplementation(() => new Promise(() => {}));
+      return stalled;
+    };
+    const withRaces = (over: Partial<Parameters<typeof AthleteProfileContainer>[0]> = {}) =>
+      show({ history: createInMemoryHistoryRepository(races), ...over });
+
+    it('offers only the events with results in the pool, not every stroke and distance', async () => {
+      await withRaces();
+
+      expect(await screen.findByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).not.toBeChecked();
+      expect(screen.queryByRole('radio', { name: 'Libre 100 m' })).toBeNull();
+      expect(screen.queryByRole('radio', { name: 'Mariposa 50 m' })).toBeNull();
+      expect(screen.queryByRole('radio', { name: 'Pecho 100 m' })).toBeNull();
+    });
+
+    it('offers a pool control only for the pools that have results, as a secondary row', async () => {
+      await withRaces();
+
+      expect(await screen.findByLabelText('Piscina')).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Piscina de 25 m' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Piscina de 50 m' })).not.toBeChecked();
+    });
+
+    it('has no pool control when only one pool has results', async () => {
+      await show();
+
+      expect(await screen.findByRole('radio', { name: 'Libre 50 m' })).toBeOnTheScreen();
+      expect(screen.queryByLabelText('Piscina')).toBeNull();
+    });
+
+    it('has no event chips without results', async () => {
+      await show({ history: createInMemoryHistoryRepository([]) });
+
+      expect(await screen.findByText('Aún no hay tiempos')).toBeOnTheScreen();
+      expect(screen.queryByLabelText('Prueba')).toBeNull();
+      expect(screen.queryByLabelText('Piscina')).toBeNull();
+    });
+
+    it('counts imported results when it offers the events', async () => {
+      await show({
+        history: createInMemoryHistoryRepository([]),
+        importedResults: { listByAthlete: jest.fn().mockResolvedValue([imported({ stroke: 'FL', distance: '100m' })]) },
+      });
+
+      expect(await screen.findByRole('radio', { name: 'Mariposa 100 m' })).toBeChecked();
+    });
+
+    it('keeps the header, the chips and the structure when the event changes, and shows the new event', async () => {
+      await withRaces({ history: stalledByEvent() });
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+
+      expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeOnTheScreen();
+      expect(screen.getByText('Marca personal · Espalda 50 m (piscina de 25 m)', hidden)).toBeOnTheScreen();
+      expect(screen.getAllByText('41,00', hidden).length).toBeGreaterThan(0);
+      expect(screen.queryByText('Cargando')).toBeNull();
+    });
+
+    it('keeps the header and the chips when the pool changes, and offers the events of the new pool', async () => {
+      await withRaces({ history: stalledByEvent() });
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('radio', { name: 'Piscina de 50 m' }));
+
+      expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Piscina de 50 m' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Pecho 100 m' })).toBeChecked();
+      expect(screen.queryByRole('radio', { name: 'Libre 50 m' })).toBeNull();
+    });
+
+    it('keeps the profile on screen while another school\'s results of the new event are still on their way', async () => {
+      const pending: ((rows: never[]) => void)[] = [];
+      const otherSchoolResults = { listByEvent: jest.fn(() => new Promise<never[]>((resolve) => pending.push(resolve))) };
+      await withRaces({ otherSchoolResults, online: true });
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+
+      expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
+      expect(screen.getAllByText('41,00', hidden).length).toBeGreaterThan(0);
+    });
+
+    it('shows the origin of each row: competition, training and the imported organization from the data', async () => {
+      await withRaces({
+        importedResults: { listByAthlete: jest.fn().mockResolvedValue([imported()]) },
+        sourceNames: { 'xx-demo': 'Federación Demo' },
+      });
+
+      expect(await screen.findByLabelText(/Libre 50 m, 18 de octubre de 2026, Competencia/)).toBeOnTheScreen();
+      expect(screen.getByLabelText(/Libre 50 m, 1 de agosto de 2026, Competencia, Federación Demo/)).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+      expect(screen.getByLabelText(/Espalda 50 m, 2 de octubre de 2026, Entrenamiento/)).toBeOnTheScreen();
+    });
+
+    it('gives each row its own icon: competition, training and import', async () => {
+      await withRaces({ importedResults: { listByAthlete: jest.fn().mockResolvedValue([imported()]) } });
+      await screen.findByRole('radio', { name: 'Libre 50 m' });
+
+      expect(screen.getAllByTestId('history-dot', hidden)).toHaveLength(3);
+    });
+
+    it('shows the total of measurements, equal to the rows of the history', async () => {
+      await withRaces({ importedResults: { listByAthlete: jest.fn().mockResolvedValue([imported()]) } });
+
+      expect(await screen.findByText('3 mediciones')).toBeOnTheScreen();
+      expect(screen.getAllByTestId('history-head', hidden)).toHaveLength(3);
+    });
+
+    it('says one measurement in the singular', async () => {
+      await show();
+
+      expect(await screen.findByText('1 medición')).toBeOnTheScreen();
+    });
+
+    it('shows the improvement over the previous best on the personal best card', async () => {
+      await withRaces();
+
+      expect(await screen.findByText('−2,28 en 6 meses', hidden)).toBeOnTheScreen();
+    });
+
+    it('compares measured and imported results together for the improvement', async () => {
+      await show({
+        history: createInMemoryHistoryRepository([measurement({ id: 'm2', hundredths: 3482, capturedAt: '2026-10-18T10:00:00.000Z' })]),
+        importedResults: { listByAthlete: jest.fn().mockResolvedValue([imported({ hundredths: 3710, swumOn: '2026-04-18' })]) },
+      });
+
+      expect(await screen.findByText('−2,28 en 6 meses', hidden)).toBeOnTheScreen();
+    });
+
+    it('shows no improvement without a previous best, never zero', async () => {
+      await show();
+
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      expect(screen.queryByText(/en \d+ mes/, hidden)).toBeNull();
+      expect(screen.queryByText(/−0,00/, hidden)).toBeNull();
+    });
+
+    it('reads the history of the athlete once on opening, not twice in a row', async () => {
+      const history = createInMemoryHistoryRepository(races);
+      const byAthlete = jest.spyOn(history, 'listByAthlete');
+      const byEvent = jest.spyOn(history, 'listByEvent');
+      await show({ history });
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+
+      expect(byAthlete).toHaveBeenCalledTimes(1);
+      expect(byEvent).not.toHaveBeenCalled();
+    });
+
+    describe('data that arrives while the profile is open', () => {
+      // One instance: a new one on every render would itself ask for a new read.
+      const granted = authorizations(true);
+      const tree = (props: Partial<Parameters<typeof AthleteProfileContainer>[0]>) => (
+        <ThemeProvider>
+          <AthleteProfileContainer
+            athleteId="a1"
+            athletes={athletes}
+            history={createInMemoryHistoryRepository(races)}
+            authorizations={granted}
+            schoolLinks={schoolLinks}
+            schoolNames={schoolNames}
+            categories={categories}
+            lastSyncedAt={new Date('2026-10-20T10:00:00.000Z')}
+            onBack={noop}
+            {...props}
+          />
+        </ThemeProvider>
+      );
+      const newer = new Date('2026-10-21T10:00:00.000Z');
+
+      it('reads again in silence when the last sync changes: the new result shows, with no loading and the chosen event kept', async () => {
+        const rows: ReturnType<typeof imported>[] = [];
+        const importedResults = { listByAthlete: jest.fn().mockImplementation(async () => rows) };
+        const view = await render(tree({ importedResults }));
+        await fireEvent.press(await screen.findByRole('radio', { name: 'Espalda 50 m' }));
+        expect(screen.queryByLabelText(/Importado/)).toBeNull();
+
+        // An import finished while the profile stayed mounted underneath the import screen.
+        rows.push(imported({ id: 'i9', stroke: 'BK', hundredths: 3900, swumOn: '2026-10-20' }));
+        await view.rerender(tree({ importedResults, lastSyncedAt: newer }));
+
+        expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+        expect(screen.queryByText('Cargando')).toBeNull();
+        expect(await screen.findByLabelText(/Espalda 50 m, 20 de octubre de 2026, Competencia/)).toBeOnTheScreen();
+        expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
+        expect(importedResults.listByAthlete).toHaveBeenCalledTimes(2);
+      });
+
+      it('shows a new measurement and a new event that arrive with the sync', async () => {
+        let current = races;
+        const history: HistoryRepository = {
+          listByEvent: jest.fn(),
+          listByAthlete: jest.fn(async () => current),
+          listByAthletesEvent: jest.fn(),
+        };
+        const view = await render(tree({ history }));
+        expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+        expect(screen.queryByRole('radio', { name: 'Mariposa 50 m' })).toBeNull();
+
+        current = [...races, measurement({ id: 'm10', stroke: 'FL', hundredths: 3300, capturedAt: '2026-10-20T10:00:00.000Z' })];
+        await view.rerender(tree({ history, lastSyncedAt: newer }));
+
+        expect(await screen.findByRole('radio', { name: 'Mariposa 50 m' })).toBeOnTheScreen();
+        expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      });
+
+      it('keeps what it shows when the silent read fails, instead of replacing it with the error', async () => {
+        const history: HistoryRepository = {
+          listByEvent: jest.fn(),
+          listByAthlete: jest.fn().mockResolvedValueOnce(races).mockRejectedValue(new Error('db')),
+          listByAthletesEvent: jest.fn(),
+        };
+        const view = await render(tree({ history }));
+        expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+
+        await view.rerender(tree({ history, lastSyncedAt: newer }));
+        await waitFor(() => expect(history.listByAthlete).toHaveBeenCalledTimes(2));
+
+        expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+        expect(screen.queryByText('No pudimos cargar el perfil')).toBeNull();
+        expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
+      });
+
+      it('does not read again when the sync is the same', async () => {
+        const history = createInMemoryHistoryRepository(races);
+        const byAthlete = jest.spyOn(history, 'listByAthlete');
+        const view = await render(tree({ history }));
+        expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+
+        await view.rerender(tree({ history, lastSyncedAt: new Date('2026-10-20T10:00:00.000Z') }));
+
+        expect(byAthlete).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('tells a failed opening read from having no data, and recovers with the retry', async () => {
+      const history: HistoryRepository = {
+        listByEvent: jest.fn(),
+        listByAthlete: jest.fn().mockRejectedValueOnce(new Error('db')).mockResolvedValue(races),
+        listByAthletesEvent: jest.fn(),
+      };
+      await show({ history });
+
+      expect(await screen.findByText('No pudimos cargar el perfil')).toBeOnTheScreen();
+      expect(screen.queryByText('Aún no hay tiempos')).toBeNull();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
+    });
   });
 });

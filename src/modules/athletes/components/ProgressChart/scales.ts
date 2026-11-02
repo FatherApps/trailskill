@@ -5,6 +5,14 @@ export type RangeKey = '3m' | '6m' | '1y' | 'all';
 const monthsOf: Record<Exclude<RangeKey, 'all'>, number> = { '3m': 3, '6m': 6, '1y': 12 };
 
 const DAY_MS = 86_400_000;
+
+/** A real calendar day written yyyy-mm-dd; anything else (a time, a made-up day, free text) is not drawable. */
+export function isIsoDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(y!, m! - 1, d!));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m! - 1 && date.getUTCDate() === d;
+}
 const dayNumber = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number);
   return Date.UTC(y!, m! - 1, d!) / DAY_MS;
@@ -20,8 +28,10 @@ function rangeStart(range: Exclude<RangeKey, 'all'>, today: string): string {
 
 /** The items inside the range that ends today (ISO dates compare as text). `all` keeps everything. */
 export function filterByRange<T extends { date: string }>(items: readonly T[], range: RangeKey, today: string): T[] {
-  if (range === 'all') return [...items];
-  const start = rangeStart(range, today);
+  // A `today` with a time counts as its day; one that is no date at all cannot bound a range, so nothing is cut.
+  const day = today.slice(0, 10);
+  if (range === 'all' || !isIsoDay(day)) return [...items];
+  const start = rangeStart(range, day);
   return items.filter((item) => item.date >= start);
 }
 

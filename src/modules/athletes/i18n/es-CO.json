@@ -57,6 +57,8 @@
   },
   "screen": {
     "history_title": "Historial",
+    "history_total_one": "{{count}} medición",
+    "history_total_other": "{{count}} mediciones",
     "retry": "Intentar de nuevo",
     "empty": {
       "title": "Aún no hay tiempos",
