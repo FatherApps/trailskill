@@ -14,8 +14,8 @@ describe('decodeEntities', () => {
       'çÇ àÀ öâãï “x” ‘y’ –— \u2002¡¿',
     );
   });
-  it('fails on a numeric reference outside Unicode instead of guessing', () => {
-    expect(() => decodeEntities('A&#99999999;B')).toThrow();
+  it.each(['&#99999999;', '&#xD800;', '&#xDFFF;'])('fails on the numeric reference %s, which is no character, instead of guessing', (reference) => {
+    expect(() => decodeEntities(`A${reference}B`)).toThrow();
   });
   it.each(['constructor', 'toString', 'hasOwnProperty'])('does not take &%s; for an entity from the object prototype', (name) => {
     expect(() => decodeEntities(`A&${name};B`)).toThrow();
@@ -50,20 +50,32 @@ describe('parseRoster', () => {
   });
 
   it('decodes the named entities of Spanish and Portuguese names', () => {
-    expect(parseRoster(rosterPage([option('1', 'FRAN&Ccedil;A', 'JOS&eacute; &Agrave;NGEL')]))[0].name).toBe('FRANÇA JOSé ÀNGEL');
+    expect(parseRoster(rosterPage([option('1', 'FRAN&Ccedil;A', 'JOS&eacute; &Agrave;NGEL')]))[0]).toMatchObject({ name: 'FRANÇA JOSé ÀNGEL' });
   });
 
-  it('drops only the entry with an entity it does not know and keeps the others', () => {
-    const page = rosterPage([option('1', 'A&zzzz;', 'B'), option('2', 'C', 'D&qqqq;'), option('3', 'RUIZ', 'JUAN')]);
-    expect(parseRoster(page)).toEqual([{ value: '3', key: '3', name: 'RUIZ JUAN' }]);
+  it('keeps an entry with an unknown entity in the name as unreadable, with its key and no name', () => {
+    const page = rosterPage([option('1', 'A&zzzz;', 'B'), option(' 2.2', 'C', 'D&qqqq;'), option('3', 'RUIZ', 'JUAN')]);
+    expect(parseRoster(page)).toEqual([
+      { unreadable: true, value: '1', key: '1' },
+      { unreadable: true, value: ' 2.2', key: '22' },
+      { value: '3', key: '3', name: 'RUIZ JUAN' },
+    ]);
   });
 
-  it('drops an entry whose value has an unknown entity', () => {
-    expect(parseRoster(rosterPage([option('1&zzzz;', 'A', 'B'), option('2', 'C', 'D')])).map((entry) => entry.key)).toEqual(['2']);
+  it('keeps an entry with an unknown entity in the value as unreadable and without a key', () => {
+    const page = rosterPage([option('1&zzzz;', 'A', 'B'), option('2', 'C', 'D')]);
+    expect(parseRoster(page)).toEqual([
+      { unreadable: true, value: null, key: null },
+      { value: '2', key: '2', name: 'C D' },
+    ]);
   });
 
-  it('is unexpected when every entry has an unknown entity', () => {
-    expect(() => parseRoster(rosterPage([option('1', 'A&zzzz;', 'B')]))).toThrow();
+  it('still reads a list in which every entry is unreadable', () => {
+    expect(parseRoster(rosterPage([option('1', 'A&zzzz;', 'B')]))).toEqual([{ unreadable: true, value: '1', key: '1' }]);
+  });
+
+  it('has no unreadable entries when every entity is known', () => {
+    expect(parseRoster(rosterPage([option('1', 'A&ntilde;', 'B'), option('2', 'C', 'D')])).some((item) => 'unreadable' in item)).toBe(false);
   });
 
   it('reads only the swimmer selector', () => {

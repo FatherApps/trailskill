@@ -13,6 +13,9 @@ export type RosterEntry = {
   /** Last names then first names, as the source writes them. */
   name: string;
 };
+/** An entry whose name or value holds an entity we do not know: it has no name, and no key when the value is the unreadable part. */
+export type UnreadableEntry = { unreadable: true; value: string | null; key: string | null };
+export type RosterItem = RosterEntry | UnreadableEntry;
 export type History = { affiliations: Affiliation[]; results: NormalizedResult[] };
 
 /** Spaces, dots and hyphens dropped, letters upper-cased, 20 alphanumerics at most: values are not always digits only. */
@@ -22,9 +25,18 @@ export function normalizeNumber(raw: string): string {
   return key;
 }
 
+const decodeOrNull = (text: string) => {
+  try {
+    return decodeEntities(text);
+  } catch (error) {
+    if (error instanceof UnknownEntityError) return null;
+    throw error;
+  }
+};
+
 const attributeOf = (attributes: string, name: string) => new RegExp(`(?:^|\\s)${name}\\s*=\\s*"([^"]*)"`, 'i').exec(attributes)?.[1];
 
-export function parseRoster(html: string): RosterEntry[] {
+export function parseRoster(html: string): RosterItem[] {
   const select = /<select\b([^>]*)>([\s\S]*?)<\/select>/gi;
   let list: string | undefined;
   for (let found = select.exec(html); found; found = select.exec(html)) {
@@ -32,23 +44,25 @@ export function parseRoster(html: string): RosterEntry[] {
   }
   if (list === undefined) throw new Error('No swimmer list');
 
-  const entries: RosterEntry[] = [];
+  const entries: RosterItem[] = [];
   for (const [, attributes, text] of list.matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)) {
     const value = /^\s*value\s*=\s*"([^"]*)"\s*$/.exec(attributes)?.[1];
     if (value === undefined || text.includes('<')) throw new Error('Unexpected option');
-    try {
-      // Two blocks, last names first, split on the line break the page puts between them.
-      const blocks = decodeEntities(text)
-        .trim()
-        .split(/\n\s*/)
-        .map(normalizeSpaces);
-      if (blocks.length !== 2 || blocks.some((block) => block === '')) throw new Error('Unexpected name');
-      const decoded = decodeEntities(value);
-      entries.push({ value: decoded, key: normalizeNumber(decoded), name: blocks.join(' ') });
-    } catch (error) {
-      // An entry with an entity we do not know is unavailable on its own; the rest of the list stays.
-      if (!(error instanceof UnknownEntityError)) throw error;
+    // An entity we do not know makes the entry unreadable, never absent: the provider must not answer "no match" for it.
+    const decodedValue = decodeOrNull(value);
+    const decodedName = decodeOrNull(text);
+    const key = decodedValue === null ? null : normalizeNumber(decodedValue);
+    if (decodedName === null || decodedValue === null) {
+      entries.push({ unreadable: true, value: decodedValue, key });
+      continue;
     }
+    // Two blocks, last names first, split on the line break the page puts between them.
+    const blocks = decodedName
+      .trim()
+      .split(/\n\s*/)
+      .map(normalizeSpaces);
+    if (blocks.length !== 2 || blocks.some((block) => block === '')) throw new Error('Unexpected name');
+    entries.push({ value: decodedValue, key: key as string, name: blocks.join(' ') });
   }
   if (entries.length === 0) throw new Error('Empty swimmer list');
   return entries;

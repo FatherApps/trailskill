@@ -32,7 +32,8 @@ export function decodeEntities(text: string): string {
       return NAMED[name];
     }
     const code = Number.parseInt(decimal ?? hex, decimal === undefined ? 16 : 10);
-    if (code > 0x10ffff) throw new UnknownEntityError();
+    // Beyond Unicode or a lone surrogate: no character, so unknown.
+    if (code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) throw new UnknownEntityError();
     return String.fromCodePoint(code);
   });
 }
