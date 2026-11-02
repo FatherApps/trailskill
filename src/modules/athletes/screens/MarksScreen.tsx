@@ -16,7 +16,9 @@ export type MarkCard = {
   event: string;
   // null while the athlete has no valid time in the event: it reads "Aún sin tiempo", never zero.
   time: Hundredths | null;
-  origin?: 'competition' | 'training';
+  // `official`: an imported result; `sourceName` is the organization behind it, from data.
+  origin?: 'competition' | 'training' | 'official';
+  sourceName?: string;
   // ISO date, yyyy-mm-dd.
   date?: string;
 };
@@ -55,10 +57,8 @@ export const marksScreenColors: { title: ColorToken; background: ColorToken; car
 function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
   const { colors, space, radius, typography } = useTheme();
   const shortDate = card.date ? formatDate(card.date, 'day_month') : null;
-  const detail =
-    card.origin && shortDate
-      ? t('athletes.marks.origin_and_date', { origin: t(`athletes.marks.origin.${card.origin}`), date: shortDate })
-      : null;
+  const origin = card.origin === 'official' && card.sourceName ? t('athletes.marks.origin.official_named', { source: card.sourceName }) : card.origin && t(`athletes.marks.origin.${card.origin}`);
+  const detail = origin && shortDate ? t('athletes.marks.origin_and_date', { origin, date: shortDate }) : null;
   const box = { flexBasis: wide ? undefined : '47%', flexGrow: 1, padding: space[4], gap: space[1], borderRadius: radius.md } as const;
 
   if (card.time === null) {

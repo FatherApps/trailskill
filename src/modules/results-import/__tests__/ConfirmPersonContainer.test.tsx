@@ -15,7 +15,7 @@ jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 // Synthetic people, source and numbers only.
 const athlete = { id: 'athlete-1', firstName: 'Ana', lastName: 'Example' };
-const source: ImportSource = { organizationId: 'org-1', name: 'Federación Sintética' };
+const source: ImportSource = { organizationId: 'org-1', name: 'Federación Sintética', provider: 'xx-demo' };
 const candidate: SearchCandidate = {
   id: 'candidate-1',
   name: 'Ana Example',

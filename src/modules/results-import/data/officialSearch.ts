@@ -22,7 +22,7 @@ export type SearchFailure =
 export type SearchOutcome<T> = { ok: true; value: T } | { ok: false; error: SearchFailure };
 
 /** A source of official results, from data: the federation (an `organizations` row) that has a provider registered. */
-export type ImportSource = { organizationId: string; name: string };
+export type ImportSource = { organizationId: string; name: string; /** The adapter registered for it, as stored on each imported result. */ provider: string };
 
 export interface OfficialSearchRepository {
   /** Online only. Looks for one athlete at the source; spends the server's rate limit. */
@@ -73,12 +73,12 @@ export function createSupabaseOfficialSearchRepository(client: FunctionsClient =
 export function createSupabaseImportSourcesRepository(): ImportSourcesRepository {
   return {
     async list() {
-      const { data, error } = await supabase.from('results_import_sources').select('organization_id, organizations(name)').order('organization_id');
+      const { data, error } = await supabase.from('results_import_sources').select('organization_id, provider, organizations(name)').order('organization_id');
       if (error) throw new Error(`Reading the import sources failed (${error.code})`);
       return (data ?? []).flatMap((row) => {
         // PostgREST embeds the one related row as an object, or as a list of one.
         const organization = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
-        return organization?.name ? [{ organizationId: row.organization_id as string, name: organization.name as string }] : [];
+        return organization?.name ? [{ organizationId: row.organization_id as string, name: organization.name as string, provider: row.provider as string }] : [];
       });
     },
   };

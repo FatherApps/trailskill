@@ -53,7 +53,7 @@ function result(id: string, athleteId: string, hundredths: number, capturedAt: s
 const measurements = [
   result('m1', 'a1', 3500, '2026-09-01T08:00:00Z'),
   result('m2', 'a1', 3482, '2026-10-18T08:00:00Z'),
-  result('m3', 'a1', 3300, '2026-10-19T08:00:00Z', { pool: 'LCM' }),
+  result('m3', 'a1', 3300, '2026-10-17T08:00:00Z', { pool: 'LCM' }),
   result('m4', 'a2', 4200, '2026-10-02T08:00:00Z'),
 ];
 const history = createInMemoryHistoryRepository(measurements);
@@ -95,6 +95,100 @@ describe('MarksContainer', () => {
 
     await waitFor(() => expect(screen.getByRole('header', { name: 'Marcas de Tomás' })).toBeOnTheScreen());
     expect(screen.getByText('42,00')).toBeOnTheScreen();
+  });
+
+  describe('imported official results', () => {
+    const official = (id: string, hundredths: number | null, swumOn: string, over: Record<string, unknown> = {}) => ({
+      id,
+      provider: 'xx-demo',
+      stroke: 'FR' as const,
+      distance: '50m' as const,
+      pool: 'LCM' as const,
+      hundredths: hundredths as Hundredths | null,
+      swumOn,
+      ...over,
+    });
+    const importedRepo = (rows: ReturnType<typeof official>[]) => ({ listByAthlete: jest.fn(async (athleteId: string) => (athleteId === 'a1' ? rows : [])) });
+    const sourceNames = { 'xx-demo': 'Federación Demo' };
+    const noHistory = createInMemoryHistoryRepository([]);
+
+    it('shows the marks of an athlete who only has imported results, opening in the pool of the data', async () => {
+      await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]), sourceNames });
+
+      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      expect(screen.getByRole('radio', { name: 'Piscina 50 m', selected: true })).toBeOnTheScreen();
+    });
+
+    it('shows the origin of each mark: the official one with the organization from the data, the measured one as it was', async () => {
+      await show({
+        history: createInMemoryHistoryRepository([result('m1', 'a1', 4108, '2026-10-02T08:00:00Z', { pool: 'LCM', stroke: 'BK' })]),
+        importedResults: importedRepo([official('i1', 3300, '2026-09-12')]),
+        sourceNames,
+      });
+
+      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      expect(screen.getAllByLabelText(/Oficial · Federación Demo · /).length).toBeGreaterThan(0);
+      expect(screen.getAllByLabelText(/Comp\. · /).length).toBeGreaterThan(0);
+    });
+
+    it('says only "Oficial" when the organization is not known', async () => {
+      await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]) });
+
+      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      expect(screen.getAllByLabelText(/Oficial · \d/).length).toBeGreaterThan(0);
+      expect(screen.queryAllByLabelText(/Federación/)).toHaveLength(0);
+    });
+
+    it('gives a tie between a measured and an imported time to the one achieved first, whatever the source', async () => {
+      await show({
+        history: createInMemoryHistoryRepository([result('m1', 'a1', 3300, '2026-10-01T08:00:00Z', { pool: 'LCM' })]),
+        importedResults: importedRepo([official('i1', 3300, '2026-09-12')]),
+        sourceNames,
+      });
+
+      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      expect(screen.getAllByLabelText(/Oficial · Federación Demo · /).length).toBeGreaterThan(0);
+      expect(screen.queryAllByLabelText(/Comp\. · /)).toHaveLength(0);
+    });
+
+    it('opens in the pool of the most recent result, imported or measured', async () => {
+      const older = createInMemoryHistoryRepository([result('m1', 'a1', 3482, '2026-08-01T08:00:00Z')]);
+      await show({ history: older, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]), sourceNames });
+
+      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      expect(screen.getByRole('radio', { name: 'Piscina 50 m', selected: true })).toBeOnTheScreen();
+    });
+
+    it('opens in the short pool when the most recent result is a measured one in it', async () => {
+      const newer = createInMemoryHistoryRepository([result('m1', 'a1', 3482, '2026-10-01T08:00:00Z')]);
+      await show({ history: newer, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]), sourceNames });
+
+      await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+      expect(screen.getByRole('radio', { name: 'Piscina 25 m', selected: true })).toBeOnTheScreen();
+    });
+
+    it('keeps the pool the person chose when the marks load again', async () => {
+      await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]), sourceNames });
+      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+
+      await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 25 m' }));
+
+      expect(screen.getByRole('radio', { name: 'Piscina 25 m', selected: true })).toBeOnTheScreen();
+      expect(screen.queryByText('33,00')).toBeNull();
+    });
+
+    it('offers a retry when the imported results cannot be read', async () => {
+      await show({ importedResults: { listByAthlete: jest.fn().mockRejectedValue(new Error('db')) } });
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Intentar de nuevo' })).toBeOnTheScreen());
+    });
+  });
+
+  it('opens in the short pool when the athlete has no results at all', async () => {
+    await show({ history: createInMemoryHistoryRepository([]) });
+
+    await waitFor(() => expect(screen.getAllByText('Aún sin tiempo').length).toBe(7));
+    expect(screen.getByRole('radio', { name: 'Piscina 25 m', selected: true })).toBeOnTheScreen();
   });
 
   it('offers a retry, not "Aún sin tiempo", when the history cannot be read', async () => {

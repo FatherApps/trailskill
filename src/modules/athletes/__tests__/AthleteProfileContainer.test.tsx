@@ -403,6 +403,7 @@ describe('athlete profile container', () => {
   describe('imported official results', () => {
     const imported = (over: Record<string, unknown> = {}) => ({
       id: 'i1',
+      provider: 'xx-demo',
       stroke: 'FR',
       distance: '50m',
       pool: 'SCM',
@@ -427,12 +428,55 @@ describe('athlete profile container', () => {
       expect(screen.queryAllByText(/0[,.]00/, { includeHiddenElements: true })).toHaveLength(0);
     });
 
-    it('never makes an imported time the personal best', async () => {
+    // #204: an imported result counts as a race and is compared together with the measured times.
+    it('counts an imported time as a race in the personal best, together with the measured ones', async () => {
       await show({ importedResults: repo([imported({ hundredths: 2000 })]) });
 
       await screen.findByLabelText(/Importado/);
-      expect(screen.queryAllByText('20,00', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+      expect(screen.getByLabelText(new RegExp(`^Marca personal.*${spokenTime(2000)}`))).toBeOnTheScreen();
+      // The measured time stays in the history.
       expect(screen.getAllByText('34,82', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+    });
+
+    it('keeps a faster measured time as the personal best over a slower imported one', async () => {
+      await show({ importedResults: repo([imported({ hundredths: 4000 })]) });
+
+      await screen.findByLabelText(/Importado/);
+      expect(screen.getByLabelText(new RegExp(`^Marca personal.*${spokenTime(3482)}`))).toBeOnTheScreen();
+    });
+
+    it('names the organization of an imported result from the data', async () => {
+      await show({ importedResults: repo([imported({ provider: 'xx-demo' })]), sourceNames: { 'xx-demo': 'Federación Demo' } });
+
+      expect(await screen.findByLabelText(/Federación Demo/)).toBeOnTheScreen();
+    });
+
+    it('opens in the event of the most recent result, imported or measured', async () => {
+      await show({ importedResults: repo([imported({ id: 'i9', stroke: 'BK', distance: '25m', pool: 'LCM', hundredths: 2500, swumOn: '2026-10-20' })]) });
+
+      expect(await screen.findByLabelText(/Importado/)).toBeOnTheScreen();
+      expect(screen.getAllByText('25,00', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+      expect(screen.queryAllByText('34,82', { includeHiddenElements: true })).toHaveLength(0);
+    });
+
+    it('opens in the event of the most recent measured result when there is no imported one', async () => {
+      await show({
+        history: createInMemoryHistoryRepository([measurement({ id: 'm1' }), measurement({ id: 'm2', stroke: 'BR', distance: '25m', pool: 'LCM', hundredths: 2800, capturedAt: '2026-10-25T10:00:00.000Z' })]),
+      });
+
+      await screen.findByRole('header', { name: 'Ana Marin' });
+      expect(screen.getAllByText('28,00', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+      expect(screen.queryAllByText('34,82', { includeHiddenElements: true })).toHaveLength(0);
+    });
+
+    it('does not move the event the person chose when the data loads again', async () => {
+      await show({ importedResults: repo([imported({ hundredths: 2000 })]) });
+      await screen.findByLabelText(/Importado/);
+
+      fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+
+      await waitFor(() => expect(screen.queryAllByText('34,82', { includeHiddenElements: true })).toHaveLength(0));
+      expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
     });
 
     it('shows the profile without them when the repository is not given', async () => {

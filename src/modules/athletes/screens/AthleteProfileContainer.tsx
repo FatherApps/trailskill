@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { AuthorizationStatusRepository } from '../../accounts';
-import { distances, pools, strokes, type DistanceCode, type PoolCode, type StrokeCode } from '../../../core/sport';
-import type { Hundredths } from '../../../core/time';
+import { distances, pools, strokes } from '../../../core/sport';
 import { useRecordSyncStates } from '../../../core/sync';
+import { importedAchievement, latestAchievement, type ImportedHistoryResult } from '../achievements';
 import type { EventValue } from '../components/EventSelector';
 import type { ImportPromptProps } from '../components/ImportPrompt';
 import type { HistoryOrigin, HistoryResult } from '../components/HistoryList';
@@ -14,18 +14,6 @@ import type { SchoolAthlete, SchoolAthleteRepository } from '../data/schoolAthle
 import { athleteDisplay } from '../athleteDisplay';
 import { personalBest } from '../personalBest';
 import { AthleteProfileScreen, type AthleteProfileView } from './AthleteProfileScreen';
-
-// What the profile needs of an imported official result; the results-import module's repository satisfies it.
-export type ImportedHistoryResult = {
-  id: string;
-  stroke: StrokeCode;
-  distance: DistanceCode;
-  pool: PoolCode;
-  // Null is a missing time, never 0.
-  hundredths: Hundredths | null;
-  // yyyy-mm-dd
-  swumOn: string;
-};
 
 export type AthleteProfileContainerProps = {
   athleteId: string;
@@ -42,8 +30,10 @@ export type AthleteProfileContainerProps = {
   otherSchoolResults?: OtherSchoolResultsRepository;
   // Whether the device is connected. Without a connection no result of another school is asked for or shown.
   online?: boolean;
-  // Official results imported from the source, read from the device. They show in the history with their origin and never count as a personal best.
+  // Official results imported from the source, read from the device. They show in the history with their origin and count as races in the personal best (issue 204).
   importedResults?: { listByAthlete(athleteId: string): Promise<ImportedHistoryResult[]> };
+  // The organization behind each import provider, from data; an unknown one shows with the generic origin.
+  sourceNames?: Readonly<Record<string, string>>;
   // The official-results update of the results-import module. Pass it only to viewers that may import.
   officialUpdate?: ReactNode;
   // Only guardians and adults get it: the route decides by passing it or not.
@@ -109,9 +99,20 @@ function toResult(m: OtherSchoolResult & { origin: HistoryOrigin }, personalBest
   ];
 }
 
-// An imported official result is always a competition result, read-only, and never a personal best.
-function toImportedResult(r: ImportedHistoryResult): HistoryResult {
-  return { id: r.id, stroke: r.stroke, distance: r.distance, date: r.swumOn, context: 'competition', origin: 'import', value: { kind: 'race' }, time: r.hundredths };
+// An imported official result is always a competition result, read-only; it can be the personal best like any race.
+function toImportedResult(r: ImportedHistoryResult, sourceName: string | undefined, personalBestId: string | undefined): HistoryResult {
+  return {
+    id: r.id,
+    stroke: r.stroke,
+    distance: r.distance,
+    date: r.swumOn,
+    context: 'competition',
+    origin: 'import',
+    ...(sourceName ? { sourceName } : {}),
+    value: { kind: 'race' },
+    time: r.hundredths,
+    isPersonalBest: r.id === personalBestId,
+  };
 }
 
 // The athlete's schools with the category in each, by school name. A school whose name is not on the device is left out.
@@ -145,23 +146,40 @@ export function AthleteProfileContainer({
   otherSchoolResults,
   online = false,
   importedResults,
+  sourceNames,
   officialUpdate,
   importPrompt,
   onBack,
 }: AthleteProfileContainerProps) {
-  const [event, setEvent] = useState<EventValue>(initialEvent);
+  // The event the person chose; until then the profile opens in the event of the athlete's most recent result, and with no results as before.
+  const [chosen, setChosen] = useState<EventValue>();
+  const [opening, setOpening] = useState<{ athleteId: string; event: EventValue }>();
+  const event = chosen ?? (opening?.athleteId === athleteId ? opening.event : undefined);
   const [attempt, setAttempt] = useState(0);
   const [otherAttempt, setOtherAttempt] = useState(0);
   const [chosenSchoolId, setChosenSchoolId] = useState('');
   // The answer is stored with the request it belongs to: any other request shows as loading until its own answer lands.
-  const requestKey = `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${attempt}`;
+  const requestKey = event ? `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${attempt}` : '';
   const [answer, setAnswer] = useState<{ key: string; result: Loaded }>();
   const loaded = useMemo<Loaded>(() => (answer?.key === requestKey ? answer.result : { kind: 'loading' }), [answer, requestKey]);
   // The age of the last sync is read once, when the profile opens, so it does not change on every render.
   const [openedAt] = useState(() => Date.now());
 
+  useEffect(() => {
+    let active = true;
+    Promise.all([history.listByAthlete(athleteId), importedResults?.listByAthlete(athleteId) ?? []])
+      .then(([measured, imported]) => latestAchievement([...measured, ...imported.map((r) => importedAchievement(r))]))
+      // A read that fails here fails again in the profile's own read, which offers the retry.
+      .catch(() => undefined)
+      .then((latest) => active && setOpening({ athleteId, event: latest ? { stroke: latest.stroke, distance: latest.distance, pool: latest.pool } : initialEvent }));
+    return () => {
+      active = false;
+    };
+  }, [athleteId, history, importedResults]);
+
   // The device's own data: it does not depend on the connection or on the other-school repository.
   useEffect(() => {
+    if (!event) return;
     let active = true;
     (async () => {
       const [athlete] = await athletes.listByIds([athleteId]);
@@ -184,10 +202,10 @@ export function AthleteProfileContainer({
 
   // Other schools' results: asked to the server only while connected, apart from the rest, so a connection change or a slow
   // server only touches this section. The answer is dropped when the request ends, so none is kept once the connection is lost.
-  const otherKey = `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${otherAttempt}`;
+  const otherKey = event ? `${athleteId}|${event.stroke}|${event.distance}|${event.pool}|${otherAttempt}` : '';
   const [otherAnswer, setOtherAnswer] = useState<OtherAnswer>();
   useEffect(() => {
-    if (!otherSchoolResults || !online) return;
+    if (!otherSchoolResults || !online || !event) return;
     let active = true;
     withTimeout(otherSchoolResults.listByEvent(athleteId, event), OTHER_SCHOOL_TIMEOUT_MS).then(
       (results) => active && setOtherAnswer({ key: otherKey, results }),
@@ -205,15 +223,15 @@ export function AthleteProfileContainer({
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const retryOtherSchool = useCallback(() => setOtherAttempt((n) => n + 1), []);
 
-  if (loaded.kind === 'loading') return <AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={onBack} />;
+  if (!event || loaded.kind === 'loading') return <AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={onBack} />;
   if (loaded.kind === 'denied') return <AthleteProfileScreen name="" view={{ kind: 'denied' }} onBack={onBack} />;
   if (loaded.kind === 'error') return <AthleteProfileScreen name="" view={{ kind: 'error', onRetry: retry }} onBack={onBack} />;
 
   const { athlete, authorized, measurements, imported, schools } = loaded;
   // A choice that is no longer among the athlete's schools falls back to the first one.
   const school = schools.find((s) => s.id === chosenSchoolId) ?? schools[0];
-  // The best comes from the device's own measurements only: offline it must not change.
-  const best = personalBest(measurements);
+  // The best comes from the device's own data only (its measurements and the results imported to it): offline it must not change.
+  const best = personalBest([...measurements, ...imported.map((r) => importedAchievement(r, sourceNames?.[r.provider]))]);
   // Newest first. A measurement the server also lists but the device already has (staff of both schools) is shown once, with its own sync state.
   const localIds = new Set(measurements.map((m) => m.id));
   const rows = [
@@ -237,7 +255,7 @@ export function AthleteProfileContainer({
       distances: distances.map((d) => d.code),
       pools: pools.map((p) => p.code),
       value: event,
-      onChange: setEvent,
+      onChange: setChosen,
     },
     personalBest: {
       ...event,
@@ -248,7 +266,7 @@ export function AthleteProfileContainer({
       ...(best ? { kind: best.kind === 'race' ? ('competition' as const) : ('training' as const), date: day(best.date) } : {}),
     },
     // Stable by date: the device's own rows keep their order within a day.
-    history: [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map(toImportedResult)].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    history: [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map((r) => toImportedResult(r, sourceNames?.[r.provider], best?.id))].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
     ...(officialUpdate ? { officialUpdate } : {}),
     ...(importPrompt ? { importPrompt } : {}),
     ...(otherSchoolResults && !online ? { otherSchoolOffline: true } : {}),

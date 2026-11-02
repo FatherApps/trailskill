@@ -40,6 +40,12 @@ These are outcomes, not evidence that every technical integration is already fea
 ### Results and timing
 
 - Some work records completion without a time. Other work records repetition times, series totals, continuous race times, or distance splits. Repetitions and splits are different; missing time is not zero.
+- **Personal best (confirmed by the maintainer in issue #204, 2026-11-02).** The best time of an athlete is computed per event and pool:
+  - `race` and `repetition` times count. `split`, `series_total`, `completed` and a null time do not.
+  - An imported official result counts as a `race`, on its competition date. Measured times and imported results are compared together for the same event and pool.
+  - A tie goes to the first time achieved, by date, with no preference for the source (measured or imported).
+  - The improvement is the previous best minus the current one. With no previous best there is no improvement, never 0.
+  - "Marcas" shows each mark with its origin: a measured time as competition or training, an imported one as "Oficial · <organization>" with the organization read from data. It opens in the pool of the athlete's most recent result, and the profile opens in the event of that result; with no results, in the short pool and the default event.
 - Periodic training measurements, historical results, and trends belong in the initial pilot. The user will provide another programmer's Kotlin button-controlled timer; its source, protocol, precision, and integration have not been validated. It is **initial-scope intent**, not a completed integration.
 - Future-time projections are desired, but the definition, method, confidence, and presentation are deliberately deferred for later investigation. Do not invent a formula or claim accuracy now.
 

@@ -1,6 +1,7 @@
 import type { Hundredths } from '../../../core/time';
 import type { HistoryMeasurement } from '../data/history';
 import { createInMemoryHistoryRepository } from '../data/inMemoryHistoryRepository';
+import { importedAchievement } from '../achievements';
 import { personalBest, personalBestTime } from '../personalBest';
 
 function result(id: string, hundredths: number | null, capturedAt: string, kind: HistoryMeasurement['kind'] = 'race'): HistoryMeasurement {
@@ -108,6 +109,53 @@ describe('personalBest', () => {
     ];
 
     expect(personalBest([...list].reverse())).toEqual(personalBest(list));
+  });
+});
+
+// The rule confirmed in #204: an imported official result counts as a race, on its competition date, and is compared together
+// with the measured times; a tie goes to the first achievement by date, with no preference for the source.
+describe('personalBest with imported official results', () => {
+  const official = (id: string, hundredths: number | null, swumOn: string) =>
+    importedAchievement({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: hundredths as Hundredths | null, swumOn }, 'Federación Demo');
+
+  it('counts an imported result as a race on its competition date, with its source', () => {
+    expect(personalBest([official('i1', 3000, '2026-03-01')])).toEqual({
+      id: 'i1',
+      hundredths: 3000,
+      date: '2026-03-01',
+      kind: 'race',
+      origin: 'import',
+      sourceName: 'Federación Demo',
+      improvement: null,
+    });
+  });
+
+  it('compares measured and imported times together, and measures the improvement against the best before it', () => {
+    const pb = personalBest([result('a', 3200, '2026-01-01T08:00:00Z'), official('i1', 3000, '2026-03-01'), result('b', 3100, '2026-04-01T08:00:00Z')]);
+
+    expect(pb).toMatchObject({ id: 'i1', hundredths: 3000, origin: 'import', improvement: { hundredths: 200, previousDate: '2026-01-01T08:00:00Z' } });
+  });
+
+  it('lets a faster measured time beat an imported one', () => {
+    expect(personalBest([official('i1', 3000, '2026-01-01'), result('a', 2900, '2026-02-01T08:00:00Z')])).toMatchObject({ id: 'a', origin: 'own' });
+  });
+
+  it('gives a tie to the first achievement by date when the imported one came first', () => {
+    expect(personalBest([result('a', 3000, '2026-02-01T08:00:00Z'), official('i1', 3000, '2026-01-01')])?.id).toBe('i1');
+  });
+
+  it('gives a tie to the first achievement by date when the measured one came first', () => {
+    expect(personalBest([official('i1', 3000, '2026-02-01'), result('a', 3000, '2026-01-01T08:00:00Z')])?.id).toBe('a');
+  });
+
+  it('does not prefer a source on a tie the same day: the date is compared by day, then the id decides', () => {
+    expect(personalBest([official('b', 3000, '2026-02-01'), result('a', 3000, '2026-02-01T08:00:00Z')])?.id).toBe('a');
+    expect(personalBest([official('a', 3000, '2026-02-01'), result('b', 3000, '2026-02-01T08:00:00Z')])?.id).toBe('a');
+  });
+
+  it('ignores an imported missing time, never 0', () => {
+    expect(personalBest([official('i1', null, '2026-01-01')])).toBeNull();
+    expect(personalBest([official('i1', null, '2026-01-01'), result('a', 3000, '2026-02-01T08:00:00Z')])?.id).toBe('a');
   });
 });
 
