@@ -137,6 +137,24 @@ describe('createOfficialUpdate.check', () => {
     expect(svc.results).toHaveBeenCalledTimes(1);
   });
 
+  it("gives each athlete only their own results while another athlete's query is running", async () => {
+    let finishFirst!: (value: unknown) => void;
+    const results = jest
+      .fn()
+      .mockReturnValueOnce(new Promise((resolve) => (finishFirst = resolve)))
+      .mockResolvedValueOnce(ok([found({ id: 'fb' })]));
+    const update = setup(service({ results }), []);
+
+    const first = update.check('a1');
+    const second = update.check('a2');
+    finishFirst(ok([found({ id: 'fa' })]));
+
+    expect(await second).toEqual({ kind: 'found', results: [found({ id: 'fb' })] });
+    expect(await first).toEqual({ kind: 'found', results: [found({ id: 'fa' })] });
+    expect(results).toHaveBeenNthCalledWith(1, 'a1');
+    expect(results).toHaveBeenNthCalledWith(2, 'a2');
+  });
+
   it('can query again once the previous query ended', async () => {
     const svc = service();
     const update = setup(svc);

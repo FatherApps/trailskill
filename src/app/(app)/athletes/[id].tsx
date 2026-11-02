@@ -102,6 +102,8 @@ export default function AthleteProfileRoute() {
       // The server decides who may update: without a confirmed identity and a manager with the authorization in force, nothing shows.
       officialUpdate={
         <OfficialUpdateContainer
+          // A new athlete remounts it, so the list, selection and notices of the previous one never show.
+          key={id}
           athleteId={id}
           update={officialUpdate}
           repository={importedResults}

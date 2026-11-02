@@ -36,7 +36,8 @@ export type ImportOutcome =
 type Dependencies = { service: OfficialResultsService; repository: ImportedResultsRepository };
 
 export function createOfficialUpdate({ service, repository }: Dependencies) {
-  let running: Promise<CheckOutcome> | null = null;
+  // One query in flight per athlete: a press for another athlete never receives this one's results.
+  const running = new Map<string, Promise<CheckOutcome>>();
 
   async function run(athleteId: string): Promise<CheckOutcome> {
     try {
@@ -51,10 +52,14 @@ export function createOfficialUpdate({ service, repository }: Dependencies) {
   }
 
   return {
-    // A second press while one query runs gets the same answer instead of asking the source again.
+    // A second press for the same athlete while a query runs gets the same answer instead of asking the source again.
     check(athleteId: string): Promise<CheckOutcome> {
-      running ??= run(athleteId).finally(() => (running = null));
-      return running;
+      let query = running.get(athleteId);
+      if (!query) {
+        query = run(athleteId).finally(() => running.delete(athleteId));
+        running.set(athleteId, query);
+      }
+      return query;
     },
 
     async importChosen(athleteId: string, chosen: FoundResult[]): Promise<ImportOutcome> {
