@@ -5,9 +5,9 @@ import {
   type NormalizedResult,
   type ResultsProvider,
 } from '../../port.ts';
-import { normalizeNumber, type History, type RosterEntry } from './parse.ts';
+import { normalizeNumber, type History, type RosterEntry, type RosterItem } from './parse.ts';
 
-export type { History, RosterEntry };
+export type { History, RosterEntry, RosterItem };
 
 // The worker's proposal, pending maintainer review: more homonyms than this is "unavailable", never a silent cut.
 export const MAX_CANDIDATES = 5;
@@ -16,9 +16,11 @@ export const SEARCH_TIMEOUT_MS = 30_000;
 
 /** What the page gives, already parsed. Each call is one request to the source; it throws on any failure or change of shape. */
 export interface Source {
-  roster(): Promise<RosterEntry[]>;
+  roster(): Promise<RosterItem[]>;
   history(entry: RosterEntry, expired?: () => boolean): Promise<History>;
 }
+
+const isUnreadable = (entry: RosterItem): entry is Exclude<RosterItem, RosterEntry> => 'unreadable' in entry;
 
 // Case, accents, extra spaces and word order ignored (docs/research/results-import.md, identity rule 2).
 const words = (name: string) =>
@@ -87,9 +89,14 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
     } catch {
       return null;
     }
-    const found = (await source.roster()).filter((entry) => entry.key === key);
+    const roster = await source.roster();
+    const found = roster.filter((entry) => entry.key === key);
     if (found.length > 1) throw new ProviderUnavailableError(); // Two entries share the number: the identity is ambiguous.
-    return found[0] ?? null;
+    // An unreadable entry with this number, or one without a key that may have been it, cannot be ruled out: never "no match".
+    if (found.some(isUnreadable) || (found.length === 0 && roster.some((entry) => isUnreadable(entry) && entry.key === null))) {
+      throw new ProviderUnavailableError();
+    }
+    return (found[0] as RosterEntry | undefined) ?? null;
   }
 
   return {
@@ -102,7 +109,10 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
           return entry ? [toCandidate(entry, await source.history(entry, expired))] : [];
         }
         const wanted = words(`${firstName} ${lastName}`);
-        const found = (await source.roster()).filter((entry) => matches(wanted, entry.name));
+        const roster = await source.roster();
+        const found = roster.filter((entry): entry is RosterEntry => !isUnreadable(entry) && matches(wanted, entry.name));
+        // Nobody found while an entry could not be read: that entry may be the person, so "no match" would mislead.
+        if (found.length === 0 && roster.some(isUnreadable)) throw new ProviderUnavailableError();
         if (found.length > MAX_CANDIDATES || new Set(found.map((entry) => entry.key)).size !== found.length) {
           throw new ProviderUnavailableError();
         }
