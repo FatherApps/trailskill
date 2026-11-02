@@ -107,15 +107,15 @@ describe('createSupabaseImportSourcesRepository', () => {
   it('lists the federations that have a source, with the name from data', async () => {
     answer({
       data: [
-        { organization_id: 'org-1', organizations: { name: 'Synthetic Federation' } },
-        { organization_id: 'org-2', organizations: [{ name: 'Second Federation' }] },
-        { organization_id: 'org-3', organizations: null },
+        { organization_id: 'org-1', provider: 'xx-one', organizations: { name: 'Synthetic Federation' } },
+        { organization_id: 'org-2', provider: 'xx-two', organizations: [{ name: 'Second Federation' }] },
+        { organization_id: 'org-3', provider: 'xx-three', organizations: null },
       ],
       error: null,
     });
     expect(await createSupabaseImportSourcesRepository().list()).toEqual([
-      { organizationId: 'org-1', name: 'Synthetic Federation' },
-      { organizationId: 'org-2', name: 'Second Federation' },
+      { organizationId: 'org-1', name: 'Synthetic Federation', provider: 'xx-one' },
+      { organizationId: 'org-2', name: 'Second Federation', provider: 'xx-two' },
     ]);
     expect(supabase.from).toHaveBeenCalledWith('results_import_sources');
   });

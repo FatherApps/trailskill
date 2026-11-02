@@ -1,5 +1,5 @@
 import { distances, strokes, type DistanceCode, type PoolCode, type StrokeCode } from '../../core/sport';
-import type { HistoryMeasurement } from './data/history';
+import type { EventAchievement } from './achievements';
 import { personalBest, type PersonalBestResult } from './personalBest';
 
 export type MarkRow = { id: string; stroke: StrokeCode; distance: DistanceCode; best: PersonalBestResult | null };
@@ -25,9 +25,9 @@ export function listedEvents(pool: PoolCode, marked: ReadonlySet<string> = new S
   return designEvents.filter((event) => pool !== 'LCM' || event.stroke !== 'IM' || marked.has(eventId(event)));
 }
 
-/** One row per listed event, then the other events with a mark in catalog order. Each best is the profile's own `personalBest`. */
-export function marksByEvent(measurements: readonly HistoryMeasurement[], pool: PoolCode): MarkRow[] {
-  const byEvent = new Map<string, HistoryMeasurement[]>();
+/** One row per listed event, then the other events with a mark in catalog order. Each best is the profile's own `personalBest`, over the measured and the imported results together. */
+export function marksByEvent(measurements: readonly EventAchievement[], pool: PoolCode): MarkRow[] {
+  const byEvent = new Map<string, EventAchievement[]>();
   for (const m of measurements) {
     if (m.pool !== pool) continue;
     byEvent.set(eventId(m), [...(byEvent.get(eventId(m)) ?? []), m]);
