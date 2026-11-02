@@ -1,5 +1,5 @@
 import { ProviderUnavailableError } from '../../../port.ts';
-import type { History, RosterEntry } from '../parse.ts';
+import type { History, RosterEntry, RosterItem } from '../parse.ts';
 import { MAX_CANDIDATES, SEARCH_TIMEOUT_MS, createCoFecnaProvider as create, type Source } from '../provider.ts';
 
 const createCoFecnaProvider = (source: Source) => create(() => source);
@@ -23,7 +23,7 @@ const history = (resultCount = 1): History => ({
   })),
 });
 
-function createFakeSource(options: { roster?: RosterEntry[]; histories?: Record<string, History>; failWith?: Error } = {}) {
+function createFakeSource(options: { roster?: RosterItem[]; histories?: Record<string, History>; failWith?: Error } = {}) {
   const calls: string[] = [];
   const source: Source = {
     async roster() {
@@ -231,5 +231,50 @@ describe('co-fecna provider', () => {
       expect(spy).not.toHaveBeenCalled();
       spy.mockRestore();
     });
+  });
+});
+
+describe('co-fecna provider with unreadable roster entries', () => {
+  const unreadable = (key: string | null): RosterItem => ({ unreadable: true, value: key, key });
+  const unavailable = (promise: Promise<unknown>) => expect(promise).rejects.toBeInstanceOf(ProviderUnavailableError);
+
+  it('is unavailable when the number matches an unreadable entry', async () => {
+    const { source, calls } = createFakeSource({ roster: [unreadable(NUMBER), entry(OTHER)], histories: historiesOf([entry(OTHER)]) });
+    await unavailable(createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER }));
+    expect(calls).toEqual(['roster']);
+  });
+
+  it('is unavailable when a name search finds nobody and the list has an unreadable entry', async () => {
+    const { source } = createFakeSource({ roster: [unreadable(OTHER), entry(NUMBER, 'RUIZ LEON JUAN')] });
+    await unavailable(createCoFecnaProvider(source).findCandidates(query));
+  });
+
+  it('is unavailable when a number search finds nobody and an unreadable entry has no key', async () => {
+    const { source } = createFakeSource({ roster: [unreadable(null), entry(OTHER)] });
+    await unavailable(createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER }));
+  });
+
+  it('keeps answering "no match" for a number when the unreadable entries all have another key', async () => {
+    const { source } = createFakeSource({ roster: [unreadable(OTHER), entry('2222222222')] });
+    expect(await createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER })).toEqual([]);
+  });
+
+  it('still returns the matches of a name search and never makes a candidate of an unreadable entry', async () => {
+    const roster = [unreadable(OTHER), entry(NUMBER)];
+    const { source, calls } = createFakeSource({ roster, histories: historiesOf([entry(NUMBER)]) });
+    const candidates = await createCoFecnaProvider(source).findCandidates(query);
+    expect(candidates.map((candidate) => candidate.sourceAthleteKey)).toEqual([NUMBER]);
+    expect(calls).toEqual(['roster', `history:${NUMBER}`]);
+  });
+
+  it('is unavailable to fetch results of a number that matches an unreadable entry', async () => {
+    const { source } = createFakeSource({ roster: [unreadable(NUMBER)] });
+    await unavailable(createCoFecnaProvider(source).fetchResults(NUMBER));
+  });
+
+  it('answers a search with no match as before when no entry is unreadable', async () => {
+    const { source } = createFakeSource({ roster: [entry(OTHER, 'RUIZ LEON JUAN')] });
+    expect(await createCoFecnaProvider(source).findCandidates(query)).toEqual([]);
+    expect(await createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER })).toEqual([]);
   });
 });
