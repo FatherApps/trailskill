@@ -156,5 +156,32 @@
       "11": "noviembre",
       "12": "diciembre"
     }
+  },
+  "progress_chart": {
+    "title": "Progreso",
+    "subtitle": "Más rápido hacia arriba",
+    "range": {
+      "label": "Rango",
+      "3m": "3 m",
+      "6m": "6 m",
+      "1y": "1 año",
+      "all": "Todo"
+    },
+    "label": "Progreso en {{event}}, más rápido hacia arriba: {{summary}}",
+    "summary": "de {{from}} en {{fromMonth}} a {{to}} en {{toMonth}}",
+    "summary_single": "{{time}} en {{month}}",
+    "personal_best": "MP {{time}}",
+    "legend_personal_best": "MP",
+    "need_more": "Necesitamos más mediciones para ver una tendencia",
+    "projection": "Proyección pronto",
+    "empty": {
+      "title": "Aún no hay tiempos para graficar",
+      "message": "Cuando haya resultados con tiempo en esta prueba, aquí verás cómo avanzan.",
+      "range_message": "No hay resultados con tiempo en este rango. Prueba con uno más amplio."
+    },
+    "tooltip": {
+      "origin_own": "Registro propio",
+      "summary": "{{date}} · {{kind}} · {{origin}}"
+    }
   }
 }

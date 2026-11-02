@@ -5,6 +5,14 @@ import { useTheme } from '../../core/theme';
 import type { GalleryEntry } from '../../core/ui';
 import { historyFixture as h, historyLongTextResults, historyResults } from './__fixtures__/history';
 import { marksFixture, marksLongPoolFixture, marksLongTextFixture } from './__fixtures__/marks';
+import {
+  progressChartMinutes,
+  progressChartOneResult,
+  progressChartResults,
+  progressChartToday,
+  progressChartTwoResults,
+  progressChartWithoutTime,
+} from './__fixtures__/progressChart';
 import { myAthletesFixture, myAthletesLongTextFixture } from './__fixtures__/myAthletes';
 import { profileContentFixture, storedOnFixture } from './__fixtures__/screen';
 import { eventFixture as ev, personalBestFixture as pb, profileFixture as pf } from './__fixtures__/profile';
@@ -12,6 +20,8 @@ import { EventSelector, type EventValue } from './components/EventSelector';
 import { HistoryList } from './components/HistoryList';
 import { ImportPrompt } from './components/ImportPrompt';
 import { PersonalBest, type PersonalBestProps } from './components/PersonalBest';
+import { ProgressChart } from './components/ProgressChart';
+import type { HistoryResult } from './components/HistoryList';
 import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHeader';
 import { AthleteProfileScreen, type AthleteProfileContent, type AthleteProfileView } from './screens/AthleteProfileScreen';
 import { MarksScreen, type MarksView } from './screens/MarksScreen';
@@ -72,6 +82,16 @@ const PersonalBestPreview = (props: PersonalBestProps) => (
     <PersonalBest {...props} />
   </FullWidth>
 );
+
+// A fixed date, so the ranges of the gallery do not drift with the day it is opened.
+const chartPreview = (results: HistoryResult[]) =>
+  function ChartPreview() {
+    return (
+      <FullWidth>
+        <ProgressChart results={results} today={progressChartToday} />
+      </FullWidth>
+    );
+  };
 
 const prompt = { athleteName: h.athleteName, onDismiss: noop, onRefresh: noop, onLearnMore: noop };
 
@@ -153,6 +173,18 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       mixed: () => <HistoryList scrollEnabled={false} results={historyResults} />,
       'long-text': () => <HistoryList scrollEnabled={false} results={historyLongTextResults} />,
+    },
+  },
+  {
+    id: 'progressChart',
+    title: 'ProgressChart',
+    states: {
+      'many-results': chartPreview(progressChartResults),
+      'two-results': chartPreview(progressChartTwoResults),
+      'one-result': chartPreview(progressChartOneResult),
+      empty: chartPreview([]),
+      'completed-without-time': chartPreview(progressChartWithoutTime),
+      'long-event': chartPreview(progressChartMinutes),
     },
   },
   {
