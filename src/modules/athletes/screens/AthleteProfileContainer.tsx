@@ -210,11 +210,15 @@ export function AthleteProfileContainer({
   );
   const chosenEvent = chosen?.athleteId === athleteId ? chosen.event : undefined;
   const latest = useMemo(() => latestAchievement(achievements), [achievements]);
+  // Primitives, not `latest`: a silent read builds new objects for the same result, and that must not look like a new event.
+  const latestStroke = latest?.stroke;
+  const latestDistance = latest?.distance;
+  const latestPool = latest?.pool;
   const event = useMemo<EventValue | undefined>(() => {
     if (loaded.kind !== 'ready') return undefined;
     if (chosenEvent) return chosenEvent;
-    return latest ? { stroke: latest.stroke, distance: latest.distance, pool: latest.pool } : initialEvent;
-  }, [loaded.kind, chosenEvent, latest]);
+    return latestStroke && latestDistance && latestPool ? { stroke: latestStroke, distance: latestDistance, pool: latestPool } : initialEvent;
+  }, [loaded.kind, chosenEvent, latestStroke, latestDistance, latestPool]);
 
   // Other schools' results: asked to the server only while connected, apart from the rest, so a connection change or a slow
   // server only touches this section. The answer is dropped when the request ends, so none is kept once the connection is lost.
