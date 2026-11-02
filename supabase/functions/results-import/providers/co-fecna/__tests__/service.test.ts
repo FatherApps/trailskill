@@ -9,6 +9,8 @@ const who = { userId: 'user-1', athleteId: 'athlete-1', organizationId: 'fed', f
 
 const history = (): History => ({ affiliations: [{ club: null, league: null, years: [2026] }], results: [] });
 
+let stored = 0;
+
 function setup(roster = NUMBERS.map((key) => ({ key, value: key, name: 'PEREZ ANA' }))) {
   const source: Source = { roster: async () => roster, history: async () => history() };
   const claims: unknown[] = [];
@@ -21,9 +23,10 @@ function setup(roster = NUMBERS.map((key) => ({ key, value: key, name: 'PEREZ AN
   const service = createResultsImport({
     registry: createProviderRegistry([createCoFecnaProvider(() => source)]),
     gate,
-    identityNumbers: { read: async () => null, save: async () => undefined },
-    confirmations: { record: async () => undefined },
+    identityNumbers: { read: async () => null, keep: async () => true },
+    confirmations: { record: async () => 'evidence-1', remove: async () => undefined },
     organizationChain: async () => chain,
+    pending: { put: async () => `pending-${++stored}`, take: async () => null },
   });
   return { service, claims };
 }
