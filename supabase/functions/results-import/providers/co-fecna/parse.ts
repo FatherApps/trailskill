@@ -1,6 +1,6 @@
 import type { Affiliation, NormalizedResult } from '../../port.ts';
 import type { DistanceCode, StrokeCode } from '../../../../../src/core/sport/catalogs.ts';
-import { cellText, decodeEntities, normalizeSpaces } from './html.ts';
+import { cellText, decodeEntities, normalizeSpaces, UnknownEntityError } from './html.ts';
 
 // Everything here reads the page's HTML with regular expressions. Any shape it does not expect throws; the provider turns
 // that into the typed "unavailable", so a changed page never yields a half-read result.
@@ -32,18 +32,24 @@ export function parseRoster(html: string): RosterEntry[] {
   }
   if (list === undefined) throw new Error('No swimmer list');
 
-  const entries = [...list.matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)].map(([, attributes, text]) => {
+  const entries: RosterEntry[] = [];
+  for (const [, attributes, text] of list.matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)) {
     const value = /^\s*value\s*=\s*"([^"]*)"\s*$/.exec(attributes)?.[1];
     if (value === undefined || text.includes('<')) throw new Error('Unexpected option');
-    // Two blocks, last names first, split on the line break the page puts between them.
-    const blocks = decodeEntities(text)
-      .trim()
-      .split(/\n\s*/)
-      .map(normalizeSpaces);
-    if (blocks.length !== 2 || blocks.some((block) => block === '')) throw new Error('Unexpected name');
-    const decoded = decodeEntities(value);
-    return { value: decoded, key: normalizeNumber(decoded), name: blocks.join(' ') };
-  });
+    try {
+      // Two blocks, last names first, split on the line break the page puts between them.
+      const blocks = decodeEntities(text)
+        .trim()
+        .split(/\n\s*/)
+        .map(normalizeSpaces);
+      if (blocks.length !== 2 || blocks.some((block) => block === '')) throw new Error('Unexpected name');
+      const decoded = decodeEntities(value);
+      entries.push({ value: decoded, key: normalizeNumber(decoded), name: blocks.join(' ') });
+    } catch (error) {
+      // An entry with an entity we do not know is unavailable on its own; the rest of the list stays.
+      if (!(error instanceof UnknownEntityError)) throw error;
+    }
+  }
   if (entries.length === 0) throw new Error('Empty swimmer list');
   return entries;
 }

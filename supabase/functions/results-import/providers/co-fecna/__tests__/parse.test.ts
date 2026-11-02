@@ -9,6 +9,14 @@ describe('decodeEntities', () => {
   it('fails on an entity it does not know instead of guessing', () => {
     expect(() => decodeEntities('A&zzzz;B')).toThrow();
   });
+  it('decodes the named entities of text: accented letters, cedilla, quotes, dashes and spaces', () => {
+    expect(decodeEntities('&ccedil;&Ccedil; &agrave;&Agrave; &ouml;&acirc;&atilde;&iuml; &ldquo;x&rdquo; &lsquo;y&rsquo; &ndash;&mdash; &ensp;&iexcl;&iquest;')).toBe(
+      'çÇ àÀ öâãï “x” ‘y’ –— \u2002¡¿',
+    );
+  });
+  it('fails on a numeric reference outside Unicode instead of guessing', () => {
+    expect(() => decodeEntities('A&#99999999;B')).toThrow();
+  });
   it.each(['constructor', 'toString', 'hasOwnProperty'])('does not take &%s; for an entity from the object prototype', (name) => {
     expect(() => decodeEntities(`A&${name};B`)).toThrow();
   });
@@ -41,6 +49,23 @@ describe('parseRoster', () => {
     ]);
   });
 
+  it('decodes the named entities of Spanish and Portuguese names', () => {
+    expect(parseRoster(rosterPage([option('1', 'FRAN&Ccedil;A', 'JOS&eacute; &Agrave;NGEL')]))[0].name).toBe('FRANÇA JOSé ÀNGEL');
+  });
+
+  it('drops only the entry with an entity it does not know and keeps the others', () => {
+    const page = rosterPage([option('1', 'A&zzzz;', 'B'), option('2', 'C', 'D&qqqq;'), option('3', 'RUIZ', 'JUAN')]);
+    expect(parseRoster(page)).toEqual([{ value: '3', key: '3', name: 'RUIZ JUAN' }]);
+  });
+
+  it('drops an entry whose value has an unknown entity', () => {
+    expect(parseRoster(rosterPage([option('1&zzzz;', 'A', 'B'), option('2', 'C', 'D')])).map((entry) => entry.key)).toEqual(['2']);
+  });
+
+  it('is unexpected when every entry has an unknown entity', () => {
+    expect(() => parseRoster(rosterPage([option('1', 'A&zzzz;', 'B')]))).toThrow();
+  });
+
   it('reads only the swimmer selector', () => {
     const other = '<select name="prueba"><option value="1">Todas</option></select>';
     expect(parseRoster(rosterPage([option('1', 'A', 'B')]) + other)).toHaveLength(1);
@@ -54,7 +79,6 @@ describe('parseRoster', () => {
     ['an option with a single block', rosterPage(['<option value="1">A B</option>'])],
     ['an option with three blocks', rosterPage(['<option value="1">A\nB\nC</option>'])],
     ['an option with markup inside', rosterPage(['<option value="1">A\n<b>B</b></option>'])],
-    ['an unknown entity', rosterPage([option('1', 'A&zzzz;', 'B')])],
     ['a number with other characters', rosterPage([option('12/34', 'A', 'B')])],
   ])('is unexpected with %s', (_label, page) => {
     expect(() => parseRoster(page)).toThrow();
