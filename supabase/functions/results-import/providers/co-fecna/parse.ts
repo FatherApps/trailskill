@@ -1,9 +1,10 @@
 import type { Affiliation, NormalizedResult } from '../../port.ts';
-import type { DistanceCode, StrokeCode } from '../../../../../src/core/sport/catalogs.ts';
+import type { DistanceCode, PoolCode, StrokeCode } from '../../../../../src/core/sport/catalogs.ts';
 import { cellText, decodeEntities, normalizeSpaces, UnknownEntityError } from './html.ts';
 
-// Everything here reads the page's HTML with regular expressions. Any shape it does not expect throws; the provider turns
-// that into the typed "unavailable", so a changed page never yields a half-read result.
+// The swimmer list and the profile card are read from the page's HTML with regular expressions; the rows come as JSON.
+// Any shape this does not expect throws; the provider turns that into the typed "unavailable", so a changed page never
+// yields a half-read result.
 
 export type RosterEntry = {
   /** As the form sends it. */
@@ -68,98 +69,110 @@ export function parseRoster(html: string): RosterItem[] {
   return entries;
 }
 
-// The ids combine distance and a stroke letter: l free, e back, p breast, m fly, c medley.
-const STROKE_BY_LETTER: Record<string, StrokeCode> = { l: 'FR', e: 'BK', p: 'BR', m: 'FL', c: 'IM' };
-const DISTANCES = new Set<string>(['50', '100', '200', '400', '800', '1500']);
+// The numbers of the page's `prueba` selector, with their stroke and distance (issue #80, comment 6581210025, question 3).
+// The numbers in between (1, 8, 12, 16, 20) are not events of their own.
+const EVENTS = {
+  2: ['FR', '50m'], 3: ['FR', '100m'], 4: ['FR', '200m'], 5: ['FR', '400m'], 6: ['FR', '800m'], 7: ['FR', '1500m'],
+  9: ['BK', '50m'], 10: ['BK', '100m'], 11: ['BK', '200m'],
+  13: ['BR', '50m'], 14: ['BR', '100m'], 15: ['BR', '200m'],
+  17: ['FL', '50m'], 18: ['FL', '100m'], 19: ['FL', '200m'],
+  21: ['IM', '200m'], 22: ['IM', '400m'],
+} as const satisfies Record<number, readonly [StrokeCode, DistanceCode]>;
 
-const COLUMNS = ['categoria', 'tiempo', 'diferencia en s', 'puntos world aquatics', 'fecha', 'piscina', 'torneo'];
-const columnName = (text: string) =>
+/** The event numbers to ask `getHistorial` for, one request each. */
+export const EVENT_NUMBERS: number[] = Object.keys(EVENTS).map(Number);
+
+// The two-letter pool code of the source, as the sport catalog names it (long course 50 m, short course 25 m).
+// Any other code is rejected: a pool is never guessed.
+const POOL_BY_CODE: Record<string, PoolCode> = { LC: 'LCM', SC: 'SCM' };
+
+const plain = (text: string) =>
   cellText(text)
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
 
-// ASSUMED, pending real rows (issue #80, questions 8 to 10): the cell formats below are invented.
-// Time: `ss.cc` or `m:ss.cc`; a missing time is an empty cell or a dash.
-function parseTime(text: string): number | null {
-  if (text === '' || text === '-') return null;
-  const match = /^(?:(\d{1,2}):)?(\d{1,2})[.,](\d{2})$/.exec(text);
-  if (!match || (match[1] !== undefined && Number(match[2]) > 59)) throw new Error('Unexpected time');
-  const hundredths = (Number(match[1] ?? 0) * 60 + Number(match[2])) * 100 + Number(match[3]);
+export type Profile = { club: string | null; league: string | null };
+
+/**
+ * The profile card of the history page: `ul.nav > a.nav-link` with the label as text and the value in `span.badge`.
+ * Only Club and Liga are read. The other labels (identity, gender, birth date) are skipped before their value is looked
+ * at. A card without either of them is a changed page, never an empty affiliation; an empty badge is a missing value.
+ */
+export function parseProfile(html: string): Profile {
+  // Without the swimmer list this is not the history page (a maintenance page may carry anything else).
+  if (!/<select\b[^>]*\bname\s*=\s*"nadador"/i.test(html)) throw new Error('Not the history page');
+  const values: Record<'club' | 'liga', string[]> = { club: [], liga: [] };
+  for (const [, attributes, card] of html.matchAll(/<ul\b([^>]*)>([\s\S]*?)<\/ul>/gi)) {
+    // Only a list classed `nav` is the card: a link with the same class elsewhere on the page is not.
+    if (!(attributeOf(attributes, 'class') ?? '').split(/\s+/).includes('nav')) continue;
+    for (const [, inside] of card.matchAll(/<a\b[^>]*\bnav-link\b[^>]*>([\s\S]*?)<\/a>/gi)) {
+      const entry = /^([\s\S]*?)<span\b[^>]*\bbadge\b[^>]*>([\s\S]*?)<\/span>/i.exec(inside);
+      if (!entry) continue;
+      const label = plain(entry[1]);
+      if (label === 'club' || label === 'liga') values[label].push(cellText(entry[2]));
+    }
+  }
+  if (values.club.length !== 1 || values.liga.length !== 1) throw new Error('Unexpected profile card');
+  return { club: values.club[0] || null, league: values.liga[0] || null };
+}
+
+const textOf = (value: unknown): string => {
+  if (typeof value !== 'string') throw new Error('Unexpected value');
+  return value;
+};
+
+// Time: `hh:mm:ss.cc`. A missing time is an empty or null value, never 0.
+function parseTime(value: unknown): number | null {
+  if (value === null) return null;
+  const text = textOf(value).trim();
+  if (text === '') return null;
+  const match = /^(\d{2}):(\d{2}):(\d{2})\.(\d{2})$/.exec(text);
+  if (!match || Number(match[2]) > 59 || Number(match[3]) > 59) throw new Error('Unexpected time');
+  const hundredths = ((Number(match[1]) * 60 + Number(match[2])) * 60 + Number(match[3])) * 100 + Number(match[4]);
   if (hundredths === 0) throw new Error('Unexpected time');
   return hundredths;
 }
 
-// Date: `yyyy-mm-dd` or `dd/mm/yyyy`.
-function parseDate(text: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text) ?? /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
-  if (!match) throw new Error('Unexpected date');
-  const [year, month, day] = text.includes('/') ? [match[3], match[2], match[1]] : [match[1], match[2], match[3]];
-  const iso = `${year}-${month}-${day}`;
-  if (new Date(`${iso}T00:00:00Z`).toISOString().slice(0, 10) !== iso) throw new Error('Unexpected date');
-  return iso;
+// Date: `yyyy-mm-dd`, and a real day.
+function parseDate(value: unknown): string {
+  const text = textOf(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) !== text) throw new Error('Unexpected date');
+  return text;
 }
 
-// Pool: 25 or 50, with or without "m".
-function parsePool(text: string): NormalizedResult['pool'] {
-  const meters = /^(25|50)\s*m?$/i.exec(text)?.[1];
-  if (!meters) throw new Error('Unexpected pool');
-  return meters === '25' ? 'SCM' : 'LCM';
+function parsePool(value: unknown): PoolCode {
+  const code = textOf(value);
+  if (!Object.hasOwn(POOL_BY_CODE, code)) throw new Error('Unexpected pool');
+  return POOL_BY_CODE[code];
 }
 
-// A tag that opens and is never closed is a cut or changed page: the regular expressions below would drop it silently.
-function requireBalanced(html: string, tags: string[]) {
-  for (const tag of tags) {
-    const opened = html.match(new RegExp(`<${tag}\\b`, 'gi'))?.length ?? 0;
-    const closed = html.match(new RegExp(`</${tag}\\s*>`, 'gi'))?.length ?? 0;
-    if (opened !== closed) throw new Error('Unbalanced markup');
-  }
-}
+/**
+ * The rows of one `reportes/<prueba>/getHistorial` answer: a JSON array, whatever content type it was served with.
+ * Each result is rebuilt from the five fields it needs. Everything else in the row (category, difference, points,
+ * gender, birth date, age) is never read, so it cannot reach the output.
+ */
+export function parseRows(prueba: number, body: string): NormalizedResult[] {
+  if (!Object.hasOwn(EVENTS, prueba)) throw new Error('Unknown event');
+  const [stroke, distance] = EVENTS[prueba as keyof typeof EVENTS];
+  const rows: unknown = JSON.parse(body);
+  if (!Array.isArray(rows)) throw new Error('Unexpected answer');
 
-export function parseHistory(html: string): History {
-  // The answer repeats the swimmer list; without it, an empty page is a changed page, not "no results".
-  if (!/<select\b[^>]*\bname\s*=\s*"nadador"/i.test(html)) throw new Error('Not the history page');
-  requireBalanced(html, ['table', 'thead', 'tr', 'th', 'td']);
-  const results: NormalizedResult[] = [];
-  const seenTables = new Set<string>();
   const usedKeys = new Set<string>();
-
-  for (const [, attributes, inside] of html.matchAll(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi)) {
-    const id = (attributeOf(attributes, 'id') ?? '').toLowerCase();
-    const match = /^(\d+)([a-z])$/.exec(id);
-    if (!match) continue; // Not an event table.
-    const [, meters, letter] = match;
-    if (!DISTANCES.has(meters) || !(letter in STROKE_BY_LETTER) || seenTables.has(id)) throw new Error('Unexpected table');
-    seenTables.add(id);
-
-    const head = /<thead\b[^>]*>([\s\S]*?)<\/thead>/i.exec(inside);
-    if (!head) throw new Error('No header');
-    const headers = [...head[1].matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/gi)].map(([, text]) => columnName(text));
-    if (headers.join('|') !== COLUMNS.join('|')) throw new Error('Unexpected columns');
-
-    for (const [, row] of inside.replace(head[0], '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
-      const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map(([, text]) => cellText(text));
-      if (cells.length !== COLUMNS.length || /<th\b/i.test(row)) throw new Error('Unexpected row');
-      // The category column can hint at the birth year, so it is never read.
-      const [, time, , , date, pool, competition] = cells;
-      const base = `${id}|${parsePool(pool)}|${parseDate(date)}|${time}|${competition}`;
-      // The page has no row id: a repeated row gets a counter so keys stay unique.
-      let sourceResultKey = base;
-      for (let copy = 1; usedKeys.has(sourceResultKey); copy += 1) sourceResultKey = `${base}#${copy}`;
-      usedKeys.add(sourceResultKey);
-      results.push({
-        sourceResultKey,
-        stroke: STROKE_BY_LETTER[letter],
-        distance: `${meters}m` as DistanceCode,
-        pool: parsePool(pool),
-        hundredths: parseTime(time),
-        swumOn: parseDate(date),
-        competition: competition === '' ? null : competition,
-      });
-    }
-  }
-
-  // The known structure shows no club or league, so only the years with results are listed (question 6 is open).
-  const years = [...new Set(results.map((result) => Number(result.swumOn.slice(0, 4))))].sort();
-  return { affiliations: years.length ? [{ club: null, league: null, years }] : [], results };
+  return rows.map((row: unknown) => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) throw new Error('Unexpected row');
+    const fields = row as Record<string, unknown>;
+    // A row of another event would put a time under the wrong stroke or distance.
+    if (String(fields.prueba_id) !== String(prueba)) throw new Error('Unexpected event');
+    const pool = parsePool(fields.piscina);
+    const swumOn = parseDate(fields.fecha_torneo);
+    const competition = fields.torneo === null ? null : normalizeSpaces(textOf(fields.torneo)) || null;
+    const hundredths = parseTime(fields.tiempo);
+    const base = `${prueba}|${pool}|${swumOn}|${hundredths ?? ''}|${competition ?? ''}`;
+    // The source has no row id: a repeated row gets a counter so keys stay unique.
+    let sourceResultKey = base;
+    for (let copy = 1; usedKeys.has(sourceResultKey); copy += 1) sourceResultKey = `${base}#${copy}`;
+    usedKeys.add(sourceResultKey);
+    return { sourceResultKey, stroke, distance, pool, hundredths, swumOn, competition };
+  });
 }

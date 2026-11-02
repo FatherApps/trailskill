@@ -17,7 +17,7 @@ export const SEARCH_TIMEOUT_MS = 30_000;
 /** What the page gives, already parsed. Each call is one request to the source; it throws on any failure or change of shape. */
 export interface Source {
   roster(): Promise<RosterItem[]>;
-  history(entry: RosterEntry): Promise<History>;
+  history(entry: RosterEntry, expired?: () => boolean): Promise<History>;
 }
 
 const isUnreadable = (entry: RosterItem): entry is Exclude<RosterItem, RosterEntry> => 'unreadable' in entry;
@@ -106,7 +106,7 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
       guarded(async (source, expired) => {
         if (identityNumber !== null) {
           const entry = await lookup(source, identityNumber);
-          return entry ? [toCandidate(entry, await source.history(entry))] : [];
+          return entry ? [toCandidate(entry, await source.history(entry, expired))] : [];
         }
         const wanted = words(`${firstName} ${lastName}`);
         const roster = await source.roster();
@@ -120,17 +120,17 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
         const candidates: Candidate[] = [];
         for (const entry of found) {
           if (expired()) throw new ProviderUnavailableError();
-          candidates.push(toCandidate(entry, await source.history(entry)));
+          candidates.push(toCandidate(entry, await source.history(entry, expired)));
         }
         return candidates;
       }),
 
     // A number that is not in the list cannot be confirmed: that is unavailable, never an empty history.
     fetchResults: (sourceAthleteKey: string) =>
-      guarded(async (source) => {
+      guarded(async (source, expired) => {
         const entry = await lookup(source, sourceAthleteKey);
         if (!entry) throw new ProviderUnavailableError();
-        return (await source.history(entry)).results.map(toResult);
+        return (await source.history(entry, expired)).results.map(toResult);
       }),
   };
 }
