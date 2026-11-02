@@ -168,6 +168,10 @@ export function AthleteProfileContainer({
   // The age of the last sync is read once, when the profile opens, so it does not change on every render.
   const [openedAt] = useState(() => Date.now());
 
+  // When the last sync finished, as a number so the same moment is the same value. A new one means the sync brought data (an import
+  // that ended under the profile, a new measurement): the device is read again, in silence.
+  const syncedAt = lastSyncedAt?.getTime() ?? null;
+
   // The device's own data: it does not depend on the connection or on the other-school repository.
   useEffect(() => {
     let active = true;
@@ -184,11 +188,17 @@ export function AthleteProfileContainer({
     })()
       // A failed read is an error with a retry, never "no data": the profile of an athlete with results must not look empty.
       .catch((): Loaded => ({ kind: 'error' }))
-      .then((result) => active && setAnswer({ key: requestKey, result }));
+      .then(
+        (result) =>
+          active &&
+          // A read again, in silence, that fails keeps what is on screen: the sync will bring the data on its next change.
+          setAnswer((previous) => (result.kind === 'error' && previous?.key === requestKey && previous.result.kind === 'ready' ? previous : { key: requestKey, result })),
+      );
     return () => {
       active = false;
     };
-  }, [athleteId, athletes, authorizations, history, importedResults, schoolLinks, schoolNames, categories, requestKey]);
+    // `syncedAt` is not read inside: its change is what asks for the new read. The answer keeps its key, so nothing goes back to loading.
+  }, [athleteId, athletes, authorizations, history, importedResults, schoolLinks, schoolNames, categories, requestKey, syncedAt]);
 
   // Every result of the athlete as an achievement: the personal best, the marks and the events on offer read the same list.
   const achievements = useMemo<EventAchievement[]>(

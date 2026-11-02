@@ -524,7 +524,9 @@ describe('athlete profile container', () => {
     // A history whose per-event read never answers: the profile must not wait for it when the event changes.
     const stalledByEvent = () => {
       const stalled = createInMemoryHistoryRepository(races);
-      jest.spyOn(stalled, 'listByEvent').mockImplementation(() => new Promise(() => {}));
+      // The first per-event read answers (a profile that reads per event needs it to open); every later one never does.
+      const first = stalled.listByEvent.bind(stalled);
+      jest.spyOn(stalled, 'listByEvent').mockImplementationOnce(first).mockImplementation(() => new Promise(() => {}));
       return stalled;
     };
     const withRaces = (over: Partial<Parameters<typeof AthleteProfileContainer>[0]> = {}) =>
@@ -677,6 +679,92 @@ describe('athlete profile container', () => {
 
       expect(byAthlete).toHaveBeenCalledTimes(1);
       expect(byEvent).not.toHaveBeenCalled();
+    });
+
+    describe('data that arrives while the profile is open', () => {
+      // One instance: a new one on every render would itself ask for a new read.
+      const granted = authorizations(true);
+      const tree = (props: Partial<Parameters<typeof AthleteProfileContainer>[0]>) => (
+        <ThemeProvider>
+          <AthleteProfileContainer
+            athleteId="a1"
+            athletes={athletes}
+            history={createInMemoryHistoryRepository(races)}
+            authorizations={granted}
+            schoolLinks={schoolLinks}
+            schoolNames={schoolNames}
+            categories={categories}
+            lastSyncedAt={new Date('2026-10-20T10:00:00.000Z')}
+            onBack={noop}
+            {...props}
+          />
+        </ThemeProvider>
+      );
+      const newer = new Date('2026-10-21T10:00:00.000Z');
+
+      it('reads again in silence when the last sync changes: the new result shows, with no loading and the chosen event kept', async () => {
+        const rows: ReturnType<typeof imported>[] = [];
+        const importedResults = { listByAthlete: jest.fn().mockImplementation(async () => rows) };
+        const view = await render(tree({ importedResults }));
+        await fireEvent.press(await screen.findByRole('radio', { name: 'Espalda 50 m' }));
+        expect(screen.queryByLabelText(/Importado/)).toBeNull();
+
+        // An import finished while the profile stayed mounted underneath the import screen.
+        rows.push(imported({ id: 'i9', stroke: 'BK', hundredths: 3900, swumOn: '2026-10-20' }));
+        await view.rerender(tree({ importedResults, lastSyncedAt: newer }));
+
+        expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+        expect(screen.queryByText('Cargando')).toBeNull();
+        expect(await screen.findByLabelText(/Espalda 50 m, 20 de octubre de 2026, Competencia/)).toBeOnTheScreen();
+        expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
+        expect(importedResults.listByAthlete).toHaveBeenCalledTimes(2);
+      });
+
+      it('shows a new measurement and a new event that arrive with the sync', async () => {
+        let current = races;
+        const history: HistoryRepository = {
+          listByEvent: jest.fn(),
+          listByAthlete: jest.fn(async () => current),
+          listByAthletesEvent: jest.fn(),
+        };
+        const view = await render(tree({ history }));
+        expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+        expect(screen.queryByRole('radio', { name: 'Mariposa 50 m' })).toBeNull();
+
+        current = [...races, measurement({ id: 'm10', stroke: 'FL', hundredths: 3300, capturedAt: '2026-10-20T10:00:00.000Z' })];
+        await view.rerender(tree({ history, lastSyncedAt: newer }));
+
+        expect(await screen.findByRole('radio', { name: 'Mariposa 50 m' })).toBeOnTheScreen();
+        expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      });
+
+      it('keeps what it shows when the silent read fails, instead of replacing it with the error', async () => {
+        const history: HistoryRepository = {
+          listByEvent: jest.fn(),
+          listByAthlete: jest.fn().mockResolvedValueOnce(races).mockRejectedValue(new Error('db')),
+          listByAthletesEvent: jest.fn(),
+        };
+        const view = await render(tree({ history }));
+        expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+
+        await view.rerender(tree({ history, lastSyncedAt: newer }));
+        await waitFor(() => expect(history.listByAthlete).toHaveBeenCalledTimes(2));
+
+        expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+        expect(screen.queryByText('No pudimos cargar el perfil')).toBeNull();
+        expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
+      });
+
+      it('does not read again when the sync is the same', async () => {
+        const history = createInMemoryHistoryRepository(races);
+        const byAthlete = jest.spyOn(history, 'listByAthlete');
+        const view = await render(tree({ history }));
+        expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+
+        await view.rerender(tree({ history, lastSyncedAt: new Date('2026-10-20T10:00:00.000Z') }));
+
+        expect(byAthlete).toHaveBeenCalledTimes(1);
+      });
     });
 
     it('tells a failed opening read from having no data, and recovers with the retry', async () => {
