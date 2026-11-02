@@ -6,6 +6,7 @@ import type { Hundredths } from '../../../core/time';
 import { useRecordSyncStates } from '../../../core/sync';
 import type { EventValue } from '../components/EventSelector';
 import type { ImportPromptProps } from '../components/ImportPrompt';
+import { ProgressChart } from '../components/ProgressChart';
 import type { HistoryOrigin, HistoryResult } from '../components/HistoryList';
 import type { AthleteSchoolRepository } from '../data/athleteSchools';
 import type { HistoryMeasurement, HistoryRepository } from '../data/history';
@@ -220,6 +221,8 @@ export function AthleteProfileContainer({
     ...measurements.map((m) => ({ m, syncState: syncStates.get(m.id) ?? ('on_device' as const) })),
     ...(other ?? []).filter((m) => !localIds.has(m.id)).map((m) => ({ m: { ...m, origin: 'other_school' as const }, syncState: undefined })),
   ].sort((a, b) => newestFirst(a.m, b.m));
+  // Stable by date: the device's own rows keep their order within a day.
+  const historyRows = [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map(toImportedResult)].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   const content = {
     header: {
       name: `${athlete.firstName} ${athlete.lastName}`.trim(),
@@ -247,8 +250,9 @@ export function AthleteProfileContainer({
         : {}),
       ...(best ? { kind: best.kind === 'race' ? ('competition' as const) : ('training' as const), date: day(best.date) } : {}),
     },
-    // Stable by date: the device's own rows keep their order within a day.
-    history: [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map(toImportedResult)].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    history: historyRows,
+    // The chart draws the same rows as the history, so imported results and the personal best are the ones the list shows.
+    chart: <ProgressChart results={historyRows} />,
     ...(officialUpdate ? { officialUpdate } : {}),
     ...(importPrompt ? { importPrompt } : {}),
     ...(otherSchoolResults && !online ? { otherSchoolOffline: true } : {}),

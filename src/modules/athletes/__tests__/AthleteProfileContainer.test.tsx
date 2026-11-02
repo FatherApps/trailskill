@@ -435,6 +435,15 @@ describe('athlete profile container', () => {
       expect(screen.getAllByText('34,82', { includeHiddenElements: true }).length).toBeGreaterThan(0);
     });
 
+    it('draws them in the progress chart with the rest of the event, as a competition result', async () => {
+      await show({ importedResults: repo([imported({ hundredths: 2910 })]) });
+
+      await screen.findByLabelText(/Importado/);
+      const chart = screen.getByRole('image', { name: /^Progreso en Libre 50 m/ });
+      expect(chart).toBeOnTheScreen();
+      expect(screen.getByTestId('chart-marker-i1', { includeHiddenElements: true })).toBeOnTheScreen();
+    });
+
     it('shows the profile without them when the repository is not given', async () => {
       await show();
       await screen.findByRole('header', { name: 'Ana Marin' });
