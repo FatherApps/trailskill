@@ -9,6 +9,8 @@ let mockImportedAt: string | null = null;
 let mockConfirmed = false;
 let mockManaged: { status: string; athletes?: object[] } = { status: 'loading' };
 let mockSources: object[] = [];
+let mockId = 'a1';
+const mockMounted = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 jest.mock('../core/session', () => ({
@@ -27,7 +29,11 @@ jest.mock('../modules/results-import', () => ({
   createOfficialUpdate: () => ({}),
   createIdentityConfirmation: () => ({ isConfirmed: async () => mockConfirmed }),
   createSupabasePendingChangeResolver: () => ({}),
-  OfficialUpdateContainer: () => null,
+  OfficialUpdateContainer: ({ athleteId }: { athleteId: string }) => {
+    // Runs once per mount: a new athlete in the address must mount a fresh container.
+    jest.requireActual('react').useEffect(() => mockMounted(athleteId), []);
+    return null;
+  },
 }));
 jest.mock('../modules/athletes', () => {
   const { Pressable, Text } = jest.requireActual('react-native');
@@ -42,16 +48,19 @@ jest.mock('../modules/athletes', () => {
       otherSchoolResults,
       online,
       importPrompt,
+      officialUpdate,
       onBack,
     }: {
       athleteId: string;
       otherSchoolResults?: object;
       online?: boolean;
       importPrompt?: object;
+      officialUpdate?: import('react').ReactNode;
       onBack: () => void;
     }) => (
       <Pressable accessibilityRole="button" onPress={onBack}>
         <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}`}</Text>
+        {officialUpdate}
       </Pressable>
     ),
   };
@@ -63,11 +72,25 @@ jest.mock('../modules/school-console', () => ({
   useStaffSchool: () => ({ status: mockStaff ? 'staff' : 'none' }),
 }));
 jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ id: 'a1' }),
+  useLocalSearchParams: () => ({ id: mockId }),
   useRouter: () => ({ back: mockBack, replace: mockReplace, canGoBack: () => mockCanGoBack }),
 }));
 
 describe('athlete profile route', () => {
+  afterEach(() => {
+    mockId = 'a1';
+    mockMounted.mockClear();
+  });
+
+  it('mounts a new official update container when the athlete in the address changes', async () => {
+    mockUserId = 'user-1';
+    await render(<AthleteRoute />);
+    mockId = 'a2';
+    await screen.rerender(<AthleteRoute />);
+
+    expect(mockMounted.mock.calls).toEqual([['a1'], ['a2']]);
+  });
+
   it('shows the profile of the athlete in the address', async () => {
     mockUserId = 'user-1';
     await render(<AthleteRoute />);

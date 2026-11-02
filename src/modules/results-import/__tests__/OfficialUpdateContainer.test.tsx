@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import {
@@ -207,5 +207,75 @@ describe('OfficialUpdateContainer', () => {
       await screen.findByText('Cambiaron en el origen');
       expect(resolve).not.toHaveBeenCalled();
     });
+  });
+});
+
+// What the route does: one container per athlete in the address, all sharing one update.
+describe('switching from one athlete to another', () => {
+  function twoAthletes(results: jest.Mock) {
+    const service = { status: jest.fn(), results, importChosen: jest.fn().mockResolvedValue(summary(1)) } as unknown as jest.Mocked<OfficialResultsService>;
+    const repository = createInMemoryImportedResultsRepository(
+      [],
+      [],
+      ['a1', 'a2'].map((athleteId) => ({ athleteId, requestedAt: '2026-10-28T10:00:00Z' })),
+    );
+    const authorizations = createInMemoryAuthorizationStatusRepository(
+      ['a1', 'a2'].map((athleteId) => ({ athleteId, purpose: 'import_official_results', isGranted: true })) as never,
+    );
+    const update = createOfficialUpdate({ service, repository });
+    const view = (id: string) => (
+      <OfficialUpdateContainer
+        key={id}
+        athleteId={id}
+        update={update}
+        repository={repository}
+        identity={{ isConfirmed: async () => true }}
+        authorizations={authorizations}
+        resolver={{ resolve: jest.fn() }}
+      />
+    );
+    return { service, view };
+  }
+
+  it('shows nothing of the first athlete under the second, not even when the first answer arrives late', async () => {
+    let finishFirst!: (value: unknown) => void;
+    const results = jest
+      .fn()
+      .mockReturnValueOnce(new Promise((resolve) => (finishFirst = resolve)))
+      .mockResolvedValueOnce(ok([found('fb')]));
+    const { service, view } = twoAthletes(results);
+    await render(view('a1'));
+    const pressFirst = await screen.findByText('Actualizar resultados oficiales');
+    await act(async () => {
+      fireEvent.press(pressFirst);
+    });
+
+    await screen.rerender(view('a2'));
+    fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
+    expect(await screen.findByText('Importar 1 resultado')).toBeOnTheScreen();
+
+    await act(async () => finishFirst(ok([found('fa1'), found('fa2', { distance: '100m' })])));
+
+    expect(screen.getByText('Importar 1 resultado')).toBeOnTheScreen();
+    expect(screen.queryByText('Importar 2 resultados')).toBeNull();
+    fireEvent.press(screen.getByText('Importar 1 resultado'));
+    await waitFor(() => expect(service.importChosen).toHaveBeenCalledWith('a2', ['fb']));
+  });
+
+  it('leaves the second athlete on the initial screen: no list, no selection, no notice', async () => {
+    const results = jest.fn().mockResolvedValue(ok([found('f1'), found('f2', { distance: '100m' })]));
+    const { view } = twoAthletes(results);
+    await render(view('a1'));
+    fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
+    await screen.findByText('Importar 2 resultados');
+    fireEvent.press(screen.getAllByRole('checkbox')[0]!);
+    await screen.findByText('Importar 1 resultado');
+
+    await screen.rerender(view('a2'));
+
+    expect(await screen.findByText('Actualizar resultados oficiales')).toBeOnTheScreen();
+    expect(screen.queryByText(/Importar \d resultado/)).toBeNull();
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.queryByText(/Importamos/)).toBeNull();
   });
 });
