@@ -60,9 +60,16 @@ describe('co-fecna adapter on synthetic pages', () => {
     expect(candidate).toEqual({
       sourceAthleteKey: NUMBER,
       name: 'PEREZ GOMEZ ANA MARIA',
-      affiliations: [{ club: 'Club Sintético', league: 'Liga Sintética', years: [2025, 2026] }],
+      affiliations: [{ club: 'Club Sintético', league: 'Liga Sintética', years: [] }],
       resultCount: 3,
     });
+  });
+
+  it('gives the affiliation no years even with results: the rows carry no club, so the current club is not credited with them', async () => {
+    const { fetchImpl } = fakeFetch();
+    const [candidate] = await createCoFecna(fetchImpl).findCandidates({ ...query, identityNumber: NUMBER });
+    expect(candidate.resultCount).toBe(3);
+    expect(candidate.affiliations).toEqual([{ club: 'Club Sintético', league: 'Liga Sintética', years: [] }]);
   });
 
   it('a person with results never comes back with 0 because the tables are empty', async () => {

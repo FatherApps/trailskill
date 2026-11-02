@@ -83,11 +83,15 @@ export function parseProfile(html: string): Profile {
   // Without the swimmer list this is not the history page (a maintenance page may carry anything else).
   if (!/<select\b[^>]*\bname\s*=\s*"nadador"/i.test(html)) throw new Error('Not the history page');
   const values: Record<'club' | 'liga', string[]> = { club: [], liga: [] };
-  for (const [, inside] of html.matchAll(/<a\b[^>]*\bnav-link\b[^>]*>([\s\S]*?)<\/a>/gi)) {
-    const entry = /^([\s\S]*?)<span\b[^>]*\bbadge\b[^>]*>([\s\S]*?)<\/span>/i.exec(inside);
-    if (!entry) continue;
-    const label = plain(entry[1]);
-    if (label === 'club' || label === 'liga') values[label].push(cellText(entry[2]));
+  for (const [, attributes, card] of html.matchAll(/<ul\b([^>]*)>([\s\S]*?)<\/ul>/gi)) {
+    // Only a list classed `nav` is the card: a link with the same class elsewhere on the page is not.
+    if (!(attributeOf(attributes, 'class') ?? '').split(/\s+/).includes('nav')) continue;
+    for (const [, inside] of card.matchAll(/<a\b[^>]*\bnav-link\b[^>]*>([\s\S]*?)<\/a>/gi)) {
+      const entry = /^([\s\S]*?)<span\b[^>]*\bbadge\b[^>]*>([\s\S]*?)<\/span>/i.exec(inside);
+      if (!entry) continue;
+      const label = plain(entry[1]);
+      if (label === 'club' || label === 'liga') values[label].push(cellText(entry[2]));
+    }
   }
   if (values.club.length !== 1 || values.liga.length !== 1) throw new Error('Unexpected profile card');
   return { club: values.club[0] || null, league: values.liga[0] || null };

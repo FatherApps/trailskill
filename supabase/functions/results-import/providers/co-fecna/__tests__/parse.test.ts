@@ -93,6 +93,17 @@ describe('parseProfile', () => {
     expect(() => parseProfile(historyPage(profileCard(entries)))).toThrow();
   });
 
+  it('is unexpected when the card links are not inside a `ul.nav`', () => {
+    const outside = historyPage(profileCard().replace(/<\/?ul[^>]*>/g, ''));
+    expect(() => parseProfile(outside)).toThrow();
+    expect(() => parseProfile(historyPage(profileCard().replace('class="nav nav-pills flex-column"', 'class="navbar-nav"')))).toThrow();
+  });
+
+  it('ignores a nav-link with a club label outside the card', () => {
+    const menu = '<div><a class="nav-link" href="#">Club <span class="badge">Otro Club</span></a></div>';
+    expect(parseProfile(historyPage(menu + profileCard()))).toEqual({ club: 'Club Sintético', league: 'Liga Sintética' });
+  });
+
   it('is unexpected on a page without the swimmer list, even with a card', () => {
     expect(() => parseProfile(`<html><h3>Mantenimiento</h3>${profileCard()}</html>`)).toThrow();
   });

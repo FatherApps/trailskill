@@ -62,9 +62,8 @@ export function createHttpSource(fetchImpl: (url: string, init?: RequestInit) =>
         if (expired()) throw new Error('Out of time');
         return parseRows(prueba, (await fetchPage(fetchImpl, eventUrl(prueba), { headers: { cookie: session } })).body);
       });
-      const results = rows.flat();
-      const years = [...new Set(results.map((result) => Number(result.swumOn.slice(0, 4))))].sort();
-      return { affiliations: years.length || club || league ? [{ club, league, years }] : [], results };
+      // No years: the rows carry no club, and the person may have changed, so the current club is not credited with them.
+      return { affiliations: [{ club, league, years: [] }], results: rows.flat() };
     },
   };
 }
