@@ -387,6 +387,10 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Official results import (#81): only a signed-in user may call it; the handler also checks who the token belongs to.
+[functions.results-import]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327

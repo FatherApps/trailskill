@@ -72,7 +72,11 @@ export {
   createInMemoryIdentityDocumentRepository,
   createSupabaseIdentityDocumentRepository,
   identityNumbers,
+  IDENTITY_NUMBER_MAX_LENGTH,
+  isValidIdentityNumber,
+  normalizeIdentityNumber,
   type IdentityDocumentRepository,
+  type IdentityNumberHint,
   type IdentityNumberHold,
 } from './data/identityDocuments';
 export {

@@ -5,13 +5,36 @@ import AthleteRoute from '../app/(app)/athletes/[id]';
 let mockUserId: string | undefined;
 let mockStaff = false;
 let mockCanGoBack = true;
+let mockImportedAt: string | null = null;
+let mockConfirmed = false;
+let mockManaged: { status: string; athletes?: object[] } = { status: 'loading' };
+let mockSources: object[] = [];
+let mockId = 'a1';
+const mockMounted = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
 jest.mock('../core/sync', () => ({ useGlobalSyncSummary: () => ({ lastSyncedAt: null, connection: 'connected' }) }));
-jest.mock('../modules/accounts', () => ({ createPowerSyncAuthorizationStatusRepository: () => ({}) }));
+jest.mock('../modules/accounts', () => ({
+  createPowerSyncAuthorizationStatusRepository: () => ({}),
+  createPowerSyncManagedAthleteRepository: () => ({}),
+}));
+jest.mock('../modules/results-import', () => ({
+  createSupabaseImportSourcesRepository: () => ({}),
+  useImportSources: () => mockSources,
+  createPowerSyncImportedResultsRepository: () => ({ lastImportedAt: async () => mockImportedAt }),
+  createSupabaseOfficialResultsService: () => ({}),
+  createOfficialUpdate: () => ({}),
+  createIdentityConfirmation: () => ({ isConfirmed: async () => mockConfirmed }),
+  createSupabasePendingChangeResolver: () => ({}),
+  OfficialUpdateContainer: ({ athleteId }: { athleteId: string }) => {
+    // Runs once per mount: a new athlete in the address must mount a fresh container.
+    jest.requireActual('react').useEffect(() => mockMounted(athleteId), []);
+    return null;
+  },
+}));
 jest.mock('../modules/athletes', () => {
   const { Pressable, Text } = jest.requireActual('react-native');
   return {
@@ -19,19 +42,25 @@ jest.mock('../modules/athletes', () => {
     createPowerSyncHistoryRepository: () => ({}),
     createPowerSyncAthleteSchoolRepository: () => ({}),
     createSupabaseOtherSchoolResultsRepository: () => ({}),
+    useManagedAthletes: () => mockManaged,
     AthleteProfileContainer: ({
       athleteId,
       otherSchoolResults,
       online,
+      importPrompt,
+      officialUpdate,
       onBack,
     }: {
       athleteId: string;
       otherSchoolResults?: object;
       online?: boolean;
+      importPrompt?: object;
+      officialUpdate?: import('react').ReactNode;
       onBack: () => void;
     }) => (
       <Pressable accessibilityRole="button" onPress={onBack}>
-        <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}`}</Text>
+        <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}`}</Text>
+        {officialUpdate}
       </Pressable>
     ),
   };
@@ -43,11 +72,25 @@ jest.mock('../modules/school-console', () => ({
   useStaffSchool: () => ({ status: mockStaff ? 'staff' : 'none' }),
 }));
 jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ id: 'a1' }),
+  useLocalSearchParams: () => ({ id: mockId }),
   useRouter: () => ({ back: mockBack, replace: mockReplace, canGoBack: () => mockCanGoBack }),
 }));
 
 describe('athlete profile route', () => {
+  afterEach(() => {
+    mockId = 'a1';
+    mockMounted.mockClear();
+  });
+
+  it('mounts a new official update container when the athlete in the address changes', async () => {
+    mockUserId = 'user-1';
+    await render(<AthleteRoute />);
+    mockId = 'a2';
+    await screen.rerender(<AthleteRoute />);
+
+    expect(mockMounted.mock.calls).toEqual([['a1'], ['a2']]);
+  });
+
   it('shows the profile of the athlete in the address', async () => {
     mockUserId = 'user-1';
     await render(<AthleteRoute />);
@@ -62,6 +105,45 @@ describe('athlete profile route', () => {
     mockStaff = false;
 
     expect(await screen.findByText('profile of a1 with other schools online')).toBeOnTheScreen();
+  });
+
+  describe('import prompt', () => {
+    const managed = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
+    afterEach(() => {
+      mockManaged = { status: 'loading' };
+      mockSources = [];
+      mockImportedAt = null;
+      mockConfirmed = false;
+    });
+
+    it('invites a guardian to import before anything was imported', async () => {
+      mockUserId = 'user-1';
+      mockManaged = managed;
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation' }];
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('profile of a1 online with import prompt')).toBeOnTheScreen();
+    });
+
+    it('lets the results panel replace the invitation once the identity is confirmed, even with nothing imported', async () => {
+      mockUserId = 'user-1';
+      mockManaged = managed;
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation' }];
+      mockConfirmed = true;
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('profile of a1 online')).toBeOnTheScreen();
+    });
+
+    it('stops inviting once something was imported: updating is the results panel', async () => {
+      mockUserId = 'user-1';
+      mockManaged = managed;
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation' }];
+      mockImportedAt = '2026-10-28T10:00:00Z';
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('profile of a1 online')).toBeOnTheScreen();
+    });
   });
 
   it('goes back through the stack when there is one', async () => {

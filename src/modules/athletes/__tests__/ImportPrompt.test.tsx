@@ -117,4 +117,24 @@ describe('ImportPrompt', () => {
   it('keeps the button targets at least 48 dp', () => {
     expect(size['target-min']).toBeGreaterThanOrEqual(48);
   });
+
+  it('starts the search from the prompt before the first import, and not after it', async () => {
+    const onStart = jest.fn();
+    await render(<ImportPrompt {...base} onStart={onStart} />);
+
+    fireEvent.press(screen.getByRole('button', { name: 'Buscar en FEDNAT' }));
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not offer the search once the history was imported', async () => {
+    await render(<ImportPrompt {...base} imported onStart={jest.fn()} />);
+
+    expect(screen.queryByRole('button', { name: 'Buscar en FEDNAT' })).toBeNull();
+  });
+
+  it('offers no search when the route gives no way to start it', async () => {
+    await render(<ImportPrompt {...base} />);
+
+    expect(screen.queryByRole('button', { name: /Buscar en/ })).toBeNull();
+  });
 });
