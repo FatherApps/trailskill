@@ -17,14 +17,17 @@ type Request = { url: string; method: string; headers: Headers; body: string };
 const HISTORIAL = /\/reportes\/(\d+)\/getHistorial$/;
 
 /** A fake source: the form on GET, the history page (profile and empty tables) on POST, one JSON array per event. */
-function fakeFetch(options: { rows?: Rows; onHistorial?: (prueba: number) => Promise<Response> | Response } = {}) {
+function fakeFetch(
+  options: { rows?: Rows; onHistorial?: (prueba: number) => Promise<Response> | Response; onPost?: () => Response; formCookie?: string } = {},
+) {
   const requests: Request[] = [];
   const fetchImpl = jest.fn(async (url: string, init: RequestInit = {}) => {
     const method = init.method ?? 'GET';
     requests.push({ url, method, headers: new Headers(init.headers), body: String(init.body ?? '') });
     const prueba = HISTORIAL.exec(url)?.[1];
     if (prueba !== undefined) return (options.onHistorial ?? ((n) => historial(options.rows ?? DEFAULT_ROWS, n)))(Number(prueba));
-    return method === 'GET' ? page(roster) : page(historyPage(), '');
+    if (method === 'GET') return options.formCookie === undefined ? page(roster) : page(roster, options.formCookie);
+    return options.onPost?.() ?? page(historyPage(), '');
   });
   return { fetchImpl, requests };
 }
@@ -130,29 +133,19 @@ describe('co-fecna adapter on synthetic pages', () => {
   });
 
   it('is unavailable when the history page changed shape, and asks for no event', async () => {
-    const { fetchImpl, requests } = fakeFetch();
-    fetchImpl.mockImplementation(async (_url: string, init: RequestInit = {}) => (init.method === 'POST' ? page('<html>maintenance</html>', '') : page(roster)));
+    const { fetchImpl, requests } = fakeFetch({ onPost: () => page('<html>maintenance</html>', '') });
+    await expect(createCoFecna(fetchImpl).fetchResults(NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
+    expect(requests.map(({ method }) => method)).toEqual(['GET', 'POST']);
+  });
+
+  it('is unavailable when the history page has no profile card, and asks for no event', async () => {
+    const { fetchImpl, requests } = fakeFetch({ onPost: () => page(historyPage(''), '') });
     await expect(createCoFecna(fetchImpl).fetchResults(NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
     expect(historials(requests)).toHaveLength(0);
   });
 
-  it('is unavailable when the history page has no profile card', async () => {
-    const { fetchImpl } = fakeFetch();
-    fetchImpl.mockImplementation(async (url: string, init: RequestInit = {}) =>
-      HISTORIAL.test(url) ? historial(DEFAULT_ROWS, 2) : init.method === 'POST' ? page(historyPage(''), '') : page(roster),
-    );
-    await expect(createCoFecna(fetchImpl).fetchResults(NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
-  });
-
   it('keeps going with an empty club or league badge', async () => {
-    const { fetchImpl } = fakeFetch();
-    fetchImpl.mockImplementation(async (url: string, init: RequestInit = {}) =>
-      HISTORIAL.test(url)
-        ? historial(DEFAULT_ROWS, Number(HISTORIAL.exec(url)?.[1]))
-        : init.method === 'POST'
-          ? page(historyPage(profileCard([['Club', ''], ['Liga', 'Liga Sintética']])), '')
-          : page(roster),
-    );
+    const { fetchImpl } = fakeFetch({ onPost: () => page(historyPage(profileCard([['Club', ''], ['Liga', 'Liga Sintética']])), '') });
     const [candidate] = await createCoFecna(fetchImpl).findCandidates({ ...query, identityNumber: NUMBER });
     expect(candidate.affiliations[0]).toMatchObject({ club: null, league: 'Liga Sintética' });
   });
@@ -177,9 +170,19 @@ describe('co-fecna adapter on synthetic pages', () => {
     });
 
     it('is unavailable, not partial, when one event fails, and starts no more after the failure', async () => {
-      const { fetchImpl, requests } = fakeFetch({ onHistorial: (prueba) => (prueba === 2 ? new Response('down', { status: 503 }) : historial(DEFAULT_ROWS, prueba)) });
+      // The first event fails at once while the other two in flight are still answering: nothing else may start after that.
+      const slow = (prueba: number) => new Promise<Response>((resolve) => setTimeout(() => resolve(historial(DEFAULT_ROWS, prueba)), 20));
+      const { fetchImpl, requests } = fakeFetch({ onHistorial: (prueba) => (prueba === 2 ? new Response('down', { status: 503 }) : slow(prueba)) });
       await expect(createCoFecna(fetchImpl).fetchResults(NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
-      expect(historials(requests).length).toBeLessThan(PRUEBAS.length);
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(historials(requests)).toHaveLength(3);
+    });
+
+    it('is unavailable, and never reads an event, when the form page sets no cookie', async () => {
+      const { fetchImpl, requests } = fakeFetch({ formCookie: '' });
+      await expect(createCoFecna(fetchImpl).fetchResults(NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
+      expect(historials(requests)).toHaveLength(0);
+      expect(requests.map(({ method }) => method)).toEqual(['GET']);
     });
 
     it.each([

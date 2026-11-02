@@ -50,14 +50,17 @@ export function createHttpSource(fetchImpl: (url: string, init?: RequestInit) =>
       return parseRoster(page.body);
     },
     async history(entry, expired = () => false) {
+      // The events carry no filter of their own: they answer for the session the POST set up. Without a cookie they would
+      // answer empty, and an empty history must never be told apart from "no session".
+      const session = cookie;
+      if (!session) throw new Error('No session');
       const body = new URLSearchParams({ inicio: HISTORY_START, fin: now(), nadador: entry.value, anual: ANNUAL, prueba: '1' });
-      const headers: Record<string, string> = { 'content-type': 'application/x-www-form-urlencoded' };
-      if (cookie) headers.cookie = cookie;
+      const headers = { 'content-type': 'application/x-www-form-urlencoded', cookie: session };
       const { club, league } = parseProfile((await fetchPage(fetchImpl, FILTER_URL, { method: 'POST', headers, body })).body);
 
       const rows = await mapLimited(EVENT_NUMBERS, MAX_IN_FLIGHT, async (prueba) => {
         if (expired()) throw new Error('Out of time');
-        return parseRows(prueba, (await fetchPage(fetchImpl, eventUrl(prueba), cookie ? { headers: { cookie } } : {})).body);
+        return parseRows(prueba, (await fetchPage(fetchImpl, eventUrl(prueba), { headers: { cookie: session } })).body);
       });
       const results = rows.flat();
       const years = [...new Set(results.map((result) => Number(result.swumOn.slice(0, 4))))].sort();
