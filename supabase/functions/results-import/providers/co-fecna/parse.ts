@@ -87,13 +87,25 @@ function parsePool(text: string): NormalizedResult['pool'] {
   return meters === '25' ? 'SCM' : 'LCM';
 }
 
+// A tag that opens and is never closed is a cut or changed page: the regular expressions below would drop it silently.
+function requireBalanced(html: string, tags: string[]) {
+  for (const tag of tags) {
+    const opened = html.match(new RegExp(`<${tag}\\b`, 'gi'))?.length ?? 0;
+    const closed = html.match(new RegExp(`</${tag}\\s*>`, 'gi'))?.length ?? 0;
+    if (opened !== closed) throw new Error('Unbalanced markup');
+  }
+}
+
 export function parseHistory(html: string): History {
+  // The answer repeats the swimmer list; without it, an empty page is a changed page, not "no results".
+  if (!/<select\b[^>]*\bname\s*=\s*"nadador"/i.test(html)) throw new Error('Not the history page');
+  requireBalanced(html, ['table', 'thead', 'tr', 'th', 'td']);
   const results: NormalizedResult[] = [];
   const seenTables = new Set<string>();
-  const seenKeys = new Map<string, number>();
+  const usedKeys = new Set<string>();
 
   for (const [, attributes, inside] of html.matchAll(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi)) {
-    const id = attributeOf(attributes, 'id') ?? '';
+    const id = (attributeOf(attributes, 'id') ?? '').toLowerCase();
     const match = /^(\d+)([a-z])$/.exec(id);
     if (!match) continue; // Not an event table.
     const [, meters, letter] = match;
@@ -112,10 +124,11 @@ export function parseHistory(html: string): History {
       const [, time, , , date, pool, competition] = cells;
       const base = `${id}|${parsePool(pool)}|${parseDate(date)}|${time}|${competition}`;
       // The page has no row id: a repeated row gets a counter so keys stay unique.
-      const seen = seenKeys.get(base) ?? 0;
-      seenKeys.set(base, seen + 1);
+      let sourceResultKey = base;
+      for (let copy = 1; usedKeys.has(sourceResultKey); copy += 1) sourceResultKey = `${base}#${copy}`;
+      usedKeys.add(sourceResultKey);
       results.push({
-        sourceResultKey: seen === 0 ? base : `${base}#${seen}`,
+        sourceResultKey,
         stroke: STROKE_BY_LETTER[letter],
         distance: `${meters}m` as DistanceCode,
         pool: parsePool(pool),

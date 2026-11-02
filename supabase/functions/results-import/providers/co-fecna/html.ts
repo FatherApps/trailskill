@@ -8,7 +8,7 @@ const NAMED: Record<string, string> = {
 export function decodeEntities(text: string): string {
   return text.replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (_match, decimal, hex, name) => {
     if (name !== undefined) {
-      if (!(name in NAMED)) throw new Error('Unknown HTML entity');
+      if (!Object.hasOwn(NAMED, name)) throw new Error('Unknown HTML entity');
       return NAMED[name];
     }
     return String.fromCodePoint(Number.parseInt(decimal ?? hex, decimal === undefined ? 16 : 10));

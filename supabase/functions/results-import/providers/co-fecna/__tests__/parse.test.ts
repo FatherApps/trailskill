@@ -9,6 +9,9 @@ describe('decodeEntities', () => {
   it('fails on an entity it does not know instead of guessing', () => {
     expect(() => decodeEntities('A&zzzz;B')).toThrow();
   });
+  it.each(['constructor', 'toString', 'hasOwnProperty'])('does not take &%s; for an entity from the object prototype', (name) => {
+    expect(() => decodeEntities(`A&${name};B`)).toThrow();
+  });
   it('drops tags and collapses spaces in a cell', () => {
     expect(cellText(' <b>28.45</b>&nbsp; \n ')).toBe('28.45');
   });
@@ -99,6 +102,12 @@ describe('parseHistory', () => {
     expect(new Set(keys).size).toBe(2);
   });
 
+  it('gives unique keys even when a competition looks like a repeat counter', () => {
+    const rows = [{}, {}, { competition: 'Synthetic Open#1' }];
+    const keys = parseHistory(historyPage([table('50l', rows)])).results.map((result) => result.sourceResultKey);
+    expect(new Set(keys).size).toBe(3);
+  });
+
   it.each([
     ['all tables empty', historyPage([table('50l'), table('100l')])],
     ['no tables at all', historyPage([])],
@@ -121,6 +130,11 @@ describe('parseHistory', () => {
     ['an event the catalog does not have', historyPage([table('75l', [{}])])],
     ['an unknown stroke letter', historyPage([table('50x', [{}])])],
     ['a repeated table', historyPage([table('50l', [{}]), table('50l', [{}])])],
+    ['an upper-case table id', historyPage([table('50L', [{}]), table('50l', [{}])])],
+    ['an unclosed table', historyPage([table('50l', [{}]).replace('</table>', '')])],
+    ['an unclosed row', historyPage([table('50l', [{}]).replace('</tr></table>', '</table>')])],
+    ['an unclosed cell', historyPage([table('50l', [{}]).replace('</td></tr></table>', '</tr></table>')])],
+    ['a page without the swimmer list', '<html><h3>Mantenimiento</h3></html>'],
     ['a time in another format', historyPage([table('50l', [{ time: '28 seconds' }])])],
     ['a zero time', historyPage([table('50l', [{ time: '0.00' }])])],
     ['a date in another format', historyPage([table('50l', [{ date: 'March 14' }])])],
