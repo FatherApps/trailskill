@@ -6,28 +6,35 @@ import { eventFixture as e } from '../__fixtures__/profile';
 import { EventSelector, type EventSelectorProps } from '../components/EventSelector';
 
 const base: EventSelectorProps = {
-  strokes: e.strokes,
-  distances: e.distances,
+  events: e.events,
   pools: e.pools.slice(0, 1),
   value: e.value,
   onChange: jest.fn(),
 };
 
 describe('EventSelector', () => {
-  it('shows one chip per stroke and distance, in a single labelled row', async () => {
+  it('shows one chip per event it is given, in a single labelled row, and no other', async () => {
     await render(<EventSelector {...base} />);
 
     expect(screen.getByLabelText('Prueba')).toBeOnTheScreen();
-    expect(screen.getAllByRole('radio')).toHaveLength(e.strokes.length * e.distances.length);
+    expect(screen.getAllByRole('radio')).toHaveLength(e.events.length);
     expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeOnTheScreen();
-    expect(screen.getByRole('radio', { name: 'Mariposa 100 m' })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Pecho 50 m' })).toBeOnTheScreen();
+    expect(screen.queryByRole('radio', { name: 'Mariposa 100 m' })).toBeNull();
   });
 
-  it('orders the chips by stroke, then by distance', async () => {
+  it('keeps the order it is given', async () => {
     await render(<EventSelector {...base} />);
 
     const names = screen.getAllByRole('radio').map((radio) => radio.props.accessibilityLabel);
-    expect(names.slice(0, 4)).toEqual(['Libre 25 m', 'Libre 50 m', 'Libre 100 m', 'Espalda 25 m']);
+    expect(names).toEqual(['Libre 50 m', 'Libre 100 m', 'Espalda 50 m', 'Pecho 50 m']);
+  });
+
+  it('shows nothing without events', async () => {
+    await render(<EventSelector {...base} events={[]} pools={[]} />);
+
+    expect(screen.queryByLabelText('Prueba')).toBeNull();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
   });
 
   it('marks only the chip of the selected stroke and distance', async () => {

@@ -55,8 +55,9 @@ export type AthleteProfileScreenProps = {
   onBack: () => void;
 };
 
-export const athleteProfileScreenColors: { title: ColorToken } = {
+export const athleteProfileScreenColors: { title: ColorToken; total: ColorToken } = {
   title: 'ink',
+  total: 'ink-muted',
 };
 
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
@@ -158,12 +159,18 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         {!empty && <PersonalBest {...content.personalBest} />}
         {!empty && content.chart}
         {!empty && content.history.length > 0 && (
-          <Text
-            accessibilityRole="header"
-            style={[typography.subtitle, { color: colors[athleteProfileScreenColors.title] }]}
-          >
-            {t('athletes.screen.history_title')}
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space[2] }}>
+            <Text
+              accessibilityRole="header"
+              style={[typography.subtitle, { color: colors[athleteProfileScreenColors.title] }]}
+            >
+              {t('athletes.screen.history_title')}
+            </Text>
+            {/* The total is the number of rows below, so the two never disagree. */}
+            <Text style={[typography.caption, { color: colors[athleteProfileScreenColors.total] }]}>
+              {t('athletes.screen.history_total', { count: content.history.length })}
+            </Text>
+          </View>
         )}
       </View>
     </View>

@@ -62,7 +62,7 @@ function EventSelectorPreview({ pools }: { pools: typeof ev.pools }) {
 
   return (
     <FullWidth>
-      <EventSelector strokes={ev.strokes} distances={ev.distances} pools={pools} value={value} onChange={setValue} />
+      <EventSelector events={ev.events} pools={pools} value={value} onChange={setValue} />
     </FullWidth>
   );
 }

@@ -17,8 +17,13 @@ export const profileFixture = {
 };
 
 export const eventFixture = {
-  strokes: ['FR', 'BK', 'BR', 'FL'] as StrokeCode[],
-  distances: ['25m', '50m', '100m'] as DistanceCode[],
+  // Only the events the athlete has results in.
+  events: [
+    { stroke: 'FR', distance: '50m' },
+    { stroke: 'FR', distance: '100m' },
+    { stroke: 'BK', distance: '50m' },
+    { stroke: 'BR', distance: '50m' },
+  ] as { stroke: StrokeCode; distance: DistanceCode }[],
   pools: ['SCM', 'LCM'] as PoolCode[],
   value: { stroke: 'FR', distance: '50m', pool: 'SCM' } as {
     stroke: StrokeCode;

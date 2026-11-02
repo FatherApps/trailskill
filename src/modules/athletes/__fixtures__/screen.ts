@@ -17,8 +17,7 @@ export const profileContentFixture: AthleteProfileContent = {
     updatedMinutesAgo: 5,
   },
   event: {
-    strokes: ev.strokes,
-    distances: ev.distances,
+    events: ev.events,
     pools: ev.pools,
     value: ev.value,
     onChange: noop,
