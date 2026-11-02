@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import fs from 'node:fs';
+import path from 'node:path';
 import { processColor, StyleSheet } from 'react-native';
 
-import { colors, ThemeProvider, type ColorToken, type ThemeName } from '../../../core/theme';
+import { colors, ThemeProvider, typography, type ColorToken, type ThemeName } from '../../../core/theme';
 import {
   progressChartMinutes,
   progressChartOneResult,
@@ -306,6 +308,53 @@ describe('ProgressChart', () => {
 
       expect(screen.getByText('No hay resultados con tiempo en este rango. Prueba con uno más amplio.')).toBeOnTheScreen();
       expect(screen.getByRole('radio', { name: 'Todo' })).toBeOnTheScreen();
+    });
+  });
+
+  describe('text size', () => {
+    const styleOf = (text: string) => StyleSheet.flatten(screen.getByText(text, hidden).props.style);
+
+    it.each([1, 1.5, 2])('takes the caption size of the theme at text scale %s for every label', async (scale) => {
+      await render(
+        <ThemeProvider fontScale={scale}>
+          <ProgressChart results={progressChartResults} today={progressChartToday} />
+        </ThemeProvider>,
+      );
+
+      for (const text of ['34,00', 'may', 'oct', 'MP 34,82', 'Proyección pronto']) {
+        expect(styleOf(text).fontSize).toBe(typography.caption.fontSize * scale);
+        expect(styleOf(text).lineHeight).toBe(typography.caption.lineHeight * scale);
+      }
+    });
+
+    it('writes the axis numbers in the mono face of the time tokens and the other labels in the strong sans face', async () => {
+      await show(progressChartResults);
+
+      expect(styleOf('34,00').fontFamily).toBe(typography['time-sm'].fontFamily);
+      expect(styleOf('may').fontFamily).toBe(typography['time-sm'].fontFamily);
+      expect(styleOf('MP 34,82').fontFamily).toBe(typography['body-strong'].fontFamily);
+      expect(styleOf('Proyección pronto').fontFamily).toBe(typography['body-strong'].fontFamily);
+    });
+
+    it('makes room for larger text: a taller chart and a wider projection zone', async () => {
+      await show(progressChartResults);
+      const small = { band: byId('chart-reserved').props.width as number, label: styleOf('34,00').fontSize as number };
+      await screen.unmount();
+
+      await render(
+        <ThemeProvider fontScale={2}>
+          <ProgressChart results={progressChartResults} today={progressChartToday} />
+        </ThemeProvider>,
+      );
+
+      expect(byId('chart-reserved').props.width as number).toBeGreaterThan(small.band);
+      expect(styleOf('34,00').fontSize as number).toBe(small.label * 2);
+    });
+
+    it('has no font size, line height or font weight written in the component', () => {
+      const source = fs.readFileSync(path.join(__dirname, '../components/ProgressChart/ProgressChart.tsx'), 'utf8');
+
+      expect(source).not.toMatch(/fontSize\s*:\s*\d|lineHeight\s*:\s*\d|fontWeight\s*:\s*'/);
     });
   });
 

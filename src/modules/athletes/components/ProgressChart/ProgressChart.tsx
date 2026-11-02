@@ -23,25 +23,30 @@ export type ProgressChartProps = {
 
 const ranges: RangeKey[] = ['3m', '6m', '1y', 'all'];
 
-// Design system, data visualization: axis text is 12 px at least, the series is 3.5 thick, the personal best dot is the largest.
-const axisText = { fontSize: 12, lineHeight: 16 } as const;
+// Marks of the design system's data visualization rules: the series is 3.5 thick, a training dot has a 2.5 ring,
+// the personal best line is 1.5 thick and dashed 4 on, 4 off, the grid is 1 thick, and the personal best dot is the largest.
 const seriesWidth = 3.5;
-const dotRadius = { competition: 4.5, training: 4, best: 6.5 } as const;
 const trainingStroke = 2.5;
 const bestStroke = 1.5;
 const bestDash = '4 4';
-const chartHeight = 176;
+const gridStroke = 1;
+const dotRadius = { competition: 4.5, training: 4, best: 6.5 } as const;
+// Layout, from the theme spacing: the plot is 4 steps of `space[8]` high, with room inside for the first and last tick.
 const plotTop = space[3];
-const plotBottom = chartHeight - 28;
-// Room above and below the first and last tick, so no dot is cut by the edge.
-const plotInset = 10;
+const plotHeight = space[8] * 4;
+const plotBottom = plotTop + plotHeight;
+const plotInset = space[2];
 const sideInset = space[2];
 const reservedRadius = space[1];
-// The width of the reserved projection zone at the end of the time axis.
-const reservedWidth = (width: number) => Math.min(112, Math.max(80, width * 0.26));
-// Width of one axis character in the mono face, to leave room for the tick labels.
-const monoCharWidth = 7.2;
+// The reserved projection zone at the end of the time axis; it grows with the text so its words keep fitting.
+const reservedBase = space[12] + space[8];
+const reservedMaxShare = 0.4;
+// Advance of one character of the mono face, as a share of its font size, to leave room for the tick labels.
+const monoAdvance = 0.6;
+// Width used until the chart is measured; the measured width replaces it on the first layout.
 const fallbackWidth = 320;
+// Caption is the base of every label; the scale of the theme is its size over the unscaled one.
+const baseCaptionSize = baseTypography.caption.fontSize;
 
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
@@ -79,6 +84,7 @@ const byDate = (a: Plotted, b: Plotted) => (a.date < b.date ? -1 : a.date > b.da
 // Presentational: results in, picture out. No data access; the projection zone is reserved and stays empty.
 export function ProgressChart({ results, today }: ProgressChartProps) {
   const { colors, radius, size, typography } = useTheme();
+  const textScale = typography.caption.fontSize / baseCaptionSize;
   const [range, setRange] = useState<RangeKey>('all');
   const [selectedId, setSelectedId] = useState<string>();
   const [measured, setMeasured] = useState<number>();
@@ -148,8 +154,8 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
 
   const scale = timeScale(visible.map((r) => r.time));
   const tickLabels = scale.ticks.map((tick) => formatTime(tick));
-  const leftPad = Math.ceil(Math.max(...tickLabels.map((label) => label.length)) * monoCharWidth) + space[3];
-  const band = reservedWidth(width);
+  const leftPad = Math.ceil(Math.max(...tickLabels.map((label) => label.length)) * monoAdvance * typography.caption.fontSize) + space[3];
+  const band = Math.min(Math.round(reservedBase * textScale), width * reservedMaxShare);
   const bandLeft = width - band;
   const dataLeft = leftPad + sideInset;
   const dataWidth = Math.max(1, bandLeft - space[2] - sideInset - dataLeft);
@@ -179,12 +185,22 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
   });
 
   const selected = visible.find((r) => r.id === selectedId);
-  const axisFont = { fontFamily: baseTypography['time-sm'].fontFamily, ...axisText };
-  const sansFont = { fontFamily: baseTypography['body-strong'].fontFamily, ...axisText };
+  // Labels use the caption size of the theme (so they scale with the text). Axis numbers take the mono face of `time-sm`,
+  // the personal best label and the projection text the strong sans face.
+  const labelLine = typography.caption.lineHeight;
+  const axisFont = { ...typography.caption, fontFamily: typography['time-sm'].fontFamily };
+  const sansFont = {
+    ...typography.caption,
+    fontFamily: typography['body-strong'].fontFamily,
+    fontWeight: typography['body-strong'].fontWeight,
+  };
   const bestY = best ? py(best) : 0;
   // The label sits above the line unless the line is too close to the top.
-  const bestLabelTop = bestY - 18 < 0 ? bestY + 2 : bestY - 18;
+  const bestLabelTop = bestY - labelLine < 0 ? bestY + space[1] : bestY - labelLine;
   const hitRadius = size['target-min'] / 2;
+  // The axis labels under the plot take one line of the scaled caption.
+  const chartHeight = plotBottom + space[1] + labelLine + space[1];
+  const dotDiameter = dotRadius.competition * 2;
 
   return (
     <View style={frame}>
@@ -208,7 +224,7 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
                 y1={yFor(tick, scale, top, height)}
                 y2={yFor(tick, scale, top, height)}
                 stroke={colors['viz-grid']}
-                strokeWidth={1}
+                strokeWidth={gridStroke}
               />
             ))}
             <Rect
@@ -299,7 +315,7 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
                   position: 'absolute',
                   left: 0,
                   width: leftPad - space[2],
-                  top: yFor(tick, scale, top, height) - axisText.lineHeight / 2,
+                  top: yFor(tick, scale, top, height) - labelLine / 2,
                   textAlign: 'right',
                   color: colors['viz-axis'],
                 },
@@ -315,8 +331,8 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
                 axisFont,
                 {
                   position: 'absolute',
-                  left: px(r) - space[6],
-                  width: space[6] * 2,
+                  left: px(r) - space[12] / 2,
+                  width: space[12],
                   top: plotBottom + space[1],
                   textAlign: 'center',
                   color: colors['viz-axis'],
@@ -336,7 +352,6 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
                   width: gridRight - leftPad,
                   top: bestLabelTop,
                   textAlign: 'right',
-                  fontWeight: '600',
                   color: colors['viz-best'],
                 },
               ]}
@@ -357,7 +372,7 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
               padding: space[1],
             }}
           >
-            <Text style={[sansFont, { textAlign: 'center', fontWeight: '600', color: colors['viz-axis'] }]}>
+            <Text style={[sansFont, { textAlign: 'center', color: colors['viz-axis'] }]}>
               {t('athletes.progress_chart.projection')}
             </Text>
           </View>
@@ -373,7 +388,7 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
           accessibilityLiveRegion="polite"
           style={{ gap: space[1], padding: space[3], borderRadius: radius.sm, backgroundColor: colors['surface-2'] }}
         >
-          <Text style={[baseTypography['time-sm'], { color: titleColor }]}>{formatTime(selected.time)}</Text>
+          <Text style={[typography['time-sm'], { color: titleColor }]}>{formatTime(selected.time)}</Text>
           <Text style={[typography.caption, { color: mutedColor }]}>
             {t('athletes.progress_chart.tooltip.summary', {
               date: formatDate(selected.date, 'short') ?? '',
@@ -386,7 +401,7 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
         <LegendItem
-          mark={<View style={{ width: 10, height: 10, borderRadius: radius.full, backgroundColor: colors['viz-series-1'] }} />}
+          mark={<View style={{ width: dotDiameter, height: dotDiameter, borderRadius: radius.full, backgroundColor: colors['viz-series-1'] }} />}
           text={t('athletes.history.context.competition')}
           color={mutedColor}
         />
@@ -394,10 +409,10 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
           mark={
             <View
               style={{
-                width: 10,
-                height: 10,
+                width: dotDiameter,
+                height: dotDiameter,
                 borderRadius: radius.full,
-                borderWidth: 2,
+                borderWidth: trainingStroke,
                 borderColor: colors['viz-series-1'],
                 backgroundColor: colors['surface-1'],
               }}
@@ -408,7 +423,7 @@ export function ProgressChart({ results, today }: ProgressChartProps) {
         />
         {best && (
           <LegendItem
-            mark={<View style={{ width: 16, borderTopWidth: 2, borderStyle: 'dashed', borderColor: colors['viz-best'] }} />}
+            mark={<View style={{ width: size['icon-sm'], borderTopWidth: bestStroke, borderStyle: 'dashed', borderColor: colors['viz-best'] }} />}
             text={t('athletes.progress_chart.legend_personal_best')}
             color={mutedColor}
           />
