@@ -10,6 +10,7 @@ export {
   type HistoryResult,
   type HistoryValue,
 } from './components/HistoryList';
+export { ProgressChart, type ProgressChartProps } from './components/ProgressChart';
 export { ImportPrompt, type ImportPromptProps } from './components/ImportPrompt';
 export {
   AthleteProfileScreen,

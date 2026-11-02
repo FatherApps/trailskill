@@ -29,13 +29,14 @@ const sourceFiles = filesIn(moduleDir).filter((file) => !file.includes('__tests_
 
 describe('athletes gallery entries', () => {
   it('have unique ids and the expected states', () => {
-    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'importPrompt', 'athleteProfileScreen', 'myAthletesScreen', 'marksScreen']);
+    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'progressChart', 'importPrompt', 'athleteProfileScreen', 'myAthletesScreen', 'marksScreen']);
     expect(stateKeys('myAthletesScreen')).toEqual(['with-data', 'long-text', 'empty', 'loading']);
     expect(stateKeys('marksScreen')).toEqual(['with-data', 'long-pool', 'long-text', 'empty', 'loading', 'error']);
     expect(stateKeys('profileHeader')).toEqual(['one-school', 'several-schools', 'pending-authorization', 'with-event-chips', 'no-sync-info', 'long-text']);
     expect(stateKeys('eventSelector')).toEqual(['one-pool', 'two-pools']);
     expect(stateKeys('personalBest')).toEqual(['with-improvement', 'no-improvement', 'missing', 'training']);
     expect(stateKeys('historyList')).toEqual(['mixed', 'long-text']);
+    expect(stateKeys('progressChart')).toEqual(['many-results', 'two-results', 'one-result', 'empty', 'completed-without-time', 'long-event']);
     expect(stateKeys('importPrompt')).toEqual(['not-imported', 'imported', 'no-source']);
     expect(stateKeys('athleteProfileScreen')).toEqual([
       'with-data',
