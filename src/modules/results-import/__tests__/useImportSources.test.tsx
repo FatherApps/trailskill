@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react-native';
 import type { ImportSource, ImportSourcesRepository } from '../data/officialSearch';
 import { useImportSources } from '../data/useImportSources';
 
-const source: ImportSource = { organizationId: 'org-1', name: 'Federación Sintética' };
+const source: ImportSource = { organizationId: 'org-1', name: 'Federación Sintética', provider: 'xx-demo' };
 
 describe('useImportSources', () => {
   it('lists the sources once they load', async () => {
