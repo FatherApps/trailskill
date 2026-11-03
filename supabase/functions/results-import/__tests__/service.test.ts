@@ -31,24 +31,42 @@ const validResult: NormalizedResult = {
   competition: 'Synthetic Open',
 };
 
-// Same rule as results_import_claim_query: authorized users only, one source query per athlete per interval.
+// Same rules as results_import_claim_query and results_import_claim_results_query: authorized users only, one source query
+// per athlete per interval, and a results query shares the claim of the search its user confirmed. `order` stands for the
+// microsecond ordering of the instants in the database: a confirmation counts only when it came after the claim.
 function createFakeGate(authorized = true) {
   let now = Date.parse('2026-10-28T10:00:00Z');
-  const last = new Map<string, number>();
+  let order = 0;
+  const last = new Map<string, { at: number; order: number; by: string }>();
+  const confirmed: { athleteId: string; userId: string; order: number }[] = [];
   const claims: unknown[] = [];
   const gate: QueryGate = {
     async claim(request): Promise<Claim> {
       claims.push(request);
       if (!authorized) return { status: 'not_authorized' };
       const previous = last.get(request.athleteId);
-      if (previous !== undefined && now < previous + request.intervalMs) {
-        return { status: 'rate_limited', retryAt: new Date(previous + request.intervalMs).toISOString() };
+      const shared =
+        request.searchTtlMs !== undefined &&
+        previous !== undefined &&
+        previous.by === request.userId &&
+        now < previous.at + request.searchTtlMs &&
+        confirmed.some((c) => c.athleteId === request.athleteId && c.userId === request.userId && c.order > previous.order);
+      if (!shared && previous !== undefined && now < previous.at + request.intervalMs) {
+        return { status: 'rate_limited', retryAt: new Date(previous.at + request.intervalMs).toISOString() };
       }
-      last.set(request.athleteId, now);
+      last.set(request.athleteId, { at: now, order: ++order, by: request.userId });
       return { status: 'allowed' };
     },
   };
-  return { gate, claims, advance: (ms: number) => (now += ms), now: () => now };
+  return {
+    gate,
+    claims,
+    advance: (ms: number) => (now += ms),
+    now: () => now,
+    // The confirmation the service records after a search.
+    confirmed: (athleteId: string, userId: string) => void confirmed.push({ athleteId, userId, order: ++order }),
+    lastQueryAt: (athleteId: string) => last.get(athleteId)?.at,
+  };
 }
 
 function createFakeIdentityNumbers(initial: string | null) {
@@ -72,7 +90,8 @@ function createFakeIdentityNumbers(initial: string | null) {
   } satisfies IdentityNumbers & Record<string, unknown>;
 }
 
-function createFakeConfirmations() {
+
+function createFakeConfirmations(onRecord: (input: Parameters<Confirmations['record']>[0]) => void = () => {}) {
   const recorded: Parameters<Confirmations['record']>[0][] = [];
   const recordedIds: string[] = [];
   const removed: string[] = [];
@@ -90,6 +109,7 @@ function createFakeConfirmations() {
       if (rejection) throw rejection;
       const id = `confirmation-${recordedIds.length + 1}`;
       recorded.push(input);
+      onRecord(input);
       recordedIds.push(id);
       live.add(id);
       return id;
@@ -127,7 +147,7 @@ function setup(options: { number?: string | null; authorized?: boolean; provider
   const provider = createFakeProvider({ results: [validResult], ...options.providerOptions });
   const fakeGate = createFakeGate(options.authorized ?? true);
   const identityNumbers = createFakeIdentityNumbers(options.number === undefined ? NUMBER : options.number);
-  const confirmations = createFakeConfirmations();
+  const confirmations = createFakeConfirmations(({ athleteId, userId }) => fakeGate.confirmed(athleteId, userId));
   let data = options.withProvider === false ? [{ ...chain[0], provider: null }] : chain;
   let clock = Date.parse('2026-10-28T10:00:00Z');
   const pending = createFakePending(() => clock);
@@ -185,10 +205,10 @@ describe('refreshResults', () => {
     expect(JSON.stringify(outcome)).not.toContain(NUMBER);
   });
 
-  it('claims with the athlete, the user and the interval', async () => {
+  it('claims with the athlete, the user, the interval and the time a confirmed search lends its claim', async () => {
     const s = setup();
     await refresh(s);
-    expect(s.fakeGate.claims).toEqual([{ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS }]);
+    expect(s.fakeGate.claims).toEqual([{ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS, searchTtlMs: CANDIDATE_TTL_MS }]);
   });
 
   it('does not query the source again within the interval and reports when to retry', async () => {
@@ -304,6 +324,12 @@ describe('findCandidates', () => {
     const [first, second] = outcome.value;
     expect(first.id).not.toEqual(second.id);
     expect(first.id).not.toContain('k-1');
+  });
+
+  it('claims without a search time to live: a search is always an independent query', async () => {
+    const s = setup({ providerOptions: { candidates: [candidate] } });
+    await search(s);
+    expect(s.fakeGate.claims).toEqual([{ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS }]);
   });
 
   it('shares the rate limit with refresh', async () => {
@@ -576,5 +602,66 @@ describe('confirmCandidate', () => {
     expect(s.confirmations.recorded).toHaveLength(1);
     expect(s.confirmations.stored()).toHaveLength(1);
     expect(s.identityNumbers.saved).toEqual([[ATHLETE, 'k-1']]);
+  });
+});
+
+// Issue #836: search -> confirm -> results of the same person and athlete is one flow, one claim.
+describe('search, confirm and results as one flow', () => {
+  const candidate = { sourceAthleteKey: 'k-1', name: 'Ana Example', affiliations: [], resultCount: 1 };
+  const THIRTY_SIX_SECONDS = 36_000;
+
+  // The athlete's number is the candidate's key, so the refresh after confirming can read it.
+  async function searchedAndConfirmed() {
+    const s = setup({ number: 'k-1', providerOptions: { candidates: [candidate], results: [validResult] } });
+    const startedAt = s.fakeGate.now();
+    const outcome = await search(s);
+    if (!outcome.ok) throw new Error('search failed');
+    const confirmed = await s.service.confirmCandidate({ userId: USER, athleteId: ATHLETE, organizationId: ORG, candidateId: outcome.value[0].id });
+    expect(confirmed.ok).toBe(true);
+    return { s, startedAt };
+  }
+
+  it('lets the first results query after the confirmed search through, where it used to be rate limited', async () => {
+    const { s } = await searchedAndConfirmed();
+    s.fakeGate.advance(THIRTY_SIX_SECONDS);
+    expect(await refresh(s)).toEqual({ ok: true, value: [validResult] });
+    expect(s.provider.calls.map((call) => call.method)).toEqual(['findCandidates', 'fetchResults']);
+  });
+
+  it("spends the search's claim once: a second results query right after is rate limited from the moment the claim was used", async () => {
+    const { s } = await searchedAndConfirmed();
+    s.fakeGate.advance(THIRTY_SIX_SECONDS);
+    const usedAt = s.fakeGate.now();
+    await refresh(s);
+    s.fakeGate.advance(1_000);
+    expect(await refresh(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(usedAt + QUERY_INTERVAL_MS).toISOString() } });
+    expect(s.provider.calls.map((call) => call.method)).toEqual(['findCandidates', 'fetchResults']);
+  });
+
+  it('keeps the limit of independent searches: a second search inside the interval is rate limited and does not move the window', async () => {
+    const { s, startedAt } = await searchedAndConfirmed();
+    s.fakeGate.advance(THIRTY_SIX_SECONDS);
+    expect(await search(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(startedAt + QUERY_INTERVAL_MS).toISOString() } });
+    expect(s.fakeGate.lastQueryAt(ATHLETE)).toBe(startedAt);
+    // The refused search left the shared claim in place.
+    expect((await refresh(s)).ok).toBe(true);
+  });
+
+  it("asks for a claim of its own past the search's time to live", async () => {
+    const { s } = await searchedAndConfirmed();
+    s.fakeGate.advance(CANDIDATE_TTL_MS + 1);
+    const askedAt = s.fakeGate.now();
+    expect((await refresh(s)).ok).toBe(true);
+    // Not the shared path: the window moved to this query, so another one right after is refused.
+    expect(s.fakeGate.lastQueryAt(ATHLETE)).toBe(askedAt);
+    expect((await refresh(s)).ok).toBe(false);
+  });
+
+  it('does not share the claim of a search that was never confirmed', async () => {
+    const s = setup({ number: 'k-1', providerOptions: { candidates: [candidate], results: [validResult] } });
+    await search(s);
+    s.fakeGate.advance(THIRTY_SIX_SECONDS);
+    const outcome = await refresh(s);
+    expect(!outcome.ok && outcome.error.code).toBe('rate_limited');
   });
 });

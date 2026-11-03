@@ -1,5 +1,5 @@
 import { createAccess, createConfirmationReader, createConfirmations, createIdentityNumbers, createImportRecorder, createOrganizationChain, createPendingStore, createQueryGate, type Db, type DbError } from '../adapters.ts';
-import { InvalidSourceKeyError, NotAuthorizedError, QUERY_INTERVAL_MS } from '../service.ts';
+import { CANDIDATE_TTL_MS, InvalidSourceKeyError, NotAuthorizedError, QUERY_INTERVAL_MS } from '../service.ts';
 
 const ATHLETE = 'athlete-1';
 const USER = 'user-1';
@@ -60,6 +60,32 @@ describe('createQueryGate', () => {
     expect(fake.calls).toEqual([
       { fn: 'results_import_claim_query', args: { athlete: ATHLETE, requested_by: USER, min_interval: `${QUERY_INTERVAL_MS / 1000} seconds` } },
     ]);
+  });
+});
+
+describe('createQueryGate with a search time to live', () => {
+  const claim = (fake: ReturnType<typeof createFakeDb>) =>
+    createQueryGate(fake.db).claim({ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS, searchTtlMs: CANDIDATE_TTL_MS });
+
+  it('calls results_import_claim_results_query with the interval and the time to live as bound parameters', async () => {
+    const fake = createFakeDb([{ data: null }]);
+    await claim(fake);
+    expect(fake.calls).toEqual([
+      {
+        fn: 'results_import_claim_results_query',
+        args: { athlete: ATHLETE, requested_by: USER, min_interval: '600 seconds', search_ttl: '900 seconds' },
+      },
+    ]);
+  });
+
+  it('translates null to allowed, a timestamp to rate_limited and 42501 to not_authorized', async () => {
+    expect(await claim(createFakeDb([{ data: null }]))).toEqual({ status: 'allowed' });
+    expect(await claim(createFakeDb([{ data: '2026-10-28T10:10:00+00:00' }]))).toEqual({ status: 'rate_limited', retryAt: '2026-10-28T10:10:00.000Z' });
+    expect(await claim(createFakeDb([{ error: { code: '42501' } }]))).toEqual({ status: 'not_authorized' });
+  });
+
+  it('throws on any other error', async () => {
+    await expect(claim(createFakeDb([{ error: { code: '22023' } }]))).rejects.toThrow('Claiming the source query failed (22023)');
   });
 });
 

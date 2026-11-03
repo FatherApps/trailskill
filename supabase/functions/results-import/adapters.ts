@@ -22,15 +22,18 @@ const INVALID_VALUE = '22023';
 // An error carries the Postgres code and nothing else: the message of a failed call could echo an argument.
 const failure = (what: string, error: DbError | null) => new Error(`${what} failed${error ? ` (${error.code ?? 'unknown'})` : ''}`);
 
-/** `public.results_import_claim_query` answers null (claim taken), the instant of the next allowed query, or raises 42501. */
+/**
+ * `public.results_import_claim_query` (or `results_import_claim_results_query` when `searchTtlMs` is given) answers null
+ * (claim taken or shared with a confirmed search), the instant of the next allowed query, or raises 42501.
+ */
 export function createQueryGate(db: Db): QueryGate {
   return {
-    async claim({ athleteId, userId, intervalMs }): Promise<Claim> {
-      const { data, error } = await db.rpc('results_import_claim_query', {
-        athlete: athleteId,
-        requested_by: userId,
-        min_interval: `${intervalMs / 1000} seconds`,
-      });
+    async claim({ athleteId, userId, intervalMs, searchTtlMs }): Promise<Claim> {
+      const args = { athlete: athleteId, requested_by: userId, min_interval: `${intervalMs / 1000} seconds` };
+      const { data, error } =
+        searchTtlMs === undefined
+          ? await db.rpc('results_import_claim_query', args)
+          : await db.rpc('results_import_claim_results_query', { ...args, search_ttl: `${searchTtlMs / 1000} seconds` });
       if (error?.code === NOT_AUTHORIZED) return { status: 'not_authorized' };
       if (error) throw failure('Claiming the source query', error);
       if (data === null) return { status: 'allowed' };
