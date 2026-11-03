@@ -134,7 +134,7 @@ Requirements: JDK, the Android SDK (`ANDROID_HOME` set), and `adb` with an emula
 
 5. Smoke test: the app opens with no Metro server running, signs in with a demo account, and shows synced data.
 
-Sign-in by one-time code works in the preview variant as is, and it is the only sign-in used today. If OAuth (Google or another provider) is ever enabled in the preview variant, `trailskill-preview://auth-callback` must be in the redirect allow-list of the GoTrue instance that the build points to, next to `trailskill://auth-callback`; that instance is production today. Any installed app can claim a custom scheme, so keep the entry limited to what the preview APK needs.
+Sign-in by one-time code works in the preview variant as is. To sign in with Google or another OAuth provider, the preview variant needs `trailskill-preview://auth-callback` in `ADDITIONAL_REDIRECT_URLS` of the backend it points to (production today), next to `trailskill://auth-callback`. Without it, GoTrue falls back to `SITE_URL` and the browser ends on that page instead of returning to the app. This is a maintainer step on the server, not a change in this repository.
 
 A build without the three variables still opens, but sign-in and sync report a missing configuration. Rebuild after changing any `EXPO_PUBLIC_*` value, because they are inlined at build time.
 
