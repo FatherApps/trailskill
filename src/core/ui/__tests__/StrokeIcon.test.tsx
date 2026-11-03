@@ -1,7 +1,7 @@
 import { processColor, StyleSheet } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
 
-import { colors, ThemeProvider, type ColorToken, type ThemeName } from '../../theme';
+import { colors, radius, ThemeProvider, type ColorToken, type ThemeName } from '../../theme';
 import { StrokeIcon } from '..';
 
 const themes: ThemeName[] = ['light', 'dark'];
@@ -70,19 +70,33 @@ describe('StrokeIcon', () => {
       expect([glyphSvg().props.width, glyphSvg().props.height]).toEqual([24, 24]);
     });
 
-    it.each(themes)('draws the glyph in ink on %s with no border and no background', async (theme) => {
+    it.each(themes)('md is a circle with a surface-2 background and an ink glyph, with no border, on %s', async (theme) => {
       await render(<ThemeProvider name={theme}><StrokeIcon stroke="FR" /></ThemeProvider>);
 
+      const box = boxStyle('Libre');
+      expect(box.borderRadius).toBe(radius.full);
+      expect(box.backgroundColor).toBe(colors[theme]['surface-2']);
+      expect(box.borderWidth).toBeUndefined();
       expect(pathsOf().length).toBeGreaterThan(0);
       expect(pathsOf().every((node) => inkOf(node).includes(paint(theme, 'ink').payload))).toBe(true);
-      expect(boxStyle('Libre').borderWidth).toBeUndefined();
-      expect(boxStyle('Libre').backgroundColor).toBeUndefined();
+    });
+
+    it.each(themes)('sm is a circle with a surface-2 background and an ink glyph, with no border, on %s', async (theme) => {
+      await render(<ThemeProvider name={theme}><StrokeIcon stroke="FR" size="sm" /></ThemeProvider>);
+
+      const box = boxStyle('Libre');
+      expect(box.borderRadius).toBe(radius.full);
+      expect(box.backgroundColor).toBe(colors[theme]['surface-2']);
+      expect(box.borderWidth).toBeUndefined();
+      expect(pathsOf().every((node) => inkOf(node).includes(paint(theme, 'ink').payload))).toBe(true);
     });
 
     it.each(themes)('empty has a 1.5 dotted border-strong and an ink-muted glyph on %s', async (theme) => {
       await render(<ThemeProvider name={theme}><StrokeIcon stroke="BK" empty /></ThemeProvider>);
 
       const box = boxStyle('Espalda');
+      expect(box.borderRadius).toBe(radius.full);
+      expect(box.backgroundColor).toBeUndefined();
       expect(box.borderWidth).toBe(1.5);
       expect(box.borderStyle).toBe('dotted');
       expect(box.borderColor).toBe(colors[theme]['border-strong']);
@@ -98,6 +112,9 @@ describe('StrokeIcon', () => {
       expect(layers).toHaveLength(1);
       expect(StyleSheet.flatten(layers[0].props.style).backgroundColor).toBe(colors[theme]['on-header']);
       expect(boxStyle('Pecho').opacity).toBeUndefined();
+      expect(boxStyle('Pecho').borderRadius).toBe(radius.full);
+      expect(boxStyle('Pecho').backgroundColor).toBeUndefined();
+      expect(StyleSheet.flatten(layers[0].props.style).borderRadius).toBe(radius.full);
       expect(pathsOf().every((node) => inkOf(node).includes(paint(theme, 'on-color').payload))).toBe(true);
     });
 

@@ -9,9 +9,9 @@ export type StrokeIconProps = {
   // A StrokeCode from the sport catalog; a code without a pictogram (kick, drills) draws nothing.
   stroke: string;
   size?: 'md' | 'sm';
-  // Dotted frame for a stroke with no result yet.
+  // No background, dotted frame: a stroke with no result yet.
   empty?: boolean;
-  // Over a colored card: 75 % white backing and an on-color glyph.
+  // Over a colored card: 75 % white backing instead of surface-2, and an on-color glyph.
   onColor?: boolean;
   // Hidden from screen readers when the card around it already says the stroke.
   decorative?: boolean;
@@ -107,14 +107,15 @@ export function StrokeIcon({ stroke, size = 'md', empty, onColor, decorative }: 
       {...a11y(decorative, t(`sport.stroke.${stroke}`))}
       style={[
         styles.box,
-        { width: box, height: box, borderRadius: radius.sm },
+        { width: box, height: box, borderRadius: radius.full },
+        !empty && !onColor && { backgroundColor: colors['surface-2'] },
         empty && { borderWidth: 1.5, borderStyle: 'dotted', borderColor: colors['border-strong'] },
       ]}
     >
       {/* The 75 % belongs to the backing only, so the glyph stays solid. */}
       {onColor && (
         <View
-          style={[StyleSheet.absoluteFill, { borderRadius: radius.sm, backgroundColor: colors['on-header'], opacity: 0.75 }]}
+          style={[StyleSheet.absoluteFill, { borderRadius: radius.full, backgroundColor: colors['on-header'], opacity: 0.75 }]}
         />
       )}
       <Svg width={glyph} height={glyph} viewBox="0 0 32 32">
