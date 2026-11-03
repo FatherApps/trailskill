@@ -19,6 +19,8 @@ import { AthleteProfileScreen, type AthleteProfileView } from './AthleteProfileS
 
 export type AthleteProfileContainerProps = {
   athleteId: string;
+  // The athlete when the route already has them on the device: the band shows their name and colour from the first frame. Without it the band stays neutral until the read ends.
+  athlete?: Pick<SchoolAthlete, 'id' | 'firstName' | 'lastName'>;
   athletes: SchoolAthleteRepository;
   history: HistoryRepository;
   authorizations: AuthorizationStatusRepository;
@@ -141,6 +143,7 @@ async function readSchools(
 // are all worked out from that one read, so choosing another event or pool never goes back to a loading screen.
 export function AthleteProfileContainer({
   athleteId,
+  athlete,
   athletes,
   history,
   authorizations,
@@ -271,20 +274,25 @@ export function AthleteProfileContainer({
   const retryOtherSchool = useCallback(() => setOtherAttempt((n) => n + 1), []);
   const choose = useCallback((next: EventValue) => setChosen({ athleteId, event: settleEvent(achievements, next) }), [athleteId, achievements]);
 
-  if (loaded.kind === 'loading') return <AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={onBack} />;
+  if (loaded.kind === 'loading') {
+    // The route already has the athlete on the device: the band shows them now and only what is below loads.
+    const known = athlete?.id === athleteId ? athlete : undefined;
+    const header = known && { name: `${known.firstName} ${known.lastName}`, color: athleteDisplay(known).color };
+    return <AthleteProfileScreen name="" view={header ? { kind: 'loading', header } : { kind: 'loading' }} onBack={onBack} />;
+  }
   if (loaded.kind === 'denied') return <AthleteProfileScreen name="" view={{ kind: 'denied' }} onBack={onBack} />;
   if (loaded.kind === 'error') return <AthleteProfileScreen name="" view={{ kind: 'error', onRetry: retry }} onBack={onBack} />;
   // A ready profile always has an event (the most recent result's, or the default); this only narrows the type.
   if (!event) return <AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={onBack} />;
 
-  const { athlete, authorized, schools } = loaded;
+  const { athlete: loadedAthlete, authorized, schools } = loaded;
   // A choice that is no longer among the athlete's schools falls back to the first one.
   const school = schools.find((s) => s.id === chosenSchoolId) ?? schools[0];
   const options = eventOptions(achievements, event.pool);
   const content = {
     header: {
-      name: `${athlete.firstName} ${athlete.lastName}`.trim(),
-      color: athleteDisplay(athlete).color,
+      name: `${loadedAthlete.firstName} ${loadedAthlete.lastName}`.trim(),
+      color: athleteDisplay(loadedAthlete).color,
       onBack,
       category: school?.category ?? '',
       schools: schools.map(({ id, name }) => ({ id, name })),
@@ -313,5 +321,5 @@ export function AthleteProfileContainer({
     ...(other === null ? { otherSchoolError: { onRetry: retryOtherSchool } } : {}),
   };
   const view: AthleteProfileView = content.history.length === 0 ? { kind: 'empty', content } : { kind: 'data', content };
-  return <AthleteProfileScreen name={athlete.firstName} view={view} onBack={onBack} />;
+  return <AthleteProfileScreen name={loadedAthlete.firstName} view={view} onBack={onBack} />;
 }

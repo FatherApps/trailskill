@@ -194,6 +194,38 @@ describe('athlete profile container', () => {
     expect(screen.getAllByText('10,00', { includeHiddenElements: true })).toHaveLength(1);
   });
 
+  describe('header on the first frame (issue 849)', () => {
+    // A device read that never answers keeps the container in its loading state.
+    const never = { ...athletes, listByIds: () => new Promise<never>(() => {}) };
+    const bandOf = (button: ReturnType<typeof screen.getByRole>) => {
+      let node = button.parent;
+      while (node && StyleSheet.flatten(node.props.style)?.backgroundColor === undefined) node = node.parent;
+      return StyleSheet.flatten(node!.props.style).backgroundColor;
+    };
+
+    it("shows the athlete's name and colour while the rest still loads, with no step through sky", async () => {
+      await show({ athletes: never, athlete });
+
+      expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      expect(bandOf(screen.getByRole('button', { name: 'Volver' }))).toBe(colors.light[athleteDisplay(athlete).color]);
+      expect(screen.getByTestId('state-view')).toBeOnTheScreen();
+    });
+
+    it('keeps the neutral sky band when the athlete is not on the device yet', async () => {
+      await show({ athletes: never });
+
+      expect(screen.queryByRole('header')).toBeNull();
+      expect(bandOf(screen.getByRole('button', { name: 'Volver' }))).toBe(colors.light.sky);
+    });
+
+    it('ignores a preview that belongs to another athlete', async () => {
+      await show({ athletes: never, athlete: { ...athlete, id: 'other' } });
+
+      expect(screen.queryByRole('header')).toBeNull();
+      expect(bandOf(screen.getByRole('button', { name: 'Volver' }))).toBe(colors.light.sky);
+    });
+  });
+
   it("paints the band with the athlete's colour from their id and goes back through onBack", async () => {
     const onBack = jest.fn();
     await show({ onBack });
@@ -412,6 +444,14 @@ describe('athlete profile container', () => {
       ...over,
     });
     const repo = (rows: ReturnType<typeof imported>[]) => ({ listByAthlete: jest.fn().mockResolvedValue(rows) });
+
+    it('shows no "Solo en línea" on an imported row: it is on the device with nothing pending (issue 849)', async () => {
+      await show({ importedResults: repo([imported()]) });
+
+      const row = await screen.findByLabelText(/Importado/);
+      expect(row.props.accessibilityLabel).not.toMatch(/Solo en línea/);
+      expect(screen.queryAllByText('Solo en línea', { includeHiddenElements: true })).toHaveLength(0);
+    });
 
     it('lists them in the history of the chosen event, labelled with their origin', async () => {
       await show({ importedResults: repo([imported(), imported({ id: 'i2', stroke: 'BK', hundredths: 3333 })]) });

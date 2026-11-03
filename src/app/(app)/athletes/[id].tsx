@@ -92,6 +92,7 @@ export default function AthleteProfileRoute() {
   return (
     <AthleteProfileContainer
       athleteId={id}
+      athlete={managedAthlete}
       athletes={athletes}
       history={history}
       authorizations={authorizations}

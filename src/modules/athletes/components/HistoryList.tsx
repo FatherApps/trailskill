@@ -152,6 +152,9 @@ function HistoryRow({ result }: { result: HistoryResult }) {
       ? spokenTime(result.time)
       : t(result.completed ? 'time_value.completed_spoken' : 'time_value.not_recorded');
 
+  // An imported result is synced to the device with nothing pending, so it says nothing; any other result without a sync state is online only.
+  const caption = result.syncState ? t(`sync.${result.syncState}`) : result.origin === 'import' ? null : t('athletes.history.online_only');
+
   const label = [
     title,
     longDate,
@@ -160,7 +163,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
     origin,
     spokenResult,
     result.time !== null && result.isPersonalBest ? t('time_value.pb_spoken') : null,
-    result.syncState ? t(`sync.${result.syncState}`) : t('athletes.history.online_only'),
+    caption,
   ]
     .filter(Boolean)
     .join(', ');
@@ -208,7 +211,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
         {result.syncState ? (
           <SyncStatus state={result.syncState} />
         ) : (
-          <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{t('athletes.history.online_only')}</Text>
+          caption && <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{caption}</Text>
         )}
       </View>
     </View>
