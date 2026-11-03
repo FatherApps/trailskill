@@ -10,7 +10,7 @@ const themes: ThemeName[] = ['light', 'dark'];
 const pathsOf = () => screen.container.queryAll((node) => node.type === 'RNSVGPath');
 const circlesOf = () => screen.container.queryAll((node) => node.type === 'RNSVGCircle');
 const ringsOf = () => circlesOf().filter((node) => node.props.strokeDasharray);
-const glyphSvg = () => screen.container.queryAll((node) => node.type === 'RNSVGSvgView')[0];
+const glyphSvg = () => screen.container.queryAll((node) => node.type === 'RNSVGSvgView').at(-1)!;
 const paint = (theme: ThemeName, token: ColorToken) => ({ type: 0, payload: processColor(colors[theme][token]) });
 const boxStyle = (name: string) => StyleSheet.flatten(screen.getByRole('image', { name }).props.style);
 const inkOf = (node: { props: { stroke?: { payload: unknown }; fill?: { payload: unknown } } }) => [
@@ -170,6 +170,39 @@ describe('StrokeIcon', () => {
       expect(boxStyle('Pecho').backgroundColor).toBeUndefined();
       expect(StyleSheet.flatten(layers[0].props.style).borderRadius).toBe(radius.full);
       expect(pathsOf().every((node) => inkOf(node).includes(paint(theme, 'on-color').payload))).toBe(true);
+    });
+
+    // Round caps on a ~0 dash make each dot as wide as the stroke; the gap closes the circle with no seam.
+    it.each(['md', 'sm'] as const)('the empty %s ring splits its circumference into equal dots with no seam', async (size) => {
+      await render(<StrokeIcon stroke="FR" size={size} variant="empty" />);
+
+      const ring = ringsOf()[0];
+      const [dash, gap] = (ring.props.strokeDasharray as string[]).map(Number);
+      const circumference = 2 * Math.PI * ring.props.r;
+      const dots = Math.round(circumference / 4.5);
+      expect(ring.props.strokeLinecap).toBe(1);
+      expect(dash).toBeGreaterThan(0);
+      expect(dash).toBeLessThan(0.1);
+      expect(gap).toBeGreaterThan(2);
+      expect(dots * (dash + gap)).toBeCloseTo(circumference, 6);
+    });
+
+    it('the empty ring is drawn under the glyph', async () => {
+      await render(<StrokeIcon stroke="FR" variant="empty" />);
+
+      const drawn = screen.container.queryAll((node) => node.type === 'RNSVGCircle' || node.type === 'RNSVGPath');
+      expect(drawn[0].props.strokeDasharray).toBeTruthy();
+      expect(drawn.slice(1).some((node) => node.props.strokeDasharray)).toBe(false);
+    });
+
+    it('the empty ring is hidden from screen readers and the icon keeps one label', async () => {
+      await render(<StrokeIcon stroke="FR" variant="empty" />);
+
+      const ringSvg = screen.container.queryAll((node) => node.type === 'RNSVGSvgView')[0];
+      expect(ringSvg.props.importantForAccessibility).toBe('no');
+      expect(ringSvg.props.accessibilityElementsHidden).toBe(true);
+      expect(screen.getAllByRole('image')).toHaveLength(1);
+      expect(screen.getByRole('image', { name: 'Libre' })).toBeOnTheScreen();
     });
 
     it('IM keeps its four fixed colors in the empty and onColor variants', async () => {
