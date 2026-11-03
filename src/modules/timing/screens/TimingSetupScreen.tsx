@@ -107,7 +107,7 @@ export function TimingSetupScreen({
                 key={athlete.id}
                 name={t('timing.setup.athlete_name', { order: index + 1, name: athlete.shortName })}
                 initials={athlete.initials}
-                stroke={rowStroke}
+                stroke={athlete.authorized ? rowStroke : undefined}
                 color={athlete.color}
                 detail={
                   athlete.authorized

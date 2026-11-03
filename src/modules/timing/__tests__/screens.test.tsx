@@ -310,6 +310,19 @@ describe('TimingSetupScreen', () => {
       expect(svgs()).toHaveLength(0);
       expect(screen.getByLabelText('1 · Mateo C., MP 34,82')).toBeOnTheScreen();
     });
+
+    it('gives the skipped row no icon and does not name the stroke for someone who will not swim it', async () => {
+      await renderSetup({
+        stroke: { ...fixture.setupScreen.stroke, value: 'BK' },
+        athletes: fixture.athletesWithSkipped,
+      });
+
+      // Two authorized rows draw the backstroke glyph; the skipped one draws none.
+      expect(paths().filter((d) => d === backstroke)).toHaveLength(2);
+      expect(screen.getByLabelText('3 · Sara P., Falta autorización — se omitirá')).toBeOnTheScreen();
+      expect(screen.getByLabelText('1 · Mateo C., MP 34,82, Espalda')).toBeOnTheScreen();
+      expect(screen.getByLabelText('2 · Lucía R., MP 34,82, Espalda')).toBeOnTheScreen();
+    });
   });
 
   it('marks and announces an athlete without authorization as skipped', async () => {
