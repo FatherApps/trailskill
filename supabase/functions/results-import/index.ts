@@ -15,6 +15,7 @@ import {
   type Db,
 } from './adapters.ts';
 import { createHandler } from './handler.ts';
+import { createCoFecna } from './providers/co-fecna/index.ts';
 import { createProviderRegistry } from './registry.ts';
 import { createResultsImport } from './service.ts';
 
@@ -37,7 +38,7 @@ const db: Db = {
 };
 
 // Adapters are added here as federations are supported: createProviderRegistry([...adapters]).
-const registry = createProviderRegistry([]);
+const registry = createProviderRegistry([createCoFecna()]);
 const identityNumbers = createIdentityNumbers(db);
 const organizationChain = createOrganizationChain(db);
 const pending = createPendingStore(db);
