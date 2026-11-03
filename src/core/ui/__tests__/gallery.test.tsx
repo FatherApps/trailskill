@@ -52,6 +52,7 @@ describe('core/ui gallery entries', () => {
       'missing-time',
       'long-text',
       'time-and-tag',
+      'with-stroke',
     ]);
     expect(stateKeys('navBar')).toEqual(['home-active', 'times-active', 'long-labels']);
     expect(stateKeys('colorCard')).toEqual(['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4', 'long-text', 'decoration-lime', 'decoration-lilac']);
@@ -143,6 +144,7 @@ describe('core/ui gallery entries', () => {
     ['chevron', 'Tomás V., Máster · Se registró él mismo'],
     ['missing-time', 'Lucía R., Infantil B · 3 tiempos este mes, sin marca personal, MP 100 E'],
     ['time-and-tag', 'Sara P., Juvenil A, grupo de resistencia de la tarde, Tiempo 33,91, Consentimiento'],
+    ['with-stroke', 'Lucía R., Infantil B, Libre, marca personal 34,82, MP 50 L'],
   ])('swimmerRow / %s is one row labelled "%s"', async (state, label) => {
     await render(<ThemeProvider>{entryById('swimmerRow').states[state]()}</ThemeProvider>);
 
