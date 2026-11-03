@@ -44,23 +44,23 @@ async function mapLimited<T, R>(items: T[], limit: number, run: (item: T) => Pro
 export function createHttpSource(fetchImpl: (url: string, init?: RequestInit) => Promise<Response>, now: () => string = today): Source {
   let cookie: string | null = null;
   return {
-    async roster() {
-      const page = await fetchPage(fetchImpl, FORM_URL);
+    async roster(signal) {
+      const page = await fetchPage(fetchImpl, FORM_URL, { signal });
       cookie = page.setCookie?.split(';')[0] ?? null;
       return parseRoster(page.body);
     },
-    async history(entry, expired = () => false) {
+    async history(entry, signal) {
       // The events carry no filter of their own: they answer for the session the POST set up. Without a cookie they would
       // answer empty, and an empty history must never be told apart from "no session".
       const session = cookie;
       if (!session) throw new Error('No session');
       const body = new URLSearchParams({ inicio: HISTORY_START, fin: now(), nadador: entry.value, anual: ANNUAL, prueba: '1' });
       const headers = { 'content-type': 'application/x-www-form-urlencoded', cookie: session };
-      const { club, league } = parseProfile((await fetchPage(fetchImpl, FILTER_URL, { method: 'POST', headers, body })).body);
+      const { club, league } = parseProfile((await fetchPage(fetchImpl, FILTER_URL, { method: 'POST', headers, body, signal })).body);
 
       const rows = await mapLimited(EVENT_NUMBERS, MAX_IN_FLIGHT, async (prueba) => {
-        if (expired()) throw new Error('Out of time');
-        return parseRows(prueba, (await fetchPage(fetchImpl, eventUrl(prueba), { headers: { cookie: session } })).body);
+        if (signal?.aborted) throw new Error('Out of time');
+        return parseRows(prueba, (await fetchPage(fetchImpl, eventUrl(prueba), { headers: { cookie: session }, signal })).body);
       });
       // No years: the rows carry no club, and the person may have changed, so the current club is not credited with them.
       return { affiliations: [{ club, league, years: [] }], results: rows.flat() };

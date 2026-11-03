@@ -188,22 +188,57 @@ describe('co-fecna provider', () => {
   describe('the total time of a search', () => {
     afterEach(() => jest.useRealTimers());
 
-    it('tells the source when the total time is over, so a history can stop asking for more', async () => {
+    it('hands the source one signal that aborts when the total time is over, so a history in flight is cancelled', async () => {
       jest.useFakeTimers();
-      let expired: (() => boolean) | undefined;
+      let signal: AbortSignal | undefined;
       const source: Source = {
         roster: async () => [entry(NUMBER)],
-        history: (_entry, over) => {
-          expired = over;
+        history: (_entry, shared) => {
+          signal = shared;
           return new Promise(() => undefined);
         },
       };
       const pending = createCoFecnaProvider(source).fetchResults(NUMBER).catch((caught: unknown) => caught);
       await jest.advanceTimersByTimeAsync(1);
-      expect(expired?.()).toBe(false);
+      expect(signal?.aborted).toBe(false);
       await jest.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS);
-      expect(expired?.()).toBe(true);
+      expect(signal?.aborted).toBe(true);
       expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+    });
+
+    it('also aborts the swimmer list request when the total time is over', async () => {
+      jest.useFakeTimers();
+      let signal: AbortSignal | undefined;
+      const source: Source = {
+        roster: (shared) => {
+          signal = shared;
+          return new Promise(() => undefined);
+        },
+        history: async () => history(),
+      };
+      const pending = createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER }).catch((caught: unknown) => caught);
+      await jest.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS + 1);
+      expect(signal?.aborted).toBe(true);
+      expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+    });
+
+    it.each([
+      ['by identity number', (provider: ReturnType<typeof create>) => provider.findCandidates({ ...query, identityNumber: NUMBER })],
+      ['to fetch results', (provider: ReturnType<typeof create>) => provider.fetchResults(NUMBER)],
+    ])('is unavailable, and asks for no history, when the list only answers after the time is over (%s)', async (_label, run) => {
+      jest.useFakeTimers();
+      const asked: string[] = [];
+      const source: Source = {
+        roster: () => new Promise((resolve) => setTimeout(() => resolve([entry(NUMBER)]), SEARCH_TIMEOUT_MS + 1_000)),
+        history: async ({ key }) => {
+          asked.push(key);
+          return history();
+        },
+      };
+      const pending = run(createCoFecnaProvider(source)).catch((caught: unknown) => caught);
+      await jest.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS + 5_000);
+      expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+      expect(asked).toEqual([]);
     });
 
     it('asks for one history at a time, never in parallel', async () => {

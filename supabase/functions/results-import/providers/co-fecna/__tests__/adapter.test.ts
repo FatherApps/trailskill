@@ -18,14 +18,14 @@ const HISTORIAL = /\/reportes\/(\d+)\/getHistorial$/;
 
 /** A fake source: the form on GET, the history page (profile and empty tables) on POST, one JSON array per event. */
 function fakeFetch(
-  options: { rows?: Rows; onHistorial?: (prueba: number) => Promise<Response> | Response; onPost?: () => Response; formCookie?: string } = {},
+  options: { rows?: Rows; onHistorial?: (prueba: number, signal?: AbortSignal | null) => Promise<Response> | Response; onPost?: () => Response; formCookie?: string } = {},
 ) {
   const requests: Request[] = [];
   const fetchImpl = jest.fn(async (url: string, init: RequestInit = {}) => {
     const method = init.method ?? 'GET';
     requests.push({ url, method, headers: new Headers(init.headers), body: String(init.body ?? '') });
     const prueba = HISTORIAL.exec(url)?.[1];
-    if (prueba !== undefined) return (options.onHistorial ?? ((n) => historial(options.rows ?? DEFAULT_ROWS, n)))(Number(prueba));
+    if (prueba !== undefined) return (options.onHistorial ?? ((n) => historial(options.rows ?? DEFAULT_ROWS, n)))(Number(prueba), init.signal);
     if (method === 'GET') return options.formCookie === undefined ? page(roster) : page(roster, options.formCookie);
     return options.onPost?.() ?? page(historyPage(), '');
   });
@@ -220,6 +220,28 @@ describe('co-fecna adapter on synthetic pages', () => {
       expect(asked).toBeLessThan(PRUEBAS.length);
       await jest.advanceTimersByTimeAsync(60_000);
       expect(historials(requests)).toHaveLength(asked);
+    });
+
+    it('aborts every request still in flight when the 30 seconds are over', async () => {
+      jest.useFakeTimers();
+      const inFlight = new Set<AbortSignal | null | undefined>();
+      // 9 s per answer: a batch starts at 27 s, so it is in flight at 30 s with its own 10 s timer not yet over.
+      const { fetchImpl } = fakeFetch({
+        onHistorial: (prueba, signal) => {
+          inFlight.add(signal);
+          return new Promise((resolve) =>
+            setTimeout(() => {
+              inFlight.delete(signal);
+              resolve(historial(DEFAULT_ROWS, prueba));
+            }, 9_000),
+          );
+        },
+      });
+      const pending = createCoFecna(fetchImpl).fetchResults(NUMBER).catch((caught: unknown) => caught);
+      await jest.advanceTimersByTimeAsync(30_001);
+      expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+      expect(inFlight.size).toBeGreaterThan(0);
+      expect([...inFlight].every((signal) => signal?.aborted)).toBe(true);
     });
   });
 });

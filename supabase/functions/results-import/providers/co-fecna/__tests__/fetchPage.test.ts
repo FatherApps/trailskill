@@ -30,6 +30,29 @@ describe('fetchPage', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('cancels the body of a response that is not OK before discarding it', async () => {
+    const cancel = jest.fn();
+    const fetchImpl = jest.fn(async () => new Response(new ReadableStream({ cancel }), { status: 503 }));
+    await expect(fetchPage(fetchImpl, URL_)).rejects.toBeInstanceOf(ProviderUnavailableError);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('aborts the request when the caller\'s signal aborts', async () => {
+    const outer = new AbortController();
+    let seen: AbortSignal | null | undefined;
+    const fetchImpl = jest.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          seen = init?.signal;
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }),
+    );
+    const pending = fetchPage(fetchImpl, URL_, { signal: outer.signal }).catch((caught: unknown) => caught);
+    outer.abort();
+    expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+    expect(seen?.aborted).toBe(true);
+  });
+
   it('is unavailable when the network fails, hiding the cause', async () => {
     const fetchImpl = jest.fn(async () => {
       throw new TypeError('connect ECONNREFUSED 0000000000');
