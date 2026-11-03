@@ -34,6 +34,8 @@ describe('fetchPage', () => {
     const cancel = jest.fn();
     const fetchImpl = jest.fn(async () => new Response(new ReadableStream({ cancel }), { status: 503 }));
     await expect(fetchPage(fetchImpl, URL_)).rejects.toBeInstanceOf(ProviderUnavailableError);
+    // fetchPage does not wait for the cancel (a stuck one must not hold the answer), so give it a turn of the event loop.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
