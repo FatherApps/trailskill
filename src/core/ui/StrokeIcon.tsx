@@ -19,6 +19,9 @@ export type StrokeIconProps = {
 // Box and glyph size in dp, per design system.
 const sizes = { md: { box: 44, glyph: 34 }, sm: { box: 32, glyph: 24 } } as const;
 
+// Stroke width of the empty variant's dotted ring.
+const RING = 1.5;
+
 // Shapes copied from assets/estilos/*.svg (viewBox 0 0 32 32); drawn in the ink color the variant picks.
 const WATER = 'M3 25c2.2-2 4.3-2 6.5 0s4.3 2 6.5 0 4.3-2 6.5 0 4.3 2 6.5 0';
 
@@ -109,7 +112,6 @@ export function StrokeIcon({ stroke, size = 'md', variant = 'default', decorativ
         styles.box,
         { width: box, height: box, borderRadius: radius.full },
         variant === 'default' && { backgroundColor: colors['surface-2'] },
-        variant === 'empty' && { borderWidth: 1.5, borderStyle: 'dotted', borderColor: colors['border-strong'] },
       ]}
     >
       {/* The 75 % belongs to the backing only, so the glyph stays solid. */}
@@ -121,6 +123,21 @@ export function StrokeIcon({ stroke, size = 'md', variant = 'default', decorativ
       <Svg width={glyph} height={glyph} viewBox="0 0 32 32">
         <Glyph ink={colors[inkToken]} />
       </Svg>
+      {variant === 'empty' && (
+        // Drawn in SVG because Android renders a dotted View border on a rounded view as solid or warped.
+        <Svg style={StyleSheet.absoluteFill} width={box} height={box} viewBox={`0 0 ${box} ${box}`}>
+          <Circle
+            cx={box / 2}
+            cy={box / 2}
+            r={(box - RING) / 2}
+            fill="none"
+            stroke={colors['border-strong']}
+            strokeWidth={RING}
+            strokeDasharray="1.5 3"
+            strokeLinecap="round"
+          />
+        </Svg>
+      )}
     </View>
   );
 }
