@@ -1,4 +1,4 @@
-import { ProviderUnavailableError, type NormalizedResult } from '../port.ts';
+import { ProviderUnavailableError, SourceUnreachableError, type NormalizedResult } from '../port.ts';
 import { createProviderRegistry, type OrganizationData } from '../registry.ts';
 import {
   CANDIDATE_TTL_MS,
@@ -44,6 +44,7 @@ function createFakeGate(authorized = true) {
   const claims: unknown[] = [];
   const releases: Parameters<QueryGate['release']>[0][] = [];
   let releaseFailure: Error | undefined;
+  let releaseFailsSynchronously = false;
   const gate: QueryGate = {
     async claim(request): Promise<Claim> {
       claims.push(request);
@@ -62,21 +63,29 @@ function createFakeGate(authorized = true) {
       last.set(request.athleteId, { at: now, order: claimOrder, by: request.userId, token: String(claimOrder) });
       return { status: 'allowed', claimedAt: String(claimOrder) };
     },
-    async release(request) {
+    release(request) {
       releases.push(request);
-      if (releaseFailure) throw releaseFailure;
-      const previous = last.get(request.athleteId);
-      if (!previous || previous.token !== request.claimedAt) return false;
-      // Nobody can share a released claim; the next normal claim is allowed `retryAfterMs` after it.
-      last.set(request.athleteId, { ...previous, at: previous.at - request.intervalMs + request.retryAfterMs, by: '' });
-      return true;
+      // A failure before any promise exists, like a client that throws while building its request.
+      if (releaseFailure && releaseFailsSynchronously) throw releaseFailure;
+      return giveBack(request);
     },
+  };
+  const giveBack = async (request: Parameters<QueryGate['release']>[0]) => {
+    if (releaseFailure) throw releaseFailure;
+    const previous = last.get(request.athleteId);
+    if (!previous || previous.token !== request.claimedAt) return false;
+    // Nobody can share a released claim; the next normal claim is allowed `retryAfterMs` after it.
+    last.set(request.athleteId, { ...previous, at: previous.at - request.intervalMs + request.retryAfterMs, by: '' });
+    return true;
   };
   return {
     gate,
     claims,
     releases,
-    failRelease: (error: Error | undefined) => void (releaseFailure = error),
+    failRelease: (error: Error | undefined, synchronously = false) => {
+      releaseFailure = error;
+      releaseFailsSynchronously = synchronously;
+    },
     advance: (ms: number) => (now += ms),
     now: () => now,
     // The confirmation the service records after a search.
@@ -686,7 +695,7 @@ describe('search, confirm and results as one flow', () => {
     const { s } = await searchedAndConfirmed();
     s.fakeGate.advance(THIRTY_SIX_SECONDS);
     const failedAt = s.fakeGate.now();
-    s.provider.setFailure(new ProviderUnavailableError('source down'));
+    s.provider.setFailure(new SourceUnreachableError());
     expect(await refresh(s)).toEqual(unavailable);
     s.fakeGate.advance(RETRY_AFTER_FAILURE_MS - 1_000);
     // The released claim is not shared again: it waits the short time, not the rest of the search's interval.
@@ -699,7 +708,7 @@ describe('search, confirm and results as one flow', () => {
 
 // Issue #888: a source query that fails (timeout, 5xx, network) does not spend the whole window.
 describe('a source query that fails', () => {
-  const down = new ProviderUnavailableError('source down');
+  const down = new SourceUnreachableError();
   const rateLimitedAt = (at: number) => ({ ok: false, error: { code: 'rate_limited', retryAt: new Date(at).toISOString() } });
 
   it('gives the search claim back: a short wait, then a search is allowed again', async () => {
@@ -725,10 +734,18 @@ describe('a source query that fails', () => {
     expect(await refresh(s)).toEqual({ ok: true, value: [validResult] });
   });
 
-  it('counts any adapter throw, not only a typed one', async () => {
-    const s = setup({ providerOptions: { failWith: new Error('boom') } });
+  // The port tells a source that did not answer (network, timeout, 5xx) from one that answered something unusable (4xx, a changed page).
+  it.each<[string, Error]>([
+    ['an unavailable error that is not about reaching the source', new ProviderUnavailableError('changed shape')],
+    ['any other error', new Error('boom')],
+  ])('keeps the whole window when the adapter throws %s: retrying soon cannot work', async (_name, failWith) => {
+    const s = setup({ providerOptions: { failWith } });
+    const startedAt = s.fakeGate.now();
     expect(await refresh(s)).toEqual(unavailable);
-    expect(s.fakeGate.releases).toHaveLength(1);
+    expect(s.fakeGate.releases).toEqual([]);
+    s.fakeGate.advance(2 * 60_000);
+    expect(await refresh(s)).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
+    expect(await search(s)).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
   });
 
   it('releases with the athlete, the exact claim it took, the interval and the short wait', async () => {
@@ -784,5 +801,12 @@ describe('a source query that fails', () => {
     expect(await refresh(s)).toEqual(unavailable);
     s.fakeGate.advance(RETRY_AFTER_FAILURE_MS);
     expect(await refresh(s)).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
+  });
+
+  it('is still unavailable when giving the claim back throws before it returns a promise', async () => {
+    const s = setup({ providerOptions: { failWith: down } });
+    s.fakeGate.failRelease(new Error('client broke'), true);
+    expect(await refresh(s)).toEqual(unavailable);
+    expect(s.fakeGate.releases).toHaveLength(1);
   });
 });

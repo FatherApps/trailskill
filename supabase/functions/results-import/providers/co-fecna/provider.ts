@@ -1,5 +1,6 @@
 import {
   ProviderUnavailableError,
+  SourceUnreachableError,
   type Candidate,
   type CandidateQuery,
   type NormalizedResult,
@@ -61,7 +62,8 @@ const toResult = ({ sourceResultKey, stroke, distance, pool, hundredths, swumOn,
  * Nothing is cached, logged or kept.
  */
 export function createCoFecnaProvider(open: () => Source): ResultsProvider {
-  // Any failure is the same typed error with no cause; nothing is logged, so no number or name can leak.
+  // Any failure is a typed error with no cause; nothing is logged, so no number or name can leak. Only a source that did not
+  // answer stays `SourceUnreachableError`; everything else (a changed page, an unexpected identity, ambiguity) is plain unavailable.
   // One signal for the whole search, aborted when the total time is over: whatever is in flight stops, and nothing new is asked.
   async function guarded<T>(call: (source: Source, signal: AbortSignal) => Promise<T>): Promise<T> {
     const controller = new AbortController();
@@ -69,13 +71,13 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
     const deadline = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
         controller.abort();
-        reject(new ProviderUnavailableError());
+        reject(new SourceUnreachableError());
       }, SEARCH_TIMEOUT_MS);
     });
     try {
       return await Promise.race([call(open(), controller.signal), deadline]);
-    } catch {
-      throw new ProviderUnavailableError();
+    } catch (error) {
+      throw error instanceof SourceUnreachableError ? error : new ProviderUnavailableError();
     } finally {
       clearTimeout(timer);
       // On a failure too: requests the source still has running (parallel events) stop with it.
@@ -85,7 +87,7 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
 
   // Every history goes through here, so no path asks the source for more once the total time is over.
   function historyOf(source: Source, entry: RosterEntry, signal: AbortSignal): Promise<History> {
-    if (signal.aborted) throw new ProviderUnavailableError();
+    if (signal.aborted) throw new SourceUnreachableError(); // Only the total time aborts it.
     return source.history(entry, signal);
   }
 

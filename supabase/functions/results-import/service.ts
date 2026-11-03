@@ -1,5 +1,5 @@
 import { isDistance, isPool, isStroke } from '../../../src/core/sport/catalogs.ts';
-import type { Affiliation, Candidate, NormalizedResult, ResultsProvider } from './port.ts';
+import { SourceUnreachableError, type Affiliation, type Candidate, type NormalizedResult, type ResultsProvider } from './port.ts';
 import type { OrganizationData, ProviderRegistry } from './registry.ts';
 
 // The worker's proposal, pending maintainer review: one source query per athlete every 10 minutes, search and refresh alike.
@@ -205,15 +205,21 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
   }
 
   // Any adapter failure is the same typed "unavailable"; the error is dropped on purpose so no number or key can leak through it.
-  // The adapter throwing (timeout, 5xx, network; the port does not tell them from a page that changed shape) gives the claim back,
-  // so a source that failed does not cost the whole window. A release that fails leaves the claim spent. An answer that was
-  // received but is invalid does not give it back: the source did answer.
+  // The adapter saying the source did not answer (`SourceUnreachableError`: network, timeout, 5xx) gives the claim back, so a
+  // source that failed does not cost the whole window. Any other failure (the source answered something unusable: a 4xx, a changed
+  // page, an invalid list) keeps it spent. A release that fails leaves the claim spent too.
   async function query<T>(who: Who, claimedAt: string, call: () => Promise<unknown>, cleanItem: (item: unknown) => T | null): Promise<Outcome<T[]>> {
     let raw: unknown;
     try {
       raw = await call();
-    } catch {
-      await gate.release({ athleteId: who.athleteId, claimedAt, intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS }).catch(() => false);
+    } catch (error) {
+      if (error instanceof SourceUnreachableError) {
+        try {
+          await gate.release({ athleteId: who.athleteId, claimedAt, intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS });
+        } catch {
+          // The claim simply stays spent.
+        }
+      }
       return UNAVAILABLE;
     }
     const value = cleanList(raw, cleanItem);

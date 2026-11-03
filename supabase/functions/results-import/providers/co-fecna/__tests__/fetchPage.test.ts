@@ -1,4 +1,4 @@
-import { ProviderUnavailableError } from '../../../port.ts';
+import { ProviderUnavailableError, SourceUnreachableError } from '../../../port.ts';
 import { REQUEST_TIMEOUT_MS, fetchPage } from '../fetchPage.ts';
 
 const URL_ = 'https://source.invalid/history';
@@ -24,9 +24,17 @@ describe('fetchPage', () => {
     expect(REQUEST_TIMEOUT_MS).toBe(10_000);
   });
 
-  it.each([404, 500, 503])('is unavailable on HTTP %i, without retrying', async (status) => {
+  it.each([500, 503])('says the source did not answer on HTTP %i, without retrying', async (status) => {
     const fetchImpl = jest.fn(async () => response('error', { status }));
-    await expect(fetchPage(fetchImpl, URL_)).rejects.toBeInstanceOf(ProviderUnavailableError);
+    await expect(fetchPage(fetchImpl, URL_)).rejects.toBeInstanceOf(SourceUnreachableError);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([403, 404, 429])('is unavailable, but not unreachable, on HTTP %i: the source answered, retrying soon will not help', async (status) => {
+    const fetchImpl = jest.fn(async () => response('error', { status }));
+    const error = await fetchPage(fetchImpl, URL_).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ProviderUnavailableError);
+    expect(error).not.toBeInstanceOf(SourceUnreachableError);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -59,7 +67,7 @@ describe('fetchPage', () => {
     );
     const pending = fetchPage(fetchImpl, URL_, { signal: outer.signal }).catch((caught: unknown) => caught);
     outer.abort();
-    expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+    expect(await pending).toBeInstanceOf(SourceUnreachableError);
     expect(seen?.aborted).toBe(true);
   });
 
@@ -68,7 +76,7 @@ describe('fetchPage', () => {
       throw new TypeError('connect ECONNREFUSED 0000000000');
     });
     const error = await fetchPage(fetchImpl, URL_).catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(ProviderUnavailableError);
+    expect(error).toBeInstanceOf(SourceUnreachableError);
     expect((error as Error).message).not.toContain('0000000000');
     expect((error as Error).cause).toBeUndefined();
   });
@@ -83,7 +91,7 @@ describe('fetchPage', () => {
     );
     const pending = fetchPage(fetchImpl, URL_).catch((caught: unknown) => caught);
     await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
-    expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+    expect(await pending).toBeInstanceOf(SourceUnreachableError);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -99,6 +107,6 @@ describe('fetchPage', () => {
     });
     const pending = fetchPage(fetchImpl, URL_).catch((caught: unknown) => caught);
     await jest.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
-    expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+    expect(await pending).toBeInstanceOf(SourceUnreachableError);
   });
 });

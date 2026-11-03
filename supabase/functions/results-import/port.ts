@@ -30,6 +30,14 @@ export class ProviderUnavailableError extends Error {
   }
 }
 
+/** The source did not answer: network failure, timeout or HTTP 5xx. Retrying soon may work; any other `ProviderUnavailableError` will not. */
+export class SourceUnreachableError extends ProviderUnavailableError {
+  constructor() {
+    super('Results source unreachable');
+    this.name = 'SourceUnreachableError';
+  }
+}
+
 export interface ResultsProvider {
   /** '<country>-<organization>', lower case, the organization's ISO country code first. */
   readonly key: string;
