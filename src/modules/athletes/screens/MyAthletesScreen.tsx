@@ -14,7 +14,7 @@ export type MyAthletesView = { kind: 'loading' } | { kind: 'empty' } | { kind: '
 export type MyAthletesScreenProps = {
   view: MyAthletesView;
   // Opens the profile (and with it the history) of the athlete in front.
-  onOpen: (athleteId: string) => void;
+  onOpen: (athleteId: string, name: string) => void;
   onAdd: () => void;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;

@@ -43,7 +43,8 @@ export {
   type AthleteProfileInput,
   type AthleteRepository,
 } from './data/athleteRepository';
-export { athleteDisplay, type AthleteColor } from './athleteDisplay';
+export { athleteProfileHref } from './athleteProfileHref';
+export { athleteColor, athleteDisplay, type AthleteColor } from './athleteDisplay';
 export { useManagedAthletes, type ManagedAthletesResult } from './data/useManagedAthletes';
 export { AthleteProfileContainer, type AthleteProfileContainerProps } from './screens/AthleteProfileContainer';
 export type { ImportedHistoryResult } from './achievements';

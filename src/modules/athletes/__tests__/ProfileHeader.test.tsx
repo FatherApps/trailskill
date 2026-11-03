@@ -75,6 +75,13 @@ describe('ProfileHeader', () => {
     expect(screen.getByLabelText(text)).toBeOnTheScreen();
   });
 
+  it('says "Al día" instead of the age when everything is up to date (issue 851)', async () => {
+    await render(<ProfileHeader {...base} upToDate />);
+
+    expect(screen.getByLabelText('Al día')).toBeOnTheScreen();
+    expect(screen.queryByLabelText(/Actualizado/)).toBeNull();
+  });
+
   it('says nothing about the update when it is unknown', async () => {
     await render(<ProfileHeader {...base} updatedMinutesAgo={null} />);
 

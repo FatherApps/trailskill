@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { AuthorizationStatusRepository } from '../../accounts';
+import { trimName } from '../../../core/i18n';
 import { distances, pools, strokes } from '../../../core/sport';
 import { useRecordSyncStates, type RecordSyncState } from '../../../core/sync';
 import { importedAchievement, latestAchievement, type EventAchievement, type ImportedHistoryResult } from '../achievements';
@@ -12,14 +13,17 @@ import type { AthleteSchoolRepository } from '../data/athleteSchools';
 import type { HistoryMeasurement, HistoryRepository } from '../data/history';
 import type { OtherSchoolResult, OtherSchoolResultsRepository } from '../data/otherSchoolResults';
 import type { SchoolAthlete, SchoolAthleteRepository } from '../data/schoolAthletes';
-import { athleteDisplay } from '../athleteDisplay';
+import { athleteColor, athleteDisplay } from '../athleteDisplay';
 import { eventOptions, settleEvent } from '../eventOptions';
 import { personalBest } from '../personalBest';
+import { profileLine, rememberedProfileLine, rememberProfileLine } from '../profileLine';
 import { AthleteProfileScreen, type AthleteProfileView } from './AthleteProfileScreen';
 
 export type AthleteProfileContainerProps = {
   athleteId: string;
-  // The athlete when the route already has them on the device: the band shows their name and colour from the first frame. Without it the band stays neutral until the read ends.
+  // The athlete's name when the route carries it (only the name, never other data): the band shows it from the first frame.
+  name?: string;
+  // The athlete when the route already has them on the device; it gives the name when the route has none. Without any, the title stays empty until the read ends.
   athlete?: Pick<SchoolAthlete, 'id' | 'firstName' | 'lastName'>;
   athletes: SchoolAthleteRepository;
   history: HistoryRepository;
@@ -34,6 +38,8 @@ export type AthleteProfileContainerProps = {
   otherSchoolResults?: OtherSchoolResultsRepository;
   // Whether the device is connected. Without a connection no result of another school is asked for or shown.
   online?: boolean;
+  // Records not yet sent from this device. Connected with none, the sync tag says "Al día"; without the count it keeps the age of the last sync.
+  pendingChanges?: number;
   // Official results imported from the source, read from the device. They show in the history with their origin and count as races in the personal best (issue 204).
   importedResults?: { listByAthlete(athleteId: string): Promise<ImportedHistoryResult[]> };
   // The organization behind each import provider, from data; an unknown one shows with the generic origin.
@@ -63,6 +69,8 @@ const OTHER_SCHOOL_TIMEOUT_MS = 10_000;
 
 const initialEvent: EventValue = { stroke: strokes[0].code, distance: distances[1].code, pool: pools[0].code };
 const day = (iso: string) => iso.slice(0, 10);
+// Only a line the device already read is passed to the band; otherwise the band reserves the line's height.
+const subtitleOf = (line: string | undefined) => (line === undefined ? {} : { subtitle: line });
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -143,6 +151,7 @@ async function readSchools(
 // are all worked out from that one read, so choosing another event or pool never goes back to a loading screen.
 export function AthleteProfileContainer({
   athleteId,
+  name,
   athlete,
   athletes,
   history,
@@ -153,6 +162,7 @@ export function AthleteProfileContainer({
   lastSyncedAt,
   otherSchoolResults,
   online = false,
+  pendingChanges,
   importedResults,
   sourceNames,
   officialUpdate,
@@ -274,16 +284,30 @@ export function AthleteProfileContainer({
   const retryOtherSchool = useCallback(() => setOtherAttempt((n) => n + 1), []);
   const choose = useCallback((next: EventValue) => setChosen({ athleteId, event: settleEvent(achievements, next) }), [athleteId, achievements]);
 
-  if (loaded.kind === 'loading') {
-    // The route already has the athlete on the device: the band shows them now and only what is below loads.
-    const known = athlete?.id === athleteId ? athlete : undefined;
-    const header = known && { name: `${known.firstName} ${known.lastName}`, color: athleteDisplay(known).color };
-    return <AthleteProfileScreen name="" view={header ? { kind: 'loading', header } : { kind: 'loading' }} onBack={onBack} />;
-  }
+  // The band has its colour from the id on the first frame, and its title from the first name the container knows: the route's, the
+  // device's preview of the athlete, or the one just read. One title source (`name`); `denied` and `error` stay neutral (issue 452).
+  // The line the band shows the next time this profile opens: the default school's, which is the one a fresh open shows.
+  const readyLine = loaded.kind === 'ready' ? profileLine(loaded.schools[0]?.category ?? '', loaded.schools[0]?.name) : undefined;
+  useEffect(() => {
+    if (readyLine !== undefined) rememberProfileLine(athleteId, readyLine);
+  }, [athleteId, readyLine]);
+  const person = loaded.kind === 'ready' ? loaded.athlete : athlete?.id === athleteId ? athlete : undefined;
+  const personName = person ? `${person.firstName} ${person.lastName}` : '';
+  const loadingScreen = (
+    <AthleteProfileScreen
+      name={trimName(loaded.kind === 'ready' ? personName : (name ?? personName))}
+      view={{
+        kind: 'loading',
+        header: { color: athleteColor(athleteId), ...(loaded.kind === 'ready' ? { subtitle: readyLine } : subtitleOf(rememberedProfileLine(athleteId))) },
+      }}
+      onBack={onBack}
+    />
+  );
+  if (loaded.kind === 'loading') return loadingScreen;
   if (loaded.kind === 'denied') return <AthleteProfileScreen name="" view={{ kind: 'denied' }} onBack={onBack} />;
   if (loaded.kind === 'error') return <AthleteProfileScreen name="" view={{ kind: 'error', onRetry: retry }} onBack={onBack} />;
-  // A ready profile always has an event (the most recent result's, or the default); this only narrows the type.
-  if (!event) return <AthleteProfileScreen name="" view={{ kind: 'loading' }} onBack={onBack} />;
+  // A ready profile always has an event (the most recent result's, or the default); this only narrows the type, and keeps the band's name and colour.
+  if (!event) return loadingScreen;
 
   const { athlete: loadedAthlete, authorized, schools } = loaded;
   // A choice that is no longer among the athlete's schools falls back to the first one.
@@ -299,6 +323,7 @@ export function AthleteProfileContainer({
       schoolId: school?.id ?? '',
       onSchoolChange: setChosenSchoolId,
       authorization: authorized ? ('valid' as const) : ('pending' as const),
+      upToDate: online && pendingChanges === 0,
       updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.round((openedAt - lastSyncedAt.getTime()) / 60000)) : null,
     },
     // Only the events and pools with results; none at all while the athlete has none.

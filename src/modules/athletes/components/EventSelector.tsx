@@ -5,7 +5,7 @@ import type { DistanceCode, PoolCode, StrokeCode } from '../../../core/sport';
 import { useTheme } from '../../../core/theme';
 import { ChipRow, Segmented } from '../../../core/ui';
 import '../i18n';
-import { distanceLabel, poolLabel, strokeLabel } from './sportLabel';
+import { distanceMeters, poolLabel, strokeLabel } from './sportLabel';
 
 export type EventValue = { stroke: StrokeCode; distance: DistanceCode; pool: PoolCode };
 
@@ -18,7 +18,7 @@ export type EventSelectorProps = {
   onChange: (value: EventValue) => void;
 };
 
-// One chip per event with results ("Libre 50 m"); the pool is a secondary control below, only when there is a choice.
+// One chip per event with results ("Libre 50", as the design draws it; screen readers get "Libre 50 metros"); the pool is a secondary control below, only when there is a choice.
 export function EventSelector({ events, pools, value, onChange }: EventSelectorProps) {
   const { space } = useTheme();
   if (events.length === 0) return null;
@@ -29,7 +29,8 @@ export function EventSelector({ events, pools, value, onChange }: EventSelectorP
         accessibilityLabel={t('athletes.event_selector.event')}
         options={events.map(({ stroke, distance }) => ({
           value: `${stroke}|${distance}`,
-          label: `${strokeLabel(stroke)} ${distanceLabel(distance)}`,
+          label: `${strokeLabel(stroke)} ${distanceMeters(distance)}`,
+          accessibilityLabel: t('athletes.marks.event_spoken', { stroke: strokeLabel(stroke), meters: distanceMeters(distance) }),
         }))}
         value={`${value.stroke}|${value.distance}`}
         onChange={(chosen) => {

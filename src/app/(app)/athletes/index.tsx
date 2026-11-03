@@ -14,6 +14,7 @@ import {
   SignOutContainer,
 } from '../../../modules/accounts';
 import {
+  athleteProfileHref,
   createPowerSyncAthleteSchoolRepository,
   createPowerSyncSchoolAthleteRepository,
   MyAthletesContainer,
@@ -48,7 +49,7 @@ export default function MyAthletesRoute() {
         structure={structure}
         authorizations={authorizations}
         refreshKey={lastSyncedAt?.getTime()}
-        onOpen={(id) => router.push(`/athletes/${id}`)}
+        onOpen={(id, name) => router.push(athleteProfileHref(id, name))}
         onAdd={() => router.push('/athletes/add')}
       />
       {/* Bridge: a guardian and an adult athlete land here and have no other way to sign out or manage authorizations; the account screen (#778) takes these two out. */}

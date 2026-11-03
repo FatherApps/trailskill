@@ -1,12 +1,10 @@
-import { distances } from '../../core/sport';
 import { t } from '../../core/i18n';
-import { distanceLabel, strokeLabel } from './components/sportLabel';
+import { distanceLabel, distanceMeters as meters, strokeLabel } from './components/sportLabel';
 import { featuredMark, marksByStroke, type MarkRow } from './marks';
 import type { MarkFeatured, MarkSectionView } from './screens/MarksScreen';
 import './i18n';
 
 const day = (iso: string) => iso.slice(0, 10);
-const meters = (code: string) => distances.find((d) => d.code === code)?.meters ?? code;
 
 // A mark set in the last 14 days, counting today, is new.
 const newForDays = 14;

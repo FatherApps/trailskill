@@ -8,6 +8,7 @@ import { spokenTime } from '../../../core/time';
 import { createInMemorySchoolNameRepository, createInMemorySchoolStructureRepository } from '../../school-console';
 import {
   AthleteProfileContainer,
+  athleteColor,
   athleteDisplay,
   createInMemoryAthleteSchoolRepository,
   createInMemoryHistoryRepository,
@@ -15,6 +16,7 @@ import {
   createInMemorySchoolAthleteRepository,
 } from '..';
 import type { HistoryMeasurement, HistoryRepository } from '..';
+import { forgetProfileLines } from '../profileLine';
 
 jest.mock('../../../core/sync', () => ({
   db: {},
@@ -211,18 +213,129 @@ describe('athlete profile container', () => {
       expect(screen.getByTestId('state-view')).toBeOnTheScreen();
     });
 
-    it('keeps the neutral sky band when the athlete is not on the device yet', async () => {
+    it('shows no name when the athlete is not on the device yet and the route has none', async () => {
       await show({ athletes: never });
 
       expect(screen.queryByRole('header')).toBeNull();
-      expect(bandOf(screen.getByRole('button', { name: 'Volver' }))).toBe(colors.light.sky);
     });
 
     it('ignores a preview that belongs to another athlete', async () => {
       await show({ athletes: never, athlete: { ...athlete, id: 'other' } });
 
       expect(screen.queryByRole('header')).toBeNull();
+    });
+  });
+
+  describe('band and name from the first frame (issue 851)', () => {
+    const never = { ...athletes, listByIds: () => new Promise<never>(() => {}) };
+    const bandOf = (button: ReturnType<typeof screen.getByRole>) => {
+      let node = button.parent;
+      while (node && StyleSheet.flatten(node.props.style)?.backgroundColor === undefined) node = node.parent;
+      return StyleSheet.flatten(node!.props.style).backgroundColor;
+    };
+
+    it("paints the band with the id's colour in the first render, with no read resolved", async () => {
+      await show({ athletes: never });
+
+      expect(bandOf(screen.getByRole('button', { name: 'Volver' }))).toBe(colors.light[athleteColor('a1')]);
+    });
+
+    it('gives the same colour as the athlete display for the same id', () => {
+      expect(athleteColor(athlete.id)).toBe(athleteDisplay(athlete).color);
+    });
+
+    it('shows the name that came in the route in the first render', async () => {
+      await show({ athletes: never, name: 'Ana Marin' });
+
+      expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+    });
+
+    it('fills the name from the local read when the route has none', async () => {
+      await show();
+
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+    });
+
+    it('shows the name without edge spaces in loading', async () => {
+      await show({ athletes: never, name: '  Ana Marin ' });
+
+      expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+    });
+
+    it('shows the same name, without edge spaces, in the ready profile', async () => {
+      const spaced = { id: 'a1', firstName: ' Ana', lastName: 'Marin ' };
+      await show({ athletes: createInMemorySchoolAthleteRepository({ athletes: [spaced], athleteSchools: [], athleteGroups: [] }) });
+
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+    });
+
+    it('goes to sky with no name when there turns out to be no access, even with a name in the route (issue 452)', async () => {
+      await show({ athleteId: 'someone-else', name: 'Ana Marin' });
+
+      expect(await screen.findByText('Esta información es privada')).toBeOnTheScreen();
+      expect(screen.queryByRole('header', { name: 'Ana Marin' })).toBeNull();
       expect(bandOf(screen.getByRole('button', { name: 'Volver' }))).toBe(colors.light.sky);
+    });
+
+    it('takes the title from one source in loading: the name, with the header giving only the colour', async () => {
+      await show({ athletes: never, name: 'Ana Marin', athlete });
+
+      expect(screen.getAllByRole('header')).toHaveLength(1);
+      expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+    });
+  });
+
+  describe('category and school line on reopening (issue 851)', () => {
+    const never = { ...athletes, listByIds: () => new Promise<never>(() => {}) };
+    const blankLines = () => screen.container.queryAll((node) => node.type === 'Text' && node.props.children === '\u00A0');
+    beforeEach(() => forgetProfileLines());
+
+    it('has the line from the first frame when the athlete was already read on the device', async () => {
+      await show();
+      expect(await screen.findByText('Juvenil A · Club Tiburones')).toBeOnTheScreen();
+      await screen.unmount();
+
+      await show({ athletes: never });
+
+      expect(screen.getByText('Juvenil A · Club Tiburones')).toBeOnTheScreen();
+    });
+
+    it('reserves no line on reopening an athlete who has neither category nor school', async () => {
+      await show({ schoolLinks: createInMemoryAthleteSchoolRepository([]) });
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      await screen.unmount();
+
+      await show({ athletes: never, schoolLinks: createInMemoryAthleteSchoolRepository([]) });
+
+      expect(blankLines()).toHaveLength(0);
+    });
+
+    it('keeps the height of the line on the first opening, when nothing is known about the athlete', async () => {
+      await show({ athletes: never });
+
+      expect(blankLines()).toHaveLength(1);
+    });
+  });
+
+  describe('sync tag (issue 851)', () => {
+    const synced = new Date('2026-10-18T10:00:00.000Z');
+
+    it('says "Al día" when connected with nothing pending', async () => {
+      await show({ lastSyncedAt: synced, online: true, pendingChanges: 0 });
+
+      expect(await screen.findByLabelText('Al día')).toBeOnTheScreen();
+      expect(screen.queryByLabelText(/Actualizado/)).toBeNull();
+    });
+
+    it.each([
+      ['with changes pending', { online: true, pendingChanges: 2 }],
+      ['without a connection', { online: false, pendingChanges: 0 }],
+      ['when the route does not know the pending changes', { online: true }],
+    ])('keeps the age of the last sync %s', async (_name, props) => {
+      await show({ lastSyncedAt: synced, ...props });
+
+      expect(await screen.findByLabelText(/Actualizado/)).toBeOnTheScreen();
+      expect(screen.queryByLabelText('Al día')).toBeNull();
     });
   });
 
@@ -524,10 +637,10 @@ describe('athlete profile container', () => {
       await show({ history, importedResults: repo([imported({ hundredths: 2000 })]) });
       await screen.findByLabelText(/Importado/);
 
-      fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+      fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 metros' }));
 
       await waitFor(() => expect(screen.queryAllByText('34,82', { includeHiddenElements: true })).toHaveLength(0));
-      expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Espalda 50 metros' })).toBeChecked();
     });
 
     it('shows the profile without them when the repository is not given', async () => {
@@ -575,11 +688,11 @@ describe('athlete profile container', () => {
     it('offers only the events with results in the pool, not every stroke and distance', async () => {
       await withRaces();
 
-      expect(await screen.findByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
-      expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).not.toBeChecked();
-      expect(screen.queryByRole('radio', { name: 'Libre 100 m' })).toBeNull();
-      expect(screen.queryByRole('radio', { name: 'Mariposa 50 m' })).toBeNull();
-      expect(screen.queryByRole('radio', { name: 'Pecho 100 m' })).toBeNull();
+      expect(await screen.findByRole('radio', { name: 'Libre 50 metros' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Espalda 50 metros' })).not.toBeChecked();
+      expect(screen.queryByRole('radio', { name: 'Libre 100 metros' })).toBeNull();
+      expect(screen.queryByRole('radio', { name: 'Mariposa 50 metros' })).toBeNull();
+      expect(screen.queryByRole('radio', { name: 'Pecho 100 metros' })).toBeNull();
     });
 
     it('offers a pool control only for the pools that have results, as a secondary row', async () => {
@@ -593,7 +706,7 @@ describe('athlete profile container', () => {
     it('has no pool control when only one pool has results', async () => {
       await show();
 
-      expect(await screen.findByRole('radio', { name: 'Libre 50 m' })).toBeOnTheScreen();
+      expect(await screen.findByRole('radio', { name: 'Libre 50 metros' })).toBeOnTheScreen();
       expect(screen.queryByLabelText('Piscina')).toBeNull();
     });
 
@@ -611,18 +724,18 @@ describe('athlete profile container', () => {
         importedResults: { listByAthlete: jest.fn().mockResolvedValue([imported({ stroke: 'FL', distance: '100m' })]) },
       });
 
-      expect(await screen.findByRole('radio', { name: 'Mariposa 100 m' })).toBeChecked();
+      expect(await screen.findByRole('radio', { name: 'Mariposa 100 metros' })).toBeChecked();
     });
 
     it('keeps the header, the chips and the structure when the event changes, and shows the new event', async () => {
       await withRaces({ history: stalledByEvent() });
       expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
 
-      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 metros' }));
 
       expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
-      expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
-      expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Espalda 50 metros' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Libre 50 metros' })).toBeOnTheScreen();
       expect(screen.getByText('Marca personal · Espalda 50 m (piscina de 25 m)', hidden)).toBeOnTheScreen();
       expect(screen.getAllByText('41,00', hidden).length).toBeGreaterThan(0);
       expect(screen.queryByText('Cargando')).toBeNull();
@@ -636,8 +749,8 @@ describe('athlete profile container', () => {
 
       expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
       expect(screen.getByRole('radio', { name: 'Piscina de 50 m' })).toBeChecked();
-      expect(screen.getByRole('radio', { name: 'Pecho 100 m' })).toBeChecked();
-      expect(screen.queryByRole('radio', { name: 'Libre 50 m' })).toBeNull();
+      expect(screen.getByRole('radio', { name: 'Pecho 100 metros' })).toBeChecked();
+      expect(screen.queryByRole('radio', { name: 'Libre 50 metros' })).toBeNull();
     });
 
     it('keeps the profile on screen while another school\'s results of the new event are still on their way', async () => {
@@ -646,10 +759,10 @@ describe('athlete profile container', () => {
       await withRaces({ otherSchoolResults, online: true });
       expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
 
-      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 metros' }));
 
       expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
-      expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Espalda 50 metros' })).toBeChecked();
       expect(screen.getAllByText('41,00', hidden).length).toBeGreaterThan(0);
     });
 
@@ -661,13 +774,13 @@ describe('athlete profile container', () => {
 
       expect(await screen.findByLabelText(/Libre 50 m, 18 de octubre de 2026, Competencia/)).toBeOnTheScreen();
       expect(screen.getByLabelText(/Libre 50 m, 1 de agosto de 2026, Competencia, Federación Demo/)).toBeOnTheScreen();
-      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 metros' }));
       expect(screen.getByLabelText(/Espalda 50 m, 2 de octubre de 2026, Entrenamiento/)).toBeOnTheScreen();
     });
 
     it('gives each row its own icon: competition, training and import', async () => {
       await withRaces({ importedResults: { listByAthlete: jest.fn().mockResolvedValue([imported()]) } });
-      await screen.findByRole('radio', { name: 'Libre 50 m' });
+      await screen.findByRole('radio', { name: 'Libre 50 metros' });
 
       expect(screen.getAllByTestId('history-dot', hidden)).toHaveLength(3);
     });
@@ -715,7 +828,7 @@ describe('athlete profile container', () => {
       await show({ history });
       expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
 
-      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 m' }));
+      await fireEvent.press(screen.getByRole('radio', { name: 'Espalda 50 metros' }));
 
       expect(byAthlete).toHaveBeenCalledTimes(1);
       expect(byEvent).not.toHaveBeenCalled();
@@ -746,7 +859,7 @@ describe('athlete profile container', () => {
         const rows: ReturnType<typeof imported>[] = [];
         const importedResults = { listByAthlete: jest.fn().mockImplementation(async () => rows) };
         const view = await render(tree({ importedResults }));
-        await fireEvent.press(await screen.findByRole('radio', { name: 'Espalda 50 m' }));
+        await fireEvent.press(await screen.findByRole('radio', { name: 'Espalda 50 metros' }));
         expect(screen.queryByLabelText(/Importado/)).toBeNull();
 
         // An import finished while the profile stayed mounted underneath the import screen.
@@ -756,7 +869,7 @@ describe('athlete profile container', () => {
         expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
         expect(screen.queryByText('Cargando')).toBeNull();
         expect(await screen.findByLabelText(/Espalda 50 m, 20 de octubre de 2026, Competencia/)).toBeOnTheScreen();
-        expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).toBeChecked();
+        expect(screen.getByRole('radio', { name: 'Espalda 50 metros' })).toBeChecked();
         expect(importedResults.listByAthlete).toHaveBeenCalledTimes(2);
       });
 
@@ -769,12 +882,12 @@ describe('athlete profile container', () => {
         };
         const view = await render(tree({ history }));
         expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
-        expect(screen.queryByRole('radio', { name: 'Mariposa 50 m' })).toBeNull();
+        expect(screen.queryByRole('radio', { name: 'Mariposa 50 metros' })).toBeNull();
 
         current = [...races, measurement({ id: 'm10', stroke: 'FL', hundredths: 3300, capturedAt: '2026-10-20T10:00:00.000Z' })];
         await view.rerender(tree({ history, lastSyncedAt: newer }));
 
-        expect(await screen.findByRole('radio', { name: 'Mariposa 50 m' })).toBeOnTheScreen();
+        expect(await screen.findByRole('radio', { name: 'Mariposa 50 metros' })).toBeOnTheScreen();
         expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
       });
 
@@ -792,7 +905,7 @@ describe('athlete profile container', () => {
 
         expect(screen.getByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
         expect(screen.queryByText('No pudimos cargar el perfil')).toBeNull();
-        expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
+        expect(screen.getByRole('radio', { name: 'Libre 50 metros' })).toBeChecked();
       });
 
       describe('other schools while the sync reads again', () => {
@@ -831,7 +944,7 @@ describe('athlete profile container', () => {
         it('asks again when the person chooses another event', async () => {
           const { results, listByEvent } = otherSchool();
           await render(tree({ otherSchoolResults: results, online: true }));
-          await fireEvent.press(await screen.findByRole('radio', { name: 'Espalda 50 m' }));
+          await fireEvent.press(await screen.findByRole('radio', { name: 'Espalda 50 metros' }));
 
           await waitFor(() => expect(listByEvent).toHaveBeenCalledTimes(2));
           expect(listByEvent).toHaveBeenLastCalledWith('a1', { stroke: 'BK', distance: '50m', pool: 'SCM' });
@@ -846,7 +959,7 @@ describe('athlete profile container', () => {
           };
           const props = { otherSchoolResults: results, online: true, history };
           const view = await render(tree(props));
-          expect(await screen.findByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
+          expect(await screen.findByRole('radio', { name: 'Libre 50 metros' })).toBeChecked();
           expect(listByEvent).toHaveBeenCalledTimes(1);
 
           current = [...races, measurement({ id: 'm10', stroke: 'FL', hundredths: 3300, capturedAt: '2026-10-20T10:00:00.000Z' })];
@@ -883,7 +996,7 @@ describe('athlete profile container', () => {
       await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
 
       expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
-      expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Libre 50 metros' })).toBeChecked();
     });
   });
 });
