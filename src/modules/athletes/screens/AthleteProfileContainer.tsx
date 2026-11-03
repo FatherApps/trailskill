@@ -38,7 +38,7 @@ export type AthleteProfileContainerProps = {
   otherSchoolResults?: OtherSchoolResultsRepository;
   // Whether the device is connected. Without a connection no result of another school is asked for or shown.
   online?: boolean;
-  // Records not yet sent from this device. Connected with none, the sync tag says "Al día"; without the count it keeps the age of the last sync.
+  // Records not yet sent from this device. Connected with none (and a sync finished), the sync tag says "Al día"; without the count it keeps the age of the last sync.
   pendingChanges?: number;
   // Official results imported from the source, read from the device. They show in the history with their origin and count as races in the personal best (issue 204).
   importedResults?: { listByAthlete(athleteId: string): Promise<ImportedHistoryResult[]> };
@@ -323,7 +323,7 @@ export function AthleteProfileContainer({
       schoolId: school?.id ?? '',
       onSchoolChange: setChosenSchoolId,
       authorization: authorized ? ('valid' as const) : ('pending' as const),
-      upToDate: online && pendingChanges === 0,
+      upToDate: online && pendingChanges === 0 && lastSyncedAt !== null,
       updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.round((openedAt - lastSyncedAt.getTime()) / 60000)) : null,
     },
     // Only the events and pools with results; none at all while the athlete has none.

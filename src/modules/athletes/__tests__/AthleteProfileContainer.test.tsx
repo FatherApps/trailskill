@@ -327,6 +327,13 @@ describe('athlete profile container', () => {
       expect(screen.queryByLabelText(/Actualizado/)).toBeNull();
     });
 
+    it('says nothing about the sync while connected but before the first sync has finished', async () => {
+      await show({ lastSyncedAt: null, online: true, pendingChanges: 0 });
+
+      expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+      expect(screen.queryByLabelText('Al día')).toBeNull();
+    });
+
     it.each([
       ['with changes pending', { online: true, pendingChanges: 2 }],
       ['without a connection', { online: false, pendingChanges: 0 }],
