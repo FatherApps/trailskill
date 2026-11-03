@@ -228,7 +228,8 @@ describe('co-fecna adapter on synthetic pages', () => {
         const error = await createCoFecna(fetchImpl).fetchResults(NUMBER).catch((caught: unknown) => caught);
         expect(error).toBeInstanceOf(ProviderUnavailableError);
         const seen = JSON.stringify([String(error), (error as Error).message, (error as Error).stack, (error as Error).cause ?? null, spies.map((spy) => spy.mock.calls)]);
-        expect(seen).not.toMatch(/987|654|321/);
+        // The whole value, formatted or normalized: short digit runs would also match line numbers in the stack.
+        expect(seen).not.toMatch(/987[.\s-]?654[.\s-]?321/);
 
         const matching = fakeFetch({ onPost: (nadador) => page(cardOf(nadador), '') });
         const output = JSON.stringify(await createCoFecna(matching.fetchImpl).findCandidates({ ...query, identityNumber: NUMBER }));
