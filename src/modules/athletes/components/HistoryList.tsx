@@ -2,12 +2,12 @@ import type { ReactNode } from 'react';
 import { FlatList, PixelRatio, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
-import { distances, strokes, type DistanceCode, type StrokeCode } from '../../../core/sport';
+import { distances, isStroke, strokes, type DistanceCode, type StrokeCode } from '../../../core/sport';
 import type { RecordSyncState } from '../../../core/sync';
 import { space as spaceTokens, typography as baseTypography, useTheme, type ColorToken } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
 import { spokenTime } from '../../../core/time';
-import { Icon, SyncStatus, TimeValue, type IconName } from '../../../core/ui';
+import { Icon, StrokeIcon, SyncStatus, TimeValue, type IconName } from '../../../core/ui';
 import '../i18n';
 import { formatDate } from './formatDate';
 
@@ -195,6 +195,8 @@ function HistoryRow({ result }: { result: HistoryResult }) {
         >
           <Icon name={dot.icon} size="icon-sm" color={dot.ink} />
         </View>
+        {/* Before the title; decorative because the row label already says the stroke. A stroke without a pictogram gets no icon. */}
+        {isStroke(result.stroke) && <StrokeIcon stroke={result.stroke} size="sm" decorative />}
         <View style={[styles.text, { gap: space[1] }]}>
           <Text style={[typography['body-strong'], { color: colors[historyListColors.title] }]}>{title}</Text>
           <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{meta}</Text>

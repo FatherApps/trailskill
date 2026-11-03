@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react-native';
 import { PixelRatio, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, contrastRatio, size, space, ThemeProvider, type ThemeName } from '../../../core/theme';
+import { StrokeIcon } from '../../../core/ui';
 import { historyFixture, historyResults } from '../__fixtures__/history';
 import { marginOfCard, rowLabel } from '../__fixtures__/historyRows';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
@@ -336,6 +337,75 @@ describe('HistoryList', () => {
       expect(flat(partsOf(screen.getByLabelText(raceRow), raceTitle).trailing.props.style).alignItems).toBe(
         'flex-start',
       );
+    });
+  });
+
+  describe('stroke icon', () => {
+    type Node = ReturnType<typeof screen.getByTestId>;
+    // The icon's circle: the parent of the small (24 dp) glyph, so it is told apart from the origin dot's icon.
+    const iconBoxes = (root: Node) =>
+      root.queryAll((node) => node.type === 'RNSVGSvgView' && node.props.width === 24).map((node) => node.parent!);
+    // What the glyph draws, so two icons of the same stroke match and two strokes differ.
+    const shape = (box: Node) =>
+      box
+        .queryAll((node) => typeof node.type === 'string')
+        .flatMap((node) => [node.props.d, node.props.cx, node.props.cy])
+        .filter((value) => value !== undefined)
+        .join('|');
+    const headOf = () => screen.getAllByTestId('history-head', hidden)[0]!;
+    const shapeOf = async (stroke: HistoryResult['stroke']) => {
+      await render(<StrokeIcon stroke={stroke} size="sm" />);
+      const reference = shape(screen.getByRole('image'));
+      await screen.unmount();
+      return reference;
+    };
+
+    it.each([
+      ['race-pb', 'FR'],
+      ['completed', 'BK'],
+      ['missing-time', 'BR'],
+      ['on-device', 'FL'],
+      ['not-sent', 'IM'],
+    ] as const)('shows the %s row with the %s stroke icon, small', async (id, stroke) => {
+      const reference = await shapeOf(stroke);
+      await render(<HistoryList results={[byId(id)]} />);
+
+      const boxes = iconBoxes(headOf());
+      expect(boxes).toHaveLength(1);
+      expect(shape(boxes[0]!)).toBe(reference);
+    });
+
+    it.each([1, 2])('puts the icon in the head row between the dot and the title, at font scale %s', async (fontScale) => {
+      await render(
+        <ThemeProvider fontScale={fontScale}>
+          <HistoryList results={[byId('import')]} />
+        </ThemeProvider>,
+      );
+
+      const head = headOf();
+      const [box] = iconBoxes(head);
+      const order = head.children as Node[];
+      // The head is a row: dot, icon, then the text block, which shrinks (minWidth 0) instead of running under the icon.
+      expect(StyleSheet.flatten(head.props.style).flexDirection).toBe('row');
+      expect(box!.parent).toBe(head);
+      expect(order.indexOf(within(head).getByTestId('history-dot', hidden))).toBeLessThan(order.indexOf(box!));
+      expect(order.indexOf(box!)).toBeLessThan(order.indexOf(within(head).getByText(importTitle, hidden).parent!));
+    });
+
+    it('renders no icon for a stroke without a pictogram, and does not cast to get one', async () => {
+      await render(<HistoryList results={[{ ...byId('race-pb'), stroke: 'KB' as never }]} />);
+
+      expect(iconBoxes(headOf())).toHaveLength(0);
+    });
+
+    it('marks the icon decorative: the row label says the stroke once', async () => {
+      await render(<HistoryList results={[byId('race-pb')]} />);
+
+      const [box] = iconBoxes(headOf());
+      expect(box!.props.accessible).toBe(false);
+      expect(box!.props.importantForAccessibility).toBe('no-hide-descendants');
+      expect(screen.getByLabelText(raceRow).props.accessibilityLabel.match(/Libre/g)).toHaveLength(1);
+      expect(screen.queryByRole('image')).toBeNull();
     });
   });
 
