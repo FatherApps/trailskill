@@ -278,6 +278,26 @@ describe('parseRows', () => {
     expect(backward).toHaveLength(2);
   });
 
+  it('re-importing the same rows in reverse order gives the same key for the same pool', () => {
+    const rows = [historyRow({ piscina: 'LC', tiempo: '00:01:05.30' }), historyRow({ piscina: 'SC', tiempo: '00:01:05.30' }), historyRow({ piscina: 'SC' })];
+    const byKey = (list: Record<string, unknown>[]) => Object.fromEntries(parseRows(2, body(...list)).map((result) => [result.sourceResultKey, result.pool]));
+    expect(byKey([...rows].reverse())).toEqual(byKey(rows));
+    expect(Object.keys(byKey(rows))).toHaveLength(3);
+  });
+
+  it('treats an empty or null time, and an empty, null or blank tournament, each as one value in the key', () => {
+    const noTime = parseRows(2, body(historyRow({ tiempo: '' }), historyRow({ tiempo: null }), historyRow({ tiempo: '  ' })));
+    expect(noTime.map((result) => [result.sourceResultKey, result.hundredths])).toEqual([['2|LCM|2026-03-14|Synthetic Open|', null]]);
+    const noTournament = parseRows(2, body(historyRow({ torneo: '' }), historyRow({ torneo: null }), historyRow({ torneo: '   ' })));
+    expect(noTournament.map((result) => [result.sourceResultKey, result.competition])).toEqual([['2|LCM|2026-03-14||2845', null]]);
+    const otherPool = parseRows(2, body(historyRow({ tiempo: '' }), historyRow({ tiempo: null, piscina: 'SC' })));
+    expect(otherPool.map((result) => result.sourceResultKey)).toEqual(['2|LCM|2026-03-14|Synthetic Open|', '2|SCM|2026-03-14|Synthetic Open|']);
+  });
+
+  it('keeps an HTML entity in the tournament as it arrives, without decoding it', () => {
+    expect(parseRows(2, body(historyRow({ torneo: 'Copa &amp; Sint&eacute;tica' })))[0].sourceResultKey).toBe('2|LCM|2026-03-14|Copa &amp; Sint&eacute;tica|2845');
+  });
+
   it('gives a cut tournament with ? the same key every time, using the text as it arrives', () => {
     const torneo = 'Campeonato Sint?tico Departamental de Na';
     const first = parseRows(2, body(historyRow({ torneo })))[0].sourceResultKey;
