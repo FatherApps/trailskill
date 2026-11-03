@@ -74,8 +74,9 @@ function createFakeGate(authorized = true) {
     if (releaseFailure) throw releaseFailure;
     const previous = last.get(request.athleteId);
     if (!previous || previous.token !== request.claimedAt) return false;
-    // Nobody can share a released claim; the next normal claim is allowed `retryAfterMs` after it.
-    last.set(request.athleteId, { ...previous, at: previous.at - request.intervalMs + request.retryAfterMs, by: '' });
+    // Nobody can share a released claim; the wait runs from the release (the failure), as in the database: the next normal claim
+    // is allowed `retryAfterMs` after it, however long the failed query took.
+    last.set(request.athleteId, { ...previous, at: now - request.intervalMs + request.retryAfterMs, by: '' });
     return true;
   };
   return {
@@ -780,6 +781,24 @@ describe('a source query that fails', () => {
     expect(s.fakeGate.releases).toEqual([]);
     s.fakeGate.advance(RETRY_AFTER_FAILURE_MS);
     expect(await (action === 'refresh' ? refresh(s) : search(s))).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
+  });
+
+  // Issue #907: a cleaner that throws is a failure on our side, not an answer from the source.
+  const unreadable = () => {
+    throw new Error('unreadable');
+  };
+  it.each<[string, 'refresh' | 'search', Record<string, unknown[]>]>([
+    ['a list that throws while it is cleaned', 'refresh', { results: new Proxy([], { get: (_target, key) => (key === 'then' ? undefined : unreadable()) }) as unknown as unknown[] }],
+    ['a result that throws while it is cleaned', 'refresh', { results: [Object.defineProperty({}, 'sourceResultKey', { get: unreadable, enumerable: true })] }],
+    ['a candidate that throws while it is cleaned', 'search', { candidates: [Object.defineProperty({}, 'sourceAthleteKey', { get: unreadable, enumerable: true })] }],
+  ])('is unavailable and gives the claim back for %s', async (_name, action, providerOptions) => {
+    const s = setup({ providerOptions });
+    const failedAt = s.fakeGate.now();
+    const run = () => (action === 'refresh' ? refresh(s) : search(s));
+    expect(await run()).toEqual(unavailable);
+    expect(s.fakeGate.releases).toHaveLength(1);
+    s.fakeGate.advance(RETRY_AFTER_FAILURE_MS - 1_000);
+    expect(await run()).toEqual(rateLimitedAt(failedAt + RETRY_AFTER_FAILURE_MS));
   });
 
   it('does not give the claim back when there is no number: the source was never asked', async () => {
