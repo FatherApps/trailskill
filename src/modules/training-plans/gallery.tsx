@@ -229,7 +229,7 @@ export const galleryEntries: GalleryEntry[] = [
       phases: () => (
         <Stack>
           {phases.map((phase) => (
-            <BlockCard key={phase} block={{ ...blocks[2], id: phase, phase }} vocabulary={vocabulary} />
+            <BlockCard key={phase} block={{ ...blocks[3], id: phase, phase }} vocabulary={vocabulary} />
           ))}
         </Stack>
       ),
@@ -243,8 +243,15 @@ export const galleryEntries: GalleryEntry[] = [
       rows: () => (
         <Stack>
           {phases.map((phase) => (
-            <BlockCard key={phase} variant="row" block={{ ...blocks[2], id: phase, phase }} vocabulary={vocabulary} />
+            <BlockCard key={phase} variant="row" block={{ ...blocks[3], id: phase, phase }} vocabulary={vocabulary} />
           ))}
+        </Stack>
+      ),
+      // A drill (free text) has no pictogram, so it goes without icon.
+      drill: () => (
+        <Stack>
+          <BlockCard block={blocks[2]} vocabulary={vocabulary} />
+          <BlockCard variant="row" block={blocks[2]} vocabulary={vocabulary} />
         </Stack>
       ),
     },
