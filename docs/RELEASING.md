@@ -113,6 +113,8 @@ Nothing here puts the app in front of the public: Internal testing is limited to
 
 The app reads three public values at build time. They never go in the repository: `eas.json` has no `EXPO_PUBLIC_*` value, and the `production` build profile reads the EAS environment named `production`.
 
+**Prerequisite:** complete the secret rotation of #914 first, so that you load the new keys (including the anon key) directly.
+
 Create each variable in that environment. Leave out `--value`, so the CLI asks for it and the value stays out of your shell history and of this repository (if your `eas-cli` rejects the missing value, pass it with `--value` from your own terminal only):
 
 ```bash
