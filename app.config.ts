@@ -1,10 +1,13 @@
 import type { ExpoConfig } from 'expo/config';
 
+// APP_VARIANT=preview builds the test APK (docs/RELEASING.md, Test builds): its own package, name and scheme, so it installs next to the development client without taking over its links.
+const preview = process.env.APP_VARIANT === 'preview';
+
 const config: ExpoConfig = {
-  name: 'TrailSkill',
+  name: preview ? 'TrailSkill (prueba)' : 'TrailSkill',
   slug: 'trailskill',
   // Opens school invitation links: trailskill://invite/<token>.
-  scheme: 'trailskill',
+  scheme: preview ? 'trailskill-preview' : 'trailskill',
   version: '1.0.0',
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',
@@ -15,7 +18,7 @@ const config: ExpoConfig = {
       backgroundColor: '#141414',
     },
     // Provisional until the maintainer confirms it, before the first Play upload.
-    package: 'com.fatherapps.trailskill',
+    package: preview ? 'com.fatherapps.trailskill.preview' : 'com.fatherapps.trailskill',
   },
   plugins: [
     'expo-router',

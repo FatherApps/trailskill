@@ -92,6 +92,14 @@ Complete before the first closed-track release and keep up to date:
 
 An installable APK for walking through the app against the test backend, without Google Play or EAS. It is built locally, signed with the **debug key** that Expo's generated Android project ships, and never uploaded anywhere. It is not a release: never publish it, and never sign a store build this way.
 
+**Preview variant.** Build with `APP_VARIANT=preview` and `app.config.ts` gives the APK its own identity, so it installs next to the development client (and the Play build) instead of replacing it. Without `APP_VARIANT` the configuration is unchanged.
+
+| | Usual | `APP_VARIANT=preview` |
+| --- | --- | --- |
+| Package | `com.fatherapps.trailskill` | `com.fatherapps.trailskill.preview` |
+| Name | TrailSkill | TrailSkill (prueba) |
+| Scheme | `trailskill` | `trailskill-preview` |
+
 Requirements: JDK, the Android SDK (`ANDROID_HOME` set), and `adb` with an emulator or device attached. No EAS account, release keystore, or Play credentials are involved.
 
 1. Install dependencies: `npm ci`.
@@ -101,7 +109,10 @@ Requirements: JDK, the Android SDK (`ANDROID_HOME` set), and `adb` with an emula
    export EXPO_PUBLIC_SUPABASE_URL=<test backend URL>
    export EXPO_PUBLIC_SUPABASE_ANON_KEY=<test backend anon key>
    export EXPO_PUBLIC_POWERSYNC_URL=<test PowerSync URL>
+   export APP_VARIANT=preview
    ```
+
+   If the maintainer keeps the three `EXPO_PUBLIC_*` values in a file outside the repository, load them with `set -a; . <file>; set +a`. Check that each is set and not empty without printing it, for example `test -n "$EXPO_PUBLIC_SUPABASE_URL"`. Never print, copy, or commit that file.
 
 3. Generate the native project (`android/` is git-ignored) and build the release variant. Add `-PreactNativeArchitectures=<abi>` to build one ABI and finish faster; use the one that `adb shell getprop ro.product.cpu.abi` reports (`arm64-v8a` on phones and on Apple-silicon emulators, `x86_64` on Intel emulators):
 
@@ -115,13 +126,15 @@ Requirements: JDK, the Android SDK (`ANDROID_HOME` set), and `adb` with an emula
 4. Install and open it without Metro:
 
    ```bash
-   adb -s <device> install -r android/app/build/outputs/apk/release/app-release.apk
-   adb -s <device> shell monkey -p com.fatherapps.trailskill -c android.intent.category.LAUNCHER 1
+   adb -s <device> install android/app/build/outputs/apk/release/app-release.apk
+   adb -s <device> shell monkey -p com.fatherapps.trailskill.preview -c android.intent.category.LAUNCHER 1
    ```
 
-   The package is the same as the development client's and both use the debug key, so `-r` replaces the development client. Reinstall it with `npx expo run:android` or an EAS `development` build when needed.
+   The preview package differs from the development client's, so a plain `install` leaves the client untouched: do not use `-r` and do not uninstall anything. Only if you build without `APP_VARIANT=preview` does the APK share the client's package and debug key, and `-r` then replaces the client (reinstall it with `npx expo run:android` or an EAS `development` build).
 
 5. Smoke test: the app opens with no Metro server running, signs in with a demo account, and shows synced data.
+
+Sign-in by one-time code works in the preview variant as is. To sign in with Google or another OAuth provider, the preview variant needs `trailskill-preview://auth-callback` in `ADDITIONAL_REDIRECT_URLS` of the backend it points to (production today), next to `trailskill://auth-callback`. Without it, GoTrue falls back to `SITE_URL` and the browser ends on that page instead of returning to the app. This is a maintainer step on the server, not a change in this repository.
 
 A build without the three variables still opens, but sign-in and sync report a missing configuration. Rebuild after changing any `EXPO_PUBLIC_*` value, because they are inlined at build time.
 
