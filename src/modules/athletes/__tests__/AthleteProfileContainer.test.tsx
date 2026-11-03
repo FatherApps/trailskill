@@ -23,6 +23,10 @@ jest.mock('../../../core/sync', () => ({
   useRecordSyncStates: () => new Map(),
 }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
+let mockUserId: string | undefined = 'user-1';
+jest.mock('../../../core/session', () => ({
+  useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
+}));
 
 // Synthetic data only.
 const athlete = { id: 'a1', firstName: 'Ana', lastName: 'Marin' };
@@ -288,7 +292,10 @@ describe('athlete profile container', () => {
   describe('category and school line on reopening (issue 851)', () => {
     const never = { ...athletes, listByIds: () => new Promise<never>(() => {}) };
     const blankLines = () => screen.container.queryAll((node) => node.type === 'Text' && node.props.children === '\u00A0');
-    beforeEach(() => forgetProfileLines());
+    beforeEach(() => {
+      forgetProfileLines();
+      mockUserId = 'user-1';
+    });
 
     it('has the line from the first frame when the athlete was already read on the device', async () => {
       await show();
@@ -298,6 +305,30 @@ describe('athlete profile container', () => {
       await show({ athletes: never });
 
       expect(screen.getByText('Juvenil A · Club Tiburones')).toBeOnTheScreen();
+    });
+
+    it('does not show the line another account read for the same athlete id (shared phone)', async () => {
+      await show();
+      expect(await screen.findByText('Juvenil A · Club Tiburones')).toBeOnTheScreen();
+      await screen.unmount();
+
+      mockUserId = 'user-2';
+      await show({ athletes: never });
+
+      expect(screen.queryByText('Juvenil A · Club Tiburones')).toBeNull();
+      // Nothing is known for this account yet: only the height of the line is kept.
+      expect(blankLines()).toHaveLength(1);
+    });
+
+    it('does not show a remembered line without a signed-in user', async () => {
+      await show();
+      expect(await screen.findByText('Juvenil A · Club Tiburones')).toBeOnTheScreen();
+      await screen.unmount();
+
+      mockUserId = undefined;
+      await show({ athletes: never });
+
+      expect(screen.queryByText('Juvenil A · Club Tiburones')).toBeNull();
     });
 
     it('reserves no line on reopening an athlete who has neither category nor school', async () => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 
 import type { AuthorizationStatusRepository } from '../../accounts';
 import { trimName } from '../../../core/i18n';
+import { useSession } from '../../../core/session';
 import { distances, pools, strokes } from '../../../core/sport';
 import { useRecordSyncStates, type RecordSyncState } from '../../../core/sync';
 import { importedAchievement, latestAchievement, type EventAchievement, type ImportedHistoryResult } from '../achievements';
@@ -288,9 +289,10 @@ export function AthleteProfileContainer({
   // device's preview of the athlete, or the one just read. One title source (`name`); `denied` and `error` stay neutral (issue 452).
   // The line the band shows the next time this profile opens: the default school's, which is the one a fresh open shows.
   const readyLine = loaded.kind === 'ready' ? profileLine(loaded.schools[0]?.category ?? '', loaded.schools[0]?.name) : undefined;
+  const userId = useSession().session?.user.id;
   useEffect(() => {
-    if (readyLine !== undefined) rememberProfileLine(athleteId, readyLine);
-  }, [athleteId, readyLine]);
+    if (userId && readyLine !== undefined) rememberProfileLine(userId, athleteId, readyLine);
+  }, [userId, athleteId, readyLine]);
   const person = loaded.kind === 'ready' ? loaded.athlete : athlete?.id === athleteId ? athlete : undefined;
   const personName = person ? `${person.firstName} ${person.lastName}` : '';
   const loadingScreen = (
@@ -298,7 +300,7 @@ export function AthleteProfileContainer({
       name={trimName(loaded.kind === 'ready' ? personName : (name ?? personName))}
       view={{
         kind: 'loading',
-        header: { color: athleteColor(athleteId), ...(loaded.kind === 'ready' ? { subtitle: readyLine } : subtitleOf(rememberedProfileLine(athleteId))) },
+        header: { color: athleteColor(athleteId), ...(loaded.kind === 'ready' ? { subtitle: readyLine } : subtitleOf(userId ? rememberedProfileLine(userId, athleteId) : undefined)) },
       }}
       onBack={onBack}
     />
