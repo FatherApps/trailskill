@@ -54,7 +54,7 @@ function parseTime(value: string | undefined): number | null {
 
 type EventInfo = { swumOn: string; stroke: StrokeCode; distance: DistanceCode } | 'skipped';
 
-// Individual events whose stroke and distance are in the catalogs; relays and anything else are skipped, never normalized.
+// Full individual swims whose stroke and distance are in the catalogs; relays, any non-empty `technique` and anything else are skipped, never normalized.
 function readEvents(meet: XmlNode): Map<string, EventInfo> {
   const events = new Map<string, EventInfo>();
   for (const session of kids(only(meet, 'SESSIONS'), 'SESSION')) {
@@ -66,7 +66,8 @@ function readEvents(meet: XmlNode): Map<string, EventInfo> {
       const stroke = style.stroke !== undefined && Object.hasOwn(STROKES, style.stroke) ? STROKES[style.stroke] : null;
       const distance = `${style.distance}m`;
       const individual = (style.relaycount ?? '1') === '1';
-      events.set(id, individual && stroke && isDistance(distance) ? { swumOn, stroke, distance } : 'skipped');
+      const fullSwim = (style.technique ?? '') === ''; // KICK, PULL, DRILL, REGULAR or any other value is not a full swim
+      events.set(id, individual && fullSwim && stroke && isDistance(distance) ? { swumOn, stroke, distance } : 'skipped');
     }
   }
   return events;
