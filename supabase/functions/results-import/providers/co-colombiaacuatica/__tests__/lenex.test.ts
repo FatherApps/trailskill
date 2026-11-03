@@ -98,8 +98,24 @@ describe('searchLenex', () => {
     expect(found(xml).results.map((r) => r.sourceResultKey)).toEqual(found(xml).results.map((r) => r.sourceResultKey));
   });
 
-  it('is unavailable when a key would hold the license, or an id is not plain', () => {
-    unavailable(lenex({ athletes: [{ ...ME, results: [{ eventid: '1', resultid: '1234567', swimtime: '00:01:00.00' }] }] }));
+  it('accepts a number that is only part of an id or of the tournament folder', () => {
+    const athlete = { ...ME, license: '10', results: [{ eventid: '1', resultid: '101', swimtime: '00:01:00.00' }, { eventid: '2', resultid: '5100', swimtime: '00:01:00.00' }] };
+    // '10' is inside the tournament '20251018' and both result ids, but no segment of the key is the number.
+    expect(found(lenex({ athletes: [athlete] }), '10').results.map((r) => r.sourceResultKey)).toEqual(['20251018|1|101', '20251018|2|5100']);
+  });
+
+  it.each([
+    ['the result id', { eventid: '1', resultid: '1234567' }, TOURNAMENT],
+    ['the result id, normalized', { eventid: '1', resultid: '1234-567' }, TOURNAMENT],
+    ['the event id', { eventid: '1234567', resultid: '1' }, TOURNAMENT],
+    ['the tournament folder', { eventid: '1', resultid: '1' }, NUMBER],
+  ])('is unavailable, with its own message, when %s is the identity number', (_label, ids, tournament) => {
+    const athlete = { ...ME, results: [{ ...ids, swimtime: '00:01:00.00' }] };
+    const xml = lenex({ athletes: [athlete], sessions: DEFAULT_EVENTS.replace('eventid="1"', `eventid="${ids.eventid}"`) });
+    expect(() => searchLenex(xml, tournament, NUMBER)).toThrow(new ProviderUnavailableError('A result key of the tournament file would be the identity number'));
+  });
+
+  it('is unavailable when an id is not plain, or the result has no id', () => {
     unavailable(lenex({ athletes: [{ ...ME, results: [{ eventid: '1', resultid: 'a|b', swimtime: '00:01:00.00' }] }] }));
     unavailable(lenex({ athletes: [{ ...ME, results: [{ eventid: '1', swimtime: '00:01:00.00' }] }] }));
   });

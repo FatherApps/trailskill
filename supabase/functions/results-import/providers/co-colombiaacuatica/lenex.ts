@@ -22,6 +22,14 @@ const childrenOf = (node: XmlNode, name: string): XmlNode[] => {
   const containers = kids(node, name);
   return containers.length > 1 ? bad() : (containers[0]?.children ?? []);
 };
+// The identity number protects itself by segment: a segment of the key, normalized, must never be the number. Being part of an id is fine.
+const isNumber = (segment: string, wanted: string) => {
+  try {
+    return normalizeNumber(segment) === wanted;
+  } catch {
+    return false;
+  }
+};
 const spaces = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 /** A day that exists (no 30 February, no month 13), from its three numbers. */
@@ -106,8 +114,10 @@ export function searchLenex(text: string, tournament: string, identityNumber: st
     if (event === 'skipped') continue;
     if (!PLAIN_ID.test(eventid as string) || !PLAIN_ID.test(resultid)) return bad();
     const sourceResultKey = `${tournament}|${eventid}|${resultid}`;
-    // The service refuses keys with the identity number: so does this, before it gets there.
-    if (results.has(sourceResultKey) || sourceResultKey.toUpperCase().includes(wanted)) return bad();
+    if (results.has(sourceResultKey)) return bad();
+    if ([tournament, eventid, resultid].some((segment) => isNumber(segment as string, wanted))) {
+      throw new ProviderUnavailableError('A result key of the tournament file would be the identity number');
+    }
     const hundredths = result.attrs.status ? null : parseTime(result.attrs.swimtime);
     results.set(sourceResultKey, { sourceResultKey, stroke: event.stroke, distance: event.distance, pool, hundredths, swumOn: event.swumOn, competition });
   }
