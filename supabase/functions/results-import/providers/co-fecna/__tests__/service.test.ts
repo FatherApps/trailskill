@@ -17,7 +17,10 @@ function setup(roster = NUMBERS.map((key) => ({ key, value: key, name: 'PEREZ AN
   const gate: QueryGate = {
     async claim(request): Promise<Claim> {
       claims.push(request);
-      return { status: 'allowed' };
+      return { status: 'allowed', claimedAt: 'x' };
+    },
+    async release() {
+      return true;
     },
   };
   const service = createResultsImport({

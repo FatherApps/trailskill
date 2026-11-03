@@ -23,8 +23,10 @@ const INVALID_VALUE = '22023';
 const failure = (what: string, error: DbError | null) => new Error(`${what} failed${error ? ` (${error.code ?? 'unknown'})` : ''}`);
 
 /**
- * `public.results_import_claim_query` (or `results_import_claim_results_query` when `searchTtlMs` is given) answers null
- * (claim taken or shared with a confirmed search), the instant of the next allowed query, or raises 42501.
+ * `public.results_import_claim_query` (or `results_import_claim_results_query` when `searchTtlMs` is given) answers
+ * `{ retry_at, claimed_at }`: `retry_at` null and the instant taken (claim taken or shared with a confirmed search), or the
+ * instant of the next allowed query and no `claimed_at`; or raises 42501. `claimed_at` stays the string the database wrote:
+ * a `Date` would drop its microseconds and `results_import_release_claim` would never match it.
  */
 export function createQueryGate(db: Db): QueryGate {
   return {
@@ -36,10 +38,23 @@ export function createQueryGate(db: Db): QueryGate {
           : await db.rpc('results_import_claim_results_query', { ...args, search_ttl: `${searchTtlMs / 1000} seconds` });
       if (error?.code === NOT_AUTHORIZED) return { status: 'not_authorized' };
       if (error) throw failure('Claiming the source query', error);
-      if (data === null) return { status: 'allowed' };
-      const retryAt = typeof data === 'string' ? new Date(data) : null;
+      // PostgREST answers one object for OUT parameters; a one-element list is accepted too.
+      const row = Array.isArray(data) && data.length === 1 ? data[0] : data;
+      const { retry_at: retryAtValue, claimed_at: claimedAt } = (typeof row === 'object' && row !== null ? row : {}) as Record<string, unknown>;
+      if (retryAtValue === null && typeof claimedAt === 'string' && claimedAt !== '') return { status: 'allowed', claimedAt };
+      const retryAt = typeof retryAtValue === 'string' ? new Date(retryAtValue) : null;
       if (!retryAt || Number.isNaN(retryAt.getTime())) throw failure('Claiming the source query', null);
       return { status: 'rate_limited', retryAt: retryAt.toISOString() };
+    },
+    async release({ athleteId, claimedAt, intervalMs, retryAfterMs }) {
+      const { data, error } = await db.rpc('results_import_release_claim', {
+        athlete: athleteId,
+        claimed_at: claimedAt,
+        min_interval: `${intervalMs / 1000} seconds`,
+        retry_after: `${retryAfterMs / 1000} seconds`,
+      });
+      if (error || typeof data !== 'boolean') throw failure('Releasing the source query', error);
+      return data;
     },
   };
 }

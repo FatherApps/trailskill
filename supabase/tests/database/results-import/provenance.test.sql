@@ -131,7 +131,7 @@ select throws_ok(
   'an interval that is not positive is rejected'
 );
 select is(
-  public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour'),
+  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
   null::timestamptz,
   'the first claim is taken: the source may be queried'
 );
@@ -145,7 +145,7 @@ begin
 end;
 $$;
 select is(
-  public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour'),
+  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
   current_setting('app.first_query')::timestamptz + interval '1 hour',
   'a second claim inside the interval returns when to retry: the first time plus the interval'
 );
@@ -155,7 +155,7 @@ select is(
   'and leaves the stored time unchanged'
 );
 select is(
-  public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e3', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour'),
+  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e3', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
   null::timestamptz,
   'another athlete has its own limit: its claim is taken'
 );
@@ -172,7 +172,7 @@ set local role service_role;
 set local request.jwt.claims = '{"role": "service_role"}';
 
 select is(
-  public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour'),
+  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
   null::timestamptz,
   'once the interval has passed the claim is taken again'
 );
