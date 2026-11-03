@@ -23,6 +23,9 @@ export type MarkCard = {
   date?: string;
 };
 
+// One stroke: its name from the catalog and the cards of its events, by distance.
+export type MarkSection = { id: string; title: string; cards: MarkCard[] };
+
 export type MarksView =
   | { kind: 'loading' }
   | { kind: 'empty' }
@@ -34,7 +37,7 @@ export type MarksView =
       selectedId: string;
       firstName: string;
       pool: PoolCode;
-      cards: MarkCard[];
+      sections: MarkSection[];
     };
 
 export type MarksScreenProps = {
@@ -129,11 +132,18 @@ export function MarksScreen({ view, onSelectAthlete, onPoolChange, scrollEnabled
         value={view.pool}
         onChange={onPoolChange}
       />
-      <View style={{ flexDirection: largeText ? 'column' : 'row', flexWrap: largeText ? 'nowrap' : 'wrap', gap: space[3] }}>
-        {view.cards.map((card) => (
-          <Card key={card.id} card={card} wide={largeText} />
-        ))}
-      </View>
+      {view.sections.map((section) => (
+        <View key={section.id} style={{ gap: space[2] }}>
+          <Text accessibilityRole="header" style={[typography.subtitle, { color: colors[marksScreenColors.title] }]}>
+            {section.title}
+          </Text>
+          <View style={{ flexDirection: largeText ? 'column' : 'row', flexWrap: largeText ? 'nowrap' : 'wrap', gap: space[3] }}>
+            {section.cards.map((card) => (
+              <Card key={card.id} card={card} wide={largeText} />
+            ))}
+          </View>
+        </View>
+      ))}
     </>
   );
   return scrollEnabled ? (

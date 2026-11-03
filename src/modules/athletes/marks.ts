@@ -50,3 +50,15 @@ export function marksByEvent(measurements: readonly EventAchievement[], pool: Po
 
   return [...listed, ...others].map((event) => ({ id: eventId(event), ...event, best: bests.get(eventId(event)) ?? null }));
 }
+
+export type MarkSection = { stroke: StrokeCode; rows: MarkRow[] };
+
+/** The rows grouped by stroke in catalog order, each stroke's events by distance. A stroke with no row gets no section. */
+export function marksByStroke(rows: readonly MarkRow[]): MarkSection[] {
+  return strokes
+    .map(({ code }) => ({
+      stroke: code,
+      rows: rows.filter((row) => row.stroke === code).sort((a, b) => position(distances, a.distance) - position(distances, b.distance)),
+    }))
+    .filter((section) => section.rows.length > 0);
+}

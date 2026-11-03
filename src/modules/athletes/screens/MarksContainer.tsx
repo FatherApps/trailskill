@@ -9,7 +9,7 @@ import type { HistoryMeasurement, HistoryRepository } from '../data/history';
 import type { SchoolAthleteRepository } from '../data/schoolAthletes';
 import { useManagedAthletes } from '../data/useManagedAthletes';
 import { useSelfAthleteId } from '../data/useSelfAthleteId';
-import { marksByEvent } from '../marks';
+import { marksByEvent, marksByStroke } from '../marks';
 import { MarksScreen, type MarksView } from './MarksScreen';
 
 export type MarksContainerProps = {
@@ -76,18 +76,22 @@ export function MarksContainer({ userId, managed, athletes, history, importedRes
       selectedId: selected.id,
       firstName: selected.firstName,
       pool,
-      cards: marksByEvent(achievements, pool).map(({ id, stroke, distance, best }) => ({
-        id,
-        event: `${strokeLabel(stroke)} ${distances.find((d) => d.code === distance)?.meters ?? distance}`,
-        time: best?.hundredths ?? null,
-        // Same rule as the profile: an imported result is official, a measured race is a competition, any other eligible kind is training.
-        ...(best
-          ? {
-              origin: best.origin === 'import' ? ('official' as const) : best.kind === 'race' ? ('competition' as const) : ('training' as const),
-              ...(best.sourceName ? { sourceName: best.sourceName } : {}),
-              date: day(best.date),
-            }
-          : {}),
+      sections: marksByStroke(marksByEvent(achievements, pool)).map(({ stroke, rows }) => ({
+        id: stroke,
+        title: strokeLabel(stroke),
+        cards: rows.map(({ id, distance, best }) => ({
+          id,
+          event: `${strokeLabel(stroke)} ${distances.find((d) => d.code === distance)?.meters ?? distance}`,
+          time: best?.hundredths ?? null,
+          // Same rule as the profile: an imported result is official, a measured race is a competition, any other eligible kind is training.
+          ...(best
+            ? {
+                origin: best.origin === 'import' ? ('official' as const) : best.kind === 'race' ? ('competition' as const) : ('training' as const),
+                ...(best.sourceName ? { sourceName: best.sourceName } : {}),
+                date: day(best.date),
+              }
+            : {}),
+        })),
       })),
     };
   }
