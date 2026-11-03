@@ -18,7 +18,14 @@ const designEvents: MarkEvent[] = [
 ];
 
 const eventId = ({ stroke, distance }: MarkEvent) => `${stroke}-${distance}`;
-const position = (catalog: readonly { code: string }[], code: string) => catalog.findIndex((entry) => entry.code === code);
+// A code outside the catalog ranks after every catalogued one, never first.
+const rank = (catalog: readonly { code: string }[], code: string) => {
+  const index = catalog.findIndex((entry) => entry.code === code);
+  return index === -1 ? catalog.length : index;
+};
+
+/** The one order of events: catalog order by stroke, then by distance. Every list of marks sorts with it. */
+export const compareEvents = (a: MarkEvent, b: MarkEvent) => rank(strokes, a.stroke) - rank(strokes, b.stroke) || rank(distances, a.distance) - rank(distances, b.distance);
 
 /** The events listed in the pool even with no time. IM 100 is not swum in the long pool, so it shows there only with a mark. */
 export function listedEvents(pool: PoolCode, marked: ReadonlySet<string> = new Set()): MarkEvent[] {
@@ -46,19 +53,17 @@ export function marksByEvent(measurements: readonly EventAchievement[], pool: Po
       const [stroke, distance] = id.split('-') as [StrokeCode, DistanceCode];
       return { stroke, distance };
     })
-    .sort((a, b) => position(strokes, a.stroke) - position(strokes, b.stroke) || position(distances, a.distance) - position(distances, b.distance));
+    .sort(compareEvents);
 
   return [...listed, ...others].map((event) => ({ id: eventId(event), ...event, best: bests.get(eventId(event)) ?? null }));
 }
 
-export type MarkSection = { stroke: StrokeCode; rows: MarkRow[] };
+// `stroke` is a catalog code, or the code as it came for a stroke outside the catalog.
+export type MarkSection = { stroke: string; rows: MarkRow[] };
 
-/** The rows grouped by stroke in catalog order, each stroke's events by distance. A stroke with no row gets no section. */
+/** The rows grouped by stroke, each stroke's events by distance. A stroke outside the catalog still gets its section, after the catalogued ones, so no row disappears. */
 export function marksByStroke(rows: readonly MarkRow[]): MarkSection[] {
-  return strokes
-    .map(({ code }) => ({
-      stroke: code,
-      rows: rows.filter((row) => row.stroke === code).sort((a, b) => position(distances, a.distance) - position(distances, b.distance)),
-    }))
-    .filter((section) => section.rows.length > 0);
+  const sections = new Map<string, MarkRow[]>();
+  for (const row of [...rows].sort(compareEvents)) sections.set(row.stroke, [...(sections.get(row.stroke) ?? []), row]);
+  return [...sections].map(([stroke, grouped]) => ({ stroke, rows: grouped }));
 }

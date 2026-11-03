@@ -118,14 +118,20 @@
     "origin": {
       "competition": "Comp.",
       "training": "Entreno",
-      "official": "Oficial",
-      "official_named": "Oficial · {{source}}"
+      "official": "Oficial"
     },
+    "event_spoken": "{{stroke}} {{meters}} metros",
+    "group_count": "{{done}} de {{total}} con tiempo",
+    "style_group": "Ir al estilo",
     "origin_and_date": "{{origin}} · {{date}}",
     "card_spoken": "{{event}}: {{time}}. {{detail}}",
     "empty": {
       "title": "Aún no hay deportistas",
       "message": "Las marcas de los deportistas que administras aparecerán aquí."
+    },
+    "empty_pool": {
+      "title": "Sin pruebas para esta piscina",
+      "message": "Cuando haya pruebas para esta piscina, aparecerán aquí."
     }
   },
   "date": {

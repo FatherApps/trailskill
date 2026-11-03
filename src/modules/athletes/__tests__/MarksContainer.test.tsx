@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 
 import { formatTime, type Hundredths } from '../../../core/time';
 import { createInMemoryManagedAthleteRepository } from '../../accounts';
@@ -50,6 +50,8 @@ function result(id: string, athleteId: string, hundredths: number, capturedAt: s
   } as HistoryMeasurement;
 }
 
+const groupIds = () => screen.getAllByTestId(/^marks-group-/).map((node) => String(node.props.testID).replace('marks-group-', ''));
+
 const measurements = [
   result('m1', 'a1', 3500, '2026-09-01T08:00:00Z'),
   result('m2', 'a1', 3482, '2026-10-18T08:00:00Z'),
@@ -72,7 +74,7 @@ describe('MarksContainer', () => {
     const profile = personalBest(await history.listByEvent('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' }));
     await waitFor(() => expect(screen.getByText(formatTime(profile!.hundredths))).toBeOnTheScreen());
     expect(screen.getByRole('header', { name: 'Marcas de Lucía' })).toBeOnTheScreen();
-    expect(screen.getByText('Libre 50')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('50 m')).toBeOnTheScreen();
     // The other events of the design have no time yet.
     expect(screen.getAllByText('Aún sin tiempo').length).toBe(6);
   });
@@ -81,10 +83,9 @@ describe('MarksContainer', () => {
     await show();
     await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
 
-    const names = screen.getAllByRole('header').map((header) => header.props.children);
-    expect(names).toEqual(['Marcas de Lucía', 'Libre', 'Espalda', 'Pecho', 'Mariposa', 'Combinado']);
-    const events = screen.getAllByText(/^(Libre|Espalda|Pecho|Mariposa|Combinado) \d+$/).map((node) => node.props.children);
-    expect(events).toEqual(['Libre 50', 'Libre 100', 'Espalda 50', 'Espalda 100', 'Pecho 50', 'Mariposa 50', 'Combinado 100']);
+    expect(groupIds()).toEqual(['FR', 'BK', 'BR', 'FL', 'IM']);
+    const events = screen.getAllByTestId(/^marks-card-/).map((node) => String(node.props.testID).replace('marks-card-', ''));
+    expect(events).toEqual(['FR-50m', 'FR-100m', 'BK-50m', 'BK-100m', 'BR-50m', 'FL-50m', 'IM-100m']);
   });
 
   it('has no Combinado section in the long pool while IM 100 has no mark', async () => {
@@ -93,7 +94,7 @@ describe('MarksContainer', () => {
 
     await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 50 m' }));
 
-    expect(screen.getAllByRole('header').map((header) => header.props.children)).toEqual(['Marcas de Lucía', 'Libre', 'Espalda', 'Pecho', 'Mariposa']);
+    expect(groupIds()).toEqual(['FR', 'BK', 'BR', 'FL']);
   });
 
   it('shows the marks of the other pool when it is chosen', async () => {
@@ -170,7 +171,7 @@ describe('MarksContainer', () => {
       });
 
       await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
-      expect(screen.getAllByLabelText(/Oficial · Federación Demo · /).length).toBeGreaterThan(0);
+      expect(screen.getAllByLabelText(/Federación Demo · \d{4}/).length).toBeGreaterThan(0);
       expect(screen.getAllByLabelText(/Comp\. · /).length).toBeGreaterThan(0);
     });
 
@@ -178,7 +179,7 @@ describe('MarksContainer', () => {
       await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]) });
 
       await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
-      expect(screen.getAllByLabelText(/Oficial · \d/).length).toBeGreaterThan(0);
+      expect(screen.getAllByLabelText(/Oficial · \d{4}/).length).toBeGreaterThan(0);
       expect(screen.queryAllByLabelText(/Federación/)).toHaveLength(0);
     });
 
@@ -190,7 +191,7 @@ describe('MarksContainer', () => {
       });
 
       await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
-      expect(screen.getAllByLabelText(/Oficial · Federación Demo · /).length).toBeGreaterThan(0);
+      expect(screen.getAllByLabelText(/Federación Demo · \d{4}/).length).toBeGreaterThan(0);
       expect(screen.queryAllByLabelText(/Comp\. · /)).toHaveLength(0);
     });
 

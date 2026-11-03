@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { distances, type PoolCode } from '../../../core/sport';
+import type { PoolCode } from '../../../core/sport';
 import type { ManagedAthleteRepository } from '../../accounts';
 import { importedAchievement, latestAchievement, type ImportedHistoryResult } from '../achievements';
 import { athleteDisplay } from '../athleteDisplay';
-import { strokeLabel } from '../components/sportLabel';
 import type { HistoryMeasurement, HistoryRepository } from '../data/history';
 import type { SchoolAthleteRepository } from '../data/schoolAthletes';
 import { useManagedAthletes } from '../data/useManagedAthletes';
 import { useSelfAthleteId } from '../data/useSelfAthleteId';
-import { marksByEvent, marksByStroke } from '../marks';
+import { markSections } from '../markSections';
+import { marksByEvent } from '../marks';
 import { MarksScreen, type MarksView } from './MarksScreen';
 
 export type MarksContainerProps = {
@@ -27,8 +27,6 @@ export type MarksContainerProps = {
 };
 
 type Read = { athleteId: string; attempt: number; result: { measured: HistoryMeasurement[]; imported: ImportedHistoryResult[] } | 'error' };
-
-const day = (iso: string) => iso.slice(0, 10);
 
 // Connects the screen to the athletes the user manages and the local history of the one chosen, measured and imported. The pool filter is applied here, on what the device holds.
 export function MarksContainer({ userId, managed, athletes, history, importedResults, sourceNames, refreshKey, scrollEnabled }: MarksContainerProps) {
@@ -76,23 +74,7 @@ export function MarksContainer({ userId, managed, athletes, history, importedRes
       selectedId: selected.id,
       firstName: selected.firstName,
       pool,
-      sections: marksByStroke(marksByEvent(achievements, pool)).map(({ stroke, rows }) => ({
-        id: stroke,
-        title: strokeLabel(stroke),
-        cards: rows.map(({ id, distance, best }) => ({
-          id,
-          event: `${strokeLabel(stroke)} ${distances.find((d) => d.code === distance)?.meters ?? distance}`,
-          time: best?.hundredths ?? null,
-          // Same rule as the profile: an imported result is official, a measured race is a competition, any other eligible kind is training.
-          ...(best
-            ? {
-                origin: best.origin === 'import' ? ('official' as const) : best.kind === 'race' ? ('competition' as const) : ('training' as const),
-                ...(best.sourceName ? { sourceName: best.sourceName } : {}),
-                date: day(best.date),
-              }
-            : {}),
-        })),
-      })),
+      sections: markSections(marksByEvent(achievements, pool)),
     };
   }
   return <MarksScreen view={view} onSelectAthlete={setChosenId} onPoolChange={(pool) => selectedId && setChosenPool({ athleteId: selectedId, pool })} scrollEnabled={scrollEnabled} />;

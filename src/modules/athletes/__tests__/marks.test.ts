@@ -2,7 +2,7 @@ import type { Hundredths } from '../../../core/time';
 import { importedAchievement } from '../achievements';
 import type { HistoryMeasurement } from '../data/history';
 import { createInMemoryHistoryRepository } from '../data/inMemoryHistoryRepository';
-import { listedEvents, marksByEvent, marksByStroke } from '../marks';
+import { compareEvents, listedEvents, marksByEvent, marksByStroke } from '../marks';
 import { personalBest } from '../personalBest';
 
 // Synthetic data only.
@@ -183,5 +183,34 @@ describe('marksByStroke', () => {
     const rows = marksByEvent([result('a', 3482, '2026-10-18T08:00:00Z')], 'SCM');
 
     expect(marksByStroke(rows).flatMap((section) => section.rows).map((row) => row.id).sort()).toEqual(rows.map((row) => row.id).sort());
+  });
+});
+
+describe('one ordering rule', () => {
+  const outside = (over: Partial<HistoryMeasurement>) => result('x', 3000, '2026-10-18T08:00:00Z', over);
+
+  it('puts a distance outside the catalog after the catalogued ones of its stroke, never first', () => {
+    const order = [{ stroke: 'FR', distance: '75m' }, { stroke: 'FR', distance: '200m' }, { stroke: 'FR', distance: '25m' }].sort((a, b) =>
+      compareEvents(a as never, b as never),
+    );
+
+    expect(order.map((event) => event.distance)).toEqual(['25m', '200m', '75m']);
+  });
+
+  it('applies it to the other events with a mark and to the rows of a stroke alike', () => {
+    const rows = marksByEvent([outside({ distance: '75m' as never }), outside({ distance: '25m' })], 'SCM');
+
+    expect(ids(rows).slice(7)).toEqual(['FR25m', 'FR75m']);
+    expect(marksByStroke(rows)[0].rows.map((row) => row.distance)).toEqual(['25m', '50m', '100m', '75m']);
+  });
+});
+
+describe('marksByStroke with a stroke outside the catalog', () => {
+  it('shows it as a section after the catalogued strokes instead of dropping its rows', () => {
+    const rows = marksByEvent([result('a', 3482, '2026-10-18T08:00:00Z'), result('b', 9000, '2026-10-18T08:00:00Z', { stroke: 'XX' as never })], 'SCM');
+    const sections = marksByStroke(rows);
+
+    expect(sections.map((section) => section.stroke)).toEqual(['FR', 'BK', 'BR', 'FL', 'IM', 'XX']);
+    expect(sections.flatMap((section) => section.rows).map((row) => row.id).sort()).toEqual(rows.map((row) => row.id).sort());
   });
 });

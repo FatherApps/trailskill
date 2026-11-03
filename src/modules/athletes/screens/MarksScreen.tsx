@@ -1,10 +1,11 @@
-import { ScrollView, Text, View } from 'react-native';
+import { useRef } from 'react';
+import { FlatList, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
-import { pools, type PoolCode } from '../../../core/sport';
+import { isStroke, pools, type PoolCode } from '../../../core/sport';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime, type Hundredths } from '../../../core/time';
-import { ChipRow, StateView, Tag, TimeValue } from '../../../core/ui';
+import { ChipRow, StateView, StrokeIcon, Tag, TimeValue } from '../../../core/ui';
 import type { AthleteColor } from '../athleteDisplay';
 import { useLargeText } from '../components/useLargeText';
 import { formatDate } from '../components/formatDate';
@@ -12,8 +13,12 @@ import '../i18n';
 
 export type MarkCard = {
   id: string;
-  // "Libre 50": the meters go without the unit, as in the design.
+  // Catalog code of the stroke, or the code as it came; the icon shows only when the catalog knows it.
+  stroke: string;
+  // "Libre 50 metros": the whole event, for screen readers.
   event: string;
+  // "50 m": all the card shows, since the title of its group already names the stroke.
+  distance: string;
   // null while the athlete has no valid time in the event: it reads "Aún sin tiempo", never zero.
   time: Hundredths | null;
   // `official`: an imported result; `sourceName` is the organization behind it, from data.
@@ -24,7 +29,7 @@ export type MarkCard = {
 };
 
 // One stroke: its name from the catalog and the cards of its events, by distance.
-export type MarkSection = { id: string; title: string; cards: MarkCard[] };
+export type MarkSectionView = { id: string; title: string; cards: MarkCard[] };
 
 export type MarksView =
   | { kind: 'loading' }
@@ -37,7 +42,7 @@ export type MarksView =
       selectedId: string;
       firstName: string;
       pool: PoolCode;
-      sections: MarkSection[];
+      sections: MarkSectionView[];
     };
 
 export type MarksScreenProps = {
@@ -48,43 +53,102 @@ export type MarksScreenProps = {
   scrollEnabled?: boolean;
 };
 
-export const marksScreenColors: { title: ColorToken; background: ColorToken; card: ColorToken; empty: ColorToken; emptyBorder: ColorToken } = {
+export const marksScreenColors: { title: ColorToken; count: ColorToken; background: ColorToken; card: ColorToken; empty: ColorToken; emptyBorder: ColorToken } = {
   title: 'ink',
+  count: 'ink-muted',
   background: 'surface-0',
   card: 'surface-1',
   empty: 'ink-muted',
   emptyBorder: 'border-strong',
 };
 
+// The icon sits 12 dp from the top and right edges; the card reserves 64 dp on the right so the text never reaches it.
+const iconInset = 12;
+const iconReserve = 64;
+
+// An official result names its organization (from data) and the year; any other shows the day and month.
+function cardDetail(card: MarkCard) {
+  if (!card.origin || !card.date) return null;
+  if (card.origin === 'official') {
+    const year = card.date.slice(0, 4);
+    return t('athletes.marks.origin_and_date', { origin: card.sourceName || t('athletes.marks.origin.official'), date: year });
+  }
+  const shortDate = formatDate(card.date, 'day_month');
+  return shortDate && t('athletes.marks.origin_and_date', { origin: t(`athletes.marks.origin.${card.origin}`), date: shortDate });
+}
+
 // `wide`: the cards stack in one column (large text), where two columns would break a word or a time.
 function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
   const { colors, space, radius, typography } = useTheme();
-  const shortDate = card.date ? formatDate(card.date, 'day_month') : null;
-  const origin = card.origin === 'official' && card.sourceName ? t('athletes.marks.origin.official_named', { source: card.sourceName }) : card.origin && t(`athletes.marks.origin.${card.origin}`);
-  const detail = origin && shortDate ? t('athletes.marks.origin_and_date', { origin, date: shortDate }) : null;
-  const box = { flexBasis: wide ? undefined : '47%', flexGrow: 1, padding: space[4], gap: space[1], borderRadius: radius.md } as const;
+  const detail = cardDetail(card);
+  const empty = card.time === null;
+  const box = {
+    flexBasis: wide ? undefined : '47%',
+    flexGrow: 1,
+    padding: space[4],
+    paddingRight: iconReserve,
+    gap: space[1],
+    borderRadius: radius.md,
+  } as const;
+  // The stroke is a catalog code only when the catalog says so; any other value gets no icon.
+  const icon = isStroke(card.stroke) && (
+    <View style={{ position: 'absolute', top: iconInset, right: iconInset }}>
+      <StrokeIcon stroke={card.stroke} variant={empty ? 'empty' : 'default'} decorative />
+    </View>
+  );
 
   if (card.time === null) {
     return (
       <View
+        testID={`marks-card-${card.id}`}
         accessible
         accessibilityLabel={t('athletes.marks.no_time_spoken', { event: card.event })}
         style={[box, { borderWidth: 2, borderStyle: 'dashed', borderColor: colors[marksScreenColors.emptyBorder] }]}
       >
-        <Text style={[typography['body-strong'], { color: colors[marksScreenColors.empty] }]}>{card.event}</Text>
+        <Text style={[typography['body-strong'], { color: colors[marksScreenColors.empty] }]}>{card.distance}</Text>
         <Text style={[typography.body, { color: colors[marksScreenColors.empty] }]}>{t('athletes.marks.no_time')}</Text>
+        {icon}
       </View>
     );
   }
   return (
     <View
+      testID={`marks-card-${card.id}`}
       accessible
       accessibilityLabel={t('athletes.marks.card_spoken', { event: card.event, time: spokenTime(card.time), detail: detail ?? '' }).trim()}
       style={[box, { backgroundColor: colors[marksScreenColors.card] }]}
     >
-      <Text style={[typography['body-strong'], { color: colors.ink }]}>{card.event}</Text>
+      <Text style={[typography['body-strong'], { color: colors.ink }]}>{card.distance}</Text>
       <TimeValue value={card.time} size="time-md" />
       {detail && <Tag label={detail} />}
+      {icon}
+    </View>
+  );
+}
+
+// The title says the stroke once, in display 22; it wraps with its count under it when large text leaves no room for both.
+function Group({ section, wide }: { section: MarkSectionView; wide: boolean }) {
+  const { colors, space, typography } = useTheme();
+  const withTime = section.cards.filter((card) => card.time !== null).length;
+
+  return (
+    <View testID={`marks-section-${section.id}`} style={{ gap: space[2] }}>
+      <View testID={`marks-heading-${section.id}`} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: space[2] }}>
+        <Text testID={`marks-group-${section.id}`} accessibilityRole="header" style={[typography.title, { color: colors[marksScreenColors.title] }]}>
+          {section.title}
+        </Text>
+        <Text testID={`marks-count-${section.id}`} style={[typography.caption, { color: colors[marksScreenColors.count] }]}>
+          {t('athletes.marks.group_count', { done: withTime, total: section.cards.length })}
+        </Text>
+      </View>
+      <View
+        testID={`marks-grid-${section.id}`}
+        style={{ flexDirection: wide ? 'column' : 'row', flexWrap: wide ? 'nowrap' : 'wrap', gap: space[3] }}
+      >
+        {section.cards.map((card) => (
+          <Card key={card.id} card={card} wide={wide} />
+        ))}
+      </View>
     </View>
   );
 }
@@ -93,6 +157,7 @@ function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
 export function MarksScreen({ view, onSelectAthlete, onPoolChange, scrollEnabled = true }: MarksScreenProps) {
   const { colors, space, typography } = useTheme();
   const largeText = useLargeText();
+  const list = useRef<FlatList<MarkSectionView>>(null);
   const frame = { alignSelf: 'stretch', flex: scrollEnabled ? 1 : undefined, backgroundColor: colors[marksScreenColors.background] } as const;
   const padding = { paddingHorizontal: space[4], paddingVertical: space[4], gap: space[3] };
 
@@ -115,8 +180,9 @@ export function MarksScreen({ view, onSelectAthlete, onPoolChange, scrollEnabled
     );
   }
 
-  const content = (
-    <>
+  const { sections } = view;
+  const header = (
+    <View style={{ gap: space[3] }}>
       <ChipRow
         accessibilityLabel={t('athletes.marks.athlete')}
         options={view.athletes.map(({ id, name, initials, color }) => ({ value: id, label: name, dot: { initials, color } }))}
@@ -132,25 +198,44 @@ export function MarksScreen({ view, onSelectAthlete, onPoolChange, scrollEnabled
         value={view.pool}
         onChange={onPoolChange}
       />
-      {view.sections.map((section) => (
-        <View key={section.id} style={{ gap: space[2] }}>
-          <Text accessibilityRole="header" style={[typography.subtitle, { color: colors[marksScreenColors.title] }]}>
-            {section.title}
-          </Text>
-          <View style={{ flexDirection: largeText ? 'column' : 'row', flexWrap: largeText ? 'nowrap' : 'wrap', gap: space[3] }}>
-            {section.cards.map((card) => (
-              <Card key={card.id} card={card} wide={largeText} />
-            ))}
-          </View>
-        </View>
-      ))}
-    </>
+      {sections.length > 0 && (
+        // No chip is chosen: each one only jumps to its group.
+        <ChipRow
+          accessibilityLabel={t('athletes.marks.style_group')}
+          options={sections.map(({ id, title }) => ({ value: id, label: title }))}
+          value=""
+          onChange={(id) => list.current?.scrollToIndex({ index: sections.findIndex((section) => section.id === id), animated: true })}
+        />
+      )}
+    </View>
   );
-  return scrollEnabled ? (
-    <ScrollView style={frame} contentContainerStyle={padding}>
-      {content}
-    </ScrollView>
-  ) : (
-    <View style={[frame, padding]}>{content}</View>
+  const empty = <StateView kind="empty" icon="emoji_events" title={t('athletes.marks.empty_pool.title')} message={t('athletes.marks.empty_pool.message')} />;
+
+  // Inside a parent ScrollView (the gallery) the groups are laid out in place; otherwise the list virtualizes them.
+  if (!scrollEnabled) {
+    return (
+      <View style={[frame, padding]}>
+        {header}
+        {sections.length === 0 ? empty : sections.map((section) => <Group key={section.id} section={section} wide={largeText} />)}
+      </View>
+    );
+  }
+  return (
+    <FlatList
+      ref={list}
+      testID="marks-list"
+      style={frame}
+      // The floating bar rests on the bottom edge: the last row scrolls above it.
+      contentContainerStyle={{ ...padding, paddingBottom: space[12] * 2 }}
+      data={sections}
+      keyExtractor={(section) => section.id}
+      renderItem={({ item }) => <Group section={item} wide={largeText} />}
+      ListHeaderComponent={header}
+      ListHeaderComponentStyle={{ marginBottom: space[3] }}
+      ListEmptyComponent={empty}
+      ItemSeparatorComponent={() => <View style={{ height: space[4] }} />}
+      // shortcut: a group not drawn yet has no measured height, so jump near it by the average and let the list settle; exact heights would need getItemLayout.
+      onScrollToIndexFailed={({ index, averageItemLength }) => list.current?.scrollToOffset({ offset: index * averageItemLength, animated: true })}
+    />
   );
 }
