@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 
-import { colors, radius, size, space } from '../../../core/theme';
+import { colors, radius, space } from '../../../core/theme';
 import { profileFixture as p } from '../__fixtures__/profile';
 import { ProfileHeader, profileHeaderColors, type ProfileHeaderProps } from '../components/ProfileHeader';
 
@@ -85,7 +85,7 @@ describe('ProfileHeader', () => {
     await render(<ProfileHeader {...base} />);
 
     const hidden = { includeHiddenElements: true };
-    const clip = screen.getByTestId('profile-ring-clip', hidden);
+    const clip = screen.getByTestId('color-header-background', hidden);
     const ring = screen.getByTestId('profile-ring', hidden);
     expect(profileHeaderColors.ring).toBe('surface-1');
     expect(StyleSheet.flatten(ring.props.style)).toMatchObject({
@@ -100,13 +100,19 @@ describe('ProfileHeader', () => {
     expect(clip.props.pointerEvents).toBe('none');
   });
 
-  it('clips the ring to the top strip of the band, so it never takes layout nor covers the name', async () => {
+  it('draws the whole ring in the header background slot, behind the title and out of the layout', async () => {
     await render(<ProfileHeader {...base} />);
 
-    const clip = StyleSheet.flatten(screen.getByTestId('profile-ring-clip', { includeHiddenElements: true }).props.style);
-    // Absolute, hiding what falls outside, and no taller than the back-button row (the title starts below it).
-    expect(clip).toMatchObject({ position: 'absolute', overflow: 'hidden', top: 0, right: 0 });
-    expect(clip.height).toBeLessThanOrEqual(space[4] + size['target-min'] + space[3]);
+    const hidden = { includeHiddenElements: true };
+    const layer = screen.getByTestId('color-header-background', hidden);
+    const ring = screen.getByTestId('profile-ring', hidden);
+    expect(StyleSheet.flatten(layer.props.style)).toMatchObject({ position: 'absolute', overflow: 'hidden' });
+    expect(layer.props.accessibilityElementsHidden).toBe(true);
+    expect(layer.props.importantForAccessibility).toBe('no-hide-descendants');
+    expect(layer.props.pointerEvents).toBe('none');
+    expect(within(layer).getByTestId('profile-ring', hidden)).toBe(ring);
+    // No strip clip any more: the ring is not cut to the back-button row.
+    expect(screen.queryByTestId('profile-ring-clip', hidden)).toBeNull();
   });
 
   it('shows what the screen puts in the band, such as the event chips', async () => {

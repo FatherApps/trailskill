@@ -118,6 +118,26 @@ function ChipRowPreview<T extends string>({ label, options }: { label: string; o
   );
 }
 
+// A decorative ring behind the whole band, like the profile's; shows what the background slot allows.
+function RingBackground() {
+  const { colors, space: gap, radius } = useTheme();
+
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: -gap[5],
+        right: -gap[8],
+        width: 170,
+        height: 170,
+        borderRadius: radius.full,
+        borderWidth: gap[5],
+        borderColor: colors['surface-1'],
+      }}
+    />
+  );
+}
+
 const SwimmerRowPreview = (props: SwimmerRowProps) => (
   <FullWidth>
     <SwimmerRow onPress={noop} {...props} />
@@ -389,6 +409,11 @@ export const galleryEntries: GalleryEntry[] = [
           <ColorHeader color="athlete-3" title={chd.title} subtitle={chd.subtitle} onBack={noop}>
             <ChipRowPreview label="Prueba" options={ch.events} />
           </ColorHeader>
+        </FullWidth>
+      ),
+      'with-background': () => (
+        <FullWidth>
+          <ColorHeader color="athlete-4" title={chd.title} subtitle={chd.subtitle} onBack={noop} background={<RingBackground />} />
         </FullWidth>
       ),
       'long-text': () => (
