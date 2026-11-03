@@ -2,7 +2,7 @@ import type { Hundredths } from '../../../core/time';
 import { importedAchievement } from '../achievements';
 import type { HistoryMeasurement } from '../data/history';
 import { createInMemoryHistoryRepository } from '../data/inMemoryHistoryRepository';
-import { listedEvents, marksByEvent } from '../marks';
+import { listedEvents, marksByEvent, marksByStroke } from '../marks';
 import { personalBest } from '../personalBest';
 
 // Synthetic data only.
@@ -133,5 +133,55 @@ describe('marksByEvent', () => {
     );
 
     expect(ids(rows).slice(7)).toEqual(['FR25m', 'FR200m', 'BK200m']);
+  });
+});
+
+describe('marksByStroke', () => {
+  const sections = (measurements: HistoryMeasurement[], pool: 'SCM' | 'LCM') =>
+    marksByStroke(marksByEvent(measurements, pool)).map(({ stroke, rows }) => [stroke, rows.map((row) => row.distance)]);
+
+  it('groups the listed events by stroke in catalog order, each stroke by distance', () => {
+    expect(sections([], 'SCM')).toEqual([
+      ['FR', ['50m', '100m']],
+      ['BK', ['50m', '100m']],
+      ['BR', ['50m']],
+      ['FL', ['50m']],
+      ['IM', ['100m']],
+    ]);
+  });
+
+  it('puts an event with a mark among the listed ones of its stroke by distance, whatever order it came in', () => {
+    const rows = marksByStroke(
+      marksByEvent(
+        [
+          result('a', 20000, '2026-10-01T08:00:00Z', { distance: '200m' }),
+          result('b', 2000, '2026-10-02T08:00:00Z', { distance: '25m' }),
+        ],
+        'SCM',
+      ),
+    );
+
+    expect(rows[0].stroke).toBe('FR');
+    expect(rows[0].rows.map((row) => row.distance)).toEqual(['25m', '50m', '100m', '200m']);
+  });
+
+  it('keeps the long pool without an empty IM 100, so IM has no section there', () => {
+    expect(sections([], 'LCM').map(([stroke]) => stroke)).toEqual(['FR', 'BK', 'BR', 'FL']);
+  });
+
+  it('shows the IM section in the long pool once IM 100 has a mark', () => {
+    const marked = result('a', 8000, '2026-10-18T08:00:00Z', { stroke: 'IM', distance: '100m', pool: 'LCM' });
+
+    expect(sections([marked], 'LCM').map(([stroke]) => stroke)).toEqual(['FR', 'BK', 'BR', 'FL', 'IM']);
+  });
+
+  it('has no section for a stroke without rows', () => {
+    expect(marksByStroke([])).toEqual([]);
+  });
+
+  it('keeps every row of marksByEvent, only regrouped', () => {
+    const rows = marksByEvent([result('a', 3482, '2026-10-18T08:00:00Z')], 'SCM');
+
+    expect(marksByStroke(rows).flatMap((section) => section.rows).map((row) => row.id).sort()).toEqual(rows.map((row) => row.id).sort());
   });
 });

@@ -17,10 +17,16 @@ const data: Extract<MarksView, { kind: 'data' }> = {
   selectedId: 'a1',
   firstName: 'Lucía',
   pool: 'SCM',
-  cards: [
-    { id: 'FR-50m', event: 'Libre 50', time: 3482, origin: 'competition', date: '2026-10-18' },
-    { id: 'BK-50m', event: 'Espalda 50', time: 4108, origin: 'training', date: '2026-10-02' },
-    { id: 'BK-100m', event: 'Espalda 100', time: null },
+  sections: [
+    { id: 'FR', title: 'Libre', cards: [{ id: 'FR-50m', event: 'Libre 50', time: 3482, origin: 'competition', date: '2026-10-18' }] },
+    {
+      id: 'BK',
+      title: 'Espalda',
+      cards: [
+        { id: 'BK-50m', event: 'Espalda 50', time: 4108, origin: 'training', date: '2026-10-02' },
+        { id: 'BK-100m', event: 'Espalda 100', time: null },
+      ],
+    },
   ],
 };
 
@@ -41,6 +47,27 @@ describe('MarksScreen', () => {
     await show(data);
 
     expect(screen.getByRole('header', { name: 'Marcas de Lucía' })).toBeOnTheScreen();
+  });
+
+  it('puts a section header for each stroke, in the order given, announced as a header', async () => {
+    await show(data);
+
+    expect(screen.getByRole('header', { name: 'Libre' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Espalda' })).toBeOnTheScreen();
+    expect(screen.getAllByRole('header').map((header) => header.props.children)).toEqual(['Marcas de Lucía', 'Libre', 'Espalda']);
+  });
+
+  it('shows each card after the header of its stroke', async () => {
+    await show(data);
+
+    const labels = screen.getAllByText(/^(Libre|Espalda)( \d+)?$/).map((node) => node.props.children);
+    expect(labels).toEqual(['Libre', 'Libre 50', 'Espalda', 'Espalda 50', 'Espalda 100']);
+  });
+
+  it('shows no header when there are no sections', async () => {
+    await show({ ...data, sections: [] });
+
+    expect(screen.getAllByRole('header')).toHaveLength(1);
   });
 
   it('shows the time, the origin and the date of an event with a mark', async () => {

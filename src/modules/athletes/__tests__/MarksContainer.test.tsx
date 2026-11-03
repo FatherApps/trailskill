@@ -77,6 +77,25 @@ describe('MarksContainer', () => {
     expect(screen.getAllByText('Aún sin tiempo').length).toBe(6);
   });
 
+  it('groups the marks by stroke, headers in catalog order and events by distance, with no empty section', async () => {
+    await show();
+    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+
+    const names = screen.getAllByRole('header').map((header) => header.props.children);
+    expect(names).toEqual(['Marcas de Lucía', 'Libre', 'Espalda', 'Pecho', 'Mariposa', 'Combinado']);
+    const events = screen.getAllByText(/^(Libre|Espalda|Pecho|Mariposa|Combinado) \d+$/).map((node) => node.props.children);
+    expect(events).toEqual(['Libre 50', 'Libre 100', 'Espalda 50', 'Espalda 100', 'Pecho 50', 'Mariposa 50', 'Combinado 100']);
+  });
+
+  it('has no Combinado section in the long pool while IM 100 has no mark', async () => {
+    await show();
+    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 50 m' }));
+
+    expect(screen.getAllByRole('header').map((header) => header.props.children)).toEqual(['Marcas de Lucía', 'Libre', 'Espalda', 'Pecho', 'Mariposa']);
+  });
+
   it('shows the marks of the other pool when it is chosen', async () => {
     await show();
     await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
