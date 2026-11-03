@@ -102,6 +102,8 @@ function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
   const empty = card.time === null;
   const box = {
     flexBasis: wide ? undefined : '47%',
+    // A lone card in a row stays a column wide, as in the design's two-column grid, instead of filling the row.
+    maxWidth: wide ? undefined : '49%',
     flexGrow: 1,
     padding: space[4],
     gap: space[1],
