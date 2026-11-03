@@ -31,11 +31,19 @@ describe('fetchPage', () => {
   });
 
   it('cancels the body of a response that is not OK before discarding it', async () => {
-    const cancel = jest.fn();
-    const fetchImpl = jest.fn(async () => new Response(new ReadableStream({ cancel }), { status: 503 }));
+    // A stand-in response, so the check does not depend on how the runtime wires a stream into a Response.
+    const cancel = jest.fn(async () => undefined);
+    const fetchImpl = jest.fn(async () => ({ ok: false, status: 503, body: { cancel }, headers: new Headers() }) as unknown as Response);
     await expect(fetchPage(fetchImpl, URL_)).rejects.toBeInstanceOf(ProviderUnavailableError);
-    // fetchPage does not wait for the cancel (a stuck one must not hold the answer), so give it a turn of the event loop.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('is unavailable on a non-OK response whose body cannot be cancelled', async () => {
+    const cancel = jest.fn(async () => {
+      throw new TypeError('locked');
+    });
+    const fetchImpl = jest.fn(async () => ({ ok: false, status: 500, body: { cancel }, headers: new Headers() }) as unknown as Response);
+    await expect(fetchPage(fetchImpl, URL_)).rejects.toBeInstanceOf(ProviderUnavailableError);
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
