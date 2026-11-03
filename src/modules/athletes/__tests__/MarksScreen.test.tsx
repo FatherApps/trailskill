@@ -8,6 +8,11 @@ import { marksFixture, marksSections, measured } from '../__fixtures__/marks';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
+// The icon has its own tests; here the screen is checked on what it asks of it.
+jest.mock('../../../core/ui/StrokeIcon', () => {
+  const { View } = jest.requireActual('react-native');
+  return { StrokeIcon: (props: { stroke: string; variant?: string; decorative?: boolean }) => <View testID="stroke-icon" {...props} /> };
+});
 
 // Synthetic data only. The fixtures group with the same functions the container runs.
 const data = marksFixture as Extract<MarksView, { kind: 'data' }>;
@@ -23,14 +28,7 @@ const show = (view: MarksView, { onSelectAthlete = jest.fn(), onPoolChange = jes
 const groupIds = () => screen.getAllByTestId(/^marks-group-/).map((node) => String(node.props.testID).replace('marks-group-', ''));
 const flat = (node: { props: { style?: unknown } }) => StyleSheet.flatten(node.props.style as never) ?? {};
 
-// The stroke icons inside a rendered node: its own box is the one that hides from screen readers when decorative.
-type Json = { type: string; props: { testID?: string; style?: unknown; importantForAccessibility?: string }; children?: (Json | string)[] | null };
-const nodes = (root: Json): Json[] => [root, ...(root.children ?? []).flatMap((child) => (typeof child === 'string' ? [] : nodes(child)))];
-const iconsIn = (testID?: string) => {
-  const tree = screen.toJSON() as unknown as Json;
-  const scope = testID ? nodes(tree).find((node) => node.props.testID === testID)! : tree;
-  return nodes(scope).filter((node) => flat(node).borderRadius === 999 && flat(node).width === 44);
-};
+const iconsIn = (cardId?: string) => (cardId ? within(screen.getByTestId(`marks-card-${cardId}`)).queryAllByTestId('stroke-icon') : screen.queryAllByTestId('stroke-icon'));
 
 const realGet = Dimensions.get.bind(Dimensions);
 
@@ -132,17 +130,18 @@ describe('MarksScreen', () => {
 
     const icons = iconsIn();
     expect(icons).toHaveLength(data.sections.flatMap((section) => section.cards).length);
-    expect(icons.every((icon) => icon.props.importantForAccessibility === 'no-hide-descendants')).toBe(true);
-    // The two events with no time carry the dotted frame of the empty variant.
-    expect(icons.filter((icon) => flat(icon).borderStyle === 'dotted')).toHaveLength(2);
+    expect(icons.every((icon) => icon.props.decorative === true)).toBe(true);
+    // The two events with no time ask for the empty variant.
+    expect(icons.filter((icon) => icon.props.variant === 'empty')).toHaveLength(2);
+    expect(iconsIn('FR-50m')[0].props).toMatchObject({ stroke: 'FR', variant: 'default' });
   });
 
   it('renders no icon for a stroke code the catalog does not know, and one for a valid code', async () => {
     const sections = marksSections([measured('XX' as never, '50m', 9000, '2026-10-18')], 'SCM').filter((section) => section.id === 'XX' || section.id === 'FR');
     await show({ ...data, sections });
 
-    expect(iconsIn('marks-card-XX-50m')).toHaveLength(0);
-    expect(iconsIn('marks-card-FR-50m')).toHaveLength(1);
+    expect(iconsIn('XX-50m')).toHaveLength(0);
+    expect(iconsIn('FR-50m')).toHaveLength(1);
   });
 
   it('shows a stroke outside the catalog as a group instead of dropping it', async () => {
