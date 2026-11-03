@@ -34,7 +34,7 @@ export type SwimmerRowProps = {
   // Shown under the time (or the personal best) in the end column, for example a sync pill. Not part of the row label.
   status?: ReactNode;
   tag?: TagProps;
-  // The stroke of the event the row is about: a small icon before the name. Decorative, the row label does not say it.
+  // The stroke of the event the row is about: a small icon before the name. The icon is decorative; the row label says the stroke once.
   // Callers with a wider type filter with `isStroke` first.
   stroke?: StrokeCode;
   chevron?: boolean;
@@ -123,6 +123,7 @@ export function SwimmerRow({
   const label = [
     name,
     detail,
+    stroke && t(`sport.stroke.${stroke}`),
     spokenTime,
     difference !== null && spokenDifference(difference),
     showPbRow && newPersonalBest && t('time_value.pb_spoken'),

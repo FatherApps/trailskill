@@ -720,8 +720,16 @@ describe('SwimmerRow stroke', () => {
     expect(StyleSheet.flatten(screen.getByText('Lucía R.', hidden).props.style)).not.toHaveProperty('flexShrink');
   });
 
-  it('does not change the accessible label, so the stroke is not read twice', async () => {
+  it('says the stroke once in the composed label while the icon stays decorative', async () => {
     await render(<SwimmerRow {...base} stroke="FL" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, Mariposa, marca personal 34,82, MP 50 L')).toBeOnTheScreen();
+    expect(screen.queryByRole('image')).toBeNull();
+    expect(box(svgs()[0]).props.accessibilityElementsHidden).toBe(true);
+  });
+
+  it('leaves the label as it was without stroke', async () => {
+    await render(<SwimmerRow {...base} />);
 
     expect(screen.getByLabelText('Lucía R., Infantil B, marca personal 34,82, MP 50 L')).toBeOnTheScreen();
   });

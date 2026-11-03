@@ -48,7 +48,7 @@ export const swimmerRowFixture = {
     name: 'Lucía R.',
     initials: 'LR',
     color: 'athlete-1',
-    detail: 'Infantil B · Libre 50 m',
+    detail: 'Infantil B',
     bestTime: 3482,
     bestTimeLabel: 'MP 50 L',
     stroke: 'FR',
