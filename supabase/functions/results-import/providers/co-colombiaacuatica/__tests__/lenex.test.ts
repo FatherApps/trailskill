@@ -39,9 +39,24 @@ describe('searchLenex', () => {
     expect(found(lenex({ athletes: [{ ...ME, license: 'ab12' }] }), 'AB-12').results).toHaveLength(3);
   });
 
-  it('never matches an athlete without a readable license', () => {
-    const odd: SyntheticAthlete[] = [{ ...OTHER, license: undefined }, { ...OTHER, athleteid: '13', license: '!!' }, { ...OTHER, athleteid: '14', license: '' }];
-    expect(searchLenex(lenex({ athletes: odd }), TOURNAMENT, NUMBER)).toEqual({ found: false });
+  const NO_LICENSE = new ProviderUnavailableError('The tournament file has participants without a readable license, so the person cannot be ruled out');
+  const unreadable: [string, SyntheticAthlete][] = [
+    ['no license', { ...OTHER, license: undefined }],
+    ['an empty license', { ...OTHER, license: '' }],
+    ['an unreadable license', { ...OTHER, license: '!!' }],
+  ];
+
+  it.each(unreadable)('is unavailable, not "no matches", when the person is not found and an athlete has %s', (_label, odd) => {
+    expect(() => searchLenex(lenex({ athletes: [OTHER, odd] }), TOURNAMENT, NUMBER)).toThrow(NO_LICENSE);
+  });
+
+  it.each(unreadable)('still finds the person when another athlete has %s', (_label, odd) => {
+    const search = found(lenex({ athletes: [ME, { ...odd, athleteid: '99' }] }));
+    expect(search.results).toHaveLength(3);
+  });
+
+  it('says "no matches" when every license is readable and none is the number', () => {
+    expect(searchLenex(lenex({ athletes: [OTHER, { ...OTHER, athleteid: '13', license: 'AB-12' }] }), TOURNAMENT, NUMBER)).toEqual({ found: false });
   });
 
   it.each([

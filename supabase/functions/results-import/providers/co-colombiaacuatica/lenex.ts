@@ -92,17 +92,22 @@ export function searchLenex(text: string, tournament: string, identityNumber: st
     return { found: false };
   }
   const matches: { athlete: XmlNode; club: XmlNode }[] = [];
+  let unreadable = false;
   for (const club of kids(only(meet, 'CLUBS'), 'CLUB')) {
     for (const athlete of childrenOf(club, 'ATHLETES').filter((child) => child.name === 'ATHLETE')) {
       try {
         if (normalizeNumber(athlete.attrs.license ?? '') === wanted) matches.push({ athlete, club });
       } catch {
-        // No readable license: it cannot be the number we look for.
+        unreadable = true; // No readable license: it may be the person.
       }
     }
   }
   if (matches.length > 1) bad(); // The license names two people: the identity is ambiguous.
-  if (matches.length === 0) return { found: false };
+  if (matches.length === 0) {
+    // Whoever has no readable license may be the person: "no matches" would be a guess (same rule as the federation, #830).
+    if (unreadable) throw new ProviderUnavailableError('The tournament file has participants without a readable license, so the person cannot be ruled out');
+    return { found: false };
+  }
 
   const { athlete, club } = matches[0];
   const name = spaces(`${athlete.attrs.firstname ?? ''} ${athlete.attrs.lastname ?? ''}`) || bad();
