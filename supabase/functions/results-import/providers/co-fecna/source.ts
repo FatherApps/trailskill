@@ -7,7 +7,7 @@ const FILTER_URL = 'https://ecoapplet.co/fecna/reportes/historialFilter';
 const eventUrl = (prueba: number) => `https://ecoapplet.co/fecna/reportes/${prueba}/getHistorial`;
 
 // The import brings the whole history of the person, never the best time of each year: `anual=0`, never `anual=1`.
-// ASSUMED, not verified with real rows: that getHistorial honours `anual=0` and a start date as old as this one.
+// Verified against the live page: getHistorial honours `anual=0` and a start date as old as this one.
 const ANNUAL = '0';
 const HISTORY_START = '2000-01-01';
 

@@ -206,23 +206,31 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
 
   // Any adapter failure is the same typed "unavailable"; the error is dropped on purpose so no number or key can leak through it.
   // The adapter saying the source did not answer (`SourceUnreachableError`: network, timeout, 5xx) gives the claim back, so a
-  // source that failed does not cost the whole window. Any other failure (the source answered something unusable: a 4xx, a changed
-  // page, an invalid list) keeps it spent. A release that fails leaves the claim spent too.
+  // source that failed does not cost the whole window. So does a cleaner that throws on what the source sent (a failure on our
+  // side, not an answer). Any other failure (the source answered something unusable: a 4xx, a changed page, an invalid list)
+  // keeps it spent. A release that fails leaves the claim spent too.
   async function query<T>(who: Who, claimedAt: string, call: () => Promise<unknown>, cleanItem: (item: unknown) => T | null): Promise<Outcome<T[]>> {
+    const giveBack = async () => {
+      try {
+        await gate.release({ athleteId: who.athleteId, claimedAt, intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS });
+      } catch {
+        // The claim simply stays spent.
+      }
+    };
     let raw: unknown;
     try {
       raw = await call();
     } catch (error) {
-      if (error instanceof SourceUnreachableError) {
-        try {
-          await gate.release({ athleteId: who.athleteId, claimedAt, intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS });
-        } catch {
-          // The claim simply stays spent.
-        }
-      }
+      if (error instanceof SourceUnreachableError) await giveBack();
       return UNAVAILABLE;
     }
-    const value = cleanList(raw, cleanItem);
+    let value: T[] | null;
+    try {
+      value = cleanList(raw, cleanItem);
+    } catch {
+      await giveBack();
+      return UNAVAILABLE;
+    }
     return value === null ? UNAVAILABLE : { ok: true, value };
   }
 
