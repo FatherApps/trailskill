@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 
-import { colors, radius, space } from '../../../core/theme';
+import { colors, contrastRatio, radius, space } from '../../../core/theme';
 import { profileFixture as p } from '../__fixtures__/profile';
 import { ProfileHeader, profileHeaderColors, type ProfileHeaderProps } from '../components/ProfileHeader';
 
@@ -94,9 +94,8 @@ describe('ProfileHeader', () => {
     const hidden = { includeHiddenElements: true };
     const clip = screen.getByTestId('color-header-background', hidden);
     const ring = screen.getByTestId('profile-ring', hidden);
-    expect(profileHeaderColors.ring).toBe('surface-1');
     expect(StyleSheet.flatten(ring.props.style)).toMatchObject({
-      borderColor: colors.light['surface-1'],
+      borderColor: colors.light[profileHeaderColors.ring],
       borderWidth: space[5],
       borderRadius: radius.full,
       width: 170,
@@ -105,6 +104,11 @@ describe('ProfileHeader', () => {
     expect(clip.props.importantForAccessibility).toBe('no-hide-descendants');
     expect(clip.props.accessibilityElementsHidden).toBe(true);
     expect(clip.props.pointerEvents).toBe('none');
+  });
+
+  // The title and the school line are drawn over the ring in `on-color`: on a long name or a 200 % font the ring is behind them (issue 851).
+  it.each(['light', 'dark'] as const)('keeps the text of the band readable over the ring in the %s theme', (theme) => {
+    expect(contrastRatio(colors[theme]['on-color'], colors[theme][profileHeaderColors.ring])).toBeGreaterThanOrEqual(4.5);
   });
 
   it('draws the whole ring in the header background slot, behind the title and out of the layout', async () => {

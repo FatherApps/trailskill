@@ -29,8 +29,9 @@ export type ProfileHeaderProps = {
   children?: ReactNode;
 };
 
-// The board draws the ring white at 50 %; that is not a token, so it takes the nearest opaque one (maintainer decision).
-export const profileHeaderColors: { ring: ColorToken } = { ring: 'surface-1' };
+// The board draws the ring white at 50 %; that is not a token, so it takes the nearest opaque one (maintainer decision). `on-header` is white
+// in both themes: `surface-1` is near black in the dark one and left the title (`on-color`, dark) unreadable where the ring crosses it (issue 851).
+export const profileHeaderColors: { ring: ColorToken } = { ring: 'on-header' };
 
 // The ring of VibPerfil (170 wide): decoration only, so it is a local constant, not a token (maintainer decision).
 const DECORATIVE_RING_SIZE = 170;
