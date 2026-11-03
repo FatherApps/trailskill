@@ -20,6 +20,7 @@ trap 'exit 130' INT TERM
 fail() { echo "FAIL: $1"; docker logs "$NAME" 2>&1 | tail -20; exit 1; }
 call() { curl -s -w '\n%{http_code}' -X POST "http://127.0.0.1:$PORT/results-import" -H 'content-type: application/json' -d '{"action":"search"}'; }
 
+repo_before=$(git -C "$ROOT" status --porcelain -- supabase src 2>/dev/null)
 # 1. A volume like the stack's: other functions already in it, which the bundle must not touch.
 V=$T/functions
 # The test router and a root deno.jsonc stand in for the template's `main/` and `deno.jsonc`; `other` is another function.
@@ -49,7 +50,7 @@ done
 [ "$shallow" -gt 0 ] && [ "$deep" -gt 0 ] || fail "expected modules importing catalogs.ts at depth 0 and 2 (found $shallow and $deep)"
 ! grep -rqE "src/core/sport" "$V/results-import" --include='*.ts' --exclude-dir=_vendor || fail "an import into src/ remains in the bundle"
 cmp -s "$V/deno.jsonc" "$T/deno.jsonc.before" || fail "the bundle changed the volume's root deno.jsonc"
-[ -z "$(git -C "$ROOT" status --porcelain -- supabase src 2>/dev/null)" ] || fail "the bundle changed the repository"
+[ "$(git -C "$ROOT" status --porcelain -- supabase src 2>/dev/null)" = "$repo_before" ] || fail "the bundle changed the repository"
 echo "PASS: bundle built twice; other functions and deno.jsonc untouched; catalogs.ts inside, imports rewritten at $shallow + $deep modules"
 
 # 2. The function loads and answers with the bundle in the runtime.

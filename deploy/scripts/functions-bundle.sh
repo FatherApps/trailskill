@@ -22,6 +22,7 @@ fail() { echo "FAIL: $1" >&2; exit 1; }
 
 [ $# -eq 1 ] && [ -d "$1" ] || fail "usage: sh deploy/scripts/functions-bundle.sh <functions-volume-dir> (the directory must exist)"
 DEST=$(cd "$1" && pwd)
+[ -d "$DEST/main" ] || fail "$DEST has no main/ folder: it is not the functions volume of the Supabase stack"
 [ -f "$SRC/index.ts" ] || fail "$SRC/index.ts not found"
 [ -f "$CATALOGS" ] || fail "$CATALOGS not found"
 
@@ -37,7 +38,11 @@ outside=$(grep -rhE "from '[^']*src/" "$SRC" --include='*.ts' --exclude-dir=__te
 
 STAGE=$DEST/.$FUNCTION.staging
 OLD=$DEST/.$FUNCTION.old
-rm -rf "$STAGE" "$OLD"
+rm -rf "$STAGE"
+# A run interrupted between the two moves of the swap leaves the previous bundle in $OLD and no function: put it back first.
+if [ -d "$OLD" ]; then
+  if [ -e "$DEST/$FUNCTION" ]; then rm -rf "$OLD"; else mv "$OLD" "$DEST/$FUNCTION"; fi
+fi
 trap 'rm -rf "$STAGE"' EXIT
 
 mkdir -p "$STAGE/_vendor"
