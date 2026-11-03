@@ -16,8 +16,8 @@ export const SEARCH_TIMEOUT_MS = 30_000;
 
 /** What the page gives, already parsed. Each call is one request to the source; it throws on any failure or change of shape. */
 export interface Source {
-  roster(): Promise<RosterItem[]>;
-  history(entry: RosterEntry, expired?: () => boolean): Promise<History>;
+  roster(signal?: AbortSignal): Promise<RosterItem[]>;
+  history(entry: RosterEntry, signal?: AbortSignal): Promise<History>;
 }
 
 const isUnreadable = (entry: RosterItem): entry is Exclude<RosterItem, RosterEntry> => 'unreadable' in entry;
@@ -62,34 +62,42 @@ const toResult = ({ sourceResultKey, stroke, distance, pool, hundredths, swumOn,
  */
 export function createCoFecnaProvider(open: () => Source): ResultsProvider {
   // Any failure is the same typed error with no cause; nothing is logged, so no number or name can leak.
-  // `expired` stops a search from asking for more once the total time is over.
-  async function guarded<T>(call: (source: Source, expired: () => boolean) => Promise<T>): Promise<T> {
-    let over = false;
+  // One signal for the whole search, aborted when the total time is over: whatever is in flight stops, and nothing new is asked.
+  async function guarded<T>(call: (source: Source, signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
-        over = true;
+        controller.abort();
         reject(new ProviderUnavailableError());
       }, SEARCH_TIMEOUT_MS);
     });
     try {
-      return await Promise.race([call(open(), () => over), deadline]);
+      return await Promise.race([call(open(), controller.signal), deadline]);
     } catch {
       throw new ProviderUnavailableError();
     } finally {
       clearTimeout(timer);
+      // On a failure too: requests the source still has running (parallel events) stop with it.
+      controller.abort();
     }
   }
 
+  // Every history goes through here, so no path asks the source for more once the total time is over.
+  function historyOf(source: Source, entry: RosterEntry, signal: AbortSignal): Promise<History> {
+    if (signal.aborted) throw new ProviderUnavailableError();
+    return source.history(entry, signal);
+  }
+
   // The number must be one of the list's options, or there is no match and no history is asked for.
-  async function lookup(source: Source, identityNumber: string): Promise<RosterEntry | null> {
+  async function lookup(source: Source, identityNumber: string, signal: AbortSignal): Promise<RosterEntry | null> {
     let key: string;
     try {
       key = normalizeNumber(identityNumber);
     } catch {
       return null;
     }
-    const roster = await source.roster();
+    const roster = await source.roster(signal);
     const found = roster.filter((entry) => entry.key === key);
     if (found.length > 1) throw new ProviderUnavailableError(); // Two entries share the number: the identity is ambiguous.
     // An unreadable entry with this number, or one without a key that may have been it, cannot be ruled out: never "no match".
@@ -103,13 +111,13 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
     key: 'co-fecna',
 
     findCandidates: ({ firstName, lastName, identityNumber }: CandidateQuery) =>
-      guarded(async (source, expired) => {
+      guarded(async (source, signal) => {
         if (identityNumber !== null) {
-          const entry = await lookup(source, identityNumber);
-          return entry ? [toCandidate(entry, await source.history(entry, expired))] : [];
+          const entry = await lookup(source, identityNumber, signal);
+          return entry ? [toCandidate(entry, await historyOf(source, entry, signal))] : [];
         }
         const wanted = words(`${firstName} ${lastName}`);
-        const roster = await source.roster();
+        const roster = await source.roster(signal);
         const found = roster.filter((entry): entry is RosterEntry => !isUnreadable(entry) && matches(wanted, entry.name));
         // Nobody found while an entry could not be read: that entry may be the person, so "no match" would mislead.
         if (found.length === 0 && roster.some(isUnreadable)) throw new ProviderUnavailableError();
@@ -119,18 +127,17 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
         // One athlete at a time, in order, never in parallel.
         const candidates: Candidate[] = [];
         for (const entry of found) {
-          if (expired()) throw new ProviderUnavailableError();
-          candidates.push(toCandidate(entry, await source.history(entry, expired)));
+          candidates.push(toCandidate(entry, await historyOf(source, entry, signal)));
         }
         return candidates;
       }),
 
     // A number that is not in the list cannot be confirmed: that is unavailable, never an empty history.
     fetchResults: (sourceAthleteKey: string) =>
-      guarded(async (source, expired) => {
-        const entry = await lookup(source, sourceAthleteKey);
+      guarded(async (source, signal) => {
+        const entry = await lookup(source, sourceAthleteKey, signal);
         if (!entry) throw new ProviderUnavailableError();
-        return (await source.history(entry, expired)).results.map(toResult);
+        return (await historyOf(source, entry, signal)).results.map(toResult);
       }),
   };
 }
