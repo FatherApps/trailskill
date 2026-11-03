@@ -19,8 +19,11 @@ export type StrokeIconProps = {
 // Box and glyph size in dp, per design system.
 const sizes = { md: { box: 44, glyph: 34 }, sm: { box: 32, glyph: 24 } } as const;
 
-// Stroke width of the empty variant's dotted ring.
+// Stroke width of the empty variant's dotted ring, and the target distance between dot centers.
 const RING = 1.5;
+const DOT_PITCH = 4.5;
+// Near-zero dash: with round caps it renders as a dot as wide as RING.
+const DOT = 0.01;
 
 // Shapes copied from assets/estilos/*.svg (viewBox 0 0 32 32); drawn in the ink color the variant picks.
 const WATER = 'M3 25c2.2-2 4.3-2 6.5 0s4.3 2 6.5 0 4.3-2 6.5 0 4.3 2 6.5 0';
@@ -104,6 +107,8 @@ export function StrokeIcon({ stroke, size = 'md', variant = 'default', decorativ
   const { box, glyph } = sizes[size];
   const inkToken: ColorToken = variant === 'empty' ? 'ink-muted' : variant === 'onColor' ? 'on-color' : 'ink';
   const Glyph = glyphs[stroke];
+  const ringRadius = (box - RING) / 2;
+  const circumference = 2 * Math.PI * ringRadius;
 
   return (
     <View
@@ -120,24 +125,31 @@ export function StrokeIcon({ stroke, size = 'md', variant = 'default', decorativ
           style={[StyleSheet.absoluteFill, { borderRadius: radius.full, backgroundColor: colors['on-header'], opacity: 0.75 }]}
         />
       )}
-      <Svg width={glyph} height={glyph} viewBox="0 0 32 32">
-        <Glyph ink={colors[inkToken]} />
-      </Svg>
       {variant === 'empty' && (
-        // Drawn in SVG because Android renders a dotted View border on a rounded view as solid or warped.
-        <Svg style={StyleSheet.absoluteFill} width={box} height={box} viewBox={`0 0 ${box} ${box}`}>
+        // First child so the ring sits under the glyph. Drawn in SVG because Android renders a dotted View border on a rounded view as solid or warped.
+        <Svg
+          style={StyleSheet.absoluteFill}
+          width={box}
+          height={box}
+          viewBox={`0 0 ${box} ${box}`}
+          importantForAccessibility="no"
+          accessibilityElementsHidden
+        >
           <Circle
             cx={box / 2}
             cy={box / 2}
-            r={(box - RING) / 2}
+            r={ringRadius}
             fill="none"
             stroke={colors['border-strong']}
             strokeWidth={RING}
-            strokeDasharray="1.5 3"
+            strokeDasharray={[DOT, circumference / Math.round(circumference / DOT_PITCH) - DOT]}
             strokeLinecap="round"
           />
         </Svg>
       )}
+      <Svg width={glyph} height={glyph} viewBox="0 0 32 32">
+        <Glyph ink={colors[inkToken]} />
+      </Svg>
     </View>
   );
 }

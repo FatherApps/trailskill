@@ -2,10 +2,12 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 
 import { t } from '../i18n';
+import type { StrokeCode } from '../sport';
 import { typography as baseTypography, useTheme, type ColorToken } from '../theme';
 import { formatTime, personalBestDifference, spokenDifference, type Hundredths } from '../time';
 import { useFocusRing } from './focusRing';
 import { Icon } from './Icon';
+import { StrokeIcon } from './StrokeIcon';
 import { Tag, type TagProps } from './Tag';
 import { TimeValue } from './TimeValue';
 
@@ -32,6 +34,9 @@ export type SwimmerRowProps = {
   // Shown under the time (or the personal best) in the end column, for example a sync pill. Not part of the row label.
   status?: ReactNode;
   tag?: TagProps;
+  // The stroke of the event the row is about: a small icon before the name. The icon is decorative; the row label says the stroke once.
+  // Callers with a wider type filter with `isStroke` first.
+  stroke?: StrokeCode;
   chevron?: boolean;
   selected?: boolean;
   onPress?: () => void;
@@ -74,6 +79,7 @@ export function SwimmerRow({
   newPersonalBest = false,
   status,
   tag,
+  stroke,
   chevron = false,
   selected = false,
   onPress,
@@ -117,6 +123,7 @@ export function SwimmerRow({
   const label = [
     name,
     detail,
+    stroke && t(`sport.stroke.${stroke}`),
     spokenTime,
     difference !== null && spokenDifference(difference),
     showPbRow && newPersonalBest && t('time_value.pb_spoken'),
@@ -166,7 +173,14 @@ export function SwimmerRow({
 
   const nameBlock = (style: { flex?: number; flexShrink?: number; minWidth: number }) => (
     <View {...hidden} style={style}>
-      <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
+      {stroke ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+          <StrokeIcon stroke={stroke} size="sm" decorative />
+          <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name], flexShrink: 1 }]}>{name}</Text>
+        </View>
+      ) : (
+        <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
+      )}
       <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
       {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
     </View>

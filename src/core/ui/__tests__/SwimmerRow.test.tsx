@@ -688,3 +688,57 @@ describe('SwimmerRow focus ring', () => {
     expect(rowStyle(screen.getByRole('button')).outlineWidth).toBeUndefined();
   });
 });
+
+
+const svgs = () => screen.container.queryAll((node) => node.type === 'RNSVGSvgView');
+const pathData = () => screen.container.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d as string);
+// One path that only that stroke draws (as in StrokeIcon.test).
+const signature = { FR: 'M12 17c2-7 8-10 13-6', BK: 'M20 18.5 17 5', FL: 'M13.5 17C10.5 6 4.5 4 3 11M18.5 17C21.5 6 27.5 4 29 11' };
+// The icon is the Svg's parent box; it is decorative when hidden from screen readers.
+const box = (svg: { parent: unknown }) => svg.parent as { props: Record<string, unknown>; parent: { children: unknown[] } };
+
+describe('SwimmerRow stroke', () => {
+  const hidden = { includeHiddenElements: true };
+
+  it('draws a decorative sm StrokeIcon of that stroke before the name', async () => {
+    await render(<SwimmerRow {...base} stroke="BK" />);
+
+    expect(svgs()).toHaveLength(1);
+    expect(svgs()[0].props.width).toBe(24);
+    expect(box(svgs()[0]).props.accessibilityElementsHidden).toBe(true);
+    expect(pathData()).toContain(signature.BK);
+    const group = box(svgs()[0]).parent;
+    expect(group.children.indexOf(box(svgs()[0]) as never)).toBeLessThan(group.children.indexOf(screen.getByText('Lucía R.', hidden) as never));
+  });
+
+  it('draws no icon without stroke and keeps the name block as it was: the name and the detail, nothing else', async () => {
+    await render(<SwimmerRow {...base} />);
+
+    expect(svgs()).toHaveLength(0);
+    const block = screen.getByText('Lucía R.', hidden).parent!;
+    expect(block.children).toHaveLength(2);
+    expect(StyleSheet.flatten(screen.getByText('Lucía R.', hidden).props.style)).not.toHaveProperty('flexShrink');
+  });
+
+  it('says the stroke once in the composed label while the icon stays decorative', async () => {
+    await render(<SwimmerRow {...base} stroke="FL" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, Mariposa, marca personal 34,82, MP 50 L')).toBeOnTheScreen();
+    expect(screen.queryByRole('image')).toBeNull();
+    expect(box(svgs()[0]).props.accessibilityElementsHidden).toBe(true);
+  });
+
+  it('leaves the label as it was without stroke', async () => {
+    await render(<SwimmerRow {...base} />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, marca personal 34,82, MP 50 L')).toBeOnTheScreen();
+  });
+
+  it('keeps the name shrinkable next to the icon at 200 % text', async () => {
+    setOsFontScale(2);
+    await render(<SwimmerRow {...base} stroke="FR" />);
+
+    expect(StyleSheet.flatten(screen.getByText('Lucía R.', hidden).props.style)).toMatchObject({ flexShrink: 1 });
+    expect(svgs()).toHaveLength(1);
+  });
+});

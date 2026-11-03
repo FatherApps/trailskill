@@ -124,6 +124,14 @@ describe('RecordsSection', () => {
     expect(screen.getByRole('radio', { name: '25 m' })).toBeChecked();
   });
 
+  it('draws the stroke icon of each record', async () => {
+    await render(section());
+    await screen.findAllByTestId('record-row');
+
+    // Free (FR) draws this line and no other glyph does.
+    expect(screen.container.queryAll((node) => node.type === 'RNSVGPath' && node.props.d === 'M12 17c2-7 8-10 13-6')).toHaveLength(1);
+  });
+
   it('changes the rows with the pool', async () => {
     await render(section());
     await screen.findByRole('button', { name: 'Categoría: Categoría A' });

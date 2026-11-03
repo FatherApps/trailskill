@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Dimensions } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
 import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { longTextRecordFixture, recordsFixture } from '../__fixtures__/records';
@@ -148,5 +148,69 @@ describe('RecordTable', () => {
     );
 
     expect(screen.getByTestId('record-table')).toBeOnTheScreen();
+  });
+});
+
+
+const svgs = () => screen.container.queryAll((node) => node.type === 'RNSVGSvgView');
+const pathData = () => screen.container.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d as string);
+// One path that only that stroke draws (as in StrokeIcon.test).
+const signature = { FR: 'M12 17c2-7 8-10 13-6', BK: 'M20 18.5 17 5', FL: 'M13.5 17C10.5 6 4.5 4 3 11M18.5 17C21.5 6 27.5 4 29 11' };
+// The icon is the Svg's parent box; it is decorative when hidden from screen readers.
+const box = (svg: { parent: unknown }) => svg.parent as { props: Record<string, unknown>; parent: { children: unknown[] } };
+
+describe('RecordTable stroke icon', () => {
+  const struck = [
+    { id: 's1', pool: 'SCM', event: 'Libre 50', stroke: 'FR', time: 3391, athlete: 'Mateo Castro', date: '2026-10-18' },
+    { id: 's2', pool: 'SCM', event: 'Espalda 50', stroke: 'BK', time: 4108, athlete: 'Lucía Ramírez', date: '2026-10-02' },
+  ] satisfies RecordTableProps['rows'];
+
+  it.each([
+    ['table', 1000],
+    ['list', 300],
+  ])('draws a decorative sm icon with the stroke of each row in the %s form', async (_form, width) => {
+    await show({ rows: struck });
+    measure(width);
+
+    expect(svgs()).toHaveLength(2);
+    expect(svgs().map((svg) => svg.props.width)).toEqual([24, 24]);
+    expect(svgs().every((svg) => box(svg).props.accessibilityElementsHidden === true)).toBe(true);
+    expect(pathData()).toEqual(expect.arrayContaining([signature.FR, signature.BK]));
+    expect(pathData()).not.toContain(signature.FL);
+  });
+
+  it.each([
+    ['table', 1000],
+    ['list', 300],
+  ])('draws the icon before the event name in the %s form', async (_form, width) => {
+    await show({ rows: [struck[0]] });
+    measure(width);
+
+    const group = box(svgs()[0]).parent;
+    const name = screen.getByText('Libre 50', hidden);
+    expect(group.children.indexOf(box(svgs()[0]) as never)).toBeGreaterThanOrEqual(0);
+    expect(group.children.indexOf(box(svgs()[0]) as never)).toBeLessThan(group.children.indexOf(name as never));
+  });
+
+  it('draws no icon for a row without a stroke or with a code that has no pictogram', async () => {
+    await show({ rows: [{ ...struck[0], stroke: undefined }, { ...struck[1], stroke: 'XX' }] });
+
+    expect(svgs()).toHaveLength(0);
+    expect(screen.getByText('Libre 50', hidden)).toBeOnTheScreen();
+    expect(screen.getByText('Espalda 50', hidden)).toBeOnTheScreen();
+  });
+
+  it('does not repeat the stroke in the accessible label', async () => {
+    await show({ rows: [struck[0]] });
+
+    expect(screen.getByLabelText('Libre 50, 33 segundos con 91 centésimas, Mateo Castro, 18 oct 2026')).toBeOnTheScreen();
+  });
+
+  it('keeps the event name shrinkable next to the icon so a large font wraps the text, not the icon', async () => {
+    jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 2 }));
+    await show({ rows: [struck[0]] });
+
+    expect(StyleSheet.flatten(screen.getByText('Libre 50', hidden).props.style)).toMatchObject({ flexShrink: 1 });
+    expect(svgs()).toHaveLength(1);
   });
 });

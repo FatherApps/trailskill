@@ -44,6 +44,15 @@ export const swimmerRowFixture = {
     bestTime: 12534,
     bestTimeLabel: 'MP 200 L',
   },
+  withStroke: {
+    name: 'Lucía R.',
+    initials: 'LR',
+    color: 'athlete-1',
+    detail: 'Infantil B',
+    bestTime: 3482,
+    bestTimeLabel: 'MP 50 L',
+    stroke: 'FR',
+  },
   timeAndTag: {
     name: 'Sara P.',
     initials: 'SP',

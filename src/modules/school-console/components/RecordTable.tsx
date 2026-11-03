@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { t } from '../../../core/i18n';
-import type { PoolCode } from '../../../core/sport';
+import { isStroke, type PoolCode } from '../../../core/sport';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime, type Hundredths } from '../../../core/time';
-import { InitialsDot, StateView, Tag, TimeValue, type InitialsDotProps } from '../../../core/ui';
+import { InitialsDot, StateView, StrokeIcon, Tag, TimeValue, type InitialsDotProps } from '../../../core/ui';
 import '../i18n';
 import { formatDate } from './formatDate';
 import { useTextScale } from './textScale';
@@ -16,6 +16,8 @@ export type RecordRow = {
   pool: PoolCode;
   // Already built, for example "Libre 50" (see eventLabel).
   event: string;
+  // Stroke code of the event, as it comes from the data: a code without a pictogram shows the row without an icon.
+  stroke?: string;
   time: Hundredths | null;
   // Full name of the athlete who holds the mark.
   athlete: string | null;
@@ -95,6 +97,17 @@ export function RecordTable({ rows, pool, compact = false }: RecordTableProps) {
   const text = { color: colors[recordTableColors.text] };
   const muted = { color: colors[recordTableColors.muted] };
 
+  // The icon only accompanies the event name (the row label already says it), so it is decorative.
+  const eventName = (row: RecordRow, nameStyle: object[]) =>
+    isStroke(row.stroke) ? (
+      <>
+        <StrokeIcon stroke={row.stroke} size="sm" decorative />
+        <Text style={[...nameStyle, { flexShrink: 1 }]}>{row.event}</Text>
+      </>
+    ) : (
+      <Text style={nameStyle}>{row.event}</Text>
+    );
+
   const spoken = (row: RecordRow, date: string | null) =>
     [row.event, row.time === null ? t('schoolConsole.records.no_mark') : spokenTime(row.time), row.athlete, date, row.source]
       .filter(Boolean)
@@ -116,7 +129,13 @@ export function RecordTable({ rows, pool, compact = false }: RecordTableProps) {
             >
               <View {...hidden} style={{ gap: space[1] }}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
-                  <Text style={[typography['body-strong'], text, { flexShrink: 1 }]}>{row.event}</Text>
+                  {isStroke(row.stroke) ? (
+                    <View style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+                      {eventName(row, [typography['body-strong'], text])}
+                    </View>
+                  ) : (
+                    eventName(row, [typography['body-strong'], text, { flexShrink: 1 }])
+                  )}
                   <TimeValue value={row.time} size="time-sm" />
                 </View>
                 {detail ? <Text style={[typography.caption, muted]}>{detail}</Text> : null}
@@ -169,7 +188,13 @@ export function RecordTable({ rows, pool, compact = false }: RecordTableProps) {
             ]}
           >
             <View {...hidden} style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={[typography['body-strong'], cell, text, columns[0]]}>{row.event}</Text>
+              {isStroke(row.stroke) ? (
+                <View style={[cell, columns[0], { flexDirection: 'row', alignItems: 'center', gap: space[2] }]}>
+                  {eventName(row, [typography['body-strong'], text])}
+                </View>
+              ) : (
+                eventName(row, [typography['body-strong'], cell, text, columns[0]])
+              )}
               <View style={[cell, columns[1], { alignItems: 'flex-end' }]}>
                 <TimeValue value={row.time} size="time-sm" />
               </View>

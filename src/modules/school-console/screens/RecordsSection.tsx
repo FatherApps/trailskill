@@ -115,6 +115,7 @@ export function RecordsSection({
       id: `${record.stroke}-${record.distance}`,
       pool,
       event: eventLabel(record.stroke, record.distance),
+      stroke: record.stroke,
       time: record.time,
       athlete: record.athlete,
       date: record.date,
