@@ -51,13 +51,13 @@ Lo que registras se guarda en el teléfono o la tableta y se sincroniza cuando v
 TU INFORMACIÓN, BAJO TU CONTROL
 Cada persona ve solo lo que su rol permite. Los datos de los deportistas se usan únicamente para los fines que la familia o el deportista autorizó.
 
-Esta versión está en prueba. Si tienes una invitación, ingresa con tu correo: te enviaremos un código.
+Esta versión está en prueba. Si tienes una invitación, ingresa con tu correo (te enviaremos un código) o con tu cuenta de Google.
 ```
 
 ## Notas de la versión (prueba interna)
 
 ```text
-Primera versión de prueba. Ingresa con el correo invitado y recibirás un código. Cuéntanos qué falla o qué no se entiende.
+Primera versión de prueba. Ingresa con el correo invitado (recibirás un código) o con tu cuenta de Google. Cuéntanos qué falla o qué no se entiende.
 ```
 
 ## Recursos gráficos

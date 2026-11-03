@@ -10,7 +10,7 @@ Everything is entered by the user or captured by the timing screens. There is no
 
 | Data | Whose | Where it is stored | Module / source |
 | --- | --- | --- | --- |
-| Email address | Every signed-in user | Supabase Auth (`auth.users`) | `src/core/session/SessionProvider.tsx` (`signInWithOtp`, `verifyOtp`) |
+| Email address | Every signed-in user | Supabase Auth (`auth.users`) | `src/core/session/SessionProvider.tsx` (`signInWithOtp`, `verifyOtp`, `signInWithOAuth`) |
 | User ID | Every signed-in user | `auth.users.id`, referenced as `created_by`, `user_id`, `confirmed_by`, `requested_by` in many tables | all modules |
 | First and last name of an adult account | Guardian or adult athlete | `adult_profiles` (`20261025110000_accounts_adult_profiles.sql`) | `src/modules/accounts` |
 | First and last name of an athlete | Athlete (may be a minor) | `athletes` (`20261024200100_athletes_athletes.sql`) | `src/modules/accounts`, `src/modules/athletes` |
@@ -33,7 +33,7 @@ Local copy: `src/core/sync` keeps the rows a user may read in an **encrypted** o
 | Question | Proposed answer | Reason |
 | --- | --- | --- |
 | Does the app collect or share any of the required user data types? | Yes | See below. |
-| Is all of the user data collected by your app encrypted in transit? | Yes | The app reads the Supabase and PowerSync URLs from build variables (`src/core/sync/supabase.ts`) and does not enforce a scheme. **Confirm** that both production URLs use HTTPS before answering Yes. |
+| Is all of the user data collected by your app encrypted in transit? | Yes | Both production URLs (API and PowerSync) are `https://`, behind Cloudflare; confirmed by the maintainer. The app itself reads them from build variables (`src/core/sync/supabase.ts`) and does not enforce a scheme, so re-check them if either URL changes. |
 | Do you provide a way for users to request that their data is deleted? | **Open decision** | No in-app account or data deletion flow exists in `src/` today; only the withdrawal of an authorization does (`authorizations.withdrawn_at`). Play also asks apps that create accounts for a deletion path in the app and on the web: the maintainer decides whether to offer a request by email (stated in the privacy policy) or to build it, before the closed test. |
 
 ### Data types
@@ -42,10 +42,10 @@ For each type: collected, shared, processed ephemerally, required or optional, a
 
 | Play category and type | Collected | Shared | Required | Purposes | Basis |
 | --- | --- | --- | --- | --- | --- |
-| Personal info: Name | Yes | No | Required | App functionality, account management | `adult_profiles`, `athletes` |
+| Personal info: Name | Yes | **Yes**, only to the official results source when the user imports official results with the authorization granted | Required to collect; the sharing is optional | App functionality, account management | `adult_profiles`, `athletes`; sharing in `supabase/functions/results-import` |
 | Personal info: Email address | Yes | No | Required | App functionality, account management | Auth sign-in with an emailed code |
 | Personal info: User IDs | Yes | No | Required | App functionality, account management | `auth.users.id` |
-| Personal info: Other info (athlete identity document number) | Yes | No | Optional (the field is labelled optional in `src/modules/accounts/i18n/es-CO.json`; it is needed to import official results) | App functionality | `athlete_identity_documents`, encrypted |
+| Personal info: Other info (athlete identity document number) | Yes | **Yes**, only to the official results source when the user imports official results with the authorization granted (same condition as the name) | Optional (the field is labelled optional in `src/modules/accounts/i18n/es-CO.json`; it is needed to import official results) | App functionality | `athlete_identity_documents`, encrypted at rest; sent by `refreshResults` → `provider.fetchResults(identityNumber)` |
 | Health and fitness: Fitness info (swim times, training plans, completed sessions) | Yes | No | Required for the timing and plan features | App functionality | `measurements`, `training_plan_*` |
 | Messages: Other in-app messages (notes on a session) | Yes | No | Optional | App functionality | `training_plan_notices` |
 | Device or other IDs (app-generated device identifier) | Yes | No | Required | App functionality (tells apart records captured on different devices to solve conflicts) | `measurements.device_id` and `measurement_conflicts` |
@@ -54,9 +54,9 @@ Play types **not** collected, according to the code: location, financial info, h
 
 ### Sharing to review with the maintainer and the legal review
 
-1. **Official results import.** When a guardian or adult athlete uses "Import official results", the server function `supabase/functions/results-import` sends the athlete's first and last name to the official results source of the organization that is chosen, through the provider adapter `<country>-<organization>` (ADR 0003). That is a transfer of a name to a third party. It happens only with the `import_official_results` authorization granted by the guardian or the adult athlete (`authorization_purposes`). Proposed answer for Name: **shared = Yes, purpose App functionality**, until the legal review says the source is acting as the user's own service. Because it depends on user action and consent, it is optional.
+1. **Official results import.** When a guardian or adult athlete uses "Import official results", the server function `supabase/functions/results-import` sends the athlete's first and last name, and the stored identity document number (read back decrypted for the call: `refreshResults` → `provider.fetchResults(identityNumber)`), to the official results source of the organization that is chosen, through the provider adapter `<country>-<organization>` (ADR 0003). That is a transfer of personal data to a third party. It happens only with the `import_official_results` authorization granted by the guardian or the adult athlete (`authorization_purposes`). Proposed answer, confirmed by the maintainer for the identity number and applied to the name too: **shared = Yes, optional, purpose App functionality**, with the same authorization condition. The legal review may refine how the source is described.
 2. **Email delivery.** The auth server sends the sign-in code through an SMTP provider. Treated as a service provider, not sharing. Confirm the provider and its terms.
-3. **Third-party sign-in.** `SessionProvider` contains code for Google and Microsoft sign-in, but the app does not offer it yet (Google is pending in #84). If it is enabled before release, the email address and name are received from the provider; re-answer Name and Email accordingly.
+3. **Third-party sign-in.** Google sign-in is enabled in production (verified by the maintainer in the auth logs: authorize → provider → callback), and the sign-in screen has a Microsoft button too (`src/modules/accounts/components/ProviderOptions.tsx`). With a provider, the email address (and the name, if the provider returns it) comes from that provider through Supabase Auth. It is the same Email and Name already declared above; signing in through a provider is not sharing to a third party. **Confirm** whether Microsoft is enabled in production and, if it is not, hide the button or leave it out of the store text.
 4. **Sharing inside the platform.** A school can read the times of its own athletes, and a guardian can authorize sharing results with a school (`school_result_sharing`, `share_results_with_school`). That is between users of the same app, enforced by row-level security, not a transfer to a third party.
 
 ## Open questions

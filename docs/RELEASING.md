@@ -164,16 +164,30 @@ A manual upload keeps the first release free of service-account credentials. `ea
 
 ### 6. Smoke test
 
-Run the smoke test of the [Release checklist](#release-checklist) on a device installed from the Internal testing track. Play reviewers and testers sign in with an emailed code only for now (Google sign-in is pending in #84): reviewer access is tracked in issue #910.
+Run the smoke test of the [Release checklist](#release-checklist) on a device installed from the Internal testing track.
 
-### 7. What Play requires before a closed test
+### 7. Access for Play reviewers
+
+Play may ask for sign-in credentials in **App content → App access** (the app asks for a sign-in on first launch). Reviewers cannot read a stranger's email, so the emailed code is not enough for them. Decided by the maintainer (issue #910):
+
+- **Use a dedicated Google account** (Google sign-in is enabled in production and does not depend on #84). Create it for the review only, with no 2-step verification that needs a phone, and use only synthetic data in the athletes it manages. Mario creates and keeps it; **its email and password go only in the App access form of Play Console, never in the repository, an issue, or a pull request.**
+- **Backup:** a dedicated mailbox for the review, whose address and password go in the same form. The reviewer opens that mailbox to read the emailed code, so keep it free of 2-step verification and send the code only when the reviewer asks.
+- Not allowed: a fixed-code or other authentication shortcut on the server.
+
+Before the closed test, sign in once with the dedicated account on an Internal testing install and check that it reaches the home screen.
+
+### 8. What Play requires before a closed test
 
 Closed testing is the track that counts for production access. Before moving there:
 
 - **Target API level 36 or higher** on every build, as AGENTS.md requires ([source](https://developer.android.com/google/play/requirements/target-sdk)).
 - **At least 12 testers opted in for 14 consecutive days.** The TrailSkill Play developer account is personal, so Play asks for a closed test with this many testers before it grants production access ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en)). Keep the 14 days unbroken: a tester who opts out lowers the count.
 - Completed store listing, privacy policy URL, Data safety form, content rating, and target audience declaration ([Store listing and policy](#store-listing-and-policy)).
-- Access for Play reviewers, if the review asks for sign-in credentials.
+- The App access form filled in with the dedicated review account ([step 7](#7-access-for-play-reviewers)).
+- Open decisions settled and closed, because each one changes what the forms must say:
+  - **Data deletion.** The app has no way to delete an account or its data, and Play asks apps that create accounts for a deletion path in the app and on the web. Decide between a request by email (stated in the privacy policy) and building it.
+  - **Target audience** and Families Policy applicability (the app stores minors' data while its users are adults; see [Open decisions](#open-decisions)).
+  - **Legal review** of the authorization texts and the privacy policy (issue #106). The privacy policy needs it before it gets a public URL.
 
 ## Test builds (debug-signed APK)
 

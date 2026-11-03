@@ -16,7 +16,7 @@ Esta política cubre a quienes usan TrailSkill: familias (acudientes), deportist
 
 | Dato | De quién | Para qué se usa |
 | --- | --- | --- |
-| Correo electrónico | Toda persona que ingresa | Enviarle el código de ingreso e identificar su cuenta |
+| Correo electrónico | Toda persona que ingresa | Enviarle el código de ingreso e identificar su cuenta; si ingresa con Google u otro proveedor, lo recibimos de ese proveedor |
 | Nombre y apellido | Acudientes y deportistas adultos | Identificar la cuenta |
 | Nombre y apellido del deportista | Deportista | Mostrar su perfil y asignar tiempos y entrenamientos |
 | Número de identificación del deportista (opcional) | Deportista | Importar sus resultados oficiales cuando la familia lo autoriza |
@@ -32,7 +32,7 @@ No recogemos ubicación, fotos, contactos, micrófono ni identificadores publici
 
 ## 4. Para qué usamos los datos
 
-- Permitir el ingreso con un código enviado al correo.
+- Permitir el ingreso con un código enviado al correo o con una cuenta de Google.
 - Registrar tiempos, mostrar historiales y gestionar entrenamientos.
 - Mostrar a cada persona solo lo que su rol permite: las reglas de acceso las aplica el servidor, no solo la pantalla.
 - Importar resultados oficiales cuando el acudiente o el deportista adulto lo autoriza.
@@ -46,7 +46,7 @@ Para cada deportista, el acudiente (o el propio deportista adulto) acepta de for
 ## 6. Con quién se comparten los datos
 
 - **Escuela del deportista:** su personal ve los datos de los deportistas de su escuela, según su rol (administrador o entrenador). Compartir los resultados con la escuela requiere su propia autorización.
-- **Fuente de resultados oficiales:** si se usa «Importar resultados oficiales», enviamos el nombre del deportista a la fuente oficial que se elija para buscar sus resultados, solo con autorización. PENDIENTE de revisión legal: confirmar cómo se describe esta transferencia.
+- **Fuente de resultados oficiales:** si se usa «Importar resultados oficiales», enviamos el nombre del deportista y, si la familia lo registró, su número de identificación a la fuente oficial que se elija para buscar sus resultados, solo con autorización. PENDIENTE de revisión legal: confirmar cómo se describe esta transferencia.
 - **Proveedores de servicios:** el alojamiento de los datos y el envío del correo con el código se hacen con proveedores que tratan los datos por nuestra cuenta y solo para prestar el servicio. PENDIENTE: nombrar a los proveedores y el país donde se alojan los datos.
 
 No compartimos datos con nadie más, salvo que una autoridad competente lo exija conforme a la ley.
@@ -57,7 +57,7 @@ Los datos de menores los registra y autoriza su acudiente. Tratamos los datos de
 
 ## 8. Seguridad
 
-- La comunicación entre la aplicación y los servidores va cifrada. PENDIENTE: confirmar HTTPS en producción.
+- La comunicación entre la aplicación y los servidores va cifrada (HTTPS).
 - La copia local de los datos en el dispositivo está cifrada, y el número de identificación del deportista se guarda cifrado en el servidor.
 - Cada persona accede solo a los datos que su rol permite.
 
