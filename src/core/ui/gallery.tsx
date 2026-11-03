@@ -14,6 +14,7 @@ import { navBarFixture as nb } from './__fixtures__/navBar';
 import { segmentedFixture as sg } from './__fixtures__/segmented';
 import { stateViewFixture as sv } from './__fixtures__/stateView';
 import { stepHeaderFixture as sh } from './__fixtures__/stepHeader';
+import { strokeIconFixture as si } from './__fixtures__/strokeIcon';
 import { swimmerRowFixture as sr } from './__fixtures__/swimmerRow';
 import { tagFixture as tg } from './__fixtures__/tag';
 import { textFieldFixture as tf } from './__fixtures__/textField';
@@ -32,6 +33,7 @@ import { NavBar, type NavBarItem } from './NavBar';
 import { Segmented, type SegmentedOption } from './Segmented';
 import { StateView } from './StateView';
 import { StepHeader } from './StepHeader';
+import { StrokeIcon, type StrokeIconProps } from './StrokeIcon';
 import { SwimmerRow, type SwimmerRowProps } from './SwimmerRow';
 import { SyncStatus } from './SyncStatus';
 import { Tag } from './Tag';
@@ -49,6 +51,24 @@ const noop = () => {};
 
 // The preview box shrinks its children to their content; these components need the full width.
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
+
+// The five catalog strokes side by side in one variant; onColor sits on a colored card, as it does in use.
+function StrokeIconRow(variant: Omit<StrokeIconProps, 'stroke'>) {
+  const { colors, space: gap, radius } = useTheme();
+
+  return (
+    <View
+      style={[
+        { flexDirection: 'row', flexWrap: 'wrap', gap: gap[4], padding: gap[3] },
+        variant.variant === 'onColor' && { backgroundColor: colors.coral, borderRadius: radius.md },
+      ]}
+    >
+      {si.codes.map((code) => (
+        <StrokeIcon key={code} stroke={code} {...variant} />
+      ))}
+    </View>
+  );
+}
 
 const iconNames = Object.keys(iconPaths) as IconName[];
 
@@ -255,6 +275,16 @@ export const galleryEntries: GalleryEntry[] = [
       'symbol-44': () => <LogoSymbol size={44} />,
       'symbol-40': () => <LogoSymbol size={40} />,
       'symbol-26-decorative': () => <LogoSymbol size={26} decorative />,
+    },
+  },
+  {
+    id: 'strokeIcon',
+    title: 'StrokeIcon',
+    states: {
+      md: () => <StrokeIconRow />,
+      sm: () => <StrokeIconRow size="sm" />,
+      empty: () => <StrokeIconRow variant="empty" />,
+      'on-color': () => <StrokeIconRow variant="onColor" />,
     },
   },
   {

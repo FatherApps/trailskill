@@ -9,6 +9,7 @@ export { SyncStatus, syncStatusColors, type SyncStatusProps } from './SyncStatus
 export { ConfirmSheet, confirmSheetColors, type ConfirmSheetProps } from './ConfirmSheet';
 export { Banner, bannerColors, type BannerProps, type BannerVariant } from './Banner';
 export { Icon, type IconProps } from './Icon';
+export { StrokeIcon, type StrokeIconProps } from './StrokeIcon';
 export { IconButton, iconButtonColors, type IconButtonProps } from './IconButton';
 export { Logo, LogoSymbol, type LogoProps, type LogoSymbolProps } from './Logo';
 export { iconPaths, type IconName } from './icons';
