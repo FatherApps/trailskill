@@ -50,6 +50,19 @@ describe('HistoryList', () => {
     expect(screen.getByLabelText(/Otra escuela, .*Solo en línea$/)).toBeOnTheScreen();
   });
 
+  it('keeps the online-only caption on a measurement without a sync state', async () => {
+    await render(<HistoryList results={[{ ...byId('race-pb'), origin: 'own', syncState: undefined }]} />);
+
+    expect(hiddenText('Solo en línea')).toHaveLength(1);
+  });
+
+  it('shows no sync caption on an imported row: it is on the device with nothing pending (issue 849)', async () => {
+    await render(<HistoryList results={[{ ...byId('import'), syncState: undefined }]} />);
+
+    expect(hiddenText('Solo en línea')).toHaveLength(0);
+    expect(screen.getByLabelText(importRow).props.accessibilityLabel).not.toMatch(/Solo en línea/);
+  });
+
   it('is virtualized: it renders only the first window of a long history', async () => {
     const many = Array.from({ length: 40 }, (_, index) => ({ ...byId('race-pb'), id: `r-${index}` }));
     await render(<HistoryList results={many} />);

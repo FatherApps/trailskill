@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 
 import { namedText, t, trimName } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { Banner, ColorHeader, StateView } from '../../../core/ui';
+import { Banner, ColorHeader, StateView, type ColorCardColor } from '../../../core/ui';
 import '../i18n';
 import { EventSelector, type EventSelectorProps } from '../components/EventSelector';
 import { formatDate } from '../components/formatDate';
@@ -36,7 +36,8 @@ export type AthleteProfileView =
   | { kind: 'data'; content: AthleteProfileContent }
   // No results yet: the header and selector stay, the personal best and history give way to an invitation.
   | { kind: 'empty'; content: AthleteProfileContent }
-  | { kind: 'loading' }
+  // `header` is the athlete when the caller already has them: the band shows their name and colour from the first frame and only the content below loads.
+  | { kind: 'loading'; header?: { name: string; color: ColorCardColor } }
   | { kind: 'error'; onRetry: () => void }
   // Offline with stored data: the content under a dated banner. `storedOn` is the ISO date (YYYY-MM-DD) it was saved.
   | { kind: 'offline'; storedOn: string; content: AthleteProfileContent }
@@ -74,10 +75,10 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   const margin = space[4];
   const padded = { paddingHorizontal: margin };
   // The states without content keep the band and its back button, so the screen never depends on the system back.
-  const withBand = (state: ReactNode) => (
+  const withBand = (state: ReactNode, band?: { name: string; color: ColorCardColor }) => (
     <View style={frame}>
       {/* A blank name leaves the title empty on purpose (maintainer, issue 644): any placeholder would be new copy. */}
-      <ColorHeader color={profileBandColor} title={trimmed} onBack={onBack} />
+      <ColorHeader color={band?.color ?? profileBandColor} title={band ? trimName(band.name) : trimmed} onBack={onBack} />
       {/* testID: this wrapper has no role, label or text; tests read its margin from it. */}
       <View testID="profile-content" style={[frame, padded, { paddingVertical: space[4] }]}>
         {state}
@@ -87,9 +88,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
 
   switch (view.kind) {
     case 'loading':
-      return withBand(
-        <StateView kind="loading" />
-      );
+      return withBand(<StateView kind="loading" />, view.header);
     case 'error':
       return withBand(
         <StateView
