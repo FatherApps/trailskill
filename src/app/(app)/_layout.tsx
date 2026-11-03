@@ -27,7 +27,7 @@ import {
   useSignOut,
   type RegistrationStep,
 } from '../../modules/accounts';
-import { createPowerSyncAthleteRepository, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
+import { athleteProfileHref, createPowerSyncAthleteRepository, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useStaffSchool } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
@@ -97,7 +97,7 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
     athletes: '/athletes',
     home: '/home',
     marks: '/marks',
-    history: only ? `/athletes/${only.id}` : '/athletes',
+    history: only ? athleteProfileHref(only.id, [only.firstName, only.lastName].filter(Boolean).join(' ')) : '/athletes',
   };
   return <NavBar items={adult ? adultItems : familyItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
 }

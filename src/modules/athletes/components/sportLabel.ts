@@ -13,3 +13,6 @@ function label(catalog: Catalog, code: string): string {
 export const strokeLabel = (code: string) => label(strokes, code);
 export const distanceLabel = (code: string) => label(distances, code);
 export const poolLabel = (code: string) => label(pools, code);
+
+// The number of a distance without its unit ("50"), for the places that print "Libre 50" and say "Libre 50 metros".
+export const distanceMeters = (code: string) => distances.find((item) => item.code === code)?.meters ?? code;

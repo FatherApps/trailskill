@@ -101,7 +101,8 @@ describe('MyAthletesScreen', () => {
     await fireEvent.press(historial());
 
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(onOpen).toHaveBeenCalledWith('a1');
+    // The name travels with the id so the profile band has it from the first frame (issue 851).
+    expect(onOpen).toHaveBeenCalledWith('a1', 'Tomás Rojas');
   });
 
   it('tags the front athlete as authorized, as pending, or with no tag while the state is unknown', async () => {

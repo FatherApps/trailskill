@@ -18,7 +18,7 @@ export type MyAthletesContainerProps = {
   authorizations: AuthorizationStatusRepository;
   // Changing it looks the athletes up again (the route passes the last sync).
   refreshKey?: unknown;
-  onOpen: (athleteId: string) => void;
+  onOpen: (athleteId: string, name: string) => void;
   onAdd: () => void;
   scrollEnabled?: boolean;
 };

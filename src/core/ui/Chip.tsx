@@ -1,4 +1,4 @@
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 
 import { fontFamily, useTheme, type ColorToken } from '../theme';
 import { unavailableColors } from './Button';
@@ -12,11 +12,15 @@ export type InitialsDotProps = {
 
 export type ChipProps = {
   label: string;
+  // What screen readers say when it differs from the visible label, for example "Libre 50 metros" under a chip that shows "Libre 50".
+  accessibilityLabel?: string;
   selected?: boolean;
   dot?: InitialsDotProps;
   // Not pressable, and said so to screen readers. Unchosen it turns the unavailable grey of Button; chosen it keeps its choice's black.
   disabled?: boolean;
   onPress: () => void;
+  // Lets a ChipRow know where the chip is, so it can bring the chosen one into view.
+  onLayout?: (event: LayoutChangeEvent) => void;
 };
 
 export const chipColors: {
@@ -59,7 +63,7 @@ export function InitialsDot({ initials, color }: InitialsDotProps) {
 }
 
 // A chip is one option of a ChipRow, so it is a radio: the selected one is black (primary / on-primary).
-export function Chip({ label, selected = false, dot, disabled = false, onPress }: ChipProps) {
+export function Chip({ label, accessibilityLabel, selected = false, dot, disabled = false, onPress, onLayout }: ChipProps) {
   const { colors, space, radius, size, typography } = useTheme();
   const { focusProps, ring } = useFocusRing();
   const palette = selected ? chipColors.selected : chipColors;
@@ -68,12 +72,13 @@ export function Chip({ label, selected = false, dot, disabled = false, onPress }
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       // Android reads `checked` for radios, iOS reads `selected`.
       accessibilityState={{ checked: selected, selected }}
       // Pressable adds `disabled` to the state and stops the press; passing false would add `disabled: false` to every enabled chip.
       disabled={disabled || undefined}
       onPress={onPress}
+      onLayout={onLayout}
       {...focusProps}
       style={[
         {

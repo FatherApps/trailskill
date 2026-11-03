@@ -18,16 +18,16 @@ describe('EventSelector', () => {
 
     expect(screen.getByLabelText('Prueba')).toBeOnTheScreen();
     expect(screen.getAllByRole('radio')).toHaveLength(e.events.length);
-    expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeOnTheScreen();
-    expect(screen.getByRole('radio', { name: 'Pecho 50 m' })).toBeOnTheScreen();
-    expect(screen.queryByRole('radio', { name: 'Mariposa 100 m' })).toBeNull();
+    expect(screen.getByRole('radio', { name: 'Libre 50 metros' })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Pecho 50 metros' })).toBeOnTheScreen();
+    expect(screen.queryByRole('radio', { name: 'Mariposa 100 metros' })).toBeNull();
   });
 
   it('keeps the order it is given', async () => {
     await render(<EventSelector {...base} />);
 
     const names = screen.getAllByRole('radio').map((radio) => radio.props.accessibilityLabel);
-    expect(names).toEqual(['Libre 50 m', 'Libre 100 m', 'Espalda 50 m', 'Pecho 50 m']);
+    expect(names).toEqual(['Libre 50 metros', 'Libre 100 metros', 'Espalda 50 metros', 'Pecho 50 metros']);
   });
 
   it('shows nothing without events', async () => {
@@ -40,9 +40,9 @@ describe('EventSelector', () => {
   it('marks only the chip of the selected stroke and distance', async () => {
     await render(<EventSelector {...base} />);
 
-    expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Libre 100 m' })).not.toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Espalda 50 m' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Libre 50 metros' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Libre 100 metros' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Espalda 50 metros' })).not.toBeChecked();
   });
 
   it('has no pool row with a single pool', async () => {
@@ -60,8 +60,8 @@ describe('EventSelector', () => {
   });
 
   it.each([
-    ['Espalda 50 m', { stroke: 'BK', distance: '50m', pool: 'SCM' }],
-    ['Libre 100 m', { stroke: 'FR', distance: '100m', pool: 'SCM' }],
+    ['Espalda 50 metros', { stroke: 'BK', distance: '50m', pool: 'SCM' }],
+    ['Libre 100 metros', { stroke: 'FR', distance: '100m', pool: 'SCM' }],
     ['Piscina de 50 m', { stroke: 'FR', distance: '50m', pool: 'LCM' }],
   ])('chooses %s and reports the full new value', async (label, expected) => {
     const onChange = jest.fn();

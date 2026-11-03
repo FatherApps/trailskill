@@ -219,6 +219,33 @@ describe('AthleteProfileScreen', () => {
   });
 
   describe('loading', () => {
+    const blankLines = () => screen.container.queryAll((node) => node.type === 'Text' && node.props.children === '\u00A0');
+
+    it('shows the category and school line in the band when the caller knows it (issue 851)', async () => {
+      await render(<AthleteProfileScreen name="Lucía Rojas" view={{ kind: 'loading', header: { color: 'athlete-2', subtitle: 'Infantil B · Escuela Delfines' } }} onBack={jest.fn()} />);
+
+      expect(screen.getByText('Infantil B · Escuela Delfines')).toBeOnTheScreen();
+      expect(blankLines()).toHaveLength(0);
+    });
+
+    it('keeps the height of that line when it is not known yet, so it can arrive without a jump (issue 851)', async () => {
+      await render(<AthleteProfileScreen name="Lucía Rojas" view={{ kind: 'loading', header: { color: 'athlete-2' } }} onBack={jest.fn()} />);
+
+      expect(blankLines()).toHaveLength(1);
+    });
+
+    it('reserves nothing when the caller knows there is no line (issue 851)', async () => {
+      await render(<AthleteProfileScreen name="Lucía Rojas" view={{ kind: 'loading', header: { color: 'athlete-2', subtitle: '' } }} onBack={jest.fn()} />);
+
+      expect(blankLines()).toHaveLength(0);
+    });
+
+    it('takes the band title from the name alone, with the header giving only the colour (issue 851)', async () => {
+      await render(<AthleteProfileScreen name="  Lucía Rojas " view={{ kind: 'loading', header: { color: 'athlete-2' } }} onBack={jest.fn()} />);
+
+      expect(screen.getByRole('header', { name: 'Lucía Rojas' })).toBeOnTheScreen();
+    });
+
     it('shows a skeleton only after 300 ms and nothing about the athlete', async () => {
       jest.useFakeTimers();
       // The container has no athlete yet, so it passes an empty name: the band must stay empty.
@@ -307,7 +334,7 @@ describe('AthleteProfileScreen', () => {
         screen.getByText('Cuando el entrenador registre una medición de Lucía R., aparecerá aquí.'),
       ).toBeOnTheScreen();
       expect(screen.getByText(name)).toBeOnTheScreen();
-      expect(screen.getByRole('radio', { name: 'Libre 50 m' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: 'Libre 50 metros' })).toBeOnTheScreen();
       expect(screen.queryByLabelText(/^Marca personal/)).toBeNull();
       expect(screen.queryByRole('header', { name: 'Historial' })).toBeNull();
       expect(screen.queryAllByText(/0,00/, hidden)).toHaveLength(0);

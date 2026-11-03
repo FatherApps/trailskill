@@ -4,7 +4,8 @@
     "authorization_valid": "Autorización vigente",
     "authorization_pending": "Autorización pendiente",
     "updated": "Actualizado hace {{count}} min",
-    "updated_now": "Actualizado hace un momento"
+    "updated_now": "Actualizado hace un momento",
+    "up_to_date": "Al día"
   },
   "event_selector": {
     "event": "Prueba",

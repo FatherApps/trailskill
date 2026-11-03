@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { ScrollView } from 'react-native';
 
 import { ThemeProvider } from '../../theme';
 import { ChipRow } from '../ChipRow';
@@ -37,6 +38,22 @@ describe('ChipRow', () => {
     expect(screen.getByRole('radio', { name: 'Tomás' })).toBeSelected();
   });
 
+  it('gives a chip its own accessibilityLabel when the option has one', async () => {
+    await render(
+      <ThemeProvider>
+        <ChipRow
+          accessibilityLabel="Prueba"
+          options={[{ value: 'a', label: 'Libre 50', accessibilityLabel: 'Libre 50 metros' }, { value: 'b', label: 'Pecho 50' }]}
+          value="a"
+          onChange={jest.fn()}
+        />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByRole('radio', { name: 'Libre 50 metros' })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Pecho 50' })).toBeOnTheScreen();
+  });
+
   it('calls onChange with the value of the pressed chip', async () => {
     const onChange = await renderRow();
 
@@ -50,5 +67,57 @@ describe('ChipRow', () => {
 
     const scroller = screen.container.queryAll((node) => node.type === 'RCTScrollView')[0];
     expect(scroller.props.horizontal).toBe(true);
+  });
+
+  describe('scrolling to the chosen chip', () => {
+    const scrollTo = ScrollView.prototype.scrollTo as jest.Mock;
+    // Three chips of 100 in a viewport of 300 with a gap of 8: the third one ends at 316 and is cut off.
+    const chips: [string, number][] = [['Lucía', 0], ['Tomás', 108], ['Sara', 216]];
+    const row = (value: string) => (
+      <ThemeProvider>
+        <ChipRow accessibilityLabel="Deportista" options={options} value={value} onChange={jest.fn()} />
+      </ThemeProvider>
+    );
+    const layOut = async () => {
+      const scroller = screen.container.queryAll((node) => node.type === 'RCTScrollView')[0];
+      await fireEvent(scroller, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 300, height: 44 } } });
+      for (const [name, x] of chips) {
+        await fireEvent(screen.getByRole('radio', { name }), 'layout', { nativeEvent: { layout: { x, y: 0, width: 100, height: 44 } } });
+      }
+    };
+
+    beforeEach(() => scrollTo.mockClear());
+
+    it('scrolls to a chosen chip that is cut off when it opens, with no animation', async () => {
+      await render(row('sara'));
+      await layOut();
+
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ animated: false }));
+      expect(scrollTo.mock.calls[0][0].x).toBeGreaterThan(0);
+    });
+
+    it('does not scroll when the chosen chip is already fully visible', async () => {
+      await render(row('lucia'));
+      await layOut();
+
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    it('scrolls with animation when the value changes to a chip that is cut off', async () => {
+      await render(row('lucia'));
+      await layOut();
+      await screen.rerender(row('sara'));
+
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ animated: true }));
+    });
+
+    it('does nothing when the value matches no option', async () => {
+      await render(row('nadie'));
+      await layOut();
+
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
   });
 });

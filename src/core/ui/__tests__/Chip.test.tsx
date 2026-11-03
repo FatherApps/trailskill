@@ -22,6 +22,20 @@ describe('Chip', () => {
     expect(screen.getByRole('radio', { name: 'Tomás' }).props.accessibilityState).toMatchObject({ checked: false, selected: false });
   });
 
+  it('names the radio by accessibilityLabel when given and still shows the label; without it the label names it', async () => {
+    await render(
+      <ThemeProvider>
+        <Chip label="Libre 50" accessibilityLabel="Libre 50 metros" onPress={jest.fn()} />
+        <Chip label="Pecho 50" onPress={jest.fn()} />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByRole('radio', { name: 'Libre 50 metros' })).toBeOnTheScreen();
+    expect(screen.queryByRole('radio', { name: 'Libre 50' })).toBeNull();
+    expect(screen.getByText('Libre 50', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: 'Pecho 50' })).toBeOnTheScreen();
+  });
+
   it('calls onPress', async () => {
     const onPress = jest.fn();
     await render(

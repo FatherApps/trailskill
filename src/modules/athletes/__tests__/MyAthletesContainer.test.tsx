@@ -117,7 +117,7 @@ describe('MyAthletesContainer', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Historial' }));
 
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(onOpen).toHaveBeenCalledWith('a1');
+    expect(onOpen).toHaveBeenCalledWith('a1', 'Ana Marin');
   });
 
   it('asks to add an athlete', async () => {

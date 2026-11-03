@@ -7,6 +7,7 @@ import { useTheme } from '../../../core/theme';
 import { ColorHeader, Segmented, Tag, type ColorCardColor } from '../../../core/ui';
 import '../i18n';
 import { profileBandColor } from '../profileBandColor';
+import { profileLine } from '../profileLine';
 
 export type ProfileHeaderProps = {
   name: string;
@@ -18,6 +19,8 @@ export type ProfileHeaderProps = {
   authorization: 'valid' | 'pending';
   // Minutes since the last sync; `null` when unknown.
   updatedMinutesAgo: number | null;
+  // Connected with nothing pending: the tag says so ("Al día", as the design draws it) instead of the age of the last sync.
+  upToDate?: boolean;
   // The athlete's colour (same on every screen); a neutral brand colour when the caller has none.
   color?: ColorCardColor;
   // Back is always on screen, so the caller must say where it goes.
@@ -26,8 +29,9 @@ export type ProfileHeaderProps = {
   children?: ReactNode;
 };
 
-// The board draws the ring white at 50 %; that is not a token, so it takes the nearest opaque one (maintainer decision).
-export const profileHeaderColors: { ring: ColorToken } = { ring: 'surface-1' };
+// The board draws the ring white at 50 %; that is not a token, so it takes the nearest opaque one (maintainer decision). `on-header` is white
+// in both themes: `surface-1` is near black in the dark one and left the title (`on-color`, dark) unreadable where the ring crosses it (issue 851).
+export const profileHeaderColors: { ring: ColorToken } = { ring: 'on-header' };
 
 // The ring of VibPerfil (170 wide): decoration only, so it is a local constant, not a token (maintainer decision).
 const DECORATIVE_RING_SIZE = 170;
@@ -46,6 +50,7 @@ export function ProfileHeader({
   onSchoolChange,
   authorization,
   updatedMinutesAgo,
+  upToDate = false,
   color = profileBandColor,
   onBack,
   children,
@@ -58,7 +63,7 @@ export function ProfileHeader({
     <ColorHeader
       color={color}
       title={name}
-      subtitle={[category, school?.name].filter(Boolean).join(' · ')}
+      subtitle={profileLine(category, school?.name)}
       onBack={onBack}
       // Decorative and out of the layout: the slot draws it behind the title and hides it from screen readers.
       background={
@@ -77,7 +82,7 @@ export function ProfileHeader({
         />
       }
     >
-      {updatedMinutesAgo !== null && (
+      {(upToDate || updatedMinutesAgo !== null) && (
         <View
           style={[
             styles.sync,
@@ -90,9 +95,11 @@ export function ProfileHeader({
               variant="neutral"
               icon="cloud_done"
               label={
-                updatedMinutesAgo === 0
-                  ? t('athletes.profile.updated_now')
-                  : t('athletes.profile.updated', { count: updatedMinutesAgo })
+                upToDate
+                  ? t('athletes.profile.up_to_date')
+                  : updatedMinutesAgo === 0
+                    ? t('athletes.profile.updated_now')
+                    : t('athletes.profile.updated', { count: updatedMinutesAgo ?? 0 })
               }
             />
           </View>

@@ -10,13 +10,15 @@ let mockConfirmed = false;
 let mockManaged: { status: string; athletes?: object[] } = { status: 'loading' };
 let mockSources: object[] = [];
 let mockId = 'a1';
+let mockName: string | undefined;
+let mockUnsent = { pending: 0, failed: 0 };
 const mockMounted = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
-jest.mock('../core/sync', () => ({ useGlobalSyncSummary: () => ({ lastSyncedAt: null, connection: 'connected' }) }));
+jest.mock('../core/sync', () => ({ useGlobalSyncSummary: () => ({ lastSyncedAt: null, connection: 'connected', ...mockUnsent }) }));
 jest.mock('../modules/accounts', () => ({
   createPowerSyncAuthorizationStatusRepository: () => ({}),
   createPowerSyncManagedAthleteRepository: () => ({}),
@@ -45,6 +47,8 @@ jest.mock('../modules/athletes', () => {
     useManagedAthletes: () => mockManaged,
     AthleteProfileContainer: ({
       athleteId,
+      name,
+      pendingChanges,
       otherSchoolResults,
       online,
       importPrompt,
@@ -52,6 +56,8 @@ jest.mock('../modules/athletes', () => {
       onBack,
     }: {
       athleteId: string;
+      name?: string;
+      pendingChanges?: number;
       otherSchoolResults?: object;
       online?: boolean;
       importPrompt?: object;
@@ -59,7 +65,7 @@ jest.mock('../modules/athletes', () => {
       onBack: () => void;
     }) => (
       <Pressable accessibilityRole="button" onPress={onBack}>
-        <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}`}</Text>
+        <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}${name ? ` named ${name}` : ''} pending ${pendingChanges}`}</Text>
         {officialUpdate}
       </Pressable>
     ),
@@ -72,13 +78,15 @@ jest.mock('../modules/school-console', () => ({
   useStaffSchool: () => ({ status: mockStaff ? 'staff' : 'none' }),
 }));
 jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ id: mockId }),
+  useLocalSearchParams: () => ({ id: mockId, name: mockName }),
   useRouter: () => ({ back: mockBack, replace: mockReplace, canGoBack: () => mockCanGoBack }),
 }));
 
 describe('athlete profile route', () => {
   afterEach(() => {
     mockId = 'a1';
+    mockName = undefined;
+    mockUnsent = { pending: 0, failed: 0 };
     mockMounted.mockClear();
   });
 
@@ -95,7 +103,16 @@ describe('athlete profile route', () => {
     mockUserId = 'user-1';
     await render(<AthleteRoute />);
 
-    expect(await screen.findByText('profile of a1 online')).toBeOnTheScreen();
+    expect(await screen.findByText('profile of a1 online pending 0')).toBeOnTheScreen();
+  });
+
+  it('hands the container the name in the address and every record still to send, pending or failed (issue 851)', async () => {
+    mockUserId = 'user-1';
+    mockName = 'Ana Marin';
+    mockUnsent = { pending: 2, failed: 1 };
+    await render(<AthleteRoute />);
+
+    expect(await screen.findByText('profile of a1 online named Ana Marin pending 3')).toBeOnTheScreen();
   });
 
   it('offers the results of other schools only to school staff', async () => {
@@ -104,7 +121,7 @@ describe('athlete profile route', () => {
     await render(<AthleteRoute />);
     mockStaff = false;
 
-    expect(await screen.findByText('profile of a1 with other schools online')).toBeOnTheScreen();
+    expect(await screen.findByText('profile of a1 with other schools online pending 0')).toBeOnTheScreen();
   });
 
   describe('import prompt', () => {
@@ -122,7 +139,7 @@ describe('athlete profile route', () => {
       mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation', provider: 'xx-demo' }];
       await render(<AthleteRoute />);
 
-      expect(await screen.findByText('profile of a1 online with import prompt')).toBeOnTheScreen();
+      expect(await screen.findByText('profile of a1 online with import prompt pending 0')).toBeOnTheScreen();
     });
 
     it('lets the results panel replace the invitation once the identity is confirmed, even with nothing imported', async () => {
@@ -132,7 +149,7 @@ describe('athlete profile route', () => {
       mockConfirmed = true;
       await render(<AthleteRoute />);
 
-      expect(await screen.findByText('profile of a1 online')).toBeOnTheScreen();
+      expect(await screen.findByText('profile of a1 online pending 0')).toBeOnTheScreen();
     });
 
     it('stops inviting once something was imported: updating is the results panel', async () => {
@@ -142,7 +159,7 @@ describe('athlete profile route', () => {
       mockImportedAt = '2026-10-28T10:00:00Z';
       await render(<AthleteRoute />);
 
-      expect(await screen.findByText('profile of a1 online')).toBeOnTheScreen();
+      expect(await screen.findByText('profile of a1 online pending 0')).toBeOnTheScreen();
     });
   });
 

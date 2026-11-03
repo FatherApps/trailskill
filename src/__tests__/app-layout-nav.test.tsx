@@ -31,7 +31,7 @@ jest.mock('../modules/school-console', () => ({
   useStaffSchool: () => mockUseStaffSchool(),
 }));
 
-let mockManaged: { id: string }[] = [{ id: 'a1' }, { id: 'a2' }];
+let mockManaged: { id: string; firstName?: string; lastName?: string }[] = [{ id: 'a1' }, { id: 'a2' }];
 const mockUseManagedAthletes = jest.fn(() => ({ status: 'ready', athletes: mockManaged }));
 jest.mock('../modules/athletes', () => ({
   ...jest.requireActual('../modules/athletes'),
@@ -251,6 +251,15 @@ describe('app layout phone navigation', () => {
     await render(<AppLayout />);
 
     expect(screen.queryByRole('tab')).toBeNull();
+  });
+
+  it('carries only the athlete\'s name to their profile from Historial, so the band has it from the first frame (issue 851)', async () => {
+    mockManaged = [{ id: 'a1', firstName: 'Ana', lastName: 'Marin' }];
+    await render(<AppLayout />);
+
+    await fireEvent.press(screen.getByRole('tab', { name: 'Historial' }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/athletes/a1?name=Ana%20Marin');
   });
 
   it('opens the profile of the only athlete from Historial', async () => {

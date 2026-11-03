@@ -29,7 +29,8 @@ export type MyAthleteCard = {
 export type AthleteStackProps = {
   athletes: MyAthleteCard[];
   // Opens the profile (and with it the history) of the athlete in front.
-  onOpen: (athleteId: string) => void;
+  // The full name goes with the id: the profile route carries it so its band has the name from the first frame.
+  onOpen: (athleteId: string, name: string) => void;
 };
 
 export const athleteStackColors: { text: ColorToken } = { text: 'on-color' };
@@ -130,7 +131,7 @@ export function AthleteStack({ athletes, onOpen }: AthleteStackProps) {
       {behind.map((card, index) => (
         <CollapsedCard key={card.id} card={card} hidden={hidden} first={index === 0} onPress={() => setChosenId(card.id)} />
       ))}
-      <FrontCard card={front} hidden={hidden} covers={behind.length > 0} onOpen={() => onOpen(front.id)} />
+      <FrontCard card={front} hidden={hidden} covers={behind.length > 0} onOpen={() => onOpen(front.id, `${front.firstName} ${front.lastName}`.trim())} />
     </View>
   );
 }

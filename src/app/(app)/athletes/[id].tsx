@@ -47,7 +47,8 @@ const managedAthletes = createPowerSyncManagedAthleteRepository();
 const importSources = createSupabaseImportSourcesRepository();
 
 export default function AthleteProfileRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `name` is the only thing besides the id the route carries: the band shows it from the first frame.
+  const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const router = useRouter();
   const goBack = useGoBack();
   const { session } = useSession();
@@ -92,6 +93,7 @@ export default function AthleteProfileRoute() {
   return (
     <AthleteProfileContainer
       athleteId={id}
+      name={name}
       athlete={managedAthlete}
       athletes={athletes}
       history={history}
@@ -118,6 +120,8 @@ export default function AthleteProfileRoute() {
         />
       }
       online={summary.connection === 'connected'}
+      // Records waiting to be sent or that failed to send: with none, connected, the sync tag says "Al día".
+      pendingChanges={summary.pending + summary.failed}
       importPrompt={importPrompt}
       onBack={goBack}
     />
