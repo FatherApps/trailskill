@@ -278,9 +278,9 @@ describe('TimingSetupScreen', () => {
     await renderSetup();
 
     expect(screen.getByText('Nadadores (3 de 12)')).toBeOnTheScreen();
-    expect(screen.getByLabelText('1 · Mateo C., MP 34,82')).toBeOnTheScreen();
-    expect(screen.getByLabelText('2 · Lucía R., MP 34,82')).toBeOnTheScreen();
-    expect(screen.getByLabelText('3 · Sara P., MP —')).toBeOnTheScreen();
+    expect(screen.getByLabelText('1 · Mateo C., MP 34,82, Libre')).toBeOnTheScreen();
+    expect(screen.getByLabelText('2 · Lucía R., MP 34,82, Libre')).toBeOnTheScreen();
+    expect(screen.getByLabelText('3 · Sara P., MP —, Libre')).toBeOnTheScreen();
     const tree = JSON.stringify(screen.toJSON());
     const at = (text: string) => tree.indexOf(text);
     expect(at('Cronómetro externo')).toBeLessThan(at('Nadadores (3 de 12)'));
@@ -288,12 +288,36 @@ describe('TimingSetupScreen', () => {
     expect(at('3 · Sara P.')).toBeLessThan(at('Empezar toma'));
   });
 
+  describe('stroke icon on the athlete rows', () => {
+    // The sm glyph is 24 dp; the other icons on the screen (back arrow) are smaller.
+    const svgs = () => screen.container.queryAll((node) => node.type === 'RNSVGSvgView' && node.props.width === 24);
+    const paths = () => screen.container.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d as string);
+    // A path only the backstroke glyph draws (as in StrokeIcon.test).
+    const backstroke = 'M20 18.5 17 5';
+
+    it('draws the icon of the chosen stroke on every athlete row and says the stroke once, in the row label', async () => {
+      await renderSetup({ stroke: { ...fixture.setupScreen.stroke, value: 'BK' } });
+
+      expect(svgs()).toHaveLength(3);
+      expect(paths()).toContain(backstroke);
+      expect(screen.getByLabelText('1 · Mateo C., MP 34,82, Espalda')).toBeOnTheScreen();
+      expect(screen.queryByRole('image')).toBeNull();
+    });
+
+    it('draws no icon for a stroke code without a pictogram, and leaves the row label as it was', async () => {
+      await renderSetup({ stroke: { ...fixture.setupScreen.stroke, value: 'KICK' } });
+
+      expect(svgs()).toHaveLength(0);
+      expect(screen.getByLabelText('1 · Mateo C., MP 34,82')).toBeOnTheScreen();
+    });
+  });
+
   it('marks and announces an athlete without authorization as skipped', async () => {
     await renderSetup({ athletes: fixture.athletesWithSkipped });
 
     expect(screen.getByLabelText(/3 · Sara P\..*Falta autorización — se omitirá/)).toBeOnTheScreen();
     expect(screen.getAllByText('Falta autorización — se omitirá', { includeHiddenElements: true })).toHaveLength(1);
-    expect(screen.getByLabelText('1 · Mateo C., MP 34,82')).toBeOnTheScreen();
+    expect(screen.getByLabelText('1 · Mateo C., MP 34,82, Libre')).toBeOnTheScreen();
   });
 
   it('invites to choose athletes when there are none, without a second action', async () => {

@@ -2,6 +2,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
+import { isStroke } from '../../../core/sport';
 import { useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
 import { Banner, Button, Segmented, StateView, SwimmerRow, type SegmentedOption } from '../../../core/ui';
@@ -65,6 +66,8 @@ export function TimingSetupScreen({
   onBack,
 }: TimingSetupScreenProps) {
   const { colors, space, radius, typography } = useTheme();
+  // The chosen value is a plain string; a code without a pictogram gets no icon on the rows.
+  const rowStroke = isStroke(stroke.value) ? stroke.value : undefined;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
@@ -104,6 +107,7 @@ export function TimingSetupScreen({
                 key={athlete.id}
                 name={t('timing.setup.athlete_name', { order: index + 1, name: athlete.shortName })}
                 initials={athlete.initials}
+                stroke={rowStroke}
                 color={athlete.color}
                 detail={
                   athlete.authorized
