@@ -108,6 +108,27 @@ describe('searchLenex', () => {
     unavailable(lenex({ athletes: [{ ...ME, results: [{ eventid: '1', resultid: '1', swimtime: '00:01:00.00' }, { eventid: '1', resultid: '1', swimtime: '00:01:01.00' }] }] }));
   });
 
+  it('skips a club without athletes (a relay-only club) and keeps looking', () => {
+    const xml = lenex().replace('</CLUBS>', '<CLUB name="Solo relevos"/><CLUB name="Vacío"><RELAYS/></CLUB></CLUBS>');
+    expect(found(xml).results).toHaveLength(3);
+    expect(searchLenex(lenex({ athletes: [] }).replace('<CLUBS></CLUBS>', '<CLUBS><CLUB name="Solo relevos"/></CLUBS>'), TOURNAMENT, NUMBER)).toEqual({ found: false });
+  });
+
+  it('finds an athlete without results as a match with no rows', () => {
+    const noElement = lenex({ athletes: [{ ...ME, results: [] }] }).replace('<RESULTS></RESULTS>', '');
+    const emptyElement = lenex({ athletes: [{ ...ME, results: [] }] });
+    for (const xml of [noElement, emptyElement]) {
+      expect(searchLenex(xml, TOURNAMENT, NUMBER)).toEqual({ found: true, athlete: { name: 'Ana Prueba', club: 'Club Sintético' }, results: [] });
+    }
+  });
+
+  it.each([
+    ['no SESSIONS', lenex().replace(/<SESSIONS>.*<\/SESSIONS>/s, '')],
+    ['a session without EVENTS', lenex({ sessions: '<SESSION number="1" date="2025-10-18"></SESSION>' })],
+  ])('is still unavailable with %s', (_label, xml) => {
+    unavailable(xml);
+  });
+
   it('is unavailable when two events share an id', () => {
     unavailable(lenex({ sessions: DEFAULT_EVENTS + DEFAULT_EVENTS.replace('number="1"', 'number="7"') }));
   });

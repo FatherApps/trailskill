@@ -17,6 +17,11 @@ const only = (node: XmlNode, name: string): XmlNode => {
   const found = kids(node, name);
   return found.length === 1 ? found[0] : bad();
 };
+// A container that may be missing (a relay-only club has no ATHLETES, an athlete may have no RESULTS): its children, or none.
+const childrenOf = (node: XmlNode, name: string): XmlNode[] => {
+  const containers = kids(node, name);
+  return containers.length > 1 ? bad() : (containers[0]?.children ?? []);
+};
 const spaces = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 /** A day that exists (no 30 February, no month 13), from its three numbers. */
@@ -80,7 +85,7 @@ export function searchLenex(text: string, tournament: string, identityNumber: st
   }
   const matches: { athlete: XmlNode; club: XmlNode }[] = [];
   for (const club of kids(only(meet, 'CLUBS'), 'CLUB')) {
-    for (const athlete of kids(only(club, 'ATHLETES'), 'ATHLETE')) {
+    for (const athlete of childrenOf(club, 'ATHLETES').filter((child) => child.name === 'ATHLETE')) {
       try {
         if (normalizeNumber(athlete.attrs.license ?? '') === wanted) matches.push({ athlete, club });
       } catch {
@@ -94,7 +99,7 @@ export function searchLenex(text: string, tournament: string, identityNumber: st
   const { athlete, club } = matches[0];
   const name = spaces(`${athlete.attrs.firstname ?? ''} ${athlete.attrs.lastname ?? ''}`) || bad();
   const results = new Map<string, NormalizedResult>();
-  for (const result of kids(only(athlete, 'RESULTS'), 'RESULT')) {
+  for (const result of childrenOf(athlete, 'RESULTS').filter((child) => child.name === 'RESULT')) {
     const { eventid, resultid } = result.attrs;
     const event = eventid === undefined ? undefined : events.get(eventid);
     if (!event || resultid === undefined) return bad();
