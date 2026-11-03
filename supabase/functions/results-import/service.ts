@@ -3,6 +3,8 @@ import type { Affiliation, Candidate, NormalizedResult, ResultsProvider } from '
 import type { OrganizationData, ProviderRegistry } from './registry.ts';
 
 // The worker's proposal, pending maintainer review: one source query per athlete every 10 minutes, search and refresh alike.
+// A results query right after a search the same user confirmed shares that search's claim (see `QueryGate`), so one
+// search -> confirm -> results flow is one query.
 export const QUERY_INTERVAL_MS = 10 * 60 * 1000;
 
 export type Claim = { status: 'allowed' } | { status: 'rate_limited'; retryAt: string } | { status: 'not_authorized' };
@@ -12,7 +14,16 @@ export type Claim = { status: 'allowed' } | { status: 'rate_limited'; retryAt: s
  * that the user manages the athlete with `import_official_results` in force and keeps the time of the last source query per athlete.
  */
 export interface QueryGate {
-  claim(request: { athleteId: string; userId: string; intervalMs: number }): Promise<Claim>;
+  claim(request: {
+    athleteId: string;
+    userId: string;
+    intervalMs: number;
+    /**
+     * When given, a results query of the same user inside this time after a search they confirmed uses that search's claim;
+     * implemented by `public.results_import_claim_results_query`. Otherwise it is a normal claim.
+     */
+    searchTtlMs?: number;
+  }): Promise<Claim>;
 }
 
 /**
@@ -176,8 +187,8 @@ type Who = { userId: string; athleteId: string; organizationId: string };
 export function createResultsImport({ registry, gate, identityNumbers, confirmations, organizationChain, pending, now = Date.now }: Dependencies & { now?: () => number }) {
   const providerFor = async (organizationId: string) => registry.resolve(await organizationChain(organizationId), organizationId);
 
-  async function claim({ userId, athleteId }: Who): Promise<ImportError | null> {
-    const result = await gate.claim({ athleteId, userId, intervalMs: QUERY_INTERVAL_MS });
+  async function claim({ userId, athleteId }: Who, searchTtlMs?: number): Promise<ImportError | null> {
+    const result = await gate.claim({ athleteId, userId, intervalMs: QUERY_INTERVAL_MS, ...(searchTtlMs === undefined ? {} : { searchTtlMs }) });
     if (result.status === 'allowed') return null;
     return result.status === 'rate_limited' ? { code: 'rate_limited', retryAt: result.retryAt } : { code: 'not_authorized' };
   }
@@ -229,7 +240,8 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
       const provider = await providerFor(who.organizationId);
       if (!provider) return fail({ code: 'no_provider' });
       // Authorize first, so a caller who may not import learns nothing about whether a number exists.
-      const denied = await claim(who);
+      // Right after a confirmed search this uses the search's claim instead of asking for a new one.
+      const denied = await claim(who, CANDIDATE_TTL_MS);
       if (denied) return fail(denied);
       // Without a number the refresh is unavailable: never a hidden name search. The claim is already spent.
       const identityNumber = await identityNumbers.read(who.athleteId);
