@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import type { ExpoConfig } from 'expo/config';
+
 import config from '../../app.config';
 import { colors } from '../core/theme';
 
@@ -15,6 +17,49 @@ function splashOptions() {
   const entry = (config.plugins ?? []).find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-splash-screen');
   return (entry as [string, Record<string, any>] | undefined)?.[1];
 }
+
+// Expo reads app.config.ts once per process, so each variant is loaded in a fresh module registry.
+function loadConfig(variant?: string): ExpoConfig {
+  const previous = process.env.APP_VARIANT;
+  if (variant === undefined) delete process.env.APP_VARIANT;
+  else process.env.APP_VARIANT = variant;
+  try {
+    let loaded!: ExpoConfig;
+    jest.isolateModules(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- isolateModules needs a synchronous load
+      loaded = require('../../app.config').default;
+    });
+    return loaded;
+  } finally {
+    if (previous === undefined) delete process.env.APP_VARIANT;
+    else process.env.APP_VARIANT = previous;
+  }
+}
+
+describe('preview test build variant', () => {
+  it('installs next to the demo client with its own package, name and scheme when APP_VARIANT is preview', () => {
+    const preview = loadConfig('preview');
+    expect(preview.android?.package).toBe('com.fatherapps.trailskill.preview');
+    expect(preview.name).toBe('TrailSkill (prueba)');
+    expect(preview.scheme).toBe('trailskill-preview');
+  });
+
+  it.each([undefined, '', 'production'])('keeps the usual package, name and scheme when APP_VARIANT is %p', (variant) => {
+    const usual = loadConfig(variant);
+    expect(usual.android?.package).toBe('com.fatherapps.trailskill');
+    expect(usual.name).toBe('TrailSkill');
+    expect(usual.scheme).toBe('trailskill');
+  });
+
+  it('changes nothing else in the preview variant', () => {
+    const { name, scheme, android, ...preview } = loadConfig('preview');
+    const { name: _n, scheme: _s, android: usualAndroid, ...usual } = loadConfig();
+    const { package: _p, ...previewAndroid } = android!;
+    const { package: _q, ...usualRest } = usualAndroid!;
+    expect(preview).toEqual(usual);
+    expect(previewAndroid).toEqual(usualRest);
+  });
+});
 
 describe('app icon and splash configuration', () => {
   it('registers the trailskill:// scheme so school invitation links open the app', () => {
