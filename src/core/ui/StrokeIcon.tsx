@@ -6,8 +6,8 @@ import { isStroke, type StrokeCode } from '../sport';
 import { useTheme, type ColorToken } from '../theme';
 
 export type StrokeIconProps = {
-  // A StrokeCode from the sport catalog; a code without a pictogram (kick, drills) draws nothing.
-  stroke: string;
+  // Strict on purpose: callers with a wider type filter with isStroke, and a stroke without a pictogram (kick, drills) is simply not rendered.
+  stroke: StrokeCode;
   size?: 'md' | 'sm';
   // default: surface-2 circle; empty: no background and a dotted frame, for a card with no time yet;
   // onColor: 75 % white backing and an on-color glyph, over a brand-colored card.
@@ -95,6 +95,7 @@ const a11y = (decorative: boolean | undefined, label: string) =>
 
 export function StrokeIcon({ stroke, size = 'md', variant = 'default', decorative }: StrokeIconProps) {
   const { colors, radius } = useTheme();
+  // Defense for values that slip through at runtime; the type already rules them out.
   if (!isStroke(stroke)) return null;
 
   const { box, glyph } = sizes[size];

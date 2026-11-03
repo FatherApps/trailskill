@@ -53,7 +53,7 @@ const noop = () => {};
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
 
 // The five catalog strokes side by side in one variant; onColor sits on a colored card, as it does in use.
-function StrokeIconRow({ codes = si.codes, ...variant }: Omit<StrokeIconProps, 'stroke'> & { codes?: readonly string[] }) {
+function StrokeIconRow(variant: Omit<StrokeIconProps, 'stroke'>) {
   const { colors, space: gap, radius } = useTheme();
 
   return (
@@ -63,7 +63,7 @@ function StrokeIconRow({ codes = si.codes, ...variant }: Omit<StrokeIconProps, '
         variant.variant === 'onColor' && { backgroundColor: colors.coral, borderRadius: radius.md },
       ]}
     >
-      {codes.map((code) => (
+      {si.codes.map((code) => (
         <StrokeIcon key={code} stroke={code} {...variant} />
       ))}
     </View>
@@ -285,8 +285,6 @@ export const galleryEntries: GalleryEntry[] = [
       sm: () => <StrokeIconRow size="sm" />,
       empty: () => <StrokeIconRow variant="empty" />,
       'on-color': () => <StrokeIconRow variant="onColor" />,
-      // A code without a pictogram draws nothing: the row keeps only the neighbours.
-      'without-pictogram': () => <StrokeIconRow codes={['FR', si.withoutPictogram, 'IM']} />,
     },
   },
   {

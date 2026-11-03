@@ -2,6 +2,7 @@ import { processColor, StyleSheet } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
 
 import { colors, radius, ThemeProvider, type ColorToken, type ThemeName } from '../../theme';
+import type { StrokeCode } from '../../sport';
 import { StrokeIcon } from '..';
 
 const themes: ThemeName[] = ['light', 'dark'];
@@ -28,7 +29,7 @@ const fixedColors = ['lilac', 'coral', 'sky', 'lime'] as const;
 
 describe('StrokeIcon', () => {
   it.each(Object.keys(signature))('%s draws its own glyph on the water line', async (code) => {
-    await render(<StrokeIcon stroke={code} />);
+    await render(<StrokeIcon stroke={code as StrokeCode} />);
 
     const ds = pathsOf().map((node) => node.props.d as string);
     expect(ds).toContain(signature[code]);
@@ -46,8 +47,15 @@ describe('StrokeIcon', () => {
     expect(pathsOf()).toHaveLength(0);
   });
 
+  it('only accepts a StrokeCode, so a typo is a compile error', () => {
+    // @ts-expect-error 'XX' is not a StrokeCode
+    const typo = <StrokeIcon stroke="XX" />;
+    expect(typo).toBeDefined();
+  });
+
+  // Callers filter with isStroke; the guard stays as defense when a value slips through at runtime.
   it.each(['KICK', 'XX', '', 'constructor'])('a code without pictogram (%j) draws nothing and does not fail', async (code) => {
-    await render(<StrokeIcon stroke={code} />);
+    await render(<StrokeIcon stroke={code as StrokeCode} />);
 
     expect(screen.toJSON()).toBeNull();
   });
@@ -144,7 +152,7 @@ describe('StrokeIcon', () => {
 
   describe('accessibility', () => {
     it.each(Object.entries(label))('%s is one image named %s', async (code, name) => {
-      await render(<StrokeIcon stroke={code} />);
+      await render(<StrokeIcon stroke={code as StrokeCode} />);
 
       expect(screen.getByRole('image', { name })).toBeOnTheScreen();
       expect(screen.getAllByRole('image')).toHaveLength(1);
