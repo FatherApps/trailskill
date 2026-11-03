@@ -155,7 +155,7 @@ The new bundle is built beside the old one and swapped in only after the check p
 The migrations and the function go together, neither without the other: the claim migrations change the shape of the claim responses and the function reads the new shape. Do steps 3 to 5 right after the deploy of step 2.
 
 1. **Vault secret.** `athlete_identity_key` must exist, see [Identity number key (Vault)](#identity-number-key-vault).
-2. **Migrations.** Merge to `main`; Dokploy deploys and `migrate` applies the pending migrations (`20261102210000_results-import_shared_claim.sql`, `20261103090000_results-import_claim_release.sql`). Read the `migrate` logs and confirm it exited 0.
+2. **Migrations.** Merge to `main`; Dokploy deploys and `migrate` applies every pending migration, among them the `results-import` claim migrations (`supabase/migrations/*results-import*`), which the function needs. Read the `migrate` logs and confirm it exited 0.
 3. **Bundle.** On the server, in a clone of this repository at the merged `main` commit (Dokploy's own clone of the `deploy` compose works), run:
 
    ```sh
