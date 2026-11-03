@@ -8,7 +8,7 @@ import type { HistoryMeasurement, HistoryRepository } from '../data/history';
 import type { SchoolAthleteRepository } from '../data/schoolAthletes';
 import { useManagedAthletes } from '../data/useManagedAthletes';
 import { useSelfAthleteId } from '../data/useSelfAthleteId';
-import { markSections } from '../markSections';
+import { localDay, markFeatured, markSections } from '../markSections';
 import { marksByEvent } from '../marks';
 import { MarksScreen, type MarksView } from './MarksScreen';
 
@@ -24,12 +24,14 @@ export type MarksContainerProps = {
   // Changing it looks the athletes and their history up again (the route passes the last sync).
   refreshKey?: unknown;
   scrollEnabled?: boolean;
+  // The device's day (yyyy-mm-dd), to tell whether the featured mark is still new; defaults to today.
+  today?: string;
 };
 
 type Read = { athleteId: string; attempt: number; result: { measured: HistoryMeasurement[]; imported: ImportedHistoryResult[] } | 'error' };
 
 // Connects the screen to the athletes the user manages and the local history of the one chosen, measured and imported. The pool filter is applied here, on what the device holds.
-export function MarksContainer({ userId, managed, athletes, history, importedResults, sourceNames, refreshKey, scrollEnabled }: MarksContainerProps) {
+export function MarksContainer({ userId, managed, athletes, history, importedResults, sourceNames, refreshKey, scrollEnabled, today }: MarksContainerProps) {
   const result = useManagedAthletes(managed, athletes, userId, refreshKey);
   const selfId = useSelfAthleteId(managed, userId, refreshKey);
   const [chosenId, setChosenId] = useState<string>();
@@ -65,6 +67,7 @@ export function MarksContainer({ userId, managed, athletes, history, importedRes
     const achievements = [...read.result.measured, ...read.result.imported.map((r) => importedAchievement(r, sourceNames?.[r.provider]))];
     // Without a choice the screen opens in the pool of the most recent result; with no results at all, as before, in the short one.
     const pool = (chosenPool?.athleteId === selected.id ? chosenPool.pool : undefined) ?? latestAchievement(achievements)?.pool ?? 'SCM';
+    const rows = marksByEvent(achievements, pool);
     view = {
       kind: 'data',
       athletes: list.map((a) => {
@@ -74,7 +77,8 @@ export function MarksContainer({ userId, managed, athletes, history, importedRes
       selectedId: selected.id,
       firstName: selected.firstName,
       pool,
-      sections: markSections(marksByEvent(achievements, pool)),
+      featured: markFeatured(rows, today ?? localDay()),
+      sections: markSections(rows),
     };
   }
   return <MarksScreen view={view} onSelectAthlete={setChosenId} onPoolChange={(pool) => selectedId && setChosenPool({ athleteId: selectedId, pool })} scrollEnabled={scrollEnabled} />;

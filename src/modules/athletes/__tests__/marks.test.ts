@@ -2,7 +2,7 @@ import type { Hundredths } from '../../../core/time';
 import { importedAchievement } from '../achievements';
 import type { HistoryMeasurement } from '../data/history';
 import { createInMemoryHistoryRepository } from '../data/inMemoryHistoryRepository';
-import { compareEvents, listedEvents, marksByEvent, marksByStroke } from '../marks';
+import { compareEvents, featuredMark, listedEvents, marksByEvent, marksByStroke } from '../marks';
 import { personalBest } from '../personalBest';
 
 // Synthetic data only.
@@ -212,5 +212,41 @@ describe('marksByStroke with a stroke outside the catalog', () => {
 
     expect(sections.map((section) => section.stroke)).toEqual(['FR', 'BK', 'BR', 'FL', 'IM', 'XX']);
     expect(sections.flatMap((section) => section.rows).map((row) => row.id).sort()).toEqual(rows.map((row) => row.id).sort());
+  });
+});
+
+describe('featuredMark', () => {
+  const official = (id: string, hundredths: number, swumOn: string, over: Partial<Parameters<typeof importedAchievement>[0]> = {}) =>
+    importedAchievement({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: hundredths as Hundredths, swumOn, ...over }, 'Federación Demo');
+  const featured = (measurements: Parameters<typeof marksByEvent>[0], pool: 'SCM' | 'LCM' = 'SCM') => featuredMark(marksByEvent(measurements, pool))?.id;
+
+  it('is the best set most recently, in any event of the pool', () => {
+    expect(featured([result('a', 3482, '2026-10-18T08:00:00Z'), result('b', 4108, '2026-10-02T08:00:00Z', { stroke: 'BK' })])).toBe('FR-50m');
+    expect(featured([result('a', 3482, '2026-09-01T08:00:00Z'), result('b', 4108, '2026-10-02T08:00:00Z', { stroke: 'BK' })])).toBe('BK-50m');
+  });
+
+  it('dates an event by the time that holds its best, not by a later slower one', () => {
+    expect(featured([result('a', 3300, '2026-08-01T08:00:00Z'), result('b', 3500, '2026-10-18T08:00:00Z'), result('c', 4108, '2026-10-02T08:00:00Z', { stroke: 'BK' })])).toBe('BK-50m');
+  });
+
+  it('breaks a tie on the same day by the capture time of two measured times', () => {
+    expect(featured([result('a', 3482, '2026-10-18T08:00:00Z'), result('b', 4108, '2026-10-18T09:30:00Z', { stroke: 'BK' })])).toBe('BK-50m');
+  });
+
+  it('gives no preference to a source on the same day: the id decides, as in the personal best', () => {
+    expect(featured([result('a', 3482, '2026-10-18T08:00:00Z'), official('b', 7000, '2026-10-18', { distance: '100m' })])).toBe('FR-100m');
+    expect(featured([result('b', 3482, '2026-10-18T08:00:00Z'), official('a', 7000, '2026-10-18', { distance: '100m' })])).toBe('FR-50m');
+  });
+
+  it('is null when no event of the pool has a time', () => {
+    expect(featuredMark(marksByEvent([], 'SCM'))).toBeNull();
+    expect(featured([result('a', null, '2026-10-18T08:00:00Z')])).toBeUndefined();
+  });
+
+  it('is recomputed for the pool that is chosen', () => {
+    const measurements = [result('a', 3482, '2026-10-18T08:00:00Z'), result('b', 3300, '2026-10-20T08:00:00Z', { pool: 'LCM', stroke: 'BK' })];
+
+    expect(featured(measurements, 'SCM')).toBe('FR-50m');
+    expect(featured(measurements, 'LCM')).toBe('BK-50m');
   });
 });

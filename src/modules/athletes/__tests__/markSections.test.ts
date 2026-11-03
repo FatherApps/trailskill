@@ -1,5 +1,5 @@
 import { importedAchievement } from '../achievements';
-import { markSections } from '../markSections';
+import { localDay, markFeatured, markSections } from '../markSections';
 import { marksByEvent } from '../marks';
 import { measured } from '../__fixtures__/marks';
 import type { Hundredths } from '../../../core/time';
@@ -39,5 +39,36 @@ describe('markSections', () => {
 
     expect(unknown.at(-1)).toMatchObject({ id: 'XX', title: 'XX' });
     expect(unknown.at(-1)?.cards[0]).toMatchObject({ stroke: 'XX', time: 9000 });
+  });
+});
+
+describe('markFeatured', () => {
+  const rows = marksByEvent([measured('FR', '50m', 3482, '2026-10-18'), measured('BK', '50m', 4108, '2026-10-02', { kind: 'repetition' })], 'SCM');
+
+  it('describes the most recent mark: the event, the time, the origin and the date', () => {
+    expect(markFeatured(rows, '2026-10-20')).toMatchObject({ id: 'FR-50m', stroke: 'FR', event: 'Libre 50 metros', title: 'Libre 50 m', time: 3482, origin: 'competition', date: '2026-10-18' });
+  });
+
+  it('marks it new on the 14th day since it was set, and not on the 15th', () => {
+    expect(markFeatured(rows, '2026-11-01')?.isNew).toBe(true);
+    expect(markFeatured(rows, '2026-11-02')?.isNew).toBe(false);
+    expect(markFeatured(rows, '2026-10-18')?.isNew).toBe(true);
+  });
+
+  it('carries the organization of an official mark from its data', () => {
+    const imported = importedAchievement({ id: 'i1', provider: 'xx-demo', stroke: 'FR', distance: '100m', pool: 'SCM', hundredths: 7966 as Hundredths, swumOn: '2026-10-19' }, 'Federación Demo');
+
+    expect(markFeatured(marksByEvent([imported], 'SCM'), '2026-10-20')).toMatchObject({ origin: 'official', sourceName: 'Federación Demo' });
+  });
+
+  it('is null when there are no marks, so no card is shown', () => {
+    expect(markFeatured(marksByEvent([], 'SCM'), '2026-10-20')).toBeNull();
+  });
+});
+
+describe('localDay', () => {
+  it('is the calendar day on the device, not the UTC one', () => {
+    expect(localDay(new Date(2026, 9, 18, 23, 30))).toBe('2026-10-18');
+    expect(localDay(new Date(2026, 0, 5, 0, 5))).toBe('2026-01-05');
   });
 });

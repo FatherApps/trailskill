@@ -25,7 +25,8 @@ type Eligible = Achievement & { hundredths: Hundredths };
 // By day first, so a measured time and an imported one (which has a date only) compare alike. Within a day the capture time
 // orders two measured times; shortcut: a date-only result and a timestamped one on the same day go by id, with no preference for the source.
 const hasTime = (capturedAt: string) => capturedAt.length > 10;
-const byCapturedAt = (a: Eligible, b: Eligible) =>
+/** The issue 204 order of two achievements: by day, then by capture time between two timestamps, then by id; no source goes first. */
+export const byCapturedAt = (a: Achievement, b: Achievement) =>
   achievementDay(a.capturedAt).localeCompare(achievementDay(b.capturedAt)) ||
   (hasTime(a.capturedAt) && hasTime(b.capturedAt) ? a.capturedAt.localeCompare(b.capturedAt) : 0) ||
   a.id.localeCompare(b.id);

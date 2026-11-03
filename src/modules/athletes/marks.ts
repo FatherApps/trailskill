@@ -1,6 +1,6 @@
 import { distances, strokes, type DistanceCode, type PoolCode, type StrokeCode } from '../../core/sport';
 import type { EventAchievement } from './achievements';
-import { personalBest, type PersonalBestResult } from './personalBest';
+import { byCapturedAt, personalBest, type PersonalBestResult } from './personalBest';
 
 export type MarkRow = { id: string; stroke: StrokeCode; distance: DistanceCode; best: PersonalBestResult | null };
 
@@ -66,4 +66,14 @@ export function marksByStroke(rows: readonly MarkRow[]): MarkSection[] {
   const sections = new Map<string, MarkRow[]>();
   for (const row of [...rows].sort(compareEvents)) sections.set(row.stroke, [...(sections.get(row.stroke) ?? []), row]);
   return [...sections].map(([stroke, grouped]) => ({ stroke, rows: grouped }));
+}
+
+const asAchievement = (best: PersonalBestResult) => ({ ...best, capturedAt: best.date });
+
+/** The row whose best was set most recently, by the same day-first order as the personal best (issue 204); null when no event has a time. */
+export function featuredMark(rows: readonly MarkRow[]): MarkRow | null {
+  return rows.reduce<MarkRow | null>((latest, row) => {
+    if (!row.best) return latest;
+    return !latest?.best || byCapturedAt(asAchievement(row.best), asAchievement(latest.best)) > 0 ? row : latest;
+  }, null);
 }

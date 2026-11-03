@@ -72,7 +72,7 @@ describe('MarksContainer', () => {
     await show();
 
     const profile = personalBest(await history.listByEvent('a1', { stroke: 'FR', distance: '50m', pool: 'SCM' }));
-    await waitFor(() => expect(screen.getByText(formatTime(profile!.hundredths))).toBeOnTheScreen());
+    await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText(formatTime(profile!.hundredths))).toBeOnTheScreen());
     expect(screen.getByRole('header', { name: 'Marcas de Lucía' })).toBeOnTheScreen();
     expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('50 m')).toBeOnTheScreen();
     // The other events of the design have no time yet.
@@ -81,16 +81,33 @@ describe('MarksContainer', () => {
 
   it('groups the marks by stroke, headers in catalog order and events by distance, with no empty section', async () => {
     await show();
-    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+    await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('34,82')).toBeOnTheScreen());
 
     expect(groupIds()).toEqual(['FR', 'BK', 'BR', 'FL', 'IM']);
     const events = screen.getAllByTestId(/^marks-card-/).map((node) => String(node.props.testID).replace('marks-card-', ''));
     expect(events).toEqual(['FR-50m', 'FR-100m', 'BK-50m', 'BK-100m', 'BR-50m', 'FL-50m', 'IM-100m']);
   });
 
+  it('features the most recent mark of the pool and computes it again for the other pool', async () => {
+    await show({ today: '2026-10-20' });
+    await waitFor(() => expect(within(screen.getByTestId('marks-featured')).getByText('34,82')).toBeOnTheScreen());
+    expect(within(screen.getByTestId('marks-featured')).getByLabelText('Nueva · 18 oct')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 50 m' }));
+
+    expect(within(screen.getByTestId('marks-featured')).getByText('33,00')).toBeOnTheScreen();
+  });
+
+  it('says the featured mark is not new once it is older than 14 days', async () => {
+    await show({ today: '2026-11-02' });
+    await waitFor(() => expect(screen.getByTestId('marks-featured')).toBeOnTheScreen());
+
+    expect(within(screen.getByTestId('marks-featured')).queryByLabelText(/Nueva/)).toBeNull();
+  });
+
   it('has no Combinado section in the long pool while IM 100 has no mark', async () => {
     await show();
-    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+    await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('34,82')).toBeOnTheScreen());
 
     await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 50 m' }));
 
@@ -99,17 +116,17 @@ describe('MarksContainer', () => {
 
   it('shows the marks of the other pool when it is chosen', async () => {
     await show();
-    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+    await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('34,82')).toBeOnTheScreen());
 
     await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 50 m' }));
 
-    expect(screen.getByText('33,00')).toBeOnTheScreen();
-    expect(screen.queryByText('34,82')).toBeNull();
+    expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('marks-card-FR-50m')).queryByText('34,82')).toBeNull();
   });
 
   it('keeps the screen, its chips and its title when the pool changes, with no loading in between', async () => {
     await show();
-    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+    await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('34,82')).toBeOnTheScreen());
 
     await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 50 m' }));
 
@@ -120,7 +137,7 @@ describe('MarksContainer', () => {
 
   it('opens the next athlete in the pool of their own latest result, not in the pool chosen for the previous one', async () => {
     await show();
-    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+    await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('34,82')).toBeOnTheScreen());
     await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 50 m' }));
     expect(screen.getByRole('radio', { name: 'Piscina 50 m' })).toBeChecked();
 
@@ -128,17 +145,17 @@ describe('MarksContainer', () => {
 
     await waitFor(() => expect(screen.getByRole('header', { name: 'Marcas de Tomás' })).toBeOnTheScreen());
     expect(screen.getByRole('radio', { name: 'Piscina 25 m' })).toBeChecked();
-    expect(screen.getByText('42,00')).toBeOnTheScreen();
+    expect(screen.getAllByText('42,00')[0]).toBeOnTheScreen();
   });
 
   it('shows the marks of another athlete when the chip is pressed', async () => {
     await show();
-    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+    await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('34,82')).toBeOnTheScreen());
 
     await fireEvent.press(screen.getByRole('radio', { name: /Tomás R\./ }));
 
     await waitFor(() => expect(screen.getByRole('header', { name: 'Marcas de Tomás' })).toBeOnTheScreen());
-    expect(screen.getByText('42,00')).toBeOnTheScreen();
+    expect(screen.getAllByText('42,00')[0]).toBeOnTheScreen();
   });
 
   describe('imported official results', () => {
@@ -159,7 +176,7 @@ describe('MarksContainer', () => {
     it('shows the marks of an athlete who only has imported results, opening in the pool of the data', async () => {
       await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]), sourceNames });
 
-      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
       expect(screen.getByRole('radio', { name: 'Piscina 50 m', selected: true })).toBeOnTheScreen();
     });
 
@@ -170,7 +187,7 @@ describe('MarksContainer', () => {
         sourceNames,
       });
 
-      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
       expect(screen.getAllByLabelText(/Federación Demo · \d{4}/).length).toBeGreaterThan(0);
       expect(screen.getAllByLabelText(/Comp\. · /).length).toBeGreaterThan(0);
     });
@@ -178,7 +195,7 @@ describe('MarksContainer', () => {
     it('says only "Oficial" when the organization is not known', async () => {
       await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]) });
 
-      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
       expect(screen.getAllByLabelText(/Oficial · \d{4}/).length).toBeGreaterThan(0);
       expect(screen.queryAllByLabelText(/Federación/)).toHaveLength(0);
     });
@@ -190,7 +207,7 @@ describe('MarksContainer', () => {
         sourceNames,
       });
 
-      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
       expect(screen.getAllByLabelText(/Federación Demo · \d{4}/).length).toBeGreaterThan(0);
       expect(screen.queryAllByLabelText(/Comp\. · /)).toHaveLength(0);
     });
@@ -199,7 +216,7 @@ describe('MarksContainer', () => {
       const older = createInMemoryHistoryRepository([result('m1', 'a1', 3482, '2026-08-01T08:00:00Z')]);
       await show({ history: older, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]), sourceNames });
 
-      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
       expect(screen.getByRole('radio', { name: 'Piscina 50 m', selected: true })).toBeOnTheScreen();
     });
 
@@ -207,13 +224,13 @@ describe('MarksContainer', () => {
       const newer = createInMemoryHistoryRepository([result('m1', 'a1', 3482, '2026-10-01T08:00:00Z')]);
       await show({ history: newer, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]), sourceNames });
 
-      await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('34,82')).toBeOnTheScreen());
       expect(screen.getByRole('radio', { name: 'Piscina 25 m', selected: true })).toBeOnTheScreen();
     });
 
     it('keeps the pool the person chose when the marks load again', async () => {
       await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]), sourceNames });
-      await waitFor(() => expect(screen.getByText('33,00')).toBeOnTheScreen());
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
 
       await fireEvent.press(screen.getByRole('radio', { name: 'Piscina 25 m' }));
 
@@ -257,7 +274,7 @@ describe('MarksContainer', () => {
     stored = [result('m9', 'a1', 3482, '2026-10-18T08:00:00Z')];
     await view.rerender(tree(2));
 
-    await waitFor(() => expect(screen.getByText('34,82')).toBeOnTheScreen());
+    await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('34,82')).toBeOnTheScreen());
     expect(synced.listByAthlete).toHaveBeenCalledTimes(2);
   });
 

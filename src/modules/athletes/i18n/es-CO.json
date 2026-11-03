@@ -121,6 +121,18 @@
       "official": "Oficial"
     },
     "event_spoken": "{{stroke}} {{meters}} metros",
+    "featured": {
+      "event": "{{stroke}} {{distance}}",
+      "new": "Nueva · {{date}}",
+      "new_spoken": "Nueva, {{date}}.",
+      "spoken": "{{event}}: {{time}}. {{origin}}.",
+      "origin": {
+        "competition": "Competencia",
+        "training": "Entreno",
+        "official": "Oficial",
+        "official_named": "Oficial · {{source}}"
+      }
+    },
     "group_count": "{{done}} de {{total}} con tiempo",
     "style_group": "Ir al estilo",
     "origin_and_date": "{{origin}} · {{date}}",

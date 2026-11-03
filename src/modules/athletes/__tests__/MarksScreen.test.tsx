@@ -65,6 +65,69 @@ describe('MarksScreen', () => {
     expect(screen.getByTestId('marks-count-IM')).toHaveTextContent('0 de 1 con tiempo');
   });
 
+  describe('the featured card', () => {
+    const featured = () => screen.getByTestId('marks-featured');
+
+    it('shows the event, the time and the origin of the most recent mark', async () => {
+      await show(data);
+
+      expect(within(featured()).getByText('Libre 50 m')).toBeOnTheScreen();
+      expect(within(featured()).getByText('34,82')).toBeOnTheScreen();
+      expect(within(featured()).getByText('Competencia')).toBeOnTheScreen();
+    });
+
+    it('carries the tag "Nueva" with the date while the mark is recent', async () => {
+      await show(data);
+
+      expect(within(featured()).getByLabelText('Nueva · 18 oct')).toBeOnTheScreen();
+    });
+
+    it('has no tag once the mark is no longer new', async () => {
+      await show({ ...data, featured: { ...data.featured!, isNew: false } });
+
+      expect(within(featured()).queryByLabelText(/Nueva/)).toBeNull();
+    });
+
+    it('names the organization of an official mark from sourceName', async () => {
+      await show({ ...data, featured: { ...data.featured!, origin: 'official', sourceName: 'Federación Demo' } });
+
+      expect(within(featured()).getByText('Oficial · Federación Demo')).toBeOnTheScreen();
+    });
+
+    it('is one element for screen readers that says the stroke once, the event, the time, the origin and "nueva"', async () => {
+      await show(data);
+
+      const label = featured().props.accessibilityLabel as string;
+      expect(featured().props.accessible).toBe(true);
+      expect(label).toBe('Libre 50 metros: 34 segundos con 82 centésimas. Competencia. Nueva, 18 oct.');
+      expect(label.match(/Libre/g)).toHaveLength(1);
+    });
+
+    it('is not drawn when there are no marks', async () => {
+      await show({ ...data, featured: null });
+
+      expect(screen.queryByTestId('marks-featured')).toBeNull();
+    });
+
+    it('asks for the icon over the brand color, decorative', async () => {
+      await show(data);
+
+      expect(within(featured()).getByTestId('stroke-icon').props).toMatchObject({ stroke: 'FR', variant: 'onColor', decorative: true });
+    });
+
+    it('draws no icon for a stroke the catalog does not know', async () => {
+      await show({ ...data, featured: { ...data.featured!, stroke: 'XX' } });
+
+      expect(within(featured()).queryAllByTestId('stroke-icon')).toHaveLength(0);
+    });
+
+    it('reserves the corner of the icon, so the text never sits under it', async () => {
+      await show(data);
+
+      expect(flat(screen.getByTestId('marks-featured-text')).paddingRight + (flat(screen.getByTestId('marks-featured')).padding as number)).toBeGreaterThanOrEqual(64);
+    });
+  });
+
   it('puts a style chip under the pool for each group, with none for a stroke without events', async () => {
     const longPool = marksSections([measured('FR', '50m', 3601, '2026-09-12', { pool: 'LCM' })], 'LCM');
     await show({ ...data, pool: 'LCM', sections: longPool });
@@ -128,8 +191,9 @@ describe('MarksScreen', () => {
   it('puts the icon of the stroke on every card whose stroke has a pictogram, decorative', async () => {
     await show(data);
 
+    // One per card, and the one of the featured card over brand color.
     const icons = iconsIn();
-    expect(icons).toHaveLength(data.sections.flatMap((section) => section.cards).length);
+    expect(icons).toHaveLength(data.sections.flatMap((section) => section.cards).length + 1);
     expect(icons.every((icon) => icon.props.decorative === true)).toBe(true);
     // The two events with no time ask for the empty variant.
     expect(icons.filter((icon) => icon.props.variant === 'empty')).toHaveLength(2);
@@ -225,7 +289,7 @@ describe('MarksScreen', () => {
     it('reserves the corner of the icon on a card, so the title never sits under it', async () => {
       await show(data, { fontScale: 2 });
 
-      expect(flat(screen.getByTestId('marks-card-FR-50m')).paddingRight).toBeGreaterThanOrEqual(64);
+      expect(flat(screen.getByTestId('marks-title-FR-50m')).paddingRight + (flat(screen.getByTestId('marks-card-FR-50m')).padding as number)).toBeGreaterThanOrEqual(64);
     });
   });
 });

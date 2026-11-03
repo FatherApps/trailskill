@@ -4,7 +4,7 @@ import { FlatList, Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { isStroke, pools, type PoolCode } from '../../../core/sport';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { spokenTime, type Hundredths } from '../../../core/time';
+import { formatTime, spokenTime, type Hundredths } from '../../../core/time';
 import { ChipRow, StateView, StrokeIcon, Tag, TimeValue } from '../../../core/ui';
 import type { AthleteColor } from '../athleteDisplay';
 import { useLargeText } from '../components/useLargeText';
@@ -31,6 +31,22 @@ export type MarkCard = {
 // One stroke: its name from the catalog and the cards of its events, by distance.
 export type MarkSectionView = { id: string; title: string; cards: MarkCard[] };
 
+// The most recent mark of the pool, over brand color: what the card says, ready to print.
+export type MarkFeatured = {
+  id: string;
+  stroke: string;
+  // "Libre 50 metros" for screen readers; `title` is what the card shows ("Libre 50 m").
+  event: string;
+  title: string;
+  time: Hundredths;
+  origin: 'competition' | 'training' | 'official';
+  sourceName?: string;
+  // ISO date, yyyy-mm-dd.
+  date: string;
+  // Set within the last 14 days: the card carries the "Nueva" tag.
+  isNew: boolean;
+};
+
 export type MarksView =
   | { kind: 'loading' }
   | { kind: 'empty' }
@@ -42,6 +58,8 @@ export type MarksView =
       selectedId: string;
       firstName: string;
       pool: PoolCode;
+      // Null (or absent) while the pool has no marks: no card.
+      featured?: MarkFeatured | null;
       sections: MarkSectionView[];
     };
 
@@ -86,10 +104,11 @@ function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
     flexBasis: wide ? undefined : '47%',
     flexGrow: 1,
     padding: space[4],
-    paddingRight: iconReserve,
     gap: space[1],
     borderRadius: radius.md,
   } as const;
+  // The first line stops short of the icon, whatever the text size.
+  const title = { paddingRight: iconReserve - space[4] };
   // The stroke is a catalog code only when the catalog says so; any other value gets no icon.
   const icon = isStroke(card.stroke) && (
     <View style={{ position: 'absolute', top: iconInset, right: iconInset }}>
@@ -105,8 +124,10 @@ function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
         accessibilityLabel={t('athletes.marks.no_time_spoken', { event: card.event })}
         style={[box, { borderWidth: 2, borderStyle: 'dashed', borderColor: colors[marksScreenColors.emptyBorder] }]}
       >
-        <Text style={[typography['body-strong'], { color: colors[marksScreenColors.empty] }]}>{card.distance}</Text>
-        <Text style={[typography.body, { color: colors[marksScreenColors.empty] }]}>{t('athletes.marks.no_time')}</Text>
+        <Text testID={`marks-title-${card.id}`} style={[typography['body-strong'], title, { color: colors[marksScreenColors.empty] }]}>
+          {card.distance}
+        </Text>
+        <Text style={[typography.body, title, { color: colors[marksScreenColors.empty] }]}>{t('athletes.marks.no_time')}</Text>
         {icon}
       </View>
     );
@@ -118,10 +139,52 @@ function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
       accessibilityLabel={t('athletes.marks.card_spoken', { event: card.event, time: spokenTime(card.time), detail: detail ?? '' }).trim()}
       style={[box, { backgroundColor: colors[marksScreenColors.card] }]}
     >
-      <Text style={[typography['body-strong'], { color: colors.ink }]}>{card.distance}</Text>
+      <Text testID={`marks-title-${card.id}`} style={[typography['body-strong'], title, { color: colors.ink }]}>
+        {card.distance}
+      </Text>
       <TimeValue value={card.time} size="time-md" />
       {detail && <Tag label={detail} />}
       {icon}
+    </View>
+  );
+}
+
+// The card of the latest mark, over the athlete's color: one element for screen readers, with the icon beside the text.
+function FeaturedCard({ featured, color }: { featured: MarkFeatured; color: AthleteColor }) {
+  const { colors, space, radius, typography } = useTheme();
+  const text = { color: colors['on-color'] };
+  const origin =
+    featured.origin === 'official'
+      ? featured.sourceName
+        ? t('athletes.marks.featured.origin.official_named', { source: featured.sourceName })
+        : t('athletes.marks.featured.origin.official')
+      : t(`athletes.marks.featured.origin.${featured.origin}`);
+  const shortDate = formatDate(featured.date, 'day_month');
+  const newDate = featured.isNew ? shortDate : null;
+  const label = [
+    t('athletes.marks.featured.spoken', { event: featured.event, time: spokenTime(featured.time), origin }),
+    newDate && t('athletes.marks.featured.new_spoken', { date: newDate }),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <View testID="marks-featured" accessible accessibilityLabel={label} style={{ backgroundColor: colors[color], borderRadius: radius.md, padding: space[4] }}>
+      <View testID="marks-featured-text" style={{ gap: space[1], paddingRight: iconReserve - space[4] }}>
+        {newDate && (
+          <View style={{ alignSelf: 'flex-start' }}>
+            <Tag variant="ok" label={t('athletes.marks.featured.new', { date: newDate })} />
+          </View>
+        )}
+        <Text style={[typography['body-strong'], text]}>{featured.title}</Text>
+        <Text style={[typography['time-lg'], text]}>{formatTime(featured.time)}</Text>
+        <Text style={[typography.caption, text]}>{origin}</Text>
+      </View>
+      {isStroke(featured.stroke) && (
+        <View style={{ position: 'absolute', top: iconInset, right: iconInset }}>
+          <StrokeIcon stroke={featured.stroke} variant="onColor" decorative />
+        </View>
+      )}
     </View>
   );
 }
@@ -198,6 +261,7 @@ export function MarksScreen({ view, onSelectAthlete, onPoolChange, scrollEnabled
         value={view.pool}
         onChange={onPoolChange}
       />
+      {view.featured && <FeaturedCard featured={view.featured} color={view.athletes.find((athlete) => athlete.id === view.selectedId)?.color ?? 'athlete-1'} />}
       {sections.length > 0 && (
         // No chip is chosen: each one only jumps to its group.
         <ChipRow
