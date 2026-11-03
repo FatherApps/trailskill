@@ -89,6 +89,30 @@ describe('searchLenex', () => {
     expect(found(lenex({ athletes: [athlete] })).results.map((r) => r.sourceResultKey)).toEqual(['20251018|1|4']);
   });
 
+  describe('technique', () => {
+    const style = (technique?: string) => `<SWIMSTYLE distance="100" relaycount="1" stroke="FREE"${technique === undefined ? '' : ` technique="${technique}"`}/>`;
+    const withTechniques = (techniques: (string | undefined)[], results: { eventid: string; resultid: string; swimtime: string }[]) =>
+      lenex({
+        sessions: `<SESSION number="1" date="2025-10-18"><EVENTS>${techniques.map((t, i) => `<EVENT eventid="${i + 1}" number="${i + 1}" gender="F">${style(t)}</EVENT>`).join('')}</EVENTS></SESSION>`,
+        athletes: [{ ...ME, results }],
+      });
+    const time = (eventid: string, swimtime = '00:01:00.00') => ({ eventid, resultid: `r${eventid}`, swimtime });
+
+    it.each(['KICK', 'PULL', 'START', 'TURN', 'DRILL', 'REGULAR', 'SOMETHING_NEW'])('leaves out an event with technique "%s"', (technique) => {
+      expect(found(withTechniques([technique], [time('1')])).results).toEqual([]);
+    });
+
+    it('imports an event without technique or with an empty one', () => {
+      expect(found(withTechniques([undefined, ''], [time('1'), time('2')])).results.map((r) => r.sourceResultKey)).toEqual(['20251018|1|r1', '20251018|2|r2']);
+    });
+
+    it('keeps only the real swim when a kick set and a swim have the same stroke and distance, so it cannot become the best time', () => {
+      const { results } = found(withTechniques(['KICK', undefined], [time('1', '00:00:50.00'), time('2', '00:01:10.00')]));
+      expect(results.map((r) => r.hundredths)).toEqual([7000]);
+      expect(Math.min(...results.map((r) => r.hundredths as number))).toBe(7000);
+    });
+  });
+
   it('is unavailable when a result points at an event the file does not have', () => {
     unavailable(lenex({ athletes: [{ ...ME, results: [{ eventid: '99', resultid: '1', swimtime: '00:01:00.00' }] }] }));
   });

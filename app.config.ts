@@ -6,7 +6,7 @@ const preview = process.env.APP_VARIANT === 'preview';
 const config: ExpoConfig = {
   name: preview ? 'TrailSkill (prueba)' : 'TrailSkill',
   slug: 'trailskill',
-  // Opens school invitation links: trailskill://invite/<token>.
+  // Opens school invitation links: trailskill://invite/<token>. The preview variant answers only to trailskill-preview://, so it does not open trailskill:// links.
   scheme: preview ? 'trailskill-preview' : 'trailskill',
   version: '1.0.0',
   userInterfaceStyle: 'automatic',
