@@ -158,7 +158,7 @@ export function parseRows(prueba: number, body: string): NormalizedResult[] {
   const rows: unknown = JSON.parse(body);
   if (!Array.isArray(rows)) throw new Error('Unexpected answer');
 
-  // Keyed by `sourceResultKey`: rows that give the same key (event, date, tournament, time) are one result, whatever differs elsewhere.
+  // Keyed by `sourceResultKey`: rows that give the same key (event, pool, date, tournament, time) are one result; what differs elsewhere is never kept.
   const results = new Map<string, NormalizedResult>();
   for (const row of rows as unknown[]) {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) throw new Error('Unexpected row');
@@ -169,9 +169,10 @@ export function parseRows(prueba: number, body: string): NormalizedResult[] {
     const swumOn = parseDate(fields.fecha_torneo);
     const competition = fields.torneo === null ? null : normalizeSpaces(textOf(fields.torneo)) || null;
     const hundredths = parseTime(fields.tiempo);
-    // The source has no row id. The key depends on the row's own text, never on its position: the tournament is the one
-    // free text, in the middle, so the date before it and the digits after it keep the key unambiguous.
-    const sourceResultKey = `${prueba}|${swumOn}|${competition ?? ''}|${hundredths ?? ''}`;
+    // The source has no row id. The key holds every field that is kept (the event gives stroke and distance), so rows
+    // alike in all of them are one result, and it depends on the row's own text, never on its position. The tournament
+    // is the one free text, in the middle: the codes and date before it and the digits after it keep the key unambiguous.
+    const sourceResultKey = `${prueba}|${pool}|${swumOn}|${competition ?? ''}|${hundredths ?? ''}`;
     if (!results.has(sourceResultKey)) results.set(sourceResultKey, { sourceResultKey, stroke, distance, pool, hundredths, swumOn, competition });
   }
   return [...results.values()];

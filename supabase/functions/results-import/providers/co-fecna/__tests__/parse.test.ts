@@ -150,8 +150,8 @@ describe('parseRows', () => {
 
   it('turns each row into a normalized result, with the event from the event number', () => {
     expect(parseRows(2, body(historyRow(), historyRow({ tiempo: '00:01:05.30', piscina: 'SC', torneo: 'Copa Sint?tica' })))).toEqual([
-      { sourceResultKey: '2|2026-03-14|Synthetic Open|2845', stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: 2845, swumOn: '2026-03-14', competition: 'Synthetic Open' },
-      { sourceResultKey: '2|2026-03-14|Copa Sint?tica|6530', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: 6530, swumOn: '2026-03-14', competition: 'Copa Sint?tica' },
+      { sourceResultKey: '2|LCM|2026-03-14|Synthetic Open|2845', stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: 2845, swumOn: '2026-03-14', competition: 'Synthetic Open' },
+      { sourceResultKey: '2|SCM|2026-03-14|Copa Sint?tica|6530', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: 6530, swumOn: '2026-03-14', competition: 'Copa Sint?tica' },
     ]);
   });
 
@@ -244,7 +244,7 @@ describe('parseRows', () => {
 
   it('imports once, without error, two rows that differ only in the difference', () => {
     const results = parseRows(2, body(historyRow({ diferencia: '<span>-0.10</span>' }), historyRow({ diferencia: '<span>-0.20</span>' })));
-    expect(results.map((result) => result.sourceResultKey)).toEqual(['2|2026-03-14|Synthetic Open|2845']);
+    expect(results.map((result) => result.sourceResultKey)).toEqual(['2|LCM|2026-03-14|Synthetic Open|2845']);
   });
 
   it('keeps several rows of one year in one event, and does not depend on the order of the rows', () => {
@@ -261,34 +261,44 @@ describe('parseRows', () => {
     expect(byDate.map(key).sort()).toEqual(byTime.map(key).sort());
   });
 
-  it('builds the key from event, date, tournament and time, whatever order the rows come in', () => {
+  it('builds the key from event, pool, date, tournament and time, whatever order the rows come in', () => {
     const rows = [historyRow({ tiempo: '00:01:05.52', fecha_torneo: '2026-06-01' }), historyRow({ tiempo: '00:01:06.10', fecha_torneo: '2026-01-10' })];
     const keys = (list: Record<string, unknown>[]) => parseRows(2, body(...list)).map((result) => result.sourceResultKey);
-    expect(keys(rows)).toEqual(['2|2026-06-01|Synthetic Open|6552', '2|2026-01-10|Synthetic Open|6610']);
+    expect(keys(rows)).toEqual(['2|LCM|2026-06-01|Synthetic Open|6552', '2|LCM|2026-01-10|Synthetic Open|6610']);
     expect(keys([...rows].reverse()).sort()).toEqual(keys(rows).sort());
+  });
+
+  it('keeps two rows that differ only in the pool as two results, whatever order they come in', () => {
+    const rows = [historyRow({ piscina: 'LC' }), historyRow({ piscina: 'SC' })];
+    const forward = parseRows(2, body(...rows));
+    const backward = parseRows(2, body(...[...rows].reverse()));
+    expect(forward.map((result) => result.sourceResultKey)).toEqual(['2|LCM|2026-03-14|Synthetic Open|2845', '2|SCM|2026-03-14|Synthetic Open|2845']);
+    const byKey = (list: typeof forward) => Object.fromEntries(list.map((result) => [result.sourceResultKey, result.pool]));
+    expect(byKey(backward)).toEqual(byKey(forward));
+    expect(backward).toHaveLength(2);
   });
 
   it('gives a cut tournament with ? the same key every time, using the text as it arrives', () => {
     const torneo = 'Campeonato Sint?tico Departamental de Na';
     const first = parseRows(2, body(historyRow({ torneo })))[0].sourceResultKey;
     expect(parseRows(2, body(historyRow({ torneo })))[0].sourceResultKey).toBe(first);
-    expect(first).toBe(`2|2026-03-14|${torneo}|2845`);
+    expect(first).toBe(`2|LCM|2026-03-14|${torneo}|2845`);
   });
 
   it('gives tournaments that differ only in spaces (repeated, at the edge) the same key, as one result', () => {
     const results = parseRows(2, body(historyRow({ torneo: 'Copa Sint?tica' }), historyRow({ torneo: '  Copa   Sint?tica ' })));
-    expect(results.map((result) => result.sourceResultKey)).toEqual(['2|2026-03-14|Copa Sint?tica|2845']);
+    expect(results.map((result) => result.sourceResultKey)).toEqual(['2|LCM|2026-03-14|Copa Sint?tica|2845']);
   });
 
   it('joins exact duplicate rows into one result and one key, with no #n counter', () => {
     const results = parseRows(2, body(historyRow(), historyRow(), historyRow(), historyRow()));
     expect(results).toHaveLength(1);
-    expect(results[0].sourceResultKey).toBe('2|2026-03-14|Synthetic Open|2845');
+    expect(results[0].sourceResultKey).toBe('2|LCM|2026-03-14|Synthetic Open|2845');
   });
 
   it('leaves no #n counter in any key, and a tournament that looks like one stays its own result', () => {
     const results = parseRows(2, body(historyRow(), historyRow(), historyRow({ torneo: 'Synthetic Open#1' })));
-    expect(results.map((result) => result.sourceResultKey)).toEqual(['2|2026-03-14|Synthetic Open|2845', '2|2026-03-14|Synthetic Open#1|2845']);
+    expect(results.map((result) => result.sourceResultKey)).toEqual(['2|LCM|2026-03-14|Synthetic Open|2845', '2|LCM|2026-03-14|Synthetic Open#1|2845']);
   });
 
   it('importing the same answer twice yields the same keys, so it is still one row each', () => {
