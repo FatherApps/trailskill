@@ -92,9 +92,13 @@ select is(
   (select (case when released then 1 else 0 end) + (case when r is null then 1 else 0 end) from released_outcome, claim_outcome),
   1, 'exactly one of the release and the results query won');
 select ok(
-  (select case when o.released then f.last_queried_by is null and c.r = s.claimed_at + interval '1 minute' else true end
+  (select case when o.released then f.last_queried_by is null
+                                    and c.r = f.last_queried_at + interval '1 hour'
+                                    and c.r > s.claimed_at + interval '1 minute'
+                                    and c.r <= clock_timestamp() + interval '1 minute'
+               else true end
    from released_outcome o, claim_outcome c, final_state f, searched s),
-  'if the release won, the claim is no one''s and the results query waits the short time from the searched claim');
+  'if the release won, the claim is no one''s and the results query waits the short time from the release');
 select ok(
   (select case when not o.released then f.last_queried_at > s.claimed_at else true end
    from released_outcome o, final_state f, searched s),

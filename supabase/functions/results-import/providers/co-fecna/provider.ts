@@ -10,7 +10,7 @@ import { normalizeNumber, type History, type RosterEntry, type RosterItem } from
 
 export type { History, RosterEntry, RosterItem };
 
-// The worker's proposal, pending maintainer review: more homonyms than this is "unavailable", never a silent cut.
+// Maintainer decision (2026-11-03): more namesakes than this answers "unavailable", the safe failure, never a silent cut; search by number stays available.
 export const MAX_CANDIDATES = 5;
 // Approved by the maintainer: 30 s for a whole search (each request has its own 10 s in fetchPage).
 export const SEARCH_TIMEOUT_MS = 30_000;

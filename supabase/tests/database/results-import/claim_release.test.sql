@@ -1,9 +1,10 @@
 -- A failed source query gives its claim back (issue #888): only if nobody consumed since, leaving a
--- short wait instead of the whole interval, and never shareable by a results query. Test values: interval
+-- short wait counted from the release (the failure, issue #907) instead of the whole interval, and
+-- never shareable by a results query. Test values: interval
 -- 1 hour, search time to live 15 minutes, short wait 1 minute. All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(34);
 
 insert into auth.users (id, email) values
   ('88800000-0000-4000-8000-0000000000a1', 'release-guardian@example.test');
@@ -48,6 +49,15 @@ $$;
 create function pg_temp.release(at timestamptz) returns boolean language sql as $$
   select public.results_import_release_claim('88800000-0000-4000-8000-0000000000e1', at, interval '1 hour', interval '1 minute');
 $$;
+-- `release_into` keeps the instant just before the release (the failure) in the setting <tag>_from.
+create function pg_temp.release_into(tag text, at timestamptz) returns boolean language sql as $$
+  select set_config('app.' || tag || '_from', clock_timestamp()::text, true);
+  select pg_temp.release(at);
+$$;
+-- True when `retry` is the short wait counted from the release kept under <tag>: no sooner, no later.
+create function pg_temp.short_wait_from(retry timestamptz, tag text) returns boolean language sql as $$
+  select retry >= pg_temp.got(tag || '_from') + interval '1 minute' and retry <= clock_timestamp() + interval '1 minute';
+$$;
 
 select ok(
   not has_function_privilege('authenticated', 'public.results_import_release_claim(uuid, timestamptz, interval, interval)', 'execute')
@@ -84,9 +94,9 @@ select is(pg_temp.got('c2_at'), null::timestamptz, 'a refused claim answers no i
 select is(pg_temp.got('c2_retry'), pg_temp.got('c1_at') + interval '1 hour', 'and when the next one is allowed');
 
 -- 2. Releasing: true once, then a short wait instead of the whole interval.
-select is(pg_temp.release(pg_temp.got('c1_at')), true, 'releasing the claim just taken returns true');
+select is(pg_temp.release_into('c1', pg_temp.got('c1_at')), true, 'releasing the claim just taken returns true');
 select pg_temp.claim_into('c3');
-select is(pg_temp.got('c3_retry'), pg_temp.got('c1_at') + interval '1 minute', 'right after, a claim waits the short time counted from the failed claim');
+select ok(pg_temp.short_wait_from(pg_temp.got('c3_retry'), 'c1'), 'right after, a claim waits the short time counted from the release');
 select is(pg_temp.release(pg_temp.got('c1_at')), false, 'a claim is released only once');
 select pg_temp.wait(interval '1 minute');
 select pg_temp.claim_into('c4');
@@ -96,6 +106,22 @@ select is(pg_temp.got('c4_retry'), null::timestamptz, 'after the short wait a cl
 select pg_temp.wait(interval '2 minutes');
 select pg_temp.claim_into('c5');
 select is(pg_temp.got('c5_retry'), pg_temp.last_query() + interval '1 hour', 'after a claim that is not released, two minutes later the window is still whole');
+
+-- 3b. The short wait runs from the failure, not from the claim (issue #907).
+select pg_temp.wait(interval '2 hours');
+select pg_temp.claim_into('f1');
+select pg_temp.wait(interval '30 seconds');
+select is(pg_temp.release_into('f1', pg_temp.last_query()), true, 'a claim whose query failed after 30 seconds is released');
+select pg_temp.claim_into('f2');
+select ok(pg_temp.short_wait_from(pg_temp.got('f2_retry'), 'f1'), 'the next claim waits the short time counted from the failure');
+select ok(pg_temp.got('f2_retry') > clock_timestamp() + interval '59 seconds', 'so about a minute from now, not the 30 seconds left since the claim');
+select pg_temp.wait(interval '2 hours');
+select pg_temp.claim_into('g1');
+select pg_temp.wait(interval '90 seconds');
+select is(pg_temp.release_into('g1', pg_temp.last_query()), true, 'a claim whose query failed after 90 seconds is released');
+select pg_temp.claim_into('g2');
+select is(pg_temp.got('g2_at'), null::timestamptz, 'a failure slower than the short wait does not allow an immediate new query');
+select ok(pg_temp.short_wait_from(pg_temp.got('g2_retry'), 'g1'), 'it waits the short time counted from the failure');
 
 -- 4. A release changes nothing unless the claim is still the stored one.
 select pg_temp.wait(interval '2 hours');
@@ -121,11 +147,11 @@ select pg_temp.wait(interval '36 seconds');
 select pg_temp.results_claim_into('s2');
 select is(pg_temp.got('s2_retry'), null::timestamptz, 'the results query after the confirmed search shares its claim');
 select is(pg_temp.got('s2_at'), pg_temp.last_query(), 'and answers the instant it moved the window to');
-select is(pg_temp.release(pg_temp.got('s2_at')), true, 'the shared claim is released');
+select is(pg_temp.release_into('s2', pg_temp.got('s2_at')), true, 'the shared claim is released');
 select pg_temp.results_claim_into('s3');
-select is(pg_temp.got('s3_retry'), pg_temp.got('s2_at') + interval '1 minute', 'a results query right after is not shared again: it waits the short time');
+select ok(pg_temp.short_wait_from(pg_temp.got('s3_retry'), 's2'), 'a results query right after is not shared again: it waits the short time');
 select pg_temp.claim_into('s4');
-select is(pg_temp.got('s4_retry'), pg_temp.got('s2_at') + interval '1 minute', 'and so does a search');
+select ok(pg_temp.short_wait_from(pg_temp.got('s4_retry'), 's2'), 'and so does a search');
 select is((select last_queried_by from public.results_import_queries where athlete_id = '88800000-0000-4000-8000-0000000000e1'),
   null::uuid, 'a released claim records no one');
 select pg_temp.wait(interval '1 minute');
