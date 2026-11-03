@@ -75,3 +75,4 @@ Primera versión de prueba. Ingresa con el correo invitado (recibirás un códig
 - **Público objetivo:** PENDIENTE de la decisión del maintainer y asesoría legal (la app guarda datos de menores, aunque quienes la usan son adultos). Ver «Open decisions» en [`docs/RELEASING.md`](../RELEASING.md#open-decisions).
 - **Anuncios:** la app no incluye SDK de publicidad (revisar `package.json` antes de declararlo).
 - **Data safety:** ver [`data-safety.md`](data-safety.md).
+- **Ingreso con Microsoft:** a confirmar por Mario si funciona en producción. Los textos de arriba solo mencionan el correo y Google; no agregar Microsoft hasta que él lo confirme.

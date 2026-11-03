@@ -171,6 +171,7 @@ Run the smoke test of the [Release checklist](#release-checklist) on a device in
 Play may ask for sign-in credentials in **App content → App access** (the app asks for a sign-in on first launch). Reviewers cannot read a stranger's email, so the emailed code is not enough for them. Decided by the maintainer (issue #910):
 
 - **Use a dedicated Google account** (Google sign-in is enabled in production and does not depend on #84). Create it for the review only, with no 2-step verification that needs a phone, and use only synthetic data in the athletes it manages. Mario creates and keeps it; **its email and password go only in the App access form of Play Console, never in the repository, an issue, or a pull request.**
+- Microsoft sign-in (the sign-in screen has a button for it) is **to be confirmed by Mario**: this guide does not say whether it is enabled in production. Do not use it for the review account until he confirms.
 - **Backup:** a dedicated mailbox for the review, whose address and password go in the same form. The reviewer opens that mailbox to read the emailed code, so keep it free of 2-step verification and send the code only when the reviewer asks.
 - Not allowed: a fixed-code or other authentication shortcut on the server.
 
