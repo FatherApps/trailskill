@@ -1,90 +1,232 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Dimensions, StyleSheet } from 'react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { Dimensions, FlatList, StyleSheet } from 'react-native';
 
-import { ThemeProvider } from '../../../core/theme';
+import { t } from '../../../core/i18n';
+import { ThemeProvider, space } from '../../../core/theme';
 import { MarksScreen, type MarksView } from '..';
+import { marksFixture, marksSections, measured } from '../__fixtures__/marks';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
+// The icon has its own tests; here the screen is checked on what it asks of it.
+jest.mock('../../../core/ui/StrokeIcon', () => {
+  const { View } = jest.requireActual('react-native');
+  return { StrokeIcon: (props: { stroke: string; variant?: string; decorative?: boolean }) => <View testID="stroke-icon" {...props} /> };
+});
 
-// Synthetic data only.
-const data: Extract<MarksView, { kind: 'data' }> = {
-  kind: 'data',
-  athletes: [
-    { id: 'a1', name: 'Lucía R.', initials: 'LR', color: 'athlete-3' },
-    { id: 'a2', name: 'Tomás R.', initials: 'TR', color: 'athlete-2' },
-  ],
-  selectedId: 'a1',
-  firstName: 'Lucía',
-  pool: 'SCM',
-  sections: [
-    { id: 'FR', title: 'Libre', cards: [{ id: 'FR-50m', event: 'Libre 50', time: 3482, origin: 'competition', date: '2026-10-18' }] },
-    {
-      id: 'BK',
-      title: 'Espalda',
-      cards: [
-        { id: 'BK-50m', event: 'Espalda 50', time: 4108, origin: 'training', date: '2026-10-02' },
-        { id: 'BK-100m', event: 'Espalda 100', time: null },
-      ],
-    },
-  ],
-};
+// Synthetic data only. The fixtures group with the same functions the container runs.
+const data = marksFixture as Extract<MarksView, { kind: 'data' }>;
+const strokeName = (code: string) => t(`sport.stroke.${code}`);
 
-// How the cards of the screen are laid out: the direction of the container that holds the card.
-const containerStyle = (label: RegExp) => StyleSheet.flatten((screen.getByLabelText(label).parent!.props as { style: never }).style);
-const layoutOf = (label: RegExp) => containerStyle(label).flexDirection;
-const libre50 = /^Libre 50: /;
-
-const show = (view: MarksView, { onSelectAthlete = jest.fn(), onPoolChange = jest.fn() } = {}) =>
+const show = (view: MarksView, { onSelectAthlete = jest.fn(), onPoolChange = jest.fn(), scrollEnabled = false, fontScale }: { onSelectAthlete?: jest.Mock; onPoolChange?: jest.Mock; scrollEnabled?: boolean; fontScale?: number } = {}) =>
   render(
-    <ThemeProvider>
-      <MarksScreen view={view} onSelectAthlete={onSelectAthlete} onPoolChange={onPoolChange} scrollEnabled={false} />
+    <ThemeProvider fontScale={fontScale}>
+      <MarksScreen view={view} onSelectAthlete={onSelectAthlete} onPoolChange={onPoolChange} scrollEnabled={scrollEnabled} />
     </ThemeProvider>,
   );
 
+const groupIds = () => screen.getAllByTestId(/^marks-group-/).map((node) => String(node.props.testID).replace('marks-group-', ''));
+const flat = (node: { props: { style?: unknown } }) => StyleSheet.flatten(node.props.style as never) ?? {};
+
+const iconsIn = (cardId?: string) => (cardId ? within(screen.getByTestId(`marks-card-${cardId}`)).queryAllByTestId('stroke-icon') : screen.queryAllByTestId('stroke-icon'));
+
+const realGet = Dimensions.get.bind(Dimensions);
+
 describe('MarksScreen', () => {
+  // The test environment reports a doubled font scale; these tests are about normal text unless they say otherwise.
+  beforeEach(() => jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 })));
+  afterEach(() => jest.restoreAllMocks());
+
   it('titles the screen with the chosen athlete', async () => {
     await show(data);
 
     expect(screen.getByRole('header', { name: 'Marcas de Lucía' })).toBeOnTheScreen();
   });
 
-  it('puts a section header for each stroke, in the order given, announced as a header', async () => {
+  it('puts a titled group for each stroke, in the order given, announced as a header', async () => {
     await show(data);
 
-    expect(screen.getByRole('header', { name: 'Libre' })).toBeOnTheScreen();
-    expect(screen.getByRole('header', { name: 'Espalda' })).toBeOnTheScreen();
-    expect(screen.getAllByRole('header').map((header) => header.props.children)).toEqual(['Marcas de Lucía', 'Libre', 'Espalda']);
+    expect(groupIds()).toEqual(data.sections.map((section) => section.id));
+    for (const { id } of data.sections) expect(screen.getByTestId(`marks-group-${id}`).props.accessibilityRole).toBe('header');
   });
 
-  it('shows each card after the header of its stroke', async () => {
+  it('titles a group in display 22, so the token the design names is the one used', async () => {
     await show(data);
 
-    const labels = screen.getAllByText(/^(Libre|Espalda)( \d+)?$/).map((node) => node.props.children);
-    expect(labels).toEqual(['Libre', 'Libre 50', 'Espalda', 'Espalda 50', 'Espalda 100']);
+    const { fontSize } = flat(screen.getByTestId('marks-group-FR'));
+    expect(fontSize).toBe(22);
   });
 
-  it('shows no header when there are no sections', async () => {
-    await show({ ...data, sections: [] });
-
-    expect(screen.getAllByRole('header')).toHaveLength(1);
-  });
-
-  it('shows the time, the origin and the date of an event with a mark', async () => {
+  it('counts the events with a time over the ones the group lists', async () => {
     await show(data);
 
-    expect(screen.getByText('Libre 50')).toBeOnTheScreen();
-    expect(screen.getByText('34,82')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Comp. · 18 oct')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Entreno · 2 oct')).toBeOnTheScreen();
+    expect(screen.getByTestId('marks-count-FR')).toHaveTextContent('2 de 2 con tiempo');
+    expect(screen.getByTestId('marks-count-BK')).toHaveTextContent('1 de 2 con tiempo');
+    expect(screen.getByTestId('marks-count-IM')).toHaveTextContent('0 de 1 con tiempo');
+  });
+
+  describe('the featured card', () => {
+    const featured = () => screen.getByTestId('marks-featured');
+
+    it('shows the event, the time and the origin of the most recent mark', async () => {
+      await show(data);
+
+      expect(within(featured()).getByText('Libre 50 m')).toBeOnTheScreen();
+      expect(within(featured()).getByText('34,82')).toBeOnTheScreen();
+      expect(within(featured()).getByText('Competencia')).toBeOnTheScreen();
+    });
+
+    it('carries the tag "Nueva" with the date while the mark is recent', async () => {
+      await show(data);
+
+      expect(within(featured()).getByLabelText('Nueva · 18 oct')).toBeOnTheScreen();
+    });
+
+    it('has no tag once the mark is no longer new', async () => {
+      await show({ ...data, featured: { ...data.featured!, isNew: false } });
+
+      expect(within(featured()).queryByLabelText(/Nueva/)).toBeNull();
+    });
+
+    it('names the organization of an official mark from sourceName', async () => {
+      await show({ ...data, featured: { ...data.featured!, origin: 'official', sourceName: 'Federación Demo' } });
+
+      expect(within(featured()).getByText('Oficial · Federación Demo')).toBeOnTheScreen();
+    });
+
+    it('is one element for screen readers that says the stroke once, the event, the time, the origin and "nueva"', async () => {
+      await show(data);
+
+      const label = featured().props.accessibilityLabel as string;
+      expect(featured().props.accessible).toBe(true);
+      expect(label).toBe('Libre 50 metros: 34 segundos con 82 centésimas. Competencia. Nueva, 18 oct.');
+      expect(label.match(/Libre/g)).toHaveLength(1);
+    });
+
+    it('is not drawn when there are no marks', async () => {
+      await show({ ...data, featured: null });
+
+      expect(screen.queryByTestId('marks-featured')).toBeNull();
+    });
+
+    it('asks for the icon over the brand color, decorative', async () => {
+      await show(data);
+
+      expect(within(featured()).getByTestId('stroke-icon').props).toMatchObject({ stroke: 'FR', variant: 'onColor', decorative: true });
+    });
+
+    it('draws no icon for a stroke the catalog does not know', async () => {
+      await show({ ...data, featured: { ...data.featured!, stroke: 'XX' } });
+
+      expect(within(featured()).queryAllByTestId('stroke-icon')).toHaveLength(0);
+    });
+
+    it('reserves the corner of the icon, so the text never sits under it', async () => {
+      await show(data);
+
+      expect(flat(screen.getByTestId('marks-featured-text')).paddingRight + (flat(screen.getByTestId('marks-featured')).padding as number)).toBeGreaterThanOrEqual(64);
+    });
+  });
+
+  it('puts a style chip under the pool for each group, with none for a stroke without events', async () => {
+    const longPool = marksSections([measured('FR', '50m', 3601, '2026-09-12', { pool: 'LCM' })], 'LCM');
+    await show({ ...data, pool: 'LCM', sections: longPool });
+
+    expect(groupIds()).toEqual(['FR', 'BK', 'BR', 'FL']);
+    expect(screen.queryByRole('radio', { name: strokeName('IM') })).toBeNull();
+    for (const code of ['FR', 'BK', 'BR', 'FL']) expect(screen.getByRole('radio', { name: strokeName(code) })).toBeOnTheScreen();
+  });
+
+  it('scrolls to the group of the style chip that is pressed', async () => {
+    const scrollToIndex = jest.spyOn(FlatList.prototype, 'scrollToIndex').mockImplementation(() => undefined);
+    await show(data, { scrollEnabled: true });
+
+    await fireEvent.press(screen.getByRole('radio', { name: strokeName('BR') }));
+
+    expect(scrollToIndex).toHaveBeenCalledWith(expect.objectContaining({ index: data.sections.findIndex((section) => section.id === 'BR') }));
+    scrollToIndex.mockRestore();
+  });
+
+  it('shows on a card the distance alone, with the whole event for screen readers', async () => {
+    await show(data);
+
+    const card = screen.getByTestId('marks-card-FR-50m');
+    expect(within(card).getByText('50 m')).toBeOnTheScreen();
+    expect(within(card).queryByText(/Libre/)).toBeNull();
+    expect(card.props.accessibilityLabel).toMatch(/^Libre 50 metros: /);
+  });
+
+  it('shows the time and the origin and date of an event with a mark', async () => {
+    await show(data);
+
+    const card = screen.getByTestId('marks-card-FR-50m');
+    expect(within(card).getByText('34,82')).toBeOnTheScreen();
+    expect(within(card).getByLabelText('Comp. · 18 oct')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('marks-card-BK-50m')).getByLabelText('Entreno · 2 oct')).toBeOnTheScreen();
+  });
+
+  it('names the organization of an official result from sourceName, with the year', async () => {
+    await show(data);
+
+    expect(within(screen.getByTestId('marks-card-FR-100m')).getByLabelText('Federación Demo · 2025')).toBeOnTheScreen();
   });
 
   it('says "Aún sin tiempo" for an event with no time, never zero', async () => {
     await show(data);
 
-    expect(screen.getByText('Espalda 100')).toBeOnTheScreen();
-    expect(screen.getByText('Aún sin tiempo')).toBeOnTheScreen();
-    expect(screen.queryByText(/^0[,:.]0/)).toBeNull();
+    const card = screen.getByTestId('marks-card-BK-100m');
+    expect(within(card).getByText('Aún sin tiempo')).toBeOnTheScreen();
+    expect(within(card).queryByText(/^0[,:.]0/)).toBeNull();
+    expect(flat(card).borderStyle).toBe('dashed');
+  });
+
+  it('announces the stroke once per group: the title says it and the cards and their icons do not', async () => {
+    await show(data);
+
+    const group = screen.getByTestId('marks-section-FR');
+    expect(within(group).getAllByText(strokeName('FR'))).toHaveLength(1);
+    expect(within(group).queryAllByRole('image')).toHaveLength(0);
+  });
+
+  it('puts the icon of the stroke on every card whose stroke has a pictogram, decorative', async () => {
+    await show(data);
+
+    // One per card, and the one of the featured card over brand color.
+    const icons = iconsIn();
+    expect(icons).toHaveLength(data.sections.flatMap((section) => section.cards).length + 1);
+    expect(icons.every((icon) => icon.props.decorative === true)).toBe(true);
+    // The two events with no time ask for the empty variant.
+    expect(icons.filter((icon) => icon.props.variant === 'empty')).toHaveLength(2);
+    expect(iconsIn('FR-50m')[0].props).toMatchObject({ stroke: 'FR', variant: 'default' });
+  });
+
+  it('renders no icon for a stroke code the catalog does not know, and one for a valid code', async () => {
+    const sections = marksSections([measured('XX' as never, '50m', 9000, '2026-10-18')], 'SCM').filter((section) => section.id === 'XX' || section.id === 'FR');
+    await show({ ...data, sections });
+
+    expect(iconsIn('XX-50m')).toHaveLength(0);
+    expect(iconsIn('FR-50m')).toHaveLength(1);
+  });
+
+  it('shows a stroke outside the catalog as a group instead of dropping it', async () => {
+    await show({ ...data, sections: marksSections([measured('XX' as never, '50m', 9000, '2026-10-18')], 'SCM') });
+
+    expect(screen.getByTestId('marks-group-XX')).toHaveTextContent('XX');
+  });
+
+  it('shows the empty state, not a blank screen, when there are no sections', async () => {
+    await show({ ...data, sections: [] });
+
+    expect(screen.getByText('Sin pruebas para esta piscina')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Marcas de Lucía' })).toBeOnTheScreen();
+  });
+
+  it('virtualizes the groups and leaves room under the last row for the floating bar', async () => {
+    await show(data, { scrollEnabled: true });
+
+    const list = screen.getByTestId('marks-list');
+    expect(list.props.data).toHaveLength(data.sections.length);
+    expect(flat({ props: { style: list.props.contentContainerStyle } }).paddingBottom).toBeGreaterThanOrEqual(space[12] * 2);
   });
 
   it('chooses another athlete from the chips', async () => {
@@ -93,7 +235,7 @@ describe('MarksScreen', () => {
 
     await fireEvent.press(screen.getByRole('radio', { name: /Tomás R\./ }));
 
-    expect(onSelectAthlete).toHaveBeenCalledWith('a2');
+    expect(onSelectAthlete).toHaveBeenCalledWith('fx-2');
   });
 
   it('switches the pool between 25 m and 50 m', async () => {
@@ -106,12 +248,6 @@ describe('MarksScreen', () => {
     expect(onPoolChange).toHaveBeenCalledWith('LCM');
   });
 
-  it('has no FECNA label when nothing was imported', async () => {
-    await show(data);
-
-    expect(screen.queryByText(/FECNA/)).toBeNull();
-  });
-
   it('says there are no athletes when the person manages none', async () => {
     await show({ kind: 'empty' });
 
@@ -119,15 +255,14 @@ describe('MarksScreen', () => {
   });
 
   describe('with large text', () => {
-    const realGet = Dimensions.get.bind(Dimensions);
-    afterEach(() => jest.restoreAllMocks());
+    const grid = () => flat(screen.getByTestId('marks-grid-FR'));
 
-    it('lays the cards out in rows with normal text', async () => {
+    it('lays the cards out in two columns with normal text', async () => {
       jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 1 }));
       await show(data);
 
-      expect(layoutOf(libre50)).toBe('row');
-      expect(containerStyle(libre50).flexWrap).toBe('wrap');
+      expect(grid().flexDirection).toBe('row');
+      expect(grid().flexWrap).toBe('wrap');
     });
 
     it.each([
@@ -135,15 +270,26 @@ describe('MarksScreen', () => {
       ['the system scales the text', { themeScale: 1, osScale: 2 }],
     ])('stacks the cards in one column when %s, so no word or time breaks', async (_who, { themeScale, osScale }) => {
       jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: osScale }));
-      await render(
-        <ThemeProvider fontScale={themeScale}>
-          <MarksScreen view={data} onSelectAthlete={jest.fn()} onPoolChange={jest.fn()} scrollEnabled={false} />
-        </ThemeProvider>,
-      );
+      await show(data, { fontScale: themeScale });
 
-      expect(layoutOf(libre50)).toBe('column');
-      // A wrapping column shrinks each card to the content width instead of filling the screen.
-      expect(containerStyle(libre50).flexWrap).not.toBe('wrap');
+      expect(grid().flexDirection).toBe('column');
+      expect(grid().flexWrap).not.toBe('wrap');
+    });
+
+    it('lets the group title wrap and grow instead of cutting or overlapping the count at 200 %', async () => {
+      await show(data, { fontScale: 2 });
+
+      const title = screen.getByTestId('marks-group-FR');
+      expect(title.props.numberOfLines).toBeUndefined();
+      expect(flat(title).fontSize).toBe(44);
+      expect(flat(title).lineHeight).toBeGreaterThan(flat(title).fontSize as number);
+      expect(flat(screen.getByTestId('marks-heading-FR')).flexWrap).toBe('wrap');
+    });
+
+    it('reserves the corner of the icon on a card, so the title never sits under it', async () => {
+      await show(data, { fontScale: 2 });
+
+      expect(flat(screen.getByTestId('marks-title-FR-50m')).paddingRight + (flat(screen.getByTestId('marks-card-FR-50m')).padding as number)).toBeGreaterThanOrEqual(64);
     });
   });
 });
