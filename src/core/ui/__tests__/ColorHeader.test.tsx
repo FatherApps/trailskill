@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { colors, radius, size, ThemeProvider } from '../../theme';
 import { ColorHeader, colorHeaderColors } from '../ColorHeader';
@@ -76,6 +76,36 @@ describe('ColorHeader', () => {
 
     await fireEvent.press(back);
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('draws no background layer without the slot, so the band is unchanged', async () => {
+    await renderHeader();
+
+    expect(screen.queryByTestId('color-header-background', { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('draws the background slot behind the content, hidden from screen readers and out of the layout', async () => {
+    await renderHeader({ background: <Text>Fondo</Text> });
+
+    const layer = screen.getByTestId('color-header-background', { includeHiddenElements: true });
+    expect(StyleSheet.flatten(layer.props.style)).toMatchObject({
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      overflow: 'hidden',
+      borderBottomLeftRadius: radius.lg,
+      borderBottomRightRadius: radius.lg,
+    });
+    expect(layer.props.pointerEvents).toBe('none');
+    expect(layer.props.importantForAccessibility).toBe('no-hide-descendants');
+    expect(layer.props.accessibilityElementsHidden).toBe(true);
+    // First child: it paints before, so behind, the back button and the title.
+    const band = screen.toJSON() as unknown as { children: { props: { testID?: string } }[] };
+    expect(band.children[0].props.testID).toBe('color-header-background');
+    expect(screen.getByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Volver' })).toBeOnTheScreen();
   });
 
   it('draws the arrow_back icon', async () => {

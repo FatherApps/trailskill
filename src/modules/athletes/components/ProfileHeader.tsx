@@ -60,23 +60,8 @@ export function ProfileHeader({
       title={name}
       subtitle={[category, school?.name].filter(Boolean).join(' · ')}
       onBack={onBack}
-    >
-      {/* Decorative and out of the layout. A children slot cannot go behind the title, so the box shows only the strip
-          of the ring beside the back button (the title starts below it); the sync tag draws over it. */}
-      <View
-        testID="profile-ring-clip"
-        pointerEvents="none"
-        importantForAccessibility="no-hide-descendants"
-        accessibilityElementsHidden
-        style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          width: DECORATIVE_RING_SIZE,
-          height: space[4] + size['target-min'] + space[2],
-          overflow: 'hidden',
-        }}
-      >
+      // Decorative and out of the layout: the slot draws it behind the title and hides it from screen readers.
+      background={
         <View
           testID="profile-ring"
           style={{
@@ -90,7 +75,8 @@ export function ProfileHeader({
             borderColor: colors[profileHeaderColors.ring],
           }}
         />
-      </View>
+      }
+    >
       {updatedMinutesAgo !== null && (
         <View
           style={[

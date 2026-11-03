@@ -15,6 +15,8 @@ export type ColorHeaderProps = {
   onBack: () => void;
   // Below the title, for example a ChipRow.
   children?: ReactNode;
+  // Decoration behind the whole band (back button and title included); it takes no layout and screen readers skip it.
+  background?: ReactNode;
 };
 
 export const colorHeaderColors: { text: ColorToken; backButton: ColorToken; backIcon: ColorToken } = {
@@ -23,7 +25,7 @@ export const colorHeaderColors: { text: ColorToken; backButton: ColorToken; back
   backIcon: 'ink',
 };
 
-export function ColorHeader({ color, title, subtitle, onBack, children }: ColorHeaderProps) {
+export function ColorHeader({ color, title, subtitle, onBack, children, background }: ColorHeaderProps) {
   const { colors, space, radius, size, typography } = useTheme();
   const { focusProps, ring } = useFocusRing();
   const text = { color: colors[colorHeaderColors.text] };
@@ -40,6 +42,27 @@ export function ColorHeader({ color, title, subtitle, onBack, children }: ColorH
         backgroundColor: colors[color],
       }}
     >
+      {/* First child, so it paints behind the rest; clipped to the band's rounded bottom corners. */}
+      {background ? (
+        <View
+          testID="color-header-background"
+          pointerEvents="none"
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            overflow: 'hidden',
+            borderBottomLeftRadius: radius.lg,
+            borderBottomRightRadius: radius.lg,
+          }}
+        >
+          {background}
+        </View>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t('common.back')}
