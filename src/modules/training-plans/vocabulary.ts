@@ -1,5 +1,5 @@
 import { t } from '../../core/i18n';
-import { distances, equipment, strokes } from '../../core/sport';
+import { distances, equipment, isStroke, strokes, type StrokeCode } from '../../core/sport';
 import type { PlanVocabulary, VocabularyOption } from './types';
 
 // An unknown value falls back to itself, so a catalog that drifts never crashes a screen.
@@ -23,3 +23,6 @@ export function eventLabel(stroke: string, distance: string): string {
     meters: distances.find((entry) => entry.code === distance)?.meters ?? distance,
   });
 }
+
+// The stroke of a block's activity, or null for a drill (free text): only a stroke has a pictogram. Screens and components never import the sport catalog, so they filter here.
+export const strokeOf = (activity: string): StrokeCode | null => (isStroke(activity) ? activity : null);
