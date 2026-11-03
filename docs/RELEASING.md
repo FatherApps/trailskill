@@ -237,6 +237,8 @@ Requirements: JDK, the Android SDK (`ANDROID_HOME` set), and `adb` with an emula
 
 Sign-in by one-time code works in the preview variant as is. To sign in with Google or another OAuth provider, the preview variant needs `trailskill-preview://auth-callback` in `ADDITIONAL_REDIRECT_URLS` of the backend it points to (production today), next to `trailskill://auth-callback`. Without it, GoTrue falls back to `SITE_URL` and the browser ends on that page instead of returning to the app. This is a maintainer step on the server, not a change in this repository.
 
+School invitation links do not open the preview variant. A link such as `trailskill://invite/<token>` belongs to the app whose scheme is `trailskill` (the usual build and the Play build); the preview app (`com.fatherapps.trailskill.preview`) answers only to `trailskill-preview://`. To test an invitation in the preview variant, open `trailskill-preview://invite/<token>` by hand, for example `adb shell am start -a android.intent.action.VIEW -d "trailskill-preview://invite/<token>"`.
+
 A build without the three variables still opens, but sign-in and sync report a missing configuration. Rebuild after changing any `EXPO_PUBLIC_*` value, because they are inlined at build time.
 
 ## Release checklist
