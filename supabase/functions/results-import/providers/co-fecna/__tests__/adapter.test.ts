@@ -1,11 +1,19 @@
 import { ProviderUnavailableError } from '../../../port.ts';
 import { createCoFecna } from '../index.ts';
-import { AGE, BIRTH_DATE, GENDER, IDENTITY, PRUEBAS, historyPage, historyRow, option, profileCard, rosterPage } from './fixtures.ts';
+import { normalizeNumber } from '../parse.ts';
+import { createHttpSource } from '../source.ts';
+import { AGE, BIRTH_DATE, GENDER, PRUEBAS, PROFILE_LABELS, historyPage, historyRow, option, profileCard, rosterPage } from './fixtures.ts';
 
 const NUMBER = '1234567890';
 const roster = rosterPage([option(NUMBER, 'PEREZ GOMEZ', 'ANA MARIA'), option('9999999999', 'RUIZ', 'JUAN'), option(' 1.234-5', 'PEREZ GOMEZ', 'ANA')]);
 const page = (body: string, cookie = 'SESSION=synthetic; HttpOnly; secure') =>
   new Response(body, { status: 200, headers: cookie ? { 'set-cookie': cookie } : {} });
+
+// How the page shows an Identificación: formatted, never as the key we hold, so a copy of it would show in an output.
+const shown = (value: string) => normalizeNumber(value).replace(/(.{3})/g, '$1.');
+/** The history page of the swimmer the form was posted for; `identification` overrides what the card says. */
+const cardOf = (nadador: string, identification: string | null = shown(nadador)) =>
+  historyPage(profileCard(PROFILE_LABELS.flatMap(([label, value]): [string, string][] => (label !== 'Identificación' ? [[label, value]] : identification === null ? [] : [[label, identification]]))));
 
 // Rows by event number. The answer is a JSON array served as text/html, as the source does.
 type Rows = Record<number, Record<string, unknown>[]>;
@@ -16,18 +24,38 @@ const historial = (rows: Rows, prueba: number) =>
 type Request = { url: string; method: string; headers: Headers; body: string };
 const HISTORIAL = /\/reportes\/(\d+)\/getHistorial$/;
 
-/** A fake source: the form on GET, the history page (profile and empty tables) on POST, one JSON array per event. */
+/**
+ * A fake source: the form on GET, the history page (profile and empty tables) on POST, one JSON array per event.
+ * Like the real one, the swimmer chosen by the POST is kept per cookie, and the events answer for that cookie's swimmer.
+ */
 function fakeFetch(
-  options: { rows?: Rows; onHistorial?: (prueba: number, signal?: AbortSignal | null) => Promise<Response> | Response; onPost?: () => Response; formCookie?: string } = {},
+  options: {
+    rows?: Rows | ((nadador: string) => Rows);
+    onHistorial?: (prueba: number, signal?: AbortSignal | null) => Promise<Response> | Response;
+    onPost?: (nadador: string) => Response;
+    formCookie?: string | (() => string);
+  } = {},
 ) {
   const requests: Request[] = [];
+  const chosen = new Map<string | null, string>();
+  const rowsOf = (cookie: string | null) => {
+    const rows = options.rows ?? DEFAULT_ROWS;
+    return typeof rows === 'function' ? rows(chosen.get(cookie) ?? '') : rows;
+  };
   const fetchImpl = jest.fn(async (url: string, init: RequestInit = {}) => {
     const method = init.method ?? 'GET';
-    requests.push({ url, method, headers: new Headers(init.headers), body: String(init.body ?? '') });
+    const headers = new Headers(init.headers);
+    requests.push({ url, method, headers, body: String(init.body ?? '') });
+    const cookie = headers.get('cookie');
     const prueba = HISTORIAL.exec(url)?.[1];
-    if (prueba !== undefined) return (options.onHistorial ?? ((n) => historial(options.rows ?? DEFAULT_ROWS, n)))(Number(prueba), init.signal);
-    if (method === 'GET') return options.formCookie === undefined ? page(roster) : page(roster, options.formCookie);
-    return options.onPost?.() ?? page(historyPage(), '');
+    if (prueba !== undefined) return (options.onHistorial ?? ((n) => historial(rowsOf(cookie), n)))(Number(prueba), init.signal);
+    if (method === 'GET') {
+      const formCookie = typeof options.formCookie === 'function' ? options.formCookie() : options.formCookie;
+      return formCookie === undefined ? page(roster) : page(roster, formCookie);
+    }
+    const nadador = new URLSearchParams(String(init.body)).get('nadador') ?? '';
+    chosen.set(cookie, nadador);
+    return options.onPost?.(nadador) ?? page(cardOf(nadador), '');
   });
   return { fetchImpl, requests };
 }
@@ -36,11 +64,11 @@ const historials = (requests: Request[]) => requests.filter(({ url }) => HISTORI
 const query = { firstName: 'Ana María', lastName: 'Pérez Gómez', identityNumber: null };
 
 describe('co-fecna adapter on synthetic pages', () => {
-  it('searching by number reads the list, posts the form, then reads one getHistorial per event with the same cookie', async () => {
+  it('searching by number reads the list, opens a session for the history, posts the form, then reads one getHistorial per event with that cookie', async () => {
     const { fetchImpl, requests } = fakeFetch();
     const [candidate] = await createCoFecna(fetchImpl).findCandidates({ ...query, identityNumber: '123-456-7890' });
-    expect(requests.slice(0, 2).map(({ method }) => method)).toEqual(['GET', 'POST']);
-    const post = requests[1];
+    expect(requests.slice(0, 3).map(({ method }) => method)).toEqual(['GET', 'GET', 'POST']);
+    const post = requests[2];
     expect(post.url.endsWith('/historialFilter')).toBe(true);
     expect(post.headers.get('content-type')).toBe('application/x-www-form-urlencoded');
     expect(post.headers.get('cookie')).toBe('SESSION=synthetic');
@@ -86,7 +114,8 @@ describe('co-fecna adapter on synthetic pages', () => {
     const { fetchImpl } = fakeFetch();
     const adapter = createCoFecna(fetchImpl);
     const output = JSON.stringify([await adapter.findCandidates({ ...query, identityNumber: NUMBER }), await adapter.fetchResults(NUMBER)]);
-    expect(output).not.toMatch(new RegExp(`${GENDER}|${BIRTH_DATE}|${AGE}|${IDENTITY}|Identificaci`));
+    expect(output).not.toMatch(new RegExp(`${GENDER}|${BIRTH_DATE}|${AGE}|Identificaci`));
+    expect(output).not.toContain(shown(NUMBER));
   });
 
   it('a number that is not among the options is no match, and the form is never posted', async () => {
@@ -108,7 +137,10 @@ describe('co-fecna adapter on synthetic pages', () => {
     const posts = requests.map((request, index) => ({ request, index })).filter(({ request }) => request.method === 'POST');
     expect(posts.map(({ request }) => new URLSearchParams(request.body).get('nadador'))).toEqual([NUMBER, ' 1.234-5']);
     expect(historials(requests)).toHaveLength(2 * PRUEBAS.length);
-    expect(requests.slice(posts[0].index + 1, posts[1].index).every(({ url }) => HISTORIAL.test(url))).toBe(true);
+    // Between the two posts: the 17 events of the first match, then the form that opens the session of the second.
+    const between = requests.slice(posts[0].index + 1, posts[1].index);
+    expect(between.slice(0, -1).every(({ url }) => HISTORIAL.test(url))).toBe(true);
+    expect(between.at(-1)).toMatchObject({ method: 'GET', url: expect.not.stringMatching(HISTORIAL) });
   });
 
   it('refreshes the results of a reference without the reference in them', async () => {
@@ -124,7 +156,8 @@ describe('co-fecna adapter on synthetic pages', () => {
     await adapter.fetchResults(NUMBER);
     await adapter.fetchResults(NUMBER);
     const forms = requests.filter(({ method, url }) => method === 'GET' && !HISTORIAL.test(url));
-    expect(forms).toHaveLength(2);
+    // Each request opens two sessions without a cookie: the list, and the one its history will use.
+    expect(forms).toHaveLength(4);
     expect(forms.every(({ headers }) => headers.get('cookie') === null)).toBe(true);
   });
 
@@ -142,7 +175,7 @@ describe('co-fecna adapter on synthetic pages', () => {
   it('is unavailable when the history page changed shape, and asks for no event', async () => {
     const { fetchImpl, requests } = fakeFetch({ onPost: () => page('<html>maintenance</html>', '') });
     await expect(createCoFecna(fetchImpl).fetchResults(NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
-    expect(requests.map(({ method }) => method)).toEqual(['GET', 'POST']);
+    expect(requests.map(({ method }) => method)).toEqual(['GET', 'GET', 'POST']);
   });
 
   it('is unavailable when the history page has no profile card, and asks for no event', async () => {
@@ -152,9 +185,74 @@ describe('co-fecna adapter on synthetic pages', () => {
   });
 
   it('keeps going with an empty club or league badge', async () => {
-    const { fetchImpl } = fakeFetch({ onPost: () => page(historyPage(profileCard([['Club', ''], ['Liga', 'Liga Sintética']])), '') });
+    const { fetchImpl } = fakeFetch({ onPost: (nadador) => page(historyPage(profileCard([['Identificación', shown(nadador)], ['Club', ''], ['Liga', 'Liga Sintética']])), '') });
     const [candidate] = await createCoFecna(fetchImpl).findCandidates({ ...query, identityNumber: NUMBER });
     expect(candidate.affiliations[0]).toMatchObject({ club: null, league: 'Liga Sintética' });
+  });
+
+  // #830, session guard: the session is per request and the filter lives in the server, so a reused or shared session would
+  // put another person's times under this one. The badge decides, never the heading; its value is compared and dropped.
+  describe('the session guard', () => {
+    const SECRET = '987.654.321';
+    const unavailable = (promise: Promise<unknown>) => expect(promise).rejects.toBeInstanceOf(ProviderUnavailableError);
+
+    it.each([
+      ['another Identificación', (nadador: string) => cardOf(nadador, SECRET)],
+      ['no Identificación badge', (nadador: string) => cardOf(nadador, null)],
+    ])('is unavailable, and reads no event, when the card of the history shows %s', async (_label, card) => {
+      for (const ask of [
+        (adapter: ReturnType<typeof createCoFecna>) => adapter.findCandidates({ ...query, identityNumber: NUMBER }),
+        (adapter: ReturnType<typeof createCoFecna>) => adapter.findCandidates(query),
+        (adapter: ReturnType<typeof createCoFecna>) => adapter.fetchResults(NUMBER),
+      ]) {
+        const { fetchImpl, requests } = fakeFetch({ onPost: (nadador) => page(card(nadador), '') });
+        await unavailable(ask(createCoFecna(fetchImpl)));
+        expect(historials(requests)).toHaveLength(0);
+      }
+    });
+
+    it('lets the history through when the card shows the key asked for, however the page formats it', async () => {
+      const { fetchImpl } = fakeFetch({ onPost: (nadador) => page(cardOf(nadador, `  ${shown(nadador).toLowerCase()} `), '') });
+      expect(await createCoFecna(fetchImpl).fetchResults(NUMBER)).toHaveLength(3);
+    });
+
+    it('does not compare the name: a heading with someone else passes when the Identificación is right', async () => {
+      const { fetchImpl } = fakeFetch({ onPost: (nadador) => page(cardOf(nadador).replace('SOMEONE ELSE ENTIRELY', 'ANOTHER REAL PERSON'), '') });
+      expect(await createCoFecna(fetchImpl).fetchResults(NUMBER)).toHaveLength(3);
+    });
+
+    it('never lets the Identificación of the card reach the error, the logs or the output', async () => {
+      const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) => jest.spyOn(console, method).mockImplementation(() => undefined));
+      try {
+        const { fetchImpl } = fakeFetch({ onPost: (nadador) => page(cardOf(nadador, SECRET), '') });
+        const error = await createCoFecna(fetchImpl).fetchResults(NUMBER).catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(ProviderUnavailableError);
+        const seen = JSON.stringify([String(error), (error as Error).message, (error as Error).stack, (error as Error).cause ?? null, spies.map((spy) => spy.mock.calls)]);
+        // The whole value, formatted or normalized: short digit runs would also match line numbers in the stack.
+        expect(seen).not.toMatch(/987[.\s-]?654[.\s-]?321/);
+
+        const matching = fakeFetch({ onPost: (nadador) => page(cardOf(nadador), '') });
+        const output = JSON.stringify(await createCoFecna(matching.fetchImpl).findCandidates({ ...query, identityNumber: NUMBER }));
+        expect(output).not.toContain(shown(NUMBER));
+        expect(JSON.stringify(spies.map((spy) => spy.mock.calls))).not.toContain(shown(NUMBER));
+      } finally {
+        spies.forEach((spy) => spy.mockRestore());
+      }
+    });
+
+    it('opens a session for each history(): two at once, each with its cookie, do not mix their rows', async () => {
+      let sessions = 0;
+      const rows = (nadador: string): Rows => ({ 2: [historyRow({ torneo: `Open of ${nadador.trim()}` })] });
+      const { fetchImpl } = fakeFetch({ rows, formCookie: () => `SESSION=s${++sessions}; HttpOnly` });
+      const source = createHttpSource(fetchImpl, () => '2026-04-01');
+      await source.roster();
+      const [first, second] = await Promise.all([
+        source.history({ value: NUMBER, key: NUMBER, name: 'A' }),
+        source.history({ value: '9999999999', key: '9999999999', name: 'B' }),
+      ]);
+      expect(first.results.map(({ competition }) => competition)).toEqual([`Open of ${NUMBER}`]);
+      expect(second.results.map(({ competition }) => competition)).toEqual(['Open of 9999999999']);
+    });
   });
 
   describe('the 17 reads of getHistorial', () => {
@@ -189,7 +287,7 @@ describe('co-fecna adapter on synthetic pages', () => {
       const { fetchImpl, requests } = fakeFetch({ formCookie: '' });
       await expect(createCoFecna(fetchImpl).fetchResults(NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
       expect(historials(requests)).toHaveLength(0);
-      expect(requests.map(({ method }) => method)).toEqual(['GET']);
+      expect(requests.map(({ method }) => method)).toEqual(['GET', 'GET']);
     });
 
     it.each([

@@ -2,6 +2,10 @@ import { AGE, BIRTH_DATE, CATEGORY, GENDER, IDENTITY, PROFILE_LABELS, historyPag
 import { decodeEntities, cellText } from '../html.ts';
 import { normalizeNumber, parseProfile, parseRoster, parseRows } from '../parse.ts';
 
+// Every card in the older tests carries the sentinel as its Identificación: this is its key.
+const SENTINEL_KEY = normalizeNumber(IDENTITY);
+const profileOf = (html: string) => parseProfile(html, SENTINEL_KEY);
+
 describe('decodeEntities', () => {
   it('decodes named, decimal and hexadecimal entities', () => {
     expect(decodeEntities('PE&Ntilde;A &aacute;&eacute; &#209; &#xF1;&nbsp;&amp;')).toBe('PEÑA áé Ñ ñ &');
@@ -108,17 +112,17 @@ describe('the synthetic fixtures', () => {
 
 describe('parseProfile', () => {
   it('reads the club and the league, and nothing else of the card', () => {
-    const profile = parseProfile(historyPage());
+    const profile = profileOf(historyPage());
     expect(profile).toEqual({ club: 'Club Sintético', league: 'Liga Sintética' });
     expect(JSON.stringify(profile)).not.toMatch(new RegExp(`${IDENTITY}|${GENDER}|${BIRTH_DATE}`));
   });
 
   it('keeps an empty club or league badge as null, without failing', () => {
-    expect(parseProfile(historyPage(profileCard([...PROFILE_LABELS.slice(0, 3), ['Club', ' '], ['Liga', '']])))).toEqual({ club: null, league: null });
+    expect(profileOf(historyPage(profileCard([...PROFILE_LABELS.slice(0, 3), ['Club', ' '], ['Liga', '']])))).toEqual({ club: null, league: null });
   });
 
   it('is unexpected when the whole card is missing', () => {
-    expect(() => parseProfile(historyPage(''))).toThrow();
+    expect(() => profileOf(historyPage(''))).toThrow();
   });
 
   it.each([
@@ -126,22 +130,55 @@ describe('parseProfile', () => {
     ['a card without the club', PROFILE_LABELS.filter(([label]) => label !== 'Club')],
     ['a repeated club', [...PROFILE_LABELS, ['Club', 'Otro Club']] as [string, string][]],
   ])('is unexpected with %s', (_label, entries) => {
-    expect(() => parseProfile(historyPage(profileCard(entries)))).toThrow();
+    expect(() => profileOf(historyPage(profileCard(entries)))).toThrow();
   });
 
   it('is unexpected when the card links are not inside a `ul.nav`', () => {
     const outside = historyPage(profileCard().replace(/<\/?ul[^>]*>/g, ''));
-    expect(() => parseProfile(outside)).toThrow();
-    expect(() => parseProfile(historyPage(profileCard().replace('class="nav nav-pills flex-column"', 'class="navbar-nav"')))).toThrow();
+    expect(() => profileOf(outside)).toThrow();
+    expect(() => profileOf(historyPage(profileCard().replace('class="nav nav-pills flex-column"', 'class="navbar-nav"')))).toThrow();
   });
 
   it('ignores a nav-link with a club label outside the card', () => {
     const menu = '<div><a class="nav-link" href="#">Club <span class="badge">Otro Club</span></a></div>';
-    expect(parseProfile(historyPage(menu + profileCard()))).toEqual({ club: 'Club Sintético', league: 'Liga Sintética' });
+    expect(profileOf(historyPage(menu + profileCard()))).toEqual({ club: 'Club Sintético', league: 'Liga Sintética' });
   });
 
   it('is unexpected on a page without the swimmer list, even with a card', () => {
-    expect(() => parseProfile(`<html><h3>Mantenimiento</h3>${profileCard()}</html>`)).toThrow();
+    expect(() => profileOf(`<html><h3>Mantenimiento</h3>${profileCard()}</html>`)).toThrow();
+  });
+
+  // #830, session guard: the card's Identificación is compared in memory with the key asked for, and goes nowhere else.
+  describe('the session guard on the Identificación badge', () => {
+    const KEY = '123456';
+    const card = (identification: [string, string][]) =>
+      historyPage(profileCard([...identification, ...PROFILE_LABELS.filter(([label]) => label !== 'Identificación')]));
+
+    it('lets the profile through when the badge, normalized, is the key asked for', () => {
+      expect(parseProfile(card([['Identificación', ' 12.345-6 ']]), KEY)).toEqual({ club: 'Club Sintético', league: 'Liga Sintética' });
+    });
+
+    it.each([
+      ['another number', [['Identificación', '654321']]],
+      ['no Identificación badge', []],
+      ['an empty badge', [['Identificación', ' ']]],
+      ['a repeated badge', [['Identificación', KEY], ['Identificación', KEY]]],
+      ['a badge that is not a number', [['Identificación', '12 345 6 !']]],
+    ] as [string, [string, string][]][])('is unexpected with %s', (_label, identification) => {
+      expect(() => parseProfile(card(identification), KEY)).toThrow();
+    });
+
+    it('never puts the badge value in the error message nor in the profile', () => {
+      let message = '';
+      try {
+        parseProfile(card([['Identificación', '99.888-777']]), KEY);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).not.toBe('');
+      expect(message).not.toMatch(/99|888|777|Identificaci/);
+      expect(JSON.stringify(parseProfile(card([['Identificación', '12.345-6']]), KEY))).not.toMatch(/12|345/);
+    });
   });
 });
 

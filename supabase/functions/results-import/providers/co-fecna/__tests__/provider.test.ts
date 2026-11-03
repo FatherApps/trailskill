@@ -312,10 +312,30 @@ describe('co-fecna provider with unreadable roster entries', () => {
     expect(await createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER })).toEqual([]);
   });
 
-  it('still returns the matches of a name search and never makes a candidate of an unreadable entry', async () => {
+  // #830: an unreadable entry may be the person, and linking the wrong person cannot be undone: unavailable, match or not.
+  it('is unavailable when a name search has a readable match and the list has an unreadable entry, and asks for no history', async () => {
     const roster = [unreadable(OTHER), entry(NUMBER)];
     const { source, calls } = createFakeSource({ roster, histories: historiesOf([entry(NUMBER)]) });
-    const candidates = await createCoFecnaProvider(source).findCandidates(query);
+    await unavailable(createCoFecnaProvider(source).findCandidates(query));
+    expect(calls).toEqual(['roster']);
+  });
+
+  it('is unavailable when a number search has a readable match and an unreadable entry with the same key', async () => {
+    const { source, calls } = createFakeSource({ roster: [entry(NUMBER), unreadable(NUMBER)], histories: historiesOf([entry(NUMBER)]) });
+    await unavailable(createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER }));
+    expect(calls).toEqual(['roster']);
+  });
+
+  it('is unavailable when a number search has a readable match and an unreadable entry without a key', async () => {
+    const { source, calls } = createFakeSource({ roster: [entry(NUMBER), unreadable(null)], histories: historiesOf([entry(NUMBER)]) });
+    await unavailable(createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER }));
+    expect(calls).toEqual(['roster']);
+    await unavailable(createCoFecnaProvider(source).fetchResults(NUMBER));
+  });
+
+  it('is not affected by an unreadable entry with another key when a number search has a readable match', async () => {
+    const { source, calls } = createFakeSource({ roster: [unreadable(OTHER), entry(NUMBER)], histories: historiesOf([entry(NUMBER)]) });
+    const candidates = await createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER });
     expect(candidates.map((candidate) => candidate.sourceAthleteKey)).toEqual([NUMBER]);
     expect(calls).toEqual(['roster', `history:${NUMBER}`]);
   });

@@ -96,13 +96,16 @@ export type Profile = { club: string | null; league: string | null };
 
 /**
  * The profile card of the history page: `ul.nav > a.nav-link` with the label as text and the value in `span.badge`.
- * Only Club and Liga are read. The other labels (identity, gender, birth date) are skipped before their value is looked
- * at. A card without either of them is a changed page, never an empty affiliation; an empty badge is a missing value.
+ * Club and Liga are returned. The session guard also reads Identificación, only to compare it, normalized, with
+ * `expectedKey`: the session is per request and the filter lives in the server, so a mixed-up session would show another
+ * person's card. A card whose Identificación is missing, repeated or different is unexpected, and the value is never
+ * returned, logged or put in an error. The other labels (gender, birth date) are skipped before their value is looked at.
+ * A card without Club or Liga is a changed page, never an empty affiliation; an empty badge is a missing value.
  */
-export function parseProfile(html: string): Profile {
+export function parseProfile(html: string, expectedKey: string): Profile {
   // Without the swimmer list this is not the history page (a maintenance page may carry anything else).
   if (!/<select\b[^>]*\bname\s*=\s*"nadador"/i.test(html)) throw new Error('Not the history page');
-  const values: Record<'club' | 'liga', string[]> = { club: [], liga: [] };
+  const values: Record<'club' | 'liga' | 'identificacion', string[]> = { club: [], liga: [], identificacion: [] };
   for (const [, attributes, card] of html.matchAll(/<ul\b([^>]*)>([\s\S]*?)<\/ul>/gi)) {
     // Only a list classed `nav` is the card: a link with the same class elsewhere on the page is not.
     if (!(attributeOf(attributes, 'class') ?? '').split(/\s+/).includes('nav')) continue;
@@ -110,10 +113,12 @@ export function parseProfile(html: string): Profile {
       const entry = /^([\s\S]*?)<span\b[^>]*\bbadge\b[^>]*>([\s\S]*?)<\/span>/i.exec(inside);
       if (!entry) continue;
       const label = plain(entry[1]);
-      if (label === 'club' || label === 'liga') values[label].push(cellText(entry[2]));
+      if (label === 'club' || label === 'liga' || label === 'identificacion') values[label].push(cellText(entry[2]));
     }
   }
   if (values.club.length !== 1 || values.liga.length !== 1) throw new Error('Unexpected profile card');
+  // normalizeNumber throws on an empty or malformed badge; none of the messages holds the value.
+  if (values.identificacion.length !== 1 || normalizeNumber(values.identificacion[0]) !== expectedKey) throw new Error('Unexpected identity');
   return { club: values.club[0] || null, league: values.liga[0] || null };
 }
 

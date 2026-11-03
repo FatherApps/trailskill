@@ -37,26 +37,25 @@ async function mapLimited<T, R>(items: T[], limit: number, run: (item: T) => Pro
 }
 
 /**
- * One source per request: the cookie the form page sets and the swimmer list live only as long as this object.
+ * One source per request: the swimmer list lives only as long as this object, and each history opens its own session.
  * The answer to the form is only the profile card and empty tables; the rows come from one `getHistorial` per event,
  * with the same cookie. If a single event fails, the whole history fails: an incomplete history would look complete.
  */
 export function createHttpSource(fetchImpl: (url: string, init?: RequestInit) => Promise<Response>, now: () => string = today): Source {
-  let cookie: string | null = null;
   return {
     async roster(signal) {
-      const page = await fetchPage(fetchImpl, FORM_URL, { signal });
-      cookie = page.setCookie?.split(';')[0] ?? null;
-      return parseRoster(page.body);
+      return parseRoster((await fetchPage(fetchImpl, FORM_URL, { signal })).body);
     },
     async history(entry, signal) {
-      // The events carry no filter of their own: they answer for the session the POST set up. Without a cookie they would
-      // answer empty, and an empty history must never be told apart from "no session".
-      const session = cookie;
+      // Each history has its own session: the filter lives in the server, per cookie, so a shared one would mix the rows of
+      // two histories. The events carry no filter of their own: they answer for the session the POST set up. Without a
+      // cookie they would answer empty, and an empty history must never be told apart from "no session".
+      const session = (await fetchPage(fetchImpl, FORM_URL, { signal })).setCookie?.split(';')[0];
       if (!session) throw new Error('No session');
       const body = new URLSearchParams({ inicio: HISTORY_START, fin: now(), nadador: entry.value, anual: ANNUAL, prueba: '1' });
       const headers = { 'content-type': 'application/x-www-form-urlencoded', cookie: session };
-      const { club, league } = parseProfile((await fetchPage(fetchImpl, FILTER_URL, { method: 'POST', headers, body, signal })).body);
+      // The card must be the one asked for (by its Identificación), or this session is not the person's.
+      const { club, league } = parseProfile((await fetchPage(fetchImpl, FILTER_URL, { method: 'POST', headers, body, signal })).body, entry.key);
 
       const rows = await mapLimited(EVENT_NUMBERS, MAX_IN_FLIGHT, async (prueba) => {
         if (signal?.aborted) throw new Error('Out of time');

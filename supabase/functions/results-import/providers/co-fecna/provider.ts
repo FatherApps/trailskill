@@ -100,8 +100,8 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
     const roster = await source.roster(signal);
     const found = roster.filter((entry) => entry.key === key);
     if (found.length > 1) throw new ProviderUnavailableError(); // Two entries share the number: the identity is ambiguous.
-    // An unreadable entry with this number, or one without a key that may have been it, cannot be ruled out: never "no match".
-    if (found.some(isUnreadable) || (found.length === 0 && roster.some((entry) => isUnreadable(entry) && entry.key === null))) {
+    // An unreadable entry with this number, or one without a key that may have been it, cannot be ruled out, match or not.
+    if (found.some(isUnreadable) || roster.some((entry) => isUnreadable(entry) && entry.key === null)) {
       throw new ProviderUnavailableError();
     }
     return (found[0] as RosterEntry | undefined) ?? null;
@@ -119,8 +119,8 @@ export function createCoFecnaProvider(open: () => Source): ResultsProvider {
         const wanted = words(`${firstName} ${lastName}`);
         const roster = await source.roster(signal);
         const found = roster.filter((entry): entry is RosterEntry => !isUnreadable(entry) && matches(wanted, entry.name));
-        // Nobody found while an entry could not be read: that entry may be the person, so "no match" would mislead.
-        if (found.length === 0 && roster.some(isUnreadable)) throw new ProviderUnavailableError();
+        // An entry that could not be read may be the person, with or without a readable match: linking the wrong one cannot be undone.
+        if (roster.some(isUnreadable)) throw new ProviderUnavailableError();
         if (found.length > MAX_CANDIDATES || new Set(found.map((entry) => entry.key)).size !== found.length) {
           throw new ProviderUnavailableError();
         }
