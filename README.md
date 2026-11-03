@@ -15,16 +15,16 @@ Una sola aplicación (Expo / React Native, Android primero) que atiende a todos 
 | Planes de entrenamiento | Constructor y editor de planes, asignación, vista «Hoy» y cumplimiento | `training-plans` | #282, #393, #409 |
 | Historial y marcas | Perfil, historial y «Marcas» del deportista | `athletes` | #838, #852, #856 |
 | Consola de escuela | Deportistas, entrenadores, categorías, mediciones, autorizaciones y récords | `school-console` | #410, #687, #858 |
-| Importación oficial | Importación de resultados oficiales por proveedor; **en curso**: el proveedor LENEX ya está, la activación en producción sigue abierta | `results-import` | #895 (abiertos: #896, #897, #915) |
+| Importación oficial | Importación de resultados oficiales por proveedor; **en curso**: el proveedor LENEX ya está y el registro del proveedor co-fecna también; en producción faltan el despliegue de la función y el registro de la fuente | `results-import` | #895, #915 (abiertos: #896, #897 y #802, el despliegue de la función) |
 
 Solo los ítems **confirmados** en los documentos de producto son requisitos; los marcados como propuestos o abiertos no se implementan.
 
 ## Cómo trabajamos
 
 - **Un issue → una rama → un worktree → un PR pequeño a `main`.** Sin issue con criterios de aceptación no hay rama.
-- **Roles.** El maintainer revisa, decide el alcance y hace los merges; el product owner decide qué se lanza; personas y agentes de IA implementan un issue asignado. Detalle en [`CONTRIBUTING.md`](CONTRIBUTING.md#roles).
+- **Roles.** El maintainer revisa, decide el alcance y aprueba los merges (los ejecuta el flujo de merge o el dueño del proyecto); el product owner decide qué se lanza; personas y agentes de IA implementan un issue asignado. Detalle en [`CONTRIBUTING.md`](CONTRIBUTING.md#roles).
 - **Reglas duras** (lo que nunca se hace, límites de los agentes, requisitos de Google Play): [`AGENTS.md`](AGENTS.md#hard-limits). Flujo completo, ramas, commits y Definition of Done: [`CONTRIBUTING.md`](CONTRIBUTING.md).
-- **Migraciones.** Lo que entra a `main` bajo `supabase/`, `powersync/` o `deploy/` se despliega solo en producción, migraciones incluidas ([`deploy/README.md`](deploy/README.md)). Por eso una migración necesita la **aprobación explícita del maintainer** antes del merge ([`CONTRIBUTING.md`](CONTRIBUTING.md#review)).
+- **Migraciones.** Al hacer merge a `main` se despliega solo en producción el compose de `deploy/`: las migraciones de `supabase/migrations/` y PowerSync ([`deploy/README.md`](deploy/README.md)). Las Edge Functions de `supabase/functions/` **no** se despliegan solas: es un paso manual. Por eso una migración necesita la **aprobación explícita del maintainer** antes del merge ([`CONTRIBUTING.md`](CONTRIBUTING.md#review)).
 - **Idioma.** Código, commits y documentación en inglés; issues y descripciones de PR en español. Este `README.md` está en español por decisión expresa del dueño del proyecto y es la única excepción.
 
 ## Organización del repositorio
