@@ -156,6 +156,19 @@ export const galleryEntries: GalleryEntry[] = [
         updatedMinutesAgo={125}
       />
     ),
+    // The long name, the long school names and the event chips together: the narrowest case for the ring behind the title (issue 851).
+    'long-text-with-event-chips': () => (
+      <ProfileHeaderPreview
+        {...headerBase}
+        name={pf.longName}
+        category={pf.longCategory}
+        schools={pf.longSchools}
+        authorization="pending"
+        updatedMinutesAgo={125}
+      >
+        <EventSelectorPreview pools={ev.pools} />
+      </ProfileHeaderPreview>
+    ),
   }),
   entry('eventSelector', 'EventSelector', {
     'one-pool': () => <EventSelectorPreview pools={ev.pools.slice(0, 1)} />,
