@@ -9,10 +9,9 @@ export type StrokeIconProps = {
   // A StrokeCode from the sport catalog; a code without a pictogram (kick, drills) draws nothing.
   stroke: string;
   size?: 'md' | 'sm';
-  // No background, dotted frame: a stroke with no result yet.
-  empty?: boolean;
-  // Over a colored card: 75 % white backing instead of surface-2, and an on-color glyph.
-  onColor?: boolean;
+  // default: surface-2 circle; empty: no background and a dotted frame, for a card with no time yet;
+  // onColor: 75 % white backing and an on-color glyph, over a brand-colored card.
+  variant?: 'default' | 'empty' | 'onColor';
   // Hidden from screen readers when the card around it already says the stroke.
   decorative?: boolean;
 };
@@ -94,12 +93,12 @@ const a11y = (decorative: boolean | undefined, label: string) =>
     ? ({ accessible: false, importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const)
     : ({ accessible: true, accessibilityRole: 'image', accessibilityLabel: label } as const);
 
-export function StrokeIcon({ stroke, size = 'md', empty, onColor, decorative }: StrokeIconProps) {
+export function StrokeIcon({ stroke, size = 'md', variant = 'default', decorative }: StrokeIconProps) {
   const { colors, radius } = useTheme();
   if (!isStroke(stroke)) return null;
 
   const { box, glyph } = sizes[size];
-  const inkToken: ColorToken = empty ? 'ink-muted' : onColor ? 'on-color' : 'ink';
+  const inkToken: ColorToken = variant === 'empty' ? 'ink-muted' : variant === 'onColor' ? 'on-color' : 'ink';
   const Glyph = glyphs[stroke];
 
   return (
@@ -108,12 +107,12 @@ export function StrokeIcon({ stroke, size = 'md', empty, onColor, decorative }: 
       style={[
         styles.box,
         { width: box, height: box, borderRadius: radius.full },
-        !empty && !onColor && { backgroundColor: colors['surface-2'] },
-        empty && { borderWidth: 1.5, borderStyle: 'dotted', borderColor: colors['border-strong'] },
+        variant === 'default' && { backgroundColor: colors['surface-2'] },
+        variant === 'empty' && { borderWidth: 1.5, borderStyle: 'dotted', borderColor: colors['border-strong'] },
       ]}
     >
       {/* The 75 % belongs to the backing only, so the glyph stays solid. */}
-      {onColor && (
+      {variant === 'onColor' && (
         <View
           style={[StyleSheet.absoluteFill, { borderRadius: radius.full, backgroundColor: colors['on-header'], opacity: 0.75 }]}
         />

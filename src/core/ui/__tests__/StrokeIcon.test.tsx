@@ -70,6 +70,20 @@ describe('StrokeIcon', () => {
       expect([glyphSvg().props.width, glyphSvg().props.height]).toEqual([24, 24]);
     });
 
+    it.each(['empty', 'onColor'] as const)('sm keeps the %s variant at 32 with a 24 glyph', async (variant) => {
+      await render(<StrokeIcon stroke="FR" size="sm" variant={variant} />);
+
+      const box = boxStyle('Libre');
+      expect([box.width, box.height]).toEqual([32, 32]);
+      expect(glyphSvg().props.width).toBe(24);
+    });
+
+    it('variant default is the same as no variant', async () => {
+      await render(<StrokeIcon stroke="FR" variant="default" />);
+
+      expect(boxStyle('Libre').backgroundColor).toBe(colors.light['surface-2']);
+    });
+
     it.each(themes)('md is a circle with a surface-2 background and an ink glyph, with no border, on %s', async (theme) => {
       await render(<ThemeProvider name={theme}><StrokeIcon stroke="FR" /></ThemeProvider>);
 
@@ -92,7 +106,7 @@ describe('StrokeIcon', () => {
     });
 
     it.each(themes)('empty has a 1.5 dotted border-strong and an ink-muted glyph on %s', async (theme) => {
-      await render(<ThemeProvider name={theme}><StrokeIcon stroke="BK" empty /></ThemeProvider>);
+      await render(<ThemeProvider name={theme}><StrokeIcon stroke="BK" variant="empty" /></ThemeProvider>);
 
       const box = boxStyle('Espalda');
       expect(box.borderRadius).toBe(radius.full);
@@ -104,7 +118,7 @@ describe('StrokeIcon', () => {
     });
 
     it.each(themes)('onColor has a 75 % white background and an on-color glyph on %s', async (theme) => {
-      await render(<ThemeProvider name={theme}><StrokeIcon stroke="BR" onColor /></ThemeProvider>);
+      await render(<ThemeProvider name={theme}><StrokeIcon stroke="BR" variant="onColor" /></ThemeProvider>);
 
       const layers = screen.container.queryAll(
         (node) => node.props.style && StyleSheet.flatten(node.props.style).opacity === 0.75,
@@ -119,7 +133,7 @@ describe('StrokeIcon', () => {
     });
 
     it('IM keeps its four fixed colors in the empty and onColor variants', async () => {
-      await render(<><StrokeIcon stroke="IM" empty /><StrokeIcon stroke="IM" onColor /></>);
+      await render(<><StrokeIcon stroke="IM" variant="empty" /><StrokeIcon stroke="IM" variant="onColor" /></>);
 
       const fills = circlesOf().map((node) => node.props.fill);
       for (const start of [0, 8]) {

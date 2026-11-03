@@ -60,7 +60,7 @@ function StrokeIconRow({ codes = si.codes, ...variant }: Omit<StrokeIconProps, '
     <View
       style={[
         { flexDirection: 'row', flexWrap: 'wrap', gap: gap[4], padding: gap[3] },
-        variant.onColor && { backgroundColor: colors.coral, borderRadius: radius.md },
+        variant.variant === 'onColor' && { backgroundColor: colors.coral, borderRadius: radius.md },
       ]}
     >
       {codes.map((code) => (
@@ -283,8 +283,8 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       md: () => <StrokeIconRow />,
       sm: () => <StrokeIconRow size="sm" />,
-      empty: () => <StrokeIconRow empty />,
-      'on-color': () => <StrokeIconRow onColor />,
+      empty: () => <StrokeIconRow variant="empty" />,
+      'on-color': () => <StrokeIconRow variant="onColor" />,
       // A code without a pictogram draws nothing: the row keeps only the neighbours.
       'without-pictogram': () => <StrokeIconRow codes={['FR', si.withoutPictogram, 'IM']} />,
     },
