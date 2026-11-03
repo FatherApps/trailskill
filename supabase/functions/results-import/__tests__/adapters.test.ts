@@ -1,5 +1,5 @@
 import { createAccess, createConfirmationReader, createConfirmations, createIdentityNumbers, createImportRecorder, createOrganizationChain, createPendingStore, createQueryGate, type Db, type DbError } from '../adapters.ts';
-import { CANDIDATE_TTL_MS, InvalidSourceKeyError, NotAuthorizedError, QUERY_INTERVAL_MS } from '../service.ts';
+import { CANDIDATE_TTL_MS, InvalidSourceKeyError, NotAuthorizedError, QUERY_INTERVAL_MS, RETRY_AFTER_FAILURE_MS } from '../service.ts';
 
 const ATHLETE = 'athlete-1';
 const USER = 'user-1';
@@ -30,32 +30,48 @@ function createFakeDb(replies: { data?: unknown; error?: DbError | null }[] = []
   return { db, calls, deleted, tables, failDelete: (error: DbError) => void (deleteError = error) };
 }
 
+const CLAIMED_AT = '2026-10-28T10:00:00.123456+00:00';
+const TAKEN = { retry_at: null, claimed_at: CLAIMED_AT };
+
 describe('createQueryGate', () => {
   const claim = (fake: ReturnType<typeof createFakeDb>) => createQueryGate(fake.db).claim({ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS });
 
-  it('translates null (the claim was taken) to allowed', async () => {
-    expect(await claim(createFakeDb([{ data: null }]))).toEqual({ status: 'allowed' });
+  it('translates a claim taken to allowed, with the instant exactly as the database wrote it (microseconds included)', async () => {
+    expect(await claim(createFakeDb([{ data: TAKEN }]))).toEqual({ status: 'allowed', claimedAt: CLAIMED_AT });
   });
 
-  it('translates a timestamp to rate_limited with when to retry, as ISO 8601', async () => {
-    const fake = createFakeDb([{ data: '2026-10-28T10:10:00+00:00' }]);
-    expect(await claim(fake)).toEqual({ status: 'rate_limited', retryAt: '2026-10-28T10:10:00.000Z' });
+  it('accepts the answer as a one-element list too', async () => {
+    expect(await claim(createFakeDb([{ data: [TAKEN] }]))).toEqual({ status: 'allowed', claimedAt: CLAIMED_AT });
+  });
+
+  it('translates a retry instant to rate_limited with when to retry, as ISO 8601', async () => {
+    expect(await claim(createFakeDb([{ data: { retry_at: '2026-10-28T10:10:00+00:00', claimed_at: null } }]))).toEqual({
+      status: 'rate_limited',
+      retryAt: '2026-10-28T10:10:00.000Z',
+    });
   });
 
   it('translates 42501 to not_authorized', async () => {
     expect(await claim(createFakeDb([{ error: { code: '42501' } }]))).toEqual({ status: 'not_authorized' });
   });
 
-  it('throws on any other error, and the error carries only the code', async () => {
-    await expect(claim(createFakeDb([{ error: { code: 'XX000' } }]))).rejects.toThrow('Claiming the source query failed (XX000)');
+  it('throws on any other error, with only the Postgres code', async () => {
+    await expect(claim(createFakeDb([{ error: { code: 'XX000', message: `leaked ${NUMBER}` } }]))).rejects.toThrow('Claiming the source query failed (XX000)');
+    await expect(claim(createFakeDb([{ error: { code: 'XX000', message: `leaked ${NUMBER}` } }]))).rejects.not.toThrow(NUMBER);
   });
 
-  it('throws on an answer that is neither null nor a timestamp', async () => {
-    await expect(claim(createFakeDb([{ data: 'tomorrow' }]))).rejects.toThrow('Claiming the source query failed');
+  it.each([
+    ['nothing', null],
+    ['a bare timestamp', '2026-10-28T10:10:00+00:00'],
+    ['neither instant', { retry_at: null, claimed_at: null }],
+    ['an empty claimed instant', { retry_at: null, claimed_at: '' }],
+    ['an invalid retry instant', { retry_at: 'tomorrow', claimed_at: null }],
+  ])('throws when the answer is %s', async (_name, data) => {
+    await expect(claim(createFakeDb([{ data }]))).rejects.toThrow('Claiming the source query failed');
   });
 
   it('sends the athlete, the user and the interval as bound parameters', async () => {
-    const fake = createFakeDb([{ data: null }]);
+    const fake = createFakeDb([{ data: TAKEN }]);
     await claim(fake);
     expect(fake.calls).toEqual([
       { fn: 'results_import_claim_query', args: { athlete: ATHLETE, requested_by: USER, min_interval: `${QUERY_INTERVAL_MS / 1000} seconds` } },
@@ -68,7 +84,7 @@ describe('createQueryGate with a search time to live', () => {
     createQueryGate(fake.db).claim({ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS, searchTtlMs: CANDIDATE_TTL_MS });
 
   it('calls results_import_claim_results_query with the interval and the time to live as bound parameters', async () => {
-    const fake = createFakeDb([{ data: null }]);
+    const fake = createFakeDb([{ data: TAKEN }]);
     await claim(fake);
     expect(fake.calls).toEqual([
       {
@@ -78,14 +94,42 @@ describe('createQueryGate with a search time to live', () => {
     ]);
   });
 
-  it('translates null to allowed, a timestamp to rate_limited and 42501 to not_authorized', async () => {
-    expect(await claim(createFakeDb([{ data: null }]))).toEqual({ status: 'allowed' });
-    expect(await claim(createFakeDb([{ data: '2026-10-28T10:10:00+00:00' }]))).toEqual({ status: 'rate_limited', retryAt: '2026-10-28T10:10:00.000Z' });
+  it('translates a taken claim to allowed, a retry instant to rate_limited and 42501 to not_authorized', async () => {
+    expect(await claim(createFakeDb([{ data: TAKEN }]))).toEqual({ status: 'allowed', claimedAt: CLAIMED_AT });
+    expect(await claim(createFakeDb([{ data: { retry_at: '2026-10-28T10:10:00+00:00', claimed_at: null } }]))).toEqual({ status: 'rate_limited', retryAt: '2026-10-28T10:10:00.000Z' });
     expect(await claim(createFakeDb([{ error: { code: '42501' } }]))).toEqual({ status: 'not_authorized' });
   });
 
   it('throws on any other error', async () => {
     await expect(claim(createFakeDb([{ error: { code: '22023' } }]))).rejects.toThrow('Claiming the source query failed (22023)');
+  });
+});
+
+describe('createQueryGate release', () => {
+  const release = (fake: ReturnType<typeof createFakeDb>) =>
+    createQueryGate(fake.db).release({ athleteId: ATHLETE, claimedAt: CLAIMED_AT, intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS });
+
+  it('calls results_import_release_claim with the claim exactly as received and the durations as bound parameters', async () => {
+    const fake = createFakeDb([{ data: true }]);
+    await release(fake);
+    expect(fake.calls).toEqual([
+      { fn: 'results_import_release_claim', args: { athlete: ATHLETE, claimed_at: CLAIMED_AT, min_interval: '600 seconds', retry_after: '60 seconds' } },
+    ]);
+  });
+
+  it('answers whether the claim was released', async () => {
+    expect(await release(createFakeDb([{ data: true }]))).toBe(true);
+    expect(await release(createFakeDb([{ data: false }]))).toBe(false);
+  });
+
+  it('throws with only the Postgres code on an error', async () => {
+    await expect(release(createFakeDb([{ error: { code: '22023', message: `leaked ${NUMBER}` } }]))).rejects.toThrow('Releasing the source query failed (22023)');
+    await expect(release(createFakeDb([{ error: { code: '22023', message: `leaked ${NUMBER}` } }]))).rejects.not.toThrow(NUMBER);
+  });
+
+  it('throws when the answer is not a boolean', async () => {
+    await expect(release(createFakeDb([{ data: 'yes' }]))).rejects.toThrow('Releasing the source query failed');
+    await expect(release(createFakeDb([{ data: null }]))).rejects.toThrow('Releasing the source query failed');
   });
 });
 

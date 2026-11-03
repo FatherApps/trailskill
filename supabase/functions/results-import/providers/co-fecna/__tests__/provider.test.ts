@@ -1,4 +1,4 @@
-import { ProviderUnavailableError } from '../../../port.ts';
+import { ProviderUnavailableError, SourceUnreachableError } from '../../../port.ts';
 import type { History, RosterEntry, RosterItem } from '../parse.ts';
 import { MAX_CANDIDATES, SEARCH_TIMEOUT_MS, createCoFecnaProvider as create, type Source } from '../provider.ts';
 
@@ -185,6 +185,43 @@ describe('co-fecna provider', () => {
     });
   });
 
+  // Only a source that did not answer (network, timeout, 5xx) is `SourceUnreachableError`: that is the one failure where trying again soon can work.
+  describe('which failures say the source could not be reached', () => {
+    const entries = homonyms(2);
+    const runs: Record<string, (provider: ReturnType<typeof createCoFecnaProvider>) => Promise<unknown>> = {
+      'findCandidates by number': (provider) => provider.findCandidates({ ...query, identityNumber: NUMBER }),
+      'findCandidates by name': (provider) => provider.findCandidates(query),
+      fetchResults: (provider) => provider.fetchResults(NUMBER),
+    };
+
+    it.each(Object.keys(runs))('%s passes on that the source could not be reached', async (name) => {
+      const { source } = createFakeSource({ failWith: new SourceUnreachableError() });
+      expect(await runs[name](createCoFecnaProvider(source)).catch((caught: unknown) => caught)).toBeInstanceOf(SourceUnreachableError);
+    });
+
+    it.each([
+      ['a shape change', new Error('No swimmer list')],
+      ['a typed error that is not about reaching the source', new ProviderUnavailableError('HTTP 403')],
+    ])('%s is unavailable but not unreachable', async (_name, failWith) => {
+      const { source } = createFakeSource({ failWith });
+      const error = await createCoFecnaProvider(source).fetchResults(NUMBER).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(ProviderUnavailableError);
+      expect(error).not.toBeInstanceOf(SourceUnreachableError);
+    });
+
+    it.each([
+      ['more than the limit of namesakes', () => createFakeSource({ roster: homonyms(MAX_CANDIDATES + 1) }), runs['findCandidates by name']],
+      ['two matches that share a number', () => createFakeSource({ roster: [entries[0], entries[0]] }), runs['findCandidates by name']],
+      ['two options that share the number', () => createFakeSource({ roster: [entry(NUMBER), { ...entry(NUMBER), value: `-${NUMBER}` }] }), runs['findCandidates by number']],
+      ['a number that is not in the list', () => createFakeSource({ roster: [entry(OTHER)] }), runs.fetchResults],
+      ['an unreadable roster entry', () => createFakeSource({ roster: [entry(OTHER), { unreadable: true, value: null, key: null }] }), runs['findCandidates by name']],
+    ])('%s is unavailable but not unreachable', async (_name, build, run) => {
+      const error = await run(createCoFecnaProvider(build().source)).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(ProviderUnavailableError);
+      expect(error).not.toBeInstanceOf(SourceUnreachableError);
+    });
+  });
+
   describe('the total time of a search', () => {
     afterEach(() => jest.useRealTimers());
 
@@ -203,7 +240,7 @@ describe('co-fecna provider', () => {
       expect(signal?.aborted).toBe(false);
       await jest.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS);
       expect(signal?.aborted).toBe(true);
-      expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+      expect(await pending).toBeInstanceOf(SourceUnreachableError);
     });
 
     it('also aborts the swimmer list request when the total time is over', async () => {
@@ -219,7 +256,7 @@ describe('co-fecna provider', () => {
       const pending = createCoFecnaProvider(source).findCandidates({ ...query, identityNumber: NUMBER }).catch((caught: unknown) => caught);
       await jest.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS + 1);
       expect(signal?.aborted).toBe(true);
-      expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+      expect(await pending).toBeInstanceOf(SourceUnreachableError);
     });
 
     it.each([
@@ -237,7 +274,7 @@ describe('co-fecna provider', () => {
       };
       const pending = run(createCoFecnaProvider(source)).catch((caught: unknown) => caught);
       await jest.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS + 5_000);
-      expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+      expect(await pending).toBeInstanceOf(SourceUnreachableError);
       expect(asked).toEqual([]);
     });
 
@@ -269,7 +306,7 @@ describe('co-fecna provider', () => {
       };
       const pending = createCoFecnaProvider(source).findCandidates(query).catch((caught: unknown) => caught);
       await jest.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS + 5_000);
-      expect(await pending).toBeInstanceOf(ProviderUnavailableError);
+      expect(await pending).toBeInstanceOf(SourceUnreachableError);
       expect(asked).toEqual(['0000000000']);
     });
   });

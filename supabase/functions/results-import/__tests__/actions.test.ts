@@ -76,7 +76,10 @@ function setup(
   const gate: QueryGate = {
     async claim(request) {
       claims.push(request);
-      return options.claim ?? { status: 'allowed' };
+      return options.claim ?? { status: 'allowed', claimedAt: 'claim-1' };
+    },
+    async release() {
+      return true;
     },
   };
   const identityNumbers: IdentityNumbers = {
