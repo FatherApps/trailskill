@@ -7,6 +7,7 @@ What Dokploy deploys from this repository on every push to `main`: migrations pl
 | In this folder | Purpose |
 | --- | --- |
 | `compose.yaml` | The Compose service Dokploy deploys: `migrate`, `powersync-storage`, `powersync`. |
+| `compose.local.yaml`, `local.env`, `powersync/powersync.local.yaml` | Run PowerSync on a developer's machine next to `supabase start`. Dokploy does not use them. See [Local development](../docs/local-development.md). |
 | `scripts/migrate.sh` | Creates `powersync_role`, applies `supabase/migrations/*.sql`, optional seed. |
 | `powersync/powersync.yaml` | PowerSync service config. |
 | `scripts/functions-bundle.sh` | Builds the `results-import` Edge Function bundle and puts it in the Supabase stack's functions volume, see [Edge Functions](#edge-functions-results-import). |

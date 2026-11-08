@@ -1,0 +1,20 @@
+# Local development only: layered over compose.yaml to run PowerSync next to `supabase start`.
+# Dokploy never reads this file. Usage: docs/local-development.md.
+
+name: trailskill-local
+
+services:
+  powersync-storage:
+    restart: "no"
+
+  powersync:
+    # Stops with the machine instead of restart-looping once the local Supabase is down.
+    restart: "no"
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: !override
+      - default
+      - supabase
+    environment:
+      POWERSYNC_CONFIG_PATH: /config/powersync.local.yaml
+      PS_JWKS_URI: ${SUPABASE_JWKS_URI:?Set SUPABASE_JWKS_URI}
