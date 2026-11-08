@@ -46,6 +46,7 @@ export default function HomeRoute() {
       syncState={recordSyncState({ pending: summary.pending > 0, failed: summary.failed > 0, uploading: summary.uploading })}
       synced={summary.lastSyncedAt != null}
       onOpenToday={(athleteId) => router.push(`/today?athlete=${athleteId}`)}
+      onOpenSettings={() => router.push('/settings')}
     />
   );
 }

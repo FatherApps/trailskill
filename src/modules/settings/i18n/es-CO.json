@@ -1,0 +1,22 @@
+{
+  "settings": {
+    "title": "Ajustes",
+    "back": "Volver",
+    "open": "Ajustes",
+    "theme": {
+      "label": "Tema",
+      "hint": "Sol sube el contraste para leer el teléfono al aire libre.",
+      "system": "Sistema",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "sun": "Sol"
+    },
+    "precision": {
+      "label": "Precisión de los tiempos",
+      "hint": "Aplica a los tiempos que mides en milésimas. Los tiempos de la escuela y los oficiales se muestran como se registraron.",
+      "hundredths": "Centésimas",
+      "thousandths": "Milésimas",
+      "example": "Ejemplo: {{time}}"
+    }
+  }
+}

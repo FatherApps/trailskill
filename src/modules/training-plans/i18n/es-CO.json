@@ -85,6 +85,7 @@
     "list_error_title": "No pudimos cargar los planes"
   },
   "home": {
+    "settings": "Ajustes",
     "greeting": "Hola, {{name}}",
     "greeting_no_name": "Hola",
     "athlete_picker": "Deportista",
