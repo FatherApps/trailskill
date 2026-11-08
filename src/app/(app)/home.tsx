@@ -47,6 +47,7 @@ export default function HomeRoute() {
       synced={summary.lastSyncedAt != null}
       onOpenToday={(athleteId) => router.push(`/today?athlete=${athleteId}`)}
       onOpenSettings={() => router.push('/settings')}
+      onOpenStopwatch={() => router.push('/family-timing')}
     />
   );
 }

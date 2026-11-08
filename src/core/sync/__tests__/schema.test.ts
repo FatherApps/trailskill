@@ -71,10 +71,11 @@ describe('AppSchema', () => {
     expect(Object.keys(columns)).toContain('active');
   });
 
-  it('keeps pending_writes, upload_failures and uploaded_ops local only', () => {
+  it('keeps pending_writes, upload_failures, uploaded_ops and family_measurements local only', () => {
     expect(byName.get('pending_writes')?.localOnly).toBe(true);
     expect(byName.get('upload_failures')?.localOnly).toBe(true);
     expect(byName.get('uploaded_ops')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(29);
+    expect(byName.get('family_measurements')?.localOnly).toBe(true);
+    expect(AppSchema.tables).toHaveLength(30);
   });
 });

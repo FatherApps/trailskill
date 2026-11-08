@@ -1,0 +1,61 @@
+{
+  "family_timing": {
+    "title": "Mis tiempos",
+    "open": "Mis tiempos",
+    "back": "Volver",
+    "athlete": "Nadador",
+    "on_device": "Estos tiempos se guardan solo en este teléfono y son tuyos: no son registros de la escuela. Si cierras sesión, se borran.",
+    "new": "Medir un tiempo",
+    "empty_title": "Aún no hay tiempos",
+    "empty_message": "Mide un entrenamiento o una competencia y aparecerá aquí.",
+    "no_athletes_title": "Aún no hay nadadores",
+    "no_athletes_message": "Cuando tu nadador esté registrado podrás medir sus tiempos aquí.",
+    "error_title": "No pudimos leer los tiempos",
+    "error_message": "Siguen guardados en el teléfono. Inténtalo de nuevo.",
+    "retry": "Intentar de nuevo",
+    "save_error": "No pudimos guardar en este teléfono. Inténtalo de nuevo.",
+    "setup": {
+      "title": "¿Qué vas a medir?",
+      "stroke": "Estilo",
+      "distance": "Distancia",
+      "pool": "Piscina",
+      "session_type": "Tipo",
+      "competition": "Competencia",
+      "competition_help": "Opcional, por ejemplo el nombre del festival.",
+      "start": "Ir al cronómetro",
+      "cancel": "Cancelar"
+    },
+    "session_type": {
+      "training": "Entrenamiento",
+      "competition": "Competencia"
+    },
+    "stopwatch": {
+      "start": "Iniciar",
+      "split": "Parcial",
+      "stop": "Detener",
+      "save": "Guardar",
+      "discard": "Descartar",
+      "split_row": "Parcial {{number}} · {{time}}",
+      "no_time": "El tiempo quedó sin valor: detuviste en el mismo instante de la salida."
+    },
+    "card": {
+      "captured": "Medido",
+      "captured_history": "Medido (histórico, no oficial)",
+      "official_manual": "Oficial del evento",
+      "official_imported": "Oficial · {{organization}}",
+      "official_imported_generic": "Oficial importado",
+      "set_official": "Poner tiempo oficial",
+      "edit_official": "Cambiar tiempo oficial",
+      "splits": "{{count}} parciales"
+    },
+    "official": {
+      "title": "Tiempo oficial del evento",
+      "help": "Escríbelo como en la planilla, por ejemplo 42,71 o 1:05,372. Tu tiempo medido no cambia.",
+      "label": "Tiempo oficial",
+      "invalid": "Escribe un tiempo como 42,71 o 1:05,372.",
+      "save": "Guardar oficial",
+      "clear": "Quitar tiempo oficial",
+      "cancel": "Cancelar"
+    }
+  }
+}
