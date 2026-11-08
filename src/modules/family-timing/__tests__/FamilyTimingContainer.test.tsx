@@ -87,3 +87,35 @@ describe('FamilyTimingContainer', () => {
     expect(screen.queryByText('Poner tiempo oficial')).toBeNull();
   });
 });
+
+describe('FamilyTimingContainer with imported results', () => {
+  it('shows the imported official result over the hand-typed one, and the captured time as history', async () => {
+    const repository = createInMemoryFamilyMeasurementRepository([{ ...competition, capturedAt: '2026-11-08T12:00:00.000Z', officialMillis: 42_800 }]);
+    const imports = {
+      listByAthlete: async () => [{ id: 'r1', provider: 'co-fecna', stroke: 'FL', distance: '50m', pool: 'SCM', hundredths: 4271, swumOn: '2026-11-08' }],
+    };
+    await render(
+      <PreferencesProvider repository={createInMemoryPreferencesRepository({ themeMode: 'system', timePrecision: 'thousandths' })}>
+        <FamilyTimingContainer userId="u1" athletes={athletes} repository={repository} imports={imports} sourceNames={{ 'co-fecna': 'Federación de prueba' }} onBack={jest.fn()} />
+      </PreferencesProvider>,
+    );
+    expect(await screen.findByLabelText('Oficial · Federación de prueba')).toBeTruthy();
+    expect(screen.getByText('42,71')).toBeTruthy();
+    expect(screen.getByText('Medido (histórico, no oficial)')).toBeTruthy();
+    expect(screen.getByText('47,210')).toBeTruthy();
+    expect(screen.queryByText('Cambiar tiempo oficial')).toBeNull();
+    // The hand-typed value stays stored, untouched.
+    expect((await repository.listByAthlete('a1'))[0]?.officialMillis).toBe(42_800);
+  });
+
+  it('still shows the guardian times when the imports cannot be read', async () => {
+    const repository = createInMemoryFamilyMeasurementRepository([competition]);
+    const imports = { listByAthlete: () => Promise.reject(new Error('db')) };
+    await render(
+      <PreferencesProvider repository={createInMemoryPreferencesRepository()}>
+        <FamilyTimingContainer userId="u1" athletes={athletes} repository={repository} imports={imports} onBack={jest.fn()} />
+      </PreferencesProvider>,
+    );
+    expect(await screen.findByText('Poner tiempo oficial')).toBeTruthy();
+  });
+});

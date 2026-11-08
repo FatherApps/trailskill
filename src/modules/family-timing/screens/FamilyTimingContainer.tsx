@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../../../core/i18n';
 import { usePreferences } from '../../../core/preferences';
 import { distances, pools, strokes, type DistanceCode, type PoolCode, type StrokeCode } from '../../../core/sport';
-import { formatMillis } from '../../../core/time';
+import { formatMillis, formatTime } from '../../../core/time';
 import { athleteDisplay, formatDate, type SchoolAthlete } from '../../athletes';
 import type { FamilyMeasurement, FamilyMeasurementRepository, FamilySessionType } from '../data/familyMeasurements';
 import {
@@ -19,6 +19,7 @@ import {
   type FamilyStopwatch,
 } from '../domain/familyStopwatch';
 import { localDay } from '../domain/localDay';
+import { officialValue, type OfficialImport } from '../domain/officialValue';
 import { parseTimeEntry } from '../domain/timeEntry';
 import { FamilyTimingScreen, type FamilyCard, type FamilyTimingView } from './FamilyTimingScreen';
 import '../i18n';
@@ -31,6 +32,10 @@ export type FamilyTimingContainerProps = {
   athletes: SchoolAthlete[];
   repository: FamilyMeasurementRepository;
   onBack: () => void;
+  // The athlete's imported official results (results-import); a matching one becomes the official value of a competition time.
+  imports?: { listByAthlete(athleteId: string): Promise<OfficialImport[]> };
+  // Organization names by provider, from data; without one the official tag is generic.
+  sourceNames?: Record<string, string>;
   // Injected by tests; the device clock otherwise.
   now?: () => bigint;
 };
@@ -45,13 +50,16 @@ type Step =
   | { kind: 'official'; id: string; text: string; invalid: boolean };
 
 // `key` is the athlete and reload count it was read for: a read for another key is still loading.
-type Loaded = { status: 'loading' } | { status: 'error'; key: string } | { status: 'ready'; key: string; measurements: FamilyMeasurement[] };
+type Loaded =
+  | { status: 'loading' }
+  | { status: 'error'; key: string }
+  | { status: 'ready'; key: string; measurements: FamilyMeasurement[]; imported: OfficialImport[] };
 
 const eventLabel = (m: { stroke: string; distance: string; pool: string }) =>
   `${t(`sport.stroke.${m.stroke}`)} ${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
 
 // Container: reads and writes the guardian's own times on this phone, and runs the stopwatch.
-export function FamilyTimingContainer({ userId, athletes, repository, onBack, now = clock }: FamilyTimingContainerProps) {
+export function FamilyTimingContainer({ userId, athletes, repository, onBack, imports, sourceNames = {}, now = clock }: FamilyTimingContainerProps) {
   const { preferences } = usePreferences();
   const precision = preferences.timePrecision;
   const format = useCallback((millis: number | null) => formatMillis(millis, { precision }), [precision]);
@@ -72,14 +80,15 @@ export function FamilyTimingContainer({ userId, athletes, repository, onBack, no
     if (!selectedId) return;
     let active = true;
     const readKey = `${selectedId}:${reload}`;
-    repository
-      .listByAthlete(selectedId)
-      .then((measurements) => active && setRead({ status: 'ready', key: readKey, measurements }))
+    // An unreadable import list only hides the imported official values; the guardian's own times still show.
+    const officialRead = imports ? imports.listByAthlete(selectedId).catch(() => []) : Promise.resolve([]);
+    Promise.all([repository.listByAthlete(selectedId), officialRead])
+      .then(([measurements, imported]) => active && setRead({ status: 'ready', key: readKey, measurements, imported }))
       .catch(() => active && setRead({ status: 'error', key: readKey }));
     return () => {
       active = false;
     };
-  }, [repository, selectedId, reload]);
+  }, [repository, imports, selectedId, reload]);
 
   // The screen stays awake and the time refreshes while the stopwatch runs.
   const running = stopwatch.status === 'running';
@@ -99,7 +108,18 @@ export function FamilyTimingContainer({ userId, athletes, repository, onBack, no
       const day = localDay(m.capturedAt);
       const date = formatDate(day, 'short') ?? day;
       const type = t(`family_timing.session_type.${m.sessionType}`);
-      const official = m.sessionType === 'competition' && m.officialMillis !== null ? { label: t('family_timing.card.official_manual'), time: format(m.officialMillis) } : null;
+      const value = officialValue(m, loaded.imported);
+      const organization = value?.kind === 'imported' ? sourceNames[value.provider] : undefined;
+      // An imported time was published in hundredths: it is shown as published, never padded to thousandths.
+      const official =
+        value?.kind === 'imported'
+          ? {
+              label: organization ? t('family_timing.card.official_imported', { organization }) : t('family_timing.card.official_imported_generic'),
+              time: formatTime(value.hundredths),
+            }
+          : value?.kind === 'manual'
+            ? { label: t('family_timing.card.official_manual'), time: format(value.millis) }
+            : null;
       return {
         id: m.id,
         event: eventLabel(m),
@@ -108,11 +128,11 @@ export function FamilyTimingContainer({ userId, athletes, repository, onBack, no
         capturedIsHistory: official !== null,
         official,
         splitsLabel: m.splits.length > 0 ? t('family_timing.card.splits', { count: m.splits.length }) : null,
-        canSetOfficial: m.sessionType === 'competition',
+        canSetOfficial: m.sessionType === 'competition' && value?.kind !== 'imported',
         hasManualOfficial: m.officialMillis !== null,
       };
     });
-  }, [loaded, format]);
+  }, [loaded, format, sourceNames]);
 
   const goToList = () => {
     setStep({ kind: 'list' });
