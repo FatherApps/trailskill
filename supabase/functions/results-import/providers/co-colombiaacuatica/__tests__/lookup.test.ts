@@ -190,4 +190,19 @@ describe('createTournamentLookup', () => {
     await jest.advanceTimersByTimeAsync(TOTAL_TIMEOUT_MS + 1);
     expect(await pending).toBeInstanceOf(SourceUnreachableError);
   });
+
+  // The 30 s are for the wait on the network. Parsing the zip and the XML is synchronous (no timer can interrupt it) and bounded by
+  // the 10 MB and 20 MB caps, so it has no deadline of its own: this documents that decision (#901).
+  it('releases the deadline once the zip is in, so the parsing has no deadline of its own', async () => {
+    jest.useFakeTimers();
+    const zip = await zipOf(lenex());
+    const fetchImpl = jest.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, TOTAL_TIMEOUT_MS - 1));
+      return ok(zip);
+    });
+    const pending = createTournamentLookup(fetchImpl)(FOLDER, NUMBER);
+    await jest.advanceTimersByTimeAsync(TOTAL_TIMEOUT_MS - 1);
+    expect((await pending).found).toBe(true);
+    expect(jest.getTimerCount()).toBe(0);
+  });
 });

@@ -107,4 +107,31 @@ describe('readSingleLef', () => {
     const zip = await buildZip([{ name: 'results.lef', data: bomb, method: 8 }]);
     await expect(readSingleLef(zip)).rejects.toThrow(new ProviderUnavailableError('The tournament file is too large'));
   });
+
+  it('ignores the __MACOSX folder and the "._" files a Mac adds, so a zip made on macOS is read', async () => {
+    const zip = await buildZip([
+      { name: '__MACOSX/', data: new Uint8Array() },
+      { name: '__MACOSX/._x.lef', data: bytes('appledouble') },
+      { name: 'folder/._y.LEF', data: bytes('appledouble') },
+      { name: 'x.lef', data: LEF, method: 8 },
+    ]);
+    expect(decode(await readSingleLef(zip))).toBe(decode(LEF));
+  });
+
+  it('still refuses two real .lef, even next to the files of a Mac', async () => {
+    const zip = await buildZip([
+      { name: '__MACOSX/._a.lef', data: bytes('appledouble') },
+      { name: 'a.lef', data: LEF },
+      { name: 'b.lef', data: LEF },
+    ]);
+    await expect(readSingleLef(zip)).rejects.toThrow(new ProviderUnavailableError('The tournament file does not hold exactly one .lef'));
+  });
+
+  it('does not take a name that only contains "._" or "__MACOSX" as a file of a Mac', async () => {
+    const zip = await buildZip([
+      { name: 'a._b.lef', data: LEF },
+      { name: 'my__MACOSX/c.lef', data: LEF },
+    ]);
+    await expect(readSingleLef(zip)).rejects.toThrow(new ProviderUnavailableError('The tournament file does not hold exactly one .lef'));
+  });
 });

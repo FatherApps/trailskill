@@ -1,5 +1,6 @@
 import { ProviderUnavailableError, SourceUnreachableError } from '../../port.ts';
-import { isRealDay, searchLenex, type LenexSearch } from './lenex.ts';
+import { searchLenex, type LenexSearch } from './lenex.ts';
+import { TOO_LARGE, isRealDay, readBounded } from './shared.ts';
 import { NOT_LENEX } from './xml.ts';
 import { MAX_ZIP_BYTES, readSingleLef } from './zip.ts';
 
@@ -15,7 +16,6 @@ const REJECTED = 'The tournament address is not one this provider accepts';
 const NO_FILE = 'The tournament has no published results file';
 const REDIRECTS = 'The tournament address redirects';
 const NO_ANSWER = 'The platform did not answer';
-const TOO_LARGE = 'The tournament file is too large';
 
 type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -56,26 +56,7 @@ async function download(fetchImpl: FetchImpl, url: string, signal: AbortSignal):
     cancel();
     throw new ProviderUnavailableError(TOO_LARGE);
   }
-  const reader = response.body?.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (reader) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.length;
-    if (total > MAX_ZIP_BYTES) {
-      await reader.cancel().catch(() => undefined);
-      throw new ProviderUnavailableError(TOO_LARGE);
-    }
-    chunks.push(value);
-  }
-  const zip = new Uint8Array(total);
-  let at = 0;
-  for (const chunk of chunks) {
-    zip.set(chunk, at);
-    at += chunk.length;
-  }
-  return zip;
+  return readBounded(response.body, MAX_ZIP_BYTES);
 }
 
 /**
@@ -95,6 +76,8 @@ export function createTournamentLookup(fetchImpl: FetchImpl = fetch) {
         reject(new SourceUnreachableError());
       }, TOTAL_TIMEOUT_MS);
     });
+    // The deadline is for the wait on the network. The zip and the XML are parsed in one go, with no `await` a timer could cut in on,
+    // and bounded by the 10 MB and 20 MB caps (under 0.5 s at the caps), so they have no deadline of their own (#901).
     try {
       const zip = await Promise.race([download(fetchImpl, zipUrl, controller.signal), deadline]);
       const lef = await readSingleLef(zip);
