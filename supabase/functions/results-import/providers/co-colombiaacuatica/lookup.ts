@@ -1,4 +1,4 @@
-import { ProviderUnavailableError } from '../../port.ts';
+import { ProviderUnavailableError, SourceUnreachableError } from '../../port.ts';
 import { isRealDay, searchLenex, type LenexSearch } from './lenex.ts';
 import { NOT_LENEX } from './xml.ts';
 import { MAX_ZIP_BYTES, readSingleLef } from './zip.ts';
@@ -34,8 +34,10 @@ export function tournamentFromUrl(raw: string): { tournament: string; zipUrl: st
 }
 
 async function download(fetchImpl: FetchImpl, url: string, signal: AbortSignal): Promise<Uint8Array> {
-  // `manual`: a redirect is answered, never followed.
-  const response = await fetchImpl(url, { redirect: 'manual', signal });
+  // `manual`: a redirect is answered, never followed. A request that fails is a platform that did not answer.
+  const response = await fetchImpl(url, { redirect: 'manual', signal }).catch(() => {
+    throw new SourceUnreachableError();
+  });
   const cancel = () => response.body?.cancel().catch(() => undefined);
   if (response.type === 'opaqueredirect' || response.status === 0 || (response.status >= 300 && response.status < 400)) {
     cancel();
@@ -47,7 +49,8 @@ async function download(fetchImpl: FetchImpl, url: string, signal: AbortSignal):
   }
   if (response.status !== 200) {
     cancel();
-    throw new ProviderUnavailableError(NO_ANSWER);
+    // A 5xx is the platform failing (retrying soon may work); any other status is an answer that will not change.
+    throw response.status >= 500 ? new SourceUnreachableError() : new ProviderUnavailableError(NO_ANSWER);
   }
   if (Number(response.headers.get('content-length')) > MAX_ZIP_BYTES) {
     cancel();
@@ -77,7 +80,8 @@ async function download(fetchImpl: FetchImpl, url: string, signal: AbortSignal):
 
 /**
  * The tournament's results for one identity number: validates the address, downloads the zip in memory, reads its only `.lef`
- * and searches it. Any failure is the same typed "unavailable" with a clear message and no cause, so no number can leak.
+ * and searches it. Any failure is a typed "unavailable" with a clear message and no cause, so no number can leak; only a platform
+ * that did not answer (network, the total time, a 5xx) is `SourceUnreachableError`, whose claim the service gives back (#888).
  * Nothing is written to disk, cached or logged.
  */
 export function createTournamentLookup(fetchImpl: FetchImpl = fetch) {
@@ -88,7 +92,7 @@ export function createTournamentLookup(fetchImpl: FetchImpl = fetch) {
     const deadline = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
         controller.abort();
-        reject(new ProviderUnavailableError(NO_ANSWER));
+        reject(new SourceUnreachableError());
       }, TOTAL_TIMEOUT_MS);
     });
     try {

@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { ProviderUnavailableError } from '../../../port.ts';
+import { ProviderUnavailableError, SourceUnreachableError } from '../../../port.ts';
 import { MAX_ZIP_BYTES } from '../zip.ts';
 import { PROVIDER_KEY, TOTAL_TIMEOUT_MS, createTournamentLookup, tournamentFromUrl } from '../lookup.ts';
 import { ME, lenex } from './lenexBuilder.ts';
@@ -112,21 +112,39 @@ describe('createTournamentLookup', () => {
     await expect(createTournamentLookup(async () => opaque)(FOLDER, NUMBER)).rejects.toThrow(new ProviderUnavailableError('The tournament address redirects'));
   });
 
-  it.each([500, 503, 403])('is unavailable when the platform answers %i', async (status) => {
-    await expect(createTournamentLookup(async () => ok('x', { status }))(FOLDER, NUMBER)).rejects.toThrow(new ProviderUnavailableError('The platform did not answer'));
+  // Issue #888: only a platform that did not answer (network, timeout, 5xx) is `SourceUnreachableError`; the rest is plain unavailable.
+  it.each([500, 503, 599])('is unreachable when the platform answers %i', async (status) => {
+    const error = await createTournamentLookup(async () => ok('x', { status }))(FOLDER, NUMBER).catch((e) => e);
+    expect(error).toBeInstanceOf(SourceUnreachableError);
   });
 
-  it('is unavailable when the request fails, without the cause', async () => {
+  it.each([400, 403, 410])('is unavailable, but not unreachable, when the platform answers %i', async (status) => {
+    const error = await createTournamentLookup(async () => ok('x', { status }))(FOLDER, NUMBER).catch((e) => e);
+    expect(error).toEqual(new ProviderUnavailableError('The platform did not answer'));
+    expect(error).not.toBeInstanceOf(SourceUnreachableError);
+  });
+
+  it('is unreachable when the request fails, without the cause', async () => {
     const error = await createTournamentLookup(async () => Promise.reject(new Error(`secret ${NUMBER}`)))(FOLDER, NUMBER).catch((e) => e);
-    expect(error).toBeInstanceOf(ProviderUnavailableError);
+    expect(error).toBeInstanceOf(SourceUnreachableError);
     expect(error.message).not.toContain(NUMBER);
     expect(error.cause).toBeUndefined();
   });
 
-  it('is unavailable on a corrupt zip and on a LENEX of another shape', async () => {
-    await expect(createTournamentLookup(async () => ok('<html>not a zip</html>'))(FOLDER, NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
+  it.each([404, 301])('is not unreachable when the platform answered %i', async (status) => {
+    const error = await createTournamentLookup(async () => new Response(null, { status }))(FOLDER, NUMBER).catch((e) => e);
+    expect(error).toBeInstanceOf(ProviderUnavailableError);
+    expect(error).not.toBeInstanceOf(SourceUnreachableError);
+  });
+
+  it('is unavailable, not unreachable, on a corrupt zip and on a LENEX of another shape: the platform answered', async () => {
+    const corrupt = await createTournamentLookup(async () => ok('<html>not a zip</html>'))(FOLDER, NUMBER).catch((e) => e);
+    expect(corrupt).toBeInstanceOf(ProviderUnavailableError);
+    expect(corrupt).not.toBeInstanceOf(SourceUnreachableError);
     const zip = await zipOf('<html>not lenex</html>');
-    await expect(createTournamentLookup(async () => ok(zip))(FOLDER, NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
+    const other = await createTournamentLookup(async () => ok(zip))(FOLDER, NUMBER).catch((e) => e);
+    expect(other).toBeInstanceOf(ProviderUnavailableError);
+    expect(other).not.toBeInstanceOf(SourceUnreachableError);
   });
 
   it('is unavailable on a LENEX that is not UTF-8', async () => {
@@ -170,6 +188,6 @@ describe('createTournamentLookup', () => {
     });
     const pending = createTournamentLookup(fetchImpl)(FOLDER, NUMBER).catch((e) => e);
     await jest.advanceTimersByTimeAsync(TOTAL_TIMEOUT_MS + 1);
-    expect(await pending).toEqual(new ProviderUnavailableError('The platform did not answer'));
+    expect(await pending).toBeInstanceOf(SourceUnreachableError);
   });
 });

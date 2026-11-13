@@ -1,6 +1,7 @@
 import { AGE, BIRTH_DATE, CATEGORY, GENDER, IDENTITY, PROFILE_LABELS, historyPage, historyRow, option, profileCard, rosterPage } from './fixtures.ts';
 import { decodeEntities, cellText } from '../html.ts';
-import { normalizeNumber, parseProfile, parseRoster, parseRows } from '../parse.ts';
+import { normalizeNumber } from '../../../identityNumber.ts';
+import { parseProfile, parseRoster, parseRows } from '../parse.ts';
 
 // Every card in the older tests carries the sentinel as its Identificación: this is its key.
 const SENTINEL_KEY = normalizeNumber(IDENTITY);
@@ -26,21 +27,6 @@ describe('decodeEntities', () => {
   });
   it('drops tags and collapses spaces in a cell', () => {
     expect(cellText(' <b>28.45</b>&nbsp; \n ')).toBe('28.45');
-  });
-});
-
-describe('normalizeNumber', () => {
-  it.each([
-    ['1234567890', '1234567890'],
-    ['123-4', '1234'],
-    ['1.234.567', '1234567'],
-    [' 1234 ', '1234'],
-    ['ab1234', 'AB1234'],
-  ])('%j becomes %j', (raw, expected) => {
-    expect(normalizeNumber(raw)).toBe(expected);
-  });
-  it.each(['', '  ', '12/34', 'x'.repeat(21)])('rejects %j', (raw) => {
-    expect(() => normalizeNumber(raw)).toThrow();
   });
 });
 

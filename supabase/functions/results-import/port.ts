@@ -44,3 +44,15 @@ export interface ResultsProvider {
   findCandidates(query: CandidateQuery): Promise<Candidate[]>;
   fetchResults(sourceAthleteKey: string): Promise<NormalizedResult[]>;
 }
+
+/** What a tournament lookup finds for one identity number: the athlete's name and club, and that athlete's rows. Never the number or a birth date. */
+export type TournamentSearch = { found: false } | { found: true; athlete: { name: string; club: string | null }; results: NormalizedResult[] };
+
+/** A results platform: the person pastes the address of one tournament and the adapter reads that tournament only, by identity number. */
+export interface TournamentProvider {
+  /** '<country>-<platform>', lower case, the organization's ISO country code first. */
+  readonly key: string;
+  /** Whether this adapter handles the address. It never throws. */
+  accepts(url: string): boolean;
+  lookup(url: string, identityNumber: string): Promise<TournamentSearch>;
+}

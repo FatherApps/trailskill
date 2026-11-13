@@ -1,9 +1,9 @@
-import { ProviderUnavailableError, type NormalizedResult } from '../../port.ts';
+import { ProviderUnavailableError, type NormalizedResult, type TournamentSearch } from '../../port.ts';
 import { isDistance, isPool, type DistanceCode, type PoolCode, type StrokeCode } from '../../../../../src/core/sport/catalogs.ts';
-import { normalizeNumber } from '../co-fecna/parse.ts';
+import { keyHasNumber, normalizeNumber } from '../../identityNumber.ts';
 import { NOT_LENEX, parseXml, type XmlNode } from './xml.ts';
 
-export type LenexSearch = { found: false } | { found: true; athlete: { name: string; club: string | null }; results: NormalizedResult[] };
+export type LenexSearch = TournamentSearch;
 
 const STROKES: Readonly<Record<string, StrokeCode>> = { FREE: 'FR', BACK: 'BK', BREAST: 'BR', FLY: 'FL', MEDLEY: 'IM' };
 const PLAIN_ID = /^[A-Za-z0-9_-]{1,40}$/;
@@ -21,14 +21,6 @@ const only = (node: XmlNode, name: string): XmlNode => {
 const childrenOf = (node: XmlNode, name: string): XmlNode[] => {
   const containers = kids(node, name);
   return containers.length > 1 ? bad() : (containers[0]?.children ?? []);
-};
-// The identity number protects itself by segment: a segment of the key, normalized, must never be the number. Being part of an id is fine.
-const isNumber = (segment: string, wanted: string) => {
-  try {
-    return normalizeNumber(segment) === wanted;
-  } catch {
-    return false;
-  }
 };
 const spaces = (text: string) => text.replace(/\s+/g, ' ').trim();
 
@@ -121,7 +113,7 @@ export function searchLenex(text: string, tournament: string, identityNumber: st
     if (!PLAIN_ID.test(eventid as string) || !PLAIN_ID.test(resultid)) return bad();
     const sourceResultKey = `${tournament}|${eventid}|${resultid}`;
     if (results.has(sourceResultKey)) return bad();
-    if ([tournament, eventid, resultid].some((segment) => isNumber(segment as string, wanted))) {
+    if (keyHasNumber(sourceResultKey, identityNumber)) {
       throw new ProviderUnavailableError('A result key of the tournament file would be the identity number');
     }
     const hundredths = result.attrs.status ? null : parseTime(result.attrs.swimtime);
