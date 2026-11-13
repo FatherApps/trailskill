@@ -4,7 +4,7 @@
 -- organization the federation update uses. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(48);
+select plan(44);
 
 insert into auth.users (id, email) values
   ('89600000-0000-4000-8000-0000000000a1', 'platform-guardian@example.test'),
@@ -73,14 +73,6 @@ select throws_ok(
 select col_is_pk('public', 'results_import_queries', array['athlete_id', 'provider'],
   'the query window is keyed by athlete and provider');
 select col_not_null('public', 'results_import_queries', 'provider', 'and the provider is required');
-select hasnt_function('public', 'results_import_claim_query', array['uuid', 'uuid', 'interval'],
-  'the claim without a provider is gone');
-select hasnt_function('public', 'results_import_claim_results_query', array['uuid', 'uuid', 'interval', 'interval'],
-  'so is the shared claim without a provider');
-select hasnt_function('public', 'results_import_release_claim', array['uuid', 'timestamptz', 'interval', 'interval'],
-  'so is the release without a provider');
-select hasnt_function('public', 'results_import_latest_confirmation', array['uuid'],
-  'and the latest confirmation of the athlete alone');
 select ok(
   not has_function_privilege('authenticated', 'public.results_import_claim_query(uuid, text, uuid, interval)', 'execute')
     and not has_function_privilege('anon', 'public.results_import_claim_query(uuid, text, uuid, interval)', 'execute')
@@ -245,7 +237,7 @@ select is(
   'without an organization the latest confirmation is the federation''s, though a platform one is newer'
 );
 select is(
-  (select organization_id from public.results_import_latest_confirmation('89600000-0000-4000-8000-0000000000e1')),
+  (select organization_id from public.results_import_latest_confirmation('89600000-0000-4000-8000-0000000000e1', null)),
   '89600000-0000-4000-8000-0000000000b1'::uuid,
   'and the organization answered is the federation''s when none is given'
 );

@@ -3,8 +3,9 @@
 -- `organizations` with its own type, registered in `results_import_sources` like a federation, so
 -- no platform name lives in code. Because one athlete can now query two providers, everything that
 -- was "one per athlete" becomes "one per (athlete, provider)": the query window and its lock, the
--- shared claim, the release, and the latest confirmation. Old signatures are dropped; the edge
--- function ships with this migration.
+-- shared claim, the release, and the latest confirmation. Expand/contract: migrations deploy on
+-- merge but the Edge Function is delivered later by hand, so this migration ADDS the new signatures
+-- and KEEPS the old ones working as thin wrappers (section 6). A later migration removes them.
 
 -- 1. Organizations: a new type for results platforms.
 alter table public.organizations drop constraint organizations_type_check;
@@ -83,11 +84,6 @@ end;
 $$;
 
 revoke execute on function app.results_import_lock_provider(uuid, text) from public, anon, authenticated;
-
-drop function public.results_import_claim_results_query(uuid, uuid, interval, interval);
-drop function public.results_import_claim_query(uuid, uuid, interval);
-drop function public.results_import_release_claim(uuid, timestamptz, interval, interval);
-drop function public.results_import_latest_confirmation(uuid);
 
 -- Rate limit: one claim per (athlete, provider) covers every query to that provider (search and
 -- refresh). Taken: retry_at is null and claimed_at is the stored instant. Refused: retry_at is the
@@ -230,10 +226,12 @@ end;
 $$;
 
 -- The latest "is this the person?" confirmation of the athlete, or no row. With an organization:
--- the latest of that organization. Without: the latest of an organization of type 'federation', so
+-- the latest of that organization. With null: the latest of an organization of type 'federation', so
 -- a platform confirmation never changes what the federation update uses. The caller checks access
--- first; this never returns the evidence's affiliations.
-create function public.results_import_latest_confirmation(athlete uuid, organization uuid default null)
+-- first; this never returns the evidence's affiliations. No default for the organization, so a call
+-- with only the athlete still resolves to the old one-argument function, which stays as it is
+-- (latest confirmation of any organization) until the contract migration.
+create function public.results_import_latest_confirmation(athlete uuid, organization uuid)
 returns table (organization_id uuid, confirmed_at timestamptz, candidate_name text)
 language sql
 stable
@@ -265,4 +263,106 @@ grant execute on function
   public.results_import_claim_results_query(uuid, text, uuid, interval, interval),
   public.results_import_release_claim(uuid, text, timestamptz, interval, interval),
   public.results_import_latest_confirmation(uuid, uuid)
+to service_role;
+
+-- 6. Contract later: the old signatures, as wrappers over the new ones. The Edge Function running
+-- today calls them. The provider they pass is the one of the registry's single federation source,
+-- never a name in code, so it is what the old behavior meant. All of this is removed together with
+-- the old signatures once the new Edge Function is delivered.
+create function app.results_import_legacy_provider()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  found_provider text;
+  found_count integer;
+begin
+  select min(s.provider), count(*) into found_provider, found_count
+  from public.results_import_sources s
+  join public.organizations o on o.id = s.organization_id
+  where o.type = 'federation';
+  if found_count <> 1 then
+    raise exception 'there is not exactly one federation results source' using errcode = '22023';
+  end if;
+  return found_provider;
+end;
+$$;
+
+revoke execute on function app.results_import_legacy_provider() from public, anon, authenticated;
+
+-- contract: removed together with the old signatures after the new Edge Function is delivered
+create or replace function public.results_import_claim_query(
+  athlete uuid, requested_by uuid, min_interval interval, out retry_at timestamptz, out claimed_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  select c.retry_at, c.claimed_at into retry_at, claimed_at
+  from public.results_import_claim_query(
+    results_import_claim_query.athlete,
+    app.results_import_legacy_provider(),
+    results_import_claim_query.requested_by,
+    results_import_claim_query.min_interval
+  ) c;
+end;
+$$;
+
+-- contract: removed together with the old signatures after the new Edge Function is delivered
+create or replace function public.results_import_claim_results_query(
+  athlete uuid, requested_by uuid, min_interval interval, search_ttl interval,
+  out retry_at timestamptz, out claimed_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  select c.retry_at, c.claimed_at into retry_at, claimed_at
+  from public.results_import_claim_results_query(
+    results_import_claim_results_query.athlete,
+    app.results_import_legacy_provider(),
+    results_import_claim_results_query.requested_by,
+    results_import_claim_results_query.min_interval,
+    results_import_claim_results_query.search_ttl
+  ) c;
+end;
+$$;
+
+-- contract: removed together with the old signatures after the new Edge Function is delivered
+create or replace function public.results_import_release_claim(
+  athlete uuid, claimed_at timestamptz, min_interval interval, retry_after interval
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return public.results_import_release_claim(
+    results_import_release_claim.athlete,
+    app.results_import_legacy_provider(),
+    results_import_release_claim.claimed_at,
+    results_import_release_claim.min_interval,
+    results_import_release_claim.retry_after
+  );
+end;
+$$;
+
+revoke execute on function
+  public.results_import_claim_query(uuid, uuid, interval),
+  public.results_import_claim_results_query(uuid, uuid, interval, interval),
+  public.results_import_release_claim(uuid, timestamptz, interval, interval),
+  public.results_import_latest_confirmation(uuid)
+from public, anon, authenticated;
+
+grant execute on function
+  public.results_import_claim_query(uuid, uuid, interval),
+  public.results_import_claim_results_query(uuid, uuid, interval, interval),
+  public.results_import_release_claim(uuid, timestamptz, interval, interval),
+  public.results_import_latest_confirmation(uuid)
 to service_role;
