@@ -34,13 +34,13 @@ insert into public.results_import_confirmations (athlete_id, organization_id, pr
 select ok(
   not has_function_privilege('authenticated', 'public.results_import_access(uuid, uuid)', 'execute')
     and not has_function_privilege('anon', 'public.results_import_access(uuid, uuid)', 'execute')
-    and not has_function_privilege('authenticated', 'public.results_import_latest_confirmation(uuid)', 'execute')
-    and not has_function_privilege('anon', 'public.results_import_latest_confirmation(uuid)', 'execute'),
+    and not has_function_privilege('authenticated', 'public.results_import_latest_confirmation(uuid, uuid)', 'execute')
+    and not has_function_privilege('anon', 'public.results_import_latest_confirmation(uuid, uuid)', 'execute'),
   'clients execute neither helper'
 );
 select ok(
   has_function_privilege('service_role', 'public.results_import_access(uuid, uuid)', 'execute')
-    and has_function_privilege('service_role', 'public.results_import_latest_confirmation(uuid)', 'execute'),
+    and has_function_privilege('service_role', 'public.results_import_latest_confirmation(uuid, uuid)', 'execute'),
   'service_role executes both'
 );
 

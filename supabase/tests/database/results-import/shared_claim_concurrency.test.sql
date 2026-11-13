@@ -57,7 +57,7 @@ $c$);
 -- The search takes the claim and the user confirms it.
 select is(
   (select r from extensions.dblink('first',
-    $c$ select (public.results_import_claim_query('83610000-0000-4000-8000-0000000000e1', '83610000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at $c$
+    $c$ select (public.results_import_claim_query('83610000-0000-4000-8000-0000000000e1', 'zz-test', '83610000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at $c$
   ) as t(r timestamptz)),
   null::timestamptz, 'the search takes the claim');
 select extensions.dblink_exec('admin', $c$
@@ -72,10 +72,10 @@ create temp table searched as
 -- Both results queries run now. The sleep sits in the same statement, after the claim, so the
 -- first one still holds its transaction (and the athlete's lock) while the second one starts.
 select extensions.dblink_send_query('first', $c$
-  select (public.results_import_claim_results_query('83610000-0000-4000-8000-0000000000e1', '83610000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes')).retry_at as r,
+  select (public.results_import_claim_results_query('83610000-0000-4000-8000-0000000000e1', 'zz-test', '83610000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes')).retry_at as r,
          pg_sleep(2)::text as s $c$);
 select extensions.dblink_send_query('second', $c$
-  select (public.results_import_claim_results_query('83610000-0000-4000-8000-0000000000e1', '83610000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes')).retry_at as r,
+  select (public.results_import_claim_results_query('83610000-0000-4000-8000-0000000000e1', 'zz-test', '83610000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes')).retry_at as r,
          pg_sleep(2)::text as s $c$);
 
 create temp table outcomes as
