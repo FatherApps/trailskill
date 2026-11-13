@@ -77,17 +77,17 @@ select ok(
   'clients only select the four data tables, nothing on the query state, and anon nothing at all'
 );
 select ok(
-  not has_function_privilege('authenticated', 'public.results_import_claim_query(uuid, uuid, interval)', 'execute')
+  not has_function_privilege('authenticated', 'public.results_import_claim_query(uuid, text, uuid, interval)', 'execute')
     and not has_function_privilege('authenticated', 'public.record_imported_results(uuid, uuid, uuid, jsonb)', 'execute')
     and not has_function_privilege('authenticated', 'public.record_results_import_confirmation(uuid, uuid, uuid, jsonb)', 'execute')
-    and not has_function_privilege('anon', 'public.results_import_claim_query(uuid, uuid, interval)', 'execute')
+    and not has_function_privilege('anon', 'public.results_import_claim_query(uuid, text, uuid, interval)', 'execute')
     and not has_function_privilege('anon', 'public.record_imported_results(uuid, uuid, uuid, jsonb)', 'execute')
     and not has_function_privilege('anon', 'public.record_results_import_confirmation(uuid, uuid, uuid, jsonb)', 'execute')
     and not has_function_privilege('anon', 'public.resolve_imported_result_change(uuid, text)', 'execute'),
   'authenticated cannot execute the three service functions, and anon none of the four'
 );
 select ok(
-  has_function_privilege('service_role', 'public.results_import_claim_query(uuid, uuid, interval)', 'execute')
+  has_function_privilege('service_role', 'public.results_import_claim_query(uuid, text, uuid, interval)', 'execute')
     and has_function_privilege('service_role', 'public.record_imported_results(uuid, uuid, uuid, jsonb)', 'execute')
     and has_function_privilege('service_role', 'public.record_results_import_confirmation(uuid, uuid, uuid, jsonb)', 'execute')
     and has_function_privilege('authenticated', 'public.resolve_imported_result_change(uuid, text)', 'execute'),
@@ -116,22 +116,22 @@ set local role service_role;
 set local request.jwt.claims = '{"role": "service_role"}';
 
 select throws_ok(
-  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a3', interval '1 hour') $$,
+  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', 'zz-test', '79a00000-0000-4000-8000-0000000000a3', interval '1 hour') $$,
   '42501', null,
   'a claim by someone who does not manage the athlete is rejected'
 );
 select throws_ok(
-  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e2', '79a00000-0000-4000-8000-0000000000a2', interval '1 hour') $$,
+  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e2', 'zz-test', '79a00000-0000-4000-8000-0000000000a2', interval '1 hour') $$,
   '42501', null,
   'a claim by the manager of an athlete without the import authorization is rejected'
 );
 select throws_ok(
-  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '0 seconds') $$,
+  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', 'zz-test', '79a00000-0000-4000-8000-0000000000a1', interval '0 seconds') $$,
   '22023', null,
   'an interval that is not positive is rejected'
 );
 select is(
-  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
+  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', 'zz-test', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
   null::timestamptz,
   'the first claim is taken: the source may be queried'
 );
@@ -145,7 +145,7 @@ begin
 end;
 $$;
 select is(
-  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
+  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', 'zz-test', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
   current_setting('app.first_query')::timestamptz + interval '1 hour',
   'a second claim inside the interval returns when to retry: the first time plus the interval'
 );
@@ -155,7 +155,7 @@ select is(
   'and leaves the stored time unchanged'
 );
 select is(
-  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e3', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
+  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e3', 'zz-test', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
   null::timestamptz,
   'another athlete has its own limit: its claim is taken'
 );
@@ -172,7 +172,7 @@ set local role service_role;
 set local request.jwt.claims = '{"role": "service_role"}';
 
 select is(
-  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
+  (public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', 'zz-test', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour')).retry_at,
   null::timestamptz,
   'once the interval has passed the claim is taken again'
 );
@@ -507,7 +507,7 @@ select throws_ok(
   'authenticated cannot resolve a change by updating it'
 );
 select throws_ok(
-  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour') $$,
+  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e1', 'zz-test', '79a00000-0000-4000-8000-0000000000a1', interval '1 hour') $$,
   '42501', null,
   'authenticated cannot call the rate limit function'
 );
@@ -685,7 +685,7 @@ select throws_ok(
   'after a withdrawal an import is rejected'
 );
 select throws_ok(
-  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e3', '79a00000-0000-4000-8000-0000000000a1', interval '0.001 seconds') $$,
+  $$ select public.results_import_claim_query('79a00000-0000-4000-8000-0000000000e3', 'zz-test', '79a00000-0000-4000-8000-0000000000a1', interval '0.001 seconds') $$,
   '42501', null,
   'and so is a claim'
 );

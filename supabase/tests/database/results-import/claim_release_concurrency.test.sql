@@ -57,7 +57,7 @@ $c$);
 -- The search takes the claim; the user confirms it, so a results query could share it.
 create temp table searched as
   select retry_at, claimed_at from extensions.dblink('first',
-    $c$ select retry_at, claimed_at from public.results_import_claim_query('88810000-0000-4000-8000-0000000000e1', '88810000-0000-4000-8000-0000000000a1', interval '1 hour') $c$
+    $c$ select retry_at, claimed_at from public.results_import_claim_query('88810000-0000-4000-8000-0000000000e1', 'zz-test', '88810000-0000-4000-8000-0000000000a1', interval '1 hour') $c$
   ) as t(retry_at timestamptz, claimed_at timestamptz);
 select ok((select retry_at is null and claimed_at is not null from searched), 'the search takes the claim and answers the instant it took');
 select extensions.dblink_exec('admin', $c$
@@ -69,11 +69,11 @@ $c$);
 -- statement, after the call, so the first one to get the athlete's lock still holds its
 -- transaction while the other one waits for it.
 select extensions.dblink_send_query('first', format(
-  $f$ select public.results_import_release_claim('88810000-0000-4000-8000-0000000000e1', %L, interval '1 hour', interval '1 minute') as released,
+  $f$ select public.results_import_release_claim('88810000-0000-4000-8000-0000000000e1', 'zz-test', %L, interval '1 hour', interval '1 minute') as released,
             pg_sleep(2)::text as s $f$,
   (select claimed_at::text from searched)));
 select extensions.dblink_send_query('second', $c$
-  select (public.results_import_claim_results_query('88810000-0000-4000-8000-0000000000e1', '88810000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes')).retry_at as r,
+  select (public.results_import_claim_results_query('88810000-0000-4000-8000-0000000000e1', 'zz-test', '88810000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes')).retry_at as r,
          pg_sleep(2)::text as s $c$);
 
 create temp table released_outcome as
@@ -115,7 +115,7 @@ select extensions.dblink_exec('admin', $c$
 $c$);
 create temp table searched_two as
   select retry_at, claimed_at from extensions.dblink('first',
-    $c$ select retry_at, claimed_at from public.results_import_claim_query('88810000-0000-4000-8000-0000000000e1', '88810000-0000-4000-8000-0000000000a1', interval '1 hour') $c$
+    $c$ select retry_at, claimed_at from public.results_import_claim_query('88810000-0000-4000-8000-0000000000e1', 'zz-test', '88810000-0000-4000-8000-0000000000a1', interval '1 hour') $c$
   ) as t(retry_at timestamptz, claimed_at timestamptz);
 select ok((select retry_at is null and claimed_at is not null from searched_two), 'round two: the search takes a fresh claim and answers the instant it took');
 select extensions.dblink_exec('admin', $c$
@@ -124,12 +124,12 @@ select extensions.dblink_exec('admin', $c$
 $c$);
 
 select extensions.dblink_send_query('second', $c$
-  select (public.results_import_claim_results_query('88810000-0000-4000-8000-0000000000e1', '88810000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes')).retry_at as r,
+  select (public.results_import_claim_results_query('88810000-0000-4000-8000-0000000000e1', 'zz-test', '88810000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes')).retry_at as r,
          pg_sleep(2)::text as s $c$);
 -- Give the results query time to take the lock before the release is sent, so the order is the one named above.
 select pg_sleep(0.5);
 select extensions.dblink_send_query('first', format(
-  $f$ select public.results_import_release_claim('88810000-0000-4000-8000-0000000000e1', %L, interval '1 hour', interval '1 minute') as released,
+  $f$ select public.results_import_release_claim('88810000-0000-4000-8000-0000000000e1', 'zz-test', %L, interval '1 hour', interval '1 minute') as released,
             pg_sleep(2)::text as s $f$,
   (select claimed_at::text from searched_two)));
 
