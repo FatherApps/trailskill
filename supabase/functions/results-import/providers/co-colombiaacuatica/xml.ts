@@ -1,7 +1,8 @@
-import { ProviderUnavailableError } from '../../port.ts';
+import { unavailable } from './shared.ts';
 
 export const NOT_LENEX = 'The tournament file is not the LENEX the platform publishes';
 
+// `attrs` has no prototype: an attribute called `__proto__` or `constructor` is just an attribute, and nothing is read from `Object.prototype`.
 export type XmlNode = { name: string; attrs: Record<string, string>; children: XmlNode[] };
 
 const MAX_DEPTH = 32;
@@ -9,15 +10,18 @@ const NAME = /[A-Za-z_][\w.:-]*/y;
 const ATTRIBUTE = /\s+([A-Za-z_][\w.:-]*)\s*=\s*(?:"([^"<]*)"|'([^'<]*)')/y;
 // A `&` that is not one of these entities is matched alone, so it can be refused.
 const ENTITY = /&(?:(?:#(\d+)|#x([0-9a-fA-F]+)|(amp|lt|gt|quot|apos));)?/g;
+// What XML does not allow in a document, and a value must not hold (tab, line feed and carriage return are normalized instead).
+const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/;
 const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" } as const;
 
-const bad = (): never => {
-  throw new ProviderUnavailableError(NOT_LENEX);
-};
+export const bad = (): never => unavailable(NOT_LENEX);
 
+// A literal tab or line break in a value is one space, as XML says (before the entities, so `&#10;` stays a line break).
 // The five XML entities and numeric ones; any other `&` is a markup this reader does not know, so the file is refused.
+// A control character is not well-formed XML: the whole file is refused, as with any other malformed markup.
 function decode(value: string): string {
-  return value.replace(ENTITY, (_match, decimal, hex, name) => {
+  if (CONTROL.test(value)) bad();
+  return value.replace(/\r\n|[\t\n\r]/g, ' ').replace(ENTITY, (_match, decimal, hex, name) => {
     if (name !== undefined) return NAMED[name as keyof typeof NAMED];
     if (decimal === undefined && hex === undefined) return bad();
     const code = Number.parseInt(decimal ?? hex, decimal === undefined ? 16 : 10);
@@ -64,7 +68,7 @@ export function parseXml(source: string): XmlNode {
       NAME.lastIndex = at + 1;
       const match = NAME.exec(source);
       if (!match) bad();
-      const node: XmlNode = { name: (match as RegExpExecArray)[0], attrs: {}, children: [] };
+      const node: XmlNode = { name: (match as RegExpExecArray)[0], attrs: Object.create(null), children: [] };
       at = NAME.lastIndex;
       for (;;) {
         ATTRIBUTE.lastIndex = at;
