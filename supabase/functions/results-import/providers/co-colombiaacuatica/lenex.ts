@@ -1,16 +1,13 @@
 import { ProviderUnavailableError, type NormalizedResult } from '../../port.ts';
 import { isDistance, isPool, type DistanceCode, type PoolCode, type StrokeCode } from '../../../../../src/core/sport/catalogs.ts';
 import { normalizeNumber } from '../co-fecna/parse.ts';
-import { NOT_LENEX, parseXml, type XmlNode } from './xml.ts';
+import { isRealDay } from './shared.ts';
+import { bad, parseXml, type XmlNode } from './xml.ts';
 
 export type LenexSearch = { found: false } | { found: true; athlete: { name: string; club: string | null }; results: NormalizedResult[] };
 
 const STROKES: Readonly<Record<string, StrokeCode>> = { FREE: 'FR', BACK: 'BK', BREAST: 'BR', FLY: 'FL', MEDLEY: 'IM' };
 const PLAIN_ID = /^[A-Za-z0-9_-]{1,40}$/;
-
-const bad = (): never => {
-  throw new ProviderUnavailableError(NOT_LENEX);
-};
 
 const kids = (node: XmlNode, name: string) => node.children.filter((child) => child.name === name);
 const only = (node: XmlNode, name: string): XmlNode => {
@@ -32,12 +29,6 @@ const isNumber = (segment: string, wanted: string) => {
 };
 const spaces = (text: string) => text.replace(/\s+/g, ' ').trim();
 
-/** A day that exists (no 30 February, no month 13), from its three numbers. */
-export function isRealDay(year: number, month: number, day: number): boolean {
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-}
-
 function parseDate(value: string | undefined): string {
   const match = value === undefined ? null : /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   return match && isRealDay(Number(match[1]), Number(match[2]), Number(match[3])) ? (value as string) : bad();
@@ -52,22 +43,35 @@ function parseTime(value: string | undefined): number | null {
   return hundredths === 0 ? null : hundredths;
 }
 
-type EventInfo = { swumOn: string; stroke: StrokeCode; distance: DistanceCode } | 'skipped';
+type EventInfo = { swumOn: string; stroke: StrokeCode; distance: DistanceCode; pool: PoolCode } | 'skipped';
 
-// Full individual swims whose stroke and distance are in the catalogs; relays, any non-empty `technique` and anything else are skipped, never normalized.
+// The course a node declares, on itself or on its POOL children: undefined when it declares none; the pool when all it declares is one
+// recognized course; null otherwise (an unknown value, or two different ones), because a course is never guessed.
+function courseOf(node: XmlNode): PoolCode | null | undefined {
+  const declared = [node.attrs.course, ...kids(node, 'POOL').map((pool) => pool.attrs.course)].filter((course) => course !== undefined);
+  if (declared.length === 0) return undefined;
+  return declared.every((course) => course === declared[0]) && isPool(declared[0]) ? declared[0] : null;
+}
+
+// Full individual swims whose stroke, distance and course are in the catalogs; relays, any non-empty `technique` and anything else are skipped, never normalized.
+// The course is the session's own, or else the meet's (`MEET@course` or `MEET/POOL`). An unknown course of a session leaves out its rows;
+// no course declared, or an unknown one for the whole meet, is not a file this reader knows.
 function readEvents(meet: XmlNode): Map<string, EventInfo> {
   const events = new Map<string, EventInfo>();
   for (const session of kids(only(meet, 'SESSIONS'), 'SESSION')) {
     const swumOn = parseDate(session.attrs.date);
+    const own = courseOf(session);
+    const pool = own === undefined ? courseOf(meet) : own;
+    if (pool === undefined || (own === undefined && pool === null)) return bad();
     for (const event of kids(only(session, 'EVENTS'), 'EVENT')) {
-      const id = event.attrs.eventid;
+      const id = event.attrs.eventid === undefined ? undefined : spaces(event.attrs.eventid);
       if (id === undefined || events.has(id)) return bad();
       const style = only(event, 'SWIMSTYLE').attrs;
       const stroke = style.stroke !== undefined && Object.hasOwn(STROKES, style.stroke) ? STROKES[style.stroke] : null;
       const distance = `${style.distance}m`;
       const individual = (style.relaycount ?? '1') === '1';
       const fullSwim = (style.technique ?? '') === ''; // KICK, PULL, DRILL, REGULAR or any other value is not a full swim
-      events.set(id, individual && fullSwim && stroke && isDistance(distance) ? { swumOn, stroke, distance } : 'skipped');
+      events.set(id, individual && fullSwim && stroke && pool && isDistance(distance) ? { swumOn, stroke, distance, pool } : 'skipped');
     }
   }
   return events;
@@ -82,7 +86,6 @@ export function searchLenex(text: string, tournament: string, identityNumber: st
   const root = parseXml(text);
   if (root.name !== 'LENEX') bad();
   const meet = only(only(root, 'MEETS'), 'MEET');
-  const pool = isPool(meet.attrs.course) ? (meet.attrs.course as PoolCode) : bad();
   const competition = spaces(meet.attrs.name ?? '') || null;
   const events = readEvents(meet);
 
@@ -94,38 +97,40 @@ export function searchLenex(text: string, tournament: string, identityNumber: st
   }
   const matches: { athlete: XmlNode; club: XmlNode }[] = [];
   let unreadable = false;
+  // No license is no claim of identity (many minors have none), so that athlete cannot be the person: left out in both paths.
+  // A license that is there but unreadable may be the person written badly: doubt, so "unavailable" in both paths.
   for (const club of kids(only(meet, 'CLUBS'), 'CLUB')) {
     for (const athlete of childrenOf(club, 'ATHLETES').filter((child) => child.name === 'ATHLETE')) {
+      const license = spaces(athlete.attrs.license ?? '');
+      if (license === '') continue;
       try {
-        if (normalizeNumber(athlete.attrs.license ?? '') === wanted) matches.push({ athlete, club });
+        if (normalizeNumber(license) === wanted) matches.push({ athlete, club });
       } catch {
-        unreadable = true; // No readable license: it may be the person.
+        unreadable = true;
       }
     }
   }
+  if (unreadable) throw new ProviderUnavailableError('The tournament file has participants with an unreadable license, so the person cannot be ruled out');
   if (matches.length > 1) bad(); // The license names two people: the identity is ambiguous.
-  if (matches.length === 0) {
-    // Whoever has no readable license may be the person: "no matches" would be a guess (same rule as the federation, #830).
-    if (unreadable) throw new ProviderUnavailableError('The tournament file has participants without a readable license, so the person cannot be ruled out');
-    return { found: false };
-  }
+  if (matches.length === 0) return { found: false };
 
   const { athlete, club } = matches[0];
   const name = spaces(`${athlete.attrs.firstname ?? ''} ${athlete.attrs.lastname ?? ''}`) || bad();
   const results = new Map<string, NormalizedResult>();
   for (const result of childrenOf(athlete, 'RESULTS').filter((child) => child.name === 'RESULT')) {
-    const { eventid, resultid } = result.attrs;
-    const event = eventid === undefined ? undefined : events.get(eventid);
-    if (!event || resultid === undefined) return bad();
+    const event = result.attrs.eventid === undefined ? undefined : events.get(spaces(result.attrs.eventid));
+    if (!event || result.attrs.resultid === undefined) return bad();
     if (event === 'skipped') continue;
-    if (!PLAIN_ID.test(eventid as string) || !PLAIN_ID.test(resultid)) return bad();
+    const eventid = spaces(result.attrs.eventid as string);
+    const resultid = spaces(result.attrs.resultid);
+    if (!PLAIN_ID.test(eventid) || !PLAIN_ID.test(resultid)) continue; // only this row is left out: its id cannot go into a key
     const sourceResultKey = `${tournament}|${eventid}|${resultid}`;
     if (results.has(sourceResultKey)) return bad();
-    if ([tournament, eventid, resultid].some((segment) => isNumber(segment as string, wanted))) {
+    if ([tournament, eventid, resultid].some((segment) => isNumber(segment, wanted))) {
       throw new ProviderUnavailableError('A result key of the tournament file would be the identity number');
     }
     const hundredths = result.attrs.status ? null : parseTime(result.attrs.swimtime);
-    results.set(sourceResultKey, { sourceResultKey, stroke: event.stroke, distance: event.distance, pool, hundredths, swumOn: event.swumOn, competition });
+    results.set(sourceResultKey, { sourceResultKey, stroke: event.stroke, distance: event.distance, pool: event.pool, hundredths, swumOn: event.swumOn, competition });
   }
   return { found: true, athlete: { name, club: spaces(club.attrs.name ?? '') || null }, results: [...results.values()] };
 }
