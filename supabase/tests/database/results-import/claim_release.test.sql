@@ -36,18 +36,18 @@ $$;
 create function pg_temp.claim_into(tag text) returns void language sql as $$
   select set_config('app.' || tag || '_retry', coalesce(c.retry_at::text, 'null'), true),
          set_config('app.' || tag || '_at', coalesce(c.claimed_at::text, 'null'), true)
-  from public.results_import_claim_query('88800000-0000-4000-8000-0000000000e1', 'zz-test', '88800000-0000-4000-8000-0000000000a1', interval '1 hour') c;
+  from public.results_import_claim_query('88800000-0000-4000-8000-0000000000e1', '88800000-0000-4000-8000-0000000000a1', interval '1 hour') c;
 $$;
 create function pg_temp.results_claim_into(tag text) returns void language sql as $$
   select set_config('app.' || tag || '_retry', coalesce(c.retry_at::text, 'null'), true),
          set_config('app.' || tag || '_at', coalesce(c.claimed_at::text, 'null'), true)
-  from public.results_import_claim_results_query('88800000-0000-4000-8000-0000000000e1', 'zz-test', '88800000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes') c;
+  from public.results_import_claim_results_query('88800000-0000-4000-8000-0000000000e1', '88800000-0000-4000-8000-0000000000a1', interval '1 hour', interval '15 minutes') c;
 $$;
 create function pg_temp.got(name text) returns timestamptz language sql as $$
   select nullif(current_setting('app.' || name), 'null')::timestamptz;
 $$;
 create function pg_temp.release(at timestamptz) returns boolean language sql as $$
-  select public.results_import_release_claim('88800000-0000-4000-8000-0000000000e1', 'zz-test', at, interval '1 hour', interval '1 minute');
+  select public.results_import_release_claim('88800000-0000-4000-8000-0000000000e1', at, interval '1 hour', interval '1 minute');
 $$;
 -- `release_into` keeps the instant just before the release (the failure) in the setting <tag>_from.
 create function pg_temp.release_into(tag text, at timestamptz) returns boolean language sql as $$
@@ -60,12 +60,12 @@ create function pg_temp.short_wait_from(retry timestamptz, tag text) returns boo
 $$;
 
 select ok(
-  not has_function_privilege('authenticated', 'public.results_import_release_claim(uuid, text, timestamptz, interval, interval)', 'execute')
-    and not has_function_privilege('anon', 'public.results_import_release_claim(uuid, text, timestamptz, interval, interval)', 'execute'),
+  not has_function_privilege('authenticated', 'public.results_import_release_claim(uuid, timestamptz, interval, interval)', 'execute')
+    and not has_function_privilege('anon', 'public.results_import_release_claim(uuid, timestamptz, interval, interval)', 'execute'),
   'clients cannot release a claim'
 );
 select ok(
-  has_function_privilege('service_role', 'public.results_import_release_claim(uuid, text, timestamptz, interval, interval)', 'execute'),
+  has_function_privilege('service_role', 'public.results_import_release_claim(uuid, timestamptz, interval, interval)', 'execute'),
   'service_role can'
 );
 
@@ -73,15 +73,15 @@ set local role service_role;
 set local request.jwt.claims = '{"role": "service_role"}';
 
 select throws_ok(
-  $$ select public.results_import_release_claim('88800000-0000-4000-8000-0000000000e1', 'zz-test', now(), interval '1 hour', interval '0 seconds') $$,
+  $$ select public.results_import_release_claim('88800000-0000-4000-8000-0000000000e1', now(), interval '1 hour', interval '0 seconds') $$,
   '22023', null, 'a short wait that is not positive is rejected'
 );
 select throws_ok(
-  $$ select public.results_import_release_claim('88800000-0000-4000-8000-0000000000e1', 'zz-test', now(), interval '1 hour', interval '2 hours') $$,
+  $$ select public.results_import_release_claim('88800000-0000-4000-8000-0000000000e1', now(), interval '1 hour', interval '2 hours') $$,
   '22023', null, 'a short wait longer than the interval is rejected'
 );
 select throws_ok(
-  $$ select public.results_import_release_claim('88800000-0000-4000-8000-0000000000e1', 'zz-test', now(), interval '0 seconds', interval '1 minute') $$,
+  $$ select public.results_import_release_claim('88800000-0000-4000-8000-0000000000e1', now(), interval '0 seconds', interval '1 minute') $$,
   '22023', null, 'an interval that is not positive is rejected'
 );
 
@@ -135,7 +135,7 @@ select is(pg_temp.last_query(), pg_temp.got('d2_at'), 'and the newer claim keeps
 select pg_temp.claim_into('d3');
 select is(pg_temp.got('d3_retry'), pg_temp.got('d2_at') + interval '1 hour', 'and its whole interval');
 select is(
-  public.results_import_release_claim('88800000-0000-4000-8000-0000000000e2', 'zz-test', now(), interval '1 hour', interval '1 minute'),
+  public.results_import_release_claim('88800000-0000-4000-8000-0000000000e2', now(), interval '1 hour', interval '1 minute'),
   false, 'an athlete with no row has nothing to release'
 );
 
