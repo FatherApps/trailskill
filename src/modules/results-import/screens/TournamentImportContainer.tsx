@@ -30,6 +30,8 @@ type Step =
   | { kind: 'candidate'; organizationId: string; candidate: TournamentCandidate }
   | { kind: 'empty' }
   | { kind: 'done'; imported: number }
+  // Confirmed, but saving the offered results failed: retrying repeats only the import.
+  | { kind: 'import_failed'; offered: string[] }
   | { kind: 'rate_limited'; retryAt: string }
   | { kind: 'unauthorized' }
   | { kind: 'unavailable' }
@@ -152,12 +154,16 @@ export function TournamentImportContainer({
       // Only now, after "Is this person?" was answered yes, is anything saved: exactly the results the server offered for this person.
       const offered = confirmed.value.map((result) => result.id);
       if (offered.length === 0) return setStep({ kind: 'done', imported: 0 });
-      const imported = await results.importChosen(athlete.id, offered);
-      if (!imported.ok) return setStep(imported.error.code === 'not_authorized' ? { kind: 'unauthorized' } : { kind: 'unavailable' });
-      setStep({ kind: 'done', imported: imported.value.inserted });
+      await importOffered(offered);
     } finally {
       setConfirmingId(null);
     }
+  }
+
+  async function importOffered(offered: string[]) {
+    const imported = await results.importChosen(athlete.id, offered);
+    if (!imported.ok) return setStep(imported.error.code === 'not_authorized' ? { kind: 'unauthorized' } : { kind: 'import_failed', offered });
+    setStep({ kind: 'done', imported: imported.value.inserted });
   }
 
   const goToStart = () => setStep({ kind: 'start' });
@@ -200,9 +206,11 @@ export function TournamentImportContainer({
           onConfirm: () => void guarded(() => confirm(step.organizationId, step.candidate)),
         };
       case 'empty':
-        return { kind: 'empty', athleteName, sourceName: t('results_import.tournament.generic_source'), onRetry: goToStart };
+        return { kind: 'tournament_empty', athleteName, onRetry: goToStart };
       case 'done':
         return { kind: 'tournament_done', athleteName, imported: step.imported, onDone };
+      case 'import_failed':
+        return { kind: 'tournament_import_failed', onRetry: () => void guarded(() => importOffered(step.offered)) };
       case 'rate_limited':
         return { kind: 'rate_limited', time: formatRetryTime(step.retryAt) };
       case 'unauthorized':

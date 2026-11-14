@@ -152,12 +152,43 @@ describe('TournamentImportContainer', () => {
     expect(s.importChosen).not.toHaveBeenCalled();
   });
 
-  it('tells when the import after the confirmation fails', async () => {
+  it('says the confirmation is saved when the import after it fails, and retries only the import', async () => {
     const s = setup({ importFails: true });
     await searchWith(s);
     await press('Sí, es esta persona');
 
-    expect(await screen.findByText('El origen no está disponible')).toBeOnTheScreen();
+    expect(await screen.findByText('No pudimos importar los resultados')).toBeOnTheScreen();
+    expect(screen.getByText('Tu confirmación ya quedó guardada. Intenta importar de nuevo; no hace falta confirmar otra vez.')).toBeOnTheScreen();
+    expect(screen.queryByText('El origen no está disponible')).toBeNull();
+
+    s.importChosen.mockResolvedValueOnce({ ok: true, value: { importId: 'i1', inserted: 2, duplicates: 0, changes: 0 } });
+    await press('Reintentar importación');
+
+    expect(await screen.findByText('Importamos 2 resultados de Ana. Ya aparecen en su historial.')).toBeOnTheScreen();
+    expect(s.importChosen).toHaveBeenCalledTimes(2);
+    expect(s.importChosen).toHaveBeenLastCalledWith('athlete-1', ['r1', 'r2']);
+    // The confirmation is not asked again.
+    expect(s.search.tournamentConfirmed).toHaveLength(1);
+  });
+
+  it('stays on the retry when the second import fails too', async () => {
+    const s = setup({ importFails: true });
+    await searchWith(s);
+    await press('Sí, es esta persona');
+    await press('Reintentar importación');
+
+    await waitFor(() => expect(s.importChosen).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('No pudimos importar los resultados')).toBeOnTheScreen();
+    expect(s.search.tournamentConfirmed).toHaveLength(1);
+  });
+
+  it('says the tournament offered no results, not that there were no new ones', async () => {
+    const s = setup({ search: { tournamentResults: [] } });
+    await searchWith(s);
+    await press('Sí, es esta persona');
+
+    expect(await screen.findByText('El torneo no ofreció resultados de Ana para importar.')).toBeOnTheScreen();
+    expect(s.importChosen).not.toHaveBeenCalled();
   });
 
   it('says the person is not in the tournament, without confirming or importing', async () => {
@@ -165,6 +196,8 @@ describe('TournamentImportContainer', () => {
     await searchWith(s);
 
     expect(await screen.findByText('No encontramos a nadie')).toBeOnTheScreen();
+    expect(screen.getByText('No hay un historial de Ana en el torneo. Revisa que la dirección sea la del torneo donde compitió.')).toBeOnTheScreen();
+    expect(screen.queryByText(/prueba con el número/)).toBeNull();
     expect(s.search.tournamentConfirmed).toEqual([]);
     expect(s.importChosen).not.toHaveBeenCalled();
   });

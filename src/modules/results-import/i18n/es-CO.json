@@ -136,8 +136,16 @@
       "title": "Importado",
       "message_one": "Importamos {{count}} resultado de {{name}}. Ya aparece en su historial.",
       "message_other": "Importamos {{count}} resultados de {{name}}. Ya aparecen en su historial.",
-      "message_none": "No había resultados nuevos de {{name}} para importar.",
+      "message_none": "El torneo no ofreció resultados de {{name}} para importar.",
       "action": "Listo"
+    },
+    "empty": {
+      "message": "No hay un historial de {{name}} en el torneo. Revisa que la dirección sea la del torneo donde compitió."
+    },
+    "import_failed": {
+      "title": "No pudimos importar los resultados",
+      "message": "Tu confirmación ya quedó guardada. Intenta importar de nuevo; no hace falta confirmar otra vez.",
+      "action": "Reintentar importación"
     },
     "number_label": "Número de identificación"
   }
