@@ -4,7 +4,7 @@ import { namedText, t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { Button, ChipRow, ColorCard, Icon, InitialsDot, LogoSymbol, StateView, SyncStatus, Tag, TimeValue } from '../../../core/ui';
+import { Button, ChipRow, ColorCard, Icon, IconButton, InitialsDot, LogoSymbol, StateView, SyncStatus, Tag, TimeValue } from '../../../core/ui';
 import { useLargeText } from '../components/useLargeText';
 import '../i18n';
 
@@ -38,6 +38,10 @@ export type HomeScreenProps = {
   onSelect: (id: string) => void;
   syncState: RecordSyncState;
   onOpenToday: (athleteId: string) => void;
+  // Opens Ajustes; without it the header has no settings button.
+  onOpenSettings?: () => void;
+  // Opens "Mis tiempos", the guardian's own stopwatch; without it the header has no stopwatch button.
+  onOpenStopwatch?: () => void;
   scrollEnabled?: boolean;
 };
 
@@ -135,7 +139,7 @@ function MarkRow({ mark }: { mark: HomeMark }) {
 }
 
 // Presentational: no network, database or repository; the caller supplies the state and handles the events.
-export function HomeScreen({ view, greetingName = '', athletes, selectedId, onSelect, syncState, onOpenToday, scrollEnabled = true }: HomeScreenProps) {
+export function HomeScreen({ view, greetingName = '', athletes, selectedId, onSelect, syncState, onOpenToday, onOpenSettings, onOpenStopwatch, scrollEnabled = true }: HomeScreenProps) {
   const { colors, space, typography } = useTheme();
   const content = view.kind === 'data' ? view.content : null;
   const empty = content && !content.next && content.marks.length === 0;
@@ -152,6 +156,8 @@ export function HomeScreen({ view, greetingName = '', athletes, selectedId, onSe
           </Text>
         </View>
         <SyncStatus state={syncState} />
+        {onOpenStopwatch && <IconButton icon="timer" label={t('training_plans.home.stopwatch')} onPress={onOpenStopwatch} />}
+        {onOpenSettings && <IconButton icon="settings" label={t('training_plans.home.settings')} onPress={onOpenSettings} />}
       </View>
       {athletes.length > 1 && (
         <ChipRow

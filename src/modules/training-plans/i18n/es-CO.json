@@ -85,6 +85,8 @@
     "list_error_title": "No pudimos cargar los planes"
   },
   "home": {
+    "settings": "Ajustes",
+    "stopwatch": "Mis tiempos",
     "greeting": "Hola, {{name}}",
     "greeting_no_name": "Hola",
     "athlete_picker": "Deportista",

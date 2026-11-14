@@ -9,12 +9,13 @@ import { PowerSyncContext } from '@powersync/react';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { StatusBar, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { i18n } from '../core/i18n';
+import { createSecureStorePreferencesRepository, PreferencesProvider, usePreferences } from '../core/preferences';
 import { SessionProvider, useSession } from '../core/session';
 import { db } from '../core/sync';
 import { ThemeProvider, useTheme } from '../core/theme';
@@ -23,6 +24,13 @@ import { createSecureStoreRegistrationDraftRepository, discardStaleDraft } from 
 SplashScreen.preventAutoHideAsync();
 
 const registrationDrafts = createSecureStoreRegistrationDraftRepository();
+const preferences = createSecureStorePreferencesRepository();
+
+// The palette the person chose in Ajustes; "Sistema" follows the phone.
+function PreferredTheme({ children }: { children: ReactNode }) {
+  const { preferences: chosen } = usePreferences();
+  return <ThemeProvider mode={chosen.themeMode}>{children}</ThemeProvider>;
+}
 
 // Guarded groups redirect on their own when the session changes: no navigation calls in the auth flow.
 // redirectTo is needed for a cold start: without it the guarded "/" is an unmatched route.
@@ -82,13 +90,15 @@ export default function RootLayout() {
 
   return (
     <I18nextProvider i18n={i18n}>
-      <ThemeProvider>
-        <PowerSyncContext.Provider value={db}>
-          <SessionProvider>
-            <SessionGate />
-          </SessionProvider>
-        </PowerSyncContext.Provider>
-      </ThemeProvider>
+      <PreferencesProvider repository={preferences}>
+        <PreferredTheme>
+          <PowerSyncContext.Provider value={db}>
+            <SessionProvider>
+              <SessionGate />
+            </SessionProvider>
+          </PowerSyncContext.Provider>
+        </PreferredTheme>
+      </PreferencesProvider>
     </I18nextProvider>
   );
 }

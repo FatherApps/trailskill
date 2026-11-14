@@ -3,7 +3,7 @@ import { useColorScheme } from 'react-native';
 import type { ReactNode } from 'react';
 
 import { ThemeProvider, useTheme } from '../ThemeProvider';
-import { elevation, typography } from '../tokens';
+import { colors, elevation, typography } from '../tokens';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ default: jest.fn() }));
 
@@ -77,5 +77,37 @@ describe('elevation', () => {
 
   it('differs between themes', () => {
     expect(elevation.light['elevation-1'].shadowColor).not.toBe(elevation.dark['elevation-1'].shadowColor);
+  });
+});
+
+describe('ThemeProvider mode', () => {
+  function withMode(mode: 'system' | 'light' | 'dark' | 'sun') {
+    return function Wrapper({ children }: { children: ReactNode }) {
+      return <ThemeProvider mode={mode}>{children}</ThemeProvider>;
+    };
+  }
+
+  it('follows the system with "system"', async () => {
+    jest.mocked(useColorScheme).mockReturnValue('dark');
+    const { result } = await renderHook(() => useTheme(), { wrapper: withMode('system') });
+    expect(result.current.variant).toBe('dark');
+  });
+
+  it('keeps a fixed light or dark palette whatever the system says', async () => {
+    jest.mocked(useColorScheme).mockReturnValue('dark');
+    const { result } = await renderHook(() => useTheme(), { wrapper: withMode('light') });
+    expect(result.current.name).toBe('light');
+    expect(result.current.colors['surface-0']).toBe('#F4F2EC');
+  });
+
+  it('builds the sun palette on light from design-system values only', async () => {
+    jest.mocked(useColorScheme).mockReturnValue('dark');
+    const { result } = await renderHook(() => useTheme(), { wrapper: withMode('sun') });
+    expect(result.current.name).toBe('light');
+    expect(result.current.variant).toBe('sun');
+    expect(result.current.colors['surface-0']).toBe('#FFFFFF');
+    expect(result.current.colors.border).toBe('#86817A');
+    const known = new Set([...Object.values(colors.light), ...Object.values(colors.dark)]);
+    for (const value of Object.values(result.current.colors)) expect(known.has(value)).toBe(true);
   });
 });

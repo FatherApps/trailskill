@@ -209,6 +209,27 @@ export const AppSchema = new Schema({
     expires_at: column.text,
     revoked_at: column.text,
   }),
+  // Times a guardian or adult athlete measured on their own phone (family-timing module). Local only: never uploaded.
+  family_measurements: new Table(
+    {
+      created_at: column.text,
+      created_by: column.text,
+      athlete_id: column.text,
+      stroke: column.text,
+      distance: column.text,
+      pool: column.text,
+      session_type: column.text,
+      competition: column.text,
+      captured_at: column.text,
+      // Milliseconds; null is a missing time, never 0.
+      millis: column.integer,
+      // JSON array of cumulative split milliseconds.
+      splits: column.text,
+      official_millis: column.integer,
+      official_set_at: column.text,
+    },
+    { localOnly: true, indexes: { athlete: ['athlete_id'] } },
+  ),
   pending_writes: new Table(
     { table_name: column.text, record_id: column.text },
     { localOnly: true, indexes: { record: ['table_name', 'record_id'] } },

@@ -32,6 +32,10 @@ export type HomeContainerProps = {
   synced?: boolean;
   // Opens the plan of the day of an athlete.
   onOpenToday: (athleteId: string) => void;
+  // Opens Ajustes; without it the header has no settings button.
+  onOpenSettings?: () => void;
+  // Opens "Mis tiempos", the guardian's own stopwatch; without it the header has no stopwatch button.
+  onOpenStopwatch?: () => void;
 };
 
 type Next = Pick<HomeNext, 'title'> & { day: string };
@@ -120,7 +124,7 @@ function contentOf(loaded: Loaded, selectedId: string, today: string): HomeConte
 
 // Container: reads the next plan and the marks of the week of the athletes the user manages from the local database.
 export function HomeContainer(props: HomeContainerProps) {
-  const { athletes, greetingName, syncState, onOpenToday } = props;
+  const { athletes, greetingName, syncState, onOpenToday, onOpenSettings, onOpenStopwatch } = props;
   const today = props.day ?? todayText();
   const synced = props.synced ?? true;
   const [chosenId, setChosenId] = useState(ALL_ATHLETES);
@@ -169,6 +173,8 @@ export function HomeContainer(props: HomeContainerProps) {
       onSelect={setChosenId}
       syncState={syncState}
       onOpenToday={onOpenToday}
+      onOpenSettings={onOpenSettings}
+      onOpenStopwatch={onOpenStopwatch}
     />
   );
 }

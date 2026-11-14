@@ -1,6 +1,6 @@
 export { contrastRatio } from './contrast';
 export { darken } from './darken';
-export { ThemeProvider, useTheme, type Theme } from './ThemeProvider';
+export { sunColors, ThemeProvider, useTheme, type Theme, type ThemeMode, type ThemeVariant } from './ThemeProvider';
 export {
   breakpoint,
   colors,

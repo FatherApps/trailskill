@@ -1,4 +1,4 @@
-import { formatTime, hundredthsFromNanos } from '../time';
+import { formatMillis, formatTime, hundredthsFromNanos, millisFromNanos } from '../time';
 
 describe('formatTime', () => {
   it('shows a dash for a missing time, never zero', () => {
@@ -44,5 +44,30 @@ describe('formatTime with alwaysShowMinutes', () => {
 describe('hundredthsFromNanos', () => {
   it('truncates and never rounds up', () => {
     expect(hundredthsFromNanos(339_199_999_999n)).toBe(33919);
+  });
+});
+
+describe('formatMillis', () => {
+  it('shows thousandths when asked', () => {
+    expect(formatMillis(65_372, { precision: 'thousandths' })).toBe('1:05,372');
+    expect(formatMillis(9_005, { precision: 'thousandths' })).toBe('9,005');
+  });
+
+  it('truncates to hundredths by default, never rounding up', () => {
+    expect(formatMillis(65_379)).toBe('1:05,37');
+  });
+
+  it('keeps a missing time as a dash', () => {
+    expect(formatMillis(null, { precision: 'thousandths' })).toBe('—');
+  });
+
+  it('uses the chosen separator', () => {
+    expect(formatMillis(42_710, { precision: 'thousandths', decimalSeparator: '.' })).toBe('42.710');
+  });
+});
+
+describe('millisFromNanos', () => {
+  it('truncates', () => {
+    expect(millisFromNanos(1_999_999n)).toBe(1);
   });
 });
