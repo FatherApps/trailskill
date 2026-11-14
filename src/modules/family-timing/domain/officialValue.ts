@@ -22,7 +22,7 @@ export type OfficialValue =
  * The official value of a guardian's measurement:
  * - training never has one, and its captured time stays as it is;
  * - a competition takes the imported official result of the same event (stroke, distance, pool) swum the same local day, which wins
- *   over a hand-typed official time; with several that day (heats and finals) the one closest to the captured time is chosen;
+ *   over a hand-typed official time; with several that day (heats and finals) the one closest to the hand-typed official time, if any, and otherwise to the captured time, is chosen;
  * - otherwise the hand-typed official time, if any.
  * With an official value the captured competition time is history, never official.
  */
