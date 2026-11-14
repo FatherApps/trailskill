@@ -36,7 +36,10 @@
       "save": "Guardar",
       "discard": "Descartar",
       "split_row": "Parcial {{number}} · {{time}}",
-      "no_time": "El tiempo quedó sin valor: detuviste en el mismo instante de la salida."
+      "no_time": "El tiempo quedó sin valor: detuviste en el mismo instante de la salida.",
+      "buttons": "{{start}} inicia y detiene · {{split}} marca parcial",
+      "buttons_start_only": "{{start}} inicia y detiene",
+      "buttons_device": "Botones: {{device}}"
     },
     "card": {
       "captured": "Medido",

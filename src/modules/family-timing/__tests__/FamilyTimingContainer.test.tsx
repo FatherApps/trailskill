@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
-import { createInMemoryPreferencesRepository, PreferencesProvider } from '../../../core/preferences';
+import { createInMemoryPreferencesRepository, defaultPreferences, PreferencesProvider } from '../../../core/preferences';
+import { createFakeTimingButton } from '../../timing';
 import { createInMemoryFamilyMeasurementRepository, type FamilyMeasurement } from '../data/familyMeasurements';
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
@@ -9,6 +10,8 @@ jest.mock('expo-crypto', () => {
   let n = 0;
   return { randomUUID: () => `id-${++n}` };
 });
+
+const ms = (n: number) => BigInt(n) * 1_000_000n;
 
 const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }];
 
@@ -33,7 +36,7 @@ async function setup(initial: FamilyMeasurement[] = [], precision: 'hundredths' 
   let now = 0n;
   const clock = { set: (ms: number) => (now = BigInt(ms) * 1_000_000n) };
   await render(
-    <PreferencesProvider repository={createInMemoryPreferencesRepository({ themeMode: 'system', timePrecision: precision })}>
+    <PreferencesProvider repository={createInMemoryPreferencesRepository({ ...defaultPreferences, timePrecision: precision })}>
       <FamilyTimingContainer userId="u1" athletes={athletes} repository={repository} onBack={jest.fn()} now={() => now} />
     </PreferencesProvider>,
   );
@@ -95,7 +98,7 @@ describe('FamilyTimingContainer with imported results', () => {
       listByAthlete: async () => [{ id: 'r1', provider: 'co-fecna', stroke: 'FL', distance: '50m', pool: 'SCM', hundredths: 4271, swumOn: '2026-11-08' }],
     };
     await render(
-      <PreferencesProvider repository={createInMemoryPreferencesRepository({ themeMode: 'system', timePrecision: 'thousandths' })}>
+      <PreferencesProvider repository={createInMemoryPreferencesRepository({ ...defaultPreferences, timePrecision: 'thousandths' })}>
         <FamilyTimingContainer userId="u1" athletes={athletes} repository={repository} imports={imports} sourceNames={{ 'co-fecna': 'Federación de prueba' }} onBack={jest.fn()} />
       </PreferencesProvider>,
     );
@@ -117,5 +120,64 @@ describe('FamilyTimingContainer with imported results', () => {
       </PreferencesProvider>,
     );
     expect(await screen.findByText('Poner tiempo oficial')).toBeTruthy();
+  });
+});
+
+describe('FamilyTimingContainer with the timing buttons', () => {
+  async function withButtons(timingButtons = defaultPreferences.timingButtons) {
+    const fake = createFakeTimingButton(ms(10_000));
+    const repository = createInMemoryFamilyMeasurementRepository();
+    await render(
+      <PreferencesProvider repository={createInMemoryPreferencesRepository({ ...defaultPreferences, timePrecision: 'thousandths', timingButtons })}>
+        <FamilyTimingContainer userId="u1" athletes={athletes} repository={repository} buttons={fake.port} onBack={jest.fn()} />
+      </PreferencesProvider>,
+    );
+    await fireEvent.press(await screen.findByText('Medir un tiempo'));
+    await fireEvent.press(screen.getByText('Ir al cronómetro'));
+    const press = (keyCode: number) => act(async () => void fake.press(keyCode));
+    return { fake, repository, press };
+  }
+
+  it('times with + and −: start, split, a press during the lockout, stop', async () => {
+    const { fake, repository, press } = await withButtons();
+    expect(fake.mode).toBe('capture');
+    expect(fake.keys).toEqual([24, 25]);
+    expect(screen.getByText('Subir volumen (+) inicia y detiene · Bajar volumen (−) marca parcial')).toBeTruthy();
+
+    await press(24);
+    fake.advance(ms(1_000));
+    await press(24); // inside the 3 s lockout: ignored
+    fake.advance(ms(14_500));
+    await press(25);
+    fake.advance(ms(16_123));
+    await press(24);
+
+    expect(screen.getByText('Parcial 1 · 15,500')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Guardar'));
+    await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]).toMatchObject({ millis: 31_623, splits: [15_500] }));
+    // Back on the list, the keys go back to the system.
+    expect(fake.mode).toBe('off');
+  });
+
+  it('mixes a screen touch and a key press on the same clock', async () => {
+    const { fake, repository, press } = await withButtons();
+    await fireEvent.press(screen.getByText('Iniciar'));
+    fake.advance(ms(42_710));
+    await press(24);
+    await fireEvent.press(screen.getByText('Guardar'));
+    await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]?.millis).toBe(42_710));
+  });
+
+  it('leaves the keys alone when the buttons are off', async () => {
+    const { fake } = await withButtons({ ...defaultPreferences.timingButtons, enabled: false });
+    expect(fake.mode).toBe('off');
+    expect(fake.press(24)).toBe(false);
+    expect(screen.queryByText(/inicia y detiene/)).toBeNull();
+  });
+
+  it('names the connected headset', async () => {
+    const { fake } = await withButtons();
+    await act(async () => fake.connect([{ id: 7, name: 'USB Headset' }]));
+    expect(screen.getByText('Botones: USB Headset · Subir volumen (+) inicia y detiene · Bajar volumen (−) marca parcial')).toBeTruthy();
   });
 });

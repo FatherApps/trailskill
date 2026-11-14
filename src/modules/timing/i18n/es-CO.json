@@ -176,6 +176,22 @@
       "failure_resolved": "Otra persona ya resolvió este conflicto. Recarga la lista.",
       "failure_forbidden": "Tu cuenta no puede resolver conflictos.",
       "failure_failed": "No pudimos resolver el conflicto. Inténtalo de nuevo."
+    },
+    "button": {
+      "key": {
+        "24": "Subir volumen (+)",
+        "25": "Bajar volumen (−)",
+        "164": "Silenciar",
+        "79": "Botón del auricular",
+        "85": "Reproducir o pausar",
+        "87": "Siguiente",
+        "88": "Anterior",
+        "66": "Enter",
+        "62": "Espacio",
+        "92": "Página arriba",
+        "93": "Página abajo",
+        "other": "Tecla {{code}}"
+      }
     }
   }
 }

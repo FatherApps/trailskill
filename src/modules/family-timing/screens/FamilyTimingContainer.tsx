@@ -7,6 +7,7 @@ import { usePreferences } from '../../../core/preferences';
 import { distances, pools, strokes, type DistanceCode, type PoolCode, type StrokeCode } from '../../../core/sport';
 import { formatMillis, formatTime } from '../../../core/time';
 import { athleteDisplay, formatDate, type SchoolAthlete } from '../../athletes';
+import { keyName, nanosFromSeconds, timingButton, useTimingButtons, type ButtonTarget, type TimingButtonPort } from '../../timing';
 import type { FamilyMeasurement, FamilyMeasurementRepository, FamilySessionType } from '../data/familyMeasurements';
 import {
   elapsedMillisAt,
@@ -24,7 +25,6 @@ import { parseTimeEntry } from '../domain/timeEntry';
 import { FamilyTimingScreen, type FamilyCard, type FamilyTimingView } from './FamilyTimingScreen';
 import '../i18n';
 
-const clock = () => BigInt(Math.round(performance.now() * 1e6));
 const KEEP_AWAKE_TAG = 'family-timing';
 
 export type FamilyTimingContainerProps = {
@@ -36,9 +36,13 @@ export type FamilyTimingContainerProps = {
   imports?: { listByAthlete(athleteId: string): Promise<OfficialImport[]> };
   // Organization names by provider, from data; without one the official tag is generic.
   sourceNames?: Record<string, string>;
-  // Injected by tests; the device clock otherwise.
+  // The headset or volume keys (Ajustes, "Botones para cronometrar"); injected by tests.
+  buttons?: TimingButtonPort;
+  // Injected by tests; otherwise the buttons' clock, so a touch and a key press share one time base.
   now?: () => bigint;
 };
+
+const targetOf = (sw: FamilyStopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
 
 type Setup = { stroke: StrokeCode; distance: DistanceCode; pool: PoolCode; sessionType: FamilySessionType; competition: string };
 const initialSetup: Setup = { stroke: strokes[0].code, distance: distances[1].code, pool: pools[0].code, sessionType: 'training', competition: '' };
@@ -55,12 +59,23 @@ type Loaded =
   | { status: 'error'; key: string }
   | { status: 'ready'; key: string; measurements: FamilyMeasurement[]; imported: OfficialImport[] };
 
+function buttonsHint(startKey: number, splitKey: number, keyboard: string | undefined) {
+  const keysLine =
+    startKey === splitKey
+      ? t('family_timing.stopwatch.buttons_start_only', { start: keyName(startKey) })
+      : t('family_timing.stopwatch.buttons', { start: keyName(startKey), split: keyName(splitKey) });
+  return keyboard ? `${t('family_timing.stopwatch.buttons_device', { device: keyboard })} · ${keysLine}` : keysLine;
+}
+
 const eventLabel = (m: { stroke: string; distance: string; pool: string }) =>
   `${t(`sport.stroke.${m.stroke}`)} ${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
 
 // Container: reads and writes the guardian's own times on this phone, and runs the stopwatch.
-export function FamilyTimingContainer({ userId, athletes, repository, onBack, imports, sourceNames = {}, now = clock }: FamilyTimingContainerProps) {
+export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
+  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton } = props;
+  const now = props.now ?? buttons.now;
   const { preferences } = usePreferences();
+  const buttonPrefs = preferences.timingButtons;
   const precision = preferences.timePrecision;
   const format = useCallback((millis: number | null) => formatMillis(millis, { precision }), [precision]);
 
@@ -75,6 +90,24 @@ export function FamilyTimingContainer({ userId, athletes, repository, onBack, im
   const [stopwatch, setStopwatch] = useState<FamilyStopwatch>(idleFamilyStopwatch);
   const [tick, setTick] = useState(0);
   const saving = useRef(false);
+
+  // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
+  const latestStopwatch = useRef(stopwatch);
+  useEffect(() => {
+    latestStopwatch.current = stopwatch;
+  });
+  const keys = useTimingButtons({
+    enabled: buttonPrefs.enabled && step.kind === 'stopwatch',
+    config: { startKey: buttonPrefs.startKey, splitKey: buttonPrefs.splitKey, lockoutNanos: nanosFromSeconds(buttonPrefs.lockoutSeconds) },
+    target: () => targetOf(latestStopwatch.current),
+    vibrate: buttonPrefs.vibrate,
+    port: buttons,
+    onAction: (action, at) => {
+      const next = action === 'start' ? startAt : action === 'split' ? splitAt : stopAt;
+      latestStopwatch.current = next(latestStopwatch.current, at);
+      setStopwatch(latestStopwatch.current);
+    },
+  });
 
   useEffect(() => {
     if (!selectedId) return;
@@ -208,6 +241,7 @@ export function FamilyTimingContainer({ userId, athletes, repository, onBack, im
         splits: splitMillis(stopwatch).map(format),
         event: eventLabel(setup),
         noTime: stopwatch.status === 'stopped' && finalMillis(stopwatch) === null,
+        buttonsHint: keys.active ? buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keys.keyboards[0]?.name) : null,
       },
     };
   } else if (step.kind === 'official') {
