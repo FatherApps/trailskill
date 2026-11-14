@@ -102,7 +102,12 @@ export function RecordTable({ rows, pool, compact = false }: RecordTableProps) {
   // accompanies the name (the row label already says it), so it is decorative.
   const eventName = (row: RecordRow, groupStyle: object[]) => (
     <View style={[...groupStyle, { minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space[2] }]}>
-      {row.stroke ? <StrokeIcon stroke={row.stroke} size="sm" decorative /> : null}
+      {row.stroke ? (
+        // The icon box (32) is taller than the name line (24): the slot keeps the line's height so the row does not grow.
+        <View style={{ height: typography['body-strong'].lineHeight, justifyContent: 'center' }}>
+          <StrokeIcon stroke={row.stroke} size="sm" decorative />
+        </View>
+      ) : null}
       <Text style={[typography['body-strong'], text, { flexShrink: 1, minWidth: 0 }]}>{row.event}</Text>
     </View>
   );

@@ -3,6 +3,7 @@ import { Dimensions, StyleSheet } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../../core/theme';
+import { box, group, pathData, signature, slot, svgs } from '../../../core/ui/testing/strokeIconQueries';
 import { longTextRecordFixture, recordsFixture } from '../__fixtures__/records';
 import { RecordTable, recordTableColors, type RecordTableProps } from '../components/RecordTable';
 
@@ -152,14 +153,6 @@ describe('RecordTable', () => {
   });
 });
 
-
-const svgs = () => screen.container.queryAll((node) => node.type === 'RNSVGSvgView');
-const pathData = () => screen.container.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d as string);
-// One path that only that stroke draws (as in StrokeIcon.test).
-const signature = { FR: 'M12 17c2-7 8-10 13-6', BK: 'M20 18.5 17 5', FL: 'M13.5 17C10.5 6 4.5 4 3 11M18.5 17C21.5 6 27.5 4 29 11' };
-// The icon is the Svg's parent box; it is decorative when hidden from screen readers.
-const box = (svg: { parent: unknown }) => svg.parent as { props: Record<string, unknown>; parent: { children: unknown[] } };
-
 describe('RecordTable stroke icon', () => {
   const struck = [
     { id: 's1', pool: 'SCM', event: 'Libre 50', stroke: 'FR', time: 3391, athlete: 'Mateo Castro', date: '2026-10-18' },
@@ -187,10 +180,9 @@ describe('RecordTable stroke icon', () => {
     await show({ rows: [struck[0]] });
     measure(width);
 
-    // The icon is the first child of the name's group and the name the second: an icon after the name, or none, fails.
-    const group = box(svgs()[0]).parent;
-    expect(group.children.indexOf(box(svgs()[0]))).toBe(0);
-    expect(group.children.indexOf(screen.getByText('Libre 50', hidden))).toBe(1);
+    // The icon slot is the first child of the name's group and the name the second: an icon after the name, or none, fails.
+    expect(group(svgs()[0]).children.indexOf(slot(svgs()[0]))).toBe(0);
+    expect(group(svgs()[0]).children.indexOf(screen.getByText('Libre 50', hidden))).toBe(1);
   });
 
   it('draws no icon for a row without a stroke', async () => {
@@ -237,8 +229,11 @@ describe('RecordTable stroke icon', () => {
       expect(flat(withIcon)).toEqual(flat(without));
       expect(flat(withIcon.parent as never)).toEqual(flat(without.parent as never));
       expect(withIcon.parent?.type).toBe(without.parent?.type);
-      // Only the row with a stroke has the 24 icon (the source tags draw their own small icon).
-      expect(svgs().filter((svg) => svg.props.width === 24)).toHaveLength(1);
+      // Only the row with a stroke has the 24 icon (the source tags draw their own small icon). Its slot is as tall as the
+      // name line (24), so the icon (box 32) does not make the row taller than the one without an icon.
+      const icons = svgs().filter((svg) => svg.props.width === 24);
+      expect(icons).toHaveLength(1);
+      expect(flat(slot(icons[0]))).toMatchObject({ height: 24, justifyContent: 'center' });
     });
   });
 
