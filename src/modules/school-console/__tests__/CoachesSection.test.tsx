@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
-import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
+import { createInMemoryAdultDirectoryRepository, createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository } from '../../athletes';
 import { ThemeProvider } from '../../../core/theme';
 import { createInMemoryCoachInvitationRepository } from '../data/coachInvitations';
@@ -114,6 +114,21 @@ const rows = async () => {
 };
 
 describe('CoachesSection', () => {
+  it('shows the profile name and initials of a coach, and Sin dato only for the coaches without a profile', async () => {
+    const adults = createInMemoryAdultDirectoryRepository({ profiles: [{ userId: 'coach-1', firstName: 'Carla', lastName: 'Entrena', contactEmail: 'carla@example.test' }] });
+    await show(createInMemoryCoachRepository([
+      { schoolId: 'school-a', userId: 'coach-1', role: 'coach' },
+      { schoolId: 'school-a', userId: 'coach-2', role: 'coach' },
+    ], adults));
+
+    expect(await rows()).toHaveLength(2);
+    expect(screen.getByText('Carla Entrena')).toBeOnTheScreen();
+    expect(screen.getByText('CE', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getAllByText('Sin dato')).toHaveLength(1);
+    // The coach list never shows contact.
+    expect(screen.queryByText(/carla@example.test/, { includeHiddenElements: true })).toBeNull();
+  });
+
   it('lists the coaches of the school with Sin dato as name, their groups and their athletes, and no other school or admin', async () => {
     await show(coachRepository());
 
@@ -411,15 +426,31 @@ describe('CoachesSection', () => {
     expect(invitations.sent).toEqual([{ schoolId: 'school-a', invitation: { name: 'Rosa', email: 'rosa@example.com', groupIds: ['g2'] } }]);
   });
 
-  it('shows Invitar disabled as Próximamente, and opens nothing, while there is no invitations repository', async () => {
-    await show(coachRepository(), { invitations: undefined });
+  it('shows Invitar disabled as Sin conexión, and opens nothing, while the device is offline', async () => {
+    await show(coachRepository(), { connection: 'offline' });
     await rows();
 
-    const invite = screen.getByRole('button', { name: 'Invitar entrenador · Próximamente' });
+    const invite = screen.getByRole('button', { name: 'Invitar entrenador · Sin conexión' });
     expect(invite).toBeDisabled();
     await fireEvent.press(invite);
 
     expect(screen.queryByTestId('side-sheet')).toBeNull();
+  });
+
+  it('does not call the invitations repository for an invalid email', async () => {
+    const invite = jest.fn().mockResolvedValue(undefined);
+    await show(coachRepository(), { invitations: { invite } });
+    await rows();
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa');
+    await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@');
+
+    const send = screen.getByRole('button', { name: 'Enviar invitación · Escribe el nombre y un correo válido' });
+    expect(send).toBeDisabled();
+    await fireEvent.press(send);
+
+    expect(invite).not.toHaveBeenCalled();
+    expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
   });
 
   it('keeps Desactivar disabled until issue 220', async () => {

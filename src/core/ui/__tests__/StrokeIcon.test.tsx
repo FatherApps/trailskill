@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react-native';
 import { colors, radius, ThemeProvider, type ColorToken, type ThemeName } from '../../theme';
 import type { StrokeCode } from '../../sport';
 import { StrokeIcon } from '..';
+import { signature } from '../testing/strokeIconQueries';
 
 const themes: ThemeName[] = ['light', 'dark'];
 
@@ -18,13 +19,6 @@ const inkOf = (node: { props: { stroke?: { payload: unknown }; fill?: { payload:
   node.props.fill?.payload,
 ];
 
-// One stroke of each glyph that no other glyph draws.
-const signature: Record<string, string> = {
-  FR: 'M12 17c2-7 8-10 13-6',
-  BK: 'M20 18.5 17 5',
-  BR: 'M13 19c-3-2-6-1.5-8 1M19 19c3-2 6-1.5 8 1',
-  FL: 'M13.5 17C10.5 6 4.5 4 3 11M18.5 17C21.5 6 27.5 4 29 11',
-};
 const label: Record<string, string> = { FR: 'Libre', BK: 'Espalda', BR: 'Pecho', FL: 'Mariposa', IM: 'Combinado' };
 const fixedColors = ['lilac', 'coral', 'sky', 'lime'] as const;
 

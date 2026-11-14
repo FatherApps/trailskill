@@ -4,6 +4,7 @@ import { Dimensions, Pressable, processColor, StyleSheet, Text } from 'react-nat
 import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../theme';
 import { iconPaths } from '../icons';
 import { SwimmerRow, swimmerRowColors, type SwimmerRowProps } from '../SwimmerRow';
+import { box, group, pathData, signature, slot, svgs } from '../testing/strokeIconQueries';
 
 const themes: ThemeName[] = ['light', 'dark'];
 const athleteColors = ['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4'] as const;
@@ -568,7 +569,8 @@ describe('SwimmerRow status column width', () => {
     await render(<SwimmerRow {...timed} time={3522} status={<Text>Estado</Text>} />);
 
     expect(statusColumn()).toMatchObject({ maxWidth: '50%', flexShrink: 0 });
-    const name = screen.getByText('Lucía R.', { includeHiddenElements: true }).parent!;
+    // The name block is the parent of the name's group.
+    const name = screen.getByText('Lucía R.', { includeHiddenElements: true }).parent!.parent!;
     expect(StyleSheet.flatten(name.props.style as never)).toMatchObject({ flex: 1, minWidth: 0 });
   });
 
@@ -689,16 +691,9 @@ describe('SwimmerRow focus ring', () => {
   });
 });
 
-
-const svgs = () => screen.container.queryAll((node) => node.type === 'RNSVGSvgView');
-const pathData = () => screen.container.queryAll((node) => node.type === 'RNSVGPath').map((node) => node.props.d as string);
-// One path that only that stroke draws (as in StrokeIcon.test).
-const signature = { FR: 'M12 17c2-7 8-10 13-6', BK: 'M20 18.5 17 5', FL: 'M13.5 17C10.5 6 4.5 4 3 11M18.5 17C21.5 6 27.5 4 29 11' };
-// The icon is the Svg's parent box; it is decorative when hidden from screen readers.
-const box = (svg: { parent: unknown }) => svg.parent as { props: Record<string, unknown>; parent: { children: unknown[] } };
-
 describe('SwimmerRow stroke', () => {
   const hidden = { includeHiddenElements: true };
+  const flat = (node: { props: { style?: unknown } }) => StyleSheet.flatten(node.props.style as never);
 
   it('draws a decorative sm StrokeIcon of that stroke before the name', async () => {
     await render(<SwimmerRow {...base} stroke="BK" />);
@@ -707,25 +702,44 @@ describe('SwimmerRow stroke', () => {
     expect(svgs()[0].props.width).toBe(24);
     expect(box(svgs()[0]).props.accessibilityElementsHidden).toBe(true);
     expect(pathData()).toContain(signature.BK);
-    const group = box(svgs()[0]).parent;
-    expect(group.children.indexOf(box(svgs()[0]) as never)).toBeLessThan(group.children.indexOf(screen.getByText('Lucía R.', hidden) as never));
+    // The icon slot is the first child of the name's group and the name the second: an icon after the name fails.
+    expect(group(svgs()[0]).children.indexOf(slot(svgs()[0]))).toBe(0);
+    expect(group(svgs()[0]).children.indexOf(screen.getByText('Lucía R.', hidden))).toBe(1);
   });
 
-  it('draws no icon without stroke and keeps the name block as it was: the name and the detail, nothing else', async () => {
+  it('draws the name from one Text with the same style with and without stroke', async () => {
+    await render(<SwimmerRow {...base} stroke="FR" />);
+    expect(screen.getAllByText('Lucía R.', hidden)).toHaveLength(1);
+    const withStroke = flat(screen.getByText('Lucía R.', hidden));
+    await screen.unmount();
+
+    await render(<SwimmerRow {...base} />);
+    expect(screen.getAllByText('Lucía R.', hidden)).toHaveLength(1);
+    expect(flat(screen.getByText('Lucía R.', hidden))).toEqual(withStroke);
+    expect(withStroke).toMatchObject({ fontSize: 16, lineHeight: 24 });
+  });
+
+  it('draws no icon without stroke and keeps the name block as it was: the name group and the detail, nothing else', async () => {
     await render(<SwimmerRow {...base} />);
 
     expect(svgs()).toHaveLength(0);
-    const block = screen.getByText('Lucía R.', hidden).parent!;
-    expect(block.children).toHaveLength(2);
-    expect(StyleSheet.flatten(screen.getByText('Lucía R.', hidden).props.style)).not.toHaveProperty('flexShrink');
+    const nameGroup = screen.getByText('Lucía R.', hidden).parent!;
+    expect(nameGroup.children).toHaveLength(1);
+    expect(nameGroup.parent!.children).toHaveLength(2);
   });
 
-  it('says the stroke once in the composed label while the icon stays decorative', async () => {
+  it('says the stroke once in the label, as its own word, while the icon stays decorative', async () => {
     await render(<SwimmerRow {...base} stroke="FL" />);
 
-    expect(screen.getByLabelText('Lucía R., Infantil B, Mariposa, marca personal 34,82, MP 50 L')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Lucía R., Infantil B, prueba Mariposa, marca personal 34,82, MP 50 L')).toBeOnTheScreen();
     expect(screen.queryByRole('image')).toBeNull();
     expect(box(svgs()[0]).props.accessibilityElementsHidden).toBe(true);
+  });
+
+  it('does not say the stroke twice when the caption of the best time already names it', async () => {
+    await render(<SwimmerRow {...base} stroke="FL" bestTimeLabel="MP Mariposa 50" />);
+
+    expect(screen.getByLabelText('Lucía R., Infantil B, marca personal 34,82, MP Mariposa 50')).toBeOnTheScreen();
   });
 
   it('leaves the label as it was without stroke', async () => {
@@ -734,11 +748,26 @@ describe('SwimmerRow stroke', () => {
     expect(screen.getByLabelText('Lucía R., Infantil B, marca personal 34,82, MP 50 L')).toBeOnTheScreen();
   });
 
-  it('keeps the name shrinkable next to the icon at 200 % text', async () => {
-    setOsFontScale(2);
-    await render(<SwimmerRow {...base} stroke="FR" />);
+  describe('at 200 % text', () => {
+    it('lets a long name wrap inside its column: the name and its group shrink from zero', async () => {
+      setOsFontScale(2);
+      await render(<SwimmerRow {...base} name="María Fernanda de los Ángeles" stroke="IM" />);
 
-    expect(StyleSheet.flatten(screen.getByText('Lucía R.', hidden).props.style)).toMatchObject({ flexShrink: 1 });
-    expect(svgs()).toHaveLength(1);
+      const name = screen.getByText('María Fernanda de los Ángeles', hidden);
+      expect(flat(name)).toMatchObject({ flexShrink: 1, minWidth: 0 });
+      expect(flat(name.parent!)).toMatchObject({ minWidth: 0, flexShrink: 1 });
+    });
+
+    it('starts the row with and without icon from the same height: the icon sits in a slot as tall as the name line', async () => {
+      setOsFontScale(2);
+      await render(<SwimmerRow {...base} name="María Fernanda" stroke="IM" />);
+      const withIcon = screen.getByText('María Fernanda', hidden).parent!;
+      expect(flat(slot(svgs()[0]))).toMatchObject({ height: 24, justifyContent: 'center' });
+      const iconGroupStyle = flat(withIcon);
+      await screen.unmount();
+
+      await render(<SwimmerRow {...base} name="María Fernanda" />);
+      expect(flat(screen.getByText('María Fernanda', hidden).parent!)).toEqual(iconGroupStyle);
+    });
   });
 });

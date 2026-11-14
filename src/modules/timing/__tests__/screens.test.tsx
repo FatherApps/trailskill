@@ -278,9 +278,9 @@ describe('TimingSetupScreen', () => {
     await renderSetup();
 
     expect(screen.getByText('Nadadores (3 de 12)')).toBeOnTheScreen();
-    expect(screen.getByLabelText('1 · Mateo C., MP 34,82, Libre')).toBeOnTheScreen();
-    expect(screen.getByLabelText('2 · Lucía R., MP 34,82, Libre')).toBeOnTheScreen();
-    expect(screen.getByLabelText('3 · Sara P., MP —, Libre')).toBeOnTheScreen();
+    expect(screen.getByLabelText('1 · Mateo C., MP 34,82, prueba Libre')).toBeOnTheScreen();
+    expect(screen.getByLabelText('2 · Lucía R., MP 34,82, prueba Libre')).toBeOnTheScreen();
+    expect(screen.getByLabelText('3 · Sara P., MP —, prueba Libre')).toBeOnTheScreen();
     const tree = JSON.stringify(screen.toJSON());
     const at = (text: string) => tree.indexOf(text);
     expect(at('Cronómetro externo')).toBeLessThan(at('Nadadores (3 de 12)'));
@@ -300,7 +300,7 @@ describe('TimingSetupScreen', () => {
 
       expect(svgs()).toHaveLength(3);
       expect(paths()).toContain(backstroke);
-      expect(screen.getByLabelText('1 · Mateo C., MP 34,82, Espalda')).toBeOnTheScreen();
+      expect(screen.getByLabelText('1 · Mateo C., MP 34,82, prueba Espalda')).toBeOnTheScreen();
       expect(screen.queryByRole('image')).toBeNull();
     });
 
@@ -320,8 +320,8 @@ describe('TimingSetupScreen', () => {
       // Two authorized rows draw the backstroke glyph; the skipped one draws none.
       expect(paths().filter((d) => d === backstroke)).toHaveLength(2);
       expect(screen.getByLabelText('3 · Sara P., Falta autorización — se omitirá')).toBeOnTheScreen();
-      expect(screen.getByLabelText('1 · Mateo C., MP 34,82, Espalda')).toBeOnTheScreen();
-      expect(screen.getByLabelText('2 · Lucía R., MP 34,82, Espalda')).toBeOnTheScreen();
+      expect(screen.getByLabelText('1 · Mateo C., MP 34,82, prueba Espalda')).toBeOnTheScreen();
+      expect(screen.getByLabelText('2 · Lucía R., MP 34,82, prueba Espalda')).toBeOnTheScreen();
     });
   });
 
@@ -330,7 +330,7 @@ describe('TimingSetupScreen', () => {
 
     expect(screen.getByLabelText(/3 · Sara P\..*Falta autorización — se omitirá/)).toBeOnTheScreen();
     expect(screen.getAllByText('Falta autorización — se omitirá', { includeHiddenElements: true })).toHaveLength(1);
-    expect(screen.getByLabelText('1 · Mateo C., MP 34,82, Libre')).toBeOnTheScreen();
+    expect(screen.getByLabelText('1 · Mateo C., MP 34,82, prueba Libre')).toBeOnTheScreen();
   });
 
   it('invites to choose athletes when there are none, without a second action', async () => {

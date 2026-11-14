@@ -142,6 +142,7 @@
   "swimmer_row": {
     "personal_best": "marca personal {{time}}",
     "no_best_time": "sin marca personal",
+    "event": "prueba {{stroke}}",
     "time_missing": "{{label}} sin registrar"
   },
   "sync": {
