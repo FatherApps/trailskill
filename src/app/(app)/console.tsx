@@ -13,6 +13,7 @@ import {
   CoachesSection,
   ConsoleScreen,
   createPowerSyncAuthorizationsRepository,
+  createSupabaseCoachInvitationRepository,
   createPowerSyncCoachRepository,
   createPowerSyncCategoryRecordsRepository,
   createPowerSyncConsoleAthletesRepository,
@@ -33,6 +34,7 @@ const categoryRecords = createPowerSyncCategoryRecordsRepository();
 const measurementLog = createPowerSyncMeasurementLogRepository();
 const schoolStructure = createPowerSyncSchoolStructureRepository();
 const coaches = createPowerSyncCoachRepository();
+const coachInvitations = createSupabaseCoachInvitationRepository();
 
 // Deactivating a coach waits for issue 220; the button is shown disabled, so this is never called.
 const noop = () => {};
@@ -81,7 +83,7 @@ export default function ConsoleRoute() {
       onOpenPlans={() => router.push('/plans')}
       sections={{
         coaches: (props) => (
-          <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} onDeactivate={noop} />
+          <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} invitations={coachInvitations} onDeactivate={noop} />
         ),
         athletes: (props) => (
           <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />

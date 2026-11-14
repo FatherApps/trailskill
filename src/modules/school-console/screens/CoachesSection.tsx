@@ -26,9 +26,9 @@ export type CoachesSectionProps = ConsoleSectionProps & {
   connection: SyncConnection;
   // The clock. A stable function: the caption is computed again when it changes.
   now?: () => Date;
-  // Where the invitations go. Without it «Invitar» is shown disabled as «Próximamente»: never a button that seems to work.
+  // Where the invitations go. Offline «Invitar» is shown disabled: an invitation is sent to the server, never queued.
   // `invite` must reject when the invitation fails, or the sheet closes as if it had been sent.
-  invitations?: CoachInvitationRepository;
+  invitations: CoachInvitationRepository;
   // The real deactivation belongs to the caller; it only reports the press once the ConfirmSheet is confirmed, and stays disabled until issue 220.
   onDeactivate: (id: string) => void;
 };
@@ -168,5 +168,5 @@ export function CoachesSection({
     );
   };
 
-  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onRetryGroups={retryGroups} inviteAvailable={invitations !== undefined} onInvite={(invitation) => invitations?.invite(schoolId, invitation)} onDeactivate={onDeactivate} />;
+  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onRetryGroups={retryGroups} inviteAvailable={connection !== 'offline'} onInvite={(invitation) => invitations.invite(schoolId, invitation)} onDeactivate={onDeactivate} />;
 }
