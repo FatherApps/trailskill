@@ -1,7 +1,8 @@
 import { randomUUID } from 'expo-crypto';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { t } from '../../../core/i18n';
+import { usePreferences } from '../../../core/preferences';
 import { retryFailedRecord, useRecordSyncStates } from '../../../core/sync';
 import type { Hundredths } from '../../../core/time';
 import { StateView } from '../../../core/ui';
@@ -13,7 +14,11 @@ import {
   type MeasurementRepository,
 } from '../data/measurements';
 import { elapsedAt, idleStopwatch, reset, split, splitTimes, start, stop, totalTime, type Stopwatch } from '../domain/stopwatch';
+import { stopwatchButtonsHint } from '../data/keyName';
 import type { SessionSetupRepository } from '../data/sessionSetup';
+import { timingButton, type TimingButtonPort } from '../data/timingButton';
+import { buttonSettingsOf, useButtonDisconnect, useTimingButtons } from '../data/useTimingButtons';
+import type { ButtonTarget } from '../domain/timingButton';
 import '../i18n';
 import { StopwatchScreen } from './StopwatchScreen';
 import { TimeCorrectionScreen } from './TimeCorrectionScreen';
@@ -34,11 +39,16 @@ export type IndividualTimingFlowProps = {
   loadBestTime?(athleteId: string, event: MeasurementEvent): Promise<Hundredths | null>;
   userId: string;
   deviceId: string;
-  // Monotonic clock in nanoseconds; the stopwatch only uses differences.
+  // Monotonic clock in nanoseconds; the stopwatch only uses differences. By default the timing buttons' clock, so a touch
+  // and a key press share one time base.
   now?: () => bigint;
+  // The physical timing keys (headset or volume keys); without the native module they are simply not there.
+  buttons?: TimingButtonPort;
   offline?: boolean;
   onExit: () => void;
 };
+
+const targetOf = (sw: Stopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
 
 // `null` is a time that was corrected to missing, never 0.
 type Saved = { id: string; athlete: RosterAthlete; time: Hundredths | null };
@@ -56,7 +66,6 @@ function correctionError(error: unknown): string {
 }
 
 const TICK_MS = 50;
-const clock = () => BigInt(Math.round(performance.now() * 1e6));
 
 // Times the athletes of the session one by one with the on-screen stopwatch and saves each time on the phone.
 export function IndividualTimingFlow(props: IndividualTimingFlowProps) {
@@ -72,15 +81,38 @@ function IndividualSession({
   loadBestTime,
   userId,
   deviceId,
-  now = clock,
+  now: nowProp,
+  buttons = timingButton,
   offline,
   onExit,
 }: IndividualTimingFlowProps & { roster: RosterAthlete[] }) {
+  const now = nowProp ?? buttons.now;
   const { choice, selectedIds, ready, changeChoice, changeSelected } = useSessionSetup(setups, roster);
   const [step, setStep] = useState<Step>({ kind: 'setup' });
   const [stopwatch, setStopwatch] = useState<Stopwatch>(idleStopwatch);
   const [exitConfirm, setExitConfirm] = useState(false);
   const [, setTick] = useState(0);
+
+  // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
+  const latestStopwatch = useRef(stopwatch);
+  useEffect(() => {
+    latestStopwatch.current = stopwatch;
+  });
+  const settings = buttonSettingsOf(usePreferences().preferences.timingButtons);
+  const keys = useTimingButtons({
+    ...settings,
+    // While the stopwatch is shown; a press after the stop does nothing, so the volume doesn't jump mid-session either.
+    enabled: settings.enabled && step.kind === 'timing',
+    target: () => targetOf(latestStopwatch.current),
+    port: buttons,
+    onAction: (action, at) => {
+      const apply = action === 'start' ? start : action === 'split' ? split : action === 'stop' ? stop : null;
+      if (!apply) return;
+      latestStopwatch.current = apply(latestStopwatch.current, at);
+      setStopwatch(latestStopwatch.current);
+    },
+  });
+  const disconnect = useButtonDisconnect(keys.active, keys.keyboards);
 
   const running = stopwatch.status === 'running';
   useEffect(() => {
@@ -203,6 +235,9 @@ function IndividualSession({
         exitConfirmVisible={exitConfirm}
         onConfirmExit={toSetup}
         onCancelExit={() => setExitConfirm(false)}
+        buttonsHint={keys.active ? stopwatchButtonsHint(settings.config.startKey, settings.config.splitKey, keys.keyboards[0]?.name) : undefined}
+        externalTimerDisconnected={disconnect.disconnected}
+        onUseOnScreenStopwatch={disconnect.dismiss}
       />
     );
   }

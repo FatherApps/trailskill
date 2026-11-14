@@ -1,10 +1,10 @@
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
-import { ConfirmSheet, SyncStatus, useHardwareBack } from '../../../core/ui';
+import { Banner, Button, ConfirmSheet, SyncStatus, useHardwareBack } from '../../../core/ui';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { Stopwatch, type StopwatchProps } from '../components/Stopwatch';
 import { TimingHeader } from '../components/TimingHeader';
@@ -33,6 +33,11 @@ export type StopwatchScreenProps = StopwatchProps & {
   exitConfirmVisible: boolean;
   onConfirmExit: () => void;
   onCancelExit: () => void;
+  // What the physical timing keys do here, and which pulsador is connected; absent when they are off.
+  buttonsHint?: string;
+  // The external pulsador went away mid-session; the on-screen buttons keep working.
+  externalTimerDisconnected?: boolean;
+  onUseOnScreenStopwatch?: () => void;
 };
 
 export function StopwatchScreen({
@@ -47,9 +52,12 @@ export function StopwatchScreen({
   exitConfirmVisible,
   onConfirmExit,
   onCancelExit,
+  buttonsHint,
+  externalTimerDisconnected = false,
+  onUseOnScreenStopwatch,
   ...stopwatch
 }: StopwatchScreenProps) {
-  const { colors, space } = useTheme();
+  const { colors, space, typography } = useTheme();
   const running = stopwatch.state === 'running';
 
   useAwakeWhile(running);
@@ -68,6 +76,19 @@ export function StopwatchScreen({
         <View style={{ paddingHorizontal: space[4] }}>
           <OfflineBanner />
         </View>
+      )}
+      {externalTimerDisconnected && (
+        <View testID="external-disconnected" accessibilityLiveRegion="polite" style={{ paddingHorizontal: space[4] }}>
+          <Banner variant="warn" icon="link">
+            {t('timing.series.external_disconnected_title')} {t('timing.series.external_disconnected_message')}
+          </Banner>
+          {onUseOnScreenStopwatch && <Button variant="ghost" label={t('timing.series.use_screen_stopwatch')} onPress={onUseOnScreenStopwatch} />}
+        </View>
+      )}
+      {buttonsHint && (
+        <Text testID="buttons-hint" style={[typography.caption, { paddingHorizontal: space[4], color: colors['ink-muted'] }]}>
+          {buttonsHint}
+        </Text>
       )}
       <Stopwatch
         {...stopwatch}

@@ -41,6 +41,8 @@ export type SeriesTimingScreenProps = {
   offline?: boolean;
   externalTimerDisconnected?: boolean;
   onUseOnScreenStopwatch?: () => void;
+  // What the physical timing keys do here, and which pulsador is connected; absent when they are off.
+  buttonsHint?: string;
 };
 
 export function SeriesTimingScreen(props: SeriesTimingScreenProps) {
@@ -178,6 +180,11 @@ function TabletSeries({
             <Clock value={elapsedHundredths} onDark />
             <ArrivalButton onArrival={arrive} nextPosition={nextPosition} />
             <Text style={[typography.caption, { textAlign: 'center', color: colors['surface-2'] }]}>{t('timing.series.pulse_note')}</Text>
+            {rest.buttonsHint && (
+              <Text testID="buttons-hint" style={[typography.caption, { textAlign: 'center', color: colors['on-header-muted'] }]}>
+                {rest.buttonsHint}
+              </Text>
+            )}
           </View>
           <View style={{ flex: 1, gap: space[3] }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -263,6 +270,11 @@ function PhoneSeries({
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ArrivalButton compact onArrival={arrive} nextPosition={nextPosition} />
         </View>
+        {rest.buttonsHint && (
+          <Text testID="buttons-hint" style={[typography.caption, { textAlign: 'center', color: colors['on-header-muted'] }]}>
+            {rest.buttonsHint}
+          </Text>
+        )}
         <Actions hasArrivals={hasArrivals} phone onUndoLast={onUndoLast} onAssignNames={onAssignNames} />
       </View>
     </SafeAreaView>
