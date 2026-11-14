@@ -62,8 +62,9 @@ select set_eq(
      where schemaname = 'public' and tablename = 'measurements' $$,
   $$ values ('measurements_select', 'SELECT', '{authenticated}'),
             ('measurements_insert', 'INSERT', '{authenticated}'),
+            ('measurements_insert_active_coach', 'INSERT', '{authenticated}'),
             ('measurements_update', 'UPDATE', '{authenticated}') $$,
-  'measurements policies are unchanged: still no delete policy'
+  'measurements policies are unchanged but for the active-coach check: still no delete policy'
 );
 
 set local role authenticated;
