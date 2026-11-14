@@ -91,7 +91,12 @@ All repository work (setup, issues, branches, pull requests, releases, hotfixes,
 - Canonical: [`.agents/skills/trailskill-repo-flow/SKILL.md`](.agents/skills/trailskill-repo-flow/SKILL.md) — read by Codex, OpenCode, and Pi.
 - Claude Code: `.claude/skills/trailskill-repo-flow` is a symlink to the same folder.
 
-If your tool does not load skills automatically, read that `SKILL.md` before any repository action. Edit only the canonical folder.
+Run the read-only skill `trailskill-triage` before creating an issue and before starting work on one. It finds an existing issue or pull request, checks the architecture and the product status, and returns one verdict:
+
+- Canonical: [`.agents/skills/trailskill-triage/SKILL.md`](.agents/skills/trailskill-triage/SKILL.md).
+- Claude Code: `.claude/skills/trailskill-triage` is a symlink to the same folder.
+
+If your tool does not load skills automatically, read the `SKILL.md` before any repository action. Edit only the canonical folders.
 
 ## Hard limits
 
