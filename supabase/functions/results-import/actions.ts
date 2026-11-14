@@ -29,30 +29,35 @@ type Dependencies = {
   recorder: ImportRecorder;
   /** The user manages the athlete and `import_official_results` is in force (`public.results_import_access`). Spends no rate limit. */
   access: { allowed(input: { userId: string; athleteId: string }): Promise<boolean> };
-  /** The latest "¿Es esta persona?" confirmation of the athlete, from `results_import_confirmations`. */
-  confirmations: { latest(athleteId: string): Promise<{ organizationId: string; confirmedAt: string; candidateName: string } | null> };
+  /**
+   * The latest "¿Es esta persona?" confirmation of the athlete, from `results_import_confirmations`: of the organization given,
+   * or, with `null`, of any federation (a platform confirmation never changes what the federation update uses).
+   */
+  confirmations: { latest(athleteId: string, organizationId: string | null): Promise<{ organizationId: string; confirmedAt: string; candidateName: string } | null> };
   /** The provider key the organization resolves to, or null when it has none. */
   providerKeyFor(organizationId: string): Promise<string | null>;
   now?: () => number;
 };
 
 type Who = { userId: string; athleteId: string };
+/** `organizationId` narrows which confirmation is read; without it, as before, the latest federation one. */
+type Asking = Who & { organizationId?: string | null };
 
 const fail = (error: ActionError): { ok: false; error: ActionError } => ({ ok: false, error });
 const UNAVAILABLE = fail({ code: 'unavailable' });
 
 export function createOfficialResultsActions({ service, identityNumbers, pending, recorder, access, confirmations, providerKeyFor, now = Date.now }: Dependencies) {
   // Authorization first, so a caller who may not import learns nothing; then the confirmation, before any rate limit is spent.
-  async function begin({ userId, athleteId }: Who): Promise<{ organizationId: string } | { error: ActionError }> {
+  async function begin({ userId, athleteId, organizationId = null }: Asking): Promise<{ organizationId: string } | { error: ActionError }> {
     if (!(await access.allowed({ userId, athleteId }))) return { error: { code: 'not_authorized' } };
-    const confirmation = await confirmations.latest(athleteId);
+    const confirmation = await confirmations.latest(athleteId, organizationId);
     return confirmation ? { organizationId: confirmation.organizationId } : { error: { code: 'not_confirmed' } };
   }
 
-  async function ask(who: Who): Promise<ActionOutcome<{ organizationId: string; results: NormalizedResult[] }>> {
+  async function ask(who: Asking): Promise<ActionOutcome<{ organizationId: string; results: NormalizedResult[] }>> {
     const started = await begin(who);
     if ('error' in started) return fail(started.error);
-    const outcome: Outcome<NormalizedResult[]> = await service.refreshResults({ ...who, organizationId: started.organizationId });
+    const outcome: Outcome<NormalizedResult[]> = await service.refreshResults({ userId: who.userId, athleteId: who.athleteId, organizationId: started.organizationId });
     return outcome.ok ? { ok: true, value: { organizationId: started.organizationId, results: outcome.value } } : fail(outcome.error);
   }
 
@@ -69,9 +74,9 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
 
   return {
     // Neither asks the source nor spends the rate limit.
-    async status(who: Who): Promise<ActionOutcome<{ confirmed: boolean; organizationId: string | null; confirmedAt: string | null; candidateName: string | null; hasNumber: boolean; lastThree: string | null }>> {
+    async status(who: Asking): Promise<ActionOutcome<{ confirmed: boolean; organizationId: string | null; confirmedAt: string | null; candidateName: string | null; hasNumber: boolean; lastThree: string | null }>> {
       if (!(await access.allowed(who))) return fail({ code: 'not_authorized' });
-      const confirmation = await confirmations.latest(who.athleteId);
+      const confirmation = await confirmations.latest(who.athleteId, who.organizationId ?? null);
       if (!confirmation) return { ok: true, value: { confirmed: false, organizationId: null, confirmedAt: null, candidateName: null, hasNumber: false, lastThree: null } };
       const number = await identityNumbers.read(who.athleteId);
       return {
@@ -81,7 +86,7 @@ export function createOfficialResultsActions({ service, identityNumbers, pending
     },
 
     // Lists what the source has for this athlete and imports nothing: each result waits behind an opaque id.
-    async results(who: Who): Promise<ActionOutcome<{ results: (ResultPayload & { id: string })[] }>> {
+    async results(who: Asking): Promise<ActionOutcome<{ results: (ResultPayload & { id: string })[] }>> {
       const asked = await ask(who);
       if (!asked.ok) return asked;
       const { organizationId, results } = asked.value;

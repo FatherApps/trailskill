@@ -4,6 +4,7 @@ import { CANDIDATE_TTL_MS, InvalidSourceKeyError, NotAuthorizedError, QUERY_INTE
 const ATHLETE = 'athlete-1';
 const USER = 'user-1';
 const NUMBER = '0000000000-synthetic';
+const PROVIDER = 'zz-test';
 
 type RpcCall = { fn: string; args: Record<string, unknown> };
 
@@ -34,7 +35,7 @@ const CLAIMED_AT = '2026-10-28T10:00:00.123456+00:00';
 const TAKEN = { retry_at: null, claimed_at: CLAIMED_AT };
 
 describe('createQueryGate', () => {
-  const claim = (fake: ReturnType<typeof createFakeDb>) => createQueryGate(fake.db).claim({ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS });
+  const claim = (fake: ReturnType<typeof createFakeDb>) => createQueryGate(fake.db).claim({ athleteId: ATHLETE, userId: USER, provider: PROVIDER, intervalMs: QUERY_INTERVAL_MS });
 
   it('translates a claim taken to allowed, with the instant exactly as the database wrote it (microseconds included)', async () => {
     expect(await claim(createFakeDb([{ data: TAKEN }]))).toEqual({ status: 'allowed', claimedAt: CLAIMED_AT });
@@ -70,18 +71,18 @@ describe('createQueryGate', () => {
     await expect(claim(createFakeDb([{ data }]))).rejects.toThrow('Claiming the source query failed');
   });
 
-  it('sends the athlete, the user and the interval as bound parameters', async () => {
+  it('sends the athlete, the provider, the user and the interval as bound parameters', async () => {
     const fake = createFakeDb([{ data: TAKEN }]);
     await claim(fake);
     expect(fake.calls).toEqual([
-      { fn: 'results_import_claim_query', args: { athlete: ATHLETE, requested_by: USER, min_interval: `${QUERY_INTERVAL_MS / 1000} seconds` } },
+      { fn: 'results_import_claim_query', args: { athlete: ATHLETE, provider: PROVIDER, requested_by: USER, min_interval: `${QUERY_INTERVAL_MS / 1000} seconds` } },
     ]);
   });
 });
 
 describe('createQueryGate with a search time to live', () => {
   const claim = (fake: ReturnType<typeof createFakeDb>) =>
-    createQueryGate(fake.db).claim({ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS, searchTtlMs: CANDIDATE_TTL_MS });
+    createQueryGate(fake.db).claim({ athleteId: ATHLETE, userId: USER, provider: PROVIDER, intervalMs: QUERY_INTERVAL_MS, searchTtlMs: CANDIDATE_TTL_MS });
 
   it('calls results_import_claim_results_query with the interval and the time to live as bound parameters', async () => {
     const fake = createFakeDb([{ data: TAKEN }]);
@@ -89,7 +90,7 @@ describe('createQueryGate with a search time to live', () => {
     expect(fake.calls).toEqual([
       {
         fn: 'results_import_claim_results_query',
-        args: { athlete: ATHLETE, requested_by: USER, min_interval: '600 seconds', search_ttl: '900 seconds' },
+        args: { athlete: ATHLETE, provider: PROVIDER, requested_by: USER, min_interval: '600 seconds', search_ttl: '900 seconds' },
       },
     ]);
   });
@@ -107,13 +108,13 @@ describe('createQueryGate with a search time to live', () => {
 
 describe('createQueryGate release', () => {
   const release = (fake: ReturnType<typeof createFakeDb>) =>
-    createQueryGate(fake.db).release({ athleteId: ATHLETE, claimedAt: CLAIMED_AT, intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS });
+    createQueryGate(fake.db).release({ athleteId: ATHLETE, provider: PROVIDER, claimedAt: CLAIMED_AT, intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS });
 
-  it('calls results_import_release_claim with the claim exactly as received and the durations as bound parameters', async () => {
+  it('calls results_import_release_claim with the provider, the claim exactly as received and the durations as bound parameters', async () => {
     const fake = createFakeDb([{ data: true }]);
     await release(fake);
     expect(fake.calls).toEqual([
-      { fn: 'results_import_release_claim', args: { athlete: ATHLETE, claimed_at: CLAIMED_AT, min_interval: '600 seconds', retry_after: '60 seconds' } },
+      { fn: 'results_import_release_claim', args: { athlete: ATHLETE, provider: PROVIDER, claimed_at: CLAIMED_AT, min_interval: '600 seconds', retry_after: '60 seconds' } },
     ]);
   });
 
@@ -295,19 +296,27 @@ describe('createAccess', () => {
 });
 
 describe('createConfirmationReader', () => {
-  it('reads the newest confirmation of the athlete', async () => {
-    const fake = createFakeDb([{ data: [{ organization_id: 'org-1', confirmed_at: '2026-10-28T10:00:00+00:00', candidate_name: 'Synthetic Swimmer' }] }]);
-    expect(await createConfirmationReader(fake.db).latest(ATHLETE)).toEqual({ organizationId: 'org-1', confirmedAt: '2026-10-28T10:00:00.000Z', candidateName: 'Synthetic Swimmer' });
-    expect(fake.calls).toEqual([{ fn: 'results_import_latest_confirmation', args: { athlete: ATHLETE } }]);
+  const row = { organization_id: 'org-1', confirmed_at: '2026-10-28T10:00:00+00:00', candidate_name: 'Synthetic Swimmer' };
+
+  it('reads the newest confirmation of the athlete, of the federation when no organization is asked for', async () => {
+    const fake = createFakeDb([{ data: [row] }]);
+    expect(await createConfirmationReader(fake.db).latest(ATHLETE, null)).toEqual({ organizationId: 'org-1', confirmedAt: '2026-10-28T10:00:00.000Z', candidateName: 'Synthetic Swimmer' });
+    expect(fake.calls).toEqual([{ fn: 'results_import_latest_confirmation', args: { athlete: ATHLETE, organization: null } }]);
+  });
+
+  it('reads the newest confirmation of the organization asked for', async () => {
+    const fake = createFakeDb([{ data: [row] }]);
+    await createConfirmationReader(fake.db).latest(ATHLETE, 'org-1');
+    expect(fake.calls).toEqual([{ fn: 'results_import_latest_confirmation', args: { athlete: ATHLETE, organization: 'org-1' } }]);
   });
 
   it('is null when the athlete was never confirmed', async () => {
-    expect(await createConfirmationReader(createFakeDb([{ data: [] }]).db).latest(ATHLETE)).toBeNull();
+    expect(await createConfirmationReader(createFakeDb([{ data: [] }]).db).latest(ATHLETE, null)).toBeNull();
   });
 
   it('throws on an error or a row it does not understand', async () => {
-    await expect(createConfirmationReader(createFakeDb([{ error: { code: 'XX000' } }]).db).latest(ATHLETE)).rejects.toThrow('(XX000)');
-    await expect(createConfirmationReader(createFakeDb([{ data: [{ organization_id: 1 }] }]).db).latest(ATHLETE)).rejects.toThrow();
+    await expect(createConfirmationReader(createFakeDb([{ error: { code: 'XX000' } }]).db).latest(ATHLETE, null)).rejects.toThrow('(XX000)');
+    await expect(createConfirmationReader(createFakeDb([{ data: [{ organization_id: 1 }] }]).db).latest(ATHLETE, null)).rejects.toThrow();
   });
 });
 
