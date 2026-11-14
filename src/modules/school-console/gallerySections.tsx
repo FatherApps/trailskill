@@ -5,7 +5,7 @@ import type { PoolCode } from '../../core/sport';
 import type { GalleryEntry } from '../../core/ui';
 import { schoolNameFixture, storedOnFixture } from './__fixtures__/athletes';
 import { authorizationsFixture, longTextAuthorizationFixture, sharingRequestsFixture } from './__fixtures__/authorizations';
-import { coachesFixture, inviteGroupsFixture, longTextCoachFixture, pendingCoachFixture } from './__fixtures__/coaches';
+import { coachesFixture, deactivatedCoachFixture, inviteGroupsFixture, longTextCoachFixture, pendingCoachFixture } from './__fixtures__/coaches';
 import { longTextMeasurementFixture, measurementsFixture, measurementsUpdatedMinutesAgo } from './__fixtures__/measurements';
 import { longTextRecordFixture, recordCategoryFixture, recordsFixture, recordsUpdatedMinutesAgo } from './__fixtures__/records';
 import { AuthorizationList, SharingRequestList } from './components/AuthorizationList';
@@ -137,6 +137,11 @@ export const gallerySectionEntries: GalleryEntry[] = [
     'with-pending-invitation': () => (
       <FullWidth>
         <CoachList coaches={[...coachesFixture, pendingCoachFixture]} onDeactivate={noop} />
+      </FullWidth>
+    ),
+    'with-deactivated': () => (
+      <FullWidth>
+        <CoachList coaches={[...coachesFixture, deactivatedCoachFixture]} deactivateAvailable onDeactivate={noop} />
       </FullWidth>
     ),
     'deactivate-available': () => (

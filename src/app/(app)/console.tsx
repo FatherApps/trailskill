@@ -34,9 +34,6 @@ const measurementLog = createPowerSyncMeasurementLogRepository();
 const schoolStructure = createPowerSyncSchoolStructureRepository();
 const coaches = createPowerSyncCoachRepository();
 
-// Deactivating a coach waits for issue 220; the button is shown disabled, so this is never called.
-const noop = () => {};
-
 export default function ConsoleRoute() {
   const router = useRouter();
   const { session } = useSession();
@@ -81,7 +78,7 @@ export default function ConsoleRoute() {
       onOpenPlans={() => router.push('/plans')}
       sections={{
         coaches: (props) => (
-          <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} onDeactivate={noop} />
+          <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         athletes: (props) => (
           <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />

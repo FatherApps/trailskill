@@ -26,7 +26,7 @@ export type CoachesScreenProps = ConsoleSectionProps & {
   onDeactivate: (id: string) => void;
   // False until an invitation can really be delivered: the action is shown disabled as «Próximamente», not hidden, and opens nothing.
   inviteAvailable?: boolean;
-  // False (the default) until deactivating really works (issue 220): the action is shown disabled and opens nothing.
+  // False (the default) when deactivating is not available: the action is shown disabled and opens nothing.
   deactivateAvailable?: boolean;
   // The groups of the school, offered as chips in the invite sheet; [] (the default) is a school with none, so the sheet asks only name and email.
   // 'loading' and 'error' say the groups are not known yet: the sheet shows that and does not send.
@@ -35,6 +35,8 @@ export type CoachesScreenProps = ConsoleSectionProps & {
   onRetryGroups?: () => void;
   // The group an invitation link came from; its chip starts chosen.
   contextGroupId?: string;
+  // Says the last deactivation failed; shown under the header with the late invitation failures, until the caller clears it.
+  deactivateFailed?: boolean;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
 };
@@ -55,6 +57,7 @@ export function CoachesScreen({
   onDeactivate,
   inviteAvailable = true,
   deactivateAvailable = false,
+  deactivateFailed = false,
   groups = [],
   onRetryGroups,
   contextGroupId,
@@ -106,6 +109,17 @@ export function CoachesScreen({
           {t('schoolConsole.coaches.invite_sheet.failed_to', { email })}
         </Banner>
       ))}
+    </>
+  );
+  // The invite sheet shows only the invitation notice; the failed deactivation belongs to the list behind it.
+  const notice = (lateNotice || deactivateFailed) && (
+    <>
+      {lateNotice}
+      {deactivateFailed && (
+        <Banner variant="warn" icon="error">
+          {t('schoolConsole.coaches.deactivate_failed')}
+        </Banner>
+      )}
     </>
   );
 
@@ -173,7 +187,7 @@ export function CoachesScreen({
           setPending({ kind: 'invite', opening: ++openings.current });
         },
       }}
-      notice={lateNotice || undefined}
+      notice={notice || undefined}
       overlay={sheet}
     >
       {({ coaches }) => <CoachList coaches={coaches} deactivateAvailable={deactivateAvailable} onDeactivate={(id) => setPending({ kind: 'deactivate', id })} />}

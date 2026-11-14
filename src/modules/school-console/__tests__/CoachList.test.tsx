@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
 import { space, ThemeProvider } from '../../../core/theme';
-import { coachesFixture, pendingCoachFixture } from '../__fixtures__/coaches';
+import { coachesFixture, deactivatedCoachFixture, pendingCoachFixture } from '../__fixtures__/coaches';
 import { CoachList, type CoachRow } from '../components/CoachList';
 import { MEASURE_TIMEOUT_MS } from '../components/coachGrid';
 
@@ -247,6 +247,18 @@ describe('CoachList', () => {
       const zero: CoachRow = { ...pendingCoachFixture, athleteCount: 0 };
 
       expect(zero.status).toBe('pending');
+    });
+  });
+
+  describe('a deactivated coach', () => {
+    it('keeps the card with its groups and athletes, says Desactivado, and offers no Desactivar button', async () => {
+      await render(<CoachList coaches={[coachesFixture[0]!, deactivatedCoachFixture]} deactivateAvailable onDeactivate={jest.fn()} />);
+
+      expect(screen.getByText('Sofía Beltrán')).toBeOnTheScreen();
+      expect(screen.getByText('Grupo A · 12 deportistas')).toBeOnTheScreen();
+      expect(screen.getAllByLabelText('Activo')).toHaveLength(1);
+      expect(screen.getByLabelText('Desactivado')).toBeOnTheScreen();
+      expect(screen.getAllByRole('button', { name: 'Desactivar' })).toHaveLength(1);
     });
   });
 

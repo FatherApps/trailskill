@@ -28,6 +28,17 @@ export const pendingCoachFixture: CoachRow = {
   groups: ['Grupo B'],
 };
 
+// A coach who was deactivated: still listed, with their groups, but no longer able to record.
+export const deactivatedCoachFixture: CoachRow = {
+  id: 'c6',
+  name: 'Sofía Beltrán',
+  initials: 'SB',
+  color: 'athlete-2',
+  status: 'deactivated',
+  groups: ['Grupo A'],
+  athleteCount: 12,
+};
+
 // The groups of the school offered as chips in the invite sheet.
 export const inviteGroupsFixture: InviteGroup[] = [
   { id: 'g1', name: 'Grupo A' },
