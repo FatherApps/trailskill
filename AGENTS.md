@@ -82,7 +82,7 @@ Product documents mark items as **confirmed**, **proposed**, or **open**. Only c
 
 ## How to work
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before your first change. In short: one assigned issue, one branch, one worktree, one small pull request into `main`.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before your first change. In short: one assigned issue, one branch, one worktree, one small pull request into `main`. Follow its [Working sequence](CONTRIBUTING.md#working-sequence). For an agent, done means the pull request is open (draft first, then ready when CI is green and the Definition of Done holds), not the push.
 
 ## Skill
 
