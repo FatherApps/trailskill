@@ -62,8 +62,8 @@ Every module has the same shape: `src/modules/<module>/index.ts` (its only publi
 ### Patterns
 
 - **Repository:** screens and hooks never query the database. Use the module's repository interfaces; the PowerSync implementation lives in `data/`, and tests use in-memory fakes.
-- **Ports and adapters:** an external system is a port (interface) owned by its module, each concrete system is an adapter, and a registry picks the adapter from data. Federation results use the `ResultsProvider` port with adapters named `<country>-<organization>` (for example `co-fecna`).
-- **Generic organizations:** federations, leagues, clubs and schools are rows in `organizations` (type, ISO country code, parent). Never write an organization, federation, league or country name in code.
+- **Ports and adapters:** an external system is a port (interface) owned by its module, each concrete system is an adapter, and a registry picks the adapter from data. Federation results use the `ResultsProvider` port with adapters named `<country>-<organization>` (for example `co-fecna`). Results platforms use the `TournamentProvider` port with the same naming (for example `co-colombiaacuatica`).
+- **Generic organizations:** federations, results platforms, leagues, clubs and schools are rows in `organizations` (type, ISO country code, parent). Never write an organization, federation, league or country name in code.
 - **Sport layer:** sport vocabulary comes from `src/core/sport/` catalogs, never hard-coded in a module.
 - No other patterns (dependency injection containers, generic factories) without a new ADR.
 
@@ -73,6 +73,7 @@ Every module has the same shape: `src/modules/<module>/index.ts` (its only publi
 | --- | --- |
 | Workflow, branches, commits, pull requests, Definition of Done | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Versioning, releases, OTA updates, Google Play | [`docs/RELEASING.md`](docs/RELEASING.md) |
+| Running locally: cloud test backend or everything in Docker | [`docs/local-development.md`](docs/local-development.md) |
 | Product rules and pilot scope | [`PROJECT-HANDOFF-2026-10-24.md`](PROJECT-HANDOFF-2026-10-24.md) (moving to `docs/product/`) |
 | Architecture decisions | [`docs/decisions/`](docs/decisions/) |
 | Visual design: palette, typography, components, logo | [`design/README.md`](design/README.md), which links the design system (the source of truth) |
@@ -129,6 +130,17 @@ Code, commits, and docs in English. Issues and pull request descriptions in Span
 - Test: `npm test`
 - Database tests (needs Docker and the Supabase CLI): `supabase db start && supabase test db`
 - Development build: `eas build --profile development --platform android`
+
+## Run locally
+
+Several programmers work at the same time, so always start from the latest `origin/main` in a new worktree; there is no `develop` branch. Full steps, tool addresses, and troubleshooting: [`docs/local-development.md`](docs/local-development.md).
+
+| Mode | Backend | Start it |
+| --- | --- | --- |
+| Local app, cloud backend | Shared test backend | Get `.env` from the maintainer, then `npx expo start --dev-client --clear` |
+| Everything local | Docker on your machine | `supabase start`, then `docker compose -f deploy/compose.yaml -f deploy/compose.local.yaml --env-file deploy/local.env up -d --build`, then Metro with the local variables from the guide |
+
+Use the **Everything local** mode for changes to migrations, access policies, or sync rules. Agents must not read, create, or commit `.env` (see Hard limits). Sign in with the demo accounts `demo-guardian@example.test`, `demo-coach@example.test`, or `demo-admin@example.test`.
 
 ## Reporting
 

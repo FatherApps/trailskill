@@ -14,13 +14,20 @@ import {
   type PendingStore,
   type QueryGate,
 } from '../service.ts';
-import { createFakeProvider } from './fakeProvider.ts';
+import { createFakePlatform, createFakeProvider, TOURNAMENT_URL } from './fakeProvider.ts';
 
 const ORG = 'fed';
 const ATHLETE = 'athlete-1';
 const USER = 'user-1';
 const NUMBER = '0000000000-synthetic';
-const chain: OrganizationData[] = [{ id: ORG, type: 'federation', countryCode: 'ZZ', parentId: null, provider: 'zz-test' }];
+const PLATFORM_ORG = 'games';
+const PROVIDER = 'zz-test';
+const PLATFORM = 'zz-games';
+const chain: OrganizationData[] = [
+  { id: ORG, type: 'federation', countryCode: 'ZZ', parentId: null, provider: PROVIDER },
+  { id: PLATFORM_ORG, type: 'results_platform', countryCode: 'ZZ', parentId: null, provider: PLATFORM },
+];
+const federationOnly = chain.slice(0, 1).map((organization) => ({ ...organization, provider: null }));
 
 const validResult: NormalizedResult = {
   sourceResultKey: 'r-1',
@@ -33,14 +40,15 @@ const validResult: NormalizedResult = {
 };
 
 // Same rules as results_import_claim_query, results_import_claim_results_query and results_import_release_claim: authorized users only,
-// one source query per athlete per interval, a results query shares the claim of the search its user confirmed, and a release gives
+// one source query per athlete and provider per interval, a results query shares the claim of the search its user confirmed, and a release gives
 // a claim back only while nobody consumed since. `order` stands for the microsecond ordering of the instants in the database: a
 // confirmation counts only when it came after the claim, and the claim's `token` is the instant a release must present.
 function createFakeGate(authorized = true) {
   let now = Date.parse('2026-10-28T10:00:00Z');
   let order = 0;
   const last = new Map<string, { at: number; order: number; by: string; token: string }>();
-  const confirmed: { athleteId: string; userId: string; order: number }[] = [];
+  const confirmed: { athleteId: string; userId: string; provider: string; order: number }[] = [];
+  const windowOf = (athleteId: string, provider: string) => `${athleteId}|${provider}`;
   const claims: unknown[] = [];
   const releases: Parameters<QueryGate['release']>[0][] = [];
   let releaseFailure: Error | undefined;
@@ -49,18 +57,18 @@ function createFakeGate(authorized = true) {
     async claim(request): Promise<Claim> {
       claims.push(request);
       if (!authorized) return { status: 'not_authorized' };
-      const previous = last.get(request.athleteId);
+      const previous = last.get(windowOf(request.athleteId, request.provider));
       const shared =
         request.searchTtlMs !== undefined &&
         previous !== undefined &&
         previous.by === request.userId &&
         now < previous.at + request.searchTtlMs &&
-        confirmed.some((c) => c.athleteId === request.athleteId && c.userId === request.userId && c.order > previous.order);
+        confirmed.some((c) => c.athleteId === request.athleteId && c.userId === request.userId && c.provider === request.provider && c.order > previous.order);
       if (!shared && previous !== undefined && now < previous.at + request.intervalMs) {
         return { status: 'rate_limited', retryAt: new Date(previous.at + request.intervalMs).toISOString() };
       }
       const claimOrder = ++order;
-      last.set(request.athleteId, { at: now, order: claimOrder, by: request.userId, token: String(claimOrder) });
+      last.set(windowOf(request.athleteId, request.provider), { at: now, order: claimOrder, by: request.userId, token: String(claimOrder) });
       return { status: 'allowed', claimedAt: String(claimOrder) };
     },
     release(request) {
@@ -72,11 +80,11 @@ function createFakeGate(authorized = true) {
   };
   const giveBack = async (request: Parameters<QueryGate['release']>[0]) => {
     if (releaseFailure) throw releaseFailure;
-    const previous = last.get(request.athleteId);
+    const previous = last.get(windowOf(request.athleteId, request.provider));
     if (!previous || previous.token !== request.claimedAt) return false;
     // Nobody can share a released claim; the wait runs from the release (the failure), as in the database: the next normal claim
     // is allowed `retryAfterMs` after it, however long the failed query took.
-    last.set(request.athleteId, { ...previous, at: now - request.intervalMs + request.retryAfterMs, by: '' });
+    last.set(windowOf(request.athleteId, request.provider), { ...previous, at: now - request.intervalMs + request.retryAfterMs, by: '' });
     return true;
   };
   return {
@@ -90,9 +98,9 @@ function createFakeGate(authorized = true) {
     advance: (ms: number) => (now += ms),
     now: () => now,
     // The confirmation the service records after a search.
-    confirmed: (athleteId: string, userId: string) => void confirmed.push({ athleteId, userId, order: ++order }),
-    lastQueryAt: (athleteId: string) => last.get(athleteId)?.at,
-    lastToken: (athleteId: string) => last.get(athleteId)?.token,
+    confirmed: (athleteId: string, userId: string, provider: string) => void confirmed.push({ athleteId, userId, provider, order: ++order }),
+    lastQueryAt: (athleteId: string, provider = PROVIDER) => last.get(windowOf(athleteId, provider))?.at,
+    lastToken: (athleteId: string, provider = PROVIDER) => last.get(windowOf(athleteId, provider))?.token,
   };
 }
 
@@ -170,16 +178,31 @@ function createFakePending(now: () => number) {
   return { store, rows };
 }
 
-function setup(options: { number?: string | null; authorized?: boolean; providerOptions?: Parameters<typeof createFakeProvider>[0]; withProvider?: boolean } = {}) {
+function setup(
+  options: {
+    number?: string | null;
+    authorized?: boolean;
+    providerOptions?: Parameters<typeof createFakeProvider>[0];
+    platformOptions?: Parameters<typeof createFakePlatform>[0];
+    withProvider?: boolean;
+    withPlatform?: boolean;
+  } = {},
+) {
   const provider = createFakeProvider({ results: [validResult], ...options.providerOptions });
+  const platform = createFakePlatform(options.platformOptions);
   const fakeGate = createFakeGate(options.authorized ?? true);
   const identityNumbers = createFakeIdentityNumbers(options.number === undefined ? NUMBER : options.number);
-  const confirmations = createFakeConfirmations(({ athleteId, userId }) => fakeGate.confirmed(athleteId, userId));
-  let data = options.withProvider === false ? [{ ...chain[0], provider: null }] : chain;
+  const providerOfOrganization = (organizationId: string) => (organizationId === PLATFORM_ORG ? PLATFORM : PROVIDER);
+  const confirmations = createFakeConfirmations(({ athleteId, userId, organizationId }) => fakeGate.confirmed(athleteId, userId, providerOfOrganization(organizationId)));
+  const organizations = (federation: boolean, platformOrganization: boolean) => [
+    ...(federation ? [chain[0]] : federationOnly),
+    ...(platformOrganization ? [chain[1]] : []),
+  ];
+  let data = organizations(options.withProvider !== false, options.withPlatform !== false);
   let clock = Date.parse('2026-10-28T10:00:00Z');
   const pending = createFakePending(() => clock);
   const service = createResultsImport({
-    registry: createProviderRegistry([provider]),
+    registry: createProviderRegistry([provider], [platform]),
     gate: fakeGate.gate,
     identityNumbers,
     confirmations,
@@ -189,13 +212,15 @@ function setup(options: { number?: string | null; authorized?: boolean; provider
   });
   return {
     provider,
+    platform,
     fakeGate,
     identityNumbers,
     confirmations,
     pending,
     service,
     advanceClock: (ms: number) => void (clock += ms),
-    removeProvider: () => void (data = [{ ...chain[0], provider: null }]),
+    removeProvider: () => void (data = organizations(false, true)),
+    removePlatform: () => void (data = organizations(true, false)),
   };
 }
 const refresh = (s: ReturnType<typeof setup>) => s.service.refreshResults({ userId: USER, athleteId: ATHLETE, organizationId: ORG });
@@ -225,17 +250,27 @@ describe('refreshResults', () => {
     expect(withoutNumber).toEqual(withNumber);
   });
 
-  it('is unavailable when a source result key contains the identity number', async () => {
-    const s = setup({ providerOptions: { results: [validResult, { ...validResult, sourceResultKey: `k-${NUMBER}-1` }] } });
+  it.each([
+    ['is the identity number', NUMBER],
+    ['has a segment that is the identity number', `tournament|event|${NUMBER}`],
+    ['has a segment that is the identity number once normalized', 'tournament|event|0000000000.SYNTHETIC'],
+    ['has a segment that is the identity number once spaces and case are ignored', 'tournament| 0000000000 synthetic |1'],
+  ])('is unavailable when a source result key %s, and never repeats the number', async (_name, sourceResultKey) => {
+    const s = setup({ providerOptions: { results: [validResult, { ...validResult, sourceResultKey }] } });
     const outcome = await refresh(s);
     expect(outcome).toEqual(unavailable);
     expect(JSON.stringify(outcome)).not.toContain(NUMBER);
   });
 
-  it('claims with the athlete, the user, the interval and the time a confirmed search lends its claim', async () => {
+  it('accepts a source result key that only holds the identity number inside a longer segment', async () => {
+    const results = [{ ...validResult, sourceResultKey: `k-${NUMBER}-1` }, { ...validResult, sourceResultKey: `tournament|event|${NUMBER}0` }];
+    expect(await refresh(setup({ providerOptions: { results } }))).toEqual({ ok: true, value: results });
+  });
+
+  it('claims with the athlete, the user, the provider, the interval and the time a confirmed search lends its claim', async () => {
     const s = setup();
     await refresh(s);
-    expect(s.fakeGate.claims).toEqual([{ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS, searchTtlMs: CANDIDATE_TTL_MS }]);
+    expect(s.fakeGate.claims).toEqual([{ athleteId: ATHLETE, userId: USER, provider: PROVIDER, intervalMs: QUERY_INTERVAL_MS, searchTtlMs: CANDIDATE_TTL_MS }]);
   });
 
   it('does not query the source again within the interval and reports when to retry', async () => {
@@ -356,7 +391,7 @@ describe('findCandidates', () => {
   it('claims without a search time to live: a search is always an independent query', async () => {
     const s = setup({ providerOptions: { candidates: [candidate] } });
     await search(s);
-    expect(s.fakeGate.claims).toEqual([{ athleteId: ATHLETE, userId: USER, intervalMs: QUERY_INTERVAL_MS }]);
+    expect(s.fakeGate.claims).toEqual([{ athleteId: ATHLETE, userId: USER, provider: PROVIDER, intervalMs: QUERY_INTERVAL_MS }]);
   });
 
   it('shares the rate limit with refresh', async () => {
@@ -749,11 +784,11 @@ describe('a source query that fails', () => {
     expect(await search(s)).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
   });
 
-  it('releases with the athlete, the exact claim it took, the interval and the short wait', async () => {
+  it('releases with the athlete, the provider, the exact claim it took, the interval and the short wait', async () => {
     const s = setup({ providerOptions: { failWith: down } });
     await refresh(s);
     expect(s.fakeGate.releases).toEqual([
-      { athleteId: ATHLETE, claimedAt: s.fakeGate.lastToken(ATHLETE), intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS },
+      { athleteId: ATHLETE, provider: PROVIDER, claimedAt: s.fakeGate.lastToken(ATHLETE), intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS },
     ]);
   });
 
@@ -772,7 +807,7 @@ describe('a source query that fails', () => {
 
   it.each<[string, 'refresh' | 'search', Record<string, unknown[]>]>([
     ['a refresh whose results fail cleaning', 'refresh', { results: [validResult, { ...validResult, stroke: 'XX' }] }],
-    ['a refresh whose result key contains the number', 'refresh', { results: [{ ...validResult, sourceResultKey: `k-${NUMBER}-1` }] }],
+    ['a refresh whose result key has a segment that is the number', 'refresh', { results: [{ ...validResult, sourceResultKey: `t|e|${NUMBER}` }] }],
     ['a search whose list is not valid', 'search', { candidates: ['x'] }],
   ])('does not give the claim back when the source answered: %s', async (_name, action, providerOptions) => {
     const s = setup({ providerOptions });
@@ -827,5 +862,343 @@ describe('a source query that fails', () => {
     s.fakeGate.failRelease(new Error('client broke'), true);
     expect(await refresh(s)).toEqual(unavailable);
     expect(s.fakeGate.releases).toHaveLength(1);
+  });
+});
+
+// Issue #896: the results platform. The person pastes a tournament address; the platform is queried by the address and the
+// number, its window is its own, and confirming it offers the tournament's rows.
+describe('findInTournament', () => {
+  const found = {
+    found: true,
+    athlete: { name: 'Ana Example', club: 'Synthetic Club' },
+    results: [validResult, { ...validResult, sourceResultKey: 'r-2', distance: '100m' }],
+  };
+  const TYPED = '7654321';
+  const tournament = (s: ReturnType<typeof setup>, overrides: Partial<Parameters<ReturnType<typeof setup>['service']['findInTournament']>[0]> = {}) =>
+    s.service.findInTournament({ userId: USER, athleteId: ATHLETE, url: TOURNAMENT_URL, identityNumber: null, ...overrides });
+  const shown = { id: expect.any(String), name: 'Ana Example', club: 'Synthetic Club', resultCount: 2 };
+
+  it('claims the window of the platform provider, never the federation one, and leaves the federation window untouched', async () => {
+    const s = setup({ platformOptions: { search: found } });
+    expect((await tournament(s)).ok).toBe(true);
+    expect(s.fakeGate.claims).toEqual([{ athleteId: ATHLETE, userId: USER, provider: PLATFORM, intervalMs: QUERY_INTERVAL_MS }]);
+    expect(s.fakeGate.lastQueryAt(ATHLETE, PROVIDER)).toBeUndefined();
+    // The federation can be asked right away: the platform query did not spend its window.
+    expect((await refresh(s)).ok).toBe(true);
+    expect(s.provider.calls).toHaveLength(1);
+  });
+
+  it("does not spend the platform window when the federation was asked", async () => {
+    const s = setup({ platformOptions: { search: found } });
+    expect((await refresh(s)).ok).toBe(true);
+    expect((await tournament(s)).ok).toBe(true);
+    expect(s.fakeGate.claims.map((claim) => (claim as { provider: string }).provider)).toEqual([PROVIDER, PLATFORM]);
+  });
+
+  it('rate limits a second query to the platform from the first one, and reports when to retry', async () => {
+    const s = setup({ platformOptions: { search: found } });
+    const startedAt = s.fakeGate.now();
+    await tournament(s);
+    s.fakeGate.advance(60_000);
+    expect(await tournament(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(startedAt + QUERY_INTERVAL_MS).toISOString() } });
+    expect(s.platform.calls).toHaveLength(1);
+  });
+
+  it('answers no_provider, with no claim and no request, for an address no platform accepts', async () => {
+    const s = setup({ platformOptions: { search: found } });
+    expect(await tournament(s, { url: 'https://other.example.test/tournament/1' })).toEqual({ ok: false, error: { code: 'no_provider' } });
+    expect(s.fakeGate.claims).toEqual([]);
+    expect(s.identityNumbers.reads).toEqual([]);
+    expect(s.platform.calls).toEqual([]);
+  });
+
+  it('answers no_provider, with no claim and no request, when no organization holds the platform', async () => {
+    const s = setup({ withPlatform: false, platformOptions: { search: found } });
+    expect(await tournament(s)).toEqual({ ok: false, error: { code: 'no_provider' } });
+    expect(s.fakeGate.claims).toEqual([]);
+    expect(s.platform.calls).toEqual([]);
+  });
+
+  it('does not read the number nor query the platform when import_official_results is not in force', async () => {
+    const s = setup({ authorized: false });
+    expect(await tournament(s)).toEqual({ ok: false, error: { code: 'not_authorized' } });
+    expect(s.identityNumbers.reads).toEqual([]);
+    expect(s.platform.calls).toEqual([]);
+  });
+
+  it('looks up with the stored number when there is one', async () => {
+    const s = setup({ platformOptions: { search: found } });
+    await tournament(s);
+    expect(s.platform.calls).toEqual([{ url: TOURNAMENT_URL, identityNumber: NUMBER }]);
+  });
+
+  it('looks up with the typed number when none is stored', async () => {
+    const s = setup({ number: null, platformOptions: { search: found } });
+    await tournament(s, { identityNumber: TYPED });
+    expect(s.platform.calls).toEqual([{ url: TOURNAMENT_URL, identityNumber: TYPED }]);
+  });
+
+  it('uses the stored number when the typed one is the same after normalizing', async () => {
+    const s = setup({ number: '1234567', platformOptions: { search: found } });
+    expect((await tournament(s, { identityNumber: '1.234.567' })).ok).toBe(true);
+    expect(s.platform.calls).toEqual([{ url: TOURNAMENT_URL, identityNumber: '1234567' }]);
+  });
+
+  it('answers identity_number_conflict, without the number and without a request, when the typed number differs from the stored one', async () => {
+    const s = setup({ platformOptions: { search: found } });
+    const outcome = await tournament(s, { identityNumber: TYPED });
+    expect(outcome).toEqual({ ok: false, error: { code: 'identity_number_conflict' } });
+    expect(JSON.stringify(outcome)).not.toContain(NUMBER);
+    expect(JSON.stringify(outcome)).not.toContain(TYPED);
+    expect(s.platform.calls).toEqual([]);
+    expect(s.pending.rows.size).toBe(0);
+  });
+
+  it('answers identity_number_required, with the claim spent, when there is no stored nor typed number', async () => {
+    const s = setup({ number: null, platformOptions: { search: found } });
+    expect(await tournament(s)).toEqual({ ok: false, error: { code: 'identity_number_required' } });
+    expect(s.fakeGate.claims).toHaveLength(1);
+    expect(s.platform.calls).toEqual([]);
+    expect(s.fakeGate.releases).toEqual([]);
+  });
+
+  it('answers a null candidate, and keeps nothing, when the tournament does not have the number', async () => {
+    const s = setup({ platformOptions: { search: { found: false } } });
+    expect(await tournament(s)).toEqual({ ok: true, value: { organizationId: PLATFORM_ORG, candidate: null } });
+    expect(s.pending.rows.size).toBe(0);
+  });
+
+  it('offers one candidate and keeps the tournament rows on the server, encrypted, with the number as the reference', async () => {
+    const s = setup({ number: null, platformOptions: { search: found } });
+    const outcome = await tournament(s, { identityNumber: TYPED });
+    expect(outcome).toEqual({ ok: true, value: { organizationId: PLATFORM_ORG, candidate: shown } });
+    if (!outcome.ok || !outcome.value.candidate) throw new Error('expected a candidate');
+    expect(s.pending.rows.size).toBe(1);
+    expect(s.pending.rows.get(outcome.value.candidate.id)).toEqual({
+      kind: 'search',
+      userId: USER,
+      athleteId: ATHLETE,
+      organizationId: PLATFORM_ORG,
+      provider: PLATFORM,
+      reference: TYPED,
+      payload: { name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [] }], resultCount: 2, results: found.results },
+      expiresAt: Date.parse('2026-10-28T10:00:00Z') + CANDIDATE_TTL_MS,
+    });
+    // The device gets the id, the name, the club and the count: no number, no key, no row.
+    const shownText = JSON.stringify(outcome);
+    for (const secret of [TYPED, 'r-1', 'r-2', 'Synthetic Open']) expect(shownText).not.toContain(secret);
+  });
+
+  it('keeps only the declared fields of what the platform answers', async () => {
+    const extra = { ...found, athlete: { ...found.athlete, birthDate: '2012-01-01', license: NUMBER }, results: [{ ...validResult, idNumber: NUMBER, birthDate: '2012-01-01' }] };
+    const s = setup({ platformOptions: { search: extra } });
+    const outcome = await tournament(s);
+    expect(outcome.ok).toBe(true);
+    const [row] = [...s.pending.rows.values()];
+    expect(row.payload).toEqual({ name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [] }], resultCount: 1, results: [validResult] });
+    expect(JSON.stringify(outcome)).not.toMatch(/2012-01-01|0000000000/);
+  });
+
+  it('accepts an athlete without a club', async () => {
+    const s = setup({ platformOptions: { search: { ...found, athlete: { name: 'Ana Example', club: null } } } });
+    expect(await tournament(s)).toEqual({ ok: true, value: { organizationId: PLATFORM_ORG, candidate: { ...shown, club: null } } });
+  });
+
+  it.each<[string, unknown]>([
+    ['an answer that is not an object', 'x'],
+    ['an answer without found', {}],
+    ['found as text', { ...found, found: 'yes' }],
+    ['no athlete', { found: true, results: [] }],
+    ['a name of another type', { ...found, athlete: { name: 7, club: null } }],
+    ['a club of another type', { ...found, athlete: { name: 'Ana', club: 4 } }],
+    ['results that are not a list', { ...found, results: 'x' }],
+    ['a result that is not valid', { ...found, results: [validResult, { ...validResult, stroke: 'XX' }] }],
+  ])('is unavailable, and keeps nothing, for %s', async (_name, search) => {
+    const s = setup({ platformOptions: { search } });
+    expect(await tournament(s)).toEqual(unavailable);
+    expect(s.pending.rows.size).toBe(0);
+    // The platform answered something unusable: the window stays spent.
+    expect(s.fakeGate.releases).toEqual([]);
+  });
+
+  it('is unavailable, with nothing kept, when a result key has a segment that is the number; a number inside a longer id is fine', async () => {
+    const bad = setup({ platformOptions: { search: { ...found, results: [validResult, { ...validResult, sourceResultKey: `t|e|${NUMBER}` }] } } });
+    const outcome = await tournament(bad);
+    expect(outcome).toEqual(unavailable);
+    expect(JSON.stringify(outcome)).not.toContain(NUMBER);
+    expect(bad.pending.rows.size).toBe(0);
+    const fine = setup({ platformOptions: { search: { ...found, results: [{ ...validResult, sourceResultKey: `t|e|${NUMBER}-1` }] } } });
+    expect((await tournament(fine)).ok).toBe(true);
+  });
+
+  it('gives the platform claim back, with the platform provider, when the platform did not answer', async () => {
+    const s = setup({ platformOptions: { failWith: new SourceUnreachableError() } });
+    const failedAt = s.fakeGate.now();
+    expect(await tournament(s)).toEqual(unavailable);
+    expect(s.fakeGate.releases).toEqual([
+      { athleteId: ATHLETE, provider: PLATFORM, claimedAt: s.fakeGate.lastToken(ATHLETE, PLATFORM), intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS },
+    ]);
+    s.fakeGate.advance(RETRY_AFTER_FAILURE_MS - 1_000);
+    expect(await tournament(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(failedAt + RETRY_AFTER_FAILURE_MS).toISOString() } });
+    s.fakeGate.advance(1_000);
+    s.platform.setFailure(undefined);
+    expect((await tournament(s)).ok).toBe(true);
+  });
+
+  it.each<[string, Error]>([
+    ['an unavailable error that is not about reaching the platform', new ProviderUnavailableError('changed shape')],
+    ['any other error', new Error('boom')],
+  ])('keeps the whole platform window when the adapter throws %s, and never repeats it', async (_name, failWith) => {
+    const s = setup({ platformOptions: { failWith } });
+    const startedAt = s.fakeGate.now();
+    const outcome = await tournament(s);
+    expect(outcome).toEqual(unavailable);
+    expect(JSON.stringify(outcome)).not.toContain(NUMBER);
+    expect(s.fakeGate.releases).toEqual([]);
+    s.fakeGate.advance(2 * 60_000);
+    expect(await tournament(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(startedAt + QUERY_INTERVAL_MS).toISOString() } });
+  });
+
+  it('gives the claim back when an answer throws while it is cleaned: a failure on our side', async () => {
+    const unreadable = Object.defineProperty({}, 'found', { get: () => { throw new Error('unreadable'); }, enumerable: true });
+    const s = setup({ platformOptions: { search: unreadable } });
+    expect(await tournament(s)).toEqual(unavailable);
+    expect(s.fakeGate.releases).toHaveLength(1);
+  });
+
+  it('answers not_authorized when the authorization is withdrawn while keeping the candidate', async () => {
+    const s = setup({ platformOptions: { search: found } });
+    s.pending.store.put = async () => {
+      throw new NotAuthorizedError();
+    };
+    expect(await tournament(s)).toEqual({ ok: false, error: { code: 'not_authorized' } });
+  });
+});
+
+describe('confirming a candidate of the platform', () => {
+  const TYPED = '7654321';
+  const second = { ...validResult, sourceResultKey: 'r-2', distance: '100m' };
+  const answer = { found: true, athlete: { name: 'Ana Example', club: 'Synthetic Club' }, results: [validResult, second] };
+  const { sourceResultKey: _key, ...firstPayload } = validResult;
+  const { sourceResultKey: _key2, ...secondPayload } = second;
+
+  async function searched(options: Parameters<typeof setup>[0] = {}) {
+    const s = setup({ number: null, platformOptions: { search: answer }, ...options });
+    const outcome = await s.service.findInTournament({ userId: USER, athleteId: ATHLETE, url: TOURNAMENT_URL, identityNumber: TYPED });
+    if (!outcome.ok || !outcome.value.candidate) throw new Error('search failed');
+    return { s, candidateId: outcome.value.candidate.id };
+  }
+  const confirm = (s: ReturnType<typeof setup>, candidateId: string, organizationId = PLATFORM_ORG) =>
+    s.service.confirmCandidate({ userId: USER, athleteId: ATHLETE, organizationId, candidateId });
+
+  it('records the evidence without the rows or the key, and keeps the typed number', async () => {
+    const { s, candidateId } = await searched();
+    await confirm(s, candidateId);
+    expect(s.confirmations.recorded).toEqual([
+      {
+        athleteId: ATHLETE,
+        organizationId: PLATFORM_ORG,
+        userId: USER,
+        evidence: { name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [] }], resultCount: 2 },
+      },
+    ]);
+    expect(JSON.stringify(s.confirmations.recorded)).not.toMatch(/"r-[12]"/);
+    expect(s.identityNumbers.saved).toEqual([[ATHLETE, TYPED]]);
+  });
+
+  it('offers each row behind an opaque id and nothing else, and waits for the guardian to choose', async () => {
+    const { s, candidateId } = await searched();
+    const outcome = await confirm(s, candidateId);
+    expect(outcome).toEqual({
+      ok: true,
+      value: { results: [{ id: expect.any(String), ...firstPayload }, { id: expect.any(String), ...secondPayload }] },
+    });
+    expect(JSON.stringify(outcome)).not.toMatch(/"r-[12]"/);
+    if (!outcome.ok || !outcome.value) throw new Error('expected results');
+    const [first, other] = outcome.value.results;
+    expect(first.id).not.toEqual(other.id);
+    // The entries are what `results` leaves for `import`: kind results, the key as the reference, the rest as the payload, 15 minutes.
+    expect(s.pending.rows.get(first.id)).toEqual({
+      kind: 'results',
+      userId: USER,
+      athleteId: ATHLETE,
+      organizationId: PLATFORM_ORG,
+      provider: PLATFORM,
+      reference: 'r-1',
+      payload: firstPayload,
+      expiresAt: Date.parse('2026-10-28T10:00:00Z') + 15 * 60 * 1000,
+    });
+    expect(s.pending.rows.get(other.id)).toMatchObject({ kind: 'results', reference: 'r-2', payload: secondPayload });
+    expect(s.pending.rows.size).toBe(2);
+  });
+
+  it('offers no rows when the athlete has none in the tournament, and still confirms', async () => {
+    const { s, candidateId } = await searched({ platformOptions: { search: { ...answer, results: [] } } });
+    expect(await confirm(s, candidateId)).toEqual({ ok: true, value: { results: [] } });
+    expect(s.confirmations.stored()).toHaveLength(1);
+  });
+
+  it('does not spend the platform window: the confirmation asks the platform for nothing', async () => {
+    const { s, candidateId } = await searched();
+    const claims = s.fakeGate.claims.length;
+    await confirm(s, candidateId);
+    expect(s.fakeGate.claims).toHaveLength(claims);
+    expect(s.platform.calls).toHaveLength(1);
+  });
+
+  it('offers nothing and removes the evidence when a different number is already stored', async () => {
+    const s = setup({ number: NUMBER });
+    const id = await s.pending.store.put({
+      kind: 'search', userId: USER, athleteId: ATHLETE, organizationId: PLATFORM_ORG, provider: PLATFORM, reference: TYPED,
+      payload: { name: 'Ana Example', affiliations: [], resultCount: 1, results: [validResult] }, ttlMs: 60_000,
+    });
+    expect(await confirm(s, id)).toEqual({ ok: false, error: { code: 'identity_number_conflict' } });
+    expect(s.confirmations.stored()).toEqual([]);
+    expect([...s.pending.rows.values()].filter((row) => row.kind === 'results')).toEqual([]);
+  });
+
+  it('answers unavailable, keeping the confirmation, when the rows cannot be put behind their ids', async () => {
+    const { s, candidateId } = await searched();
+    const put = s.pending.store.put;
+    s.pending.store.put = async (entry) => {
+      if (entry.kind === 'results') throw new Error('database down');
+      return put(entry);
+    };
+    expect(await confirm(s, candidateId)).toEqual(unavailable);
+    // The person is confirmed and the number kept; the entry is spent and they search the tournament again.
+    expect(s.confirmations.stored()).toHaveLength(1);
+    expect(s.identityNumbers.saved).toEqual([[ATHLETE, TYPED]]);
+    expect(s.pending.rows.has(candidateId)).toBe(false);
+  });
+
+  it('answers unknown_id for an entry of another provider than the platform organization has now', async () => {
+    const { s } = await searched();
+    const id = await s.pending.store.put({
+      kind: 'search', userId: USER, athleteId: ATHLETE, organizationId: PLATFORM_ORG, provider: 'zz-other', reference: TYPED,
+      payload: { name: 'Ana Example', affiliations: [], resultCount: 1, results: [] }, ttlMs: 60_000,
+    });
+    expect(await confirm(s, id)).toEqual({ ok: false, error: { code: 'unknown_id' } });
+    expect(s.confirmations.recorded).toEqual([]);
+  });
+
+  it('answers unknown_id for a platform entry confirmed against the federation organization', async () => {
+    const { s, candidateId } = await searched();
+    expect(await confirm(s, candidateId, ORG)).toEqual({ ok: false, error: { code: 'unknown_id' } });
+    expect(s.confirmations.recorded).toEqual([]);
+  });
+
+  it('answers no_provider when the platform organization lost its provider after the search', async () => {
+    const { s, candidateId } = await searched();
+    s.removePlatform();
+    expect(await confirm(s, candidateId)).toEqual({ ok: false, error: { code: 'no_provider' } });
+    expect(s.confirmations.recorded).toEqual([]);
+  });
+
+  it('keeps a federation confirmation answering nothing', async () => {
+    const s = setup({ number: null, providerOptions: { candidates: [{ sourceAthleteKey: 'k-1', name: 'Ana Example', affiliations: [], resultCount: 1 }] } });
+    const outcome = await search(s);
+    if (!outcome.ok) throw new Error('search failed');
+    expect(await confirm(s, outcome.value[0].id, ORG)).toEqual({ ok: true, value: undefined });
+    expect([...s.pending.rows.values()].filter((row) => row.kind === 'results')).toEqual([]);
   });
 });

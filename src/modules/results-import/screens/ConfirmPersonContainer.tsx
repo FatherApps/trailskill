@@ -63,9 +63,12 @@ export function ConfirmPersonContainer({
   useEffect(() => {
     if (!authorized || !online) return;
     let current = true;
-    // shortcut: uses the first source; a second federation needs a chooser, add it when a second provider is registered.
+    // shortcut: uses the first federation; a second one needs a chooser, add it when a second provider is registered. A results platform is reached by a tournament address, not by this search.
     Promise.all([sources.list(), identityDocuments.hint(athlete.id)]).then(
-      ([list, hint]) => current && setAnswer({ key: requestKey, result: list[0] ? { status: 'ready', source: list[0], hint } : { status: 'no_source' } }),
+      ([list, hint]) => {
+        const source = list.find((candidate) => candidate.kind === 'federation');
+        return current && setAnswer({ key: requestKey, result: source ? { status: 'ready', source, hint } : { status: 'no_source' } });
+      },
       // Not knowing whether a number is saved is a load error, not a form: offering to type a number blindly could replace it.
       () => current && setAnswer({ key: requestKey, result: { status: 'error' } }),
     );
