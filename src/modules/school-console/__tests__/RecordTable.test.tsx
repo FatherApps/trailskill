@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
 
+import { t } from '../../../core/i18n';
 import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { longTextRecordFixture, recordsFixture } from '../__fixtures__/records';
 import { RecordTable, recordTableColors, type RecordTableProps } from '../components/RecordTable';
@@ -186,18 +187,67 @@ describe('RecordTable stroke icon', () => {
     await show({ rows: [struck[0]] });
     measure(width);
 
+    // The icon is the first child of the name's group and the name the second: an icon after the name, or none, fails.
     const group = box(svgs()[0]).parent;
-    const name = screen.getByText('Libre 50', hidden);
-    expect(group.children.indexOf(box(svgs()[0]) as never)).toBeGreaterThanOrEqual(0);
-    expect(group.children.indexOf(box(svgs()[0]) as never)).toBeLessThan(group.children.indexOf(name as never));
+    expect(group.children.indexOf(box(svgs()[0]))).toBe(0);
+    expect(group.children.indexOf(screen.getByText('Libre 50', hidden))).toBe(1);
   });
 
-  it('draws no icon for a row without a stroke or with a code that has no pictogram', async () => {
-    await show({ rows: [{ ...struck[0], stroke: undefined }, { ...struck[1], stroke: 'XX' }] });
+  it('draws no icon for a row without a stroke', async () => {
+    await show({ rows: [{ ...struck[0], stroke: undefined }] });
 
     expect(svgs()).toHaveLength(0);
     expect(screen.getByText('Libre 50', hidden)).toBeOnTheScreen();
-    expect(screen.getByText('Espalda 50', hidden)).toBeOnTheScreen();
+  });
+
+  it('only accepts a stroke code of the sport catalog', () => {
+    // @ts-expect-error 'Fr' is not a StrokeCode: a typo no longer compiles instead of silently showing no icon.
+    const typo: RecordTableProps['rows'][number] = { ...struck[0], stroke: 'Fr' };
+    expect(typo.id).toBe('s1');
+  });
+
+  describe.each([
+    ['table', 1000],
+    ['list', 300],
+  ])('the name next to the icon in the %s form at 200 % text', (_form, width) => {
+    const long = longTextRecordFixture;
+    const plain = { ...long, id: 'plain', stroke: undefined };
+    const flat = (node: { props: { style?: unknown } }) => StyleSheet.flatten(node.props.style as never);
+
+    const render2x = async () => {
+      jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 2 }));
+      await show({ rows: [long, plain] });
+      measure(width);
+      const [withIcon, without] = screen.getAllByText('Combinado individual 200', hidden);
+      return { withIcon, without };
+    };
+
+    it('wraps instead of running into the time column: the name and its group shrink from zero', async () => {
+      const { withIcon, without } = await render2x();
+
+      for (const name of [withIcon, without]) {
+        expect(flat(name)).toMatchObject({ flexShrink: 1, minWidth: 0 });
+        expect(flat(name.parent as never)).toMatchObject({ minWidth: 0 });
+      }
+    });
+
+    it('lays the name out the same with and without an icon, so both rows start from the same height', async () => {
+      const { withIcon, without } = await render2x();
+
+      expect(flat(withIcon)).toEqual(flat(without));
+      expect(flat(withIcon.parent as never)).toEqual(flat(without.parent as never));
+      expect(withIcon.parent?.type).toBe(without.parent?.type);
+      // Only the row with a stroke has the 24 icon (the source tags draw their own small icon).
+      expect(svgs().filter((svg) => svg.props.width === 24)).toHaveLength(1);
+    });
+  });
+
+  it('keeps the event name and the icon in one element per row, with or without a stroke', async () => {
+    await show({ rows: [{ ...struck[0], stroke: undefined }, struck[1]] });
+
+    const groups = ['Libre 50', 'Espalda 50'].map((name) => screen.getByText(name, hidden).parent);
+    expect(groups[0]?.children).toHaveLength(1);
+    expect(groups[1]?.children).toHaveLength(2);
   });
 
   it('does not repeat the stroke in the accessible label', async () => {
@@ -206,11 +256,10 @@ describe('RecordTable stroke icon', () => {
     expect(screen.getByLabelText('Libre 50, 33 segundos con 91 centésimas, Mateo Castro, 18 oct 2026')).toBeOnTheScreen();
   });
 
-  it('keeps the event name shrinkable next to the icon so a large font wraps the text, not the icon', async () => {
-    jest.spyOn(Dimensions, 'get').mockImplementation((dim) => ({ ...realGet(dim), fontScale: 2 }));
-    await show({ rows: [struck[0]] });
+});
 
-    expect(StyleSheet.flatten(screen.getByText('Libre 50', hidden).props.style)).toMatchObject({ flexShrink: 1 });
-    expect(svgs()).toHaveLength(1);
+describe('records fixture', () => {
+  it.each([...recordsFixture, longTextRecordFixture])('keeps the stroke of $id in step with the text of its event', (row) => {
+    expect(row.event.startsWith(t(`sport.stroke.${row.stroke}`))).toBe(true);
   });
 });
