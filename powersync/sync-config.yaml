@@ -6,7 +6,8 @@
 # timing_hide_after_withdrawal, training-plans_assignments,
 # training-plans_assignment_scope_and_withdrawal, timing_school_id,
 # school-console_coach_assignment_school, timing_admin_measurement_conflicts,
-# training-plans_notices, results-import_provenance, family-timing_measurements):
+# training-plans_notices, results-import_provenance,
+# accounts_admin_reads_adult_profiles, family-timing_measurements):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -30,6 +31,8 @@ with:
   coach_group_category_ids: SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM athlete_groups WHERE group_id IN (SELECT group_id FROM coach_group_assignments WHERE coach_user_id = auth.user_id()))
   managed_assignment_ids: SELECT id FROM training_plan_assignments WHERE withdrawn_at IS NULL AND (athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()) OR group_id IN (SELECT group_id FROM athlete_groups WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR category_id IN (SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR (target = 'school' AND school_id IN (SELECT school_id FROM athlete_schools WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()))))
   import_authorized_athlete_ids: SELECT athlete_id FROM authorization_status WHERE purpose = 'import_official_results' AND is_granted = true AND athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())
+  admin_guardian_user_ids: SELECT user_id FROM athlete_managers WHERE relation = 'guardian' AND athlete_id IN (SELECT athlete_id FROM athlete_schools WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin'))
+  admin_coach_user_ids: SELECT user_id FROM school_memberships WHERE role = 'coach' AND school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin')
 
 streams:
   athletes_visible:
@@ -43,6 +46,15 @@ streams:
     auto_subscribe: true
     queries:
       - SELECT * FROM athlete_managers WHERE athlete_id IN managed_athlete_ids OR athlete_id IN coach_direct_athlete_ids OR athlete_id IN coach_group_athlete_ids OR athlete_id IN admin_athlete_ids
+
+  # School admins read the name and the contact (the account email) of the guardians of
+  # their school's athletes and of their school's coaches, nothing else about them
+  # (issue #220). Adult athletes (relation 'self') are not included. Everyone's own
+  # profile is not synced: the app reads and writes it online.
+  accounts_adult_profiles:
+    auto_subscribe: true
+    queries:
+      - SELECT user_id AS id, first_name, last_name, contact_email FROM adult_profiles WHERE user_id IN admin_guardian_user_ids OR user_id IN admin_coach_user_ids
 
   school_console_school:
     auto_subscribe: true

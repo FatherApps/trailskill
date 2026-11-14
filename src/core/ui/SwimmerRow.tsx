@@ -120,10 +120,18 @@ export function SwimmerRow({
   const difference = time === undefined ? null : personalBestDifference(time, personalBest);
   const showPbRow = time != null && (difference !== null || newPersonalBest);
 
+  // The stroke is announced once and as the event ("prueba Libre", not a bare "Libre" that reads as part of the group);
+  // when the caption of the best time already names it ("MP Libre 50") it is not said again.
+  const strokeName = stroke ? t(`sport.stroke.${stroke}`) : null;
+  const strokeSpoken =
+    strokeName && !(showBest && bestTimeLabel?.toLowerCase().includes(strokeName.toLowerCase()))
+      ? t('swimmer_row.event', { stroke: strokeName })
+      : null;
+
   const label = [
     name,
     detail,
-    stroke && t(`sport.stroke.${stroke}`),
+    strokeSpoken,
     spokenTime,
     difference !== null && spokenDifference(difference),
     showPbRow && newPersonalBest && t('time_value.pb_spoken'),
@@ -173,14 +181,16 @@ export function SwimmerRow({
 
   const nameBlock = (style: { flex?: number; flexShrink?: number; minWidth: number }) => (
     <View {...hidden} style={style}>
-      {stroke ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
-          <StrokeIcon stroke={stroke} size="sm" decorative />
-          <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name], flexShrink: 1 }]}>{name}</Text>
-        </View>
-      ) : (
-        <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name] }]}>{name}</Text>
-      )}
+      {/* One name Text, the icon optional before it: the group shrinks from zero so a long name wraps inside the column. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], minWidth: 0, flexShrink: 1 }}>
+        {stroke ? (
+          // The icon box (32) is taller than the name line (24): the slot keeps the line's height so the row does not grow.
+          <View style={{ height: typography['body-strong'].lineHeight, justifyContent: 'center' }}>
+            <StrokeIcon stroke={stroke} size="sm" decorative />
+          </View>
+        ) : null}
+        <Text style={[typography['body-strong'], { color: colors[swimmerRowColors.name], flexShrink: 1, minWidth: 0 }]}>{name}</Text>
+      </View>
       <Text style={[typography.caption, { color: colors[swimmerRowColors.detail] }]}>{detail}</Text>
       {showPbRow && <TimeValue value={time} personalBest={personalBest} newPersonalBest={newPersonalBest} deltaOnly />}
     </View>

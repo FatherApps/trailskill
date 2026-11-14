@@ -29,7 +29,7 @@ export function filterAthletes(
   );
 }
 
-/** Only the values present in the list. Coaches have no label until their names are readable (issue 220). */
+/** Only the values present in the list. Coach filter options carry no label here. */
 export function filterOptions(athletes: readonly ConsoleAthlete[]): Record<AthleteFilterId, FilterOption[]> {
   const categories = new Map<string, { label: string; sortOrder: number }>();
   const groups = new Map<string, string>();

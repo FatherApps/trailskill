@@ -13,6 +13,7 @@ export const AppSchema = new Schema({
   athletes: new Table({ ...audit, first_name: column.text, last_name: column.text }),
   athlete_schools: new Table({ ...audit, athlete_id: column.text, school_id: column.text, category_id: column.text }),
   athlete_groups: new Table({ ...audit, athlete_id: column.text, group_id: column.text }),
+  adult_profiles: new Table({ first_name: column.text, last_name: column.text, contact_email: column.text }),
   athlete_managers: new Table({ ...audit, user_id: column.text, athlete_id: column.text, relation: column.text }),
   timing_series: new Table({
     ...audit,

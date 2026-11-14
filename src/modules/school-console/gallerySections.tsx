@@ -6,6 +6,7 @@ import type { GalleryEntry } from '../../core/ui';
 import { schoolNameFixture, storedOnFixture } from './__fixtures__/athletes';
 import { authorizationsFixture, longTextAuthorizationFixture, sharingRequestsFixture } from './__fixtures__/authorizations';
 import { coachesFixture, inviteGroupsFixture, longTextCoachFixture, pendingCoachFixture } from './__fixtures__/coaches';
+import { longTextMySwimmerFixture, mySwimmersBestLabelFixture, mySwimmersFixture } from './__fixtures__/mySwimmers';
 import { longTextMeasurementFixture, measurementsFixture, measurementsUpdatedMinutesAgo } from './__fixtures__/measurements';
 import { longTextRecordFixture, recordCategoryFixture, recordsFixture, recordsUpdatedMinutesAgo } from './__fixtures__/records';
 import { AuthorizationList, SharingRequestList } from './components/AuthorizationList';
@@ -18,6 +19,7 @@ import { ConsolePreview, FullWidth, noop, toggleFilter } from './gallerySupport'
 import { AuthorizationsScreen, type AuthorizationsContent } from './screens/AuthorizationsScreen';
 import { CoachesScreen, type CoachesContent } from './screens/CoachesScreen';
 import { MeasurementsScreen, type MeasurementsContent } from './screens/MeasurementsScreen';
+import { MySwimmersScreen, type MySwimmersView } from './screens/MySwimmersScreen';
 import { RecordsScreen, type RecordsContent } from './screens/RecordsScreen';
 
 // The ten states every section screen shows: the content, the five view states, and the three layouts at a fixed
@@ -127,6 +129,17 @@ const authorizationsContent: AuthorizationsContent = {
   sharingRequests: sharingRequestsFixture,
 };
 
+// The coach's one screen: the content, the view states, the three layouts at a fixed width, and a name that does not fit.
+const mySwimmersScreen = (view: MySwimmersView, fixedWidth?: number) =>
+  function MySwimmersPreview() {
+    return (
+      <ConsolePreview fixedWidth={fixedWidth}>
+        {(width) => <MySwimmersScreen width={width} schoolName={schoolNameFixture} view={view} scrollEnabled={false} onOpen={noop} onBack={noop} />}
+      </ConsolePreview>
+    );
+  };
+const mySwimmersData: MySwimmersView = { kind: 'data', swimmers: mySwimmersFixture, bestLabel: mySwimmersBestLabelFixture };
+
 export const gallerySectionEntries: GalleryEntry[] = [
   entry('coachList', 'CoachList', {
     default: () => (
@@ -167,8 +180,8 @@ export const gallerySectionEntries: GalleryEntry[] = [
     'CoachesScreen',
     {
       ...sectionStates(coachesContent, (view, width) => coachesScreen(view, width)),
-      // The real console while no invitations repository exists.
-      'invite-unavailable': function InviteUnavailablePreview() {
+      // The real console while the device is offline.
+      'invite-offline': function InviteOfflinePreview() {
         return <ConsolePreview>{(width) => coachesScreen({ kind: 'data', content: coachesContent }, width, false)}</ConsolePreview>;
       },
     },
@@ -266,4 +279,16 @@ export const gallerySectionEntries: GalleryEntry[] = [
       />
     )),
   ),
+  entry('mySwimmersScreen', 'MySwimmersScreen', {
+    'with-data': mySwimmersScreen(mySwimmersData),
+    loading: mySwimmersScreen({ kind: 'loading' }),
+    empty: mySwimmersScreen({ kind: 'empty' }),
+    error: mySwimmersScreen({ kind: 'error', onRetry: noop }),
+    'offline-no-data': mySwimmersScreen({ kind: 'offline-empty' }),
+    'connecting-no-data': mySwimmersScreen({ kind: 'connecting-empty' }),
+    'long-text': mySwimmersScreen({ ...mySwimmersData, swimmers: [...mySwimmersFixture.slice(0, 2), longTextMySwimmerFixture] }),
+    'expanded-1280': mySwimmersScreen(mySwimmersData, 1280),
+    'medium-800': mySwimmersScreen(mySwimmersData, 800),
+    'compact-360': mySwimmersScreen(mySwimmersData, 360),
+  }),
 ];

@@ -6,6 +6,7 @@
     "timing_completed": "Registrar completado",
     "plans": "Planes de entrenamiento",
     "console": "Consola",
+    "my_swimmers": "Mis nadadores",
     "review_conflicts": "Revisar conflictos",
     "nav": {
       "home": "Inicio",
@@ -141,6 +142,7 @@
   "swimmer_row": {
     "personal_best": "marca personal {{time}}",
     "no_best_time": "sin marca personal",
+    "event": "prueba {{stroke}}",
     "time_missing": "{{label}} sin registrar"
   },
   "sync": {

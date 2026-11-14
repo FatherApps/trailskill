@@ -401,6 +401,10 @@ deno_version = 2
 [functions.results-import]
 verify_jwt = true
 
+# Coach invitations of a school (#961): only a signed-in user may call it; the database policies decide who may invite.
+[functions.school-console-invite-coach]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327

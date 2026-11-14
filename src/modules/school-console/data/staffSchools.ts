@@ -7,6 +7,8 @@ export interface StaffSchoolRepository {
   listStaffSchools(userId: string): Promise<StaffSchool[]>;
   /** Schools where the user is a school_admin, by name then id, no duplicates. */
   listAdminSchools(userId: string): Promise<StaffSchool[]>;
+  /** Schools where the user is a coach, by name then id, no duplicates. A school admin who is not also a coach has none. */
+  listCoachSchools(userId: string): Promise<StaffSchool[]>;
 }
 
 export function createPowerSyncStaffSchoolRepository(): StaffSchoolRepository {
@@ -27,6 +29,14 @@ export function createPowerSyncStaffSchoolRepository(): StaffSchoolRepository {
         [userId],
       );
     },
+    async listCoachSchools(userId) {
+      return db.getAll<StaffSchool>(
+        `SELECT DISTINCT s.id AS id, s.name AS name FROM schools s
+         JOIN school_memberships m ON m.school_id = s.id
+         WHERE m.user_id = ? AND m.role = 'coach' ORDER BY s.name, s.id`,
+        [userId],
+      );
+    },
   };
 }
 
@@ -44,6 +54,9 @@ export function createInMemoryStaffSchoolRepository(rows: StaffMembershipRow[]):
     },
     async listAdminSchools(userId) {
       return list(userId, (row) => row.role === 'school_admin');
+    },
+    async listCoachSchools(userId) {
+      return list(userId, (row) => row.role === 'coach');
     },
   };
 }

@@ -10,7 +10,7 @@ import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
 
 type CoachBase = {
   id: string;
-  // Full name; null while coach names are not readable (issue 220), shown as "Sin dato".
+  // Full name; null when the coach has no profile, shown as "Sin dato".
   name: string | null;
   initials: string;
   color: InitialsDotProps['color'];

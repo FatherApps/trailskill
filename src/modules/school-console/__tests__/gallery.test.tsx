@@ -83,6 +83,7 @@ describe('school console gallery entries', () => {
       'measurementsScreen',
       'authorizationList',
       'authorizationsScreen',
+      'mySwimmersScreen',
     ]);
     expect(stateKeys('consoleNav')).toEqual(['side', 'top']);
     expect(stateKeys('sideSheet')).toEqual(['open', 'titled']);
@@ -112,7 +113,19 @@ describe('school console gallery entries', () => {
     expect(stateKeys('recordTable')).toEqual(['default', 'other-pool', 'long-text', 'compact', 'pool-empty']);
     expect(stateKeys('measurementLog')).toEqual(['default', 'long-text', 'no-results']);
     expect(stateKeys('authorizationList')).toEqual(['default', 'long-text', 'sharing-requests', 'read-error']);
-    for (const id of sectionScreens) expect(stateKeys(id)).toEqual(id === 'coachesScreen' ? [...sectionScreenStates, 'invite-unavailable'] : sectionScreenStates);
+    expect(stateKeys('mySwimmersScreen')).toEqual([
+      'with-data',
+      'loading',
+      'empty',
+      'error',
+      'offline-no-data',
+      'connecting-no-data',
+      'long-text',
+      'expanded-1280',
+      'medium-800',
+      'compact-360',
+    ]);
+    for (const id of sectionScreens) expect(stateKeys(id)).toEqual(id === 'coachesScreen' ? [...sectionScreenStates, 'invite-offline'] : sectionScreenStates);
   });
 
   it.each(cases)('%s / %s renders in %s theme at scale %s', async (id, key, theme, scale) => {
@@ -415,10 +428,10 @@ describe('school console gallery entries', () => {
     expect(screen.queryByText(/^¿Desactivar a/)).toBeNull();
   });
 
-  it('coachesScreen / invite-unavailable shows Invitar disabled as Próximamente and opens nothing', async () => {
-    await render(<ThemeProvider>{state('coachesScreen', 'invite-unavailable')}</ThemeProvider>);
+  it('coachesScreen / invite-offline shows Invitar disabled as Sin conexión and opens nothing', async () => {
+    await render(<ThemeProvider>{state('coachesScreen', 'invite-offline')}</ThemeProvider>);
 
-    const button = screen.getByRole('button', { name: 'Invitar entrenador · Próximamente' });
+    const button = screen.getByRole('button', { name: 'Invitar entrenador · Sin conexión' });
     expect(button).toBeDisabled();
     await fireEvent.press(button);
 
