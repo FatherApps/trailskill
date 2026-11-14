@@ -57,6 +57,7 @@ export { usePlatformAdmin } from './data/usePlatformAdmin';
 export { usePlatformAdminStatus } from './data/usePlatformAdminStatus';
 export { ReviewConflictsFlow, type ReviewConflictsFlowProps } from './screens/ReviewConflictsFlow';
 export {
+  arrivalButtonAction,
   buttonAction,
   capturedKeys,
   debounce,
@@ -76,5 +77,12 @@ export {
   type NativeKeyPress,
   type TimingButtonPort,
 } from './data/timingButton';
-export { useExternalKeyboards, useLearnKey, useTimingButtons, type UseTimingButtonsOptions } from './data/useTimingButtons';
-export { keyName } from './data/keyName';
+export {
+  buttonSettingsOf,
+  useButtonDisconnect,
+  useExternalKeyboards,
+  useLearnKey,
+  useTimingButtons,
+  type UseTimingButtonsOptions,
+} from './data/useTimingButtons';
+export { arrivalButtonsHint, keyName, stopwatchButtonsHint } from './data/keyName';

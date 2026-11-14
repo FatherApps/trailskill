@@ -1,4 +1,5 @@
 import {
+  arrivalButtonAction,
   buttonAction,
   capturedKeys,
   debounce,
@@ -63,4 +64,24 @@ describe('debounce', () => {
 it('turns seconds into nanoseconds', () => {
   expect(nanosFromSeconds(3)).toBe(3_000_000_000n);
   expect(nanosFromSeconds(0)).toBe(0n);
+});
+
+describe('arrivalButtonAction', () => {
+  const lockout = { startKey: 24, splitKey: 25, lockoutNanos: 3_000_000_000n };
+  const running = { status: 'running', startedAt: 10_000_000_000n } as const;
+
+  it('starts the series with either key', () => {
+    expect(arrivalButtonAction({ keyCode: 25, at: 0n }, lockout, { status: 'idle' })).toBe('start');
+    expect(arrivalButtonAction({ keyCode: 24, at: 0n }, lockout, { status: 'idle' })).toBe('start');
+  });
+
+  it('ignores presses during the lockout, then records arrivals with either key', () => {
+    expect(arrivalButtonAction({ keyCode: 24, at: 12_000_000_000n }, lockout, running)).toBeNull();
+    expect(arrivalButtonAction({ keyCode: 24, at: 13_000_000_000n }, lockout, running)).toBe('arrival');
+    expect(arrivalButtonAction({ keyCode: 25, at: 40_000_000_000n }, lockout, running)).toBe('arrival');
+  });
+
+  it('ignores any other key', () => {
+    expect(arrivalButtonAction({ keyCode: 79, at: 0n }, lockout, { status: 'idle' })).toBeNull();
+  });
 });

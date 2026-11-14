@@ -2,14 +2,19 @@ import { randomUUID } from 'expo-crypto';
 import { useEffect, useRef, useState } from 'react';
 
 import { t } from '../../../core/i18n';
+import { usePreferences } from '../../../core/preferences';
 import { useRecordSyncStates } from '../../../core/sync';
 import { hundredthsFromNanos, type Hundredths } from '../../../core/time';
 import { ConfirmSheet, StateView } from '../../../core/ui';
-import type { Measurement, MeasurementEvent } from '../data/measurements';
+import { arrivalButtonsHint } from '../data/keyName';
+import type { Measurement, MeasurementEvent, MeasurementSource } from '../data/measurements';
 import type { PendingSeries, SeriesRecord, SeriesRepository } from '../data/series';
 import type { Choice, SessionSetupRepository } from '../data/sessionSetup';
+import { timingButton, type TimingButtonPort } from '../data/timingButton';
+import { buttonSettingsOf, useButtonDisconnect, useTimingButtons } from '../data/useTimingButtons';
 import { arrivalClockTime, formatClockTime } from '../domain/clockTime';
 import { arrivals, press, readySeries, undoLastArrival, type Series } from '../domain/series';
+import { arrivalButtonAction, type ButtonTarget } from '../domain/timingButton';
 import '../i18n';
 import { SeriesAssignmentStep } from './SeriesAssignmentStep';
 import { SeriesTimingScreen } from './SeriesTimingScreen';
@@ -27,8 +32,12 @@ export type SeriesTimingFlowProps = {
   setups?: SessionSetupRepository;
   userId: string;
   deviceId: string;
-  // Monotonic clock in nanoseconds; the series only uses differences.
+  // Monotonic clock in nanoseconds; the series only uses differences. By default the timing buttons' clock, so a touch
+  // and a key press share one time base.
   now?: () => bigint;
+  // The physical timing keys (headset or volume keys): either one is the arrival button. Without the native module
+  // they are simply not there.
+  buttons?: TimingButtonPort;
   // The best time on this device for the event; the name cards show it. Without it they show none.
   loadBestTime?(athleteId: string, event: MeasurementEvent): Promise<Hundredths | null>;
   offline?: boolean;
@@ -62,14 +71,29 @@ type Session = {
 const newSession = (): Session => ({ series: readySeries, ids: [], seriesId: null, startedWall: null, opened: false, unsaved: new Map(), discards: new Set(), writes: Promise.resolve() });
 
 const TICK_MS = 50;
-const clock = () => BigInt(Math.round(performance.now() * 1e6));
+
+const targetOf = (series: Series): ButtonTarget => (series.status === 'running' ? { status: 'running', startedAt: series.startedAt } : { status: 'idle' });
 
 // Times a group that starts together with one shared clock and one arrival button, then names each arrival.
 export function SeriesTimingFlow(props: SeriesTimingFlowProps) {
   return <RosterGate loadRoster={props.loadRoster}>{(roster) => <SeriesSession {...props} roster={roster} />}</RosterGate>;
 }
 
-function SeriesSession({ subtitle, schoolId, roster, series: repository, setups, userId, deviceId, now = clock, loadBestTime, offline, onExit }: SeriesTimingFlowProps & { roster: RosterAthlete[] }) {
+function SeriesSession({
+  subtitle,
+  schoolId,
+  roster,
+  series: repository,
+  setups,
+  userId,
+  deviceId,
+  now: nowProp,
+  buttons = timingButton,
+  loadBestTime,
+  offline,
+  onExit,
+}: SeriesTimingFlowProps & { roster: RosterAthlete[] }) {
+  const now = nowProp ?? buttons.now;
   const { choice, selectedIds, ready, changeChoice, changeSelected } = useSessionSetup(setups, roster);
   const [step, setStep] = useState<Step>({ kind: 'setup' });
   const session = useRef<Session>(newSession());
@@ -84,6 +108,19 @@ function SeriesSession({ subtitle, schoolId, roster, series: repository, setups,
   const leaving = useRef(false);
   const naming = useRef(false);
   const [, setTick] = useState(0);
+
+  const settings = buttonSettingsOf(usePreferences().preferences.timingButtons);
+  const keys = useTimingButtons({
+    ...settings,
+    enabled: settings.enabled && step.kind === 'timing',
+    decide: arrivalButtonAction,
+    // The session ref always holds the series as it is now.
+    target: () => targetOf(session.current.series),
+    port: buttons,
+    // The first press starts the shared clock, every later one is the next arrival: the same as the on-screen button.
+    onAction: (_action, at) => arriveAt(at, 'external_button'),
+  });
+  const disconnect = useButtonDisconnect(keys.active, keys.keyboards);
 
   const commit = () => {
     setSeries(session.current.series);
@@ -159,7 +196,7 @@ function SeriesSession({ subtitle, schoolId, roster, series: repository, setups,
   }
 
   // The arrival at the instant `at`, the monotonic mark of the touch. The on-screen button calls it with the clock; an external button can call it with its own mark.
-  const arriveAt = (at: bigint) => {
+  const arriveAt = (at: bigint, source: MeasurementSource = 'screen_button') => {
     const s = session.current;
     const next = press(s.series, at);
     // A mark earlier than the last one is ignored.
@@ -186,7 +223,7 @@ function SeriesSession({ subtitle, schoolId, roster, series: repository, setups,
         distance: choice.distance,
         pool: choice.pool,
         sessionType: choice.sessionType,
-        source: 'screen_button',
+        source,
         createdBy: userId,
         schoolId,
         deviceId,
@@ -286,6 +323,9 @@ function SeriesSession({ subtitle, schoolId, roster, series: repository, setups,
           error={nameFailed ? t('timing.series.name_error') : undefined}
           offline={offline}
           onArrival={() => arriveAt(now())}
+          buttonsHint={keys.active ? arrivalButtonsHint(settings.config.startKey, settings.config.splitKey, keys.keyboards[0]?.name) : undefined}
+          externalTimerDisconnected={disconnect.disconnected}
+          onUseOnScreenStopwatch={disconnect.dismiss}
           onUndoLast={undoLast}
           onAssignNames={() => nameArrivals(step.queue)}
           // Leaving with arrivals keeps them on the phone as "por asignar"; the container asks first.
