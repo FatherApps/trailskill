@@ -18,6 +18,8 @@ export type ImportPromptProps = {
   onLearnMore?: () => void;
   // Only before the first import: starts the search of the athlete's history at the source.
   onStart?: () => void;
+  // Opens the import of one tournament by its address. Offered by itself when no federation is configured.
+  onStartTournament?: () => void;
 };
 
 const styles = StyleSheet.create({
@@ -33,17 +35,20 @@ export function ImportPrompt({
   onRefresh,
   onLearnMore,
   onStart,
+  onStartTournament,
 }: ImportPromptProps) {
   const { space, typography } = useTheme();
 
-  if (!sourceName) return null;
+  if (!sourceName && !onStartTournament) return null;
 
-  const values = { source: sourceName };
+  const values = { source: sourceName ?? '' };
 
   return (
     <View style={{ alignSelf: 'stretch', gap: space[2] }}>
-      <Banner variant="info" icon={imported ? 'cloud_done' : 'cloud_download'}>
-        {imported ? (
+      <Banner variant="info" icon={imported && sourceName ? 'cloud_done' : 'cloud_download'}>
+        {!sourceName ? (
+          t('athletes.import_prompt.tournament_offer')
+        ) : imported ? (
           namedText('athletes.import_prompt.imported', athleteName, values)
         ) : (
           <>
@@ -55,12 +60,13 @@ export function ImportPrompt({
         )}
       </Banner>
       <View style={[styles.actions, { gap: space[2] }]}>
-        {imported && (
+        {imported && sourceName && (
           <Button variant="secondary" label={t('athletes.import_prompt.refresh', values)} onPress={onRefresh} />
         )}
-        {!imported && onStart && <Button variant="secondary" label={t('athletes.import_prompt.start', values)} onPress={onStart} />}
+        {!imported && sourceName && onStart && <Button variant="secondary" label={t('athletes.import_prompt.start', values)} onPress={onStart} />}
+        {onStartTournament && <Button variant="secondary" label={t('athletes.import_prompt.tournament')} onPress={onStartTournament} />}
         <Button variant="ghost" label={t('athletes.import_prompt.dismiss')} onPress={onDismiss} />
-        {!imported && onLearnMore && (
+        {!imported && sourceName && onLearnMore && (
           <Button variant="ghost" label={t('athletes.import_prompt.learn_more')} onPress={onLearnMore} />
         )}
       </View>

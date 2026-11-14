@@ -79,16 +79,20 @@ export default function AthleteProfileRoute() {
   if (!session) return null;
   // Only a guardian or an adult athlete is offered the import; the source's name comes from data.
   const managedAthlete = managed.status === 'ready' ? managed.athletes.find((candidate) => candidate.id === id) : undefined;
+  // The federation is searched by person; a results platform is reached by the address of one tournament.
+  const federation = sources.find((source) => source.kind === 'federation');
+  const hasPlatform = sources.some((source) => source.kind === 'platform');
   const importPrompt =
-    managedAthlete && sources[0] && !importDismissed && !started
+    managedAthlete && ((federation && !started) || hasPlatform) && !importDismissed
       ? {
-          sourceName: sources[0].name,
+          sourceName: federation && !started ? federation.name : undefined,
           athleteName: managedAthlete.firstName,
           imported: false,
           onDismiss: () => setImportDismissed(true),
           // Never shown while `imported` is false; the update lives in the results panel.
           onRefresh: () => undefined,
           onStart: () => router.push(`/athletes/import/${id}`),
+          onStartTournament: hasPlatform ? () => router.push(`/athletes/import-tournament/${id}`) : undefined,
         }
       : undefined;
   // The container shows "private" for an athlete that is not on this device; the backend decides what reaches it.

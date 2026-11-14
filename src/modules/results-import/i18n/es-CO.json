@@ -61,7 +61,9 @@
     "unexpected": "Algo salió mal. Intenta de nuevo.",
     "expired": "La búsqueda venció. Vuelve a buscar.",
     "number_conflict": "Este historial no coincide con el número que ya está guardado, así que no lo confirmamos.",
-    "save_failed": "No pudimos guardar el número. Intenta de nuevo."
+    "save_failed": "No pudimos guardar el número. Intenta de nuevo.",
+    "tournament_unknown": "No reconocemos esa dirección de torneo. Revisa que esté completa.",
+    "number_required": "Escribe el número de identificación para buscar en el torneo."
   },
   "back": "Volver",
   "update": {
@@ -121,5 +123,22 @@
     "event": {
       "label": "{{stroke}} {{distance}} · {{pool}}"
     }
+  },
+  "tournament": {
+    "title": "Importar un torneo",
+    "generic_source": "el torneo",
+    "intro": "Pega la dirección del torneo donde compitió {{name}}. Tú confirmas que es la misma persona antes de importar.",
+    "url_label": "Dirección del torneo",
+    "url_help": "Copia la dirección de la página del torneo y pégala aquí.",
+    "search": "Buscar en el torneo",
+    "searching": "Buscando…",
+    "done": {
+      "title": "Importado",
+      "message_one": "Importamos {{count}} resultado de {{name}}. Ya aparece en su historial.",
+      "message_other": "Importamos {{count}} resultados de {{name}}. Ya aparecen en su historial.",
+      "message_none": "No había resultados nuevos de {{name}} para importar.",
+      "action": "Listo"
+    },
+    "number_label": "Número de identificación"
   }
 }
