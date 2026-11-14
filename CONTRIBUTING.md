@@ -120,7 +120,7 @@ Refs #12
 
 Every pull request runs [`.github/workflows/pr-checks.yml`](.github/workflows/pr-checks.yml) and [`.github/workflows/app-checks.yml`](.github/workflows/app-checks.yml):
 
-- **PR title and linked issue:** the title is a Conventional Commit and the description links its issue with an English closing keyword (`Closes #12`). The check is [`.github/scripts/check-pr.sh`](.github/scripts/check-pr.sh), which you can run locally.
+- **PR title and linked issue:** the title is a Conventional Commit. The description keeps every section of the [PR template](.github/pull_request_template.md) with content: write `N/A` or `Ninguno` when a section does not apply, because only HTML comments, an empty `- ` or `Closes #` without a number count as empty. It links its issue with an English closing keyword (`Closes #12`), or with `Refs #12` when the PR does not close it. The check is [`.github/scripts/check-pr.sh`](.github/scripts/check-pr.sh); run it before opening the PR with `PR_TITLE="..." PR_BODY="$(cat body.md)" sh .github/scripts/check-pr.sh`. Its tests run with `sh .github/scripts/check-pr.test.sh`.
 - **Secret scan:** gitleaks scans the branch history. Any finding fails the check; remove the secret and rotate it.
 
 - **App checks** (`app-checks.yml`): `npm run typecheck`, `npm run lint` and `npm test`.
