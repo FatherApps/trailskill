@@ -32,6 +32,9 @@ export type ConsoleLayoutProps = {
   // True when the children are one scrollable list that scrolls on its own (a virtualized list): the layout does not wrap
   // them in a scroll view, and they use `consoleContentPadding` as their own padding. The detail still scrolls.
   childrenScroll?: boolean;
+  // True for a person who only sees one screen of the console (a coach: «Mis nadadores»), who does not receive the admin sections:
+  // the layout draws no navigation and gives the content the whole width.
+  hideNav?: boolean;
   // A side sheet over the whole console, in every layout (for example the options of a filter). It hides what is behind it.
   sheet?: { label: string; titleKey?: string; content: ReactNode; onClose: () => void };
 };
@@ -52,6 +55,7 @@ export function ConsoleLayout({
   detail,
   scrollEnabled = true,
   childrenScroll = false,
+  hideNav = false,
   sheet,
 }: ConsoleLayoutProps) {
   const { colors, space, breakpoint } = useTheme();
@@ -84,8 +88,8 @@ export function ConsoleLayout({
     );
 
   // The 236 dp side card cannot hold the labels whole at large text: the top navigation, whose pills wrap, takes over.
-  const sideNav = layout === 'expanded' && !largeText;
-  const nav = (
+  const sideNav = layout === 'expanded' && !largeText && !hideNav;
+  const nav = hideNav ? null : (
     <ConsoleNav
       variant={sideNav ? 'side' : 'top'}
       activeId={activeId}

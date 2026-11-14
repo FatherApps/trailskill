@@ -17,7 +17,7 @@ import {
   useOwnLandingEvidence,
 } from '../../modules/accounts';
 import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
-import { createPowerSyncStaffSchoolRepository, useAdminSchool, useStaffSchool } from '../../modules/school-console';
+import { createPowerSyncStaffSchoolRepository, useAdminSchool, useCoachSchool, useStaffSchool } from '../../modules/school-console';
 import { createSupabaseConflictReviewRepository, usePlatformAdmin, usePlatformAdminStatus } from '../../modules/timing';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
@@ -82,6 +82,7 @@ export function Home() {
   const isStaff = useStaffSchool(staffSchools, userId, lastSyncedAt).status === 'staff';
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, lastSyncedAt);
   const isAdmin = useAdminSchool(staffSchools, userId, lastSyncedAt).status === 'admin';
+  const isCoach = useCoachSchool(staffSchools, userId, lastSyncedAt).status === 'coach';
   const isPlatformAdmin = usePlatformAdmin(conflictReview, userId);
 
   return (
@@ -99,6 +100,7 @@ export function Home() {
       {isStaff && <Button label={t('home.timing_series')} onPress={() => router.push('/timing?mode=series')} />}
       {isStaff && <Button label={t('home.timing_completed')} onPress={() => router.push('/timing?mode=completed')} />}
       {isStaff && <Button label={t('home.plans')} onPress={() => router.push('/plans')} />}
+      {isCoach && <Button label={t('home.my_swimmers')} onPress={() => router.push('/my-swimmers')} />}
       {isAdmin && <Button label={t('home.console')} onPress={() => router.push('/console')} />}
       {isPlatformAdmin && <Button label={t('home.review_conflicts')} onPress={() => router.push('/review-conflicts')} />}
       <SignOutContainer drafts={registrationDrafts} pending={pendingInvitations} />

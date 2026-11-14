@@ -33,6 +33,8 @@ jest.mock('../modules/school-console', () => ({
   createPowerSyncStaffSchoolRepository: () => ({
     listStaffSchools: async () => mockWorld.schools.map((id) => ({ id, name: id })),
     listAdminSchools: async () => mockWorld.adminSchools.map((id) => ({ id, name: id })),
+    // The landing tests only check which screen opens; the coach button of the home screen is tested in home.test.tsx.
+    listCoachSchools: async () => [],
   }),
 }));
 jest.mock('../modules/accounts', () => ({
