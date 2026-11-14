@@ -104,18 +104,18 @@ describe('createSupabaseImportSourcesRepository', () => {
     expect(order).toHaveBeenCalledWith('organization_id');
   });
 
-  it('lists the federations that have a source, with the name from data', async () => {
+  it('lists the sources, federation or platform by the type of its organization, with the name from data', async () => {
     answer({
       data: [
-        { organization_id: 'org-1', provider: 'xx-one', organizations: { name: 'Synthetic Federation' } },
-        { organization_id: 'org-2', provider: 'xx-two', organizations: [{ name: 'Second Federation' }] },
+        { organization_id: 'org-1', provider: 'xx-one', organizations: { name: 'Synthetic Federation', type: 'federation' } },
+        { organization_id: 'org-2', provider: 'xx-two', organizations: [{ name: 'Synthetic Platform', type: 'results_platform' }] },
         { organization_id: 'org-3', provider: 'xx-three', organizations: null },
       ],
       error: null,
     });
     expect(await createSupabaseImportSourcesRepository().list()).toEqual([
-      { organizationId: 'org-1', name: 'Synthetic Federation', provider: 'xx-one' },
-      { organizationId: 'org-2', name: 'Second Federation', provider: 'xx-two' },
+      { organizationId: 'org-1', name: 'Synthetic Federation', kind: 'federation', provider: 'xx-one' },
+      { organizationId: 'org-2', name: 'Synthetic Platform', kind: 'platform', provider: 'xx-two' },
     ]);
     expect(supabase.from).toHaveBeenCalledWith('results_import_sources');
   });
@@ -128,5 +128,38 @@ describe('createSupabaseImportSourcesRepository', () => {
   it('throws on an error, with only its code', async () => {
     answer({ data: null, error: { code: '42501' } });
     await expect(createSupabaseImportSourcesRepository().list()).rejects.toThrow('Reading the import sources failed (42501)');
+  });
+});
+
+describe('tournament calls', () => {
+  const url = 'https://example.test/torneo/2026/20260510/';
+  const found = { organizationId: 'org-platform', candidate: { id: 'c1', name: 'Ana Example', club: 'Synthetic Club', resultCount: 3 } };
+
+  it('asks the tournament action with the address, and sends the typed number only when there is one', async () => {
+    const { client, calls } = clientReplying({ data: { ok: true, value: found } });
+    const repository = createSupabaseOfficialSearchRepository(client);
+    expect(await repository.tournament({ athleteId: 'athlete-1', url })).toEqual({ ok: true, value: found });
+    await repository.tournament({ athleteId: 'athlete-1', url, identityNumber: '0000-synthetic' });
+    expect(calls.map((c) => c.body)).toEqual([
+      { action: 'tournament', athleteId: 'athlete-1', url },
+      { action: 'tournament', athleteId: 'athlete-1', url, identityNumber: '0000-synthetic' },
+    ]);
+  });
+
+  it('answers a tournament without the athlete as a found-nobody value, not as a failure', async () => {
+    const { client } = clientReplying({ data: { ok: true, value: { organizationId: 'org-platform', candidate: null } } });
+    expect(await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', url })).toEqual({ ok: true, value: { organizationId: 'org-platform', candidate: null } });
+  });
+
+  it.each([['identity_number_required'], ['no_provider'], ['identity_number_conflict']] as const)('keeps the typed error %s', async (code) => {
+    const { client } = clientReplying(refusal({ ok: false, error: { code } }));
+    expect(await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', url })).toEqual({ ok: false, error: { code } });
+  });
+
+  it('confirms with the organization of the tournament and returns the results the server offers', async () => {
+    const offered = [{ id: 'r1', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: 3012, swumOn: '2026-05-10', competition: 'Synthetic Open' }];
+    const { client, calls } = clientReplying({ data: { ok: true, value: { results: offered } } });
+    expect(await createSupabaseOfficialSearchRepository(client).confirmTournament({ athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1' })).toEqual({ ok: true, value: offered });
+    expect(calls[0].body).toEqual({ action: 'confirm', athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1' });
   });
 });

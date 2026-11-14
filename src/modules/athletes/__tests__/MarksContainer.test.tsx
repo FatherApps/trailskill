@@ -192,6 +192,14 @@ describe('MarksContainer', () => {
       expect(screen.getAllByLabelText(/Comp\. · /).length).toBeGreaterThan(0);
     });
 
+    it('shows one mark with both sources when two sources hold the same swim, and the same best as with one (issue 897)', async () => {
+      const both = [official('i1', 3300, '2026-09-10'), official('i2', 3300, '2026-09-12', { provider: 'xx-torneo' })];
+      await show({ history: noHistory, importedResults: importedRepo(both), sourceNames: { ...sourceNames, 'xx-torneo': 'Torneo Demo' }, sessionDated: ['xx-torneo'] });
+
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
+      expect(screen.getAllByLabelText(/Federación Demo · Torneo Demo · /).length).toBeGreaterThan(0);
+    });
+
     it('says only "Oficial" when the organization is not known', async () => {
       await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]) });
 
