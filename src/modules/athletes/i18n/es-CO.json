@@ -54,7 +54,9 @@
     "imported_no_name": "Ya importamos el historial del deportista desde {{source}}. Puedes actualizarlo cuando quieras.",
     "dismiss": "Ahora no",
     "learn_more": "Ver cómo",
-    "refresh": "Actualizar desde {{source}}"
+    "refresh": "Actualizar desde {{source}}",
+    "tournament": "Importar desde un torneo",
+    "tournament_offer": "¿Compitió en un torneo? Puedes traer sus resultados con la dirección del torneo. Tú lo confirmas antes de importar."
   },
   "screen": {
     "history_title": "Historial",

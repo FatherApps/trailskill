@@ -136,7 +136,7 @@ describe('athlete profile route', () => {
     it('invites a guardian to import before anything was imported', async () => {
       mockUserId = 'user-1';
       mockManaged = managed;
-      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation', provider: 'xx-demo' }];
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation', kind: 'federation', provider: 'xx-demo' }];
       await render(<AthleteRoute />);
 
       expect(await screen.findByText('profile of a1 online with import prompt pending 0')).toBeOnTheScreen();
@@ -145,7 +145,7 @@ describe('athlete profile route', () => {
     it('lets the results panel replace the invitation once the identity is confirmed, even with nothing imported', async () => {
       mockUserId = 'user-1';
       mockManaged = managed;
-      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation', provider: 'xx-demo' }];
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation', kind: 'federation', provider: 'xx-demo' }];
       mockConfirmed = true;
       await render(<AthleteRoute />);
 
@@ -155,11 +155,32 @@ describe('athlete profile route', () => {
     it('stops inviting once something was imported: updating is the results panel', async () => {
       mockUserId = 'user-1';
       mockManaged = managed;
-      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation', provider: 'xx-demo' }];
+      mockSources = [{ organizationId: 'o1', name: 'Synthetic Federation', kind: 'federation', provider: 'xx-demo' }];
       mockImportedAt = '2026-10-28T10:00:00Z';
       await render(<AthleteRoute />);
 
       expect(await screen.findByText('profile of a1 online pending 0')).toBeOnTheScreen();
+    });
+    it('still invites to import a tournament when a results platform is configured, even after the federation import', async () => {
+      mockUserId = 'user-1';
+      mockManaged = managed;
+      mockSources = [
+        { organizationId: 'o1', name: 'Synthetic Federation', kind: 'federation', provider: 'xx-demo' },
+        { organizationId: 'o2', name: 'Synthetic Platform', kind: 'platform', provider: 'xx-torneo' },
+      ];
+      mockImportedAt = '2026-10-28T10:00:00Z';
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('profile of a1 online with import prompt pending 0')).toBeOnTheScreen();
+    });
+
+    it('invites with a results platform alone, with no federation', async () => {
+      mockUserId = 'user-1';
+      mockManaged = managed;
+      mockSources = [{ organizationId: 'o2', name: 'Synthetic Platform', kind: 'platform', provider: 'xx-torneo' }];
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('profile of a1 online with import prompt pending 0')).toBeOnTheScreen();
     });
   });
 
