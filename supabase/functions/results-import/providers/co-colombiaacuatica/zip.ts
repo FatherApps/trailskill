@@ -87,7 +87,7 @@ function readDirectory(view: DataView, zip: Uint8Array): { entries: Entry[]; dir
 // The inflated stream is read through the same bound as the download: a bomb is cut at `limit`. `Blob` copies the bytes once (the cast is only for the type: they are never shared).
 async function inflate(compressed: Uint8Array, limit: number): Promise<Uint8Array> {
   try {
-    return await readBounded(new Blob([compressed as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream('deflate-raw')), limit);
+    return await readBounded(new Blob([compressed as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw')), limit);
   } catch (error) {
     if (error instanceof ProviderUnavailableError) throw error;
     return fail(CORRUPT); // not valid deflate data
