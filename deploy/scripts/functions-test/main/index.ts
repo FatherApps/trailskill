@@ -1,6 +1,7 @@
 // Test-only main service for deploy/scripts/functions.test.sh: it routes /<name> to /home/deno/functions/<name>
 // the way the main service of the Supabase self-hosted template does, including the part that matters for the bundle:
-// every worker gets the ONE import map at the root of the volume (deno.jsonc), and a deno.json inside a function is ignored.
+// every worker gets the ONE import map at the root of the volume (deno.jsonc). Observed in edge-runtime v1.74.0: a deno.json
+// inside a function was still applied, so it cannot be relied on to be ignored; that is why the bundle adds no per-function import map.
 // It skips the JWT check on purpose: the test has no JWT secret, and results-import authenticates the caller itself
 // (a request without a user token gets 401).
 Deno.serve(async (req: Request) => {

@@ -60,7 +60,8 @@ const official = createOfficialResultsActions({
   providerKeyFor: async (organizationId) => registry.resolve(await organizationChain(organizationId), organizationId)?.key ?? null,
 });
 
-// The platform verifies the JWT (verify_jwt in config.toml); this asks the auth server who it belongs to.
+// The runtime may verify the JWT first (verify_jwt in config.toml locally, VERIFY_JWT in the stack); either way this asks the
+// auth server who the token belongs to, and a missing or invalid token gets null.
 const authenticate = async (request: Request) => {
   const authorization = request.headers.get('Authorization');
   if (!authorization) return null;
