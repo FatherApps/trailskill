@@ -8,7 +8,7 @@
 
 Closes #
 
-<!-- Mantener "Closes" en inglés: GitHub solo cierra el issue con palabras clave en inglés. -->
+<!-- Mantener "Closes" en inglés: GitHub solo cierra el issue con palabras clave en inglés. Si el PR no cierra el issue, usar `Refs #N`. -->
 
 ## Cambios
 
