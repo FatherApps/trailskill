@@ -323,6 +323,20 @@ describe('AthletesSection', () => {
         expect(screen.getByText('Sin dato, beto@example.test')).toBeOnTheScreen();
       });
 
+      it('skips a guardian without a profile and keeps a later missing contact in its own position', async () => {
+        const listGuardians = jest.fn().mockResolvedValue([
+          { userId: 'g5', name: 'Ana Prueba', contact: 'ana@example.test' },
+          { userId: 'g6', name: null, contact: null },
+          { userId: 'g7', name: 'Beto Ejemplo', contact: null },
+        ]);
+        await show(setup().repository, { guardians: { listGuardians } });
+
+        await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+
+        expect(await screen.findByText('Ana Prueba, Beto Ejemplo')).toBeOnTheScreen();
+        expect(screen.getByText('ana@example.test, Sin dato')).toBeOnTheScreen();
+      });
+
       it('shows the name and Sin dato for the contact when the only guardian has no contact', async () => {
         const listGuardians = jest.fn().mockResolvedValue([{ userId: 'g5', name: 'Ana Prueba', contact: null }]);
         await show(setup().repository, { guardians: { listGuardians } });
