@@ -306,8 +306,31 @@ describe('AthletesSection', () => {
         await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
 
         expect(await screen.findByText('Ana Prueba, Beto Ejemplo')).toBeOnTheScreen();
-        expect(screen.getByText('ana@example.test')).toBeOnTheScreen();
-        expect(screen.queryAllByText('Sin dato')).toHaveLength(0);
+        // Contacts line up with the names: Beto has no contact, so his position says Sin dato.
+        expect(screen.getByText('ana@example.test, Sin dato')).toBeOnTheScreen();
+      });
+
+      it('keeps every contact next to its own guardian when the first guardian has no contact', async () => {
+        const listGuardians = jest.fn().mockResolvedValue([
+          { userId: 'g5', name: 'Ana Prueba', contact: null },
+          { userId: 'g6', name: 'Beto Ejemplo', contact: 'beto@example.test' },
+        ]);
+        await show(setup().repository, { guardians: { listGuardians } });
+
+        await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+
+        expect(await screen.findByText('Ana Prueba, Beto Ejemplo')).toBeOnTheScreen();
+        expect(screen.getByText('Sin dato, beto@example.test')).toBeOnTheScreen();
+      });
+
+      it('shows the name and Sin dato for the contact when the only guardian has no contact', async () => {
+        const listGuardians = jest.fn().mockResolvedValue([{ userId: 'g5', name: 'Ana Prueba', contact: null }]);
+        await show(setup().repository, { guardians: { listGuardians } });
+
+        await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+
+        expect(await screen.findByText('Ana Prueba')).toBeOnTheScreen();
+        expect(screen.getAllByText('Sin dato')).toHaveLength(1);
       });
 
       it('shows Sin dato for the guardian and the contact when the guardian has no profile or the athlete has no guardian', async () => {

@@ -38,6 +38,16 @@ type Filters = Partial<Record<AthleteFilterId, string>>;
 // The values of the guardians that have one, in order, joined; null when none does.
 const joined = (values: (string | null)[]) => values.filter((value) => value !== null).join(', ') || null;
 
+// A guardian without a profile adds nothing. Contacts keep the order of the names, with the no-data text in place of a missing
+// one, so a contact is never read as belonging to another guardian; when none has a contact the detail says no data once.
+const guardianDetail = (list: Guardian[], noData: string) => {
+  const named = list.filter((g) => g.name !== null);
+  return {
+    name: joined(named.map((g) => g.name)),
+    contact: named.some((g) => g.contact !== null) ? named.map((g) => g.contact ?? noData).join(', ') : null,
+  };
+};
+
 const defaultNow = () => new Date();
 
 const MINUTE_MS = 60_000;
@@ -190,8 +200,7 @@ export function AthletesSection({
             name: selected.name,
             category: selected.category ?? t('schoolConsole.common.no_data'),
             authorization: selected.authorization,
-            // A guardian without a profile adds nothing.
-            guardian: { name: joined(guardianNow.map((g) => g.name)), contact: joined(guardianNow.map((g) => g.contact)) },
+            guardian: guardianDetail(guardianNow, t('schoolConsole.common.no_data')),
             // Until the athlete's own bests arrive the list is empty, never another athlete's.
             bests: bests?.athleteId === selected.id ? bests.bests : [],
             bestsError: bests?.athleteId === selected.id && bests.failed,
