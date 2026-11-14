@@ -83,6 +83,7 @@ describe('school console gallery entries', () => {
       'measurementsScreen',
       'authorizationList',
       'authorizationsScreen',
+      'mySwimmersScreen',
     ]);
     expect(stateKeys('consoleNav')).toEqual(['side', 'top']);
     expect(stateKeys('sideSheet')).toEqual(['open', 'titled']);
@@ -112,6 +113,18 @@ describe('school console gallery entries', () => {
     expect(stateKeys('recordTable')).toEqual(['default', 'other-pool', 'long-text', 'compact', 'pool-empty']);
     expect(stateKeys('measurementLog')).toEqual(['default', 'long-text', 'no-results']);
     expect(stateKeys('authorizationList')).toEqual(['default', 'long-text', 'sharing-requests', 'read-error']);
+    expect(stateKeys('mySwimmersScreen')).toEqual([
+      'with-data',
+      'loading',
+      'empty',
+      'error',
+      'offline-no-data',
+      'connecting-no-data',
+      'long-text',
+      'expanded-1280',
+      'medium-800',
+      'compact-360',
+    ]);
     for (const id of sectionScreens) expect(stateKeys(id)).toEqual(id === 'coachesScreen' ? [...sectionScreenStates, 'invite-unavailable'] : sectionScreenStates);
   });
 

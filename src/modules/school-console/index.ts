@@ -33,7 +33,7 @@ export {
 export { AthletesSection, type AthletesSectionProps } from './screens/AthletesSection';
 export { ConsoleScreen, type ConsoleScreenProps, type ConsoleSectionProps } from './screens/ConsoleScreen';
 export { EmptySectionScreen, type EmptySectionScreenProps } from './screens/EmptySectionScreen';
-export { useAdminSchool, useStaffSchool, type AdminSchoolResult, type StaffSchoolResult } from './data/useAdminSchool';
+export { useAdminSchool, useCoachSchool, useStaffSchool, type AdminSchoolResult, type CoachSchoolResult, type StaffSchoolResult } from './data/useAdminSchool';
 export { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from './screens/CoachesScreen';
 export { RecordsScreen, type RecordsContent, type RecordsScreenProps, type RecordsSheet, type RecordsView } from './screens/RecordsScreen';
 export { RecordsSection, type RecordsSectionProps } from './screens/RecordsSection';
@@ -77,6 +77,8 @@ export {
   type ConsoleAuthorizationRow,
 } from './data/authorizations';
 export { CoachesSection, type CoachesSectionProps } from './screens/CoachesSection';
+export { MySwimmersScreen, type MySwimmersScreenProps, type MySwimmersView } from './screens/MySwimmersScreen';
+export { MySwimmersSection, type MySwimmersSectionProps } from './screens/MySwimmersSection';
 export { createInMemoryCoachInvitationRepository, type CoachInvitationRepository, type SentCoachInvitation } from './data/coachInvitations';
 export { createInMemoryCoachRepository, createPowerSyncCoachRepository } from './data/coaches';
 export type { Coach, CoachMembershipRow, CoachRepository } from './data/coaches';
