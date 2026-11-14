@@ -29,6 +29,24 @@ describe('ImportPrompt', () => {
     expect(screen.queryByTestId('banner')).toBeNull();
   });
 
+  it('offers the tournament import beside the federation one, and opens it', async () => {
+    const onStartTournament = jest.fn();
+    await render(<ImportPrompt {...base} onStart={jest.fn()} onStartTournament={onStartTournament} />);
+
+    expect(screen.getByText('Buscar en FEDNAT')).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: 'Importar desde un torneo' }));
+    expect(onStartTournament).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers only the tournament import when no federation is configured', async () => {
+    await render(<ImportPrompt {...base} sourceName={undefined} onStartTournament={jest.fn()} onLearnMore={jest.fn()} />);
+
+    expect(screen.getByText(/Puedes traer sus resultados con la dirección del torneo/)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Importar desde un torneo' })).toBeOnTheScreen();
+    expect(screen.queryByText(/Buscar en/)).toBeNull();
+    expect(screen.queryByText('Ver cómo')).toBeNull();
+  });
+
   it('asks before the first import with the athlete and the source filled in', async () => {
     await render(<ImportPrompt {...base} />);
 

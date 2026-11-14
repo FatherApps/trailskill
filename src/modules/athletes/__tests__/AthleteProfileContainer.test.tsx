@@ -651,6 +651,27 @@ describe('athlete profile container', () => {
       expect(await screen.findByLabelText(/Federación Demo/)).toBeOnTheScreen();
     });
 
+    it('shows the same swim of two sources as one row that lists both sources (issue 897)', async () => {
+      await show({
+        importedResults: repo([imported({ id: 'f1', provider: 'xx-demo', hundredths: 2910, swumOn: '2026-09-03' }), imported({ id: 't1', provider: 'xx-torneo', hundredths: 2910, swumOn: '2026-09-05' })]),
+        sourceNames: { 'xx-demo': 'Federación Demo', 'xx-torneo': 'Torneo Demo' },
+        sessionDated: ['xx-torneo'],
+      });
+
+      expect(await screen.findAllByLabelText(/Federación Demo · Torneo Demo/)).toHaveLength(1);
+    });
+
+    it('keeps both rows, each with its source, when the sources disagree on the time', async () => {
+      await show({
+        importedResults: repo([imported({ id: 'f1', provider: 'xx-demo', hundredths: 2910 }), imported({ id: 't1', provider: 'xx-torneo', hundredths: 2950 })]),
+        sourceNames: { 'xx-demo': 'Federación Demo', 'xx-torneo': 'Torneo Demo' },
+        sessionDated: ['xx-torneo'],
+      });
+
+      expect(await screen.findAllByLabelText(/Federación Demo/)).toHaveLength(1);
+      expect(screen.getAllByLabelText(/Torneo Demo/)).toHaveLength(1);
+    });
+
     it('opens in the event of the most recent result, imported or measured', async () => {
       await show({ importedResults: repo([imported({ id: 'i9', stroke: 'BK', distance: '25m', pool: 'LCM', hundredths: 2500, swumOn: '2026-10-20' })]) });
 

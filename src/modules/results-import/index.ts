@@ -25,6 +25,7 @@ export { PendingChangeCard, type PendingChangeCardProps } from './components/Pen
 export { ResultRow, type ResultRowProps } from './components/ResultRow';
 export { galleryEntries } from './gallery';
 export { ConfirmPersonContainer, formatRetryTime, type ConfirmPersonContainerProps } from './screens/ConfirmPersonContainer';
+export { TournamentImportContainer, type TournamentImportContainerProps } from './screens/TournamentImportContainer';
 export { ConfirmPersonScreen, type ConfirmPersonScreenProps, type ConfirmPersonView } from './screens/ConfirmPersonScreen';
 export {
   createInMemoryOfficialSearchRepository,
@@ -36,5 +37,6 @@ export {
   type SearchCandidate,
   type SearchFailure,
   type SearchOutcome,
+  type TournamentCandidate,
 } from './data/officialSearch';
 export { useImportSources } from './data/useImportSources';

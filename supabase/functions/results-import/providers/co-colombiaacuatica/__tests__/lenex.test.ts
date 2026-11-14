@@ -39,20 +39,30 @@ describe('searchLenex', () => {
     expect(found(lenex({ athletes: [{ ...ME, license: 'ab12' }] }), 'AB-12').results).toHaveLength(3);
   });
 
-  const NO_LICENSE = new ProviderUnavailableError('The tournament file has participants without a readable license, so the person cannot be ruled out');
-  const unreadable: [string, SyntheticAthlete][] = [
+  const DOUBT = new ProviderUnavailableError('The tournament file has participants with an unreadable license, so the person cannot be ruled out');
+  // No license at all is no claim of identity (many minors have none): it cannot be the person, in either path.
+  const withoutLicense: [string, SyntheticAthlete][] = [
     ['no license', { ...OTHER, license: undefined }],
     ['an empty license', { ...OTHER, license: '' }],
-    ['an unreadable license', { ...OTHER, license: '!!' }],
+    ['a blank license', { ...OTHER, license: ' \t ' }],
   ];
+  // A license that is there but cannot be read may be the person written badly: doubt, so unavailable, in either path.
+  const unreadable: SyntheticAthlete = { ...OTHER, license: '!!' };
 
-  it.each(unreadable)('is unavailable, not "no matches", when the person is not found and an athlete has %s', (_label, odd) => {
-    expect(() => searchLenex(lenex({ athletes: [OTHER, odd] }), TOURNAMENT, NUMBER)).toThrow(NO_LICENSE);
+  it.each(withoutLicense)('says "no matches" when nobody matches and an athlete has %s', (_label, odd) => {
+    expect(searchLenex(lenex({ athletes: [OTHER, odd] }), TOURNAMENT, NUMBER)).toEqual({ found: false });
   });
 
-  it.each(unreadable)('still finds the person when another athlete has %s', (_label, odd) => {
-    const search = found(lenex({ athletes: [ME, { ...odd, athleteid: '99' }] }));
-    expect(search.results).toHaveLength(3);
+  it.each(withoutLicense)('gives the rows of the one match when another athlete has %s', (_label, odd) => {
+    expect(found(lenex({ athletes: [ME, { ...odd, athleteid: '99' }] })).results).toHaveLength(3);
+  });
+
+  it('is unavailable, not "no matches", when nobody matches and an athlete has an unreadable license', () => {
+    expect(() => searchLenex(lenex({ athletes: [OTHER, unreadable] }), TOURNAMENT, NUMBER)).toThrow(DOUBT);
+  });
+
+  it('is unavailable, not the match alone, when an athlete has an unreadable license (same as when nobody matches)', () => {
+    expect(() => searchLenex(lenex({ athletes: [ME, { ...unreadable, athleteid: '99' }] }), TOURNAMENT, NUMBER)).toThrow(DOUBT);
   });
 
   it('says "no matches" when every license is readable and none is the number', () => {
@@ -154,9 +164,38 @@ describe('searchLenex', () => {
     expect(() => searchLenex(xml, tournament, NUMBER)).toThrow(new ProviderUnavailableError('A result key of the tournament file would be the identity number'));
   });
 
-  it('is unavailable when an id is not plain, or the result has no id', () => {
-    unavailable(lenex({ athletes: [{ ...ME, results: [{ eventid: '1', resultid: 'a|b', swimtime: '00:01:00.00' }] }] }));
+  it('is unavailable when the result has no id', () => {
     unavailable(lenex({ athletes: [{ ...ME, results: [{ eventid: '1', swimtime: '00:01:00.00' }] }] }));
+  });
+
+  it('is unavailable when a result points to an event the file does not have', () => {
+    unavailable(lenex({ athletes: [{ ...ME, results: [{ eventid: '99', resultid: '1', swimtime: '00:01:00.00' }] }] }));
+  });
+
+  it.each([
+    ['a "|"', 'a|b'],
+    ['a space inside', '10 1'],
+    ['a line break inside', '10\n1'],
+    ['nothing', ''],
+  ])('leaves out only the row whose result id is not plain (%s), not the whole file', (_label, resultid) => {
+    const athlete = { ...ME, results: [{ eventid: '1', resultid, swimtime: '00:01:00.00' }, ...ME.results.slice(1)] };
+    expect(found(lenex({ athletes: [athlete] })).results.map((r) => r.sourceResultKey)).toEqual(['20251018|2|102', '20251018|3|103']);
+  });
+
+  it('reads an event id with a line break around it as the event id, and leaves out the row if it is not plain after that', () => {
+    const xml = lenex();
+    const around = xml.replace('resultid="101" eventid="1"', 'resultid="101" eventid="1\n"');
+    expect(found(around).results.map((r) => r.sourceResultKey)).toEqual(['20251018|1|101', '20251018|2|102', '20251018|3|103']);
+    const inside = xml.replace('resultid="101" eventid="1"', 'resultid="101" eventid="1\n1"').replace('eventid="1" number', 'eventid="1\n1" number');
+    expect(found(inside).results.map((r) => r.sourceResultKey)).toEqual(['20251018|2|102', '20251018|3|103']);
+  });
+
+  it('collapses the spaces of an athlete name that has a tab or a line break', () => {
+    expect(found(lenex({ athletes: [{ ...ME, first: 'Ana\tMaría', last: 'Prueba\nUno' }] })).athlete.name).toBe('Ana María Prueba Uno');
+  });
+
+  it('is unavailable on a control character in a value', () => {
+    unavailable(lenex({ meetName: 'Copa\u0001X' }));
   });
 
   it('is unavailable when two results of the athlete give the same key', () => {
@@ -213,5 +252,41 @@ describe('searchLenex', () => {
   it('survives a comment, CDATA-free text between tags and attributes in single quotes', () => {
     const xml = lenex().replace('<MEETS>', "<!-- a comment -->\n  <MEETS>").replace('course="LCM"', "course='LCM'");
     expect(found(xml).results).toHaveLength(3);
+  });
+
+  describe('pool course', () => {
+    const rowsOf = (xml: string) => found(xml).results.map((r) => [r.sourceResultKey, r.pool]);
+    const noMeetCourse = (xml: string) => xml.replace(' course="LCM"', '');
+    const inSession = (xml: string, number: number, course: string) => xml.replace(`<SESSION number="${number}" date`, `<SESSION number="${number}" course="${course}" date`);
+
+    it('reads it from MEET/POOL when MEET has no course', () => {
+      const xml = noMeetCourse(lenex()).replace('<SESSIONS>', '<POOL name="Piscina" course="SCM"/><SESSIONS>');
+      expect(rowsOf(xml)).toEqual([['20251018|1|101', 'SCM'], ['20251018|2|102', 'SCM'], ['20251018|3|103', 'SCM']]);
+    });
+
+    it('gives each row the course of its own session when the tournament has two', () => {
+      const xml = inSession(lenex(), 2, 'SCM');
+      expect(rowsOf(xml)).toEqual([['20251018|1|101', 'LCM'], ['20251018|2|102', 'LCM'], ['20251018|3|103', 'SCM']]);
+    });
+
+    it('reads the course of a session from its POOL', () => {
+      const xml = lenex().replace('<EVENTS>\n    <EVENT eventid="3"', '<POOL course="SCM"/><EVENTS>\n    <EVENT eventid="3"');
+      expect(rowsOf(xml).map(([, pool]) => pool)).toEqual(['LCM', 'LCM', 'SCM']);
+    });
+
+    it('does not guess: a session whose course is not recognized leaves out its rows, and only those', () => {
+      expect(rowsOf(inSession(lenex(), 2, 'XYZ'))).toEqual([['20251018|1|101', 'LCM'], ['20251018|2|102', 'LCM']]);
+      expect(rowsOf(inSession(inSession(lenex({ course: 'lcm' }), 1, 'SCM'), 2, 'LCM'))).toHaveLength(3);
+    });
+
+    it('does not guess: no course for the whole meet (unknown, or two different ones) is unavailable', () => {
+      unavailable(lenex().replace('<SESSIONS>', '<POOL course="SCM"/><SESSIONS>'));
+      unavailable(inSession(lenex({ course: 'lcm' }), 1, 'SCM'));
+    });
+
+    it('is unavailable when a session has no course anywhere', () => {
+      unavailable(noMeetCourse(lenex()));
+      unavailable(inSession(noMeetCourse(lenex()), 1, 'LCM'));
+    });
   });
 });

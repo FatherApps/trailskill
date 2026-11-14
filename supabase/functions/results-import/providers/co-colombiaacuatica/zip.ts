@@ -1,4 +1,5 @@
 import { ProviderUnavailableError } from '../../port.ts';
+import { TOO_LARGE, readBounded, unavailable as fail } from './shared.ts';
 
 // Against zip bombs: the maintainer's caps (#834).
 export const MAX_ZIP_BYTES = 10 * 1024 * 1024;
@@ -14,12 +15,7 @@ const LOCAL_SIZE = 30;
 
 const CORRUPT = 'The tournament file is corrupt';
 const UNSUPPORTED = 'The tournament file uses an unsupported zip format';
-const TOO_LARGE = 'The tournament file is too large';
 const NOT_ONE_LEF = 'The tournament file does not hold exactly one .lef';
-
-const fail = (message: string): never => {
-  throw new ProviderUnavailableError(message);
-};
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -32,6 +28,9 @@ function crc32(data: Uint8Array): number {
   for (const byte of data) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
   return (crc ^ 0xffffffff) >>> 0;
 }
+
+// What macOS adds to a zip: the `__MACOSX/` folder at the root and an `._` file next to each file. They are not the tournament's.
+const isMacJunk = (name: string) => name.startsWith('__MACOSX/') || /(^|\/)\._[^/]*$/.test(name);
 
 type Entry = { name: string; flags: number; method: number; crc: number; compressedSize: number; size: number; offset: number };
 
@@ -85,33 +84,14 @@ function readDirectory(view: DataView, zip: Uint8Array): { entries: Entry[]; dir
   return { entries, directoryStart: start };
 }
 
-// Reads at most `limit` bytes of the inflated stream and stops there: nothing past it is ever held.
+// The inflated stream is read through the same bound as the download: a bomb is cut at `limit`. `Blob` copies the bytes once (the cast is only for the type: they are never shared).
 async function inflate(compressed: Uint8Array, limit: number): Promise<Uint8Array> {
-  const reader = new Blob([new Uint8Array(compressed)]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
   try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.length;
-      if (total > limit) {
-        await reader.cancel().catch(() => undefined);
-        return fail(TOO_LARGE);
-      }
-      chunks.push(value);
-    }
+    return await readBounded(new Blob([compressed as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream('deflate-raw')), limit);
   } catch (error) {
     if (error instanceof ProviderUnavailableError) throw error;
     return fail(CORRUPT); // not valid deflate data
   }
-  const out = new Uint8Array(total);
-  let position = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, position);
-    position += chunk.length;
-  }
-  return out;
 }
 
 /**
@@ -124,7 +104,7 @@ export async function readSingleLef(zip: Uint8Array): Promise<Uint8Array> {
   if (zip.length < EOCD_SIZE) fail(CORRUPT);
   const { entries, directoryStart } = readDirectory(view, zip);
 
-  const lefs = entries.filter((entry) => entry.name.toLowerCase().endsWith('.lef'));
+  const lefs = entries.filter((entry) => !isMacJunk(entry.name) && entry.name.toLowerCase().endsWith('.lef'));
   if (lefs.length !== 1) fail(NOT_ONE_LEF);
   const entry = lefs[0];
 

@@ -1,8 +1,9 @@
 import { isDistance, isPool, isStroke } from '../../../src/core/sport/catalogs.ts';
-import { SourceUnreachableError, type Affiliation, type Candidate, type NormalizedResult, type ResultsProvider } from './port.ts';
+import { keyHasNumber, normalizeNumber } from './identityNumber.ts';
+import { SourceUnreachableError, type Affiliation, type Candidate, type NormalizedResult, type ResultsProvider, type TournamentSearch } from './port.ts';
 import type { OrganizationData, ProviderRegistry } from './registry.ts';
 
-// The worker's proposal, pending maintainer review: one source query per athlete every 10 minutes, search and refresh alike.
+// The worker's proposal, pending maintainer review: one source query per athlete and provider every 10 minutes, search and refresh alike.
 // A results query right after a search the same user confirmed shares that search's claim (see `QueryGate`), so one
 // search -> confirm -> results flow is one query.
 export const QUERY_INTERVAL_MS = 10 * 60 * 1000;
@@ -14,13 +15,16 @@ export const RETRY_AFTER_FAILURE_MS = 60 * 1000;
 export type Claim = { status: 'allowed'; claimedAt: string } | { status: 'rate_limited'; retryAt: string } | { status: 'not_authorized' };
 
 /**
- * Implemented by `public.results_import_claim_query(athlete, requested_by, min_interval)`, which atomically checks
- * that the user manages the athlete with `import_official_results` in force and keeps the time of the last source query per athlete.
+ * Implemented by `public.results_import_claim_query(athlete, provider, requested_by, min_interval)`, which atomically checks
+ * that the user manages the athlete with `import_official_results` in force and keeps the time of the last source query per
+ * athlete and provider: asking the platform never spends the federation's window.
  */
 export interface QueryGate {
   claim(request: {
     athleteId: string;
     userId: string;
+    /** The provider key of the source about to be asked. */
+    provider: string;
     intervalMs: number;
     /**
      * When given, a results query of the same user inside this time after a search they confirmed uses that search's claim;
@@ -33,7 +37,7 @@ export interface QueryGate {
    * `retryAfterMs` after that claim instead of a whole interval, and the claim can no longer be shared. `false` when it no
    * longer matches. Implemented by `public.results_import_release_claim`.
    */
-  release(request: { athleteId: string; claimedAt: string; intervalMs: number; retryAfterMs: number }): Promise<boolean>;
+  release(request: { athleteId: string; provider: string; claimedAt: string; intervalMs: number; retryAfterMs: number }): Promise<boolean>;
 }
 
 /**
@@ -128,10 +132,14 @@ export type ImportError =
   | { code: 'no_provider' }
   | { code: 'unavailable' }
   | { code: 'unknown_id' }
-  | { code: 'identity_number_conflict' };
+  | { code: 'identity_number_conflict' }
+  | { code: 'identity_number_required' };
 
 /** What the device sees of a candidate: an opaque id, never the source's reference. */
 export type PublicCandidate = { id: string; name: string; affiliations: Affiliation[]; resultCount: number };
+
+/** A result offered after a platform confirmation: an opaque id and the values, never the source key. */
+export type OfferedResult = Omit<NormalizedResult, 'sourceResultKey'> & { id: string };
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: ImportError };
 
@@ -183,12 +191,32 @@ function cleanList<T>(raw: unknown, cleanItem: (item: unknown) => T | null): T[]
   return items.some((item) => item === null) ? null : (items as T[]);
 }
 
+// The platform's whole answer, rebuilt with only the declared fields: the athlete's name and club, and cleaned rows.
+function cleanSearch(raw: unknown): TournamentSearch | null {
+  if (!isRecord(raw)) return null;
+  if (raw.found === false) return { found: false };
+  if (raw.found !== true || !isRecord(raw.athlete)) return null;
+  const { name, club } = raw.athlete;
+  const results = cleanList(raw.results, cleanResult);
+  return typeof name === 'string' && isTextOrNull(club) && results !== null ? { found: true, athlete: { name, club }, results } : null;
+}
+
+// Typed number against the stored one, as the sources compare them. One that does not normalize never matches.
+function sameNumber(typed: string, stored: string): boolean {
+  try {
+    return normalizeNumber(typed) === normalizeNumber(stored);
+  } catch {
+    return false;
+  }
+}
+
 type Dependencies = {
   registry: ProviderRegistry;
   gate: QueryGate;
   identityNumbers: IdentityNumbers;
   confirmations: Confirmations;
-  organizationChain: (organizationId: string) => Promise<OrganizationData[]>;
+  /** Every organization with its provider key; the id is only a hint, because the registry walks the parents itself. */
+  organizationChain: (organizationId?: string) => Promise<OrganizationData[]>;
   pending: PendingStore;
 };
 
@@ -197,9 +225,9 @@ type Who = { userId: string; athleteId: string; organizationId: string };
 export function createResultsImport({ registry, gate, identityNumbers, confirmations, organizationChain, pending, now = Date.now }: Dependencies & { now?: () => number }) {
   const providerFor = async (organizationId: string) => registry.resolve(await organizationChain(organizationId), organizationId);
 
-  // Returns the claim taken or the reason it was refused.
-  async function claim({ userId, athleteId }: Who, searchTtlMs?: number): Promise<{ claimedAt: string } | { denied: ImportError }> {
-    const result = await gate.claim({ athleteId, userId, intervalMs: QUERY_INTERVAL_MS, ...(searchTtlMs === undefined ? {} : { searchTtlMs }) });
+  // Returns the claim taken or the reason it was refused. The window is the athlete's with this provider only.
+  async function claim({ userId, athleteId }: Who, provider: string, searchTtlMs?: number): Promise<{ claimedAt: string } | { denied: ImportError }> {
+    const result = await gate.claim({ athleteId, userId, provider, intervalMs: QUERY_INTERVAL_MS, ...(searchTtlMs === undefined ? {} : { searchTtlMs }) });
     if (result.status === 'allowed') return { claimedAt: result.claimedAt };
     return { denied: result.status === 'rate_limited' ? { code: 'rate_limited', retryAt: result.retryAt } : { code: 'not_authorized' } };
   }
@@ -209,10 +237,11 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
   // source that failed does not cost the whole window. So does a cleaner that throws on what the source sent (a failure on our
   // side, not an answer). Any other failure (the source answered something unusable: a 4xx, a changed page, an invalid list)
   // keeps it spent. A release that fails leaves the claim spent too.
-  async function query<T>(who: Who, claimedAt: string, call: () => Promise<unknown>, cleanItem: (item: unknown) => T | null): Promise<Outcome<T[]>> {
+  // `clean` takes the adapter's whole answer and returns the value rebuilt with only what the service declares, or null when it is invalid.
+  async function query<T>(who: Who, provider: string, claimedAt: string, call: () => Promise<unknown>, clean: (raw: unknown) => T | null): Promise<Outcome<T>> {
     const giveBack = async () => {
       try {
-        await gate.release({ athleteId: who.athleteId, claimedAt, intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS });
+        await gate.release({ athleteId: who.athleteId, provider, claimedAt, intervalMs: QUERY_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS });
       } catch {
         // The claim simply stays spent.
       }
@@ -224,9 +253,9 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
       if (error instanceof SourceUnreachableError) await giveBack();
       return UNAVAILABLE;
     }
-    let value: T[] | null;
+    let value: T | null;
     try {
-      value = cleanList(raw, cleanItem);
+      value = clean(raw);
     } catch {
       await giveBack();
       return UNAVAILABLE;
@@ -238,10 +267,10 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
     async findCandidates(who: Who & { firstName: string; lastName: string }): Promise<Outcome<PublicCandidate[]>> {
       const provider: ResultsProvider | null = await providerFor(who.organizationId);
       if (!provider) return fail({ code: 'no_provider' });
-      const claimed = await claim(who);
+      const claimed = await claim(who, provider.key);
       if ('denied' in claimed) return fail(claimed.denied);
       const identityNumber = await identityNumbers.read(who.athleteId);
-      const outcome = await query(who, claimed.claimedAt, () => provider.findCandidates({ firstName: who.firstName, lastName: who.lastName, identityNumber }), cleanCandidate);
+      const outcome = await query(who, provider.key, claimed.claimedAt, () => provider.findCandidates({ firstName: who.firstName, lastName: who.lastName, identityNumber }), (raw) => cleanList(raw, cleanCandidate));
       if (!outcome.ok) return outcome;
       const { userId, athleteId, organizationId } = who;
       const candidates: PublicCandidate[] = [];
@@ -272,15 +301,59 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
       if (!provider) return fail({ code: 'no_provider' });
       // Authorize first, so a caller who may not import learns nothing about whether a number exists.
       // Right after a confirmed search this uses the search's claim instead of asking for a new one.
-      const claimed = await claim(who, CANDIDATE_TTL_MS);
+      const claimed = await claim(who, provider.key, CANDIDATE_TTL_MS);
       if ('denied' in claimed) return fail(claimed.denied);
       // Without a number the refresh is unavailable: never a hidden name search. The claim is already spent.
       const identityNumber = await identityNumbers.read(who.athleteId);
       if (identityNumber === null) return UNAVAILABLE;
-      const outcome = await query(who, claimed.claimedAt, () => provider.fetchResults(identityNumber), cleanResult);
-      // The result key syncs to the device: it must not carry the number.
-      if (outcome.ok && outcome.value.some((result) => result.sourceResultKey.includes(identityNumber))) return UNAVAILABLE;
+      const outcome = await query(who, provider.key, claimed.claimedAt, () => provider.fetchResults(identityNumber), (raw) => cleanList(raw, cleanResult));
+      // The result key syncs to the device: it must not carry the number (a segment of it, not just any substring of an id).
+      if (outcome.ok && outcome.value.some((result) => keyHasNumber(result.sourceResultKey, identityNumber))) return UNAVAILABLE;
       return outcome;
+    },
+
+    // The person pasted a tournament address of a results platform. The address, not the organization chain, picks the platform and
+    // its organization. The platform has its own window (`claim` is per provider), so asking it never spends the federation's.
+    // The number is the stored one, else the typed one; a typed one that differs from the stored one is a conflict, found before
+    // the platform is asked. Without either, the claim is already spent, as in `refreshResults`.
+    async findInTournament({ userId, athleteId, url, identityNumber }: { userId: string; athleteId: string; url: string; identityNumber: string | null }): Promise<
+      Outcome<{ organizationId: string; candidate: { id: string; name: string; club: string | null; resultCount: number } | null }>
+    > {
+      const resolved = registry.resolveUrl(await organizationChain(), url);
+      if (!resolved) return fail({ code: 'no_provider' });
+      const { provider, organizationId } = resolved;
+      const who = { userId, athleteId, organizationId };
+      const claimed = await claim(who, provider.key);
+      if ('denied' in claimed) return fail(claimed.denied);
+      const stored = await identityNumbers.read(athleteId);
+      if (identityNumber !== null && stored !== null && !sameNumber(identityNumber, stored)) return fail({ code: 'identity_number_conflict' });
+      const number = stored ?? identityNumber;
+      if (number === null) return fail({ code: 'identity_number_required' });
+      const outcome = await query(who, provider.key, claimed.claimedAt, () => provider.lookup(url, number), cleanSearch);
+      if (!outcome.ok) return outcome;
+      const search = outcome.value;
+      if (!search.found) return { ok: true, value: { organizationId, candidate: null } };
+      // The result key syncs to the device: it must not carry the number.
+      if (search.results.some((result) => keyHasNumber(result.sourceResultKey, number))) return UNAVAILABLE;
+      const { name, club } = search.athlete;
+      const resultCount = search.results.length;
+      try {
+        // The number is the reference, encrypted on the server; the rows wait there too, behind the one id the device gets.
+        const id = await pending.put({
+          kind: 'search',
+          userId,
+          athleteId,
+          organizationId,
+          provider: provider.key,
+          reference: number,
+          payload: { name, affiliations: [{ club, league: null, years: [] }], resultCount, results: search.results },
+          ttlMs: CANDIDATE_TTL_MS,
+        });
+        return { ok: true, value: { organizationId, candidate: { id, name, club, resultCount } } };
+      } catch (error) {
+        if (error instanceof NotAuthorizedError) return fail({ code: 'not_authorized' });
+        throw error;
+      }
     },
 
     // The guardian confirmed "Is this person?". The candidate comes from the server's pending store by its opaque id, never from the request.
@@ -288,19 +361,22 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
     // Authorization is enforced by `record` (42501), which does not spend the rate-limit claim the next results query needs.
     // Evidence and number are all or nothing: if the number cannot be kept, the evidence is removed again.
     // Any failure before the end puts the entry back with the time it had left, so a retry does not cost another source query.
-    async confirmCandidate({ userId, athleteId, organizationId, candidateId }: Who & { candidateId: string }): Promise<Outcome<void>> {
+    // A platform entry also carries the tournament rows: once confirmed they are offered behind opaque ids, as `results` does.
+    async confirmCandidate({ userId, athleteId, organizationId, candidateId }: Who & { candidateId: string }): Promise<Outcome<{ results: OfferedResult[] } | undefined>> {
       const taken = await pending.take({ id: candidateId, kind: 'search', userId, athleteId });
       if (!taken) return fail({ code: 'unknown_id' });
 
       let confirmed = false;
       try {
-        // The entry must belong to the organization asked for and to the provider that organization resolves to now.
+        // The entry must belong to the organization asked for and to the provider that organization resolves to now:
+        // a federation's, or the platform's when the organization is a results platform.
         if (taken.organizationId !== organizationId) return fail({ code: 'unknown_id' });
-        const provider = await providerFor(organizationId);
+        const organizations = await organizationChain(organizationId);
+        const provider = registry.resolve(organizations, organizationId) ?? registry.platformFor(organizations, organizationId);
         if (!provider) return fail({ code: 'no_provider' });
         if (taken.provider !== provider.key) return fail({ code: 'unknown_id' });
 
-        const { name, affiliations, resultCount } = taken.payload as { name: string; affiliations: Affiliation[]; resultCount: number };
+        const { name, affiliations, resultCount, results } = taken.payload as { name: string; affiliations: Affiliation[]; resultCount: number; results?: NormalizedResult[] };
         let evidenceId: string;
         try {
           evidenceId = await confirmations.record({ athleteId, organizationId, userId, evidence: { name, affiliations, resultCount } });
@@ -334,7 +410,19 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
           throw error;
         }
         confirmed = true;
-        return { ok: true, value: undefined };
+        if (!results) return { ok: true, value: undefined };
+        try {
+          const offered = await Promise.all(
+            results.map(async ({ sourceResultKey, ...values }) => {
+              const id = await pending.put({ kind: 'results', userId, athleteId, organizationId, provider: provider.key, reference: sourceResultKey, payload: values, ttlMs: CANDIDATE_TTL_MS });
+              return { id, ...values };
+            }),
+          );
+          return { ok: true, value: { results: offered } };
+        } catch {
+          // The person is confirmed and the number kept, and the entry is spent; the rows were never offered, so they search the tournament again.
+          return UNAVAILABLE;
+        }
       } finally {
         // Only the failure path puts the entry back. If this fails too, the person searches again.
         const { expiresAt, ...entry } = taken;

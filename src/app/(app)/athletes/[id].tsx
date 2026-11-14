@@ -73,20 +73,26 @@ export default function AthleteProfileRoute() {
   const sources = useImportSources(importSources, summary.connection === 'connected');
   // The organization behind each imported result, from data; without a connection the marks show the generic origin.
   const sourceNames = useMemo(() => Object.fromEntries(sources.map((source) => [source.provider, source.name])), [sources]);
+  // A results platform dates each result by its session: that date wins when two sources hold the same swim.
+  const sessionDated = useMemo(() => sources.filter((source) => source.kind === 'platform').map((source) => source.provider), [sources]);
 
   if (!session) return null;
   // Only a guardian or an adult athlete is offered the import; the source's name comes from data.
   const managedAthlete = managed.status === 'ready' ? managed.athletes.find((candidate) => candidate.id === id) : undefined;
+  // The federation is searched by person; a results platform is reached by the address of one tournament.
+  const federation = sources.find((source) => source.kind === 'federation');
+  const hasPlatform = sources.some((source) => source.kind === 'platform');
   const importPrompt =
-    managedAthlete && sources[0] && !importDismissed && !started
+    managedAthlete && ((federation && !started) || hasPlatform) && !importDismissed
       ? {
-          sourceName: sources[0].name,
+          sourceName: federation && !started ? federation.name : undefined,
           athleteName: managedAthlete.firstName,
           imported: false,
           onDismiss: () => setImportDismissed(true),
           // Never shown while `imported` is false; the update lives in the results panel.
           onRefresh: () => undefined,
           onStart: () => router.push(`/athletes/import/${id}`),
+          onStartTournament: hasPlatform ? () => router.push(`/athletes/import-tournament/${id}`) : undefined,
         }
       : undefined;
   // The container shows "private" for an athlete that is not on this device; the backend decides what reaches it.
@@ -105,6 +111,7 @@ export default function AthleteProfileRoute() {
       otherSchoolResults={isStaff ? otherSchoolResults : undefined}
       importedResults={importedResults}
       sourceNames={sourceNames}
+      sessionDated={sessionDated}
       // The server decides who may update: without a confirmed identity and a manager with the authorization in force, nothing shows.
       officialUpdate={
         <OfficialUpdateContainer

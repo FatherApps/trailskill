@@ -6,7 +6,8 @@ import {
   type NormalizedResult,
   type ResultsProvider,
 } from '../../port.ts';
-import { normalizeNumber, type History, type RosterEntry, type RosterItem } from './parse.ts';
+import { normalizeNumber } from '../../identityNumber.ts';
+import type { History, RosterEntry, RosterItem } from './parse.ts';
 
 export type { History, RosterEntry, RosterItem };
 

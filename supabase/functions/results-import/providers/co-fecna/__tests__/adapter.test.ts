@@ -1,6 +1,6 @@
 import { ProviderUnavailableError } from '../../../port.ts';
 import { createCoFecna } from '../index.ts';
-import { normalizeNumber } from '../parse.ts';
+import { normalizeNumber } from '../../../identityNumber.ts';
 import { createHttpSource } from '../source.ts';
 import { AGE, BIRTH_DATE, GENDER, PRUEBAS, PROFILE_LABELS, historyPage, historyRow, option, profileCard, rosterPage } from './fixtures.ts';
 

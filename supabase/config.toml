@@ -244,6 +244,16 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Local stack only: the app signs in with a 6-digit code, so the email must show it.
+# The cloud stack has its own template, see deploy/README.md.
+[auth.email.template.magic_link]
+subject = "Tu código de TrailSkill"
+content_path = "./supabase/templates/otp.html"
+
+[auth.email.template.confirmation]
+subject = "Tu código de TrailSkill"
+content_path = "./supabase/templates/otp.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
