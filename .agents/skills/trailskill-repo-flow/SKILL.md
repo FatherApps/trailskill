@@ -26,6 +26,7 @@ Load for any TrailSkill repository-process task: setting up the repository, work
 | Request | Path |
 | --- | --- |
 | Repository missing, or its settings, labels, or protection need work | `references/setup.md` (maintainer) |
+| Create an issue | Triage first: `gh issue list --state all --search "<keywords>"`; if one exists, read it with `gh issue view <n>` and do not recreate it. Otherwise write it with the templates in `.github/ISSUE_TEMPLATE/` |
 | Start, continue, submit, or close an issue | `references/contribute.md` |
 | Planned release, PATCH fix, hotfix, OTA update, Play promotion or rollout | `references/release.md` (maintainer) |
 | Maintainer-only path requested by someone else | Stop; say the maintainer must run it |

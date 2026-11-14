@@ -27,6 +27,17 @@ issue → branch (own worktree) → small commits → pull request → CI green 
 3. **Small pull requests.** Aim for about 400 changed lines or fewer. Split larger work into issues that can be merged independently.
 4. **Close out.** After the merge: the branch is deleted, the worktree is removed, and the issue is closed by the pull request.
 
+## Working sequence
+
+Every person and every agent (Claude Code, Codex, OpenCode, Pi) follows the same four steps. This is the only place the sequence is written; other documents link here.
+
+1. **Start from a fresh `origin/main`.** Run `git fetch origin` and create the worktree from `origin/main` (see [Work branches](#work-branches)).
+2. **Triage before you create or start an issue.** Search open and closed issues with `gh issue list --state all --search "<keywords>"`. If one exists, read it with `gh issue view <n>` and work from it; never recreate it. If none exists, create it with the templates in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). Keep the app architecture: [ADR 0003](docs/decisions/0003-modular-architecture.md) and [`AGENTS.md`](AGENTS.md).
+3. **Development memory (optional recommendation).** [Engram](https://github.com/Gentleman-Programming/engram) gives AI agents persistent memory across sessions, so decisions and findings are not rediscovered. Install it with `brew install gentleman-programming/tap/engram`, then connect it to your agent as an MCP server (`engram mcp`). Nothing in this repository depends on it.
+4. **Finish by opening the pull request, not by pushing.** When the work is done, fill the pull request body from the template, run `PR_TITLE="<conventional title>" PR_BODY="$(cat body.md)" sh .github/scripts/check-pr.sh`, and open the pull request with `gh pr create --draft` (see [Pull requests](#pull-requests)).
+
+For an agent, **done means the pull request is open.** Opening it does not end the flow: the draft becomes ready with `gh pr ready` once CI is green and the [Definition of Done](#definition-of-done) is met. Agents still never merge or push to `main`.
+
 ## Running the app
 
 The app uses native modules (op-sqlite, PowerSync) that Expo Go does not include, so it runs in a **development build**: a debug build of TrailSkill with `expo-dev-client` that loads its JavaScript from Metro.
@@ -107,7 +118,7 @@ Refs #12
 - **Title:** a valid Conventional Commit. It becomes the squash commit message on `main`.
 - **Description:** in Spanish, following [`.github/pull_request_template.md`](.github/pull_request_template.md): summary, linked issue (`Closes #12`), changes, how it was tested, screenshots (synthetic data only), risks, the Definition of Done checklist, and whether maintainer approval is needed.
 - **Merge method:** squash merge only. Linear history on `main`.
-- **Draft pull requests** are welcome for early feedback. Mark them ready only when the Definition of Done is met.
+- **Draft pull requests** are welcome for early feedback. Agents open every pull request as a draft and mark it ready (`gh pr ready`) only when CI is green and the Definition of Done is met.
 
 ### Review
 
