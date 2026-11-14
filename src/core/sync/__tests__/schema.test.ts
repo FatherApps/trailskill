@@ -67,6 +67,11 @@ describe('AppSchema', () => {
     expect(columnsOf('record_conflicts')).toEqual(['table_name', 'record_id', 'status']);
   });
 
+  it('syncs the deactivation stamp of school memberships', () => {
+    const columns = (byName.get('school_memberships') as unknown as { columns: Record<string, unknown> }).columns;
+    expect(Object.keys(columns)).toContain('deactivated_at');
+  });
+
   it('syncs the active flag of categories', () => {
     const columns = (byName.get('categories') as unknown as { columns: Record<string, unknown> }).columns;
     expect(Object.keys(columns)).toContain('active');
