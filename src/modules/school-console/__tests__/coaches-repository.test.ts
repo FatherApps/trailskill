@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 
+import { createInMemoryAdultDirectoryRepository, type AdultContact } from '../../accounts';
 import { createStore, openDatabase, type FakeDatabase } from '../../../core/sync/testing/fakeDatabase';
 import {
   createInMemoryCoachRepository,
@@ -32,6 +33,13 @@ const rows: CoachMembershipRow[] = [
   { schoolId: 'school-b', userId: 'coach-1', role: 'coach' },
 ];
 
+// coach-1 and coach-2 have a profile; coach-3 has none. A profile of another school's coach does not matter here.
+const profiles: AdultContact[] = [
+  { userId: 'coach-1', firstName: 'Carla', lastName: 'Entrena', contactEmail: 'carla@example.test' },
+  { userId: 'coach-2', firstName: 'Dario', lastName: 'Piscina', contactEmail: null },
+  { userId: 'coach-9', firstName: 'Otra', lastName: 'Escuela', contactEmail: null },
+];
+
 let removeStore: (() => void) | undefined;
 afterEach(() => {
   removeStore?.();
@@ -44,21 +52,23 @@ function createPowerSync(): CoachRepository {
   const seed = new DatabaseSync(store.path);
   seed.exec('CREATE TABLE school_memberships (id TEXT PRIMARY KEY, school_id TEXT, user_id TEXT, role TEXT);');
   rows.forEach((r, i) => seed.prepare('INSERT INTO school_memberships VALUES (?, ?, ?, ?)').run(`sm${i}`, r.schoolId, r.userId, r.role));
+  seed.exec('CREATE TABLE adult_profiles (id TEXT PRIMARY KEY, first_name TEXT, last_name TEXT, contact_email TEXT);');
+  profiles.forEach((p) => seed.prepare('INSERT INTO adult_profiles VALUES (?, ?, ?, ?)').run(p.userId, p.firstName, p.lastName, p.contactEmail));
   seed.close();
   mockDb = openDatabase(store.path);
   return createPowerSyncCoachRepository();
 }
 
 const factories: [string, () => CoachRepository][] = [
-  ['in-memory', () => createInMemoryCoachRepository(rows)],
+  ['in-memory', () => createInMemoryCoachRepository(rows, createInMemoryAdultDirectoryRepository({ profiles }))],
   ['PowerSync', createPowerSync],
 ];
 
 describe.each(factories)('%s coach repository', (_name, create) => {
-  it('lists the coaches of the school by id, without admins, another school or duplicates, and with no name', async () => {
+  it('lists the coaches of the school by id, without admins, another school or duplicates, with the profile name, and null without a profile', async () => {
     await expect(create().listCoaches('school-a')).resolves.toEqual([
-      { id: 'coach-1', name: null },
-      { id: 'coach-2', name: null },
+      { id: 'coach-1', name: 'Carla Entrena' },
+      { id: 'coach-2', name: 'Dario Piscina' },
       { id: 'coach-3', name: null },
     ]);
   });

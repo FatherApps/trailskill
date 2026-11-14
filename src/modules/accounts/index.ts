@@ -68,6 +68,13 @@ export {
   type AdultProfileRepository,
 } from './data/adultProfiles';
 export {
+  createInMemoryAdultDirectoryRepository,
+  createPowerSyncAdultDirectoryRepository,
+  type AdultContact,
+  type AdultDirectoryRepository,
+  type Guardian,
+} from './data/adultDirectory';
+export {
   createIdentityNumberHold,
   createInMemoryIdentityDocumentRepository,
   createSupabaseIdentityDocumentRepository,

@@ -8,7 +8,7 @@ import { localDate } from '../components/formatDate';
 import type { InviteGroups } from '../components/InviteCoachSheet';
 import type { CoachInvitationRepository } from '../data/coachInvitations';
 import type { Coach, CoachRepository } from '../data/coaches';
-import { colorOf, countAthletesByCoach, type ConsoleAthletesRepository } from '../data/consoleAthletes';
+import { colorOf, countAthletesByCoach, initialsOf, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import type { CoachAssignment, SchoolGroup, SchoolStructureRepository } from '../data/schoolStructure';
 import { CoachesScreen, type CoachesContent, type CoachesView } from './CoachesScreen';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -29,7 +29,7 @@ export type CoachesSectionProps = ConsoleSectionProps & {
   // Where the invitations go. Offline «Invitar» is shown disabled: an invitation is sent to the server, never queued.
   // `invite` must reject when the invitation fails, or the sheet closes as if it had been sent.
   invitations: CoachInvitationRepository;
-  // The real deactivation belongs to the caller; it only reports the press once the ConfirmSheet is confirmed, and stays disabled until issue 220.
+  // The real deactivation belongs to the caller; it only reports the press once the ConfirmSheet is confirmed, and stays disabled until deactivation works.
   onDeactivate: (id: string) => void;
 };
 
@@ -54,13 +54,18 @@ function indexByCoach({ assignments }: Loaded) {
 type Read<T> = { ok: true; value: T } | { ok: false };
 const READS = ['coaches', 'groups', 'athleteCounts', 'assignments'];
 
+// First and last word of the name; without a profile there is nothing to take initials from.
+function coachInitials(name: string | null) {
+  const words = name?.split(' ') ?? [];
+  return words.length === 0 ? '' : initialsOf(words[0], words.length > 1 ? words[words.length - 1] : '');
+}
+
 function toRow(coach: Coach, groups: SchoolGroup[], athleteCounts: Loaded['athleteCounts'], groupIds: ReturnType<typeof indexByCoach>): CoachRow {
   const assigned = groupIds?.get(coach.id);
   return {
     id: coach.id,
     name: coach.name,
-    // Without a readable name there is nothing to take initials from.
-    initials: '',
+    initials: coachInitials(coach.name),
     color: colorOf(coach.id),
     status: 'active',
     groups: groupIds === null ? null : groups.filter((group) => assigned?.has(group.id)).map((group) => group.name),
