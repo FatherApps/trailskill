@@ -37,6 +37,7 @@ jest.mock('../modules/school-console', () => ({
   }),
   ...jest.requireActual('../modules/school-console/screens/CoachesSection'),
   createPowerSyncCoachRepository: () => ({ listCoaches: () => Promise.resolve([]) }),
+  createSupabaseCoachInvitationRepository: () => ({ invite: () => Promise.reject(new Error('not used')) }),
   ...jest.requireActual('../modules/school-console/screens/RecordsSection'),
   createPowerSyncCategoryRecordsRepository: () => ({ list: (...args: unknown[]) => mockListRecords(...args) }),
   createPowerSyncSchoolStructureRepository: () => ({ listGroups: () => Promise.resolve([]), listCoachAssignments: () => Promise.resolve([]) }),

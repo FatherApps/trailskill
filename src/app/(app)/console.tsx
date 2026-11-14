@@ -6,6 +6,7 @@ import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, StateView } from '../../core/ui';
+import { createPowerSyncAdultDirectoryRepository } from '../../modules/accounts';
 import {
   AthletesSection,
   AuthorizationsSection,
@@ -13,6 +14,7 @@ import {
   CoachesSection,
   ConsoleScreen,
   createPowerSyncAuthorizationsRepository,
+  createSupabaseCoachInvitationRepository,
   createPowerSyncCoachRepository,
   createPowerSyncCategoryRecordsRepository,
   createPowerSyncConsoleAthletesRepository,
@@ -32,7 +34,9 @@ const authorizations = createPowerSyncAuthorizationsRepository();
 const categoryRecords = createPowerSyncCategoryRecordsRepository();
 const measurementLog = createPowerSyncMeasurementLogRepository();
 const schoolStructure = createPowerSyncSchoolStructureRepository();
-const coaches = createPowerSyncCoachRepository();
+const adults = createPowerSyncAdultDirectoryRepository();
+const coaches = createPowerSyncCoachRepository(adults);
+const coachInvitations = createSupabaseCoachInvitationRepository();
 
 export default function ConsoleRoute() {
   const router = useRouter();
@@ -78,10 +82,10 @@ export default function ConsoleRoute() {
       onOpenPlans={() => router.push('/plans')}
       sections={{
         coaches: (props) => (
-          <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} invitations={coachInvitations} />
         ),
         athletes: (props) => (
-          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         records: (props) => (
           <RecordsSection {...props} schoolId={schoolId} repository={categoryRecords} categories={categories} structure={schoolStructure} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
 import '../i18n';
+import type { AdultDirectoryRepository, Guardian } from '../../accounts';
 import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
 import { localDate } from '../components/formatDate';
@@ -17,6 +18,8 @@ export type AthletesSectionProps = ConsoleSectionProps & {
   repository: ConsoleAthletesRepository;
   // Without it the detail shows the category but cannot change it.
   categories?: CategoriesRepository;
+  // Without it the detail shows no guardian.
+  guardians?: Pick<AdultDirectoryRepository, 'listGuardians'>;
   // The list is read again when this changes (a sync completed).
   refreshKey?: unknown;
   // When the local database last finished a sync; `null` when it never did.
@@ -31,6 +34,19 @@ type Loaded = { athletes: ConsoleAthlete[]; measurementsThisWeek: number };
 // The answer is stored with what it answers, so another school or a retry never inherits it while its own read runs.
 type Answer = { schoolId: string; attempt: number; result: Loaded | 'error' };
 type Filters = Partial<Record<AthleteFilterId, string>>;
+
+// The values of the guardians that have one, in order, joined; null when none does.
+const joined = (values: (string | null)[]) => values.filter((value) => value !== null).join(', ') || null;
+
+// A guardian without a profile adds nothing. Contacts keep the order of the names, with the no-data text in place of a missing
+// one, so a contact is never read as belonging to another guardian; when none has a contact the detail says no data once.
+const guardianDetail = (list: Guardian[], noData: string) => {
+  const named = list.filter((g) => g.name !== null);
+  return {
+    name: joined(named.map((g) => g.name)),
+    contact: named.some((g) => g.contact !== null) ? named.map((g) => g.contact ?? noData).join(', ') : null,
+  };
+};
 
 const defaultNow = () => new Date();
 
@@ -65,7 +81,7 @@ function toRow(athlete: ConsoleAthlete): AthleteRow {
     color: athlete.color,
     category: athlete.category ?? noData,
     group: athlete.groups.length > 0 ? athlete.groups.join(', ') : noData,
-    // Coach names arrive with issue 220: until then the cell says so.
+    // The coach column is not filled from the profiles yet.
     coach: null,
     authorization: athlete.authorization,
     bestTime: athlete.bestTime,
@@ -80,6 +96,7 @@ export function AthletesSection({
   schoolId,
   repository,
   categories,
+  guardians,
   refreshKey,
   lastSyncedAt,
   connection,
@@ -96,6 +113,7 @@ export function AthletesSection({
   const [version, setVersion] = useState(0);
   const [assignFailure, setAssignFailure] = useState<{ athleteId: string; message: string }>();
   const [bests, setBests] = useState<{ athleteId: string; bests: AthleteBest[]; failed: boolean }>();
+  const [guardianList, setGuardianList] = useState<{ athleteId: string; guardians: Guardian[] }>();
 
   useEffect(() => {
     let active = true;
@@ -130,6 +148,16 @@ export function AthletesSection({
     };
   }, [repository, selectedId, refreshKey]);
 
+  useEffect(() => {
+    if (selectedId === null || !guardians) return;
+    let active = true;
+    const settle = (list: Guardian[]) => active && setGuardianList({ athleteId: selectedId, guardians: list });
+    guardians.listGuardians(selectedId).then(settle, () => settle([]));
+    return () => {
+      active = false;
+    };
+  }, [guardians, selectedId, refreshKey]);
+
   const loaded = answer?.schoolId === schoolId && answer.attempt === attempt ? answer.result : undefined;
   const athletes = loaded === 'error' || loaded === undefined ? undefined : loaded.athletes;
   const options = useMemo(() => (athletes ? filterOptions(athletes) : undefined), [athletes]);
@@ -151,6 +179,8 @@ export function AthletesSection({
           : { kind: 'offline-empty' };
   } else {
     const selected = loaded.athletes.find((a) => a.id === selectedId);
+    // Until the athlete's own guardians arrive there are none, never another athlete's.
+    const guardianNow = selected && guardianList?.athleteId === selected.id ? guardianList.guardians : [];
     const content: AthletesContent = {
       updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.floor((now().getTime() - lastSyncedAt.getTime()) / MINUTE_MS)) : null,
       indicators: athleteIndicators(loaded.athletes, loaded.measurementsThisWeek),
@@ -170,8 +200,7 @@ export function AthletesSection({
             name: selected.name,
             category: selected.category ?? t('schoolConsole.common.no_data'),
             authorization: selected.authorization,
-            // Guardians are not readable by school admins yet (S10, issue 220): never a guess.
-            guardian: { name: null, contact: null },
+            guardian: guardianDetail(guardianNow, t('schoolConsole.common.no_data')),
             // Until the athlete's own bests arrive the list is empty, never another athlete's.
             bests: bests?.athleteId === selected.id ? bests.bests : [],
             bestsError: bests?.athleteId === selected.id && bests.failed,

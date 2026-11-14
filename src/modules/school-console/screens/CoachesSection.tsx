@@ -8,7 +8,7 @@ import { localDate } from '../components/formatDate';
 import type { InviteGroups } from '../components/InviteCoachSheet';
 import type { CoachInvitationRepository } from '../data/coachInvitations';
 import type { Coach, CoachRepository } from '../data/coaches';
-import { colorOf, countAthletesByCoach, type ConsoleAthletesRepository } from '../data/consoleAthletes';
+import { colorOf, countAthletesByCoach, initialsOf, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import type { CoachAssignment, SchoolGroup, SchoolStructureRepository } from '../data/schoolStructure';
 import { CoachesScreen, type CoachesContent, type CoachesView } from './CoachesScreen';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -26,9 +26,9 @@ export type CoachesSectionProps = ConsoleSectionProps & {
   connection: SyncConnection;
   // The clock. A stable function: the caption is computed again when it changes.
   now?: () => Date;
-  // Where the invitations go. Without it «Invitar» is shown disabled as «Próximamente»: never a button that seems to work.
+  // Where the invitations go. Offline «Invitar» is shown disabled: an invitation is sent to the server, never queued.
   // `invite` must reject when the invitation fails, or the sheet closes as if it had been sent.
-  invitations?: CoachInvitationRepository;
+  invitations: CoachInvitationRepository;
 };
 
 // `null` is a read that failed: what it feeds is left out of the cards, never shown as no groups or 0 athletes.
@@ -52,13 +52,18 @@ function indexByCoach({ assignments }: Loaded) {
 type Read<T> = { ok: true; value: T } | { ok: false };
 const READS = ['coaches', 'groups', 'athleteCounts', 'assignments'];
 
+// First and last word of the name; without a profile there is nothing to take initials from.
+function coachInitials(name: string | null) {
+  const words = name?.split(' ') ?? [];
+  return words.length === 0 ? '' : initialsOf(words[0], words.length > 1 ? words[words.length - 1] : '');
+}
+
 function toRow(coach: Coach, groups: SchoolGroup[], athleteCounts: Loaded['athleteCounts'], groupIds: ReturnType<typeof indexByCoach>): CoachRow {
   const assigned = groupIds?.get(coach.id);
   return {
     id: coach.id,
     name: coach.name,
-    // Without a readable name there is nothing to take initials from.
-    initials: '',
+    initials: coachInitials(coach.name),
     color: colorOf(coach.id),
     status: coach.deactivated ? 'deactivated' : 'active',
     groups: groupIds === null ? null : groups.filter((group) => assigned?.has(group.id)).map((group) => group.name),
@@ -189,8 +194,8 @@ export function CoachesSection({
       groups={groups}
       onNavigate={onNavigate}
       onRetryGroups={retryGroups}
-      inviteAvailable={invitations !== undefined}
-      onInvite={(invitation) => invitations?.invite(schoolId, invitation)}
+      inviteAvailable={connection !== 'offline'}
+      onInvite={(invitation) => invitations.invite(schoolId, invitation)}
       deactivateAvailable
       deactivateFailed={deactivateFailed}
       onDeactivate={deactivate}
