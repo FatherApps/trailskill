@@ -6,6 +6,7 @@ import { useSession } from '../../../core/session';
 import { distances, pools, strokes } from '../../../core/sport';
 import { useRecordSyncStates, type RecordSyncState } from '../../../core/sync';
 import { importedAchievement, latestAchievement, type EventAchievement, type ImportedHistoryResult } from '../achievements';
+import { groupImportedResults } from '../groupImported';
 import type { EventValue } from '../components/EventSelector';
 import type { ImportPromptProps } from '../components/ImportPrompt';
 import { ProgressChart } from '../components/ProgressChart';
@@ -45,6 +46,8 @@ export type AthleteProfileContainerProps = {
   importedResults?: { listByAthlete(athleteId: string): Promise<ImportedHistoryResult[]> };
   // The organization behind each import provider, from data; an unknown one shows with the generic origin.
   sourceNames?: Readonly<Record<string, string>>;
+  // The import providers that date a result by its session (a results platform), from data: the date shown when two sources agree on a swim.
+  sessionDated?: readonly string[];
   // The official-results update of the results-import module. Pass it only to viewers that may import.
   officialUpdate?: ReactNode;
   // Only guardians and adults get it: the route decides by passing it or not.
@@ -166,6 +169,7 @@ export function AthleteProfileContainer({
   pendingChanges,
   importedResults,
   sourceNames,
+  sessionDated,
   officialUpdate,
   importPrompt,
   onBack,
@@ -215,12 +219,11 @@ export function AthleteProfileContainer({
   }, [athleteId, athletes, authorizations, history, importedResults, schoolLinks, schoolNames, categories, requestKey, syncedAt]);
 
   // Every result of the athlete as an achievement: the personal best, the marks and the events on offer read the same list.
+  // The same swim in two sources is one result with both sources, joined here at read time (issue 897).
+  const importedGroups = useMemo(() => (loaded.kind === 'ready' ? groupImportedResults(loaded.imported, sourceNames, sessionDated) : []), [loaded, sourceNames, sessionDated]);
   const achievements = useMemo<EventAchievement[]>(
-    () =>
-      loaded.kind === 'ready'
-        ? [...loaded.measurements, ...loaded.imported.map((r) => importedAchievement(r, sourceNames?.[r.provider]))]
-        : [],
-    [loaded, sourceNames],
+    () => (loaded.kind === 'ready' ? [...loaded.measurements, ...importedGroups.map((g) => importedAchievement(g.result, g.sourceName))] : []),
+    [loaded, importedGroups],
   );
   const chosenEvent = chosen?.athleteId === athleteId ? chosen.event : undefined;
   const latest = useMemo(() => latestAchievement(achievements), [achievements]);
@@ -258,7 +261,7 @@ export function AthleteProfileContainer({
     [event],
   );
   const measurements = useMemo(() => (loaded.kind === 'ready' ? loaded.measurements.filter(inEvent) : []), [loaded, inEvent]);
-  const imported = useMemo(() => (loaded.kind === 'ready' ? loaded.imported.filter(inEvent) : []), [loaded, inEvent]);
+  const imported = useMemo(() => importedGroups.filter((g) => inEvent(g.result)), [importedGroups, inEvent]);
 
   const ids = useMemo(() => measurements.map((m) => m.id), [measurements]);
   const syncStates = useRecordSyncStates('measurements', ids);
@@ -267,7 +270,7 @@ export function AthleteProfileContainer({
   const states = useMemo(() => new Map(ids.map((id, i) => [id, syncKey.split('|')[i] as RecordSyncState])), [ids, syncKey]);
 
   // The best comes from the device's own data only (its measurements and the results imported to it): offline it must not change.
-  const best = useMemo(() => personalBest([...measurements, ...imported.map((r) => importedAchievement(r, sourceNames?.[r.provider]))]), [measurements, imported, sourceNames]);
+  const best = useMemo(() => personalBest([...measurements, ...imported.map((g) => importedAchievement(g.result, g.sourceName))]), [measurements, imported]);
   // Memoized: the chart draws these rows, and it must not redraw on every render of the profile.
   const historyRows = useMemo(() => {
     // Newest first. A measurement the server also lists but the device already has (staff of both schools) is shown once, with its own sync state.
@@ -277,8 +280,8 @@ export function AthleteProfileContainer({
       ...(other ?? []).filter((m) => !localIds.has(m.id)).map((m) => ({ m: { ...m, origin: 'other_school' as const }, syncState: undefined })),
     ].sort((a, b) => newestFirst(a.m, b.m));
     // Stable by date: the device's own rows keep their order within a day.
-    return [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map((r) => toImportedResult(r, sourceNames?.[r.provider], best?.id))].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  }, [measurements, imported, other, states, best, sourceNames]);
+    return [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map((g) => toImportedResult(g.result, g.sourceName, best?.id))].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  }, [measurements, imported, other, states, best]);
   const chart = useMemo(() => <ProgressChart results={historyRows} />, [historyRows]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);

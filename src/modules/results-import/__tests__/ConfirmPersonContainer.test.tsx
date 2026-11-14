@@ -15,7 +15,7 @@ jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 // Synthetic people, source and numbers only.
 const athlete = { id: 'athlete-1', firstName: 'Ana', lastName: 'Example' };
-const source: ImportSource = { organizationId: 'org-1', name: 'Federación Sintética', provider: 'xx-demo' };
+const source: ImportSource = { organizationId: 'org-1', name: 'Federación Sintética', kind: 'federation', provider: 'xx-demo' };
 const candidate: SearchCandidate = {
   id: 'candidate-1',
   name: 'Ana Example',
@@ -69,6 +69,13 @@ describe('ConfirmPersonContainer', () => {
     expect(s.onGoToAuthorizations).toHaveBeenCalledTimes(1);
     expect(s.search.searches).toEqual([]);
     expect(screen.queryByText('Seguir por nombre')).toBeNull();
+  });
+
+  it('does not search a person at a results platform: with only a platform it says the source is not available', async () => {
+    const s = setup({ sources: [{ ...source, kind: 'platform' }] });
+    await s.mount();
+    expect(await screen.findByText('El origen no está disponible')).toBeOnTheScreen();
+    expect(s.search.searches).toEqual([]);
   });
 
   it('says it needs a connection and does not search', async () => {
