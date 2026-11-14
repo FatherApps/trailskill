@@ -26,6 +26,7 @@ describe('AppSchema', () => {
     const synced = AppSchema.tables.filter((table) => !table.localOnly).map((table) => table.name);
     expect(synced.sort()).toEqual(
       [
+        'adult_profiles',
         'athlete_groups',
         'athlete_managers',
         'athlete_schools',
@@ -76,6 +77,6 @@ describe('AppSchema', () => {
     expect(byName.get('upload_failures')?.localOnly).toBe(true);
     expect(byName.get('uploaded_ops')?.localOnly).toBe(true);
     expect(byName.get('family_measurements')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(30);
+    expect(AppSchema.tables).toHaveLength(31);
   });
 });

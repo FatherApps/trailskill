@@ -10,9 +10,9 @@ Everything is entered by the user or captured by the timing screens. There is no
 
 | Data | Whose | Where it is stored | Module / source |
 | --- | --- | --- | --- |
-| Email address | Every signed-in user | Supabase Auth (`auth.users`) | `src/core/session/SessionProvider.tsx` (`signInWithOtp`, `verifyOtp`, `signInWithOAuth`) |
+| Email address | Every signed-in user | Supabase Auth (`auth.users`). A copy is the contact in `adult_profiles.contact_email`, which school admins read for the guardians of their school's athletes and their school's coaches, synced to their device (`20261114230000_accounts_admin_reads_adult_profiles.sql`) | `src/core/session/SessionProvider.tsx` (`signInWithOtp`, `verifyOtp`, `signInWithOAuth`) |
 | User ID | Every signed-in user | `auth.users.id`, referenced as `created_by`, `user_id`, `confirmed_by`, `requested_by` in many tables | all modules |
-| First and last name of an adult account | Guardian or adult athlete | `adult_profiles` (`20261025110000_accounts_adult_profiles.sql`) | `src/modules/accounts` |
+| First and last name of an adult account | Guardian or adult athlete | `adult_profiles` (`20261025110000_accounts_adult_profiles.sql`). School admins also read the name of the guardians of their school's athletes and of their school's coaches, synced to their device (`20261114230000_accounts_admin_reads_adult_profiles.sql`) | `src/modules/accounts` |
 | First and last name of an athlete | Athlete (may be a minor) | `athletes` (`20261024200100_athletes_athletes.sql`) | `src/modules/accounts`, `src/modules/athletes` |
 | Identity document number of an athlete | Athlete | `athlete_identity_documents.identity_number_encrypted`, encrypted, no direct read access for the app roles (`20261028223000_accounts_athlete_identity_documents.sql`) | `src/modules/accounts` |
 | Who manages an athlete, school membership, group and category | Athlete, guardian, staff | `athlete_managers`, `athlete_schools`, `athlete_groups`, `school_memberships`, `coach_athlete_assignments`, `coach_group_assignments` | `src/modules/accounts`, `src/modules/school-console` |
