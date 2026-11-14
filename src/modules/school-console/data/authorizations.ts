@@ -17,7 +17,7 @@ import {
 import { localDate } from '../components/formatDate';
 import { createPowerSyncConsoleAthletesRepository, type ConsoleAthletesRepository } from './consoleAthletes';
 
-// One athlete of the school with the status of each purpose. No guardian: school admins cannot read guardians yet (issue 220).
+// One athlete of the school with the status of each purpose. No guardian: this list does not show it.
 export type ConsoleAuthorizationRow = Omit<AthleteAuthorizations, 'guardian' | 'canResend'> & {
   // The group a new invitation goes to: the first of the athlete's groups by name; null when the athlete has none.
   groupId: string | null;

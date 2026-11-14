@@ -6,6 +6,7 @@ import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, StateView } from '../../core/ui';
+import { createPowerSyncAdultDirectoryRepository } from '../../modules/accounts';
 import {
   AthletesSection,
   AuthorizationsSection,
@@ -32,7 +33,8 @@ const authorizations = createPowerSyncAuthorizationsRepository();
 const categoryRecords = createPowerSyncCategoryRecordsRepository();
 const measurementLog = createPowerSyncMeasurementLogRepository();
 const schoolStructure = createPowerSyncSchoolStructureRepository();
-const coaches = createPowerSyncCoachRepository();
+const adults = createPowerSyncAdultDirectoryRepository();
+const coaches = createPowerSyncCoachRepository(adults);
 
 // Deactivating a coach waits for issue 220; the button is shown disabled, so this is never called.
 const noop = () => {};
@@ -84,7 +86,7 @@ export default function ConsoleRoute() {
           <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} onDeactivate={noop} />
         ),
         athletes: (props) => (
-          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         records: (props) => (
           <RecordsSection {...props} schoolId={schoolId} repository={categoryRecords} categories={categories} structure={schoolStructure} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />

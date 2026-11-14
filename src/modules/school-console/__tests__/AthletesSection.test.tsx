@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
-import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
+import { createInMemoryAdultDirectoryRepository, createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository, type HistoryMeasurement } from '../../athletes';
 import { ThemeProvider } from '../../../core/theme';
 import { startOfWeek } from '../data/athletesList';
@@ -278,6 +278,75 @@ describe('AthletesSection', () => {
       expect(screen.getAllByText('Sin dato')).toHaveLength(2);
       expect(screen.queryByRole('button', { name: 'Ver perfil completo' })).toBeNull();
       expect(await screen.findByLabelText(/^Libre 50 · 25 m/)).toBeOnTheScreen();
+    });
+
+    describe('guardians', () => {
+      // Synthetic data only. a1 has two guardians (one without a profile contact), a2 has a guardian without a profile, a3 has none.
+      const directory = (extra: { listGuardians?: jest.Mock } = {}) => {
+        const real = createInMemoryAdultDirectoryRepository({
+          profiles: [
+            { userId: 'g1', firstName: 'Ana', lastName: 'Prueba', contactEmail: 'ana@example.test' },
+            { userId: 'g3', firstName: 'Beto', lastName: 'Ejemplo', contactEmail: null },
+            { userId: 'g4', firstName: 'Eva', lastName: 'Otra', contactEmail: 'eva@example.test' },
+          ],
+          managers: [
+            { userId: 'g1', athleteId: 'a1', relation: 'guardian' },
+            { userId: 'g3', athleteId: 'a1', relation: 'guardian' },
+            { userId: 'g2', athleteId: 'a1', relation: 'guardian' },
+            { userId: 'g2', athleteId: 'a2', relation: 'guardian' },
+            { userId: 'g4', athleteId: 'a4', relation: 'self' },
+          ],
+        });
+        return { ...real, ...extra };
+      };
+
+      it('shows the name and contact of the guardian of the athlete, joined when there are several, skipping guardians without a profile', async () => {
+        await show(setup().repository, { guardians: directory() });
+
+        await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+
+        expect(await screen.findByText('Ana Prueba, Beto Ejemplo')).toBeOnTheScreen();
+        expect(screen.getByText('ana@example.test')).toBeOnTheScreen();
+        expect(screen.queryAllByText('Sin dato')).toHaveLength(0);
+      });
+
+      it('shows Sin dato for the guardian and the contact when the guardian has no profile or the athlete has no guardian', async () => {
+        const guardians = directory();
+        await show(setup().repository, { guardians });
+
+        await fireEvent.press(await athleteRow(/^Mateo Castro/));
+        expect(await screen.findAllByText('Sin dato')).toHaveLength(2);
+
+        await fireEvent.press(await athleteRow(/^Sara Peña/));
+        expect(screen.getAllByText('Sin dato')).toHaveLength(2);
+      });
+
+      it('never shows the guardian of the previous athlete while the next one is loading', async () => {
+        let release: (list: { userId: string; name: string | null; contact: string | null }[]) => void = () => {};
+        const listGuardians = jest
+          .fn()
+          .mockResolvedValueOnce([{ userId: 'g1', name: 'Ana Prueba', contact: 'ana@example.test' }])
+          .mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+        await show(setup().repository, { guardians: { listGuardians } });
+        await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+        expect(await screen.findByText('Ana Prueba')).toBeOnTheScreen();
+
+        await fireEvent.press(await athleteRow(/^Mateo Castro/));
+
+        expect(screen.queryByText('Ana Prueba')).toBeNull();
+        expect(screen.queryByText('ana@example.test')).toBeNull();
+        expect(screen.getAllByText('Sin dato')).toHaveLength(2);
+        await act(async () => release([{ userId: 'g5', name: 'Gabo Nuevo', contact: null }]));
+        expect(await screen.findByText('Gabo Nuevo')).toBeOnTheScreen();
+      });
+
+      it('shows Sin dato when the guardians cannot be read', async () => {
+        await show(setup().repository, { guardians: { listGuardians: jest.fn().mockRejectedValue(new Error('boom')) } });
+
+        await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+
+        await waitFor(() => expect(screen.getAllByText('Sin dato')).toHaveLength(2));
+      });
     });
 
     it('closes with Cerrar', async () => {

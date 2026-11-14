@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
-import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
+import { createInMemoryAdultDirectoryRepository, createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository } from '../../athletes';
 import { ThemeProvider } from '../../../core/theme';
 import { createInMemoryCoachInvitationRepository } from '../data/coachInvitations';
@@ -114,6 +114,21 @@ const rows = async () => {
 };
 
 describe('CoachesSection', () => {
+  it('shows the profile name and initials of a coach, and Sin dato only for the coaches without a profile', async () => {
+    const adults = createInMemoryAdultDirectoryRepository({ profiles: [{ userId: 'coach-1', firstName: 'Carla', lastName: 'Entrena', contactEmail: 'carla@example.test' }] });
+    await show(createInMemoryCoachRepository([
+      { schoolId: 'school-a', userId: 'coach-1', role: 'coach' },
+      { schoolId: 'school-a', userId: 'coach-2', role: 'coach' },
+    ], adults));
+
+    expect(await rows()).toHaveLength(2);
+    expect(screen.getByText('Carla Entrena')).toBeOnTheScreen();
+    expect(screen.getByText('CE', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getAllByText('Sin dato')).toHaveLength(1);
+    // The coach list never shows contact.
+    expect(screen.queryByText(/carla@example.test/, { includeHiddenElements: true })).toBeNull();
+  });
+
   it('lists the coaches of the school with Sin dato as name, their groups and their athletes, and no other school or admin', async () => {
     await show(coachRepository());
 
