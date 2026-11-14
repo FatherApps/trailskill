@@ -114,6 +114,7 @@ function setup(
       return { importId: 'import-1', inserted: input.results.length, duplicates: 0, changes: 0 };
     },
   };
+  const latestCalls: [string, string | null][] = [];
   const actions = createOfficialResultsActions({
     service,
     identityNumbers,
@@ -121,12 +122,12 @@ function setup(
     recorder,
     access: { allowed: async () => options.allowed ?? true },
     confirmations: {
-      latest: async () => (options.confirmed === false ? null : { organizationId: ORG, confirmedAt: '2026-10-28T10:00:00Z', candidateName: 'Synthetic Swimmer' }),
+      latest: async (athleteId, organizationId) => (latestCalls.push([athleteId, organizationId]), options.confirmed === false ? null : { organizationId: ORG, confirmedAt: '2026-10-28T10:00:00Z', candidateName: 'Synthetic Swimmer' }),
     },
     providerKeyFor: async () => (options.providerKey === undefined ? 'zz-test' : options.providerKey),
     now: () => clock.now,
   });
-  return { actions, pending, recorded, claims, provider };
+  return { actions, pending, recorded, claims, provider, latestCalls };
 }
 
 const who = { userId: USER, athleteId: ATHLETE };
@@ -158,6 +159,19 @@ describe('status', () => {
 
   it('refuses a caller who may not import, and learns nothing', async () => {
     expect(await setup({ allowed: false }).actions.status(who)).toEqual({ ok: false, error: { code: 'not_authorized' } });
+  });
+
+  it('asks for the latest confirmation of any federation when no organization is given', async () => {
+    const { actions, latestCalls } = setup();
+    await actions.status(who);
+    await actions.status({ ...who, organizationId: null });
+    expect(latestCalls).toEqual([[ATHLETE, null], [ATHLETE, null]]);
+  });
+
+  it('asks for the latest confirmation of the organization given', async () => {
+    const { actions, latestCalls } = setup();
+    expect(await actions.status({ ...who, organizationId: 'games' })).toMatchObject({ ok: true, value: { confirmed: true, organizationId: ORG } });
+    expect(latestCalls).toEqual([[ATHLETE, 'games']]);
   });
 });
 
@@ -206,6 +220,20 @@ describe('results', () => {
 
   it('is unavailable when the source has no number to search by', async () => {
     expect(await setup({ number: null }).actions.results(who)).toEqual({ ok: false, error: { code: 'unavailable' } });
+  });
+
+  it('asks for the latest confirmation of any federation when no organization is given, and of the organization when it is', async () => {
+    const { actions, latestCalls } = setup();
+    await actions.results(who);
+    expect(latestCalls).toEqual([[ATHLETE, null]]);
+    await actions.results({ ...who, organizationId: 'games' });
+    expect(latestCalls).toEqual([[ATHLETE, null], [ATHLETE, 'games']]);
+  });
+
+  it('claims for the provider of the confirmed organization', async () => {
+    const { actions, claims } = setup();
+    await actions.results(who);
+    expect(claims).toEqual([expect.objectContaining({ provider: 'zz-test' })]);
   });
 
   it('stores nothing when the source answers nothing', async () => {

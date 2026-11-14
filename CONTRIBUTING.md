@@ -48,6 +48,8 @@ Several worktrees and sessions share the emulator:
 
 Without a local Android toolchain, `eas build --profile development --platform android` builds the same development build in the cloud.
 
+To choose a backend, the shared test backend or everything local in Docker, see [Local development](docs/local-development.md).
+
 ## Branching model
 
 TrailSkill uses **trunk-based development**: one long-lived branch (`main`), short-lived work branches, and tags for releases. There is no `develop` branch.
@@ -72,7 +74,7 @@ docs/40-release-checklist
 Allowed types match Conventional Commits: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `build`, `perf`.
 
 - Branch from the latest `main`.
-- Keep it short-lived (days, not weeks). Rebase on `main` when it falls behind.
+- Keep it short-lived (days, not weeks). When it falls behind, rebase on `main` only if you have not pushed it yet; after the first push, merge `origin/main`, because force-pushing is not allowed.
 - Use a separate Git worktree per branch so parallel work never collides:
 
   ```bash

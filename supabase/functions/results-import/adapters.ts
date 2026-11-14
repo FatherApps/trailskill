@@ -23,15 +23,15 @@ const INVALID_VALUE = '22023';
 const failure = (what: string, error: DbError | null) => new Error(`${what} failed${error ? ` (${error.code ?? 'unknown'})` : ''}`);
 
 /**
- * `public.results_import_claim_query` (or `results_import_claim_results_query` when `searchTtlMs` is given) answers
+ * `public.results_import_claim_query` (or `results_import_claim_results_query` when `searchTtlMs` is given), per athlete and provider, answers
  * `{ retry_at, claimed_at }`: `retry_at` null and the instant taken (claim taken or shared with a confirmed search), or the
  * instant of the next allowed query and no `claimed_at`; or raises 42501. `claimed_at` stays the string the database wrote:
  * a `Date` would drop its microseconds and `results_import_release_claim` would never match it.
  */
 export function createQueryGate(db: Db): QueryGate {
   return {
-    async claim({ athleteId, userId, intervalMs, searchTtlMs }): Promise<Claim> {
-      const args = { athlete: athleteId, requested_by: userId, min_interval: `${intervalMs / 1000} seconds` };
+    async claim({ athleteId, userId, provider, intervalMs, searchTtlMs }): Promise<Claim> {
+      const args = { athlete: athleteId, provider, requested_by: userId, min_interval: `${intervalMs / 1000} seconds` };
       const { data, error } =
         searchTtlMs === undefined
           ? await db.rpc('results_import_claim_query', args)
@@ -46,9 +46,10 @@ export function createQueryGate(db: Db): QueryGate {
       if (!retryAt || Number.isNaN(retryAt.getTime())) throw failure('Claiming the source query', null);
       return { status: 'rate_limited', retryAt: retryAt.toISOString() };
     },
-    async release({ athleteId, claimedAt, intervalMs, retryAfterMs }) {
+    async release({ athleteId, provider, claimedAt, intervalMs, retryAfterMs }) {
       const { data, error } = await db.rpc('results_import_release_claim', {
         athlete: athleteId,
+        provider,
         claimed_at: claimedAt,
         min_interval: `${intervalMs / 1000} seconds`,
         retry_after: `${retryAfterMs / 1000} seconds`,
@@ -97,9 +98,9 @@ export function createConfirmations(db: Db): Confirmations {
   };
 }
 
-/** Organizations with the provider key their results source assigns to them; the registry walks up the parents itself. */
+/** All organizations with the provider key their results source assigns to them; the registry walks up the parents itself, so no id is needed. */
 export function createOrganizationChain(db: Db) {
-  return async (_organizationId: string): Promise<OrganizationData[]> => {
+  return async (_organizationId?: string): Promise<OrganizationData[]> => {
     const [organizations, sources] = await Promise.all([
       db.select('organizations', 'id,type,country_code,parent_organization_id'),
       db.select('results_import_sources', 'organization_id,provider'),
@@ -166,16 +167,19 @@ export function createAccess(db: Db) {
   };
 }
 
-/** `public.results_import_latest_confirmation`: the newest "is this the person?" confirmation of the athlete, or null. */
+/**
+ * `public.results_import_latest_confirmation`: the newest "is this the person?" confirmation of the athlete, or null. With an
+ * organization, the newest of that organization; with `null`, the newest of a federation (a platform confirmation never counts).
+ */
 export function createConfirmationReader(db: Db) {
   return {
-    async latest(athleteId: string): Promise<{ organizationId: string; confirmedAt: string; candidateName: string } | null> {
-      const { data, error } = await db.rpc('results_import_latest_confirmation', { athlete: athleteId });
+    async latest(athleteId: string, organizationId: string | null): Promise<{ organizationId: string; confirmedAt: string; candidateName: string } | null> {
+      const { data, error } = await db.rpc('results_import_latest_confirmation', { athlete: athleteId, organization: organizationId });
       if (error || !Array.isArray(data)) throw failure('Reading the confirmation', error);
       if (data.length === 0) return null;
-      const { organization_id: organizationId, confirmed_at: confirmedAt, candidate_name: candidateName } = data[0] as Record<string, unknown>;
-      if (typeof organizationId !== 'string' || typeof confirmedAt !== 'string' || typeof candidateName !== 'string') throw failure('Reading the confirmation', null);
-      return { organizationId, confirmedAt: new Date(confirmedAt).toISOString(), candidateName };
+      const { organization_id: confirmedOrganization, confirmed_at: confirmedAt, candidate_name: candidateName } = data[0] as Record<string, unknown>;
+      if (typeof confirmedOrganization !== 'string' || typeof confirmedAt !== 'string' || typeof candidateName !== 'string') throw failure('Reading the confirmation', null);
+      return { organizationId: confirmedOrganization, confirmedAt: new Date(confirmedAt).toISOString(), candidateName };
     },
   };
 }

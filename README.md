@@ -15,7 +15,7 @@ Una sola aplicación (Expo / React Native, Android primero) que atiende a todos 
 | Planes de entrenamiento | Constructor y editor de planes, asignación, vista «Hoy» y cumplimiento | `training-plans` | #282, #393, #409 |
 | Historial y marcas | Perfil, historial y «Marcas» del deportista | `athletes` | #838, #852, #856 |
 | Consola de escuela | Deportistas, entrenadores, categorías, mediciones, autorizaciones y récords | `school-console` | #410, #687, #858 |
-| Importación oficial | Importación de resultados oficiales por proveedor; **en curso**: el proveedor LENEX ya está y el registro del proveedor co-fecna también; en producción faltan el despliegue de la función y el registro de la fuente | `results-import` | #895, #915 (abiertos: #896, #897 y #802, el despliegue de la función) |
+| Importación oficial | Importación de resultados oficiales por proveedor; **en curso**: el proveedor co-fecna está registrado y el proveedor LENEX (plataforma de resultados `co-colombiaacuatica`, por dirección de torneo) está implementado pero **no registrado**: activarlo es un paso aparte del maintainer; la app ya tiene el flujo «importar de un torneo» y agrupa en lectura la misma prueba de varias fuentes; en producción faltan la entrega de la función (paso manual de `deploy/README.md`) y el registro de las fuentes; el retiro de las firmas antiguas de la migración es #931 | `results-import` | #895, #896, #897, #915 (abierto: #931) |
 
 Solo los ítems **confirmados** en los documentos de producto son requisitos; los marcados como propuestos o abiertos no se implementan.
 

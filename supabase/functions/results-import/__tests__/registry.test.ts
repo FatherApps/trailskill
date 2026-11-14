@@ -1,5 +1,5 @@
 import { createProviderRegistry, type OrganizationData } from '../registry.ts';
-import { createFakeProvider } from './fakeProvider.ts';
+import { createFakePlatform, createFakeProvider, TOURNAMENT_URL } from './fakeProvider.ts';
 
 const org = (id: string, overrides: Partial<OrganizationData> = {}): OrganizationData => ({
   id,
@@ -86,5 +86,59 @@ describe('provider registry', () => {
 
   it('rejects duplicate keys', () => {
     expect(() => createProviderRegistry([createFakeProvider(), createFakeProvider()])).toThrow('Duplicate provider key: zz-test');
+  });
+});
+
+describe('platform adapters', () => {
+  const platform = createFakePlatform();
+  const withPlatform = createProviderRegistry([fake], [platform]);
+  const games = (id = 'games', overrides: Partial<OrganizationData> = {}) => org(id, { type: 'results_platform', provider: 'zz-games', ...overrides });
+
+  it('resolves a pasted address to the platform adapter and to the one organization that holds its provider', () => {
+    const data = [org('fed', { provider: 'zz-test' }), games()];
+    expect(withPlatform.resolveUrl(data, TOURNAMENT_URL)).toEqual({ provider: platform, organizationId: 'games' });
+  });
+
+  it('does not resolve an address no platform adapter accepts', () => {
+    expect(withPlatform.resolveUrl([games()], 'https://other.example.test/tournament/1')).toBeNull();
+    expect(createProviderRegistry([fake]).resolveUrl([games()], TOURNAMENT_URL)).toBeNull();
+  });
+
+  it('does not resolve an address that two platform adapters accept', () => {
+    const twin = createFakePlatform({ key: 'zz-twin' });
+    const both = createProviderRegistry([fake], [platform, twin]);
+    expect(both.resolveUrl([games(), games('twin', { provider: 'zz-twin' })], TOURNAMENT_URL)).toBeNull();
+  });
+
+  it.each([
+    ['no organization holds the provider', [org('fed', { provider: 'zz-test' })]],
+    ['two organizations hold the provider', [games(), games('games-2')]],
+    ['the organization is a federation, not a platform', [org('fed', { provider: 'zz-games' })]],
+    ['the organization has no country', [games('games', { countryCode: null })]],
+    ['the provider prefix is not the organization country', [games('games', { countryCode: 'YY' })]],
+  ])('does not resolve an address when %s', (_name, data) => {
+    expect(withPlatform.resolveUrl(data, TOURNAMENT_URL)).toBeNull();
+  });
+
+  it('matches the country code case-insensitively', () => {
+    expect(withPlatform.resolveUrl([games('games', { countryCode: 'zz' })], TOURNAMENT_URL)).toEqual({ provider: platform, organizationId: 'games' });
+  });
+
+  it('gives the platform adapter of a platform organization, and nothing for any other', () => {
+    const data = [org('fed', { provider: 'zz-test' }), games(), games('unregistered', { provider: 'zz-elsewhere' }), games('abroad', { countryCode: 'YY' })];
+    expect(withPlatform.platformFor(data, 'games')).toBe(platform);
+    for (const id of ['fed', 'unregistered', 'abroad', 'missing']) expect(withPlatform.platformFor(data, id)).toBeNull();
+  });
+
+  it('does not walk up from a platform organization, and resolve never answers a platform', () => {
+    const data = [org('fed', { provider: 'zz-test' }), games('games', { parentId: 'fed' })];
+    expect(withPlatform.resolve(data, 'games')).toBe(fake);
+    expect(withPlatform.platformFor([games('games', { parentId: 'fed' }), org('fed', { provider: 'zz-test' })], 'fed')).toBeNull();
+  });
+
+  it('checks the keys of both lists together', () => {
+    expect(() => createProviderRegistry([fake], [createFakePlatform({ key: 'Games' })])).toThrow('Invalid provider key: Games');
+    expect(() => createProviderRegistry([fake], [createFakePlatform({ key: 'zz-test' })])).toThrow('Duplicate provider key: zz-test');
+    expect(() => createProviderRegistry([fake], [platform, createFakePlatform()])).toThrow('Duplicate provider key: zz-games');
   });
 });

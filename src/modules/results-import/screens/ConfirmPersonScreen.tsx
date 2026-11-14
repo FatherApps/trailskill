@@ -39,6 +39,25 @@ export type ConfirmPersonView =
       onConfirm: (candidateId: string) => void;
       onNone: () => void;
     }
+  | {
+      kind: 'tournament_start';
+      athleteName: string;
+      // Only asked when no number is saved.
+      hint: NumberHint;
+      url: string;
+      // What is being typed; held in memory only and shown as dots.
+      number: string;
+      numberInvalid: boolean;
+      busy: boolean;
+      message?: string;
+      onChangeUrl: (text: string) => void;
+      onChangeNumber: (text: string) => void;
+      onSearch: () => void;
+    }
+  | { kind: 'tournament_done'; athleteName: string; imported: number; onDone: () => void }
+  | { kind: 'tournament_empty'; athleteName: string; onRetry: () => void }
+  // The confirmation is already saved; only the import of the offered results failed.
+  | { kind: 'tournament_import_failed'; onRetry: () => void }
   | { kind: 'empty'; athleteName: string; sourceName: string; onRetry: () => void }
   | { kind: 'confirmed'; athleteName: string; sourceName: string; onDone: () => void };
 
@@ -120,6 +139,26 @@ export function ConfirmPersonScreen({ view, onBack }: ConfirmPersonScreenProps) 
           action={{ label: t('results_import.empty.action'), onPress: view.onRetry }}
         />,
       );
+    case 'tournament_empty':
+      return state(
+        t('results_import.tournament.title'),
+        <StateView
+          kind="empty"
+          title={t('results_import.empty.title')}
+          message={t('results_import.tournament.empty.message', { name: view.athleteName })}
+          action={{ label: t('results_import.empty.action'), onPress: view.onRetry }}
+        />,
+      );
+    case 'tournament_import_failed':
+      return state(
+        t('results_import.tournament.title'),
+        <StateView
+          kind="error"
+          title={t('results_import.tournament.import_failed.title')}
+          message={t('results_import.tournament.import_failed.message')}
+          action={{ label: t('results_import.tournament.import_failed.action'), onPress: view.onRetry }}
+        />,
+      );
     case 'confirmed':
       return state(
         t('results_import.start.title'),
@@ -175,6 +214,58 @@ export function ConfirmPersonScreen({ view, onBack }: ConfirmPersonScreenProps) 
             </View>
           ))}
           <Button variant="ghost" label={t('results_import.candidates.none')} onPress={view.onNone} />
+        </>,
+      );
+    case 'tournament_done':
+      return state(
+        t('results_import.tournament.title'),
+        <StateView
+          kind="empty"
+          icon="check_circle"
+          title={t('results_import.tournament.done.title')}
+          message={
+            view.imported === 0
+              ? t('results_import.tournament.done.message_none', { name: view.athleteName })
+              : t('results_import.tournament.done.message', { count: view.imported, name: view.athleteName })
+          }
+          action={{ label: t('results_import.tournament.done.action'), onPress: view.onDone }}
+        />,
+      );
+    case 'tournament_start':
+      return frame(
+        t('results_import.tournament.title'),
+        <>
+          <Text style={[typography.body, { color: colors.ink }]}>{t('results_import.tournament.intro', { name: view.athleteName })}</Text>
+          {view.message && <Banner variant="warn" icon="error">{view.message}</Banner>}
+          <TextField
+            label={t('results_import.tournament.url_label')}
+            help={t('results_import.tournament.url_help')}
+            value={view.url}
+            onChangeText={view.onChangeUrl}
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={500}
+          />
+          {!view.hint.present && (
+            <TextField
+              label={t('results_import.tournament.number_label')}
+              help={t('results_import.start.number_help')}
+              error={view.numberInvalid ? t('results_import.start.number_invalid') : undefined}
+              value={view.number}
+              onChangeText={view.onChangeNumber}
+              secureTextEntry
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={40}
+            />
+          )}
+          <Button
+            label={t('results_import.tournament.search')}
+            loading={view.busy}
+            loadingLabel={t('results_import.tournament.searching')}
+            onPress={view.onSearch}
+          />
         </>,
       );
     case 'start':

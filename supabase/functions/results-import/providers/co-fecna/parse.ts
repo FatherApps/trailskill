@@ -1,5 +1,6 @@
 import type { Affiliation, NormalizedResult } from '../../port.ts';
 import type { DistanceCode, PoolCode, StrokeCode } from '../../../../../src/core/sport/catalogs.ts';
+import { normalizeNumber } from '../../identityNumber.ts';
 import { cellText, decodeEntities, normalizeSpaces, UnknownEntityError } from './html.ts';
 
 // The swimmer list and the profile card are read from the page's HTML with regular expressions; the rows come as JSON.
@@ -18,13 +19,6 @@ export type RosterEntry = {
 export type UnreadableEntry = { unreadable: true; value: string | null; key: string | null };
 export type RosterItem = RosterEntry | UnreadableEntry;
 export type History = { affiliations: Affiliation[]; results: NormalizedResult[] };
-
-/** Spaces, dots and hyphens dropped, letters upper-cased, 20 alphanumerics at most: values are not always digits only. */
-export function normalizeNumber(raw: string): string {
-  const key = raw.replace(/[\s.-]/g, '').toUpperCase();
-  if (!/^[A-Z0-9]{1,20}$/.test(key)) throw new Error('Unexpected number');
-  return key;
-}
 
 const decodeOrNull = (text: string) => {
   try {
