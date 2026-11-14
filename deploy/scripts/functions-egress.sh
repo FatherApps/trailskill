@@ -8,10 +8,11 @@
 # that cannot be resolved, or a provider folder with no host at all, is a FAIL: a provider left out of the check never passes.
 # The edge-runtime image has no shell tools to fetch with, so a throwaway Deno container joins that network and sends a
 # HEAD request to https://<host>/ for each host: it leaves the host the same way the function's requests do.
-# A PASS covers: DNS, the route out, a TLS handshake with a certificate valid for that host name, and an HTTP answer. A proxy
-# or captive page in the way cannot present a valid certificate for the host, so it FAILs. A PASS does NOT cover the HTTP
-# status, method, path or body: providers use GET and POST on specific paths, and a 4xx/5xx from the real host still counts
-# as reached.
+# A PASS covers: DNS, the route out, a TLS handshake with a certificate the container trusts for that host name, and an HTTP
+# answer. A block page with an untrusted certificate (captive portal, proxy whose CA is not installed) FAILs; one served with
+# a trusted certificate (an intercepting proxy whose CA is installed) is not told apart and passes. A PASS does NOT cover the
+# HTTP status, method, path or body: providers use GET and POST on specific paths, and a 4xx/5xx from the real host still
+# counts as reached.
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
