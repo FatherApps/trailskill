@@ -1,7 +1,9 @@
 -- Adult profiles (issue #41): the owner reads, creates and edits only their own
 -- profile, a platform admin reads every profile but changes none, nobody deletes
 -- one from the app, names are never blank or longer than 100 characters, and
--- the table is not synced to devices. All users and data here are synthetic.
+-- the table is in the powersync publication (since issue #220, school admins
+-- read it too: see adult_profiles_school_admin.test.sql). All users and data
+-- here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(22);
@@ -21,9 +23,9 @@ select is_empty(
      where relnamespace = 'public'::regnamespace and relname = 'adult_profiles' and not relrowsecurity $$,
   'adult_profiles has row level security enabled'
 );
-select is_empty(
+select isnt_empty(
   $$ select 1 from pg_publication_tables where pubname = 'powersync' and tablename = 'adult_profiles' $$,
-  'adult_profiles is not in the powersync publication'
+  'adult_profiles is in the powersync publication'
 );
 
 set local role anon;
