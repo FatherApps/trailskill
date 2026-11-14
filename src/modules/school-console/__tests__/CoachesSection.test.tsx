@@ -426,15 +426,31 @@ describe('CoachesSection', () => {
     expect(invitations.sent).toEqual([{ schoolId: 'school-a', invitation: { name: 'Rosa', email: 'rosa@example.com', groupIds: ['g2'] } }]);
   });
 
-  it('shows Invitar disabled as Próximamente, and opens nothing, while there is no invitations repository', async () => {
-    await show(coachRepository(), { invitations: undefined });
+  it('shows Invitar disabled as Sin conexión, and opens nothing, while the device is offline', async () => {
+    await show(coachRepository(), { connection: 'offline' });
     await rows();
 
-    const invite = screen.getByRole('button', { name: 'Invitar entrenador · Próximamente' });
+    const invite = screen.getByRole('button', { name: 'Invitar entrenador · Sin conexión' });
     expect(invite).toBeDisabled();
     await fireEvent.press(invite);
 
     expect(screen.queryByTestId('side-sheet')).toBeNull();
+  });
+
+  it('does not call the invitations repository for an invalid email', async () => {
+    const invite = jest.fn().mockResolvedValue(undefined);
+    await show(coachRepository(), { invitations: { invite } });
+    await rows();
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa');
+    await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@');
+
+    const send = screen.getByRole('button', { name: 'Enviar invitación · Escribe el nombre y un correo válido' });
+    expect(send).toBeDisabled();
+    await fireEvent.press(send);
+
+    expect(invite).not.toHaveBeenCalled();
+    expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
   });
 
   it('keeps Desactivar disabled until issue 220', async () => {

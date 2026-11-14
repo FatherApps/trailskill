@@ -167,8 +167,8 @@ export const gallerySectionEntries: GalleryEntry[] = [
     'CoachesScreen',
     {
       ...sectionStates(coachesContent, (view, width) => coachesScreen(view, width)),
-      // The real console while no invitations repository exists.
-      'invite-unavailable': function InviteUnavailablePreview() {
+      // The real console while the device is offline.
+      'invite-offline': function InviteOfflinePreview() {
         return <ConsolePreview>{(width) => coachesScreen({ kind: 'data', content: coachesContent }, width, false)}</ConsolePreview>;
       },
     },
