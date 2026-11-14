@@ -16,7 +16,8 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 FUNCTION=results-import
 SRC=$ROOT/supabase/functions/$FUNCTION
 CATALOGS=$ROOT/src/core/sport/catalogs.ts
-DENO_IMAGE=denoland/deno:2.1.4 # same Deno as the edge-runtime image the stack runs (v1.74.0)
+DENO_VERSION=2.1.4 # same Deno as the edge-runtime image the stack runs (v1.74.0)
+DENO_IMAGE=denoland/deno:$DENO_VERSION
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
@@ -28,12 +29,13 @@ DEST=$(cd "$1" && pwd)
 
 # catalogs.ts runs in Deno and in React Native, and only this file is shipped: it may not import anything.
 # (The Jest test in src/core/sport/__tests__ parses the file; this is the same rule for the server.)
-if grep -Eq "^[[:space:]]*import[[:space:]('\"{*]|^[[:space:]]*export[[:space:]].*[[:space:]]from[[:space:]]|require[[:space:]]*\(" "$CATALOGS"; then
+# Also the closing line of a multi-line `export { ... } from '...'` and a dynamic import(), with either quote style.
+if grep -Eq "^[[:space:]]*import[[:space:]('\"{*]|^[[:space:]]*export[[:space:]].*[[:space:]]from[[:space:]]|^[[:space:]]*\}[[:space:]]*from[[:space:]]*['\"]|(^|[^[:alnum:]_.\$])import[[:space:]]*\(|require[[:space:]]*\(" "$CATALOGS"; then
   fail "src/core/sport/catalogs.ts has imports; the bundle ships only that file"
 fi
 
 # The bundle must contain everything the function imports from outside its folder.
-outside=$(grep -rhE "from '[^']*src/" "$SRC" --include='*.ts' --exclude-dir=__tests__ | grep -v "/src/core/sport/catalogs.ts'" || true)
+outside=$(grep -rhE "(from|import)[[:space:]]*\(?[[:space:]]*['\"][^'\"]*src/" "$SRC" --include='*.ts' --exclude-dir=__tests__ | grep -vE "/src/core/sport/catalogs\.ts['\"]" || true)
 [ -z "$outside" ] || fail "the function imports from src/ something other than catalogs.ts, the bundle would miss it: $outside"
 
 STAGE=$DEST/.$FUNCTION.staging
@@ -69,17 +71,30 @@ left=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"][^'\"]*src/" "$ST
 CONFIG=
 for name in deno.jsonc deno.json; do [ -f "$DEST/$name" ] && { CONFIG=$name; break; }; done
 FILES=$(cd "$STAGE" && find . -name '*.ts' | sed 's|^\./||' | sort)
+# The local deno is used only when it is the runtime's version; otherwise the same version through Docker.
+LOCAL_DENO=
 if command -v deno >/dev/null 2>&1; then
+  have=$(deno --version 2>/dev/null | sed -n '1s/^deno \([^ ]*\).*/\1/p')
+  if [ "$have" = "$DENO_VERSION" ]; then
+    LOCAL_DENO=1
+  elif command -v docker >/dev/null 2>&1; then
+    echo "NOTE: local deno ${have:-unknown} differs from the runtime's $DENO_VERSION; checking with $DENO_IMAGE"
+  else
+    fail "local deno ${have:-unknown} differs from the runtime's $DENO_VERSION and docker is not installed to run $DENO_IMAGE"
+  fi
+fi
+if [ -n "$LOCAL_DENO" ]; then
   # shellcheck disable=SC2086 # $FILES holds plain relative paths without spaces
   (cd "$STAGE" && deno check --no-lock ${CONFIG:+--config "$DEST/$CONFIG"} $FILES) || fail "deno check failed"
 else
-  command -v docker >/dev/null 2>&1 || fail "deno check needs deno or docker; neither is installed"
+  command -v docker >/dev/null 2>&1 || fail "deno check needs deno $DENO_VERSION or docker; neither is installed"
   # shellcheck disable=SC2086
   docker run --rm -v "$DEST:/functions:ro" -w "/functions/.$FUNCTION.staging" "$DENO_IMAGE" deno check --no-lock ${CONFIG:+--config "/functions/$CONFIG"} $FILES || fail "deno check failed"
 fi
 echo "PASS: deno check $FUNCTION ($(echo "$FILES" | wc -l | tr -d ' ') modules, index.ts included)"
 
-# Swap in the new bundle: the volume never holds a half-copied function.
+# Swap in the new bundle: the volume never holds a half-copied function. The swap is two renames, not atomic: between them a
+# request finds no $FUNCTION for an instant. A run interrupted between them leaves $OLD; the next run puts it back first (above).
 [ ! -e "$DEST/$FUNCTION" ] || mv "$DEST/$FUNCTION" "$OLD"
 mv "$STAGE" "$DEST/$FUNCTION"
 rm -rf "$OLD"
