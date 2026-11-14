@@ -37,3 +37,14 @@ describe('in-memory family measurements', () => {
     await expect(repo.setOfficial('m1', 42_710, '2026-11-08T15:00:00.000Z')).rejects.toBeInstanceOf(NotCompetitionError);
   });
 });
+
+describe('in-memory deletion', () => {
+  it('hides a deleted time and restores it', async () => {
+    const repo = createInMemoryFamilyMeasurementRepository([base]);
+    await repo.remove('m1', '2026-11-09T10:00:00.000Z');
+    expect(await repo.listByAthlete('a1')).toEqual([]);
+    expect((await repo.listDeleted('a1')).map((m) => m.id)).toEqual(['m1']);
+    await repo.restore('m1');
+    expect((await repo.listByAthlete('a1')).map((m) => m.id)).toEqual(['m1']);
+  });
+});

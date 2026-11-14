@@ -6,7 +6,7 @@
 # timing_hide_after_withdrawal, training-plans_assignments,
 # training-plans_assignment_scope_and_withdrawal, timing_school_id,
 # school-console_coach_assignment_school, timing_admin_measurement_conflicts,
-# training-plans_notices, results-import_provenance):
+# training-plans_notices, results-import_provenance, family-timing_measurements):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -179,3 +179,10 @@ streams:
       - SELECT * FROM results_imports WHERE athlete_id IN import_authorized_athlete_ids
       - SELECT * FROM imported_results WHERE athlete_id IN import_authorized_athlete_ids
       - SELECT * FROM imported_result_changes WHERE athlete_id IN import_authorized_athlete_ids
+
+  # "Mis tiempos": the times a guardian or adult athlete measured themselves, only for their owner
+  # (family_timing_measurements_select). Deleted ones come too, so "Eliminados" can restore them for 30 days.
+  family_timing_measurements:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM family_timing_measurements WHERE owner_user_id = auth.user_id()

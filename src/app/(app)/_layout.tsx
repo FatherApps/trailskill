@@ -28,6 +28,7 @@ import {
   type RegistrationStep,
 } from '../../modules/accounts';
 import { athleteProfileHref, createPowerSyncAthleteRepository, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
+import { createPowerSyncFamilyMeasurementRepository, useMoveLocalFamilyTimes } from '../../modules/family-timing';
 import { createPowerSyncStaffSchoolRepository, useStaffSchool } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
@@ -40,6 +41,7 @@ const managedProfiles = createPowerSyncManagedAthleteProfileRepository(
 );
 const profileEvidence = createSupabaseProfileEvidenceRepository();
 const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
+const familyMeasurements = createPowerSyncFamilyMeasurementRepository();
 const invitation = { pending: createSecureStorePendingInvitationRepository(), invitations: createSupabaseInvitationRepository() };
 
 type Destination = 'home' | 'history' | 'marks' | 'athletes';
@@ -180,6 +182,8 @@ function AppShell() {
   // The school invitation of an athlete is accepted once the athlete reached the server, so it is tried again after each sync.
   const { lastSyncedAt } = useGlobalSyncSummary();
   usePendingInvitations(session?.user.id, invitation.pending, invitation.invitations, lastSyncedAt?.getTime());
+  // "Mis tiempos" kept only on this phone before they synced move to the server once, so signing out no longer loses them.
+  useMoveLocalFamilyTimes(familyMeasurements, session?.user.id);
   const { colors, space } = useTheme();
   // A draft typed here and never confirmed by a code is offered once the person is in with the same email.
   if (offer && !('existing' in offer)) {
