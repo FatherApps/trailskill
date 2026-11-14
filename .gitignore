@@ -12,7 +12,7 @@
 # Expo / React Native
 node_modules/
 .expo/
-android/
+/android/
 ios/
 dist/
 expo-env.d.ts

@@ -17,6 +17,27 @@
       "hundredths": "Centésimas",
       "thousandths": "Milésimas",
       "example": "Ejemplo: {{time}}"
+    },
+    "buttons": {
+      "label": "Botones para cronometrar",
+      "hint": "Usa los botones de la diadema o los de volumen del teléfono para cronometrar. Solo funcionan con el cronómetro abierto; el resto del tiempo el volumen funciona como siempre.",
+      "on": "Sí",
+      "off": "No",
+      "connected": "Conectado: {{devices}}",
+      "not_connected": "No hay diadema conectada: se usan los botones de volumen del teléfono.",
+      "keys_label": "Teclas",
+      "keys_hint": "Para cambiar una, toca \"Cambiar\" y presiona el botón que quieres usar.",
+      "start": "Iniciar y detener",
+      "split": "Parcial",
+      "key_row": "{{action}}: {{key}}",
+      "change": "Cambiar {{action}}",
+      "learning": "Presiona ahora el botón que quieres usar.",
+      "cancel": "Cancelar",
+      "lockout_label": "Bloqueo después de iniciar",
+      "lockout_hint": "Durante este tiempo, el botón de inicio no detiene el cronómetro, para que un doble toque no lo pare.",
+      "seconds": "{{count}} s",
+      "vibrate_label": "Vibrar al marcar",
+      "vibrate_hint": "Una vibración corta cada vez que un botón inicia, marca un parcial o detiene."
     }
   }
 }

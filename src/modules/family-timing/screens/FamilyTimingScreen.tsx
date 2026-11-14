@@ -29,6 +29,8 @@ export type FamilyStopwatchView = {
   splits: string[];
   event: string;
   noTime: boolean;
+  /** Which keys time, while the headset or volume keys are on; null otherwise. */
+  buttonsHint: string | null;
 };
 
 export type FamilySetupView = {
@@ -137,6 +139,9 @@ function StopwatchBody(props: FamilyTimingScreenProps & { stopwatch: FamilyStopw
         >
           {stopwatch.time}
         </Text>
+        {stopwatch.buttonsHint && (
+          <Text style={[typography.caption, { color: colors['on-header-muted'], textAlign: 'center' }]}>{stopwatch.buttonsHint}</Text>
+        )}
       </View>
       {stopwatch.noTime && <Banner variant="warn">{t('family_timing.stopwatch.no_time')}</Banner>}
       {saveError && <Banner variant="warn" icon="error">{t('family_timing.save_error')}</Banner>}
