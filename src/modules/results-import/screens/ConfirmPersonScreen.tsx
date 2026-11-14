@@ -55,6 +55,9 @@ export type ConfirmPersonView =
       onSearch: () => void;
     }
   | { kind: 'tournament_done'; athleteName: string; imported: number; onDone: () => void }
+  | { kind: 'tournament_empty'; athleteName: string; onRetry: () => void }
+  // The confirmation is already saved; only the import of the offered results failed.
+  | { kind: 'tournament_import_failed'; onRetry: () => void }
   | { kind: 'empty'; athleteName: string; sourceName: string; onRetry: () => void }
   | { kind: 'confirmed'; athleteName: string; sourceName: string; onDone: () => void };
 
@@ -134,6 +137,26 @@ export function ConfirmPersonScreen({ view, onBack }: ConfirmPersonScreenProps) 
           title={t('results_import.empty.title')}
           message={t('results_import.empty.message', { source: view.sourceName, name: view.athleteName })}
           action={{ label: t('results_import.empty.action'), onPress: view.onRetry }}
+        />,
+      );
+    case 'tournament_empty':
+      return state(
+        t('results_import.tournament.title'),
+        <StateView
+          kind="empty"
+          title={t('results_import.empty.title')}
+          message={t('results_import.tournament.empty.message', { name: view.athleteName })}
+          action={{ label: t('results_import.empty.action'), onPress: view.onRetry }}
+        />,
+      );
+    case 'tournament_import_failed':
+      return state(
+        t('results_import.tournament.title'),
+        <StateView
+          kind="error"
+          title={t('results_import.tournament.import_failed.title')}
+          message={t('results_import.tournament.import_failed.message')}
+          action={{ label: t('results_import.tournament.import_failed.action'), onPress: view.onRetry }}
         />,
       );
     case 'confirmed':
