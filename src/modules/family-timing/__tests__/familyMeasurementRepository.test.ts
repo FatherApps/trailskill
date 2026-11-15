@@ -83,6 +83,16 @@ describe('PowerSync family measurements', () => {
     await expect(repo.setOfficial('nope', 1, '2026-11-08T15:00:00.000Z')).rejects.toBeInstanceOf(UnknownMeasurementError);
   });
 
+  it('corrects the stroke and the swimmer, queued for upload, and never the captured time', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.add(base);
+    await repo.edit('m1', { stroke: 'BK', athleteId: 'a2' });
+    expect(await repo.listByAthlete('a1')).toEqual([]);
+    expect((await repo.listByAthlete('a2'))[0]).toMatchObject({ stroke: 'BK', millis: 47_210 });
+    expect(pending()).toHaveLength(2);
+    await expect(repo.edit('nope', { stroke: 'BK' })).rejects.toBeInstanceOf(UnknownMeasurementError);
+  });
+
   it('deletes a time out of the list and restores it', async () => {
     const repo = createPowerSyncFamilyMeasurementRepository();
     await repo.add(base);

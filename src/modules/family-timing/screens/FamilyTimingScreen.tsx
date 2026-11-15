@@ -4,7 +4,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, ChipRow, IconButton, Segmented, StateView, Tag, TextField, type InitialsDotProps, type SegmentedOption } from '../../../core/ui';
+import {
+  Banner,
+  Button,
+  ChipRow,
+  ConfirmSheet,
+  IconButton,
+  Segmented,
+  StateView,
+  Tag,
+  TextField,
+  type InitialsDotProps,
+  type SegmentedOption,
+} from '../../../core/ui';
 import '../i18n';
 
 export type FamilyAthlete = { id: string; name: string } & InitialsDotProps;
@@ -21,6 +33,17 @@ export type FamilyCard = {
   // Competition cards without an imported official value can take a hand-typed one.
   canSetOfficial: boolean;
   hasManualOfficial: boolean;
+};
+
+// A deleted time in "Eliminados": the card and the day the server removes it for good.
+export type FamilyDeletedCard = FamilyCard & { removedOn: string };
+
+export type FamilyEditView = {
+  card: FamilyCard;
+  stroke: { options: SegmentedOption<string>[]; value: string };
+  athlete: { options: { value: string; label: string; dot: InitialsDotProps }[]; value: string };
+  confirmingDelete: boolean;
+  saveError: boolean;
 };
 
 export type FamilyStopwatchView = {
@@ -45,7 +68,9 @@ export type FamilyTimingView =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'no_athletes' }
-  | { kind: 'list'; cards: FamilyCard[] }
+  | { kind: 'list'; cards: FamilyCard[]; deletedCount: number }
+  | { kind: 'deleted'; cards: FamilyDeletedCard[]; restoreError: boolean }
+  | { kind: 'edit'; edit: FamilyEditView }
   | { kind: 'setup'; setup: FamilySetupView }
   | { kind: 'stopwatch'; stopwatch: FamilyStopwatchView; saveError: boolean }
   | { kind: 'official'; card: FamilyCard; text: string; invalid: boolean };
@@ -70,6 +95,14 @@ export type FamilyTimingScreenProps = {
   onOfficialText: (text: string) => void;
   onSaveOfficial: () => void;
   onClearOfficial: () => void;
+  onOpenEdit: (id: string) => void;
+  onEditChange: (field: 'stroke' | 'athleteId', value: string) => void;
+  onSaveEdit: () => void;
+  onAskDelete: () => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
+  onOpenDeleted: () => void;
+  onRestore: (id: string) => void;
 };
 
 function Header({ onBack, title }: { onBack: () => void; title: string }) {
@@ -94,7 +127,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Card({ card, onOpenOfficial }: { card: FamilyCard; onOpenOfficial: (id: string) => void }) {
+function Card({ card, onOpenOfficial, onOpenEdit }: { card: FamilyCard; onOpenOfficial?: (id: string) => void; onOpenEdit?: (id: string) => void }) {
   const { colors, space, radius, typography } = useTheme();
   return (
     <View style={{ gap: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'], borderWidth: 1, borderColor: colors.border }}>
@@ -113,13 +146,14 @@ function Card({ card, onOpenOfficial }: { card: FamilyCard; onOpenOfficial: (id:
         </View>
       )}
       {card.splitsLabel && <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{card.splitsLabel}</Text>}
-      {card.canSetOfficial && (
+      {card.canSetOfficial && onOpenOfficial && (
         <Button
           variant="secondary"
           label={t(card.hasManualOfficial ? 'family_timing.card.edit_official' : 'family_timing.card.set_official')}
           onPress={() => onOpenOfficial(card.id)}
         />
       )}
+      {onOpenEdit && <Button variant="ghost" label={t('family_timing.card.edit')} onPress={() => onOpenEdit(card.id)} />}
     </View>
   );
 }
@@ -174,7 +208,7 @@ function StopwatchBody(props: FamilyTimingScreenProps & { stopwatch: FamilyStopw
 // Presentational: no database or clock; the container supplies the state and handles the events.
 export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
   const { view, athletes, selectedId, onSelectAthlete, onBack } = props;
-  const { colors, space } = useTheme();
+  const { colors, space, typography } = useTheme();
   const showsAthletes = athletes.length > 1 && selectedId !== null && (view.kind === 'list' || view.kind === 'loading' || view.kind === 'error');
 
   let body: ReactNode = null;
@@ -203,11 +237,72 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
           {view.cards.length === 0 ? (
             <StateView kind="empty" title={t('family_timing.empty_title')} message={t('family_timing.empty_message')} />
           ) : (
-            view.cards.map((card) => <Card key={card.id} card={card} onOpenOfficial={props.onOpenOfficial} />)
+            view.cards.map((card) => <Card key={card.id} card={card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} />)
+          )}
+          {view.deletedCount > 0 && (
+            <Button variant="ghost" label={t('family_timing.deleted.open', { count: view.deletedCount })} onPress={props.onOpenDeleted} />
           )}
         </View>
       );
       break;
+    case 'deleted':
+      body = (
+        <View style={{ gap: space[4] }}>
+          <Banner variant="info">{t('family_timing.deleted.info')}</Banner>
+          {view.restoreError && (
+            <Banner variant="warn" icon="error">
+              {t('family_timing.deleted.restore_error')}
+            </Banner>
+          )}
+          {view.cards.length === 0 ? (
+            <StateView kind="empty" title={t('family_timing.deleted.empty_title')} message={t('family_timing.deleted.empty_message')} />
+          ) : (
+            view.cards.map((card) => (
+              <View key={card.id} style={{ gap: space[2] }}>
+                <Card card={card} />
+                <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{t('family_timing.deleted.removed_on', { date: card.removedOn })}</Text>
+                <Button variant="secondary" label={t('family_timing.deleted.restore')} onPress={() => props.onRestore(card.id)} />
+              </View>
+            ))
+          )}
+        </View>
+      );
+      break;
+    case 'edit': {
+      const { edit } = view;
+      body = (
+        <View style={{ gap: space[4] }}>
+          <Card card={edit.card} />
+          <Field label={t('family_timing.setup.stroke')}>
+            <Segmented accessibilityLabel={t('family_timing.setup.stroke')} {...edit.stroke} onChange={(v) => props.onEditChange('stroke', v)} />
+          </Field>
+          {edit.athlete.options.length > 1 && (
+            <Field label={t('family_timing.athlete')}>
+              <ChipRow accessibilityLabel={t('family_timing.athlete')} {...edit.athlete} onChange={(v) => props.onEditChange('athleteId', v)} />
+            </Field>
+          )}
+          {edit.saveError && (
+            <Banner variant="warn" icon="error">
+              {t('family_timing.save_error')}
+            </Banner>
+          )}
+          <Button label={t('family_timing.edit.save')} onPress={props.onSaveEdit} />
+          <Button variant="secondary" label={t('family_timing.edit.delete')} onPress={props.onAskDelete} />
+          <Button variant="ghost" label={t('family_timing.edit.cancel')} onPress={props.onCancel} />
+          <ConfirmSheet
+            visible={edit.confirmingDelete}
+            title={t('family_timing.edit.delete_title')}
+            message={t('family_timing.edit.delete_message')}
+            confirmLabel={t('family_timing.edit.delete_confirm')}
+            cancelLabel={t('family_timing.edit.delete_cancel')}
+            destructive
+            onConfirm={props.onConfirmDelete}
+            onCancel={props.onCancelDelete}
+          />
+        </View>
+      );
+      break;
+    }
     case 'setup': {
       const { setup } = view;
       body = (
@@ -248,7 +343,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     case 'official':
       body = (
         <View style={{ gap: space[4] }}>
-          <Card card={{ ...view.card, canSetOfficial: false }} onOpenOfficial={() => {}} />
+          <Card card={view.card} />
           <TextField
             label={t('family_timing.official.label')}
             help={t('family_timing.official.help')}
@@ -266,8 +361,13 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       break;
   }
 
-  const title =
-    view.kind === 'setup' ? t('family_timing.setup.title') : view.kind === 'official' ? t('family_timing.official.title') : t('family_timing.title');
+  const titles: Partial<Record<FamilyTimingView['kind'], string>> = {
+    setup: t('family_timing.setup.title'),
+    official: t('family_timing.official.title'),
+    edit: t('family_timing.edit.title'),
+    deleted: t('family_timing.deleted.title'),
+  };
+  const title = titles[view.kind] ?? t('family_timing.title');
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       <Header title={title} onBack={view.kind === 'list' || view.kind === 'loading' || view.kind === 'error' || view.kind === 'no_athletes' ? onBack : props.onCancel} />

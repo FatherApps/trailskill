@@ -96,6 +96,13 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
       if (row.session_type !== 'competition') throw new NotCompetitionError(id);
       await writeRecord(TABLE, { id, official_millis: officialMillis, official_set_at: officialMillis === null ? null : at });
     },
+    async edit(id, changes) {
+      await existing(id);
+      const values: Record<string, unknown> = { id };
+      if (changes.stroke !== undefined) values.stroke = changes.stroke;
+      if (changes.athleteId !== undefined) values.athlete_id = changes.athleteId;
+      await writeRecord(TABLE, values);
+    },
     async remove(id, at) {
       await existing(id);
       await writeRecord(TABLE, { id, deleted_at: at });
