@@ -373,5 +373,19 @@
       "message": "Revisa tu conexión e inténtalo de nuevo.",
       "retry": "Intentar de nuevo"
     }
+  },
+  "mySwimmers": {
+    "title": "Mis nadadores",
+    "count_one": "{{count}} nadador",
+    "count_other": "{{count}} nadadores",
+    "empty": {
+      "title": "Aún no tienes nadadores asignados",
+      "message": "Aparecen cuando la escuela te asigna un grupo o un nadador."
+    },
+    "error": {
+      "title": "No pudimos cargar tus nadadores"
+    },
+    "connecting_empty": "Todavía no hay nadadores guardados en este dispositivo. Aparecerán cuando termine la primera sincronización.",
+    "offline_empty": "No hay nadadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
   }
 }

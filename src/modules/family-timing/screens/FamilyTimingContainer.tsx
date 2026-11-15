@@ -22,7 +22,7 @@ import {
 import { localDay } from '../domain/localDay';
 import { officialValue, type OfficialImport } from '../domain/officialValue';
 import { parseTimeEntry } from '../domain/timeEntry';
-import { FamilyTimingScreen, type FamilyCard, type FamilyTimingView } from './FamilyTimingScreen';
+import { FamilyTimingScreen, type FamilyCard, type FamilyDeletedCard, type FamilyTimingView } from './FamilyTimingScreen';
 import '../i18n';
 
 const KEEP_AWAKE_TAG = 'family-timing';
@@ -51,13 +51,18 @@ type Step =
   | { kind: 'list' }
   | { kind: 'setup' }
   | { kind: 'stopwatch'; saveError: boolean }
-  | { kind: 'official'; id: string; text: string; invalid: boolean };
+  | { kind: 'official'; id: string; text: string; invalid: boolean }
+  | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string; confirmingDelete: boolean; saveError: boolean }
+  | { kind: 'deleted'; restoreError: boolean };
+
+// A deleted time is removed from the server this long after it was deleted.
+const KEEP_DELETED_DAYS = 30;
 
 // `key` is the athlete and reload count it was read for: a read for another key is still loading.
 type Loaded =
   | { status: 'loading' }
   | { status: 'error'; key: string }
-  | { status: 'ready'; key: string; measurements: FamilyMeasurement[]; imported: OfficialImport[] };
+  | { status: 'ready'; key: string; measurements: FamilyMeasurement[]; deleted: FamilyMeasurement[]; imported: OfficialImport[] };
 
 function buttonsHint(startKey: number, splitKey: number, keyboard: string | undefined) {
   const keysLine =
@@ -70,7 +75,7 @@ function buttonsHint(startKey: number, splitKey: number, keyboard: string | unde
 const eventLabel = (m: { stroke: string; distance: string; pool: string }) =>
   `${t(`sport.stroke.${m.stroke}`)} ${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
 
-// Container: reads and writes the guardian's own times on this phone, and runs the stopwatch.
+// Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton } = props;
   const now = props.now ?? buttons.now;
@@ -115,8 +120,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     const readKey = `${selectedId}:${reload}`;
     // An unreadable import list only hides the imported official values; the guardian's own times still show.
     const officialRead = imports ? imports.listByAthlete(selectedId).catch(() => []) : Promise.resolve([]);
-    Promise.all([repository.listByAthlete(selectedId), officialRead])
-      .then(([measurements, imported]) => active && setRead({ status: 'ready', key: readKey, measurements, imported }))
+    Promise.all([repository.listByAthlete(selectedId), repository.listDeleted(selectedId), officialRead])
+      .then(([measurements, deleted, imported]) => active && setRead({ status: 'ready', key: readKey, measurements, deleted, imported }))
       .catch(() => active && setRead({ status: 'error', key: readKey }));
     return () => {
       active = false;
@@ -135,13 +140,12 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     };
   }, [running]);
 
-  const cards = useMemo<FamilyCard[]>(() => {
-    if (loaded.status !== 'ready') return [];
-    return loaded.measurements.map((m) => {
+  const cardOf = useCallback(
+    (m: FamilyMeasurement, imported: OfficialImport[]): FamilyCard => {
       const day = localDay(m.capturedAt);
       const date = formatDate(day, 'short') ?? day;
       const type = t(`family_timing.session_type.${m.sessionType}`);
-      const value = officialValue(m, loaded.imported);
+      const value = officialValue(m, imported);
       const organization = value?.kind === 'imported' ? sourceNames[value.provider] : undefined;
       // An imported time was published in hundredths: it is shown as published, never padded to thousandths.
       const official =
@@ -164,8 +168,21 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         canSetOfficial: m.sessionType === 'competition' && value?.kind !== 'imported',
         hasManualOfficial: m.officialMillis !== null,
       };
+    },
+    [format, sourceNames],
+  );
+  const cards = useMemo<FamilyCard[]>(
+    () => (loaded.status === 'ready' ? loaded.measurements.map((m) => cardOf(m, loaded.imported)) : []),
+    [loaded, cardOf],
+  );
+  const deletedCards = useMemo<FamilyDeletedCard[]>(() => {
+    if (loaded.status !== 'ready') return [];
+    return loaded.deleted.map((m) => {
+      const removed = new Date(Date.parse(m.deletedAt ?? m.capturedAt) + KEEP_DELETED_DAYS * 86_400_000).toISOString();
+      const day = localDay(removed);
+      return { ...cardOf(m, loaded.imported), removedOn: formatDate(day, 'short') ?? day };
     });
-  }, [loaded, format, sourceNames]);
+  }, [loaded, cardOf]);
 
   const goToList = () => {
     setStep({ kind: 'list' });
@@ -212,6 +229,25 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     }
   }
 
+  async function change(write: () => Promise<void>, onError: () => void, next: Step = { kind: 'list' }) {
+    if (saving.current) return;
+    saving.current = true;
+    try {
+      await write();
+      setStep(next);
+      setReload((n) => n + 1);
+    } catch {
+      onError();
+    } finally {
+      saving.current = false;
+    }
+  }
+
+  const athleteOptions = athletes.map((a) => {
+    const { shortName, initials, color } = athleteDisplay(a);
+    return { value: a.id, label: shortName, dot: { initials, color } };
+  });
+
   const option = (code: string, nameKey: string) => ({ value: code, label: t(nameKey) });
   let view: FamilyTimingView;
   if (athletes.length === 0) view = { kind: 'no_athletes' };
@@ -246,18 +282,30 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     };
   } else if (step.kind === 'official') {
     const card = cards.find((c) => c.id === step.id);
-    view = card ? { kind: 'official', card, text: step.text, invalid: step.invalid } : { kind: 'list', cards };
+    view = card ? { kind: 'official', card, text: step.text, invalid: step.invalid } : { kind: 'list', cards, deletedCount: deletedCards.length };
   } else if (loaded.status === 'loading') view = { kind: 'loading' };
   else if (loaded.status === 'error') view = { kind: 'error' };
-  else view = { kind: 'list', cards };
+  else if (step.kind === 'edit') {
+    const card = cards.find((c) => c.id === step.id);
+    view = card
+      ? {
+          kind: 'edit',
+          edit: {
+            card,
+            stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: step.stroke },
+            athlete: { options: athleteOptions, value: step.athleteId },
+            confirmingDelete: step.confirmingDelete,
+            saveError: step.saveError,
+          },
+        }
+      : { kind: 'list', cards, deletedCount: deletedCards.length };
+  } else if (step.kind === 'deleted') view = { kind: 'deleted', cards: deletedCards, restoreError: step.restoreError };
+  else view = { kind: 'list', cards, deletedCount: deletedCards.length };
 
   return (
     <FamilyTimingScreen
       view={view}
-      athletes={athletes.map((a) => {
-        const { shortName, initials, color } = athleteDisplay(a);
-        return { id: a.id, name: shortName, initials, color };
-      })}
+      athletes={athleteOptions.map(({ value, label, dot }) => ({ id: value, name: label, ...dot }))}
       selectedId={selectedId}
       onSelectAthlete={setChosenId}
       onBack={onBack}
@@ -286,6 +334,49 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         else writeOfficial(step.id, entry.value);
       }}
       onClearOfficial={() => step.kind === 'official' && writeOfficial(step.id, null)}
+      onOpenEdit={(id) => {
+        const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === id) : undefined;
+        if (m) setStep({ kind: 'edit', id, stroke: m.stroke, athleteId: m.athleteId, confirmingDelete: false, saveError: false });
+      }}
+      onEditChange={(field, value) =>
+        setStep((s) => (s.kind === 'edit' ? { ...s, saveError: false, ...(field === 'stroke' ? { stroke: value as StrokeCode } : { athleteId: value }) } : s))
+      }
+      onSaveEdit={() => {
+        if (step.kind !== 'edit') return;
+        const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === step.id) : undefined;
+        if (!m) return;
+        const changes = {
+          ...(step.stroke !== m.stroke ? { stroke: step.stroke } : {}),
+          ...(step.athleteId !== m.athleteId ? { athleteId: step.athleteId } : {}),
+        };
+        if (Object.keys(changes).length === 0) return goToList();
+        // A time moved to another swimmer leaves this list: the list now shows that swimmer, where the time went.
+        const moved = changes.athleteId;
+        change(
+          async () => {
+            await repository.edit(step.id, changes);
+            if (moved) setChosenId(moved);
+          },
+          () => setStep({ ...step, saveError: true }),
+        );
+      }}
+      onAskDelete={() => setStep((s) => (s.kind === 'edit' ? { ...s, confirmingDelete: true } : s))}
+      onCancelDelete={() => setStep((s) => (s.kind === 'edit' ? { ...s, confirmingDelete: false } : s))}
+      onConfirmDelete={() => {
+        if (step.kind !== 'edit') return;
+        change(
+          () => repository.remove(step.id, new Date().toISOString()),
+          () => setStep({ ...step, confirmingDelete: false, saveError: true }),
+        );
+      }}
+      onOpenDeleted={() => setStep({ kind: 'deleted', restoreError: false })}
+      onRestore={(id) =>
+        change(
+          () => repository.restore(id),
+          () => setStep({ kind: 'deleted', restoreError: true }),
+          { kind: 'deleted', restoreError: false },
+        )
+      }
     />
   );
 }

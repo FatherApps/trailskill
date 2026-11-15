@@ -88,3 +88,15 @@ export function useStaffSchool(
     [result],
   );
 }
+
+// Whether the user is a coach of a school (a school admin who is not also a coach is not): the people who have swimmers assigned.
+export type CoachSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'error'; retry: () => void } | { status: 'coach'; school: StaffSchool };
+
+export function useCoachSchool(
+  repository: StaffSchoolRepository,
+  userId: string | undefined,
+  refreshKey?: unknown,
+): CoachSchoolResult {
+  const result = useFirstSchool((id) => repository.listCoachSchools(id), repository, userId, refreshKey);
+  return useMemo((): CoachSchoolResult => (result.status === 'found' ? { status: 'coach', school: result.school } : result), [result]);
+}

@@ -210,7 +210,32 @@ export const AppSchema = new Schema({
     expires_at: column.text,
     revoked_at: column.text,
   }),
-  // Times a guardian or adult athlete measured on their own phone (family-timing module). Local only: never uploaded.
+  // "Mis tiempos" (family-timing module): the times a guardian or adult athlete measured themselves, kept on the server for their owner.
+  family_timing_measurements: new Table(
+    {
+      created_at: column.text,
+      owner_user_id: column.text,
+      captured_by: column.text,
+      athlete_id: column.text,
+      stroke: column.text,
+      distance: column.text,
+      pool: column.text,
+      session_type: column.text,
+      competition: column.text,
+      captured_at: column.text,
+      // Milliseconds; null is a missing time, never 0.
+      millis: column.integer,
+      // JSON array of cumulative split milliseconds.
+      splits: column.text,
+      official_millis: column.integer,
+      official_set_at: column.text,
+      source: column.text,
+      // Set when deleted: hidden and restorable for 30 days, then the server removes it.
+      deleted_at: column.text,
+    },
+    { indexes: { athlete: ['athlete_id'] } },
+  ),
+  // The same times as they were stored before #967, on this phone only. family-timing moves them to family_timing_measurements once.
   family_measurements: new Table(
     {
       created_at: column.text,

@@ -4,7 +4,7 @@ import type { Millis } from '../../../core/time';
 export type FamilySessionType = 'training' | 'competition';
 
 /**
- * A time a guardian (or adult athlete) measured on their own phone. It is theirs: it stays on this phone and is never the school's record.
+ * A time a guardian (or adult athlete) measured themselves. It is theirs, kept on the server for them only, and never the school's record.
  * The captured time never changes. A competition time may get the event's official time typed by hand; once an official result is
  * imported for the same event and day, the imported one is the official value and the hand-typed one stays only as history.
  */
@@ -26,7 +26,11 @@ export type FamilyMeasurement = {
   // Competition only: the event's official time typed by the guardian, and when.
   officialMillis: Millis | null;
   officialSetAt: string | null;
+  // Set when deleted: hidden from the list and restorable for 30 days, then the server removes it.
+  deletedAt?: string | null;
 };
+
+export type FamilyMeasurementEdit = Partial<Pick<FamilyMeasurement, 'stroke' | 'athleteId'>>;
 
 export interface FamilyMeasurementRepository {
   add(measurement: FamilyMeasurement): Promise<void>;
@@ -34,6 +38,19 @@ export interface FamilyMeasurementRepository {
   listByAthlete(athleteId: string): Promise<FamilyMeasurement[]>;
   /** Sets or clears (null) the hand-typed official time of a competition measurement. Training measurements refuse it. */
   setOfficial(id: string, officialMillis: Millis | null, at: string): Promise<void>;
+  /** Corrects the stroke or the swimmer (one the user manages) of a measurement; the captured time never changes. */
+  edit(id: string, changes: FamilyMeasurementEdit): Promise<void>;
+  /** Deletes a measurement: it leaves the list and can be restored for 30 days. */
+  remove(id: string, at: string): Promise<void>;
+  /** Brings back a deleted measurement. */
+  restore(id: string): Promise<void>;
+  /** The athlete's deleted measurements, most recently deleted first. */
+  listDeleted(athleteId: string): Promise<FamilyMeasurement[]>;
+  /**
+   * Moves the times this user stored on the phone before they were kept on the server (#967) into the synced table, once.
+   * Times of another user on the same phone stay where they are. Returns how many moved.
+   */
+  moveLocal(userId: string): Promise<number>;
 }
 
 export class NotCompetitionError extends Error {
@@ -53,13 +70,36 @@ export function createInMemoryFamilyMeasurementRepository(initial: FamilyMeasure
       rows.set(measurement.id, measurement);
     },
     async listByAthlete(athleteId) {
-      return [...rows.values()].filter((m) => m.athleteId === athleteId).sort(newestFirst);
+      return [...rows.values()].filter((m) => m.athleteId === athleteId && !m.deletedAt).sort(newestFirst);
     },
     async setOfficial(id, officialMillis, at) {
       const row = rows.get(id);
       if (!row) throw new UnknownMeasurementError(id);
       if (row.sessionType !== 'competition') throw new NotCompetitionError(id);
       rows.set(id, { ...row, officialMillis, officialSetAt: officialMillis === null ? null : at });
+    },
+    async edit(id, changes) {
+      const row = rows.get(id);
+      if (!row) throw new UnknownMeasurementError(id);
+      rows.set(id, { ...row, ...changes });
+    },
+    async remove(id, at) {
+      const row = rows.get(id);
+      if (!row) throw new UnknownMeasurementError(id);
+      rows.set(id, { ...row, deletedAt: at });
+    },
+    async restore(id) {
+      const row = rows.get(id);
+      if (!row) throw new UnknownMeasurementError(id);
+      rows.set(id, { ...row, deletedAt: null });
+    },
+    async listDeleted(athleteId) {
+      return [...rows.values()]
+        .filter((m): m is FamilyMeasurement & { deletedAt: string } => m.athleteId === athleteId && !!m.deletedAt)
+        .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt) || b.id.localeCompare(a.id));
+    },
+    async moveLocal() {
+      return 0;
     },
   };
 }

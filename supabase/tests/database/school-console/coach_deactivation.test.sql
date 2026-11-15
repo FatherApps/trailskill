@@ -4,32 +4,43 @@
 -- (42501, the code the device treats as a permanent rejection), keeps the
 -- author of earlier ones, and still records in a school where they are active.
 -- Users: admin A of school A, admin B of school B, coach C (coach of A and B),
--- guardian G of athlete X, and N, with no relations. All data is synthetic.
+-- guardian G of athlete X, N with no relations, adult athlete AA of school A,
+-- platform admin P, and coach C2 of B. All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(21);
 
 insert into auth.users (id, email) values
   ('96300000-0000-4000-8000-0000000000a1', 'admin-a@example.test'),
   ('96300000-0000-4000-8000-0000000000a2', 'admin-b@example.test'),
   ('96300000-0000-4000-8000-0000000000a3', 'coach-c@example.test'),
   ('96300000-0000-4000-8000-0000000000a4', 'guardian-g@example.test'),
-  ('96300000-0000-4000-8000-0000000000a5', 'nobody-n@example.test');
+  ('96300000-0000-4000-8000-0000000000a5', 'nobody-n@example.test'),
+  ('96300000-0000-4000-8000-0000000000a6', 'adult-athlete-aa@example.test'),
+  ('96300000-0000-4000-8000-0000000000a7', 'platform-admin-p@example.test'),
+  ('96300000-0000-4000-8000-0000000000a8', 'coach-c2@example.test');
+insert into public.platform_admins (user_id) values ('96300000-0000-4000-8000-0000000000a7');
 insert into public.schools (id, name) values
   ('96300000-0000-4000-8000-0000000000b1', 'Deactivation School A'),
   ('96300000-0000-4000-8000-0000000000b2', 'Deactivation School B');
--- d1 is C's coach membership in A, d2 in B, d3 admin A's own, d4 admin B's own.
+-- d1 is C's coach membership in A, d2 in B, d3 admin A's own, d4 admin B's own,
+-- d5 is C2's coach membership in B.
 insert into public.school_memberships (id, school_id, user_id, role) values
   ('96300000-0000-4000-8000-0000000000d1', '96300000-0000-4000-8000-0000000000b1', '96300000-0000-4000-8000-0000000000a3', 'coach'),
   ('96300000-0000-4000-8000-0000000000d2', '96300000-0000-4000-8000-0000000000b2', '96300000-0000-4000-8000-0000000000a3', 'coach'),
   ('96300000-0000-4000-8000-0000000000d3', '96300000-0000-4000-8000-0000000000b1', '96300000-0000-4000-8000-0000000000a1', 'school_admin'),
-  ('96300000-0000-4000-8000-0000000000d4', '96300000-0000-4000-8000-0000000000b2', '96300000-0000-4000-8000-0000000000a2', 'school_admin');
-insert into public.athletes (id, first_name, last_name) values ('96300000-0000-4000-8000-0000000000e1', 'Athlete', 'X');
+  ('96300000-0000-4000-8000-0000000000d4', '96300000-0000-4000-8000-0000000000b2', '96300000-0000-4000-8000-0000000000a2', 'school_admin'),
+  ('96300000-0000-4000-8000-0000000000d5', '96300000-0000-4000-8000-0000000000b2', '96300000-0000-4000-8000-0000000000a8', 'coach');
+insert into public.athletes (id, first_name, last_name) values
+  ('96300000-0000-4000-8000-0000000000e1', 'Athlete', 'X'),
+  ('96300000-0000-4000-8000-0000000000e2', 'Adult', 'Athlete');
 insert into public.athlete_schools (athlete_id, school_id) values
   ('96300000-0000-4000-8000-0000000000e1', '96300000-0000-4000-8000-0000000000b1'),
-  ('96300000-0000-4000-8000-0000000000e1', '96300000-0000-4000-8000-0000000000b2');
+  ('96300000-0000-4000-8000-0000000000e1', '96300000-0000-4000-8000-0000000000b2'),
+  ('96300000-0000-4000-8000-0000000000e2', '96300000-0000-4000-8000-0000000000b1');
 insert into public.athlete_managers (user_id, athlete_id, relation) values
-  ('96300000-0000-4000-8000-0000000000a4', '96300000-0000-4000-8000-0000000000e1', 'guardian');
+  ('96300000-0000-4000-8000-0000000000a4', '96300000-0000-4000-8000-0000000000e1', 'guardian'),
+  ('96300000-0000-4000-8000-0000000000a6', '96300000-0000-4000-8000-0000000000e2', 'self');
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
   ('96300000-0000-4000-8000-0000000000a3', '96300000-0000-4000-8000-0000000000e1', '96300000-0000-4000-8000-0000000000b1'),
   ('96300000-0000-4000-8000-0000000000a3', '96300000-0000-4000-8000-0000000000e1', '96300000-0000-4000-8000-0000000000b2');
@@ -57,6 +68,9 @@ select is((select count(*)::int from u), 0, 'a guardian cannot deactivate C in A
 set local request.jwt.claims = '{"sub": "96300000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
 with u as (update public.school_memberships set deactivated_at = now() where id = '96300000-0000-4000-8000-0000000000d1' returning 1)
 select is((select count(*)::int from u), 0, 'a user with no relation cannot deactivate C in A');
+set local request.jwt.claims = '{"sub": "96300000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
+with u as (update public.school_memberships set deactivated_at = now() where id = '96300000-0000-4000-8000-0000000000d1' returning 1)
+select is((select count(*)::int from u), 0, 'an adult athlete of the school cannot deactivate C in A');
 
 reset role;
 select is(
@@ -78,6 +92,14 @@ select throws_ok(
 select throws_ok(
   $$update public.school_memberships set deactivated_at = now() where id = '96300000-0000-4000-8000-0000000000d3'$$,
   '23514', null, 'only a coach membership can be deactivated');
+
+-- The platform admin is allowed by school_memberships_write, in any school.
+set local request.jwt.claims = '{"sub": "96300000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
+with u as (update public.school_memberships set deactivated_at = now() where id = '96300000-0000-4000-8000-0000000000d5' returning 1)
+select is((select count(*)::int from u), 1, 'the platform admin deactivates C2 in B');
+select is(
+  (select deactivated_at from public.school_memberships where id = '96300000-0000-4000-8000-0000000000d5'),
+  now(), 'the platform admin deactivation is stamped by the server');
 
 -- The rejection of new measurements.
 set local request.jwt.claims = '{"sub": "96300000-0000-4000-8000-0000000000a3", "role": "authenticated"}';

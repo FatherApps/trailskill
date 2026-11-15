@@ -1,0 +1,9 @@
+expo.modules.timingbutton.timing-button-pngs-0 /Users/maser/orca/workspaces/trailskill/960-coach-my-swimmers/modules/timing-button/android/build/generated/res/pngs/debug
+expo.modules.timingbutton.timing-button-updated_navigation_xml-1 /Users/maser/orca/workspaces/trailskill/960-coach-my-swimmers/modules/timing-button/android/build/generated/updated_navigation_xml/debug
+expo.modules.timingbutton.timing-button-mergeDebugResources-2 /Users/maser/orca/workspaces/trailskill/960-coach-my-swimmers/modules/timing-button/android/build/intermediates/incremental/debug/mergeDebugResources/merged.dir
+expo.modules.timingbutton.timing-button-mergeDebugResources-3 /Users/maser/orca/workspaces/trailskill/960-coach-my-swimmers/modules/timing-button/android/build/intermediates/incremental/debug/mergeDebugResources/stripped.dir
+expo.modules.timingbutton.timing-button-debug-4 /Users/maser/orca/workspaces/trailskill/960-coach-my-swimmers/modules/timing-button/android/build/intermediates/merged_res/debug/mergeDebugResources
+expo.modules.timingbutton.timing-button-debug-5 /Users/maser/orca/workspaces/trailskill/960-coach-my-swimmers/modules/timing-button/android/build/intermediates/packaged_res/debug/packageDebugResources
+expo.modules.timingbutton.timing-button-debug-6 /Users/maser/orca/workspaces/trailskill/960-coach-my-swimmers/modules/timing-button/android/src/debug/res
+expo.modules.timingbutton.timing-button-main-7 /Users/maser/orca/workspaces/trailskill/960-coach-my-swimmers/modules/timing-button/android/src/main/res
+gradleHome-0 /Users/maser/.gradle

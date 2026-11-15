@@ -5,10 +5,12 @@ export {
   NotCompetitionError,
   UnknownMeasurementError,
   type FamilyMeasurement,
+  type FamilyMeasurementEdit,
   type FamilyMeasurementRepository,
   type FamilySessionType,
 } from './data/familyMeasurements';
 export { createPowerSyncFamilyMeasurementRepository } from './data/powerSyncFamilyMeasurementRepository';
+export { useMoveLocalFamilyTimes } from './data/useMoveLocalFamilyTimes';
 export { FamilyTimingContainer, type FamilyTimingContainerProps } from './screens/FamilyTimingContainer';
 export { FamilyTimingScreen, type FamilyTimingScreenProps, type FamilyTimingView } from './screens/FamilyTimingScreen';
 export { officialValue, type OfficialImport, type OfficialValue } from './domain/officialValue';

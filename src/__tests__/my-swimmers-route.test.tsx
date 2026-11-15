@@ -1,0 +1,126 @@
+import { fireEvent, render, screen } from '@testing-library/react-native';
+
+import MySwimmersRoute from '../app/(app)/my-swimmers';
+import { t } from '../core/i18n';
+import { ThemeProvider } from '../core/theme';
+
+let mockUserId: string | undefined;
+jest.mock('../core/session', () => ({
+  useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
+}));
+jest.mock('../core/sync', () => ({
+  useGlobalSyncSummary: () => ({ lastSyncedAt: new Date(2026, 9, 24, 11, 55, 0), connected: true, connection: 'connected' }),
+}));
+const mockListCoachSchools = jest.fn();
+const mockListAthletes = jest.fn();
+jest.mock('../modules/school-console', () => ({
+  ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
+  ...jest.requireActual('../modules/school-console/screens/MySwimmersSection'),
+  createPowerSyncStaffSchoolRepository: () => ({ listCoachSchools: (...args: unknown[]) => mockListCoachSchools(...args) }),
+  createPowerSyncConsoleAthletesRepository: () => ({ listAthletes: (...args: unknown[]) => mockListAthletes(...args) }),
+}));
+jest.mock('../modules/athletes', () => jest.requireActual('../modules/athletes/athleteProfileHref'));
+const mockPush = jest.fn();
+const mockReplace = jest.fn();
+const mockBack = jest.fn();
+jest.mock('expo-router', () => {
+  const { Text } = jest.requireActual('react-native');
+  return {
+    Redirect: ({ href }: { href: string }) => <Text>{`redirected to ${href}`}</Text>,
+    useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack, canGoBack: () => true }),
+  };
+});
+
+// Synthetic data only: the coach is user-1; Sara belongs to another coach of the same school.
+const athlete = (id: string, name: string, coachIds: string[]) => ({
+  id,
+  name,
+  initials: name.slice(0, 1),
+  color: 'athlete-1',
+  categoryId: null,
+  category: null,
+  categorySortOrder: null,
+  groupIds: [],
+  groups: [],
+  coachIds,
+  authorization: 'valid',
+  bestTime: null,
+});
+
+beforeEach(() => {
+  mockUserId = 'user-1';
+  mockPush.mockReset();
+  mockReplace.mockReset();
+  mockBack.mockReset();
+  mockListCoachSchools.mockReset().mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+  mockListAthletes.mockReset().mockResolvedValue([
+    athlete('a1', 'Lucía Ramírez', ['user-1']),
+    athlete('a3', 'Sara Peña', ['user-2']),
+  ]);
+});
+
+const show = () =>
+  render(
+    <ThemeProvider>
+      <MySwimmersRoute />
+    </ThemeProvider>,
+  );
+
+describe('my swimmers route', () => {
+  it('shows a coach their own athletes and no one else’s, with a back button and no console sections', async () => {
+    await show();
+
+    expect(await screen.findByRole('button', { name: /^Lucía Ramírez/ })).toBeOnTheScreen();
+    expect(screen.queryByText(/Sara Peña/, { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByRole('tab')).toBeNull();
+    expect(mockListCoachSchools).toHaveBeenCalledWith('user-1');
+    expect(mockListAthletes).toHaveBeenCalledWith('s1');
+  });
+
+  it('opens the athlete profile with its name when a row is pressed', async () => {
+    await show();
+
+    await fireEvent.press(await screen.findByRole('button', { name: /^Lucía Ramírez/ }));
+
+    expect(mockPush).toHaveBeenCalledWith('/athletes/a1?name=Luc%C3%ADa%20Ram%C3%ADrez');
+  });
+
+  it('goes back from the back button', async () => {
+    await show();
+
+    await fireEvent.press(await screen.findByRole('button', { name: t('common.back') }));
+
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['a school admin', 'admin-1'],
+    ['a guardian', 'guardian-1'],
+  ])('sends %s, who is not a coach, back to the home without reading any athlete', async (_label, userId) => {
+    mockUserId = userId;
+    mockListCoachSchools.mockResolvedValue([]);
+    await show();
+
+    expect(await screen.findByText('redirected to /')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /^Lucía Ramírez/ })).toBeNull();
+    expect(mockListAthletes).not.toHaveBeenCalled();
+  });
+
+  it('shows the loading state, not a redirect, while the role is looked up', async () => {
+    mockListCoachSchools.mockReturnValue(new Promise(() => {}));
+    await show();
+
+    expect(screen.getByTestId('state-view')).toBeBusy();
+    expect(screen.queryByText(/redirected/)).toBeNull();
+  });
+
+  it('shows an error with a way to look again, not a redirect, when the role lookup fails', async () => {
+    mockListCoachSchools.mockRejectedValueOnce(new Error('db')).mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    await show();
+
+    await fireEvent.press(await screen.findByRole('button', { name: t('schoolConsole.screen.retry') }));
+
+    expect(await screen.findByRole('button', { name: /^Lucía Ramírez/ })).toBeOnTheScreen();
+    expect(screen.queryByText(/redirected/)).toBeNull();
+  });
+});
