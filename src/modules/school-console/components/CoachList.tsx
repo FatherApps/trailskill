@@ -22,14 +22,15 @@ type CoachBase = {
 // It has no athlete count: a count that is missing is not zero, so the model cannot hold one.
 type PendingCoachRow = CoachBase & { status: 'pending'; athleteCount?: never };
 // A count that could not be read is null, never 0. The status is always set, so narrowing on it cannot be forgotten.
-type ActiveCoachRow = CoachBase & { status: 'active'; athleteCount: number | null };
+// A deactivated coach keeps their card (their records and authorship stay); only new recordings stop.
+type ActiveCoachRow = CoachBase & { status: 'active' | 'deactivated'; athleteCount: number | null };
 
 // One coach of the school: groups and number of athletes, never contact or document data.
 export type CoachRow = ActiveCoachRow | PendingCoachRow;
 
 export type CoachListProps = {
   coaches: CoachRow[];
-  // False (the default) until a coach can really be deactivated: the action is then shown disabled.
+  // False (the default) when deactivating is not available: the action is then shown disabled.
   deactivateAvailable?: boolean;
   // Only reports the press: the confirmation and the deactivation itself belong to the caller.
   onDeactivate: (id: string) => void;

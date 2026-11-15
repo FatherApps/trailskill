@@ -12,7 +12,7 @@ export type CoachCardProps = {
   coach: CoachRow;
   // True for a single column: the card takes the whole row instead of sharing it.
   oneColumn: boolean;
-  // False until a coach can really be deactivated: the action is shown disabled, not hidden.
+  // False when deactivating is not available: the action is shown disabled, not hidden.
   deactivateAvailable: boolean;
   // Only reports the press: the confirmation and the deactivation itself belong to the caller.
   onDeactivate: (id: string) => void;
@@ -116,6 +116,7 @@ export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate,
   }
 
   // What could not be read is left out, not written as no groups or 0 athletes.
+  const deactivated = coach.status === 'deactivated';
   const detail = [groups, coach.athleteCount === null ? null : t('schoolConsole.coaches.athletes', { count: coach.athleteCount })].filter((part) => part !== null).join(' · ') || undefined;
 
   return (
@@ -123,15 +124,18 @@ export function CoachCard({ coach, oneColumn, deactivateAvailable, onDeactivate,
       <ColorCard color={coach.color} title={name} detail={detail}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
           <InitialsWithTag initials={coach.initials} background={coachCardColors.dot}>
-            <Tag label={t('schoolConsole.coaches.status.active')} variant="ok" />
+            {deactivated ? <Tag label={t('schoolConsole.coaches.status.deactivated')} variant="neutral" /> : <Tag label={t('schoolConsole.coaches.status.active')} variant="ok" />}
           </InitialsWithTag>
-          <Button
-            variant="ghost"
-            label={t('schoolConsole.coaches.deactivate')}
-            disabledReason={deactivateAvailable ? undefined : t('schoolConsole.coaches.deactivate_unavailable')}
-            accessibilityHint={t('schoolConsole.coaches.deactivate_hint', { name })}
-            onPress={() => onDeactivate(coach.id)}
-          />
+          {/* There is no way back from here: reactivating is not offered. */}
+          {!deactivated && (
+            <Button
+              variant="ghost"
+              label={t('schoolConsole.coaches.deactivate')}
+              disabledReason={deactivateAvailable ? undefined : t('schoolConsole.coaches.deactivate_unavailable')}
+              accessibilityHint={t('schoolConsole.coaches.deactivate_hint', { name })}
+              onPress={() => onDeactivate(coach.id)}
+            />
+          )}
         </View>
       </ColorCard>
     </View>

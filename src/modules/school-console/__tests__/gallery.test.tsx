@@ -108,7 +108,7 @@ describe('school console gallery entries', () => {
       'no-match',
       'sin-dato',
     ]);
-    expect(stateKeys('coachList')).toEqual(['default', 'with-pending-invitation', 'deactivate-available', 'long-text']);
+    expect(stateKeys('coachList')).toEqual(['default', 'with-pending-invitation', 'with-deactivated', 'deactivate-available', 'long-text']);
     expect(stateKeys('inviteCoachSheet')).toEqual(['default', 'group-from-context']);
     expect(stateKeys('recordTable')).toEqual(['default', 'other-pool', 'long-text', 'compact', 'pool-empty']);
     expect(stateKeys('measurementLog')).toEqual(['default', 'long-text', 'no-results']);
