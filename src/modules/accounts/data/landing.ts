@@ -7,6 +7,8 @@ export type OwnLandingEvidence = {
   // Athletes the user manages, the own one included.
   managedCount: number;
   selfAthleteId: string | null;
+  // The one athlete the user can open, when the count is exactly one (the own profile counts); null for none or several.
+  onlyAthleteId: string | null;
   // Own authorizations: a guardian who has not added an athlete yet has no managed athlete, but has these.
   authorized: boolean;
 };
@@ -43,8 +45,8 @@ export function resolveLanding({ synced, syncGaveUp, phoneBar, staff, own, platf
   // The platform admin is asked online, so it is waited for only now that someone would be sent away.
   if (platformAdmin === 'loading') return loading;
   if (platformAdmin) return home;
-  if (own.selfAthleteId && own.managedCount === 1 && phoneBar) return { kind: 'athlete', athleteId: own.selfAthleteId };
-  // A guardian, and an adult who also manages others: not decided yet. My athletes holds the own card too.
+  // One athlete in total, the own profile included: straight to it. Two or more: the person picks one in My athletes, the own card included.
+  if (own.onlyAthleteId && phoneBar) return { kind: 'athlete', athleteId: own.onlyAthleteId };
   return { kind: 'athletes' };
 }
 
@@ -58,7 +60,7 @@ export function useFirstSyncWaitExpired(): boolean {
   return expired;
 }
 
-const nothing: OwnLandingEvidence ={ managedCount: 0, selfAthleteId: null, authorized: false };
+const nothing: OwnLandingEvidence = { managedCount: 0, selfAthleteId: null, onlyAthleteId: null, authorized: false };
 
 // Reads the evidence of the user from the device. A failed lookup reads as nothing, which keeps the home screen. Stored with the user who
 // asked, so another user never inherits it. Changing `refreshKey` looks again.
@@ -73,7 +75,7 @@ export function useOwnLandingEvidence(
     let active = true;
     if (userId) {
       Promise.all([managed.listManagedAthleteIds(userId), managed.getSelfAthleteId(userId), hasOwnAuthorizations(userId)])
-        .then(([ids, selfAthleteId, authorized]) => ({ managedCount: ids.length, selfAthleteId, authorized }))
+        .then(([ids, selfAthleteId, authorized]) => ({ managedCount: ids.length, selfAthleteId, onlyAthleteId: ids.length === 1 ? ids[0] : null, authorized }))
         .catch(() => nothing)
         .then((evidence) => active && setAnswer({ userId, evidence }));
     }
