@@ -23,6 +23,7 @@
       "competition": "Competencia",
       "competition_help": "Opcional, por ejemplo el nombre del festival.",
       "start": "Ir al cronómetro",
+      "pool_required": "elige la piscina",
       "cancel": "Cancelar"
     },
     "session_type": {
@@ -31,13 +32,14 @@
     },
     "stopwatch": {
       "start": "Iniciar",
-      "split": "Parcial",
+      "split": "Lap",
       "stop": "Detener",
       "save": "Guardar",
       "discard": "Descartar",
-      "split_row": "Parcial {{number}} · {{time}}",
+      "split_row": "Lap {{number}} · {{time}} · total {{total}}",
+      "lap_progress": "Lap {{current}} de {{total}}",
       "no_time": "El tiempo quedó sin valor: detuviste en el mismo instante de la salida.",
-      "buttons": "{{start}} inicia y detiene · {{split}} marca parcial",
+      "buttons": "{{start}} inicia y detiene · {{split}} marca el lap",
       "buttons_start_only": "{{start}} inicia y detiene",
       "buttons_device": "Botones: {{device}}"
     },
@@ -49,7 +51,7 @@
       "official_imported_generic": "Oficial importado",
       "set_official": "Poner tiempo oficial",
       "edit_official": "Cambiar tiempo oficial",
-      "splits": "{{count}} parciales",
+      "splits": "{{count}} laps",
       "edit": "Editar o eliminar"
     },
     "edit": {

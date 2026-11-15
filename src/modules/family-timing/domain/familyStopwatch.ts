@@ -16,8 +16,13 @@ export function startAt(sw: FamilyStopwatch, at: bigint): FamilyStopwatch {
   return sw.status === 'idle' ? { status: 'running', startedAt: at, splitMarks: [] } : sw;
 }
 
-export function splitAt(sw: FamilyStopwatch, at: bigint): FamilyStopwatch {
+/**
+ * Marks a lap. With `laps`, the event's number of laps, the mark that closes the last lap stops the stopwatch instead:
+ * the last lap ends with either key.
+ */
+export function splitAt(sw: FamilyStopwatch, at: bigint, laps?: number): FamilyStopwatch {
   if (sw.status !== 'running' || !inOrder(sw, at)) return sw;
+  if (laps !== undefined && sw.splitMarks.length + 1 >= laps) return stopAt(sw, at);
   return { ...sw, splitMarks: [...sw.splitMarks, at] };
 }
 
