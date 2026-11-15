@@ -50,6 +50,8 @@ export type AthleteProfileContainerProps = {
   sessionDated?: readonly string[];
   // The official-results update of the results-import module. Pass it only to viewers that may import.
   officialUpdate?: ReactNode;
+  // The code to share times with the swimmer, from the accounts module; the route passes it only to who manages the swimmer.
+  shareCode?: ReactNode;
   // Only guardians and adults get it: the route decides by passing it or not.
   importPrompt?: ImportPromptProps;
   // Where the band's back button goes; the route decides (the module has no router).
@@ -171,6 +173,7 @@ export function AthleteProfileContainer({
   sourceNames,
   sessionDated,
   officialUpdate,
+  shareCode,
   importPrompt,
   onBack,
 }: AthleteProfileContainerProps) {
@@ -345,6 +348,7 @@ export function AthleteProfileContainer({
     // The chart draws the same rows as the history, so imported results and the personal best are the ones the list shows.
     chart,
     ...(officialUpdate ? { officialUpdate } : {}),
+    ...(shareCode ? { shareCode } : {}),
     ...(importPrompt ? { importPrompt } : {}),
     ...(otherSchoolResults && !online ? { otherSchoolOffline: true } : {}),
     // Connected but the server failed or did not answer: not the offline notice, a retry of this section only.

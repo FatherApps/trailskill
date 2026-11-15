@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useGoBack } from '../../../core/navigation';
 import { useSession } from '../../../core/session';
 import { useGlobalSyncSummary } from '../../../core/sync';
-import { createPowerSyncAuthorizationStatusRepository, createPowerSyncManagedAthleteRepository } from '../../../modules/accounts';
+import {
+  AthleteShareCodeContainer,
+  createPowerSyncAuthorizationStatusRepository,
+  createPowerSyncManagedAthleteRepository,
+  createSupabaseAthleteShareCodeRepository,
+} from '../../../modules/accounts';
 import {
   AthleteProfileContainer,
   createPowerSyncAthleteSchoolRepository,
@@ -45,6 +50,7 @@ const identity = createIdentityConfirmation(officialResults);
 const changeResolver = createSupabasePendingChangeResolver();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const importSources = createSupabaseImportSourcesRepository();
+const shareCodes = createSupabaseAthleteShareCodeRepository();
 
 export default function AthleteProfileRoute() {
   // `name` is the only thing besides the id the route carries: the band shows it from the first frame.
@@ -125,6 +131,18 @@ export default function AthleteProfileRoute() {
           resolver={changeResolver}
           syncKey={syncedAt}
         />
+      }
+      // Only who manages the swimmer: the server refuses the code to anyone else.
+      shareCode={
+        managedAthlete ? (
+          <AthleteShareCodeContainer
+            key={id}
+            athleteId={id}
+            athleteName={managedAthlete.firstName}
+            repository={shareCodes}
+            online={summary.connection === 'connected'}
+          />
+        ) : undefined
       }
       online={summary.connection === 'connected'}
       // Records waiting to be sent or that failed to send: with none, connected, the sync tag says "Al día".

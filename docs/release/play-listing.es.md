@@ -34,6 +34,8 @@ PARA FAMILIAS Y DEPORTISTAS ADULTOS
 • Consulta el perfil, el historial de tiempos y la evolución de cada marca.
 • Mira los entrenamientos planificados y envía una nota sobre una sesión.
 • Puedes retirar una autorización cuando quieras.
+• Mide tus propios tiempos, uno a uno o por serie.
+• Cada nadador tiene un código para compartir tiempos con otras familias; solo muestra su nombre corto y lo puedes cambiar cuando quieras.
 
 PARA ENTRENADORES
 • Toma tiempos con el cronómetro en pantalla o con un botón externo, incluso sin conexión.

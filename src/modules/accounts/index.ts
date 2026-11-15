@@ -121,3 +121,10 @@ export {
   type RegistrationDraftRepository,
   type RegistrationStep,
 } from './data/registrationDraft';
+export {
+  createInMemoryAthleteShareCodeRepository,
+  createSupabaseAthleteShareCodeRepository,
+  TooManyShareCodeLookupsError,
+  type AthleteShareCodeRepository,
+} from './data/athleteShareCodes';
+export { AthleteShareCodeContainer, type AthleteShareCodeContainerProps } from './screens/AthleteShareCodeContainer';

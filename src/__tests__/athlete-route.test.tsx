@@ -19,10 +19,17 @@ jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
 jest.mock('../core/sync', () => ({ useGlobalSyncSummary: () => ({ lastSyncedAt: null, connection: 'connected', ...mockUnsent }) }));
-jest.mock('../modules/accounts', () => ({
-  createPowerSyncAuthorizationStatusRepository: () => ({}),
-  createPowerSyncManagedAthleteRepository: () => ({}),
-}));
+jest.mock('../modules/accounts', () => {
+  const { Text } = jest.requireActual('react-native');
+  return {
+    createPowerSyncAuthorizationStatusRepository: () => ({}),
+    createPowerSyncManagedAthleteRepository: () => ({}),
+    createSupabaseAthleteShareCodeRepository: () => ({}),
+    AthleteShareCodeContainer: ({ athleteId, athleteName }: { athleteId: string; athleteName: string }) => (
+      <Text>{`share code of ${athleteId} for ${athleteName}`}</Text>
+    ),
+  };
+});
 jest.mock('../modules/results-import', () => ({
   createSupabaseImportSourcesRepository: () => ({}),
   useImportSources: () => mockSources,
@@ -53,6 +60,7 @@ jest.mock('../modules/athletes', () => {
       online,
       importPrompt,
       officialUpdate,
+      shareCode,
       onBack,
     }: {
       athleteId: string;
@@ -62,11 +70,13 @@ jest.mock('../modules/athletes', () => {
       online?: boolean;
       importPrompt?: object;
       officialUpdate?: import('react').ReactNode;
+      shareCode?: import('react').ReactNode;
       onBack: () => void;
     }) => (
       <Pressable accessibilityRole="button" onPress={onBack}>
         <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}${name ? ` named ${name}` : ''} pending ${pendingChanges}`}</Text>
         {officialUpdate}
+        {shareCode}
       </Pressable>
     ),
   };
@@ -122,6 +132,29 @@ describe('athlete profile route', () => {
     mockStaff = false;
 
     expect(await screen.findByText('profile of a1 with other schools online pending 0')).toBeOnTheScreen();
+  });
+
+  describe('share code', () => {
+    afterEach(() => {
+      mockManaged = { status: 'loading' };
+    });
+
+    it('gives the share code to who manages the swimmer', async () => {
+      mockUserId = 'user-1';
+      mockManaged = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('share code of a1 for Ana')).toBeOnTheScreen();
+    });
+
+    it('gives no share code to anyone else, for example the coach', async () => {
+      mockUserId = 'user-1';
+      mockManaged = { status: 'ready', athletes: [] };
+      await render(<AthleteRoute />);
+
+      await screen.findByText('profile of a1 online pending 0');
+      expect(screen.queryByText(/share code/)).toBeNull();
+    });
   });
 
   describe('import prompt', () => {
