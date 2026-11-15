@@ -171,6 +171,7 @@ Timing has three modes. All of them save to the device first.
 
 - **Athletes:** indicators (active, authorization pending, measurements this week, needs review), search, filters (category, training group, coach), table and detail.
 - **Coaches:** list, invite, deactivate.
+  **Decided (Mario, 2026-11-15):** Deactivating a coach removes all their access to that school's data, online and on their device; their earlier measurements keep their author.
 - **Records by category**, with a pool filter: best mark per event, athlete and date.
 - **Measurements:** chronological log with filters; conflicts are flagged here and resolved by the platform administrator.
 - **Authorizations:** status per athlete and purpose; re-send a request; approve sharing with another school.
