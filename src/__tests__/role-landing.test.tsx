@@ -194,9 +194,27 @@ describe('landing of accounts with several roles', () => {
     await landsOnHome();
   });
 
-  // A failed lookup says nothing about the person, so it keeps the old home screen with every entry they may have (comment in index.tsx).
-  it('keeps a guardian on the old home screen when the membership lookup on the device fails', async () => {
+  // A failed membership lookup ('error') does not count as staff, as in the navigation bar: the guardian lands by the count rule.
+  it('takes a guardian of two athletes to My athletes when the membership lookup on the device fails', async () => {
     guardian();
+    mockWorld.staffLookupFails = true;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('my athletes')).toBeOnTheScreen();
+    expect(screen.queryByText('TrailSkill')).toBeNull();
+  });
+
+  it('takes a guardian of one athlete to that athlete when the membership lookup on the device fails', async () => {
+    guardianOfOne();
+    mockWorld.staffLookupFails = true;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('profile a1')).toBeOnTheScreen();
+  });
+
+  // Nobody to send away (no athletes, no authorizations): the failed lookup still leaves the old home screen, with its menu.
+  it('keeps a coach with no athletes on the old home screen when the membership lookup on the device fails', async () => {
+    mockWorld.schools = ['s1'];
     mockWorld.staffLookupFails = true;
     await renderRouter(routes, { initialUrl: '/' });
 

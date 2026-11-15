@@ -44,6 +44,17 @@ describe('useStaffSchool', () => {
     await waitFor(() => expect(result.current).toMatchObject({ status: 'error' }));
   });
 
+  it('logs the kind of the failure, never its message', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const failing: StaffSchoolRepository = { ...repository, listStaffSchools: () => Promise.reject(new TypeError('stored data: Ana Marin')) };
+    const { result } = await renderHook(() => useStaffSchool(failing, 'coach-1'));
+
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(warn).toHaveBeenCalledWith('[school-console] The school lookup failed', 'TypeError');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('Ana Marin');
+    warn.mockRestore();
+  });
+
   it('looks again on retry, going back to loading so the old error does not stay, and shows the new answer', async () => {
     const list = jest.fn().mockRejectedValueOnce(new Error('db')).mockImplementationOnce(() => new Promise((resolve) => setTimeout(() => resolve([]), 0)));
     const flaky: StaffSchoolRepository = { ...repository, listStaffSchools: list };
