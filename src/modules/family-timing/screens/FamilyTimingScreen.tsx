@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import {
   Banner,
   Button,
   ChipRow,
+  Icon,
   ConfirmSheet,
   IconButton,
   Segmented,
@@ -18,6 +19,7 @@ import {
   type InitialsDotProps,
   type SegmentedOption,
 } from '../../../core/ui';
+import { FilterSheet } from '../components/FilterSheet';
 import '../i18n';
 
 // A chip of the list: a swimmer (with their dot), or "Sin asignar" (no dot).
@@ -136,6 +138,8 @@ export type FamilyTimingView =
       deletedCount: number;
       filters: FamilyFiltersView | null;
       filtered: boolean;
+      // The notice that explains these times, on the first visit only.
+      showNotice?: boolean;
       received?: FamilyReceivedCard[];
       // Why the last answer or withdrawal did not go through.
       transferError?: string | null;
@@ -181,6 +185,8 @@ export type FamilyTimingScreenProps = {
   onOpenDeleted: () => void;
   onRestore: (id: string) => void;
   onFilter: (key: FamilyFilterKey, value: string) => void;
+  // Stroke, distance and pool chosen in the sheet, applied together.
+  onApplyFilters?: (values: Partial<Record<FamilyFilterKey, string>>) => void;
   // A series: the start, then one arrival per press.
   onSeriesPress: () => void;
   onUndoLast: () => void;
@@ -198,14 +204,15 @@ export type FamilyTimingScreenProps = {
   onReject?: (transferId: string) => void;
 };
 
-function Header({ onBack, title }: { onBack: () => void; title: string }) {
+function Header({ onBack, title, action }: { onBack: () => void; title: string; action?: ReactNode }) {
   const { colors, space, typography } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], paddingHorizontal: space[4], paddingTop: space[2] }}>
       <IconButton icon="arrow_back" label={t('family_timing.back')} onPress={onBack} />
-      <Text accessibilityRole="header" style={[typography.title, { flexShrink: 1, color: colors.ink }]}>
+      <Text accessibilityRole="header" style={[typography.title, { flex: 1, color: colors.ink }]}>
         {title}
       </Text>
+      {action}
     </View>
   );
 }
@@ -414,6 +421,16 @@ function SeriesAssignBody(props: FamilyTimingScreenProps & { event: string; lane
 export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
   const { view, athletes, selectedId, onSelectAthlete, onBack } = props;
   const { colors, space, radius, typography } = useTheme();
+  const [filtering, setFiltering] = useState(false);
+  // Stroke, distance and pool open in a sheet from the header; a section shows only when it has more than one value to choose.
+  const sheetSections =
+    view.kind === 'list' && view.filters
+      ? (['stroke', 'distance', 'pool'] as const).flatMap((key) => {
+          const filter = view.filters?.[key];
+          return filter && filter.options.length > 2 ? [{ key, label: t(`family_timing.filters.${key}`), ...filter }] : [];
+        })
+      : [];
+  const activeInSheet = sheetSections.filter((s) => s.value !== '').length;
   const showsAthletes = athletes.length > 1 && selectedId !== null && (view.kind === 'list' || view.kind === 'loading' || view.kind === 'error');
 
   let body: ReactNode = null;
@@ -437,7 +454,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     case 'list':
       body = (
         <View style={{ gap: space[4] }}>
-          <Banner variant="info">{t('family_timing.on_device')}</Banner>
+          {view.showNotice && <Banner variant="info">{t('family_timing.on_device')}</Banner>}
           {view.transferError && (
             <Banner variant="warn" icon="error">
               {view.transferError}
@@ -460,18 +477,11 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
           ))}
           <Button label={t('family_timing.new')} onPress={props.onNew} />
           {view.filters && (
-            <View style={{ gap: space[3] }}>
-              <Segmented
-                accessibilityLabel={t('family_timing.filters.session_type')}
-                {...view.filters.sessionType}
-                onChange={(v) => props.onFilter('sessionType', v)}
-              />
-              {(['stroke', 'distance', 'pool'] as const).map((key) =>
-                view.filters && view.filters[key].options.length > 2 ? (
-                  <ChipRow key={key} accessibilityLabel={t(`family_timing.filters.${key}`)} {...view.filters[key]} onChange={(v) => props.onFilter(key, v)} />
-                ) : null,
-              )}
-            </View>
+            <Segmented
+              accessibilityLabel={t('family_timing.filters.session_type')}
+              {...view.filters.sessionType}
+              onChange={(v) => props.onFilter('sessionType', v)}
+            />
           )}
           {view.cards.length === 0 ? (
             view.filtered ? (
@@ -700,6 +710,16 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       <Header
         title={title}
+        action={
+          sheetSections.length > 0 ? (
+            <Button
+              variant={activeInSheet > 0 ? 'primary' : 'secondary'}
+              icon={<Icon name="expand_more" size="icon-sm" color={activeInSheet > 0 ? 'on-primary' : 'ink'} />}
+              label={activeInSheet > 0 ? t('family_timing.filters.open_active', { count: activeInSheet }) : t('family_timing.filters.open')}
+              onPress={() => setFiltering(true)}
+            />
+          ) : undefined
+        }
         onBack={
           view.kind === 'list' || view.kind === 'loading' || view.kind === 'error' || view.kind === 'no_athletes'
             ? onBack
@@ -719,6 +739,18 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
         )}
         {body}
       </ScrollView>
+      {/* Mounted on opening, so each opening starts from the filters in use. */}
+      {filtering && sheetSections.length > 0 && (
+        <FilterSheet
+          visible
+          sections={sheetSections}
+          onClose={() => setFiltering(false)}
+          onApply={(values) => {
+            setFiltering(false);
+            props.onApplyFilters?.(values);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

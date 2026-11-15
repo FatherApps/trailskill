@@ -70,7 +70,12 @@
       "pool": "Piscina",
       "all": "Todos",
       "empty_title": "Ningún tiempo con estos filtros",
-      "empty_message": "Cambia los filtros para ver más tiempos."
+      "empty_message": "Cambia los filtros para ver más tiempos.",
+      "open": "Filtros",
+      "open_active": "Filtros ({{count}})",
+      "title": "Filtrar tiempos",
+      "apply": "Aplicar filtros",
+      "clear": "Quitar filtros"
     },
     "edit": {
       "title": "Editar tiempo",
