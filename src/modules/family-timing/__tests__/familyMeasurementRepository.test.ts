@@ -63,6 +63,25 @@ afterEach(() => {
 
 const pending = () => mockDb.getAll<{ table_name: string; record_id: string }>('SELECT table_name, record_id FROM pending_writes');
 
+// Writes straight to the device store, as the phone-only table before #967 or the sync engine would.
+const server = (change: (store: DatabaseSync) => void) => {
+  const direct = new DatabaseSync(store.path);
+  change(direct);
+  direct.close();
+};
+const seedLocal = (...rows: [id: string, createdBy: string, millis: number | null][]) =>
+  server((s) => {
+    const insert = s.prepare(
+      `INSERT INTO family_measurements (id, created_at, created_by, athlete_id, stroke, distance, pool, session_type, competition, captured_at,
+         millis, splits, official_millis, official_set_at) VALUES (?, ?, ?, 'a1', 'FR', '50m', 'SCM', 'training', NULL, ?, ?, '[]', NULL, NULL)`,
+    );
+    rows.forEach(([id, createdBy, millis], i) => {
+      const at = `2026-11-0${i + 1}T10:00:00.000Z`;
+      insert.run(id, at, createdBy, at, millis);
+    });
+  });
+const localIds = () => mockDb.getAll<{ id: string }>('SELECT id FROM family_measurements ORDER BY id').map((r) => r.id);
+
 describe('PowerSync family measurements', () => {
   it('saves a time in the synced table, queued for upload, owned by who captured it', async () => {
     const repo = createPowerSyncFamilyMeasurementRepository();
@@ -131,16 +150,8 @@ describe('PowerSync family measurements', () => {
     expect(await repo.listDeleted('a1')).toEqual([]);
   });
 
-  it("moves the user's phone-only times to the synced table once, and leaves another user's", async () => {
-    const seed = new DatabaseSync(store.path);
-    const insert = seed.prepare(
-      `INSERT INTO family_measurements (id, created_at, created_by, athlete_id, stroke, distance, pool, session_type, competition, captured_at,
-         millis, splits, official_millis, official_set_at) VALUES (?, ?, ?, 'a1', 'FR', '50m', 'SCM', 'training', NULL, ?, ?, '[]', NULL, NULL)`,
-    );
-    insert.run('old-1', '2026-11-01T10:00:00.000Z', 'u1', '2026-11-01T10:00:00.000Z', 35_120);
-    insert.run('old-2', '2026-11-02T10:00:00.000Z', 'u1', '2026-11-02T10:00:00.000Z', null);
-    insert.run('other', '2026-11-03T10:00:00.000Z', 'u2', '2026-11-03T10:00:00.000Z', 40_000);
-    seed.close();
+  it("copies the user's phone-only times to the synced table once, keeps them until the server confirms, and leaves another user's", async () => {
+    seedLocal(['old-1', 'u1', 35_120], ['old-2', 'u1', null], ['other', 'u2', 40_000]);
 
     const repo = createPowerSyncFamilyMeasurementRepository();
     expect(await repo.moveLocal('u1')).toBe(2);
@@ -148,9 +159,49 @@ describe('PowerSync family measurements', () => {
       ['old-2', null],
       ['old-1', 35_120],
     ]);
-    expect(mockDb.getAll('SELECT id FROM family_measurements')).toEqual([{ id: 'other' }]);
+    // The upload is not confirmed yet: every phone copy stays.
+    expect(localIds()).toEqual(['old-1', 'old-2', 'other']);
     expect(pending().map((p) => p.record_id).sort()).toEqual(['old-1', 'old-2']);
+    // Already copied: a second launch queues nothing again.
     expect(await repo.moveLocal('u1')).toBe(0);
+    expect(pending()).toHaveLength(2);
+    expect(localIds()).toEqual(['old-1', 'old-2', 'other']);
+  });
+
+  it('removes from the phone only the times whose upload the server confirmed, without duplicating them', async () => {
+    seedLocal(['old-1', 'u1', 35_120], ['old-2', 'u1', 36_000], ['other', 'u2', 40_000]);
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.moveLocal('u1');
+
+    server((s) => s.prepare("DELETE FROM pending_writes WHERE record_id = 'old-1'").run());
+    expect(await repo.moveLocal('u1')).toBe(0);
+    expect(localIds()).toEqual(['old-2', 'other']);
+    expect(mockDb.getAll('SELECT id FROM family_timing_measurements ORDER BY id')).toEqual([{ id: 'old-1' }, { id: 'old-2' }]);
+    expect(pending().map((p) => p.record_id)).toEqual(['old-2']);
+  });
+
+  it('keeps a time the server rejected on the phone and does not queue it again', async () => {
+    seedLocal(['old-1', 'u1', 35_120], ['old-2', 'u1', 36_000]);
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.moveLocal('u1');
+
+    // Both uploads were rejected; the next sync already dropped the synced copy of old-1, old-2's is still on the device.
+    server((s) => {
+      s.exec('DELETE FROM pending_writes');
+      const reject = s.prepare(
+        "INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at) VALUES (?, 'family_timing_measurements', ?, 'PUT', '{}', '42501', '2026-11-10T10:00:00.000Z')",
+      );
+      reject.run('f1', 'old-1');
+      reject.run('f2', 'old-2');
+      s.prepare("DELETE FROM family_timing_measurements WHERE id = 'old-1'").run();
+    });
+    expect(await repo.moveLocal('u1')).toBe(0);
+    expect(localIds()).toEqual(['old-1', 'old-2']);
+    expect(pending()).toEqual([]);
+    expect(mockDb.getAll<{ id: string; millis: number }>('SELECT id, millis FROM family_measurements ORDER BY id')).toEqual([
+      { id: 'old-1', millis: 35_120 },
+      { id: 'old-2', millis: 36_000 },
+    ]);
   });
 
   it('keeps the phone-only times when the session changed to another user before the move committed', async () => {
