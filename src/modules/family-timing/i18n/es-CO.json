@@ -52,7 +52,20 @@
       "set_official": "Poner tiempo oficial",
       "edit_official": "Cambiar tiempo oficial",
       "splits": "{{count}} laps",
-      "edit": "Editar o eliminar"
+      "edit": "Editar o eliminar",
+      "best": "Mejor tiempo"
+    },
+    "filters": {
+      "session_type": "Tipo de tiempo",
+      "all_types": "Todos",
+      "training": "Entrenos",
+      "competition": "Competencias",
+      "stroke": "Estilo",
+      "distance": "Distancia",
+      "pool": "Piscina",
+      "all": "Todos",
+      "empty_title": "Ningún tiempo con estos filtros",
+      "empty_message": "Cambia los filtros para ver más tiempos."
     },
     "edit": {
       "title": "Editar tiempo",

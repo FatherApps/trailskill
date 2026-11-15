@@ -19,11 +19,19 @@ import {
   stopAt,
   type FamilyStopwatch,
 } from '../domain/familyStopwatch';
+import { bestTimeIds } from '../domain/bestTimes';
 import { lapsFor } from '../domain/laps';
 import { localDay } from '../domain/localDay';
 import { officialValue, type OfficialImport } from '../domain/officialValue';
 import { parseTimeEntry } from '../domain/timeEntry';
-import { FamilyTimingScreen, type FamilyCard, type FamilyDeletedCard, type FamilyTimingView } from './FamilyTimingScreen';
+import {
+  FamilyTimingScreen,
+  type FamilyCard,
+  type FamilyDeletedCard,
+  type FamilyFilterKey,
+  type FamilyFiltersView,
+  type FamilyTimingView,
+} from './FamilyTimingScreen';
 import '../i18n';
 
 const KEEP_AWAKE_TAG = 'family-timing';
@@ -59,6 +67,9 @@ type Step =
 
 // A deleted time is removed from the server this long after it was deleted.
 const KEEP_DELETED_DAYS = 30;
+
+type Filters = Record<FamilyFilterKey, string>;
+const noFilters: Filters = { sessionType: '', stroke: '', distance: '', pool: '' };
 
 /**
  * The lap rows: each finished lap's own time and the total at its end. The last lap ends at the stop, so once stopped it is
@@ -108,6 +119,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const key = `${selectedId}:${reload}`;
   const loaded = useMemo<Loaded>(() => (read.status !== 'loading' && read.key === key ? read : { status: 'loading' }), [read, key]);
   const [step, setStep] = useState<Step>({ kind: 'list' });
+  const [filters, setFilters] = useState<Filters>(noFilters);
   const [setup, setSetup] = useState<Setup>(initialSetup);
   const [stopwatch, setStopwatch] = useState<FamilyStopwatch>(idleFamilyStopwatch);
   const [tick, setTick] = useState(0);
@@ -193,6 +205,53 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     () => (loaded.status === 'ready' ? loaded.measurements.map((m) => cardOf(m, loaded.imported)) : []),
     [loaded, cardOf],
   );
+  // The list: the times that pass the filters, with the best of each event marked. The official time, when there is one, is the record.
+  const listed = useMemo(() => {
+    if (loaded.status !== 'ready') return { cards: [], filters: null, filtered: false };
+    const all = loaded.measurements;
+    // A chosen stroke, distance or pool that none of this swimmer's times has (another swimmer, a deleted time) counts as
+    // "all": its chip is not offered, so the person could not clear it and would be left on an empty list.
+    const active = Object.fromEntries(
+      (Object.keys(filters) as FamilyFilterKey[]).map((key) => [key, key === 'sessionType' || all.some((m) => m[key] === filters[key]) ? filters[key] : '']),
+    ) as Filters;
+    const shown = all.filter((m) => (Object.keys(active) as FamilyFilterKey[]).every((key) => !active[key] || m[key] === active[key]));
+    const best = bestTimeIds(
+      shown.map((m) => {
+        const value = officialValue(m, loaded.imported);
+        const time = value?.kind === 'imported' ? value.hundredths * 10 : value?.kind === 'manual' ? value.millis : m.millis;
+        return { id: m.id, stroke: m.stroke, distance: m.distance, pool: m.pool, capturedAt: m.capturedAt, time };
+      }),
+    );
+    const byId = new Map(cards.map((c) => [c.id, c]));
+    const present = (key: 'stroke' | 'distance' | 'pool', catalog: readonly { code: string; nameKey: string }[]) => ({
+      options: [
+        { value: '', label: t('family_timing.filters.all') },
+        ...catalog.filter((entry) => all.some((m) => m[key] === entry.code)).map((entry) => ({ value: entry.code, label: t(entry.nameKey) })),
+      ],
+      value: active[key],
+    });
+    const view: FamilyFiltersView = {
+      sessionType: {
+        options: [
+          { value: '', label: t('family_timing.filters.all_types') },
+          { value: 'training', label: t('family_timing.filters.training') },
+          { value: 'competition', label: t('family_timing.filters.competition') },
+        ],
+        value: active.sessionType,
+      },
+      stroke: present('stroke', strokes),
+      distance: present('distance', distances),
+      pool: present('pool', pools),
+    };
+    return {
+      cards: shown.flatMap((m) => {
+        const card = byId.get(m.id);
+        return card ? [{ ...card, isBest: best.has(m.id) }] : [];
+      }),
+      filters: all.length > 0 ? view : null,
+      filtered: Object.values(active).some(Boolean),
+    };
+  }, [loaded, cards, filters]);
   const deletedCards = useMemo<FamilyDeletedCard[]>(() => {
     if (loaded.status !== 'ready') return [];
     return loaded.deleted.map((m) => {
@@ -201,6 +260,13 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       return { ...cardOf(m, loaded.imported), removedOn: formatDate(day, 'short') ?? day };
     });
   }, [loaded, cardOf]);
+  const listView = (): FamilyTimingView => ({
+    kind: 'list',
+    cards: listed.cards,
+    deletedCount: deletedCards.length,
+    filters: listed.filters,
+    filtered: listed.filtered,
+  });
 
   const goToList = () => {
     setStep({ kind: 'list' });
@@ -305,7 +371,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     };
   } else if (step.kind === 'official') {
     const card = cards.find((c) => c.id === step.id);
-    view = card ? { kind: 'official', card, text: step.text, invalid: step.invalid } : { kind: 'list', cards, deletedCount: deletedCards.length };
+    view = card ? { kind: 'official', card, text: step.text, invalid: step.invalid } : listView();
   } else if (loaded.status === 'loading') view = { kind: 'loading' };
   else if (loaded.status === 'error') view = { kind: 'error' };
   else if (step.kind === 'edit') {
@@ -321,9 +387,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
             saveError: step.saveError,
           },
         }
-      : { kind: 'list', cards, deletedCount: deletedCards.length };
+      : listView();
   } else if (step.kind === 'deleted') view = { kind: 'deleted', cards: deletedCards, restoreError: step.restoreError };
-  else view = { kind: 'list', cards, deletedCount: deletedCards.length };
+  else view = listView();
 
   return (
     <FamilyTimingScreen
@@ -394,6 +460,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         );
       }}
       onOpenDeleted={() => setStep({ kind: 'deleted', restoreError: false })}
+      onFilter={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
       onRestore={(id) =>
         change(
           () => repository.restore(id),
