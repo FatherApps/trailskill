@@ -35,12 +35,21 @@ export type FamilyCard = {
   // Competition cards without an imported official value can take a hand-typed one.
   canSetOfficial: boolean;
   hasManualOfficial: boolean;
+  // Several imported official results (or times) of the same event and day: the person picks which result goes with this time.
+  officialChoice?: 'choose' | 'change' | null;
   // The best time of its event among the times shown.
   isBest?: boolean;
   // Not given to a swimmer yet ("Sin asignar").
   unassigned?: boolean;
   // Sent to another swimmer's family and waiting for their answer: that swimmer's short name.
   sentTo?: string | null;
+};
+
+// The imported official results that may go with a time: picking one saves it.
+export type FamilyChooseOfficialView = {
+  card: FamilyCard;
+  options: { key: string; time: string; detail: string; selected: boolean }[];
+  saveError: boolean;
 };
 
 // A time another family sent for the selected swimmer, waiting for this family's answer.
@@ -138,7 +147,8 @@ export type FamilyTimingView =
   | { kind: 'stopwatch'; stopwatch: FamilyStopwatchView; saveError: boolean }
   | { kind: 'series'; series: FamilySeriesView }
   | { kind: 'series_assign'; event: string; lanes: FamilyLaneView[]; saveError: boolean }
-  | { kind: 'official'; card: FamilyCard; text: string; invalid: boolean };
+  | { kind: 'official'; card: FamilyCard; text: string; invalid: boolean }
+  | { kind: 'choose_official'; choose: FamilyChooseOfficialView };
 
 export type FamilyTimingScreenProps = {
   view: FamilyTimingView;
@@ -157,6 +167,8 @@ export type FamilyTimingScreenProps = {
   onSave: () => void;
   onDiscard: () => void;
   onOpenOfficial: (id: string) => void;
+  onOpenChooseOfficial?: (id: string) => void;
+  onChooseOfficial?: (resultKey: string) => void;
   onOfficialText: (text: string) => void;
   onSaveOfficial: () => void;
   onClearOfficial: () => void;
@@ -211,11 +223,13 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Card({
   card,
   onOpenOfficial,
+  onOpenChooseOfficial,
   onOpenEdit,
   onWithdraw,
 }: {
   card: FamilyCard;
   onOpenOfficial?: (id: string) => void;
+  onOpenChooseOfficial?: (id: string) => void;
   onOpenEdit?: (id: string) => void;
   onWithdraw?: (id: string) => void;
 }) {
@@ -240,6 +254,13 @@ function Card({
         </View>
       )}
       {card.splitsLabel && <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{card.splitsLabel}</Text>}
+      {card.officialChoice && onOpenChooseOfficial && (
+        <Button
+          variant={card.officialChoice === 'choose' ? 'primary' : 'secondary'}
+          label={t(card.officialChoice === 'choose' ? 'family_timing.choose_official.open' : 'family_timing.choose_official.change')}
+          onPress={() => onOpenChooseOfficial(card.id)}
+        />
+      )}
       {card.canSetOfficial && onOpenOfficial && (
         <Button
           variant="secondary"
@@ -460,7 +481,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             )
           ) : (
             view.cards.map((card) => (
-              <Card key={card.id} card={card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
+              <Card key={card.id} card={card} onOpenOfficial={props.onOpenOfficial} onOpenChooseOfficial={props.onOpenChooseOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
             ))
           )}
           {view.deletedCount > 0 && (
@@ -619,6 +640,30 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       );
       break;
     }
+    case 'choose_official': {
+      const choose = view.choose;
+      body = (
+        <View style={{ gap: space[4] }}>
+          <Card card={choose.card} />
+          <Text style={[typography.body, { color: colors.ink }]}>{t('family_timing.choose_official.help')}</Text>
+          {choose.saveError && (
+            <Banner variant="warn" icon="error">
+              {t('family_timing.choose_official.error')}
+            </Banner>
+          )}
+          {choose.options.map((option) => (
+            <Button
+              key={option.key}
+              variant={option.selected ? 'primary' : 'secondary'}
+              label={t('family_timing.choose_official.option', { time: option.time, detail: option.detail })}
+              onPress={() => props.onChooseOfficial?.(option.key)}
+            />
+          ))}
+          <Button variant="ghost" label={t('family_timing.official.cancel')} onPress={props.onCancel} />
+        </View>
+      );
+      break;
+    }
     case 'official':
       body = (
         <View style={{ gap: space[4] }}>
@@ -643,6 +688,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
   const titles: Partial<Record<FamilyTimingView['kind'], string>> = {
     setup: t('family_timing.setup.title'),
     official: t('family_timing.official.title'),
+    choose_official: t('family_timing.choose_official.title'),
     edit: t('family_timing.edit.title'),
     deleted: t('family_timing.deleted.title'),
     send: t('family_timing.transfer.title'),

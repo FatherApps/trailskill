@@ -24,6 +24,7 @@ type Row = {
   splits: string | null;
   official_millis: number | null;
   official_set_at: string | null;
+  official_result_key?: string | null;
   deleted_at: string | null;
 };
 
@@ -53,6 +54,7 @@ const toMeasurement = (row: Row): FamilyMeasurement => ({
   splits: parseSplits(row.splits),
   officialMillis: row.official_millis,
   officialSetAt: row.official_set_at,
+  officialResultKey: row.official_result_key ?? null,
   deletedAt: row.deleted_at,
 });
 
@@ -73,6 +75,7 @@ const newRow = (m: FamilyMeasurement) => ({
   splits: JSON.stringify(m.splits),
   official_millis: m.officialMillis,
   official_set_at: m.officialSetAt,
+  official_result_key: m.officialResultKey ?? null,
 });
 
 // A time not given to a swimmer has no athlete: SQL never matches NULL with "=".
@@ -108,6 +111,11 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
       const row = await existing(id);
       if (row.session_type !== 'competition') throw new NotCompetitionError(id);
       await writeRecord(TABLE, { id, official_millis: officialMillis, official_set_at: officialMillis === null ? null : at });
+    },
+    async chooseOfficial(id, officialResultKey) {
+      const row = await existing(id);
+      if (row.session_type !== 'competition') throw new NotCompetitionError(id);
+      await writeRecord(TABLE, { id, official_result_key: officialResultKey });
     },
     async edit(id, changes) {
       await existing(id);

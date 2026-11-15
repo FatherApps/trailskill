@@ -112,6 +112,44 @@ describe('FamilyTimingContainer with imported results', () => {
     expect((await repository.listByAthlete('a1'))[0]?.officialMillis).toBe(42_800);
   });
 
+  // Decision 15: with two times and two official results of the same event and day, the app asks which goes with each.
+  it('asks which official result goes with each of two times of the same event and day, and uses each result once', async () => {
+    const heat = { id: 'r-heat', provider: 'co-fecna', sourceResultKey: 'heat', stroke: 'FL', distance: '50m', pool: 'SCM', hundredths: 4400, swumOn: '2026-11-08', competition: 'Eliminatoria' };
+    const final = { ...heat, id: 'r-final', sourceResultKey: 'final', hundredths: 4280, competition: 'Final' };
+    const repository = createInMemoryFamilyMeasurementRepository([
+      { ...competition, id: 'm-am', capturedAt: '2026-11-08T12:00:00.000Z', millis: 44_120, officialMillis: null },
+      { ...competition, id: 'm-pm', capturedAt: '2026-11-08T13:00:00.000Z', millis: 42_950, officialMillis: null },
+    ]);
+    await render(
+      <PreferencesProvider repository={createInMemoryPreferencesRepository({ ...defaultPreferences, timePrecision: 'thousandths' })}>
+        <FamilyTimingContainer
+          userId="u1"
+          athletes={athletes}
+          repository={repository}
+          imports={{ listByAthlete: async () => [heat, final] }}
+          sourceNames={{ 'co-fecna': 'Federación de prueba' }}
+          onBack={jest.fn()}
+        />
+      </PreferencesProvider>,
+    );
+    // Newest first: the afternoon time is the first card.
+    const ask = await screen.findAllByText('Elegir resultado oficial');
+    expect(ask).toHaveLength(2);
+    expect(screen.queryByLabelText('Oficial · Federación de prueba')).toBeNull();
+
+    await fireEvent.press(ask[0]!);
+    expect(screen.getByText('42,80 · Federación de prueba · Final')).toBeTruthy();
+    await fireEvent.press(screen.getByText('42,80 · Federación de prueba · Final'));
+
+    // The other time takes the last result on its own, and both now show their official result.
+    expect(await screen.findAllByLabelText('Oficial · Federación de prueba')).toHaveLength(2);
+    expect(screen.getByText('42,80')).toBeTruthy();
+    expect(screen.getByText('44,00')).toBeTruthy();
+    expect(screen.queryByText('Elegir resultado oficial')).toBeNull();
+    expect(screen.getAllByText('Cambiar resultado oficial')).toHaveLength(2);
+    expect((await repository.listByAthlete('a1')).find((m) => m.id === 'm-pm')?.officialResultKey).toBe('co-fecna:final');
+  });
+
   it('still shows the guardian times when the imports cannot be read', async () => {
     const repository = createInMemoryFamilyMeasurementRepository([competition]);
     const imports = { listByAthlete: () => Promise.reject(new Error('db')) };
