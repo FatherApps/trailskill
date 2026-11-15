@@ -87,8 +87,8 @@ describe('laps in the individual time', () => {
     await fireEvent.press(screen.getByText('Lap'));
 
     expect(screen.queryByText('Lap')).toBeNull();
-    expect(screen.getByText('Lap 2 · 18,40 · total 35,12')).toBeTruthy();
-    expect(screen.getByText('Lap 4 · 18,31 · total 1:12,31')).toBeTruthy();
+    expect(screen.getByText('Lap 2 · 0:18,40 · total 0:35,12')).toBeTruthy();
+    expect(screen.getByText('Lap 4 · 0:18,31 · total 1:12,31')).toBeTruthy();
     await fireEvent.press(screen.getByText('Guardar'));
     await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]).toMatchObject({ millis: 72_310, splits: [16_720, 35_120, 54_000], pool: 'SCM' }));
     expect(await screen.findByText('4 laps')).toBeTruthy();

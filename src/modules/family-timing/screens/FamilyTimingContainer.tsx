@@ -109,6 +109,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const buttonPrefs = preferences.timingButtons;
   const precision = preferences.timePrecision;
   const format = useCallback((millis: number | null) => formatMillis(millis, { precision }), [precision]);
+  // The lap lines always show minutes ("0:18,40"), as decision 6 of the plan writes them.
+  const formatLap = useCallback((millis: number | null) => formatMillis(millis, { precision, alwaysShowMinutes: true }), [precision]);
 
   const [chosenId, setChosenId] = useState<string | null>(null);
   const selectedId = athletes.some((a) => a.id === chosenId) ? chosenId : (athletes[0]?.id ?? null);
@@ -350,7 +352,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       stopwatch: {
         status: stopwatch.status,
         time: stopwatch.status === 'idle' ? format(0) : format(elapsed),
-        laps: lapRows(splitMillis(stopwatch), finalMillis(stopwatch), laps > 1).map(({ lap, total }) => ({ lap: format(lap), total: format(total) })),
+        laps: lapRows(splitMillis(stopwatch), finalMillis(stopwatch), laps > 1).map(({ lap, total }) => ({ lap: formatLap(lap), total: formatLap(total) })),
         lapProgress:
           laps > 1 && stopwatch.status === 'running'
             ? t('family_timing.stopwatch.lap_progress', { current: stopwatch.splitMarks.length + 1, total: laps })
