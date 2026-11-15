@@ -715,6 +715,12 @@ describe('athlete profile container', () => {
     expect(await screen.findByText('Actualizar resultados oficiales')).toBeOnTheScreen();
   });
 
+  it('renders the share code content it is given', async () => {
+    await show({ shareCode: <Text>Código para compartir tiempos</Text> });
+
+    expect(await screen.findByText('Código para compartir tiempos')).toBeOnTheScreen();
+  });
+
   describe('event chips and reactivity (issue 838)', () => {
     const hidden = { includeHiddenElements: true };
     const imported = (over: Record<string, unknown> = {}) => ({

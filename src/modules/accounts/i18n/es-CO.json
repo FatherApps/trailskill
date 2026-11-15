@@ -139,6 +139,25 @@
     },
     "profile_check": {
       "offline_message": "La primera vez en este celular necesitamos señal para revisar tu cuenta."
+    },
+    "share_code": {
+      "title": "Código para compartir tiempos",
+      "help": "Dáselo a otra familia que tome tiempos de {{name}}: con él te podrá enviar esos tiempos, y tú decides si los aceptas. Solo verá el nombre corto.",
+      "help_no_name": "Dáselo a otra familia que tome tiempos de tu nadador: con él te podrá enviar esos tiempos, y tú decides si los aceptas. Solo verá el nombre corto.",
+      "code_label": "Código {{code}}",
+      "share": "Copiar o compartir código",
+      "share_message": "Código de TrailSkill para compartir tiempos: {{code}}",
+      "change": "Cambiar código",
+      "change_offline": "necesitas señal",
+      "change_title": "¿Cambiar el código?",
+      "change_message": "El código actual deja de funcionar de inmediato. Quien lo tenga necesitará el nuevo.",
+      "change_confirm": "Cambiar código",
+      "change_cancel": "Conservar",
+      "change_error": "No pudimos cambiar el código. El actual sigue funcionando. Inténtalo de nuevo.",
+      "offline": "Con señal verás aquí el código.",
+      "error_title": "No pudimos traer el código",
+      "error_message": "Revisa la señal e inténtalo de nuevo.",
+      "retry": "Intentar de nuevo"
     }
   }
 }
