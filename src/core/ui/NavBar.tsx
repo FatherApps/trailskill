@@ -33,11 +33,13 @@ export function NavBar({ items, activeId, onSelect, labelPlacement = 'inside' }:
   const below = labelPlacement === 'below';
   const active = items.find((item) => item.id === activeId);
   const { colors, space, radius, size, typography, elevation } = useTheme();
+  // "below" floats over the screen, inside the root layout that already keeps clear of the system bar: no second inset.
+  const Frame = below ? View : SafeAreaView;
 
   return (
     // The native view pads only the part that overlaps the system bar, so it does not double the root layout's padding.
-    <SafeAreaView
-      edges={['bottom']}
+    <Frame
+      {...(below ? {} : { edges: ['bottom'] as const })}
       pointerEvents="box-none"
       style={{ alignItems: 'center', paddingHorizontal: space[4] }}
     >
@@ -95,11 +97,22 @@ export function NavBar({ items, activeId, onSelect, labelPlacement = 'inside' }:
         <Text
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
-          style={[typography.label, { marginBottom: space[2], color: colors.ink }]}
+          // Over the screen's content, so it sits on the bar's own surface to stay readable.
+          style={[
+            typography.label,
+            {
+              marginBottom: space[2],
+              paddingHorizontal: space[3],
+              borderRadius: radius.full,
+              overflow: 'hidden',
+              color: colors.ink,
+              backgroundColor: colors[navBarColors.bar],
+            },
+          ]}
         >
           {active.label}
         </Text>
       )}
-    </SafeAreaView>
+    </Frame>
   );
 }

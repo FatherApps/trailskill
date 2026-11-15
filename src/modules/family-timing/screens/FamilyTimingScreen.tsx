@@ -662,7 +662,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
               : props.onCancel
         }
       />
-      <ScrollView contentContainerStyle={{ gap: space[4], padding: space[4] }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ gap: space[4], padding: space[4], paddingBottom: space[12] * 2 }} keyboardShouldPersistTaps="handled">
         {showsAthletes && (
           <ChipRow
             accessibilityLabel={t('family_timing.athlete')}

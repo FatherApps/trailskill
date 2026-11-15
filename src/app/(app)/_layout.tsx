@@ -211,7 +211,10 @@ function AppShell() {
   return (
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }} />
-      <PhoneNavBar />
+      {/* The bar floats over the screen: it takes no band of its own, and the content shows around it. */}
+      <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
+        <PhoneNavBar />
+      </View>
       {/* The code already checked out (the session is open) and the account had a profile: tell the person instead of leaving them still. */}
       {offer && 'existing' in offer && <ExistingAccountSheet email={offer.email} signOut={signOut} onClose={offer.dismiss} />}
     </View>
