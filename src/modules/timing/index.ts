@@ -39,6 +39,8 @@ export {
   type SeriesRecord,
   type SeriesRepository,
 } from './data/series';
+// The arrival logic of a series, for other modules that time several swimmers with one start.
+export { press as pressSeries, readySeries, undoLastArrival, type Series } from './domain/series';
 export { SeriesTimingFlow, type SeriesTimingFlowProps } from './screens/SeriesTimingFlow';
 export {
   createInMemorySessionSetupRepository,

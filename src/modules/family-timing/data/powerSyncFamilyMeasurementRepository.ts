@@ -12,7 +12,7 @@ const LOCAL_TABLE = 'family_measurements';
 
 type Row = {
   id: string;
-  athlete_id: string;
+  athlete_id: string | null;
   captured_by: string;
   stroke: FamilyMeasurement['stroke'];
   distance: FamilyMeasurement['distance'];
@@ -75,6 +75,10 @@ const newRow = (m: FamilyMeasurement) => ({
   official_set_at: m.officialSetAt,
 });
 
+// A time not given to a swimmer has no athlete: SQL never matches NULL with "=".
+const athleteIs = (athleteId: string | null) => (athleteId === null ? 'athlete_id IS NULL' : 'athlete_id = ?');
+const athleteParams = (athleteId: string | null) => (athleteId === null ? [] : [athleteId]);
+
 async function existing(id: string): Promise<{ session_type: string }> {
   const [row] = await db.getAll<{ session_type: string }>(`SELECT session_type FROM ${TABLE} WHERE id = ?`, [id]);
   if (!row) throw new UnknownMeasurementError(id);
@@ -87,8 +91,17 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
     async add(m) {
       await writeRecord(TABLE, newRow(m));
     },
+    async addMany(measurements) {
+      if (measurements.length === 0) return;
+      await writeBatch(async (batch) => {
+        for (const m of measurements) await batch.write(TABLE, newRow(m));
+      }, measurements[0].createdBy);
+    },
     async listByAthlete(athleteId) {
-      const rows = await db.getAll<Row>(`SELECT * FROM ${TABLE} WHERE athlete_id = ? AND deleted_at IS NULL ORDER BY captured_at DESC, id DESC`, [athleteId]);
+      const rows = await db.getAll<Row>(
+        `SELECT * FROM ${TABLE} WHERE ${athleteIs(athleteId)} AND deleted_at IS NULL ORDER BY captured_at DESC, id DESC`,
+        athleteParams(athleteId),
+      );
       return rows.map(toMeasurement);
     },
     async setOfficial(id, officialMillis, at) {
@@ -112,9 +125,10 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
       await writeRecord(TABLE, { id, deleted_at: null });
     },
     async listDeleted(athleteId) {
-      const rows = await db.getAll<Row>(`SELECT * FROM ${TABLE} WHERE athlete_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC`, [
-        athleteId,
-      ]);
+      const rows = await db.getAll<Row>(
+        `SELECT * FROM ${TABLE} WHERE ${athleteIs(athleteId)} AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC`,
+        athleteParams(athleteId),
+      );
       return rows.map(toMeasurement);
     },
     async moveLocal(userId) {

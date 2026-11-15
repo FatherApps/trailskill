@@ -93,6 +93,21 @@ describe('PowerSync family measurements', () => {
     await expect(repo.edit('nope', { stroke: 'BK' })).rejects.toBeInstanceOf(UnknownMeasurementError);
   });
 
+  it('saves the times of a series together, with the ones without a swimmer listed apart', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.addMany([
+      { ...base, id: 's1', splits: [] },
+      { ...base, id: 's2', athleteId: null, millis: 48_000, splits: [] },
+    ]);
+    expect((await repo.listByAthlete('a1')).map((m) => m.id)).toEqual(['s1']);
+    expect((await repo.listByAthlete(null)).map((m) => [m.id, m.athleteId])).toEqual([['s2', null]]);
+    expect(pending()).toHaveLength(2);
+    await repo.edit('s2', { athleteId: 'a1' });
+    expect(await repo.listByAthlete(null)).toEqual([]);
+    await repo.remove('s1', '2026-11-09T10:00:00.000Z');
+    expect(await repo.listDeleted(null)).toEqual([]);
+  });
+
   it('deletes a time out of the list and restores it', async () => {
     const repo = createPowerSyncFamilyMeasurementRepository();
     await repo.add(base);

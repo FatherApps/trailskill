@@ -6,8 +6,20 @@ import { t } from '../../../core/i18n';
 import { usePreferences } from '../../../core/preferences';
 import { distances, pools, strokes, type DistanceCode, type PoolCode, type StrokeCode } from '../../../core/sport';
 import { formatMillis, formatTime } from '../../../core/time';
+import type { ChipRowOption } from '../../../core/ui';
 import { athleteDisplay, formatDate, type SchoolAthlete } from '../../athletes';
-import { keyName, nanosFromSeconds, timingButton, useTimingButtons, type ButtonTarget, type TimingButtonPort } from '../../timing';
+import {
+  buttonAction,
+  keyName,
+  nanosFromSeconds,
+  timingButton,
+  useTimingButtons,
+  type ButtonAction,
+  type ButtonConfig,
+  type ButtonPress,
+  type ButtonTarget,
+  type TimingButtonPort,
+} from '../../timing';
 import type { FamilyMeasurement, FamilyMeasurementRepository, FamilySessionType } from '../data/familyMeasurements';
 import {
   elapsedMillisAt,
@@ -20,6 +32,18 @@ import {
   type FamilyStopwatch,
 } from '../domain/familyStopwatch';
 import { bestTimeIds } from '../domain/bestTimes';
+import {
+  arrivalMillis,
+  MAX_SWIMMERS,
+  MIN_SWIMMERS,
+  newFamilySeries,
+  pressAt,
+  seriesElapsedAt,
+  seriesStatus,
+  startedAtOf,
+  undoLast,
+  type FamilySeries,
+} from '../domain/familySeries';
 import { lapsFor } from '../domain/laps';
 import { localDay } from '../domain/localDay';
 import { officialValue, type OfficialImport } from '../domain/officialValue';
@@ -53,16 +77,57 @@ export type FamilyTimingContainerProps = {
 
 const targetOf = (sw: FamilyStopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
 
+const seriesTargetOf = (fs: FamilySeries): ButtonTarget => {
+  const status = seriesStatus(fs);
+  const startedAt = startedAtOf(fs);
+  if (status === 'running' && startedAt !== null) return { status: 'running', startedAt };
+  return { status: status === 'idle' ? 'idle' : 'stopped' };
+};
+
+// In a series only the start/stop key acts: it gives the start, then closes the next swimmer. The lap key does nothing (decision 8).
+const seriesDecide = (press: ButtonPress, config: ButtonConfig, target: ButtonTarget): ButtonAction | null => {
+  if (press.keyCode !== config.startKey) return null;
+  const action = buttonAction(press, config, target);
+  return action === 'start' ? 'start' : action === 'stop' ? 'arrival' : null;
+};
+
+export type FamilyTimingMode = 'individual' | 'series';
+
 // The pool starts unchosen: the laps depend on it, so the stopwatch waits until the person picks one.
-type Setup = { stroke: StrokeCode; distance: DistanceCode; pool: PoolCode | null; sessionType: FamilySessionType; competition: string };
-const initialSetup: Setup = { stroke: strokes[0].code, distance: distances[1].code, pool: null, sessionType: 'training', competition: '' };
+type Setup = {
+  mode: FamilyTimingMode;
+  swimmers: number;
+  stroke: StrokeCode;
+  distance: DistanceCode;
+  pool: PoolCode | null;
+  sessionType: FamilySessionType;
+  competition: string;
+};
+const initialSetup: Setup = {
+  mode: 'individual',
+  swimmers: MIN_SWIMMERS,
+  stroke: strokes[0].code,
+  distance: distances[1].code,
+  pool: null,
+  sessionType: 'training',
+  competition: '',
+};
+
+// A lane of a series once timed: who swam it (null: not given to a swimmer yet) and the stroke.
+type Lane = { athleteId: string | null; stroke: StrokeCode };
+
+// The chip of the times not given to a swimmer yet. Ids are UUIDs, so it never matches an athlete.
+const UNASSIGNED = 'unassigned';
+const swimmerCounts = Array.from({ length: MAX_SWIMMERS - MIN_SWIMMERS + 1 }, (_, i) => String(MIN_SWIMMERS + i));
 
 type Step =
   | { kind: 'list' }
   | { kind: 'setup' }
   | { kind: 'stopwatch'; saveError: boolean }
+  | { kind: 'series' }
+  | { kind: 'series_assign'; lanes: Lane[]; saveError: boolean }
   | { kind: 'official'; id: string; text: string; invalid: boolean }
-  | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string; confirmingDelete: boolean; saveError: boolean }
+  | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string | null; confirmingDelete: boolean; saveError: boolean }
   | { kind: 'deleted'; restoreError: boolean };
 
 // A deleted time is removed from the server this long after it was deleted.
@@ -90,6 +155,11 @@ type Loaded =
   | { status: 'error'; key: string }
   | { status: 'ready'; key: string; measurements: FamilyMeasurement[]; deleted: FamilyMeasurement[]; imported: OfficialImport[] };
 
+function seriesButtonsHint(startKey: number, keyboard: string | undefined) {
+  const keysLine = t('family_timing.series.buttons', { start: keyName(startKey) });
+  return keyboard ? `${t('family_timing.stopwatch.buttons_device', { device: keyboard })} · ${keysLine}` : keysLine;
+}
+
 function buttonsHint(startKey: number, splitKey: number, keyboard: string | undefined) {
   const keysLine =
     startKey === splitKey
@@ -101,6 +171,9 @@ function buttonsHint(startKey: number, splitKey: number, keyboard: string | unde
 const eventLabel = (m: { stroke: string; distance: string; pool: string }) =>
   `${t(`sport.stroke.${m.stroke}`)} ${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
 
+// A series has one distance and pool; each swimmer's stroke is chosen after the arrivals.
+const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
+
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton } = props;
@@ -111,31 +184,46 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const format = useCallback((millis: number | null) => formatMillis(millis, { precision }), [precision]);
 
   const [chosenId, setChosenId] = useState<string | null>(null);
-  const selectedId = athletes.some((a) => a.id === chosenId) ? chosenId : (athletes[0]?.id ?? null);
   const [read, setRead] = useState<Loaded>({ status: 'loading' });
   const [reload, setReload] = useState(0);
+  // How many times wait for a swimmer ("Sin asignar"); its chip shows only while there are some.
+  const [unassignedCount, setUnassignedCount] = useState(0);
+  const selectedId =
+    chosenId === UNASSIGNED && unassignedCount > 0 ? UNASSIGNED : athletes.some((a) => a.id === chosenId) ? chosenId : (athletes[0]?.id ?? null);
+  // The swimmer the list reads and a new time goes to; null for "Sin asignar".
+  const athleteOfSelected = selectedId === UNASSIGNED ? null : selectedId;
   const key = `${selectedId}:${reload}`;
   const loaded = useMemo<Loaded>(() => (read.status !== 'loading' && read.key === key ? read : { status: 'loading' }), [read, key]);
   const [step, setStep] = useState<Step>({ kind: 'list' });
   const [filters, setFilters] = useState<Filters>(noFilters);
   const [setup, setSetup] = useState<Setup>(initialSetup);
   const [stopwatch, setStopwatch] = useState<FamilyStopwatch>(idleFamilyStopwatch);
+  const [series, setSeries] = useState<FamilySeries>(() => newFamilySeries(MIN_SWIMMERS));
   const [tick, setTick] = useState(0);
   const saving = useRef(false);
 
   // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
   const laps = setup.pool ? lapsFor(setup.distance, setup.pool) : 1;
   const latestStopwatch = useRef(stopwatch);
+  const latestSeries = useRef(series);
+  const timingSeries = step.kind === 'series';
   useEffect(() => {
     latestStopwatch.current = stopwatch;
+    latestSeries.current = series;
   });
   const keys = useTimingButtons({
-    enabled: buttonPrefs.enabled && step.kind === 'stopwatch',
+    enabled: buttonPrefs.enabled && (step.kind === 'stopwatch' || timingSeries),
     config: { startKey: buttonPrefs.startKey, splitKey: buttonPrefs.splitKey, lockoutNanos: nanosFromSeconds(buttonPrefs.lockoutSeconds) },
-    target: () => targetOf(latestStopwatch.current),
+    target: () => (timingSeries ? seriesTargetOf(latestSeries.current) : targetOf(latestStopwatch.current)),
+    decide: timingSeries ? seriesDecide : undefined,
     vibrate: buttonPrefs.vibrate,
     port: buttons,
     onAction: (action, at) => {
+      if (timingSeries) {
+        latestSeries.current = pressAt(latestSeries.current, at);
+        setSeries(latestSeries.current);
+        return;
+      }
       const sw = latestStopwatch.current;
       latestStopwatch.current = action === 'start' ? startAt(sw, at) : action === 'split' ? splitAt(sw, at, laps) : stopAt(sw, at);
       setStopwatch(latestStopwatch.current);
@@ -146,9 +234,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     if (!selectedId) return;
     let active = true;
     const readKey = `${selectedId}:${reload}`;
+    const athleteId = selectedId === UNASSIGNED ? null : selectedId;
     // An unreadable import list only hides the imported official values; the guardian's own times still show.
-    const officialRead = imports ? imports.listByAthlete(selectedId).catch(() => []) : Promise.resolve([]);
-    Promise.all([repository.listByAthlete(selectedId), repository.listDeleted(selectedId), officialRead])
+    const officialRead = imports && athleteId ? imports.listByAthlete(athleteId).catch(() => []) : Promise.resolve([]);
+    Promise.all([repository.listByAthlete(athleteId), repository.listDeleted(athleteId), officialRead])
       .then(([measurements, deleted, imported]) => active && setRead({ status: 'ready', key: readKey, measurements, deleted, imported }))
       .catch(() => active && setRead({ status: 'error', key: readKey }));
     return () => {
@@ -156,8 +245,20 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     };
   }, [repository, imports, selectedId, reload]);
 
+  useEffect(() => {
+    let active = true;
+    // An unreadable count only hides the chip; the swimmers' own times still show.
+    repository
+      .listByAthlete(null)
+      .then((times) => active && setUnassignedCount(times.length))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [repository, reload]);
+
   // The screen stays awake and the time refreshes while the stopwatch runs.
-  const running = stopwatch.status === 'running';
+  const running = stopwatch.status === 'running' || (step.kind === 'series' && seriesStatus(series) === 'running');
   useEffect(() => {
     if (!running) return;
     activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
@@ -195,6 +296,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         splitsLabel: m.splits.length > 0 ? t('family_timing.card.splits', { count: m.splits.length + 1 }) : null,
         canSetOfficial: m.sessionType === 'competition' && value?.kind !== 'imported',
         hasManualOfficial: m.officialMillis !== null,
+        unassigned: m.athleteId === null,
       };
     },
     [format, sourceNames],
@@ -263,14 +365,48 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const goToList = () => {
     setStep({ kind: 'list' });
     setStopwatch(idleFamilyStopwatch);
+    setSeries(newFamilySeries(setup.swimmers));
   };
+
+  async function saveSeries() {
+    if (saving.current || step.kind !== 'series_assign' || !setup.pool) return;
+    saving.current = true;
+    const pool = setup.pool;
+    const times = arrivalMillis(series);
+    const capturedAt = new Date().toISOString();
+    const competition = setup.sessionType === 'competition' && setup.competition.trim() ? setup.competition.trim() : null;
+    const measurements: FamilyMeasurement[] = step.lanes.map((lane, index) => ({
+      id: randomUUID(),
+      athleteId: lane.athleteId,
+      createdBy: userId,
+      stroke: lane.stroke,
+      distance: setup.distance,
+      pool,
+      sessionType: setup.sessionType,
+      competition,
+      capturedAt,
+      millis: times[index] ?? null,
+      splits: [],
+      officialMillis: null,
+      officialSetAt: null,
+    }));
+    try {
+      await repository.addMany(measurements);
+      goToList();
+      setReload((n) => n + 1);
+    } catch {
+      setStep({ ...step, saveError: true });
+    } finally {
+      saving.current = false;
+    }
+  }
 
   async function save() {
     if (saving.current || stopwatch.status !== 'stopped' || !selectedId || !setup.pool) return;
     saving.current = true;
     const measurement: FamilyMeasurement = {
       id: randomUUID(),
-      athleteId: selectedId,
+      athleteId: athleteOfSelected,
       createdBy: userId,
       stroke: setup.stroke,
       distance: setup.distance,
@@ -319,10 +455,12 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     }
   }
 
-  const athleteOptions = athletes.map((a) => {
+  const athleteOptions: ChipRowOption<string>[] = athletes.map((a) => {
     const { shortName, initials, color } = athleteDisplay(a);
     return { value: a.id, label: shortName, dot: { initials, color } };
   });
+  const unassignedOption: ChipRowOption<string> = { value: UNASSIGNED, label: t('family_timing.unassigned') };
+  const chips = unassignedCount > 0 ? [...athleteOptions, unassignedOption] : athleteOptions;
 
   const option = (code: string, nameKey: string) => ({ value: code, label: t(nameKey) });
   let view: FamilyTimingView;
@@ -331,6 +469,11 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     view = {
       kind: 'setup',
       setup: {
+        mode: {
+          options: (['individual', 'series'] as const).map((mode) => ({ value: mode, label: t(`family_timing.setup.mode_${mode}`) })),
+          value: setup.mode,
+        },
+        swimmers: { options: swimmerCounts.map((n) => ({ value: n, label: n })), value: String(setup.swimmers) },
         stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: setup.stroke },
         distance: { options: distances.map((d) => option(d.code, d.nameKey)), value: setup.distance },
         pool: { options: pools.map((p) => option(p.code, p.nameKey)), value: setup.pool ?? '' },
@@ -361,6 +504,38 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         buttonsHint: keys.active ? buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keys.keyboards[0]?.name) : null,
       },
     };
+  } else if (step.kind === 'series') {
+    void tick;
+    const status = seriesStatus(series);
+    const times = arrivalMillis(series);
+    view = {
+      kind: 'series',
+      series: {
+        status,
+        time: format(seriesElapsedAt(series, now()) ?? 0),
+        arrivals: times.map((time, index) => ({ position: index + 1, time: format(time) })),
+        progress: t('family_timing.series.progress', { count: times.length, total: series.size }),
+        event: seriesEventLabel({ ...setup, pool: setup.pool ?? '' }),
+        buttonsHint: keys.active ? seriesButtonsHint(buttonPrefs.startKey, keys.keyboards[0]?.name) : null,
+      },
+    };
+  } else if (step.kind === 'series_assign') {
+    const times = arrivalMillis(series);
+    view = {
+      kind: 'series_assign',
+      saveError: step.saveError,
+      event: seriesEventLabel({ ...setup, pool: setup.pool ?? '' }),
+      lanes: step.lanes.map((lane, index) => {
+        // An athlete swims one lane: the ones in another lane are not offered here.
+        const taken = new Set(step.lanes.flatMap((other, i) => (i !== index && other.athleteId ? [other.athleteId] : [])));
+        return {
+          position: index + 1,
+          time: format(times[index] ?? null),
+          athlete: { options: [unassignedOption, ...athleteOptions.filter((a) => !taken.has(a.value))], value: lane.athleteId ?? UNASSIGNED },
+          stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: lane.stroke },
+        };
+      }),
+    };
   } else if (step.kind === 'official') {
     const card = cards.find((c) => c.id === step.id);
     view = card ? { kind: 'official', card, text: step.text, invalid: step.invalid } : listView();
@@ -374,7 +549,11 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           edit: {
             card,
             stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: step.stroke },
-            athlete: { options: athleteOptions, value: step.athleteId },
+            // "Sin asignar" is offered for a time that has no swimmer yet, so it can stay there.
+            athlete: {
+              options: card.unassigned ? [...athleteOptions, unassignedOption] : athleteOptions,
+              value: step.athleteId ?? UNASSIGNED,
+            },
             confirmingDelete: step.confirmingDelete,
             saveError: step.saveError,
           },
@@ -386,18 +565,47 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   return (
     <FamilyTimingScreen
       view={view}
-      athletes={athleteOptions.map(({ value, label, dot }) => ({ id: value, name: label, ...dot }))}
+      athletes={chips.map(({ value, label, dot }) => ({ id: value, name: label, dot }))}
       selectedId={selectedId}
       onSelectAthlete={setChosenId}
       onBack={onBack}
       onRetry={() => setReload((n) => n + 1)}
       onNew={() => setStep({ kind: 'setup' })}
-      onSetupChange={(field, value) => setSetup((current) => ({ ...current, [field]: value }))}
+      onSetupChange={(field, value) =>
+        setSetup((current) => (field === 'swimmers' ? { ...current, swimmers: Number(value) } : { ...current, [field]: value }))
+      }
       onGoToStopwatch={() => {
         if (!setup.pool) return;
+        if (setup.mode === 'series') {
+          setSeries(newFamilySeries(setup.swimmers));
+          setStep({ kind: 'series' });
+          return;
+        }
         setStopwatch(idleFamilyStopwatch);
         setStep({ kind: 'stopwatch', saveError: false });
       }}
+      onSeriesPress={() => setSeries((fs) => pressAt(fs, now()))}
+      onUndoLast={() => setSeries(undoLast)}
+      onAssignSwimmers={() => {
+        if (seriesStatus(series) !== 'done') return;
+        // Every lane starts without a swimmer and with the stroke chosen before the start.
+        setStep({ kind: 'series_assign', saveError: false, lanes: Array.from({ length: series.size }, () => ({ athleteId: null, stroke: setup.stroke })) });
+      }}
+      onBackToSeries={() => setStep({ kind: 'series' })}
+      onLaneChange={(index, field, value) =>
+        setStep((s) =>
+          s.kind === 'series_assign'
+            ? {
+                ...s,
+                saveError: false,
+                lanes: s.lanes.map((lane, i) =>
+                  i !== index ? lane : field === 'stroke' ? { ...lane, stroke: value as StrokeCode } : { ...lane, athleteId: value === UNASSIGNED ? null : value },
+                ),
+              }
+            : s,
+        )
+      }
+      onSaveSeries={saveSeries}
       onCancel={goToList}
       onStart={() => setStopwatch((sw) => startAt(sw, now()))}
       onSplit={() => setStopwatch((sw) => splitAt(sw, now(), laps))}
@@ -421,7 +629,11 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         if (m) setStep({ kind: 'edit', id, stroke: m.stroke, athleteId: m.athleteId, confirmingDelete: false, saveError: false });
       }}
       onEditChange={(field, value) =>
-        setStep((s) => (s.kind === 'edit' ? { ...s, saveError: false, ...(field === 'stroke' ? { stroke: value as StrokeCode } : { athleteId: value }) } : s))
+        setStep((s) =>
+          s.kind === 'edit'
+            ? { ...s, saveError: false, ...(field === 'stroke' ? { stroke: value as StrokeCode } : { athleteId: value === UNASSIGNED ? null : value }) }
+            : s,
+        )
       }
       onSaveEdit={() => {
         if (step.kind !== 'edit') return;
@@ -437,7 +649,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         change(
           async () => {
             await repository.edit(step.id, changes);
-            if (moved) setChosenId(moved);
+            if (moved !== undefined) setChosenId(moved ?? UNASSIGNED);
           },
           () => setStep({ ...step, saveError: true }),
         );
