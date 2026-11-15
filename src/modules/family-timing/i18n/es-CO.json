@@ -150,6 +150,17 @@
         "failed": "No pudimos hacerlo. Revisa la señal e inténtalo de nuevo."
       }
     },
+    "detail": {
+      "title": "Detalle del tiempo",
+      "open": "Abre el detalle del tiempo",
+      "athlete": "Nadador",
+      "when": "Fecha y hora",
+      "session": "Tipo",
+      "competition": "Competencia",
+      "event": "Prueba",
+      "laps": "Vueltas",
+      "back": "Volver a la lista"
+    },
     "choose_official": {
       "title": "Resultado oficial",
       "open": "Elegir resultado oficial",
