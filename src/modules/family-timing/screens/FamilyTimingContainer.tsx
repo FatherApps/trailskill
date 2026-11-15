@@ -70,7 +70,7 @@ function buttonsHint(startKey: number, splitKey: number, keyboard: string | unde
 const eventLabel = (m: { stroke: string; distance: string; pool: string }) =>
   `${t(`sport.stroke.${m.stroke}`)} ${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
 
-// Container: reads and writes the guardian's own times on this phone, and runs the stopwatch.
+// Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton } = props;
   const now = props.now ?? buttons.now;
