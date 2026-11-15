@@ -87,6 +87,12 @@ export {
   type IdentityNumberHold,
 } from './data/identityDocuments';
 export {
+  createInMemoryCoachInvitationAcceptance,
+  createSupabaseCoachInvitationAcceptance,
+  useAcceptCoachInvitations,
+  type CoachInvitationAcceptance,
+} from './data/coachInvitationAcceptance';
+export {
   createInMemoryInvitationRepository,
   createSupabaseInvitationRepository,
   type CreatedInvitation,

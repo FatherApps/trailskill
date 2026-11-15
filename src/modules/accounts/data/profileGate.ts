@@ -65,6 +65,9 @@ export type ProfileGateInput = {
   // Rows already on the device (a membership, a managed athlete or an own authorization). Local database only, so it works with no signal.
   hasLocalProfile: (userId: string) => Promise<boolean>;
   evidence: ProfileEvidenceRepository;
+  // Turns the coach invitations of this account's verified email into memberships (online). Run before the server is asked, so an invited
+  // coach with no rows lands as staff and not in the guardian registration. A failure is ignored: the answer then comes from the evidence.
+  acceptCoachInvitations?: () => Promise<unknown>;
 };
 
 const normalized = (email: string | undefined) => (email ?? '').trim().toLowerCase();
@@ -75,7 +78,7 @@ export const sameEmail = (a: string | undefined, b: string | undefined) => norma
 // Decides whether a signed-in session goes to the app or to the registration steps. The server is asked only when nothing local
 // says the account is registered, so someone who already uses the app opens it with no signal. A draft for this email keeps
 // today's path (useFinishRegistration finishes it). `recheck` asks again, for the retry and after the registration saved a draft.
-export function useProfileGate({ userId, email, drafts, localReady, hasLocalProfile, evidence }: ProfileGateInput): ProfileGate {
+export function useProfileGate({ userId, email, drafts, localReady, hasLocalProfile, evidence, acceptCoachInvitations }: ProfileGateInput): ProfileGate {
   const [attempt, setAttempt] = useState(0);
   const [answer, setAnswer] = useState<{ userId: string; attempt: number; status: ProfileGate['status'] }>();
 
@@ -87,6 +90,7 @@ export function useProfileGate({ userId, email, drafts, localReady, hasLocalProf
       if (draft && sameEmail(draft.email, email)) return 'ready';
       if (await hasLocalProfile(userId).catch(() => false)) return 'ready';
       try {
+        await acceptCoachInvitations?.().catch(() => {});
         return (await evidence.hasProfile(userId)) ? 'ready' : 'register';
       } catch {
         return 'unreachable';
@@ -95,7 +99,7 @@ export function useProfileGate({ userId, email, drafts, localReady, hasLocalProf
     return () => {
       active = false;
     };
-  }, [userId, email, drafts, localReady, hasLocalProfile, evidence, attempt]);
+  }, [userId, email, drafts, localReady, hasLocalProfile, evidence, acceptCoachInvitations, attempt]);
 
   const recheck = () => setAttempt((current) => current + 1);
   const current = answer && answer.userId === userId && answer.attempt === attempt ? answer.status : 'checking';

@@ -19,6 +19,8 @@ jest.mock('../modules/accounts', () => ({
   createSupabaseAdultProfileRepository: () => ({}),
   createSupabaseInvitationRepository: () => ({}),
   usePendingInvitations: () => {},
+  createSupabaseCoachInvitationAcceptance: () => ({}),
+  useAcceptCoachInvitations: () => {},
   createSupabaseProfileEvidenceRepository: () => ({}),
   createPowerSyncOwnAuthorizationEvidence: () => async () => false,
   useProfileGate: () => ({ status: 'ready', recheck: () => {} }),
