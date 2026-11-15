@@ -115,7 +115,7 @@ supabase db reset
 docker compose -f deploy/compose.yaml -f deploy/compose.local.yaml --env-file deploy/local.env up -d --build
 ```
 
-Run one full local stack per machine. The Edge Functions are not covered here; see [Edge Functions](../deploy/README.md#edge-functions-results-import).
+Run one full local stack per machine. The Edge Functions are not covered here; see [Edge Functions](../deploy/README.md#edge-functions).
 
 ## When something fails
 
