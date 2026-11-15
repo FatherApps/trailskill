@@ -14,6 +14,7 @@ import {
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
   createSupabaseAdultProfileRepository,
+  createSupabaseCoachInvitationAcceptance,
   createSupabaseInvitationRepository,
   createSupabaseProfileEvidenceRepository,
   ExistingAccountSheet,
@@ -21,6 +22,7 @@ import {
   providerAccountOf,
   ResumeRegistration,
   useFinishRegistration,
+  useAcceptCoachInvitations,
   useOwnLandingEvidence,
   usePendingInvitations,
   useProfileGate,
@@ -41,6 +43,7 @@ const managedProfiles = createPowerSyncManagedAthleteProfileRepository(
 );
 const profileEvidence = createSupabaseProfileEvidenceRepository();
 const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
+const coachInvitations = createSupabaseCoachInvitationAcceptance();
 const familyMeasurements = createPowerSyncFamilyMeasurementRepository();
 const invitation = { pending: createSecureStorePendingInvitationRepository(), invitations: createSupabaseInvitationRepository() };
 
@@ -126,6 +129,8 @@ export default function Layout() {
     localReady: lastSyncedAt != null,
     hasLocalProfile,
     evidence: profileEvidence,
+    // A coach invited by a school lands as staff on the first sign-in, before the registration is offered.
+    acceptCoachInvitations: coachInvitations.accept, // Stable: the gate checks again whenever it changes.
   });
   if (gate.status === 'ready') return <AppShell />;
   return (
@@ -182,6 +187,8 @@ function AppShell() {
   // The school invitation of an athlete is accepted once the athlete reached the server, so it is tried again after each sync.
   const { lastSyncedAt } = useGlobalSyncSummary();
   usePendingInvitations(session?.user.id, invitation.pending, invitation.invitations, lastSyncedAt?.getTime());
+  // A person who already had a profile and was invited as coach later gets the membership here.
+  useAcceptCoachInvitations(session?.user.id, coachInvitations);
   // "Mis tiempos" kept only on this phone before they synced move to the server once, so signing out no longer loses them.
   useMoveLocalFamilyTimes(familyMeasurements, session?.user.id);
   const { colors, space } = useTheme();

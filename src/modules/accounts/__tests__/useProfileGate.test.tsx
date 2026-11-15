@@ -2,6 +2,7 @@ import { act, render, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryStaffSchoolRepository } from '../../school-console';
 import { createInMemoryManagedAthleteRepository, type ManagedAthleteRow } from '../data/managedAthletes';
+import { createInMemoryCoachInvitationAcceptance } from '../data/coachInvitationAcceptance';
 import { createInMemoryProfileEvidenceRepository, useProfileGate, type ProfileGate } from '../data/profileGate';
 import { createInMemoryRegistrationDraftRepository, type RegistrationDraft } from '../data/registrationDraft';
 
@@ -23,26 +24,35 @@ type Options = {
   online?: Parameters<typeof createInMemoryProfileEvidenceRepository>[0];
   // The email of the session; null is a session with none.
   email?: string | null;
+  // Passes the acceptance of coach invitations to the gate; `grants` is the membership the server creates when it runs.
+  accept?: { failing?: boolean; grants?: boolean };
 };
 
 // The local lookup is what the layout builds from the two local repositories: a membership or a managed athlete.
-async function setup({ draft: stored = null, synced = true, staff = [], managed = [], online = {}, email: sessionEmail = EMAIL }: Options = {}) {
+async function setup({ draft: stored = null, synced = true, staff = [], managed = [], online = {}, email: sessionEmail = EMAIL, accept }: Options = {}) {
   const drafts = createInMemoryRegistrationDraftRepository(stored);
   const staffSchools = createInMemoryStaffSchoolRepository(staff.map((row) => ({ ...row, schoolId: 's1', schoolName: 'School' })));
   const managedAthletes = createInMemoryManagedAthleteRepository(managed);
-  const evidence = createInMemoryProfileEvidenceRepository(online);
+  const rows = [...(online.rows ?? [])];
+  const evidence = createInMemoryProfileEvidenceRepository({ ...online, rows });
+  const acceptance = createInMemoryCoachInvitationAcceptance({
+    failing: accept?.failing,
+    onAccept: () => accept?.grants && rows.push({ source: 'school_memberships', userId: USER }),
+  });
   const local = { arrived: false };
   const hasLocalProfile = async (userId: string) =>
     local.arrived || (await staffSchools.listStaffSchools(userId)).length > 0 || (await managedAthletes.listManagedAthleteIds(userId)).length > 0;
   const gate: { current?: ProfileGate } = {};
   const history: ProfileGate['status'][] = [];
   function Probe({ synced: ready }: { synced: boolean }) {
-    gate.current = useProfileGate({ userId: USER, email: sessionEmail ?? undefined, drafts, localReady: ready, hasLocalProfile, evidence });
+    gate.current = useProfileGate({ userId: USER, email: sessionEmail ?? undefined, drafts, localReady: ready, hasLocalProfile, evidence,
+      acceptCoachInvitations: accept ? acceptance.accept : undefined,
+    });
     history.push(gate.current.status);
     return null;
   }
   const view = await render(<Probe synced={synced} />);
-  return { gate, history, evidence, local, view, Probe };
+  return { gate, history, evidence, acceptance, local, view, Probe };
 }
 
 const status = (gate: { current?: ProfileGate }) => gate.current?.status;
@@ -190,5 +200,44 @@ describe('useProfileGate: first sync and no signal', () => {
     await view.rerender(<Probe synced />);
 
     await waitFor(() => expect(status(gate)).toBe('ready'));
+  });
+});
+
+describe('useProfileGate: coach invitations', () => {
+  it('a new account invited as coach gets the membership first and enters, not the registration', async () => {
+    const { gate, acceptance } = await setup({ accept: { grants: true } });
+
+    await waitFor(() => expect(status(gate)).toBe('ready'));
+    expect(acceptance.calls).toBe(1);
+  });
+
+  it('a failed acceptance falls back to what the server says: no rows, the registration', async () => {
+    const { gate, acceptance } = await setup({ accept: { failing: true } });
+
+    await waitFor(() => expect(status(gate)).toBe('register'));
+    expect(acceptance.calls).toBe(1);
+  });
+
+  it('an account with no invitation still goes to the registration', async () => {
+    const { gate, acceptance } = await setup({ accept: {} });
+
+    await waitFor(() => expect(status(gate)).toBe('register'));
+    expect(acceptance.calls).toBe(1);
+  });
+
+  it('local rows or a draft open the app without calling the acceptance', async () => {
+    const withRows = await setup({ managed: [{ userId: USER, athleteId: 'a1' }], accept: {} });
+    await waitFor(() => expect(status(withRows.gate)).toBe('ready'));
+    const withDraft = await setup({ draft, accept: {} });
+    await waitFor(() => expect(status(withDraft.gate)).toBe('ready'));
+
+    expect(withRows.acceptance.calls).toBe(0);
+    expect(withDraft.acceptance.calls).toBe(0);
+  });
+
+  it('with no signal it does not accept and stays unreachable', async () => {
+    const { gate } = await setup({ online: { failing: true }, accept: { failing: true } });
+
+    await waitFor(() => expect(status(gate)).toBe('unreachable'));
   });
 });

@@ -14,6 +14,8 @@ type World = {
   online: { rows: { source: string; userId: string }[]; failing: boolean; pending?: boolean };
   draft: Record<string, unknown> | null;
   savedProfile: { userId: string; firstName: string; lastName: string } | null;
+  // The email of the account has a pending coach invitation: accepting it adds the membership on the server.
+  coachInvited?: boolean;
 };
 const USER = 'user-1';
 const EMAIL = 'paula.gomez@example.test';
@@ -100,6 +102,13 @@ jest.mock('../modules/accounts', () => ({
   createSecureStorePendingInvitationRepository: () => ({ clear: async () => {} }),
   createSupabaseInvitationRepository: () => ({ resolve: async () => ({ school: 'School', group: 'Group', categories: [] }) }),
   usePendingInvitations: jest.fn(),
+  createSupabaseCoachInvitationAcceptance: () => ({
+    accept: async () => {
+      const w = (globalThis as unknown as { mockWorld: { current: World } }).mockWorld.current;
+      if (w.coachInvited) w.online.rows.push({ source: 'school_memberships', userId: USER });
+      return w.coachInvited ? 1 : 0;
+    },
+  }),
 }));
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console'),
@@ -139,6 +148,14 @@ describe('app layout: a session with no profile', () => {
 
     expect(await screen.findByText(PANEL_TITLE)).toBeOnTheScreen();
     expect(screen.queryByTestId('app-stack')).not.toBeOnTheScreen();
+  });
+
+  it('an account invited as coach is accepted first and lands in the app, not in the registration', async () => {
+    arrange({ coachInvited: true });
+    await render(<AppLayout />);
+
+    expect(await screen.findByTestId('app-stack')).toBeOnTheScreen();
+    expect(screen.queryByText(PANEL_TITLE)).not.toBeOnTheScreen();
   });
 
   it('the panel shows the verified email and takes the names from the provider', async () => {
