@@ -122,6 +122,8 @@ On every deploy of `main`, `migrate` runs once before PowerSync starts:
 
 1. Creates `powersync_role` (`LOGIN REPLICATION BYPASSRLS`) with `POWERSYNC_DB_PASSWORD`. If it exists, only the attributes are updated; the password is set again only when logging in with `POWERSYNC_DB_PASSWORD` fails (so rotating the variable works, and the password is not sent on every deploy).
 2. Applies `supabase/migrations/*.sql` in name order. Names must be `<digits>_<name>.sql`. Each file runs in one transaction together with its record in `supabase_migrations.schema_migrations`, so a failure leaves nothing partial. Applied versions are skipped.
+
+   **Migration versions must be unique.** `migrate` records and checks only the version (the digits before the first `_`), not the full name. A second file with a version that is already applied is skipped without an error, so its SQL never runs. Before merging a migration, check that no file in `supabase/migrations/` and no open pull request uses its timestamp (this happened once and the file had to be renamed).
 3. Grants `powersync_role` read access (`SELECT`) on `public`, now and for future tables.
 4. With `APPLY_SEED=true` only (the value must be exactly `true` or `false`), applies `supabase/seed.sql` once (recorded by path and hash in `supabase_migrations.seed_files`; see [Demo data](#demo-data)).
 
@@ -132,6 +134,8 @@ PowerSync logs replication errors (`Publication 'powersync' does not exist`) unt
 ## Edge Functions (results-import)
 
 The Supabase stack from the Dokploy template already runs the Edge Functions runtime (the `functions` service, `edge-runtime`), and the API gateway routes `/functions/v1/` to it. **This compose adds no second runtime.** What this repository provides is the way the code of `supabase/functions/results-import` gets into the folder that runtime reads. It is a manual step, run on the server after the migrations (continuous deployment does not touch the stack).
+
+**Not delivered yet: `school-console-invite-coach`.** `functions-bundle.sh` bundles only `results-import`. The Edge Function `supabase/functions/school-console-invite-coach` (coach invitations, `verify_jwt = true` in `supabase/config.toml`) is not part of the script yet, so it does not reach the server with these steps. It is tracked in issue #977.
 
 ### What goes into the bundle
 
