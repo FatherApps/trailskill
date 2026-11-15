@@ -3,12 +3,13 @@
 -- of S, and still reads the schools where they are active. Everyone else
 -- (active coach, admins, guardian, platform admin) reads exactly what they did
 -- before. Rows are counted per school and per role with pg_temp.rows_of.
+-- Athlete W2 is in A and B and C coaches W2 in B only (the case of a multi-school athlete).
 -- Users: admin A, admin B, coach C (of A and B), coach K (of A), guardian G,
 -- platform admin P. Athletes: X (A), Y (A, group g1), Z (B, group g2), W (A and B).
 -- All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(31);
 
 insert into auth.users (id, email) values
   ('10310000-0000-4000-8000-0000000000a1', 'admin-a@example.test'),
@@ -37,24 +38,30 @@ insert into public.athletes (id, first_name, last_name) values
   ('10310000-0000-4000-8000-0000000000e1', 'Athlete', 'X'),
   ('10310000-0000-4000-8000-0000000000e2', 'Athlete', 'Y'),
   ('10310000-0000-4000-8000-0000000000e3', 'Athlete', 'Z'),
-  ('10310000-0000-4000-8000-0000000000e4', 'Athlete', 'W');
+  ('10310000-0000-4000-8000-0000000000e4', 'Athlete', 'W'),
+  ('10310000-0000-4000-8000-0000000000e5', 'Athlete', 'W2');
 insert into public.athlete_schools (athlete_id, school_id, category_id) values
   ('10310000-0000-4000-8000-0000000000e1', '10310000-0000-4000-8000-0000000000b1', '10310000-0000-4000-8000-0000000000c1'),
   ('10310000-0000-4000-8000-0000000000e2', '10310000-0000-4000-8000-0000000000b1', null),
   ('10310000-0000-4000-8000-0000000000e3', '10310000-0000-4000-8000-0000000000b2', null),
   ('10310000-0000-4000-8000-0000000000e4', '10310000-0000-4000-8000-0000000000b1', null),
-  ('10310000-0000-4000-8000-0000000000e4', '10310000-0000-4000-8000-0000000000b2', null);
+  ('10310000-0000-4000-8000-0000000000e4', '10310000-0000-4000-8000-0000000000b2', null),
+  ('10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-0000000000b1', '10310000-0000-4000-8000-0000000000c1'),
+  ('10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-0000000000b2', null);
 insert into public.athlete_groups (athlete_id, group_id) values
   ('10310000-0000-4000-8000-0000000000e2', '10310000-0000-4000-8000-000000000091'),
-  ('10310000-0000-4000-8000-0000000000e3', '10310000-0000-4000-8000-000000000092');
+  ('10310000-0000-4000-8000-0000000000e3', '10310000-0000-4000-8000-000000000092'),
+  ('10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-000000000091'),
+  ('10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-000000000092');
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('10310000-0000-4000-8000-0000000000a5', '10310000-0000-4000-8000-0000000000e1', 'guardian'),
   ('10310000-0000-4000-8000-0000000000a5', '10310000-0000-4000-8000-0000000000e4', 'guardian');
--- C: X and W in A, Z in B, and the group g1 of A. K: X and g1, in A.
+-- C: X and W in A, Z and W2 in B, and the group g1 of A. K: X and g1, in A.
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
   ('10310000-0000-4000-8000-0000000000a3', '10310000-0000-4000-8000-0000000000e1', '10310000-0000-4000-8000-0000000000b1'),
   ('10310000-0000-4000-8000-0000000000a3', '10310000-0000-4000-8000-0000000000e3', '10310000-0000-4000-8000-0000000000b2'),
   ('10310000-0000-4000-8000-0000000000a3', '10310000-0000-4000-8000-0000000000e4', '10310000-0000-4000-8000-0000000000b1'),
+  ('10310000-0000-4000-8000-0000000000a3', '10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-0000000000b2'),
   ('10310000-0000-4000-8000-0000000000a4', '10310000-0000-4000-8000-0000000000e1', '10310000-0000-4000-8000-0000000000b1');
 insert into public.coach_group_assignments (coach_user_id, group_id) values
   ('10310000-0000-4000-8000-0000000000a3', '10310000-0000-4000-8000-000000000091'),
@@ -85,6 +92,12 @@ insert into public.training_plan_blocks (id, version_id, position, repetitions, 
 insert into public.training_plan_assignments (id, school_id, plan_id, version_id, session_date, target, group_id, athlete_id, created_by) values
   ('10310000-0000-4000-8000-000000000041', '10310000-0000-4000-8000-0000000000b1', '10310000-0000-4000-8000-000000000011', '10310000-0000-4000-8000-000000000021', '2026-11-20', 'group', '10310000-0000-4000-8000-000000000091', null, '10310000-0000-4000-8000-0000000000a1'),
   ('10310000-0000-4000-8000-000000000042', '10310000-0000-4000-8000-0000000000b2', '10310000-0000-4000-8000-000000000012', '10310000-0000-4000-8000-000000000022', '2026-11-20', 'athlete', null, '10310000-0000-4000-8000-0000000000e3', '10310000-0000-4000-8000-0000000000a2');
+-- n3 gives p2 to W2 in B. fa and fb are W2's marks of the A assignment (through g1) and of the B one.
+insert into public.training_plan_assignments (id, school_id, plan_id, version_id, session_date, target, group_id, athlete_id, created_by) values
+  ('10310000-0000-4000-8000-000000000043', '10310000-0000-4000-8000-0000000000b2', '10310000-0000-4000-8000-000000000012', '10310000-0000-4000-8000-000000000022', '2026-11-21', 'athlete', null, '10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-0000000000a2');
+insert into public.training_plan_fulfillments (id, device_id, assignment_id, version_id, block_id, athlete_id, status, captured_at, created_by) values
+  ('10310000-0000-4000-8000-000000000051', 'dev-c', '10310000-0000-4000-8000-000000000041', '10310000-0000-4000-8000-000000000021', '10310000-0000-4000-8000-000000000031', '10310000-0000-4000-8000-0000000000e5', 'done', '2026-11-20 08:00:00+00', '10310000-0000-4000-8000-0000000000a3'),
+  ('10310000-0000-4000-8000-000000000052', 'dev-c', '10310000-0000-4000-8000-000000000043', '10310000-0000-4000-8000-000000000022', '10310000-0000-4000-8000-000000000032', '10310000-0000-4000-8000-0000000000e5', 'done', '2026-11-21 08:00:00+00', '10310000-0000-4000-8000-0000000000a3');
 -- Results sharing: B shares its results of W with A (the guardian authorized it).
 insert into public.authorization_texts (id, purpose, version, language, body) values
   ('10310000-0000-4000-8000-0000000000aa', 'share_results_with_school', 1031, 'es-CO', 'Synthetic sharing text for issue 1031');
@@ -99,6 +112,8 @@ reset role;
 
 -- The school of the rows of the tables that have no school_id, filled here as the
 -- owner so the helper never derives a school through another protected table.
+-- The athlete row of W2 is counted in B: it belongs to the athlete, not to a school,
+-- and C still coaches W2 in B; W2's rows of A are the school-scoped ones below.
 create temp table fx (tbl text, id uuid, school uuid);
 insert into fx values
   ('athletes', '10310000-0000-4000-8000-0000000000e1', '10310000-0000-4000-8000-0000000000b1'),
@@ -106,6 +121,10 @@ insert into fx values
   ('athletes', '10310000-0000-4000-8000-0000000000e3', '10310000-0000-4000-8000-0000000000b2'),
   ('athletes', '10310000-0000-4000-8000-0000000000e4', '10310000-0000-4000-8000-0000000000b1'),
   ('athletes', '10310000-0000-4000-8000-0000000000e4', '10310000-0000-4000-8000-0000000000b2'),
+  ('athletes', '10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-0000000000b2'),
+  ('assignments', '10310000-0000-4000-8000-000000000041', '10310000-0000-4000-8000-0000000000b1'),
+  ('assignments', '10310000-0000-4000-8000-000000000042', '10310000-0000-4000-8000-0000000000b2'),
+  ('assignments', '10310000-0000-4000-8000-000000000043', '10310000-0000-4000-8000-0000000000b2'),
   ('groups', '10310000-0000-4000-8000-000000000091', '10310000-0000-4000-8000-0000000000b1'),
   ('groups', '10310000-0000-4000-8000-000000000092', '10310000-0000-4000-8000-0000000000b2'),
   ('versions', '10310000-0000-4000-8000-000000000021', '10310000-0000-4000-8000-0000000000b1'),
@@ -130,6 +149,7 @@ create function pg_temp.rows_of(sch uuid) returns text language sql stable as $$
     'training_plan_versions=' || (select count(*) from public.training_plan_versions where id in (select id from pg_temp.fx where tbl = 'versions' and school = sch)),
     'training_plan_blocks=' || (select count(*) from public.training_plan_blocks where version_id in (select id from pg_temp.fx where tbl = 'versions' and school = sch)),
     'training_plan_assignments=' || (select count(*) from public.training_plan_assignments where school_id = sch),
+    'training_plan_fulfillments=' || (select count(*) from public.training_plan_fulfillments where assignment_id in (select id from pg_temp.fx where tbl = 'assignments' and school = sch)),
     'coach_athlete_assignments=' || (select count(*) from public.coach_athlete_assignments where school_id = sch),
     'coach_group_assignments=' || (select count(*) from public.coach_group_assignments where group_id in (select id from pg_temp.fx where tbl = 'groups' and school = sch))
   )
@@ -168,7 +188,7 @@ select is((select count(*)::int from u), 1, 'the admin of A deactivates C in A')
 -- 3. The deactivated coach C.
 set local request.jwt.claims = '{"sub": "10310000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
 select is(pg_temp.rows_of('10310000-0000-4000-8000-0000000000b1'),
-  'schools=0 categories=0 training_groups=0 athletes=0 athlete_schools=0 athlete_groups=0 athlete_managers=0 authorization_status=0 measurements=0 timing_series=0 training_plans=0 training_plan_versions=0 training_plan_blocks=0 training_plan_assignments=0 coach_athlete_assignments=0 coach_group_assignments=0',
+  'schools=0 categories=0 training_groups=0 athletes=0 athlete_schools=0 athlete_groups=0 athlete_managers=0 authorization_status=0 measurements=0 timing_series=0 training_plans=0 training_plan_versions=0 training_plan_blocks=0 training_plan_assignments=0 training_plan_fulfillments=0 coach_athlete_assignments=0 coach_group_assignments=0',
   'C reads no row of A after the deactivation');
 select is(
   (select count(*)::int from public.school_memberships where school_id = '10310000-0000-4000-8000-0000000000b1' and deactivated_at is not null),
@@ -187,8 +207,17 @@ select throws_ok(
   '42501', null,
   'C cannot create a training plan in A');
 select is(pg_temp.rows_of('10310000-0000-4000-8000-0000000000b2'),
-  'schools=1 categories=0 training_groups=1 athletes=1 athlete_schools=1 athlete_groups=1 athlete_managers=0 authorization_status=0 measurements=1 timing_series=0 training_plans=1 training_plan_versions=1 training_plan_blocks=1 training_plan_assignments=1 coach_athlete_assignments=1 coach_group_assignments=0',
+  'schools=1 categories=0 training_groups=1 athletes=2 athlete_schools=2 athlete_groups=2 athlete_managers=0 authorization_status=0 measurements=1 timing_series=0 training_plans=1 training_plan_versions=1 training_plan_blocks=1 training_plan_assignments=2 training_plan_fulfillments=1 coach_athlete_assignments=2 coach_group_assignments=0',
   'C reads B as an active coach: Z, g2 and the plan p2, but no longer W');
+
+-- C still reads W2, whom C coaches in B, but only the rows of B.
+select is((select count(*)::int from public.athletes where id = '10310000-0000-4000-8000-0000000000e5'), 1, 'C reads the athlete row of W2');
+select is((select array_agg(school_id) from public.athlete_schools where athlete_id = '10310000-0000-4000-8000-0000000000e5'),
+  array['10310000-0000-4000-8000-0000000000b2'::uuid], 'C reads only the B school row of W2');
+select is((select array_agg(group_id) from public.athlete_groups where athlete_id = '10310000-0000-4000-8000-0000000000e5'),
+  array['10310000-0000-4000-8000-000000000092'::uuid], 'C reads only the B group row of W2');
+select is((select array_agg(id) from public.training_plan_fulfillments where athlete_id = '10310000-0000-4000-8000-0000000000e5'),
+  array['10310000-0000-4000-8000-000000000052'::uuid], 'C reads only the B mark of W2');
 
 -- 4. Everyone else reads what they read before.
 set local request.jwt.claims = '{"sub": "10310000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
@@ -218,9 +247,12 @@ select is(
   (select count(*)::int from public.measurements where school_id = '10310000-0000-4000-8000-0000000000b1' and created_by = '10310000-0000-4000-8000-0000000000a3'),
   0, 'C reads none of them');
 
--- 6. The sync streams. These are the with: subqueries of powersync/sync-config.yaml
--- (member_school_ids, coach_direct_athlete_ids, coach_group_athlete_ids,
--- own_series_ids), with auth.user_id() replaced by C's id.
+-- 6. The sync streams. These are the with: subqueries and the coach queries of
+-- powersync/sync-config.yaml (member_school_ids, member_group_ids,
+-- coach_direct_athlete_ids, coach_group_athlete_ids, coach_direct_group_ids,
+-- coach_direct_category_ids, own_series_ids; the athlete_schools, athlete_groups and
+-- training_plan_fulfillments queries of C's athletes), with auth.user_id() replaced
+-- by C's id and the CTE names by their subqueries.
 reset role;
 select set_eq(
   $$ select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null $$,
@@ -230,8 +262,43 @@ select set_eq(
   $$ select athlete_id from public.coach_athlete_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null)
      union
      select athlete_id from public.athlete_groups where group_id in (select group_id from public.coach_group_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and group_id in (select id from public.training_groups where school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null))) $$,
-  $$ values ('10310000-0000-4000-8000-0000000000e3'::uuid) $$,
-  'the coach athlete ids of C are only Z, of B');
+  $$ values ('10310000-0000-4000-8000-0000000000e3'::uuid), ('10310000-0000-4000-8000-0000000000e5') $$,
+  'the coach athlete ids of C are only Z and W2, of B');
+select set_eq(
+  $$ select id from public.training_groups where school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null) $$,
+  $$ values ('10310000-0000-4000-8000-000000000092'::uuid) $$,
+  'member_group_ids gives C only the groups of B');
+select set_eq(
+  $$ select group_id from public.athlete_groups where group_id in (select id from public.training_groups where school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null))
+       and athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null)) $$,
+  $$ values ('10310000-0000-4000-8000-000000000092'::uuid) $$,
+  'coach_direct_group_ids gives C only the group of B');
+select is_empty(
+  $$ select category_id from public.athlete_schools where category_id is not null
+       and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null)
+       and athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null)) $$,
+  'coach_direct_category_ids gives C no category: the one of W2 is in A');
+select set_eq(
+  $$ select athlete_id, school_id from public.athlete_schools
+     where athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null))
+       and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null) $$,
+  $$ values ('10310000-0000-4000-8000-0000000000e3'::uuid, '10310000-0000-4000-8000-0000000000b2'::uuid),
+            ('10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-0000000000b2') $$,
+  'the athlete_schools query for C returns the B rows of Z and W2, none of A');
+select set_eq(
+  $$ select athlete_id, group_id from public.athlete_groups
+     where athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null))
+       and group_id in (select id from public.training_groups where school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null)) $$,
+  $$ values ('10310000-0000-4000-8000-0000000000e3'::uuid, '10310000-0000-4000-8000-000000000092'::uuid),
+            ('10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-000000000092') $$,
+  'the athlete_groups query for C returns the B rows of Z and W2, none of A');
+select set_eq(
+  $$ select id from public.training_plan_fulfillments
+     where athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null))
+       and hidden = false
+       and assignment_id in (select id from public.training_plan_assignments where school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null)) $$,
+  $$ values ('10310000-0000-4000-8000-000000000052'::uuid) $$,
+  'the fulfillments query for C returns the B mark of W2 only');
 select is_empty(
   $$ select id from public.timing_series where created_by = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null) $$,
   'own_series_ids gives C no series: the only one is in A');

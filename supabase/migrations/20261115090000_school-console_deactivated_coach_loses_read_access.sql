@@ -260,6 +260,52 @@ alter policy measurements_select on public.measurements
     )
   );
 
+-- An athlete can belong to several schools. The coach branch of these three policies
+-- reads a row only in a school where the coach is active; the guardian and admin
+-- branches, and the platform admin, read what they read before
+-- (visible_athlete_ids() is coach_athlete_ids() plus managed plus admin).
+alter policy athlete_schools_select on public.athlete_schools
+  using (
+    (select app.is_platform_admin())
+    or athlete_id in (select app.managed_athlete_ids())
+    or athlete_id in (select app.admin_athlete_ids())
+    or (athlete_id in (select app.coach_athlete_ids()) and school_id in (select app.staff_school_ids()))
+  );
+alter policy athlete_groups_select on public.athlete_groups
+  using (
+    (select app.is_platform_admin())
+    or athlete_id in (select app.managed_athlete_ids())
+    or athlete_id in (select app.admin_athlete_ids())
+    or (
+      athlete_id in (select app.coach_athlete_ids())
+      and group_id in (select tg.id from public.training_groups tg where tg.school_id in (select app.staff_school_ids()))
+    )
+  );
+alter policy training_plan_fulfillments_select on public.training_plan_fulfillments
+  using (
+    (select app.is_platform_admin())
+    or athlete_id in (select app.managed_athlete_ids())
+    or (
+      athlete_id in (select app.admin_athlete_ids())
+      and not hidden
+    )
+    or (
+      athlete_id in (select app.coach_athlete_ids())
+      and not hidden
+      and assignment_id in (
+        select a.id from public.training_plan_assignments a where a.school_id in (select app.staff_school_ids())
+      )
+    )
+    or (
+      created_by = (select auth.uid())
+      and hidden
+      and app.hidden_fulfillment_written_back(id)
+      and assignment_id in (
+        select a.id from public.training_plan_assignments a where a.school_id in (select app.staff_school_ids())
+      )
+    )
+  );
+
 -- Left unchanged on purpose:
 -- measurements_insert_active_coach: restrictive policy of #963, keeps the 42501 of the device.
 -- measurements_insert, measurements_update: already go through app.coach_has_athlete_in_school.
@@ -270,3 +316,5 @@ alter policy measurements_select on public.measurements
 -- school_memberships_select: the coach keeps reading their own row; an admin keeps reading the school's.
 -- app.admin_school_ids, app.school_admin_adult_ids: only school_admin rows, and an admin is never deactivated.
 -- measurement_conflicts_select: depends on the measurements policies above.
+-- athletes, athlete_managers, authorization_status: they belong to the athlete, not to a school, so they stay on
+-- visible_athlete_ids(); a deactivated coach still reads them only for an athlete they coach in a school where they are active.
