@@ -41,13 +41,15 @@ const times: FamilyMeasurement[] = [
   { ...base, id: 'm4', capturedAt: '2026-11-04T14:00:00.000Z', stroke: 'BK', millis: 41_000 },
 ];
 
-async function setup() {
+const lucia = { id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] };
+
+async function setup(athletes = [lucia], all = times) {
   await render(
     <PreferencesProvider repository={createInMemoryPreferencesRepository({ ...defaultPreferences, timePrecision: 'hundredths' })}>
       <FamilyTimingContainer
         userId="u1"
-        athletes={[{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }]}
-        repository={createInMemoryFamilyMeasurementRepository(times)}
+        athletes={athletes}
+        repository={createInMemoryFamilyMeasurementRepository(all)}
         onBack={jest.fn()}
       />
     </PreferencesProvider>,
@@ -80,5 +82,14 @@ describe('filters and best time in Mis tiempos', () => {
     expect(screen.getAllByText(/50 m ·/)).toHaveLength(1);
     await fireEvent.press(screen.getByText('Competencias'));
     expect(screen.getByText('Ningún tiempo con estos filtros')).toBeTruthy();
+  });
+
+  it('does not keep a stroke filter the next swimmer has no time for', async () => {
+    const mateo = { id: 'a2', firstName: 'Mateo', lastName: 'Gil', categoryId: null, groupIds: [] };
+    await setup([lucia, mateo], [...times, { ...base, id: 'm5', athleteId: 'a2', millis: 38_000 }]);
+    await fireEvent.press(screen.getByLabelText('Espalda'));
+    await fireEvent.press(screen.getByLabelText('Mateo G.'));
+    expect(await screen.findByText(/^Libre 50 m/)).toBeTruthy();
+    expect(screen.queryByText('Ningún tiempo con estos filtros')).toBeNull();
   });
 });

@@ -207,9 +207,14 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   );
   // The list: the times that pass the filters, with the best of each event marked. The official time, when there is one, is the record.
   const listed = useMemo(() => {
-    if (loaded.status !== 'ready') return { cards: [], filters: null };
+    if (loaded.status !== 'ready') return { cards: [], filters: null, filtered: false };
     const all = loaded.measurements;
-    const shown = all.filter((m) => (Object.keys(filters) as FamilyFilterKey[]).every((key) => !filters[key] || m[key] === filters[key]));
+    // A chosen stroke, distance or pool that none of this swimmer's times has (another swimmer, a deleted time) counts as
+    // "all": its chip is not offered, so the person could not clear it and would be left on an empty list.
+    const active = Object.fromEntries(
+      (Object.keys(filters) as FamilyFilterKey[]).map((key) => [key, key === 'sessionType' || all.some((m) => m[key] === filters[key]) ? filters[key] : '']),
+    ) as Filters;
+    const shown = all.filter((m) => (Object.keys(active) as FamilyFilterKey[]).every((key) => !active[key] || m[key] === active[key]));
     const best = bestTimeIds(
       shown.map((m) => {
         const value = officialValue(m, loaded.imported);
@@ -223,7 +228,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         { value: '', label: t('family_timing.filters.all') },
         ...catalog.filter((entry) => all.some((m) => m[key] === entry.code)).map((entry) => ({ value: entry.code, label: t(entry.nameKey) })),
       ],
-      value: filters[key],
+      value: active[key],
     });
     const view: FamilyFiltersView = {
       sessionType: {
@@ -232,7 +237,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           { value: 'training', label: t('family_timing.filters.training') },
           { value: 'competition', label: t('family_timing.filters.competition') },
         ],
-        value: filters.sessionType,
+        value: active.sessionType,
       },
       stroke: present('stroke', strokes),
       distance: present('distance', distances),
@@ -244,6 +249,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         return card ? [{ ...card, isBest: best.has(m.id) }] : [];
       }),
       filters: all.length > 0 ? view : null,
+      filtered: Object.values(active).some(Boolean),
     };
   }, [loaded, cards, filters]);
   const deletedCards = useMemo<FamilyDeletedCard[]>(() => {
@@ -259,7 +265,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     cards: listed.cards,
     deletedCount: deletedCards.length,
     filters: listed.filters,
-    filtered: Object.values(filters).some(Boolean),
+    filtered: listed.filtered,
   });
 
   const goToList = () => {
