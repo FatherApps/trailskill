@@ -57,6 +57,13 @@ async function setup(athletes = [lucia], all = times) {
   await screen.findByText('Medir un tiempo');
 }
 
+// Stroke, distance and pool are chosen in the sheet and applied together.
+async function filterBy(label: string) {
+  await fireEvent.press(screen.getByText('Filtros'));
+  await fireEvent.press(screen.getByLabelText(label));
+  await fireEvent.press(screen.getByText('Aplicar filtros'));
+}
+
 const bestCount = () => screen.queryAllByLabelText('Mejor tiempo').length;
 
 describe('filters and best time in Mis tiempos', () => {
@@ -78,8 +85,9 @@ describe('filters and best time in Mis tiempos', () => {
 
   it('filters by stroke and says when nothing matches', async () => {
     await setup();
-    await fireEvent.press(screen.getByLabelText('Espalda'));
+    await filterBy('Espalda');
     expect(screen.getAllByText(/50 m ·/)).toHaveLength(1);
+    expect(screen.getByText('Filtros (1)')).toBeTruthy();
     await fireEvent.press(screen.getByText('Competencias'));
     expect(screen.getByText('Ningún tiempo con estos filtros')).toBeTruthy();
   });
@@ -87,9 +95,25 @@ describe('filters and best time in Mis tiempos', () => {
   it('does not keep a stroke filter the next swimmer has no time for', async () => {
     const mateo = { id: 'a2', firstName: 'Mateo', lastName: 'Gil', categoryId: null, groupIds: [] };
     await setup([lucia, mateo], [...times, { ...base, id: 'm5', athleteId: 'a2', millis: 38_000 }]);
-    await fireEvent.press(screen.getByLabelText('Espalda'));
+    await filterBy('Espalda');
     await fireEvent.press(screen.getByLabelText('Mateo G.'));
     expect(await screen.findByText(/^Libre 50 m/)).toBeTruthy();
     expect(screen.queryByText('Ningún tiempo con estos filtros')).toBeNull();
+  });
+
+  it('keeps the filters when the sheet closes without applying, and clears them all', async () => {
+    await setup();
+    await fireEvent.press(screen.getByText('Filtros'));
+    await fireEvent.press(screen.getByLabelText('Espalda'));
+    await fireEvent.press(screen.getByTestId('filter-sheet-scrim'));
+    expect(screen.getAllByText(/^Libre 50 m/)).toHaveLength(3);
+
+    await filterBy('Espalda');
+    expect(screen.queryByText(/^Libre 50 m/)).toBeNull();
+    await fireEvent.press(screen.getByText('Filtros (1)'));
+    await fireEvent.press(screen.getByText('Quitar filtros'));
+    await fireEvent.press(screen.getByText('Aplicar filtros'));
+    expect(screen.getAllByText(/^Libre 50 m/)).toHaveLength(3);
+    expect(screen.getByText('Filtros')).toBeTruthy();
   });
 });

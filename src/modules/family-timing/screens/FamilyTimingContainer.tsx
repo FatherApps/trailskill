@@ -57,6 +57,7 @@ import {
   type FamilyFiltersView,
   type FamilyTimingView,
 } from './FamilyTimingScreen';
+import type { FamilyTimingNoticeStore } from '../data/noticeSeen';
 import '../i18n';
 
 const KEEP_AWAKE_TAG = 'family-timing';
@@ -80,6 +81,8 @@ export type FamilyTimingContainerProps = {
   shareCodes?: { find(code: string): Promise<string | null> };
   // Changes when the device synced: requests and moved times arrive by sync, so the lists read again.
   syncKey?: number;
+  // Remembers that the notice was seen, so it shows on the first visit only. Without it the notice always shows.
+  notice?: FamilyTimingNoticeStore;
 };
 
 const targetOf = (sw: FamilyStopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
@@ -185,7 +188,7 @@ const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.
 
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
-  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey } = props;
+  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice } = props;
   const now = props.now ?? buttons.now;
   const { preferences } = usePreferences();
   const buttonPrefs = preferences.timingButtons;
@@ -207,6 +210,24 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const loaded = useMemo<Loaded>(() => (read.status !== 'loading' && read.key === key ? read : { status: 'loading' }), [read, key]);
   const [step, setStep] = useState<Step>({ kind: 'list' });
   const [filters, setFilters] = useState<Filters>(noFilters);
+  // Unknown until the store answers, so the notice never flashes for someone who already saw it.
+  const [showNotice, setShowNotice] = useState(notice === undefined);
+  useEffect(() => {
+    if (!notice) return;
+    let current = true;
+    notice
+      .seen(userId)
+      .then((seen) => {
+        if (!current || seen) return;
+        // Seen now: it stays for this visit and is gone the next time.
+        setShowNotice(true);
+        return notice.markSeen(userId);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [notice, userId]);
   const [setup, setSetup] = useState<Setup>(initialSetup);
   const [stopwatch, setStopwatch] = useState<FamilyStopwatch>(idleFamilyStopwatch);
   const [series, setSeries] = useState<FamilySeries>(() => newFamilySeries(MIN_SWIMMERS));
@@ -419,6 +440,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     deletedCount: deletedCards.length,
     filters: listed.filters,
     filtered: listed.filtered,
+    showNotice,
     received: receivedCards,
     transferError: answerError ? t(`family_timing.transfer.error.${answerError}`) : null,
   });
@@ -796,6 +818,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       onAccept={(id) => transfers && answer(id, transfers.accept)}
       onReject={(id) => transfers && answer(id, transfers.reject)}
       onFilter={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
+      onApplyFilters={(values) => setFilters((current) => ({ ...current, ...values }))}
       onRestore={(id) =>
         change(
           () => repository.restore(id),

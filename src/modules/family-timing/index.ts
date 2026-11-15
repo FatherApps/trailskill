@@ -17,6 +17,11 @@ export {
   type FamilyTransfer,
   type FamilyTransferRepository,
 } from './data/familyTransfers';
+export {
+  createInMemoryFamilyTimingNoticeStore,
+  createSecureStoreFamilyTimingNoticeStore,
+  type FamilyTimingNoticeStore,
+} from './data/noticeSeen';
 export { useMoveLocalFamilyTimes } from './data/useMoveLocalFamilyTimes';
 export { FamilyTimingContainer, type FamilyTimingContainerProps } from './screens/FamilyTimingContainer';
 export { FamilyTimingScreen, type FamilyTimingScreenProps, type FamilyTimingView } from './screens/FamilyTimingScreen';
