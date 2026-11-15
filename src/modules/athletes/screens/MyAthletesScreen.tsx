@@ -62,7 +62,7 @@ export function MyAthletesScreen({ view, onOpen, onAdd, scrollEnabled = true }: 
     </>
   );
   return scrollEnabled ? (
-    <ScrollView style={frame} contentContainerStyle={{ ...padding, paddingBottom: space[12] * 2 }}>
+    <ScrollView style={frame} contentContainerStyle={padding}>
       {cards}
     </ScrollView>
   ) : (
