@@ -1,7 +1,7 @@
 -- A guardian sends a time to another swimmer's family with the swimmer's share code (issue #973). All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(46);
 
 -- a1 measures; a2 manages swimmer b2 (the receiving family); a3 is someone else; a4 and a5 try codes until they are stopped.
 insert into auth.users (id, email) values
@@ -30,7 +30,9 @@ values
   ('97300000-0000-4000-8000-0000000000c4', '97300000-0000-4000-8000-0000000000a4', '97300000-0000-4000-8000-0000000000a4', null,
    'BR', '50m', 'SCM', 'training', '2026-11-14T10:00:00Z', 40000),
   ('97300000-0000-4000-8000-0000000000c5', '97300000-0000-4000-8000-0000000000a5', '97300000-0000-4000-8000-0000000000a5', null,
-   'BR', '50m', 'SCM', 'training', '2026-11-14T10:00:00Z', 41000);
+   'BR', '50m', 'SCM', 'training', '2026-11-14T10:00:00Z', 41000),
+  ('97300000-0000-4000-8000-0000000000c6', '97300000-0000-4000-8000-0000000000a1', '97300000-0000-4000-8000-0000000000a1', null,
+   'FR', '50m', 'SCM', 'training', '2026-11-14T10:00:00Z', 33000);
 
 select ok(not has_table_privilege('authenticated', 'public.family_timing_transfers', 'insert'), 'nobody inserts a request directly');
 select ok(not has_table_privilege('authenticated', 'public.family_timing_transfers', 'update'), 'nobody changes a request directly');
@@ -52,6 +54,10 @@ select is((select athlete_id from public.family_timing_measurements where id = '
   'the sent time leaves the sender''s swimmer while it waits');
 select throws_ok($$ select public.send_family_time('97300000-0000-4000-8000-0000000000c3', 'TS-BBBBBB') $$, 'P0001', 'already_sent',
   'a time waits for one answer at a time');
+select lives_ok($$ update public.family_timing_measurements set deleted_at = now() where id = '97300000-0000-4000-8000-0000000000c6' $$,
+  'the owner deletes a time');
+select throws_ok($$ select public.send_family_time('97300000-0000-4000-8000-0000000000c6', 'TS-BBBBBB') $$, 'P0001', 'deleted_time',
+  'a deleted time cannot be sent');
 select throws_ok($$ update public.family_timing_measurements set athlete_id = '97300000-0000-4000-8000-0000000000b1'
   where id = '97300000-0000-4000-8000-0000000000c3' $$, '23514', null, 'a waiting time cannot be given to a swimmer');
 select throws_ok($$ update public.family_timing_measurements set deleted_at = now() where id = '97300000-0000-4000-8000-0000000000c3' $$,
