@@ -98,11 +98,11 @@ for f in $FUNCTIONS; do
   FILES=$(cd "$STAGE" && find . -name '*.ts' | sed 's|^\./||' | sort)
   if [ -n "$LOCAL_DENO" ]; then
     # shellcheck disable=SC2086 # $FILES holds plain relative paths without spaces
-    (cd "$STAGE" && deno check --no-lock ${CONFIG:+--config "$DEST/$CONFIG"} $FILES) || fail "deno check failed"
+    (cd "$STAGE" && deno check --no-lock ${CONFIG:+--config "$DEST/$CONFIG"} $FILES) || fail "deno check failed for $f"
   else
     command -v docker >/dev/null 2>&1 || fail "deno check needs deno $DENO_VERSION or docker; neither is installed"
     # shellcheck disable=SC2086
-    docker run --rm -v "$DEST:/functions:ro" -w "/functions/.$f.staging" "$DENO_IMAGE" deno check --no-lock ${CONFIG:+--config "/functions/$CONFIG"} $FILES || fail "deno check failed"
+    docker run --rm -v "$DEST:/functions:ro" -w "/functions/.$f.staging" "$DENO_IMAGE" deno check --no-lock ${CONFIG:+--config "/functions/$CONFIG"} $FILES || fail "deno check failed for $f"
   fi
   echo "PASS: deno check $f ($(echo "$FILES" | wc -l | tr -d ' ') modules, index.ts included)"
 done
