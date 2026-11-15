@@ -38,6 +38,10 @@ create index family_timing_measurements_owner_idx on public.family_timing_measur
 alter table public.family_timing_measurements enable row level security;
 
 grant select, insert, update on table public.family_timing_measurements to authenticated;
+-- The default privileges of the schema grant every new table to anon and authenticated: only the three above stay, so a direct
+-- DELETE fails instead of matching no row.
+revoke all on table public.family_timing_measurements from anon;
+revoke delete, truncate, references, trigger on table public.family_timing_measurements from authenticated;
 
 alter publication powersync add table public.family_timing_measurements;
 
