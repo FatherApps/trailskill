@@ -11,16 +11,22 @@ export interface Db {
 
 const NOT_AUTHORIZED = '42501';
 const UNIQUE_VIOLATION = '23505';
+const CHECK_VIOLATION = '23514';
 
 // An error carries the Postgres code and nothing else: the message of a failed call could echo an argument.
 const failure = (what: string, error: DbError | null) => new Error(`${what} failed${error ? ` (${error.code ?? 'unknown'})` : ''}`);
 
-/** `public.coach_invitations`: a 42501 is the policy refusing a caller who does not administer the school; a 23505 is the pending invitation that already exists. */
+/**
+ * `public.coach_invitations`: a 42501 is the policy refusing a caller who does not administer the school; a 23505 is the pending
+ * invitation that already exists; a 23514 is the email check (`email = lower(btrim(email))`) refusing an email the handler
+ * lowercased differently (JavaScript and Postgres disagree on some characters, such as 'İ'): the caller's input, so bad_request.
+ */
 export function createInvitationStore(db: Db): InvitationStore {
   return {
     async create(schoolId, email): Promise<CreateOutcome> {
       const { data, error } = await db.insert('coach_invitations', { school_id: schoolId, email });
       if (error?.code === NOT_AUTHORIZED) return { ok: false, error: { code: 'not_authorized' } };
+      if (error?.code === CHECK_VIOLATION) return { ok: false, error: { code: 'bad_request' } };
       if (error?.code === UNIQUE_VIOLATION) {
         const existing = await db.selectOne('coach_invitations', { school_id: schoolId, email, status: 'pending' }, 'id');
         if (existing.error || typeof existing.data?.id !== 'string') throw failure('Reading the pending invitation', existing.error);

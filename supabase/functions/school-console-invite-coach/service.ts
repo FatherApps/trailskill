@@ -1,6 +1,6 @@
 import type { InvitationSender, InvitationStore } from './port.ts';
 
-export type InviteError = { code: 'not_authorized' } | { code: 'unavailable' };
+export type InviteError = { code: 'not_authorized' } | { code: 'bad_request' } | { code: 'unavailable' };
 export type InviteOutcome = { ok: true; value: { invitationId: string } } | { ok: false; error: InviteError };
 
 /**
