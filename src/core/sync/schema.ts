@@ -235,6 +235,31 @@ export const AppSchema = new Schema({
     },
     { indexes: { athlete: ['athlete_id'] } },
   ),
+  // A family time sent to another swimmer's family (#973), read-only here: the server functions write it. The sender and the swimmer's
+  // family read it; it carries the time as it was sent, because the receiving family cannot read the sender's times.
+  family_timing_transfers: new Table(
+    {
+      created_at: column.text,
+      measurement_id: column.text,
+      from_user_id: column.text,
+      athlete_id: column.text,
+      athlete_short_name: column.text,
+      status: column.text,
+      expires_at: column.text,
+      decided_at: column.text,
+      decided_by: column.text,
+      stroke: column.text,
+      distance: column.text,
+      pool: column.text,
+      session_type: column.text,
+      competition: column.text,
+      captured_at: column.text,
+      // Milliseconds; null is a missing time, never 0.
+      millis: column.integer,
+      splits: column.text,
+    },
+    { indexes: { measurement: ['measurement_id'], athlete: ['athlete_id'] } },
+  ),
   // The same times as they were stored before #967, on this phone only. family-timing moves them to family_timing_measurements once.
   family_measurements: new Table(
     {

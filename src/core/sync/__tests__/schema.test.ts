@@ -38,6 +38,7 @@ describe('AppSchema', () => {
         'coach_athlete_assignments',
         'coach_group_assignments',
         'family_timing_measurements',
+        'family_timing_transfers',
         'imported_result_changes',
         'imported_results',
         'measurements',
@@ -83,6 +84,6 @@ describe('AppSchema', () => {
     expect(byName.get('upload_failures')?.localOnly).toBe(true);
     expect(byName.get('uploaded_ops')?.localOnly).toBe(true);
     expect(byName.get('family_measurements')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(32);
+    expect(AppSchema.tables).toHaveLength(33);
   });
 });

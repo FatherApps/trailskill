@@ -21,6 +21,7 @@ import {
   type TimingButtonPort,
 } from '../../timing';
 import type { FamilyMeasurement, FamilyMeasurementRepository, FamilySessionType } from '../data/familyMeasurements';
+import { FamilyTransferError, type FamilyTransfer, type FamilyTransferErrorCode, type FamilyTransferRepository } from '../data/familyTransfers';
 import {
   elapsedMillisAt,
   finalMillis,
@@ -73,6 +74,12 @@ export type FamilyTimingContainerProps = {
   buttons?: TimingButtonPort;
   // Injected by tests; otherwise the buttons' clock, so a touch and a key press share one time base.
   now?: () => bigint;
+  // Sending a time to another swimmer's family (#973); without it the option is not offered.
+  transfers?: FamilyTransferRepository;
+  // The share-code lookup of the accounts module: the short name of the swimmer with a code, or null.
+  shareCodes?: { find(code: string): Promise<string | null> };
+  // Changes when the device synced: requests and moved times arrive by sync, so the lists read again.
+  syncKey?: number;
 };
 
 const targetOf = (sw: FamilyStopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
@@ -128,7 +135,9 @@ type Step =
   | { kind: 'series_assign'; lanes: Lane[]; saveError: boolean }
   | { kind: 'official'; id: string; text: string; invalid: boolean }
   | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string | null; confirmingDelete: boolean; saveError: boolean }
-  | { kind: 'deleted'; restoreError: boolean };
+  | { kind: 'deleted'; restoreError: boolean }
+  // Sending a time with the other swimmer's code: `found` is the short name once the code was looked up.
+  | { kind: 'send'; id: string; code: string; found: string | null; error: FamilyTransferErrorCode | null; busy: boolean };
 
 // A deleted time is removed from the server this long after it was deleted.
 const KEEP_DELETED_DAYS = 30;
@@ -176,7 +185,7 @@ const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.
 
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
-  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton } = props;
+  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey } = props;
   const now = props.now ?? buttons.now;
   const { preferences } = usePreferences();
   const buttonPrefs = preferences.timingButtons;
@@ -203,6 +212,12 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const [series, setSeries] = useState<FamilySeries>(() => newFamilySeries(MIN_SWIMMERS));
   const [tick, setTick] = useState(0);
   const saving = useRef(false);
+  // The requests waiting for an answer: the ones this user sent, and the ones for the selected swimmer. Answered ones are hidden
+  // at once (`settled`), before the sync brings the change.
+  const [sent, setSent] = useState<FamilyTransfer[]>([]);
+  const [received, setReceived] = useState<FamilyTransfer[]>([]);
+  const [settled, setSettled] = useState<string[]>([]);
+  const [answerError, setAnswerError] = useState<FamilyTransferErrorCode | null>(null);
 
   // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
   const laps = setup.pool ? lapsFor(setup.distance, setup.pool) : 1;
@@ -245,7 +260,25 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     return () => {
       active = false;
     };
-  }, [repository, imports, selectedId, reload]);
+  }, [repository, imports, selectedId, reload, syncKey]);
+
+  useEffect(() => {
+    if (!transfers) return;
+    let active = true;
+    const at = new Date().toISOString();
+    const athleteId = selectedId && selectedId !== UNASSIGNED ? selectedId : null;
+    // Unreadable requests only hide them; the times still show.
+    Promise.all([transfers.listSent(userId, at), athleteId ? transfers.listReceived(athleteId, at) : Promise.resolve([])])
+      .then(([mine, theirs]) => {
+        if (!active) return;
+        setSent(mine);
+        setReceived(theirs);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [transfers, userId, selectedId, reload, syncKey]);
 
   useEffect(() => {
     let active = true;
@@ -257,7 +290,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     return () => {
       active = false;
     };
-  }, [repository, reload]);
+  }, [repository, reload, syncKey]);
 
   // The screen stays awake and the time refreshes while the stopwatch runs.
   const running = stopwatch.status === 'running' || (step.kind === 'series' && seriesStatus(series) === 'running');
@@ -271,6 +304,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     };
   }, [running]);
 
+  const sentByMeasurement = useMemo(
+    () => new Map(sent.filter((t) => !settled.includes(t.id)).map((t) => [t.measurementId, t])),
+    [sent, settled],
+  );
   const cardOf = useCallback(
     (m: FamilyMeasurement, imported: OfficialImport[]): FamilyCard => {
       const day = localDay(m.capturedAt);
@@ -299,9 +336,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         canSetOfficial: m.sessionType === 'competition' && value?.kind !== 'imported',
         hasManualOfficial: m.officialMillis !== null,
         unassigned: m.athleteId === null,
+        sentTo: sentByMeasurement.get(m.id)?.athleteShortName ?? null,
       };
     },
-    [format, sourceNames],
+    [format, sourceNames, sentByMeasurement],
   );
   const cards = useMemo<FamilyCard[]>(
     () => (loaded.status === 'ready' ? loaded.measurements.map((m) => cardOf(m, loaded.imported)) : []),
@@ -362,13 +400,72 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       return { ...cardOf(m, loaded.imported), removedOn: formatDate(day, 'short') ?? day };
     });
   }, [loaded, cardOf]);
+  // A request for the selected swimmer: the time as the other family sent it.
+  const receivedCards = received
+    .filter((r) => !settled.includes(r.id))
+    .map((r) => {
+      const day = localDay(r.capturedAt);
+      return {
+        id: r.id,
+        event: eventLabel(r),
+        detail: [formatDate(day, 'short') ?? day, t(`family_timing.session_type.${r.sessionType}`), r.competition].filter(Boolean).join(' · '),
+        captured: format(r.millis),
+        splitsLabel: r.splits.length > 0 ? t('family_timing.card.splits', { count: r.splits.length + 1 }) : null,
+      };
+    });
   const listView = (): FamilyTimingView => ({
     kind: 'list',
     cards: listed.cards,
     deletedCount: deletedCards.length,
     filters: listed.filters,
     filtered: listed.filtered,
+    received: receivedCards,
+    transferError: answerError ? t(`family_timing.transfer.error.${answerError}`) : null,
   });
+
+  // Answers a request (or withdraws one); it leaves the screen at once, and the sync brings the moved time.
+  async function answer(id: string, write: (id: string) => Promise<void>) {
+    if (saving.current) return;
+    saving.current = true;
+    setAnswerError(null);
+    try {
+      await write(id);
+      setSettled((current) => [...current, id]);
+      setReload((n) => n + 1);
+    } catch (error) {
+      setAnswerError(error instanceof FamilyTransferError ? error.code : 'failed');
+    } finally {
+      saving.current = false;
+    }
+  }
+
+  async function lookUpCode() {
+    if (step.kind !== 'send' || !shareCodes || !step.code.trim()) return;
+    setStep({ ...step, busy: true, error: null, found: null });
+    try {
+      const name = await shareCodes.find(step.code.trim());
+      setStep((s) => (s.kind === 'send' ? { ...s, busy: false, found: name, error: name ? null : 'unknown_code' } : s));
+    } catch (error) {
+      const code: FamilyTransferErrorCode = error instanceof Error && error.name === 'TooManyShareCodeLookupsError' ? 'too_many_attempts' : 'failed';
+      setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
+    }
+  }
+
+  async function sendTime() {
+    if (step.kind !== 'send' || !transfers || !step.found || saving.current) return;
+    saving.current = true;
+    setStep({ ...step, busy: true, error: null });
+    try {
+      await transfers.send(step.id, step.code.trim());
+      setStep({ kind: 'list' });
+      setReload((n) => n + 1);
+    } catch (error) {
+      const code = error instanceof FamilyTransferError ? error.code : 'failed';
+      setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
+    } finally {
+      saving.current = false;
+    }
+  }
 
   const goToList = () => {
     setStep({ kind: 'list' });
@@ -564,10 +661,26 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
             },
             confirmingDelete: step.confirmingDelete,
             saveError: step.saveError,
+            canSend: !!transfers && !!shareCodes,
           },
         }
       : listView();
   } else if (step.kind === 'deleted') view = { kind: 'deleted', cards: deletedCards, restoreError: step.restoreError };
+  else if (step.kind === 'send') {
+    const card = cards.find((c) => c.id === step.id);
+    view = card
+      ? {
+          kind: 'send',
+          send: {
+            card,
+            code: step.code,
+            found: step.found,
+            busy: step.busy,
+            error: step.error ? t(`family_timing.transfer.error.${step.error}`) : null,
+          },
+        }
+      : listView();
+  }
   else view = listView();
 
   return (
@@ -672,6 +785,16 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         );
       }}
       onOpenDeleted={() => setStep({ kind: 'deleted', restoreError: false })}
+      onOpenSend={() => step.kind === 'edit' && setStep({ kind: 'send', id: step.id, code: '', found: null, error: null, busy: false })}
+      onSendCode={(code) => setStep((s) => (s.kind === 'send' ? { ...s, code, found: null, error: null } : s))}
+      onLookUpCode={lookUpCode}
+      onSendTime={sendTime}
+      onWithdraw={(measurementId) => {
+        const transfer = sentByMeasurement.get(measurementId);
+        if (transfers && transfer) answer(transfer.id, transfers.withdraw);
+      }}
+      onAccept={(id) => transfers && answer(id, transfers.accept)}
+      onReject={(id) => transfers && answer(id, transfers.reject)}
       onFilter={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
       onRestore={(id) =>
         change(
