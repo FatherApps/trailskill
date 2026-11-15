@@ -29,8 +29,6 @@ export type CoachesSectionProps = ConsoleSectionProps & {
   // Where the invitations go. Offline «Invitar» is shown disabled: an invitation is sent to the server, never queued.
   // `invite` must reject when the invitation fails, or the sheet closes as if it had been sent.
   invitations: CoachInvitationRepository;
-  // The real deactivation belongs to the caller; it only reports the press once the ConfirmSheet is confirmed, and stays disabled until deactivation works.
-  onDeactivate: (id: string) => void;
 };
 
 // `null` is a read that failed: what it feeds is left out of the cards, never shown as no groups or 0 athletes.
@@ -67,7 +65,7 @@ function toRow(coach: Coach, groups: SchoolGroup[], athleteCounts: Loaded['athle
     name: coach.name,
     initials: coachInitials(coach.name),
     color: colorOf(coach.id),
-    status: 'active',
+    status: coach.deactivated ? 'deactivated' : 'active',
     groups: groupIds === null ? null : groups.filter((group) => assigned?.has(group.id)).map((group) => group.name),
     athleteCount: athleteCounts === null ? null : (athleteCounts.get(coach.id) ?? 0),
   };
@@ -87,10 +85,12 @@ export function CoachesSection({
   connection,
   now = defaultNow,
   invitations,
-  onDeactivate,
 }: CoachesSectionProps) {
   const [answer, setAnswer] = useState<Answer>();
   const [attempt, setAttempt] = useState(0);
+  // Reads the list again after a deactivation. Not part of the answer's key, so the list on screen stays while it is read.
+  const [reads, setReads] = useState(0);
+  const [deactivateFailed, setDeactivateFailed] = useState(false);
   // The groups read again from the invite sheet alone, stored with the load it answers: any other load drops it.
   const [retried, setRetried] = useState<{ base: Answer | undefined; groups: SchoolGroup[] | 'error' }>();
 
@@ -132,7 +132,7 @@ export function CoachesSection({
     return () => {
       active = false;
     };
-  }, [repository, structure, athletes, schoolId, refreshKey, attempt]);
+  }, [repository, structure, athletes, schoolId, refreshKey, attempt, reads]);
 
   const loaded = answer?.schoolId === schoolId && answer.attempt === attempt ? answer.result : undefined;
 
@@ -159,7 +159,7 @@ export function CoachesSection({
     view = connection !== 'offline' ? { kind: 'data', content } : { kind: 'offline', storedOn: lastSyncedAt ? localDate(lastSyncedAt) : '', content };
   }
 
-  // The groups feed the invite sheet's chips; while they are read or failed the sheet is told so, not given an empty list. «Desactivar» stays disabled (the screen's default) until issue 220.
+  // The groups feed the invite sheet's chips; while they are read or failed the sheet is told so, not given an empty list.
   const groups: InviteGroups = loaded === undefined ? 'loading' : retried !== undefined && retried.base === answer ? retried.groups : loaded === 'error' ? 'error' : loaded.groups;
   // Only the groups: the coaches, the athletes and the assignments are not read again.
   const retryGroups = () => {
@@ -173,5 +173,32 @@ export function CoachesSection({
     );
   };
 
-  return <CoachesScreen width={width} schoolName={schoolName} view={view} groups={groups} onNavigate={onNavigate} onRetryGroups={retryGroups} inviteAvailable={connection !== 'offline'} onInvite={(invitation) => invitations.invite(schoolId, invitation)} onDeactivate={onDeactivate} />;
+  // Only reached once the ConfirmSheet is confirmed. The coach keeps their records: the repository stops only new recordings.
+  const deactivate = (id: string) => {
+    setDeactivateFailed(false);
+    repository.deactivateCoach(schoolId, id).then(
+      () => setReads((n) => n + 1),
+      (error: unknown) => {
+        // Only the kind: the message can carry stored data.
+        console.warn('[school-console] The coach could not be deactivated', kindOf(error));
+        setDeactivateFailed(true);
+      },
+    );
+  };
+
+  return (
+    <CoachesScreen
+      width={width}
+      schoolName={schoolName}
+      view={view}
+      groups={groups}
+      onNavigate={onNavigate}
+      onRetryGroups={retryGroups}
+      inviteAvailable={connection !== 'offline'}
+      onInvite={(invitation) => invitations.invite(schoolId, invitation)}
+      deactivateAvailable
+      deactivateFailed={deactivateFailed}
+      onDeactivate={deactivate}
+    />
+  );
 }

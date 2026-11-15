@@ -149,9 +149,11 @@
     },
     "status": {
       "active": "Activo",
-      "pending": "Invitación enviada"
+      "pending": "Invitación enviada",
+      "deactivated": "Desactivado"
     },
     "deactivate_unavailable": "Aún no disponible",
+    "deactivate_failed": "No pudimos desactivar al entrenador. Inténtalo de nuevo.",
     "deactivate_confirm": {
       "title": "¿Desactivar a {{name}}?",
       "message": "{{name}} dejará de ser entrenador activo de la escuela. Sus registros anteriores conservan su autoría.",

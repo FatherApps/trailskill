@@ -91,7 +91,6 @@ const tree = (repository: CoachRepository, extra: Extra = {}) => (
         schoolName="Escuela Test"
         onNavigate={jest.fn()}
         invitations={createInMemoryCoachInvitationRepository()}
-        onDeactivate={jest.fn()}
         schoolId="school-a"
         repository={repository}
         structure={structure}
@@ -207,7 +206,7 @@ describe('CoachesSection', () => {
   it('shows the error with a retry that loads again', async () => {
     const real = coachRepository();
     const listCoaches = jest.fn().mockRejectedValueOnce(new Error('boom')).mockImplementation(real.listCoaches);
-    await show({ listCoaches });
+    await show({ ...real, listCoaches });
 
     expect(await screen.findByText('No pudimos cargar los entrenadores')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
@@ -220,12 +219,12 @@ describe('CoachesSection', () => {
     const real = coachRepository();
     const listCoaches = jest.fn().mockImplementationOnce(real.listCoaches).mockRejectedValueOnce(new Error('boom')).mockImplementation(real.listCoaches);
     jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const view = await show({ listCoaches });
+    const view = await show({ ...real, listCoaches });
     await rows();
     await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
 
-    await view.rerender(tree({ listCoaches }, { refreshKey: 1 }));
+    await view.rerender(tree({ ...real, listCoaches }, { refreshKey: 1 }));
     expect(await screen.findByText('No pudimos cargar los grupos.')).toBeOnTheScreen();
     await fireEvent.press(within(screen.getByTestId('side-sheet')).getByRole('button', { name: 'Intentar de nuevo' }));
 
@@ -241,10 +240,10 @@ describe('CoachesSection', () => {
     const listGroups = jest.fn().mockImplementationOnce(structure.listGroups).mockRejectedValueOnce(new Error('boom')).mockImplementation(structure.listGroups);
     const props = { structure: { ...structure, listGroups, listCoachAssignments }, athletes: { ...athletes, listAthleteGroups } };
     jest.spyOn(console, 'warn').mockImplementation(() => {});
-    const view = await show({ listCoaches }, props);
+    const view = await show({ ...real, listCoaches }, props);
     await rows();
     await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
-    await view.rerender(tree({ listCoaches }, { ...props, refreshKey: 1 }));
+    await view.rerender(tree({ ...real, listCoaches }, { ...props, refreshKey: 1 }));
     expect(await screen.findByText('No pudimos cargar los grupos.')).toBeOnTheScreen();
     const before = [listCoaches, listAthleteGroups, listCoachAssignments].map((read) => read.mock.calls.length);
 
@@ -364,7 +363,7 @@ describe('CoachesSection', () => {
   it('reads the group assignments together with the rest, not after them', async () => {
     const listCoachAssignments = jest.spyOn(structure, 'listCoachAssignments');
     // Never settles: whatever is called now was started in parallel with it.
-    await show({ listCoaches: () => new Promise(() => {}) });
+    await show({ ...coachRepository(), listCoaches: () => new Promise(() => {}) });
 
     await waitFor(() => expect(listCoachAssignments).toHaveBeenCalledWith('school-a', expect.any(Array)));
   });
@@ -453,10 +452,69 @@ describe('CoachesSection', () => {
     expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
   });
 
-  it('keeps Desactivar disabled until issue 220', async () => {
-    await show(coachRepository());
-    await rows();
+  describe('deactivating', () => {
+    const confirm = async () => {
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Desactivar' })[0]!);
+      await fireEvent.press(screen.getByRole('button', { name: 'Desactivar entrenador' }));
+    };
 
-    expect(screen.getAllByRole('button', { name: 'Desactivar · Aún no disponible' })).toHaveLength(3);
+    it('offers Desactivar as available on every card, not as Aún no disponible', async () => {
+      await show(coachRepository());
+      await rows();
+
+      expect(screen.getAllByRole('button', { name: 'Desactivar' })).toHaveLength(3);
+      expect(screen.queryByText(/Aún no disponible/)).toBeNull();
+    });
+
+    it('deactivates the coach in the repository on confirm and then shows Desactivado without its button, keeping the list on screen', async () => {
+      const repository = coachRepository();
+      const deactivate = jest.spyOn(repository, 'deactivateCoach');
+      await show(repository);
+      await rows();
+
+      await confirm();
+
+      await waitFor(() => expect(screen.getByLabelText('Desactivado')).toBeOnTheScreen());
+      expect(deactivate).toHaveBeenCalledWith('school-a', 'coach-1');
+      expect(screen.getAllByLabelText('Activo')).toHaveLength(2);
+      expect(screen.getAllByRole('button', { name: 'Desactivar' })).toHaveLength(2);
+      expect(screen.getAllByTestId('coach-card', { includeHiddenElements: true })).toHaveLength(3);
+      expect(screen.queryByText(/No pudimos desactivar/)).toBeNull();
+    });
+
+    it('changes nothing when the confirmation is cancelled', async () => {
+      const repository = coachRepository();
+      const deactivate = jest.spyOn(repository, 'deactivateCoach');
+      await show(repository);
+      await rows();
+
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Desactivar' })[0]!);
+      await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+      expect(deactivate).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText('Desactivado')).toBeNull();
+      expect(screen.getAllByRole('button', { name: 'Desactivar' })).toHaveLength(3);
+    });
+
+    it('says it could not deactivate when the write is rejected, leaves the coach active, and clears the notice on the next attempt', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const repository = coachRepository();
+      const deactivate = jest.spyOn(repository, 'deactivateCoach').mockRejectedValueOnce(new Error('boom'));
+      await show(repository);
+      await rows();
+
+      await confirm();
+
+      expect(await screen.findByText('No pudimos desactivar al entrenador. Inténtalo de nuevo.')).toBeOnTheScreen();
+      expect(warn).toHaveBeenCalledWith('[school-console] The coach could not be deactivated', 'Error');
+      expect(screen.queryByLabelText('Desactivado')).toBeNull();
+      expect(screen.getAllByLabelText('Activo')).toHaveLength(3);
+
+      await confirm();
+
+      await waitFor(() => expect(screen.getByLabelText('Desactivado')).toBeOnTheScreen());
+      expect(deactivate).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(/No pudimos desactivar/)).toBeNull();
+    });
   });
 });
