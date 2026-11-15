@@ -101,19 +101,21 @@ select is(
   (select deactivated_at from public.school_memberships where id = '96300000-0000-4000-8000-0000000000d5'),
   now(), 'the platform admin deactivation is stamped by the server');
 
--- The rejection of new measurements.
+-- The rejection of new measurements. Since #1031 the permissive insert policy fails
+-- first (a deactivated coach no longer counts as staff), so the message names no
+-- policy; the code is the same 42501 the device treats as a permanent rejection.
 set local request.jwt.claims = '{"sub": "96300000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
 select throws_ok(
   $$insert into public.measurements (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
     values ('96300000-0000-4000-8000-0000000000f2', '96300000-0000-4000-8000-0000000000a3', '96300000-0000-4000-8000-0000000000b1', 'repetition',
       '96300000-0000-4000-8000-0000000000e1', 3200, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-c', '2026-11-14 08:00:00+00')$$,
-  '42501', 'new row violates row-level security policy "measurements_insert_active_coach" for table "measurements"',
+  '42501', null,
   'a deactivated coach cannot record a named measurement in A');
 select throws_ok(
   $$insert into public.measurements (id, created_by, school_id, kind, series_id, arrival_position, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
     values ('96300000-0000-4000-8000-0000000000f3', '96300000-0000-4000-8000-0000000000a3', '96300000-0000-4000-8000-0000000000b1', 'arrival',
       '96300000-0000-4000-8000-0000000000c1', 1, 3300, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-c', '2026-11-14 08:01:00+00')$$,
-  '42501', 'new row violates row-level security policy "measurements_insert_active_coach" for table "measurements"',
+  '42501', null,
   'a deactivated coach cannot record an unassigned arrival in A');
 select lives_ok(
   $$insert into public.measurements (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
