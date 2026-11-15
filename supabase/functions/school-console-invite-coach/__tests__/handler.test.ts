@@ -1,3 +1,4 @@
+import { createInvitationStore, type Db } from '../adapters.ts';
 import { createHandler } from '../handler.ts';
 import { createInviteCoach } from '../service.ts';
 import { createTestSender } from '../testSender.ts';
@@ -49,6 +50,17 @@ describe('school-console-invite-coach handler', () => {
   it.each([['malformed JSON', '{nope'], ['a JSON array', '[]'], ['JSON null', 'null']])('answers 400 for %s', async (_name, body) => {
     const response = await setup().post(body);
     expect(response.status).toBe(400);
+  });
+
+  it('answers 400, not 500, when the database email check refuses what the handler normalized, and delivers nothing', async () => {
+    // 'İ' lowercases differently in JavaScript than in the database, so `email = lower(btrim(email))` can refuse it (23514).
+    const db: Db = { insert: async () => ({ data: null, error: { code: '23514' } }), selectOne: async () => ({ data: null, error: null }) };
+    const sender = createTestSender();
+    const handle = createHandler({ authenticate: async () => 'user-from-jwt', service: { inviteCoach: createInviteCoach({ store: createInvitationStore(db), sender }) } });
+    const response = await handle(new Request('http://example.test/x', { method: 'POST', body: JSON.stringify({ schoolId: SCHOOL, email: 'COACİ@example.test' }) }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'bad_request' } });
+    expect(sender.delivered).toEqual([]);
   });
 
   it('answers 405 to anything but POST', async () => {

@@ -32,6 +32,11 @@ describe('createInvitationStore', () => {
     expect(await createInvitationStore(db).create(SCHOOL, EMAIL)).toEqual({ ok: false, error: { code: 'not_authorized' } });
   });
 
+  it('maps 23514 (the email check refusing what the handler normalized) to bad_request', async () => {
+    const { db } = fakeDb({ insert: { data: null, error: { code: '23514' } } });
+    expect(await createInvitationStore(db).create(SCHOOL, EMAIL)).toEqual({ ok: false, error: { code: 'bad_request' } });
+  });
+
   it('maps 23505 to the existing pending invitation of the school and email', async () => {
     const { db, calls } = fakeDb({ insert: { data: null, error: { code: '23505' } }, selectOne: { data: { id: 'i0' }, error: null } });
     expect(await createInvitationStore(db).create(SCHOOL, EMAIL)).toEqual({ ok: true, value: { id: 'i0', schoolId: SCHOOL, email: EMAIL } });

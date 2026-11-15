@@ -36,6 +36,7 @@ const email = (value: unknown) => {
  */
 export function createHandler({ authenticate, service }: HandlerDeps) {
   return async function handle(request: Request): Promise<Response> {
+    // No CORS/OPTIONS on purpose: only the native app calls this function (supabase-js functions.invoke), never a browser origin.
     if (request.method !== 'POST') return respond(405, { ok: false, error: { code: 'bad_request' } });
     if (!(await authenticate(request))) return refuse({ code: 'unauthenticated' });
     let body: unknown;

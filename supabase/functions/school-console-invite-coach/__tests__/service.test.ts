@@ -1,5 +1,5 @@
 import { createInviteCoach } from '../service.ts';
-import { createTestSender } from '../testSender.ts';
+import { createTestSender, TEST_SENDER_LIMIT } from '../testSender.ts';
 import { createMemoryStore } from './fakes.ts';
 
 const SCHOOL = '11111111-1111-4111-8111-111111111111';
@@ -11,6 +11,16 @@ describe('createTestSender', () => {
     const sender = createTestSender();
     await sender.deliver({ id: 'i1', schoolId: SCHOOL, email: EMAIL });
     expect(sender.delivered).toEqual([{ id: 'i1', schoolId: SCHOOL, email: EMAIL }]);
+  });
+
+  it('keeps only the last TEST_SENDER_LIMIT deliveries, in the same array', async () => {
+    const sender = createTestSender();
+    const delivered = sender.delivered;
+    for (let i = 0; i <= TEST_SENDER_LIMIT; i++) await sender.deliver({ id: `i${i}`, schoolId: SCHOOL, email: EMAIL });
+    expect(sender.delivered).toBe(delivered);
+    expect(delivered).toHaveLength(TEST_SENDER_LIMIT);
+    expect(delivered[0].id).toBe('i1');
+    expect(delivered[delivered.length - 1].id).toBe(`i${TEST_SENDER_LIMIT}`);
   });
 });
 
