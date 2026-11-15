@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// The streams must say what the select policies say (issue #1031): a coach deactivated in a school gets no row of
-// that school on the device. The own membership row still syncs.
+// The streams say what the select policies say (#1031): a deactivated coach gets no row of that school; the own membership still syncs.
 const config = readFileSync(
   join(__dirname, "../../../../powersync/sync-config.yaml"),
   "utf8",
@@ -39,8 +38,7 @@ test("school_console_staff filters the coach assignments and keeps the own membe
   );
 });
 
-// A multi-school athlete: the coach reads the athlete's school, group and mark rows only for the schools where the
-// coach is active (athlete_schools_select, athlete_groups_select, training_plan_fulfillments_select).
+// A multi-school athlete: a coach gets its school, group and mark rows only in the schools where the coach is active.
 test("a coach gets the school, group and mark rows of an athlete only in their active schools", () => {
   const queriesOf = (stream: string) =>
     [

@@ -1,12 +1,6 @@
--- A deactivated coach loses all reading of the school (issues #1031, #1016):
--- the coach with school_memberships.deactivated_at set in school S reads no row
--- of S, and still reads the schools where they are active. Everyone else
--- (active coach, admins, guardian, platform admin) reads exactly what they did
--- before. Rows are counted per school and per role with pg_temp.rows_of.
--- Athlete W2 is in A and B and C coaches W2 in B only (the case of a multi-school athlete).
--- Users: admin A, admin B, coach C (of A and B), coach K (of A), guardian G,
--- platform admin P. Athletes: X (A), Y (A, group g1), Z (B, group g2), W (A and B).
--- All data is synthetic.
+-- #1031, #1016: a coach deactivated in school S reads no row of S and still reads the schools where active; others read the same.
+-- Users: admins A and B, coach C (of A and B), coach K (of A), guardian G, platform admin P. Athletes: X, Y (g1), W in A;
+-- Z (g2) in B; W and W2 in both (C coaches W in A and W2 in B). Synthetic data.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(31);
@@ -66,8 +60,7 @@ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_
 insert into public.coach_group_assignments (coach_user_id, group_id) values
   ('10310000-0000-4000-8000-0000000000a3', '10310000-0000-4000-8000-000000000091'),
   ('10310000-0000-4000-8000-0000000000a4', '10310000-0000-4000-8000-000000000091');
--- s1: C's series in A. f1-f3: C's marks of X, Y and W in A; f4: C's mark of Z in B;
--- f5: C's arrival in s1 not yet given to a swimmer; f6: B's mark of W.
+-- s1: C's series in A. f1-f3: C's marks of X, Y, W in A; f4: of Z in B; f5: unassigned arrival of s1; f6: B's mark of W.
 insert into public.timing_series (id, created_by, school_id, stroke, distance, pool, session_type, device_id) values
   ('10310000-0000-4000-8000-0000000000a9', '10310000-0000-4000-8000-0000000000a3', '10310000-0000-4000-8000-0000000000b1', 'FR', '50m', 'SCM', 'training', 'dev-c');
 insert into public.measurements
@@ -110,10 +103,8 @@ set local request.jwt.claims = '{"sub": "10310000-0000-4000-8000-0000000000a2", 
 select public.approve_result_sharing((select id from public.school_result_sharing where school_id = '10310000-0000-4000-8000-0000000000b2' and target_school_id = '10310000-0000-4000-8000-0000000000b1'));
 reset role;
 
--- The school of the rows of the tables that have no school_id, filled here as the
--- owner so the helper never derives a school through another protected table.
--- The athlete row of W2 is counted in B: it belongs to the athlete, not to a school,
--- and C still coaches W2 in B; W2's rows of A are the school-scoped ones below.
+-- School of the rows without school_id, filled as the owner (never derived through protected tables).
+-- W2's athlete row counts in B: it is athlete-level and C still coaches W2 in B.
 create temp table fx (tbl text, id uuid, school uuid);
 insert into fx values
   ('athletes', '10310000-0000-4000-8000-0000000000e1', '10310000-0000-4000-8000-0000000000b1'),
@@ -247,12 +238,7 @@ select is(
   (select count(*)::int from public.measurements where school_id = '10310000-0000-4000-8000-0000000000b1' and created_by = '10310000-0000-4000-8000-0000000000a3'),
   0, 'C reads none of them');
 
--- 6. The sync streams. These are the with: subqueries and the coach queries of
--- powersync/sync-config.yaml (member_school_ids, member_group_ids,
--- coach_direct_athlete_ids, coach_group_athlete_ids, coach_direct_group_ids,
--- coach_direct_category_ids, own_series_ids; the athlete_schools, athlete_groups and
--- training_plan_fulfillments queries of C's athletes), with auth.user_id() replaced
--- by C's id and the CTE names by their subqueries.
+-- 6. The sync streams: the with: subqueries and coach queries of powersync/sync-config.yaml, with C's id and the CTEs inlined.
 reset role;
 select set_eq(
   $$ select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null $$,

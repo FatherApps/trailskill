@@ -1,25 +1,10 @@
 -- Module: school-console. Issues #1031 and #1016.
--- A coach whose membership has deactivated_at set (issue #963) in school S reads
--- no row of S: the membership stops counting for every select policy and helper
--- function that reads school_memberships, coach_athlete_assignments or
--- coach_group_assignments. It is per school: a coach deactivated in A and active
--- in B still reads B. The coach's own membership row stays readable (the app shows
--- that the account is deactivated), and nothing is deleted or reassigned: the
--- author of earlier measurements (created_by) does not change. Admins, guardians,
--- active coaches and platform admins read exactly what they read before.
--- powersync/sync-config.yaml carries the same filter for the device.
---
--- To revert: recreate app.staff_school_ids, app.coach_athlete_ids,
--- app.coach_has_athlete_in_school and app.can_assign_training_plan, and the policies
--- below, from their earlier definitions (20261025205000_timing_school_id,
--- 20261024210100_school-console_visibility_functions,
--- 20261026010000_school-console_coach_assignment_school,
--- 20261025190000_training-plans_assignment_scope_and_withdrawal and the policy
--- migrations of those tables) without the deactivated_at filter, and drop the
--- filter from the streams in powersync/sync-config.yaml.
+-- A coach with deactivated_at set in school S reads no row of S, online or in the sync; per school, so a coach
+-- deactivated in A and active in B still reads B. The coach's own membership row stays readable, nothing is
+-- deleted and created_by does not change. Revert: recreate the functions and policies below from their earlier
+-- migrations without the deactivated_at filter, and drop the filter from the streams in powersync/sync-config.yaml.
 
--- Only a coach membership can have deactivated_at (check on school_memberships), so
--- this is the same set app.staff_school_ids() returned, minus deactivated coaches.
+-- Only coach memberships can have deactivated_at, so this is the old set minus deactivated coaches.
 create or replace function app.staff_school_ids()
 returns setof uuid
 language sql
@@ -34,9 +19,7 @@ $$;
 revoke execute on function app.staff_school_ids() from public, anon;
 grant execute on function app.staff_school_ids() to authenticated;
 
--- The athletes of the coach in the schools where the coach is active: a
--- direct assignment counts in its own school, a group assignment in the school of
--- the group.
+-- A direct assignment counts in its own school, a group assignment in the school of the group.
 create or replace function app.coach_athlete_ids()
 returns setof uuid
 language sql
@@ -113,7 +96,6 @@ $$;
 revoke execute on function app.can_assign_training_plan(uuid, text, uuid, uuid) from public, anon;
 grant execute on function app.can_assign_training_plan(uuid, text, uuid, uuid) to authenticated;
 
--- Select policies of the school tables.
 alter policy schools_select on public.schools
   using ((select app.is_platform_admin()) or id in (select app.staff_school_ids()));
 alter policy categories_select on public.categories
@@ -121,7 +103,6 @@ alter policy categories_select on public.categories
 alter policy training_groups_select on public.training_groups
   using ((select app.is_platform_admin()) or school_id in (select app.staff_school_ids()));
 
--- Training plans, their versions and blocks.
 alter policy training_plans_select on public.training_plans
   using ((select app.is_platform_admin()) or school_id in (select app.staff_school_ids()));
 alter policy training_plans_insert on public.training_plans
@@ -231,8 +212,7 @@ alter policy coach_group_assignments_select on public.coach_group_assignments
     )
   );
 
--- The series and marks an author reads: still the author's own, but only in a
--- school where the author is active. The guardian branch does not change.
+-- An author reads their own series and marks only in a school where they are active.
 alter policy timing_series_select on public.timing_series
   using (
     (select app.is_platform_admin())
@@ -260,10 +240,8 @@ alter policy measurements_select on public.measurements
     )
   );
 
--- An athlete can belong to several schools. The coach branch of these three policies
--- reads a row only in a school where the coach is active; the guardian and admin
--- branches, and the platform admin, read what they read before
--- (visible_athlete_ids() is coach_athlete_ids() plus managed plus admin).
+-- An athlete can belong to several schools: only the coach branch (visible_athlete_ids() minus managed and admin)
+-- is bound to the schools where the coach is active.
 alter policy athlete_schools_select on public.athlete_schools
   using (
     (select app.is_platform_admin())
@@ -307,14 +285,9 @@ alter policy training_plan_fulfillments_select on public.training_plan_fulfillme
   );
 
 -- Left unchanged on purpose:
--- measurements_insert_active_coach: restrictive policy of #963, keeps the 42501 of the device.
--- measurements_insert, measurements_update: already go through app.coach_has_athlete_in_school.
--- training_plan_fulfillments_insert: already goes through app.can_assign_training_plan and the athlete functions fixed above.
--- timing_series_insert: already checks the membership through app.staff_school_ids.
--- public.other_school_results: its coach branch goes through app.coach_has_athlete_in_school.
--- coach_group_assignments_insert, coach_group_assignments_update: writes of the school admin.
--- school_memberships_select: the coach keeps reading their own row; an admin keeps reading the school's.
--- app.admin_school_ids, app.school_admin_adult_ids: only school_admin rows, and an admin is never deactivated.
--- measurement_conflicts_select: depends on the measurements policies above.
--- athletes, athlete_managers, authorization_status: they belong to the athlete, not to a school, so they stay on
--- visible_athlete_ids(); a deactivated coach still reads them only for an athlete they coach in a school where they are active.
+-- measurements_insert_active_coach (restrictive, #963, 42501); measurements_insert/update,
+--   training_plan_fulfillments_insert, timing_series_insert, public.other_school_results (already go through the fixed functions).
+-- coach_group_assignments_insert/update: admin writes. school_memberships_select: the own row stays readable.
+-- app.admin_school_ids, app.school_admin_adult_ids: admins are never deactivated. measurement_conflicts_select: follows measurements.
+-- athletes, athlete_managers, authorization_status: athlete-level, no school; still on visible_athlete_ids(), so a
+--   deactivated coach reads them only for athletes they coach in a school where they are active.
