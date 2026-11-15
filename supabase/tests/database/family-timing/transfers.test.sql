@@ -1,7 +1,7 @@
 -- A guardian sends a time to another swimmer's family with the swimmer's share code (issue #973). All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(46);
+select plan(51);
 
 -- a1 measures; a2 manages swimmer b2 (the receiving family); a3 is someone else; a4 and a5 try codes until they are stopped.
 insert into auth.users (id, email) values
@@ -84,9 +84,13 @@ select is((select athlete_id from public.family_timing_measurements where id = '
   '97300000-0000-4000-8000-0000000000b2'::uuid, 'the time is now for their swimmer');
 select is((select millis from public.family_timing_measurements where id = '97300000-0000-4000-8000-0000000000c3'), 36000,
   'the captured time is the same');
+select is((select count(*)::int from public.family_timing_transfers where id = (select id from sent)), 1,
+  'the receiving family still reads the accepted request');
 set local request.jwt.claims = '{"sub": "97300000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select is((select count(*)::int from public.family_timing_measurements where id = '97300000-0000-4000-8000-0000000000c3'), 0,
   'the sender no longer has it: nobody sees it twice');
+select is((select count(*)::int from public.family_timing_transfers where id = (select id from sent)), 0,
+  'the sender no longer reads the accepted request either (issue #1014)');
 select throws_ok(format('select public.withdraw_family_time(%L)', (select id from sent)), 'P0001', 'request_closed',
   'an answered request cannot be withdrawn');
 reset role;
@@ -103,6 +107,8 @@ select lives_ok(format('select public.reject_family_time(%L)',
 set local request.jwt.claims = '{"sub": "97300000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
 select is((select owner_user_id from public.family_timing_measurements where id = '97300000-0000-4000-8000-0000000000c1'),
   '97300000-0000-4000-8000-0000000000a1'::uuid, 'a rejected time stays the sender''s');
+select is((select status from public.family_timing_transfers where measurement_id = '97300000-0000-4000-8000-0000000000c1'), 'rejected',
+  'the sender still reads a rejected request');
 select lives_ok($$ update public.family_timing_measurements set athlete_id = '97300000-0000-4000-8000-0000000000b1'
   where id = '97300000-0000-4000-8000-0000000000c1' $$, 'and can be given to the sender''s swimmer again');
 
@@ -110,6 +116,8 @@ select lives_ok($$ update public.family_timing_measurements set athlete_id = '97
 select public.send_family_time('97300000-0000-4000-8000-0000000000c2', 'TS-BBBBBB');
 select lives_ok(format('select public.withdraw_family_time(%L)',
   (select id from public.family_timing_transfers where measurement_id = '97300000-0000-4000-8000-0000000000c2')), 'the sender withdraws');
+select is((select status from public.family_timing_transfers where measurement_id = '97300000-0000-4000-8000-0000000000c2'), 'withdrawn',
+  'the sender still reads a withdrawn request');
 select public.send_family_time('97300000-0000-4000-8000-0000000000c2', 'TS-BBBBBB');
 reset role;
 update public.family_timing_transfers set expires_at = now() - interval '1 second'
@@ -123,6 +131,10 @@ reset role;
 select is(app.expire_family_timing_transfers(), 1, 'the daily job closes the request nobody answered');
 select is((select owner_user_id from public.family_timing_measurements where id = '97300000-0000-4000-8000-0000000000c2'),
   '97300000-0000-4000-8000-0000000000a1'::uuid, 'an expired time stays the sender''s');
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "97300000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
+select is((select count(*)::int from public.family_timing_transfers), 0, 'anyone else reads no request, whatever its status');
+reset role;
 
 -- Every failed code counts, even through send_family_time (issue #1013): 5 in 15 minutes stop the sixth try.
 set local role authenticated;
