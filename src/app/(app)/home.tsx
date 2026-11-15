@@ -1,7 +1,9 @@
 import { useRouter } from 'expo-router';
+import { useWindowDimensions } from 'react-native';
 
 import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
+import { useTheme } from '../../core/theme';
 import { createPowerSyncManagedAthleteRepository, createPowerSyncOwnAuthorizationEvidence, providerAccountOf, useOwnLandingEvidence } from '../../modules/accounts';
 import {
   createPowerSyncAthleteSchoolRepository,
@@ -26,6 +28,10 @@ export default function HomeRoute() {
   const router = useRouter();
   const { session } = useSession();
   const summary = useGlobalSyncSummary();
+  // On a phone "Mis tiempos" and "Ajustes" are on the bar (#999), so Inicio does not repeat them; a tablet has no bar and keeps them here.
+  const { width } = useWindowDimensions();
+  const { breakpoint } = useTheme();
+  const onBar = width < breakpoint['bp-medium'];
   const lastSyncedAt = summary.lastSyncedAt?.getTime();
   // Managed athletes arrive with a sync, so the lookup runs again when one completes.
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, session?.user.id, lastSyncedAt);
@@ -46,8 +52,8 @@ export default function HomeRoute() {
       syncState={recordSyncState({ pending: summary.pending > 0, failed: summary.failed > 0, uploading: summary.uploading })}
       synced={summary.lastSyncedAt != null}
       onOpenToday={(athleteId) => router.push(`/today?athlete=${athleteId}`)}
-      onOpenSettings={() => router.push('/settings')}
-      onOpenStopwatch={() => router.push('/family-timing')}
+      onOpenSettings={onBar ? undefined : () => router.push('/settings')}
+      onOpenStopwatch={onBar ? undefined : () => router.push('/family-timing')}
     />
   );
 }

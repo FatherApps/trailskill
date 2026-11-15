@@ -49,6 +49,7 @@ import { lapsFor } from '../domain/laps';
 import { localDay } from '../domain/localDay';
 import { officialValue, type OfficialImport } from '../domain/officialValue';
 import { parseTimeEntry } from '../domain/timeEntry';
+import { setFamilyTimingAtList } from './familyTimingAtList';
 import {
   FamilyTimingScreen,
   type FamilyCard,
@@ -206,6 +207,11 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const key = `${selectedId}:${reload}`;
   const loaded = useMemo<Loaded>(() => (read.status !== 'loading' && read.key === key ? read : { status: 'loading' }), [read, key]);
   const [step, setStep] = useState<Step>({ kind: 'list' });
+  // The phone bar shows only on the list: leaving a measurement, an edit or a send from it would lose it.
+  useEffect(() => {
+    setFamilyTimingAtList(step.kind === 'list');
+  }, [step.kind]);
+  useEffect(() => () => setFamilyTimingAtList(true), []);
   const [filters, setFilters] = useState<Filters>(noFilters);
   const [setup, setSetup] = useState<Setup>(initialSetup);
   const [stopwatch, setStopwatch] = useState<FamilyStopwatch>(idleFamilyStopwatch);

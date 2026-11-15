@@ -222,7 +222,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
 
 // Presentational: the caller supplies the results (newest first) and each one's real sync state.
 export function HistoryList({ results, scrollEnabled = true, header, footer, inset = 0 }: HistoryListProps) {
-  const { colors, radius } = useTheme();
+  const { colors, radius, space } = useTheme();
 
   if (results.length === 0 && header === undefined && footer === undefined) return null;
 
@@ -237,6 +237,8 @@ export function HistoryList({ results, scrollEnabled = true, header, footer, ins
         keyExtractor={(result) => result.id}
         ListHeaderComponent={header === undefined ? undefined : <>{header}</>}
         ListFooterComponent={footer === undefined ? undefined : <>{footer}</>}
+        // The floating phone bar rests on the bottom edge: the last row scrolls above it.
+        contentContainerStyle={scrollEnabled ? { paddingBottom: space[12] * 2 } : undefined}
         // The card is drawn row by row, so the header and footer sit outside it.
         renderItem={({ item, index }) => (
           <View

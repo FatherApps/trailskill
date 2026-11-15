@@ -30,7 +30,7 @@ import {
   type RegistrationStep,
 } from '../../modules/accounts';
 import { athleteProfileHref, createPowerSyncAthleteRepository, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
-import { createPowerSyncFamilyMeasurementRepository, useMoveLocalFamilyTimes } from '../../modules/family-timing';
+import { createPowerSyncFamilyMeasurementRepository, useFamilyTimingAtList, useMoveLocalFamilyTimes } from '../../modules/family-timing';
 import { createPowerSyncStaffSchoolRepository, useStaffSchool } from '../../modules/school-console';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
@@ -47,25 +47,29 @@ const coachInvitations = createSupabaseCoachInvitationAcceptance();
 const familyMeasurements = createPowerSyncFamilyMeasurementRepository();
 const invitation = { pending: createSecureStorePendingInvitationRepository(), invitations: createSupabaseInvitationRepository() };
 
-type Destination = 'home' | 'history' | 'marks' | 'athletes';
+type Destination = 'home' | 'history' | 'marks' | 'my_times' | 'athletes' | 'settings';
 
 // Only the destinations that have a screen, in the order of the design. "Entreno" is reached from "Lo próximo" on Inicio.
 const home: NavBarItem & { id: Destination } = { id: 'home', label: t('home.nav.home'), icon: 'home' };
 const history: NavBarItem & { id: Destination } = { id: 'history', label: t('home.nav.history'), icon: 'timeline' };
 const marks: NavBarItem & { id: Destination } = { id: 'marks', label: t('home.nav.marks'), icon: 'emoji_events' };
 const athletes: NavBarItem & { id: Destination } = { id: 'athletes', label: t('home.nav.athletes'), icon: 'group' };
-const familyItems = [home, history, marks, athletes];
+// "Mis tiempos" and "Ajustes" were buttons on Inicio; the bar has them too, asked by the product owner in #999.
+const myTimes: NavBarItem & { id: Destination } = { id: 'my_times', label: t('home.nav.my_times'), icon: 'timer' };
+const settings: NavBarItem & { id: Destination } = { id: 'settings', label: t('home.nav.settings'), icon: 'settings' };
+const familyItems = [home, history, marks, myTimes, athletes, settings];
 // Until the account screen (#778) takes sign-out and authorizations out of "Mis deportistas", the adult keeps Deportistas to reach them.
 const adultItems = familyItems;
 
-// Route segments of the four destinations: "/home", "/marks", "/athletes" and "/athletes/[id]" (the profile). Every other route,
+// Route segments of the destinations: "/home", "/marks", "/family-timing", "/settings", "/athletes" and "/athletes/[id]" (the profile). Every other route,
 // the registration flows included, has no tab and no bar; a static route added under /athletes is not a profile.
 function destinationOf(segments: string[]): Destination | '' {
   const [, first, second, ...rest] = segments;
   if (rest.length > 0) return '';
   if (first === 'athletes') return second === undefined ? 'athletes' : second === '[id]' ? 'history' : '';
   if (second !== undefined) return '';
-  return first === 'home' || first === 'marks' ? first : '';
+  if (first === 'family-timing') return 'my_times';
+  return first === 'home' || first === 'marks' || first === 'settings' ? first : '';
 }
 
 // The floating phone bar of guardians and adult athletes. School staff and tablets use other navigation. Only the width
@@ -75,7 +79,9 @@ function PhoneNavBar() {
   const { width } = useWindowDimensions();
   const { breakpoint } = useTheme();
   const destination = destinationOf(segments);
-  if (width >= breakpoint['bp-medium'] || !destination) return null;
+  // In "Mis tiempos" the bar shows only on its list, never while a time is measured, edited or sent.
+  const familyTimingAtList = useFamilyTimingAtList();
+  if (width >= breakpoint['bp-medium'] || !destination || (destination === 'my_times' && !familyTimingAtList)) return null;
   return <PhoneNavBarContent destination={destination} />;
 }
 
@@ -102,9 +108,11 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
     athletes: '/athletes',
     home: '/home',
     marks: '/marks',
+    my_times: '/family-timing',
+    settings: '/settings',
     history: only ? athleteProfileHref(only.id, [only.firstName, only.lastName].filter(Boolean).join(' ')) : '/athletes',
   };
-  return <NavBar items={adult ? adultItems : familyItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
+  return <NavBar labelPlacement="below" items={adult ? adultItems : familyItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
 }
 
 // A membership, a managed athlete or an own authorization already on the device: the proof that works with no signal.
@@ -203,7 +211,10 @@ function AppShell() {
   return (
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }} />
-      <PhoneNavBar />
+      {/* The bar floats over the screen: it takes no band of its own, and the content shows around it. */}
+      <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
+        <PhoneNavBar />
+      </View>
       {/* The code already checked out (the session is open) and the account had a profile: tell the person instead of leaving them still. */}
       {offer && 'existing' in offer && <ExistingAccountSheet email={offer.email} signOut={signOut} onClose={offer.dismiss} />}
     </View>
