@@ -24,7 +24,12 @@
       "competition_help": "Opcional, por ejemplo el nombre del festival.",
       "start": "Ir al cronómetro",
       "pool_required": "elige la piscina",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "mode": "Modo",
+      "mode_individual": "Tiempo individual",
+      "mode_series": "Tiempo por serie",
+      "swimmers": "Nadadores en la serie",
+      "stroke_series": "Estilo (puedes cambiarlo por nadador)"
     },
     "session_type": {
       "training": "Entrenamiento",
@@ -95,6 +100,25 @@
       "save": "Guardar oficial",
       "clear": "Quitar tiempo oficial",
       "cancel": "Cancelar"
+    },
+    "unassigned": "Sin asignar",
+    "series": {
+      "title": "Tiempo por serie",
+      "progress": "{{count}} de {{total}} llegadas",
+      "arrival": "Llegada",
+      "undo": "Deshacer última",
+      "done": "Llegaron todos los nadadores.",
+      "assign": "Asignar nadadores",
+      "arrival_row": "{{position}}.º · {{time}}",
+      "buttons": "{{start}} da la salida y marca cada llegada",
+      "assign_title": "¿Quién nadó cada llegada?",
+      "assign_info": "Elige el nadador y el estilo de cada llegada. Las que dejes «Sin asignar» quedan guardadas para asignarlas después.",
+      "lane_title": "Llegada {{position}}",
+      "lane_athlete": "Nadador de la llegada {{position}}",
+      "lane_stroke": "Estilo de la llegada {{position}}",
+      "save": "Guardar tiempos",
+      "save_error": "No pudimos guardar los tiempos. Inténtalo de nuevo.",
+      "back_to_series": "Volver al cronómetro"
     }
   }
 }

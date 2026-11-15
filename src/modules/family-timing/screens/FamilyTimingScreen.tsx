@@ -14,12 +14,14 @@ import {
   StateView,
   Tag,
   TextField,
+  type ChipRowOption,
   type InitialsDotProps,
   type SegmentedOption,
 } from '../../../core/ui';
 import '../i18n';
 
-export type FamilyAthlete = { id: string; name: string } & InitialsDotProps;
+// A chip of the list: a swimmer (with their dot), or "Sin asignar" (no dot).
+export type FamilyAthlete = { id: string; name: string; dot?: InitialsDotProps };
 
 export type FamilyCard = {
   id: string;
@@ -35,6 +37,8 @@ export type FamilyCard = {
   hasManualOfficial: boolean;
   // The best time of its event among the times shown.
   isBest?: boolean;
+  // Not given to a swimmer yet ("Sin asignar").
+  unassigned?: boolean;
 };
 
 export type FamilyFilterKey = 'sessionType' | 'stroke' | 'distance' | 'pool';
@@ -47,7 +51,7 @@ export type FamilyDeletedCard = FamilyCard & { removedOn: string };
 export type FamilyEditView = {
   card: FamilyCard;
   stroke: { options: SegmentedOption<string>[]; value: string };
-  athlete: { options: { value: string; label: string; dot: InitialsDotProps }[]; value: string };
+  athlete: { options: ChipRowOption<string>[]; value: string };
   confirmingDelete: boolean;
   saveError: boolean;
 };
@@ -67,7 +71,29 @@ export type FamilyStopwatchView = {
   buttonsHint: string | null;
 };
 
+export type FamilySeriesView = {
+  status: 'idle' | 'running' | 'done';
+  time: string;
+  // In arrival order: the first is the first swimmer to touch.
+  arrivals: { position: number; time: string }[];
+  // "2 de 4 llegadas".
+  progress: string;
+  event: string;
+  /** Which key times, while the headset or volume keys are on; null otherwise. */
+  buttonsHint: string | null;
+};
+
+export type FamilyLaneView = {
+  position: number;
+  time: string;
+  athlete: { options: ChipRowOption<string>[]; value: string };
+  stroke: { options: SegmentedOption<string>[]; value: string };
+};
+
 export type FamilySetupView = {
+  mode: { options: SegmentedOption<string>[]; value: string };
+  // How many swimmers a series has, 2 to 8.
+  swimmers: { options: ChipRowOption<string>[]; value: string };
   stroke: { options: SegmentedOption<string>[]; value: string };
   distance: { options: SegmentedOption<string>[]; value: string };
   pool: { options: SegmentedOption<string>[]; value: string };
@@ -84,6 +110,8 @@ export type FamilyTimingView =
   | { kind: 'edit'; edit: FamilyEditView }
   | { kind: 'setup'; setup: FamilySetupView }
   | { kind: 'stopwatch'; stopwatch: FamilyStopwatchView; saveError: boolean }
+  | { kind: 'series'; series: FamilySeriesView }
+  | { kind: 'series_assign'; event: string; lanes: FamilyLaneView[]; saveError: boolean }
   | { kind: 'official'; card: FamilyCard; text: string; invalid: boolean };
 
 export type FamilyTimingScreenProps = {
@@ -94,7 +122,7 @@ export type FamilyTimingScreenProps = {
   onBack: () => void;
   onRetry: () => void;
   onNew: () => void;
-  onSetupChange: (field: 'stroke' | 'distance' | 'pool' | 'sessionType' | 'competition', value: string) => void;
+  onSetupChange: (field: 'mode' | 'swimmers' | 'stroke' | 'distance' | 'pool' | 'sessionType' | 'competition', value: string) => void;
   onGoToStopwatch: () => void;
   onCancel: () => void;
   onStart: () => void;
@@ -115,6 +143,13 @@ export type FamilyTimingScreenProps = {
   onOpenDeleted: () => void;
   onRestore: (id: string) => void;
   onFilter: (key: FamilyFilterKey, value: string) => void;
+  // A series: the start, then one arrival per press.
+  onSeriesPress: () => void;
+  onUndoLast: () => void;
+  onAssignSwimmers: () => void;
+  onBackToSeries: () => void;
+  onLaneChange: (index: number, field: 'athleteId' | 'stroke', value: string) => void;
+  onSaveSeries: () => void;
 };
 
 function Header({ onBack, title }: { onBack: () => void; title: string }) {
@@ -219,6 +254,86 @@ function StopwatchBody(props: FamilyTimingScreenProps & { stopwatch: FamilyStopw
           {t('family_timing.stopwatch.split_row', { number: index + 1, time: row.lap, total: row.total })}
         </Text>
       ))}
+    </View>
+  );
+}
+
+function SeriesBody(props: FamilyTimingScreenProps & { series: FamilySeriesView }) {
+  const { series } = props;
+  const { colors, space, radius, typography } = useTheme();
+  return (
+    <View style={{ gap: space[4] }}>
+      <View style={{ alignItems: 'center', gap: space[2], padding: space[6], borderRadius: radius.lg, backgroundColor: colors.header }}>
+        <Text style={[typography.caption, { color: colors['on-header-muted'] }]}>{series.event}</Text>
+        <Text
+          accessibilityLiveRegion={series.status === 'running' ? 'none' : 'polite'}
+          adjustsFontSizeToFit
+          numberOfLines={1}
+          style={[typography['time-display'], { color: colors['on-header'] }]}
+        >
+          {series.time}
+        </Text>
+        <Text style={[typography.caption, { color: colors['on-header-muted'] }]}>{series.progress}</Text>
+        {series.buttonsHint && (
+          <Text style={[typography.caption, { color: colors['on-header-muted'], textAlign: 'center' }]}>{series.buttonsHint}</Text>
+        )}
+      </View>
+      {series.status === 'idle' && <Button size="timing" label={t('family_timing.stopwatch.start')} onPress={props.onSeriesPress} />}
+      {series.status === 'running' && <Button size="timing" variant="stop" label={t('family_timing.series.arrival')} onPress={props.onSeriesPress} />}
+      {series.status === 'done' && (
+        <>
+          <Banner variant="success">{t('family_timing.series.done')}</Banner>
+          <Button label={t('family_timing.series.assign')} onPress={props.onAssignSwimmers} />
+        </>
+      )}
+      {series.arrivals.length > 0 && <Button variant="secondary" label={t('family_timing.series.undo')} onPress={props.onUndoLast} />}
+      {series.status !== 'idle' && <Button variant="ghost" label={t('family_timing.stopwatch.discard')} onPress={props.onDiscard} />}
+      {series.arrivals.map((row) => (
+        <Text key={row.position} style={[typography['time-sm'], { color: colors.ink }]}>
+          {t('family_timing.series.arrival_row', { position: row.position, time: row.time })}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+function SeriesAssignBody(props: FamilyTimingScreenProps & { event: string; lanes: FamilyLaneView[]; saveError: boolean }) {
+  const { colors, space, radius, typography } = useTheme();
+  return (
+    <View style={{ gap: space[4] }}>
+      <Banner variant="info">{t('family_timing.series.assign_info')}</Banner>
+      {props.lanes.map((lane, index) => (
+        <View
+          key={lane.position}
+          style={{ gap: space[3], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'], borderWidth: 1, borderColor: colors.border }}
+        >
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: space[2] }}>
+            <Text style={[typography['body-strong'], { color: colors.ink }]}>{t('family_timing.series.lane_title', { position: lane.position })}</Text>
+            <Text style={[typography['time-md'], { color: colors.ink }]}>{lane.time}</Text>
+          </View>
+          <Field label={t('family_timing.athlete')}>
+            <ChipRow
+              accessibilityLabel={t('family_timing.series.lane_athlete', { position: lane.position })}
+              {...lane.athlete}
+              onChange={(v) => props.onLaneChange(index, 'athleteId', v)}
+            />
+          </Field>
+          <Field label={t('family_timing.setup.stroke')}>
+            <Segmented
+              accessibilityLabel={t('family_timing.series.lane_stroke', { position: lane.position })}
+              {...lane.stroke}
+              onChange={(v) => props.onLaneChange(index, 'stroke', v)}
+            />
+          </Field>
+        </View>
+      ))}
+      {props.saveError && (
+        <Banner variant="warn" icon="error">
+          {t('family_timing.series.save_error')}
+        </Banner>
+      )}
+      <Button label={t('family_timing.series.save')} onPress={props.onSaveSeries} />
+      <Button variant="ghost" label={t('family_timing.series.back_to_series')} onPress={props.onBackToSeries} />
     </View>
   );
 }
@@ -341,9 +456,16 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     }
     case 'setup': {
       const { setup } = view;
+      const series = setup.mode.value === 'series';
       body = (
         <View style={{ gap: space[4] }}>
-          <Field label={t('family_timing.setup.stroke')}>
+          <Segmented accessibilityLabel={t('family_timing.setup.mode')} {...setup.mode} onChange={(v) => props.onSetupChange('mode', v)} />
+          {series && (
+            <Field label={t('family_timing.setup.swimmers')}>
+              <ChipRow accessibilityLabel={t('family_timing.setup.swimmers')} {...setup.swimmers} onChange={(v) => props.onSetupChange('swimmers', v)} />
+            </Field>
+          )}
+          <Field label={t(series ? 'family_timing.setup.stroke_series' : 'family_timing.setup.stroke')}>
             <Segmented accessibilityLabel={t('family_timing.setup.stroke')} {...setup.stroke} onChange={(v) => props.onSetupChange('stroke', v)} />
           </Field>
           <Field label={t('family_timing.setup.distance')}>
@@ -380,6 +502,12 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     case 'stopwatch':
       body = <StopwatchBody {...props} stopwatch={view.stopwatch} saveError={view.saveError} />;
       break;
+    case 'series':
+      body = <SeriesBody {...props} series={view.series} />;
+      break;
+    case 'series_assign':
+      body = <SeriesAssignBody {...props} event={view.event} lanes={view.lanes} saveError={view.saveError} />;
+      break;
     case 'official':
       body = (
         <View style={{ gap: space[4] }}>
@@ -406,18 +534,29 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     official: t('family_timing.official.title'),
     edit: t('family_timing.edit.title'),
     deleted: t('family_timing.deleted.title'),
+    series: t('family_timing.series.title'),
+    series_assign: t('family_timing.series.assign_title'),
   };
   const title = titles[view.kind] ?? t('family_timing.title');
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
-      <Header title={title} onBack={view.kind === 'list' || view.kind === 'loading' || view.kind === 'error' || view.kind === 'no_athletes' ? onBack : props.onCancel} />
+      <Header
+        title={title}
+        onBack={
+          view.kind === 'list' || view.kind === 'loading' || view.kind === 'error' || view.kind === 'no_athletes'
+            ? onBack
+            : view.kind === 'series_assign'
+              ? props.onBackToSeries
+              : props.onCancel
+        }
+      />
       <ScrollView contentContainerStyle={{ gap: space[4], padding: space[4] }} keyboardShouldPersistTaps="handled">
         {showsAthletes && (
           <ChipRow
             accessibilityLabel={t('family_timing.athlete')}
             value={selectedId}
             onChange={onSelectAthlete}
-            options={athletes.map(({ id, name, initials, color }) => ({ value: id, label: name, dot: { initials, color } }))}
+            options={athletes.map(({ id, name, dot }) => ({ value: id, label: name, dot }))}
           />
         )}
         {body}

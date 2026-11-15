@@ -10,7 +10,8 @@ export type FamilySessionType = 'training' | 'competition';
  */
 export type FamilyMeasurement = {
   id: string;
-  athleteId: string;
+  // Null for a time not given to a swimmer yet ("Sin asignar"), for example a lane of a series with someone else's child.
+  athleteId: string | null;
   createdBy: string;
   stroke: StrokeCode;
   distance: DistanceCode;
@@ -34,8 +35,10 @@ export type FamilyMeasurementEdit = Partial<Pick<FamilyMeasurement, 'stroke' | '
 
 export interface FamilyMeasurementRepository {
   add(measurement: FamilyMeasurement): Promise<void>;
-  /** Every measurement of the athlete, newest first (by id on a tie). */
-  listByAthlete(athleteId: string): Promise<FamilyMeasurement[]>;
+  /** Saves the times of a series together: all of them or none. */
+  addMany(measurements: FamilyMeasurement[]): Promise<void>;
+  /** Every measurement of the athlete, newest first (by id on a tie); null lists the times not given to a swimmer yet. */
+  listByAthlete(athleteId: string | null): Promise<FamilyMeasurement[]>;
   /** Sets or clears (null) the hand-typed official time of a competition measurement. Training measurements refuse it. */
   setOfficial(id: string, officialMillis: Millis | null, at: string): Promise<void>;
   /** Corrects the stroke or the swimmer (one the user manages) of a measurement; the captured time never changes. */
@@ -44,8 +47,8 @@ export interface FamilyMeasurementRepository {
   remove(id: string, at: string): Promise<void>;
   /** Brings back a deleted measurement. */
   restore(id: string): Promise<void>;
-  /** The athlete's deleted measurements, most recently deleted first. */
-  listDeleted(athleteId: string): Promise<FamilyMeasurement[]>;
+  /** The athlete's deleted measurements, most recently deleted first; null for the ones not given to a swimmer. */
+  listDeleted(athleteId: string | null): Promise<FamilyMeasurement[]>;
   /**
    * Moves the times this user stored on the phone before they were kept on the server (#967) into the synced table, once.
    * Times of another user on the same phone stay where they are. Returns how many moved.
@@ -68,6 +71,9 @@ export function createInMemoryFamilyMeasurementRepository(initial: FamilyMeasure
   return {
     async add(measurement) {
       rows.set(measurement.id, measurement);
+    },
+    async addMany(measurements) {
+      for (const m of measurements) rows.set(m.id, m);
     },
     async listByAthlete(athleteId) {
       return [...rows.values()].filter((m) => m.athleteId === athleteId && !m.deletedAt).sort(newestFirst);
