@@ -33,7 +33,13 @@ export type FamilyCard = {
   // Competition cards without an imported official value can take a hand-typed one.
   canSetOfficial: boolean;
   hasManualOfficial: boolean;
+  // The best time of its event among the times shown.
+  isBest?: boolean;
 };
+
+export type FamilyFilterKey = 'sessionType' | 'stroke' | 'distance' | 'pool';
+// Each filter: '' is "all"; only the values present in the swimmer's times are offered.
+export type FamilyFiltersView = Record<FamilyFilterKey, { options: { value: string; label: string }[]; value: string }>;
 
 // A deleted time in "Eliminados": the card and the day the server removes it for good.
 export type FamilyDeletedCard = FamilyCard & { removedOn: string };
@@ -73,7 +79,7 @@ export type FamilyTimingView =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'no_athletes' }
-  | { kind: 'list'; cards: FamilyCard[]; deletedCount: number }
+  | { kind: 'list'; cards: FamilyCard[]; deletedCount: number; filters: FamilyFiltersView | null; filtered: boolean }
   | { kind: 'deleted'; cards: FamilyDeletedCard[]; restoreError: boolean }
   | { kind: 'edit'; edit: FamilyEditView }
   | { kind: 'setup'; setup: FamilySetupView }
@@ -108,6 +114,7 @@ export type FamilyTimingScreenProps = {
   onCancelDelete: () => void;
   onOpenDeleted: () => void;
   onRestore: (id: string) => void;
+  onFilter: (key: FamilyFilterKey, value: string) => void;
 };
 
 function Header({ onBack, title }: { onBack: () => void; title: string }) {
@@ -136,7 +143,10 @@ function Card({ card, onOpenOfficial, onOpenEdit }: { card: FamilyCard; onOpenOf
   const { colors, space, radius, typography } = useTheme();
   return (
     <View style={{ gap: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'], borderWidth: 1, borderColor: colors.border }}>
-      <Text style={[typography['body-strong'], { color: colors.ink }]}>{card.event}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
+        <Text style={[typography['body-strong'], { flexShrink: 1, color: colors.ink }]}>{card.event}</Text>
+        {card.isBest && <Tag variant="ok" icon="emoji_events" label={t('family_timing.card.best')} />}
+      </View>
       <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{card.detail}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: space[2] }}>
         <Text style={[typography.caption, { color: colors['ink-muted'] }]}>
@@ -242,8 +252,26 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
         <View style={{ gap: space[4] }}>
           <Banner variant="info">{t('family_timing.on_device')}</Banner>
           <Button label={t('family_timing.new')} onPress={props.onNew} />
+          {view.filters && (
+            <View style={{ gap: space[3] }}>
+              <Segmented
+                accessibilityLabel={t('family_timing.filters.session_type')}
+                {...view.filters.sessionType}
+                onChange={(v) => props.onFilter('sessionType', v)}
+              />
+              {(['stroke', 'distance', 'pool'] as const).map((key) =>
+                view.filters && view.filters[key].options.length > 2 ? (
+                  <ChipRow key={key} accessibilityLabel={t(`family_timing.filters.${key}`)} {...view.filters[key]} onChange={(v) => props.onFilter(key, v)} />
+                ) : null,
+              )}
+            </View>
+          )}
           {view.cards.length === 0 ? (
-            <StateView kind="empty" title={t('family_timing.empty_title')} message={t('family_timing.empty_message')} />
+            view.filtered ? (
+              <StateView kind="empty" title={t('family_timing.filters.empty_title')} message={t('family_timing.filters.empty_message')} />
+            ) : (
+              <StateView kind="empty" title={t('family_timing.empty_title')} message={t('family_timing.empty_message')} />
+            )
           ) : (
             view.cards.map((card) => <Card key={card.id} card={card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} />)
           )}
