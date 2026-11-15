@@ -70,7 +70,12 @@
       "pool": "Piscina",
       "all": "Todos",
       "empty_title": "Ningún tiempo con estos filtros",
-      "empty_message": "Cambia los filtros para ver más tiempos."
+      "empty_message": "Cambia los filtros para ver más tiempos.",
+      "open": "Filtros",
+      "open_active": "Filtros ({{count}})",
+      "title": "Filtrar tiempos",
+      "apply": "Aplicar filtros",
+      "clear": "Quitar filtros"
     },
     "edit": {
       "title": "Editar tiempo",
@@ -155,6 +160,14 @@
       "event": "Prueba",
       "laps": "Vueltas",
       "back": "Volver a la lista"
+    },
+    "choose_official": {
+      "title": "Resultado oficial",
+      "open": "Elegir resultado oficial",
+      "change": "Cambiar resultado oficial",
+      "help": "Hay más de un resultado oficial de esta prueba ese día. Elige el que va con este tiempo; cada resultado va con un solo tiempo.",
+      "option": "{{time}} · {{detail}}",
+      "error": "No pudimos guardar la elección. Inténtalo de nuevo."
     }
   }
 }

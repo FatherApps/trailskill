@@ -25,7 +25,8 @@ const COLUMNS = `stroke TEXT, distance TEXT, pool TEXT, session_type TEXT, compe
   official_millis INTEGER, official_set_at TEXT`;
 const TABLES = `
   CREATE TABLE family_timing_measurements (
-    id TEXT PRIMARY KEY, created_at TEXT, owner_user_id TEXT, captured_by TEXT, athlete_id TEXT, ${COLUMNS}, source TEXT, deleted_at TEXT
+    id TEXT PRIMARY KEY, created_at TEXT, owner_user_id TEXT, captured_by TEXT, athlete_id TEXT, ${COLUMNS}, official_result_key TEXT, source TEXT,
+    deleted_at TEXT
   );
   CREATE TABLE family_measurements (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, athlete_id TEXT, ${COLUMNS});
 `;
@@ -66,7 +67,7 @@ describe('PowerSync family measurements', () => {
   it('saves a time in the synced table, queued for upload, owned by who captured it', async () => {
     const repo = createPowerSyncFamilyMeasurementRepository();
     await repo.add(base);
-    expect(await repo.listByAthlete('a1')).toEqual([{ ...base, deletedAt: null }]);
+    expect(await repo.listByAthlete('a1')).toEqual([{ ...base, officialResultKey: null, deletedAt: null }]);
     expect(mockDb.getAll('SELECT owner_user_id, captured_by, splits FROM family_timing_measurements')).toEqual([
       { owner_user_id: 'u1', captured_by: 'u1', splits: '[23100]' },
     ]);
@@ -81,6 +82,17 @@ describe('PowerSync family measurements', () => {
     expect((await repo.listByAthlete('a1')).find((m) => m.id === 'm1')).toMatchObject({ millis: 47_210, officialMillis: 46_990 });
     await expect(repo.setOfficial('m2', 46_990, '2026-11-08T15:00:00.000Z')).rejects.toBeInstanceOf(NotCompetitionError);
     await expect(repo.setOfficial('nope', 1, '2026-11-08T15:00:00.000Z')).rejects.toBeInstanceOf(UnknownMeasurementError);
+  });
+
+  it('remembers which imported official result goes with a competition time, and forgets it (issue 974)', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.add(base);
+    await repo.add({ ...base, id: 'm2', sessionType: 'training', competition: null });
+    await repo.chooseOfficial('m1', 'provider-a:final-1');
+    expect((await repo.listByAthlete('a1')).find((m) => m.id === 'm1')).toMatchObject({ officialResultKey: 'provider-a:final-1' });
+    await repo.chooseOfficial('m1', null);
+    expect((await repo.listByAthlete('a1')).find((m) => m.id === 'm1')).toMatchObject({ officialResultKey: null });
+    await expect(repo.chooseOfficial('m2', 'provider-a:final-1')).rejects.toBeInstanceOf(NotCompetitionError);
   });
 
   it('corrects the stroke and the swimmer, queued for upload, and never the captured time', async () => {

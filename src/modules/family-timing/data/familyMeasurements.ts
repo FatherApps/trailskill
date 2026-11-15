@@ -27,6 +27,8 @@ export type FamilyMeasurement = {
   // Competition only: the event's official time typed by the guardian, and when.
   officialMillis: Millis | null;
   officialSetAt: string | null;
+  // Competition only: the imported official result the person chose for this time (officialResultKeyOf), when several could go with it.
+  officialResultKey?: string | null;
   // Set when deleted: hidden from the list and restorable for 30 days, then the server removes it.
   deletedAt?: string | null;
 };
@@ -41,6 +43,8 @@ export interface FamilyMeasurementRepository {
   listByAthlete(athleteId: string | null): Promise<FamilyMeasurement[]>;
   /** Sets or clears (null) the hand-typed official time of a competition measurement. Training measurements refuse it. */
   setOfficial(id: string, officialMillis: Millis | null, at: string): Promise<void>;
+  /** Remembers (or forgets, null) which imported official result goes with a competition measurement. Training measurements refuse it. */
+  chooseOfficial(id: string, officialResultKey: string | null): Promise<void>;
   /** Corrects the stroke or the swimmer (one the user manages) of a measurement; the captured time never changes. */
   edit(id: string, changes: FamilyMeasurementEdit): Promise<void>;
   /** Deletes a measurement: it leaves the list and can be restored for 30 days. */
@@ -83,6 +87,12 @@ export function createInMemoryFamilyMeasurementRepository(initial: FamilyMeasure
       if (!row) throw new UnknownMeasurementError(id);
       if (row.sessionType !== 'competition') throw new NotCompetitionError(id);
       rows.set(id, { ...row, officialMillis, officialSetAt: officialMillis === null ? null : at });
+    },
+    async chooseOfficial(id, officialResultKey) {
+      const row = rows.get(id);
+      if (!row) throw new UnknownMeasurementError(id);
+      if (row.sessionType !== 'competition') throw new NotCompetitionError(id);
+      rows.set(id, { ...row, officialResultKey });
     },
     async edit(id, changes) {
       const row = rows.get(id);

@@ -145,7 +145,7 @@ export function HomeScreen({ view, greetingName = '', athletes, selectedId, onSe
   const empty = content && !content.next && content.marks.length === 0;
 
   return (
-    <ScrollView nestedScrollEnabled scrollEnabled={scrollEnabled} style={{ backgroundColor: colors['surface-0'] }} contentContainerStyle={{ padding: space[4], gap: space[4] }}>
+    <ScrollView nestedScrollEnabled scrollEnabled={scrollEnabled} style={{ backgroundColor: colors['surface-0'] }} contentContainerStyle={{ padding: space[4], paddingBottom: space[12] * 2, gap: space[4] }}>
       {/* The greeting keeps a width that holds "Hola," at twice the text size; the sync pill drops below when it does not fit next to it, instead of squeezing the greeting into a column of letters. */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3] }}>
         <LogoSymbol size={space[8]} decorative />

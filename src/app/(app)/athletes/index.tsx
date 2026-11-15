@@ -53,7 +53,8 @@ export default function MyAthletesRoute() {
         onAdd={() => router.push('/athletes/add')}
       />
       {/* Bridge: a guardian and an adult athlete land here and have no other way to sign out or manage authorizations; the account screen (#778) takes these two out. */}
-      <View style={{ padding: space[4], gap: space[3] }}>
+      {/* The floating phone bar rests on the bottom edge: the two buttons stay above it, as the last rows of the other screens do. */}
+      <View style={{ padding: space[4], paddingBottom: space[12] * 2, gap: space[3] }}>
         <Button variant="secondary" label={t('accounts.authorizations.title')} onPress={() => router.push('/authorizations')} />
         <SignOutContainer drafts={registrationDrafts} pending={pendingInvitations} />
       </View>

@@ -150,7 +150,7 @@ export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, on
           {t('settings.title')}
         </Text>
       </View>
-      <ScrollView contentContainerStyle={{ gap: space[6], padding: space[4] }}>
+      <ScrollView contentContainerStyle={{ gap: space[6], padding: space[4], paddingBottom: space[12] * 2 }}>
         <Section label={t('settings.theme.label')} hint={t('settings.theme.hint')}>
           <Segmented
             accessibilityLabel={t('settings.theme.label')}

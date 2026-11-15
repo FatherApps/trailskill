@@ -229,6 +229,8 @@ export const AppSchema = new Schema({
       splits: column.text,
       official_millis: column.integer,
       official_set_at: column.text,
+      // The imported official result chosen for this time when several could go with it (#974).
+      official_result_key: column.text,
       source: column.text,
       // Set when deleted: hidden and restorable for 30 days, then the server removes it.
       deleted_at: column.text,

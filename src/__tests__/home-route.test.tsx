@@ -42,13 +42,27 @@ jest.mock('../modules/training-plans', () => {
   return {
     createPowerSyncAssignmentRepository: () => ({}),
     createPowerSyncTrainingPlanRepository: () => ({}),
-    HomeContainer: (props: { greetingName?: string; syncState: string; athletes: { id: string }[]; synced: boolean; onOpenToday: (id: string) => void }) => (
+    HomeContainer: (props: {
+      greetingName?: string;
+      syncState: string;
+      athletes: { id: string }[];
+      synced: boolean;
+      onOpenToday: (id: string) => void;
+      onOpenSettings?: () => void;
+      onOpenStopwatch?: () => void;
+    }) => (
       <Pressable accessibilityRole="button" onPress={() => props.onOpenToday(props.athletes[0]!.id)}>
         <Label>{`greeting=${props.greetingName}|sync=${props.syncState}|synced=${props.synced}|athletes=${props.athletes.map((a) => a.id)}`}</Label>
+        <Label>{`shortcuts=${Boolean(props.onOpenSettings && props.onOpenStopwatch)}`}</Label>
       </Pressable>
     ),
   };
 });
+
+let mockWidth = 390;
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  default: () => ({ width: mockWidth, height: 844, scale: 1, fontScale: 1 }),
+}));
 
 describe('home route', () => {
   beforeEach(() => {
@@ -57,6 +71,17 @@ describe('home route', () => {
     mockSummary = { lastSyncedAt: new Date(0), pending: 0, failed: 0, uploading: false };
     mockOwn = { managedCount: 1, selfAthleteId: null, authorized: true };
     mockManaged = [{ id: 'a1', firstName: 'Lucía', lastName: 'R' }];
+    mockWidth = 390;
+  });
+
+  // Issue 999: on a phone both are on the bar; a tablet has no bar.
+  it('leaves Mis tiempos and Ajustes to the bar on a phone and keeps them on a tablet', async () => {
+    await render(<HomeRoute />);
+    expect(screen.getByText('shortcuts=false')).toBeTruthy();
+
+    mockWidth = 1024;
+    await render(<HomeRoute />);
+    expect(screen.getByText('shortcuts=true')).toBeTruthy();
   });
 
   it('greets an adult athlete by the name of their own athlete', async () => {

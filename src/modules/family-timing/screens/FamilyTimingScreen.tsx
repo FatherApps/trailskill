@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import {
   Banner,
   Button,
   ChipRow,
+  Icon,
   ConfirmSheet,
   IconButton,
   Segmented,
@@ -18,6 +19,7 @@ import {
   type InitialsDotProps,
   type SegmentedOption,
 } from '../../../core/ui';
+import { FilterSheet } from '../components/FilterSheet';
 import '../i18n';
 
 // A chip of the list: a swimmer (with their dot), or "Sin asignar" (no dot).
@@ -35,6 +37,8 @@ export type FamilyCard = {
   // Competition cards without an imported official value can take a hand-typed one.
   canSetOfficial: boolean;
   hasManualOfficial: boolean;
+  // Several imported official results (or times) of the same event and day: the person picks which result goes with this time.
+  officialChoice?: 'choose' | 'change' | null;
   // The best time of its event among the times shown.
   isBest?: boolean;
   // Not given to a swimmer yet ("Sin asignar").
@@ -49,6 +53,13 @@ export type FamilyDetailView = {
   rows: { label: string; value: string }[];
   // Each lap's own time and the total at its end; empty for a time without laps.
   laps: { lap: string; total: string }[];
+};
+
+// The imported official results that may go with a time: picking one saves it.
+export type FamilyChooseOfficialView = {
+  card: FamilyCard;
+  options: { key: string; time: string; detail: string; selected: boolean }[];
+  saveError: boolean;
 };
 
 // A time another family sent for the selected swimmer, waiting for this family's answer.
@@ -135,6 +146,8 @@ export type FamilyTimingView =
       deletedCount: number;
       filters: FamilyFiltersView | null;
       filtered: boolean;
+      // The notice that explains these times, on the first visit only.
+      showNotice?: boolean;
       received?: FamilyReceivedCard[];
       // Why the last answer or withdrawal did not go through.
       transferError?: string | null;
@@ -147,7 +160,8 @@ export type FamilyTimingView =
   | { kind: 'stopwatch'; stopwatch: FamilyStopwatchView; saveError: boolean }
   | { kind: 'series'; series: FamilySeriesView }
   | { kind: 'series_assign'; event: string; lanes: FamilyLaneView[]; saveError: boolean }
-  | { kind: 'official'; card: FamilyCard; text: string; invalid: boolean };
+  | { kind: 'official'; card: FamilyCard; text: string; invalid: boolean }
+  | { kind: 'choose_official'; choose: FamilyChooseOfficialView };
 
 export type FamilyTimingScreenProps = {
   view: FamilyTimingView;
@@ -167,6 +181,8 @@ export type FamilyTimingScreenProps = {
   onDiscard: () => void;
   onOpenOfficial: (id: string) => void;
   onOpenDetail?: (id: string) => void;
+  onOpenChooseOfficial?: (id: string) => void;
+  onChooseOfficial?: (resultKey: string) => void;
   onOfficialText: (text: string) => void;
   onSaveOfficial: () => void;
   onClearOfficial: () => void;
@@ -179,6 +195,8 @@ export type FamilyTimingScreenProps = {
   onOpenDeleted: () => void;
   onRestore: (id: string) => void;
   onFilter: (key: FamilyFilterKey, value: string) => void;
+  // Stroke, distance and pool chosen in the sheet, applied together.
+  onApplyFilters?: (values: Partial<Record<FamilyFilterKey, string>>) => void;
   // A series: the start, then one arrival per press.
   onSeriesPress: () => void;
   onUndoLast: () => void;
@@ -196,14 +214,15 @@ export type FamilyTimingScreenProps = {
   onReject?: (transferId: string) => void;
 };
 
-function Header({ onBack, title }: { onBack: () => void; title: string }) {
+function Header({ onBack, title, action }: { onBack: () => void; title: string; action?: ReactNode }) {
   const { colors, space, typography } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], paddingHorizontal: space[4], paddingTop: space[2] }}>
       <IconButton icon="arrow_back" label={t('family_timing.back')} onPress={onBack} />
-      <Text accessibilityRole="header" style={[typography.title, { flexShrink: 1, color: colors.ink }]}>
+      <Text accessibilityRole="header" style={[typography.title, { flex: 1, color: colors.ink }]}>
         {title}
       </Text>
+      {action}
     </View>
   );
 }
@@ -222,12 +241,14 @@ function Card({
   card,
   onOpenDetail,
   onOpenOfficial,
+  onOpenChooseOfficial,
   onOpenEdit,
   onWithdraw,
 }: {
   card: FamilyCard;
   onOpenDetail?: (id: string) => void;
   onOpenOfficial?: (id: string) => void;
+  onOpenChooseOfficial?: (id: string) => void;
   onOpenEdit?: (id: string) => void;
   onWithdraw?: (id: string) => void;
 }) {
@@ -262,6 +283,13 @@ function Card({
         )}
         {card.splitsLabel && <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{card.splitsLabel}</Text>}
       </Pressable>
+      {card.officialChoice && onOpenChooseOfficial && (
+        <Button
+          variant={card.officialChoice === 'choose' ? 'primary' : 'secondary'}
+          label={t(card.officialChoice === 'choose' ? 'family_timing.choose_official.open' : 'family_timing.choose_official.change')}
+          onPress={() => onOpenChooseOfficial(card.id)}
+        />
+      )}
       {card.canSetOfficial && onOpenOfficial && (
         <Button
           variant="secondary"
@@ -415,6 +443,16 @@ function SeriesAssignBody(props: FamilyTimingScreenProps & { event: string; lane
 export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
   const { view, athletes, selectedId, onSelectAthlete, onBack } = props;
   const { colors, space, radius, typography } = useTheme();
+  const [filtering, setFiltering] = useState(false);
+  // Stroke, distance and pool open in a sheet from the header; a section shows only when it has more than one value to choose.
+  const sheetSections =
+    view.kind === 'list' && view.filters
+      ? (['stroke', 'distance', 'pool'] as const).flatMap((key) => {
+          const filter = view.filters?.[key];
+          return filter && filter.options.length > 2 ? [{ key, label: t(`family_timing.filters.${key}`), ...filter }] : [];
+        })
+      : [];
+  const activeInSheet = sheetSections.filter((s) => s.value !== '').length;
   const showsAthletes = athletes.length > 1 && selectedId !== null && (view.kind === 'list' || view.kind === 'loading' || view.kind === 'error');
 
   let body: ReactNode = null;
@@ -438,7 +476,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     case 'list':
       body = (
         <View style={{ gap: space[4] }}>
-          <Banner variant="info">{t('family_timing.on_device')}</Banner>
+          {view.showNotice && <Banner variant="info">{t('family_timing.on_device')}</Banner>}
           {view.transferError && (
             <Banner variant="warn" icon="error">
               {view.transferError}
@@ -461,18 +499,11 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
           ))}
           <Button label={t('family_timing.new')} onPress={props.onNew} />
           {view.filters && (
-            <View style={{ gap: space[3] }}>
-              <Segmented
-                accessibilityLabel={t('family_timing.filters.session_type')}
-                {...view.filters.sessionType}
-                onChange={(v) => props.onFilter('sessionType', v)}
-              />
-              {(['stroke', 'distance', 'pool'] as const).map((key) =>
-                view.filters && view.filters[key].options.length > 2 ? (
-                  <ChipRow key={key} accessibilityLabel={t(`family_timing.filters.${key}`)} {...view.filters[key]} onChange={(v) => props.onFilter(key, v)} />
-                ) : null,
-              )}
-            </View>
+            <Segmented
+              accessibilityLabel={t('family_timing.filters.session_type')}
+              {...view.filters.sessionType}
+              onChange={(v) => props.onFilter('sessionType', v)}
+            />
           )}
           {view.cards.length === 0 ? (
             view.filtered ? (
@@ -482,7 +513,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             )
           ) : (
             view.cards.map((card) => (
-              <Card key={card.id} card={card} onOpenDetail={props.onOpenDetail} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
+              <Card key={card.id} card={card} onOpenDetail={props.onOpenDetail} onOpenOfficial={props.onOpenOfficial} onOpenChooseOfficial={props.onOpenChooseOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
             ))
           )}
           {view.deletedCount > 0 && (
@@ -671,6 +702,30 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       );
       break;
     }
+    case 'choose_official': {
+      const choose = view.choose;
+      body = (
+        <View style={{ gap: space[4] }}>
+          <Card card={choose.card} />
+          <Text style={[typography.body, { color: colors.ink }]}>{t('family_timing.choose_official.help')}</Text>
+          {choose.saveError && (
+            <Banner variant="warn" icon="error">
+              {t('family_timing.choose_official.error')}
+            </Banner>
+          )}
+          {choose.options.map((option) => (
+            <Button
+              key={option.key}
+              variant={option.selected ? 'primary' : 'secondary'}
+              label={t('family_timing.choose_official.option', { time: option.time, detail: option.detail })}
+              onPress={() => props.onChooseOfficial?.(option.key)}
+            />
+          ))}
+          <Button variant="ghost" label={t('family_timing.official.cancel')} onPress={props.onCancel} />
+        </View>
+      );
+      break;
+    }
     case 'official':
       body = (
         <View style={{ gap: space[4] }}>
@@ -696,6 +751,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     setup: t('family_timing.setup.title'),
     official: t('family_timing.official.title'),
     detail: t('family_timing.detail.title'),
+    choose_official: t('family_timing.choose_official.title'),
     edit: t('family_timing.edit.title'),
     deleted: t('family_timing.deleted.title'),
     send: t('family_timing.transfer.title'),
@@ -707,6 +763,16 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       <Header
         title={title}
+        action={
+          sheetSections.length > 0 ? (
+            <Button
+              variant={activeInSheet > 0 ? 'primary' : 'secondary'}
+              icon={<Icon name="expand_more" size="icon-sm" color={activeInSheet > 0 ? 'on-primary' : 'ink'} />}
+              label={activeInSheet > 0 ? t('family_timing.filters.open_active', { count: activeInSheet }) : t('family_timing.filters.open')}
+              onPress={() => setFiltering(true)}
+            />
+          ) : undefined
+        }
         onBack={
           view.kind === 'list' || view.kind === 'loading' || view.kind === 'error' || view.kind === 'no_athletes'
             ? onBack
@@ -715,7 +781,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
               : props.onCancel
         }
       />
-      <ScrollView contentContainerStyle={{ gap: space[4], padding: space[4] }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ gap: space[4], padding: space[4], paddingBottom: space[12] * 2 }} keyboardShouldPersistTaps="handled">
         {showsAthletes && (
           <ChipRow
             accessibilityLabel={t('family_timing.athlete')}
@@ -726,6 +792,18 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
         )}
         {body}
       </ScrollView>
+      {/* Mounted on opening, so each opening starts from the filters in use. */}
+      {filtering && sheetSections.length > 0 && (
+        <FilterSheet
+          visible
+          sections={sheetSections}
+          onClose={() => setFiltering(false)}
+          onApply={(values) => {
+            setFiltering(false);
+            props.onApplyFilters?.(values);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

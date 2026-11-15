@@ -47,8 +47,9 @@ import {
 } from '../domain/familySeries';
 import { lapsFor } from '../domain/laps';
 import { localDay } from '../domain/localDay';
-import { officialValue, type OfficialImport } from '../domain/officialValue';
+import { officialMatches, officialResultKeyOf, type OfficialImport, type OfficialMatch } from '../domain/officialValue';
 import { parseTimeEntry } from '../domain/timeEntry';
+import { setFamilyTimingAtList } from './familyTimingAtList';
 import {
   FamilyTimingScreen,
   type FamilyCard,
@@ -58,6 +59,7 @@ import {
   type FamilyFiltersView,
   type FamilyTimingView,
 } from './FamilyTimingScreen';
+import type { FamilyTimingNoticeStore } from '../data/noticeSeen';
 import '../i18n';
 
 const KEEP_AWAKE_TAG = 'family-timing';
@@ -81,6 +83,8 @@ export type FamilyTimingContainerProps = {
   shareCodes?: { find(code: string): Promise<string | null> };
   // Changes when the device synced: requests and moved times arrive by sync, so the lists read again.
   syncKey?: number;
+  // Remembers that the notice was seen, so it shows on the first visit only. Without it the notice always shows.
+  notice?: FamilyTimingNoticeStore;
 };
 
 const targetOf = (sw: FamilyStopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
@@ -135,6 +139,8 @@ type Step =
   | { kind: 'series' }
   | { kind: 'series_assign'; lanes: Lane[]; saveError: boolean }
   | { kind: 'official'; id: string; text: string; invalid: boolean }
+  // Picking which imported official result goes with a competition time (#974).
+  | { kind: 'choose_official'; id: string; saveError: boolean }
   | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string | null; confirmingDelete: boolean; saveError: boolean }
   | { kind: 'deleted'; restoreError: boolean }
   // One saved time with everything known about it (#1002).
@@ -188,7 +194,7 @@ const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.
 
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
-  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey } = props;
+  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice } = props;
   const now = props.now ?? buttons.now;
   const { preferences } = usePreferences();
   const buttonPrefs = preferences.timingButtons;
@@ -209,7 +215,30 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const key = `${selectedId}:${reload}`;
   const loaded = useMemo<Loaded>(() => (read.status !== 'loading' && read.key === key ? read : { status: 'loading' }), [read, key]);
   const [step, setStep] = useState<Step>({ kind: 'list' });
+  // The phone bar shows only on the list: leaving a measurement, an edit or a send from it would lose it.
+  useEffect(() => {
+    setFamilyTimingAtList(step.kind === 'list');
+  }, [step.kind]);
+  useEffect(() => () => setFamilyTimingAtList(true), []);
   const [filters, setFilters] = useState<Filters>(noFilters);
+  // Unknown until the store answers, so the notice never flashes for someone who already saw it.
+  const [showNotice, setShowNotice] = useState(notice === undefined);
+  useEffect(() => {
+    if (!notice) return;
+    let current = true;
+    notice
+      .seen(userId)
+      .then((seen) => {
+        if (!current || seen) return;
+        // Seen now: it stays for this visit and is gone the next time.
+        setShowNotice(true);
+        return notice.markSeen(userId);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [notice, userId]);
   const [setup, setSetup] = useState<Setup>(initialSetup);
   const [stopwatch, setStopwatch] = useState<FamilyStopwatch>(idleFamilyStopwatch);
   const [series, setSeries] = useState<FamilySeries>(() => newFamilySeries(MIN_SWIMMERS));
@@ -312,11 +341,11 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     [sent, settled],
   );
   const cardOf = useCallback(
-    (m: FamilyMeasurement, imported: OfficialImport[]): FamilyCard => {
+    (m: FamilyMeasurement, match: OfficialMatch | undefined): FamilyCard => {
       const day = localDay(m.capturedAt);
       const date = formatDate(day, 'short') ?? day;
       const type = t(`family_timing.session_type.${m.sessionType}`);
-      const value = officialValue(m, imported);
+      const value = match?.value ?? null;
       const organization = value?.kind === 'imported' ? sourceNames[value.provider] : undefined;
       // An imported time was published in hundredths: it is shown as published, never padded to thousandths.
       const official =
@@ -337,6 +366,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         official,
         splitsLabel: m.splits.length > 0 ? t('family_timing.card.splits', { count: m.splits.length + 1 }) : null,
         canSetOfficial: m.sessionType === 'competition' && value?.kind !== 'imported',
+        officialChoice: match && match.choices.length > 0 ? (match.chosen ? 'change' : 'choose') : null,
         hasManualOfficial: m.officialMillis !== null,
         unassigned: m.athleteId === null,
         sentTo: sentByMeasurement.get(m.id)?.athleteShortName ?? null,
@@ -344,9 +374,14 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     },
     [format, sourceNames, sentByMeasurement],
   );
+  // Which imported official result goes with each time: worked out over all the swimmer's times, so each result goes with one.
+  const matches = useMemo(
+    () => (loaded.status === 'ready' ? officialMatches(loaded.measurements, loaded.imported) : new Map<string, OfficialMatch>()),
+    [loaded],
+  );
   const cards = useMemo<FamilyCard[]>(
-    () => (loaded.status === 'ready' ? loaded.measurements.map((m) => cardOf(m, loaded.imported)) : []),
-    [loaded, cardOf],
+    () => (loaded.status === 'ready' ? loaded.measurements.map((m) => cardOf(m, matches.get(m.id))) : []),
+    [loaded, cardOf, matches],
   );
   // The list: the times that pass the filters, with the best of each event marked. The official time, when there is one, is the record.
   const listed = useMemo(() => {
@@ -360,7 +395,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     const shown = all.filter((m) => (Object.keys(active) as FamilyFilterKey[]).every((key) => !active[key] || m[key] === active[key]));
     const best = bestTimeIds(
       shown.map((m) => {
-        const value = officialValue(m, loaded.imported);
+        const value = matches.get(m.id)?.value ?? null;
         const time = value?.kind === 'imported' ? value.hundredths * 10 : value?.kind === 'manual' ? value.millis : m.millis;
         return { id: m.id, stroke: m.stroke, distance: m.distance, pool: m.pool, capturedAt: m.capturedAt, time };
       }),
@@ -394,13 +429,15 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       filters: all.length > 0 ? view : null,
       filtered: Object.values(active).some(Boolean),
     };
-  }, [loaded, cards, filters]);
+  }, [loaded, cards, filters, matches]);
   const deletedCards = useMemo<FamilyDeletedCard[]>(() => {
     if (loaded.status !== 'ready') return [];
     return loaded.deleted.map((m) => {
       const removed = new Date(Date.parse(m.deletedAt ?? m.capturedAt) + KEEP_DELETED_DAYS * 86_400_000).toISOString();
       const day = localDay(removed);
-      return { ...cardOf(m, loaded.imported), removedOn: formatDate(day, 'short') ?? day };
+      // A deleted time takes no part in the choice: it shows its official value and offers nothing to pick.
+      const match = officialMatches([m], loaded.imported).get(m.id);
+      return { ...cardOf(m, match && { ...match, choices: [] }), removedOn: formatDate(day, 'short') ?? day };
     });
   }, [loaded, cardOf]);
   // A request for the selected swimmer: the time as the other family sent it.
@@ -438,6 +475,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     deletedCount: deletedCards.length,
     filters: listed.filters,
     filtered: listed.filtered,
+    showNotice,
     received: receivedCards,
     transferError: answerError ? t(`family_timing.transfer.error.${answerError}`) : null,
   });
@@ -660,6 +698,28 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         };
       }),
     };
+  } else if (step.kind === 'choose_official') {
+    const card = cards.find((c) => c.id === step.id);
+    const match = matches.get(step.id);
+    view =
+      card && match
+        ? {
+            kind: 'choose_official',
+            choose: {
+              card,
+              options: match.choices.map((r) => {
+                const organization = sourceNames[r.provider];
+                return {
+                  key: officialResultKeyOf(r),
+                  time: formatTime(r.hundredths),
+                  detail: [organization ?? t('family_timing.card.official_imported_generic'), r.competition].filter(Boolean).join(' · '),
+                  selected: match.chosen && match.value?.kind === 'imported' && match.value.importedId === r.id,
+                };
+              }),
+              saveError: step.saveError,
+            },
+          }
+        : listView();
   } else if (step.kind === 'official') {
     const card = cards.find((c) => c.id === step.id);
     view = card ? { kind: 'official', card, text: step.text, invalid: step.invalid } : listView();
@@ -770,6 +830,15 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       }}
       onClearOfficial={() => step.kind === 'official' && writeOfficial(step.id, null)}
       onOpenDetail={(id) => setStep({ kind: 'detail', id })}
+      onOpenChooseOfficial={(id) => setStep({ kind: 'choose_official', id, saveError: false })}
+      onChooseOfficial={(resultKey) => {
+        if (step.kind !== 'choose_official') return;
+        const id = step.id;
+        void change(
+          () => repository.chooseOfficial(id, resultKey),
+          () => setStep({ kind: 'choose_official', id, saveError: true }),
+        );
+      }}
       onOpenEdit={(id) => {
         const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === id) : undefined;
         if (m) setStep({ kind: 'edit', id, stroke: m.stroke, athleteId: m.athleteId, confirmingDelete: false, saveError: false });
@@ -821,6 +890,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       onAccept={(id) => transfers && answer(id, transfers.accept)}
       onReject={(id) => transfers && answer(id, transfers.reject)}
       onFilter={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
+      onApplyFilters={(values) => setFilters((current) => ({ ...current, ...values }))}
       onRestore={(id) =>
         change(
           () => repository.restore(id),
