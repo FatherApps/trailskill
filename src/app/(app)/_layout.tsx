@@ -112,7 +112,7 @@ function PhoneNavBarContent({ destination }: { destination: Destination }) {
     settings: '/settings',
     history: only ? athleteProfileHref(only.id, [only.firstName, only.lastName].filter(Boolean).join(' ')) : '/athletes',
   };
-  return <NavBar items={adult ? adultItems : familyItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
+  return <NavBar labelPlacement="below" items={adult ? adultItems : familyItems} activeId={destination} onSelect={(id) => router.navigate(href[id as Destination])} />;
 }
 
 // A membership, a managed athlete or an own authorization already on the device: the proof that works with no signal.

@@ -128,3 +128,18 @@ describe('NavBar', () => {
     });
   });
 });
+
+// A bar with more items than fit with a name inside its pill (issue 999).
+describe('NavBar with the name below', () => {
+  it('draws every item as an icon of the minimum touch target and names the active one under the bar', async () => {
+    await render(<NavBar labelPlacement="below" items={items} activeId="times" onSelect={jest.fn()} />);
+
+    expect(screen.getAllByText('Tiempos', { includeHiddenElements: true })).toHaveLength(1);
+    for (const label of ['Inicio', 'Nadadores', 'Cuenta']) expect(screen.queryByText(label)).toBeNull();
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab).not.toHaveTextContent('Tiempos');
+      expect(style(tab)).toMatchObject({ minWidth: size['target-min'], flexShrink: 0 });
+    }
+    expect(screen.getByRole('tab', { name: 'Tiempos' })).toBeSelected();
+  });
+});
