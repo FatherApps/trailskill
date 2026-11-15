@@ -144,6 +144,17 @@
         "deleted_time": "Este tiempo está eliminado.",
         "failed": "No pudimos hacerlo. Revisa la señal e inténtalo de nuevo."
       }
+    },
+    "detail": {
+      "title": "Detalle del tiempo",
+      "open": "Abre el detalle del tiempo",
+      "athlete": "Nadador",
+      "when": "Fecha y hora",
+      "session": "Tipo",
+      "competition": "Competencia",
+      "event": "Prueba",
+      "laps": "Vueltas",
+      "back": "Volver a la lista"
     }
   }
 }

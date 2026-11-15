@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
@@ -41,6 +41,14 @@ export type FamilyCard = {
   unassigned?: boolean;
   // Sent to another swimmer's family and waiting for their answer: that swimmer's short name.
   sentTo?: string | null;
+};
+
+// Everything known about one saved time, opened by touching its card (#1002).
+export type FamilyDetailView = {
+  card: FamilyCard;
+  rows: { label: string; value: string }[];
+  // Each lap's own time and the total at its end; empty for a time without laps.
+  laps: { lap: string; total: string }[];
 };
 
 // A time another family sent for the selected swimmer, waiting for this family's answer.
@@ -133,6 +141,7 @@ export type FamilyTimingView =
     }
   | { kind: 'send'; send: FamilySendView }
   | { kind: 'deleted'; cards: FamilyDeletedCard[]; restoreError: boolean }
+  | { kind: 'detail'; detail: FamilyDetailView }
   | { kind: 'edit'; edit: FamilyEditView }
   | { kind: 'setup'; setup: FamilySetupView }
   | { kind: 'stopwatch'; stopwatch: FamilyStopwatchView; saveError: boolean }
@@ -157,6 +166,7 @@ export type FamilyTimingScreenProps = {
   onSave: () => void;
   onDiscard: () => void;
   onOpenOfficial: (id: string) => void;
+  onOpenDetail?: (id: string) => void;
   onOfficialText: (text: string) => void;
   onSaveOfficial: () => void;
   onClearOfficial: () => void;
@@ -210,11 +220,13 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function Card({
   card,
+  onOpenDetail,
   onOpenOfficial,
   onOpenEdit,
   onWithdraw,
 }: {
   card: FamilyCard;
+  onOpenDetail?: (id: string) => void;
   onOpenOfficial?: (id: string) => void;
   onOpenEdit?: (id: string) => void;
   onWithdraw?: (id: string) => void;
@@ -222,24 +234,34 @@ function Card({
   const { colors, space, radius, typography } = useTheme();
   return (
     <View style={{ gap: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'], borderWidth: 1, borderColor: colors.border }}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
-        <Text style={[typography['body-strong'], { flexShrink: 1, color: colors.ink }]}>{card.event}</Text>
-        {card.isBest && <Tag variant="ok" icon="emoji_events" label={t('family_timing.card.best')} />}
-      </View>
-      <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{card.detail}</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: space[2] }}>
-        <Text style={[typography.caption, { color: colors['ink-muted'] }]}>
-          {t(card.capturedIsHistory ? 'family_timing.card.captured_history' : 'family_timing.card.captured')}
-        </Text>
-        <Text style={[typography['time-md'], { color: colors[card.capturedIsHistory ? 'ink-muted' : 'ink'] }]}>{card.captured}</Text>
-      </View>
-      {card.official && (
+      {/* Touching the time's information opens its detail; the buttons below keep their own actions. */}
+      <Pressable
+        disabled={!onOpenDetail}
+        accessibilityRole={onOpenDetail ? 'button' : undefined}
+        // No label: a screen reader reads the time's information itself, and the hint says touching opens the detail.
+        accessibilityHint={onOpenDetail ? t('family_timing.detail.open') : undefined}
+        onPress={() => onOpenDetail?.(card.id)}
+        style={{ gap: space[2] }}
+      >
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
-          <Tag variant="ok" icon="verified_user" label={card.official.label} />
-          <Text style={[typography['time-md'], { color: colors.ink }]}>{card.official.time}</Text>
+          <Text style={[typography['body-strong'], { flexShrink: 1, color: colors.ink }]}>{card.event}</Text>
+          {card.isBest && <Tag variant="ok" icon="emoji_events" label={t('family_timing.card.best')} />}
         </View>
-      )}
-      {card.splitsLabel && <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{card.splitsLabel}</Text>}
+        <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{card.detail}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: space[2] }}>
+          <Text style={[typography.caption, { color: colors['ink-muted'] }]}>
+            {t(card.capturedIsHistory ? 'family_timing.card.captured_history' : 'family_timing.card.captured')}
+          </Text>
+          <Text style={[typography['time-md'], { color: colors[card.capturedIsHistory ? 'ink-muted' : 'ink'] }]}>{card.captured}</Text>
+        </View>
+        {card.official && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
+            <Tag variant="ok" icon="verified_user" label={card.official.label} />
+            <Text style={[typography['time-md'], { color: colors.ink }]}>{card.official.time}</Text>
+          </View>
+        )}
+        {card.splitsLabel && <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{card.splitsLabel}</Text>}
+      </Pressable>
       {card.canSetOfficial && onOpenOfficial && (
         <Button
           variant="secondary"
@@ -460,7 +482,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             )
           ) : (
             view.cards.map((card) => (
-              <Card key={card.id} card={card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
+              <Card key={card.id} card={card} onOpenDetail={props.onOpenDetail} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
             ))
           )}
           {view.deletedCount > 0 && (
@@ -469,6 +491,36 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
         </View>
       );
       break;
+    case 'detail': {
+      const detail = view.detail;
+      body = (
+        <View style={{ gap: space[4] }}>
+          <Card card={detail.card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
+          <View style={{ gap: space[3] }}>
+            {detail.rows.map((row) => (
+              <View key={row.label} style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: space[2] }}>
+                <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{row.label}</Text>
+                <Text style={[typography.body, { flexShrink: 1, color: colors.ink }]}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+          {detail.laps.length > 0 && (
+            <View style={{ gap: space[2] }}>
+              <Text accessibilityRole="header" style={[typography['body-strong'], { color: colors.ink }]}>
+                {t('family_timing.detail.laps')}
+              </Text>
+              {detail.laps.map((row, index) => (
+                <Text key={index} style={[typography['time-sm'], { color: colors.ink }]}>
+                  {t('family_timing.stopwatch.split_row', { number: index + 1, time: row.lap, total: row.total })}
+                </Text>
+              ))}
+            </View>
+          )}
+          <Button variant="ghost" label={t('family_timing.detail.back')} onPress={props.onCancel} />
+        </View>
+      );
+      break;
+    }
     case 'deleted':
       body = (
         <View style={{ gap: space[4] }}>
@@ -643,6 +695,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
   const titles: Partial<Record<FamilyTimingView['kind'], string>> = {
     setup: t('family_timing.setup.title'),
     official: t('family_timing.official.title'),
+    detail: t('family_timing.detail.title'),
     edit: t('family_timing.edit.title'),
     deleted: t('family_timing.deleted.title'),
     send: t('family_timing.transfer.title'),

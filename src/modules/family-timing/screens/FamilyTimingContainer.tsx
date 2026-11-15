@@ -53,6 +53,7 @@ import {
   FamilyTimingScreen,
   type FamilyCard,
   type FamilyDeletedCard,
+  type FamilyDetailView,
   type FamilyFilterKey,
   type FamilyFiltersView,
   type FamilyTimingView,
@@ -136,6 +137,8 @@ type Step =
   | { kind: 'official'; id: string; text: string; invalid: boolean }
   | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string | null; confirmingDelete: boolean; saveError: boolean }
   | { kind: 'deleted'; restoreError: boolean }
+  // One saved time with everything known about it (#1002).
+  | { kind: 'detail'; id: string }
   // Sending a time with the other swimmer's code: `found` is the short name once the code was looked up.
   | { kind: 'send'; id: string; code: string; found: string | null; error: FamilyTransferErrorCode | null; busy: boolean };
 
@@ -413,6 +416,22 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         splitsLabel: r.splits.length > 0 ? t('family_timing.card.splits', { count: r.splits.length + 1 }) : null,
       };
     });
+  // Everything known about one time: who swam it, when, the session, and each lap from the stored cumulative splits.
+  const detailOf = (card: FamilyCard, m: FamilyMeasurement): FamilyDetailView => {
+    const day = localDay(m.capturedAt);
+    const at = new Date(m.capturedAt);
+    const clock = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    const athlete = athletes.find((a) => a.id === m.athleteId);
+    const rows = [
+      { label: t('family_timing.detail.athlete'), value: athlete ? [athlete.firstName, athlete.lastName].filter(Boolean).join(' ') : t('family_timing.unassigned') },
+      { label: t('family_timing.detail.when'), value: `${formatDate(day, 'long') ?? day} · ${clock}` },
+      { label: t('family_timing.detail.session'), value: t(`family_timing.session_type.${m.sessionType}`) },
+      ...(m.competition ? [{ label: t('family_timing.detail.competition'), value: m.competition }] : []),
+      { label: t('family_timing.detail.event'), value: eventLabel(m) },
+    ];
+    const laps = lapRows(m.splits, m.millis, m.splits.length > 0).map(({ lap, total }) => ({ lap: formatLap(lap), total: formatLap(total) }));
+    return { card, rows, laps };
+  };
   const listView = (): FamilyTimingView => ({
     kind: 'list',
     cards: listed.cards,
@@ -666,6 +685,11 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         }
       : listView();
   } else if (step.kind === 'deleted') view = { kind: 'deleted', cards: deletedCards, restoreError: step.restoreError };
+  else if (step.kind === 'detail') {
+    const card = cards.find((c) => c.id === step.id);
+    const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === step.id) : undefined;
+    view = card && m ? { kind: 'detail', detail: detailOf(card, m) } : listView();
+  }
   else if (step.kind === 'send') {
     const card = cards.find((c) => c.id === step.id);
     view = card
@@ -745,6 +769,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         else writeOfficial(step.id, entry.value);
       }}
       onClearOfficial={() => step.kind === 'official' && writeOfficial(step.id, null)}
+      onOpenDetail={(id) => setStep({ kind: 'detail', id })}
       onOpenEdit={(id) => {
         const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === id) : undefined;
         if (m) setStep({ kind: 'edit', id, stroke: m.stroke, athleteId: m.athleteId, confirmingDelete: false, saveError: false });
