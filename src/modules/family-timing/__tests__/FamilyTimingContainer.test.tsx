@@ -154,8 +154,8 @@ describe('FamilyTimingContainer with the timing buttons', () => {
     fake.advance(ms(16_123));
     await press(24);
 
-    expect(screen.getByText('Lap 1 · 15,500 · total 15,500')).toBeTruthy();
-    expect(screen.getByText('Lap 2 · 16,123 · total 31,623')).toBeTruthy();
+    expect(screen.getByText('Lap 1 · 0:15,500 · total 0:15,500')).toBeTruthy();
+    expect(screen.getByText('Lap 2 · 0:16,123 · total 0:31,623')).toBeTruthy();
     await fireEvent.press(screen.getByText('Guardar'));
     await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]).toMatchObject({ millis: 31_623, splits: [15_500] }));
     // Back on the list, the keys go back to the system.
