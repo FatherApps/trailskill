@@ -123,7 +123,12 @@ const toTransfer = (row: Row): FamilyTransfer => ({
 // The answers go to the server functions; the requests reach the device by sync (family_timing_transfers).
 export function createPowerSyncFamilyTransferRepository(): FamilyTransferRepository {
   return {
-    send: (measurementId, code) => rpc<string>('send_family_time', { measurement: measurementId, share_code: code }),
+    async send(measurementId, code) {
+      // The server answers an unknown code with null, not an error, so that the failed attempt counts (#1013).
+      const shortName = await rpc<string | null>('send_family_time', { measurement: measurementId, share_code: code });
+      if (shortName === null) throw new FamilyTransferError('unknown_code');
+      return shortName;
+    },
     accept: (transferId) => rpc<void>('accept_family_time', { transfer: transferId }),
     reject: (transferId) => rpc<void>('reject_family_time', { transfer: transferId }),
     withdraw: (transferId) => rpc<void>('withdraw_family_time', { transfer: transferId }),
