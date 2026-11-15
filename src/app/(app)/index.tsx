@@ -45,8 +45,8 @@ export default function Landing() {
     syncGaveUp: syncConnectFailed || waitExpired,
     // The same width the phone navigation bar checks in _layout.tsx.
     phoneBar: width < breakpoint['bp-medium'],
-    // A failed lookup says nothing about the person, so it counts as staff: the home screen keeps every entry they may have.
-    staff: staff.status === 'loading' ? 'loading' : staff.status !== 'denied',
+    // Only a found school counts as staff. A failed lookup ('error') counts as not staff, as the navigation bar does: the backend still decides what is shown, and staff reach the console from the menu.
+    staff: staff.status === 'loading' ? 'loading' : staff.status === 'staff',
     own,
     platformAdmin,
   });

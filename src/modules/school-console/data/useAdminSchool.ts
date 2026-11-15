@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { kindOf } from '../components/errorKind';
 import type { StaffSchool, StaffSchoolRepository } from './staffSchools';
 
 export type AdminSchoolResult = { status: 'loading' } | { status: 'denied' } | { status: 'error'; retry: () => void } | { status: 'admin'; school: StaffSchool };
@@ -49,7 +50,11 @@ function useFirstSchool(
       list(userId)
         // shortcut: `school` is the first by name, with no picker in the console; the timing asks among `schools`. Upgrade when the console needs a school picker.
         .then((schools) => settle(schools[0] ? { status: 'found', school: schools[0], schools } : { status: 'denied' }))
-        .catch(() => settle({ status: 'error' }));
+        .catch((error: unknown) => {
+          // The kind only, never the message: it can carry stored data.
+          console.warn('[school-console] The school lookup failed', kindOf(error));
+          settle({ status: 'error' });
+        });
     }
     return () => {
       active = false;
