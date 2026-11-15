@@ -50,7 +50,7 @@ nonzero() { if [ "$2" -ne 0 ]; then pass "$1"; else fail "$1" "exit code was 0";
 newdb() { sql postgres "create database $1" >/dev/null; }
 
 # --- fixtures (synthetic) ---------------------------------------------------
-mkdir -p "$T/fx/ok" "$T/fx/okplus" "$T/fx/failing" "$T/fx/badname"
+mkdir -p "$T/fx/ok" "$T/fx/okplus" "$T/fx/failing" "$T/fx/badname" "$T/fx/sched" "$T/fx/schedfail" "$T/fx/schedwarn"
 cat >"$T/fx/ok/20260101000000_core_create_a.sql" <<'SQL'
 create table public.a (id int primary key);
 insert into public.a values (1);
@@ -71,6 +71,28 @@ select 1 / 0;
 SQL
 cat >"$T/fx/failing/20260101000003_core_later.sql" <<'SQL'
 create table public.d (id int);
+SQL
+cp "$T/fx/ok/"*.sql "$T/fx/sched/"
+cat >"$T/fx/sched/20260101000002_core_app_schema.sql" <<'SQL'
+-- the Supabase roles the real migration revokes from
+select format('create role %I', r) from unnest(array['anon', 'authenticated']) r where not exists (select 1 from pg_roles where rolname = r) \gexec
+create schema if not exists app;
+create function app.purge_family_timing_measurements() returns integer language sql as 'select 0';
+create function app.expire_family_timing_transfers() returns integer language sql as 'select 0';
+SQL
+cp "$HERE/../../supabase/migrations/20261115080000_family-timing_schedule_jobs.sql" "$T/fx/sched/20260101000003_family-timing_schedule_jobs.sql"
+# Stubs that replace the function after the real migration, standing in for pg_cron refusing to schedule.
+cp "$T/fx/sched/"*.sql "$T/fx/schedfail/"
+cp "$T/fx/sched/"*.sql "$T/fx/schedwarn/"
+cat >"$T/fx/schedfail/20260101000004_stub_fail.sql" <<'SQL'
+create or replace function app.schedule_family_timing_jobs() returns integer language plpgsql as $$
+begin raise exception 'boom' using errcode = '42501'; end;
+$$;
+SQL
+cat >"$T/fx/schedwarn/20260101000004_stub_warn.sql" <<'SQL'
+create or replace function app.schedule_family_timing_jobs() returns integer language plpgsql as $$
+begin raise warning 'scheduled jobs failed: SQLSTATE 42501'; return 0; end;
+$$;
 SQL
 echo 'create table public.nope (id int);' >"$T/fx/badname/notanumber.sql"
 cat >"$T/fx/seed.sql" <<'SQL'
@@ -94,6 +116,7 @@ migrate t1 ok; rc=$?
 eq "apply: exit 0" 0 "$rc"
 eq "apply: both versions recorded" "20260101000000,20260101000001" "$(versions t1)"
 eq "apply: dependent migration ran after its dependency" "1" "$(sql t1 'select count(*) from public.b')"
+eq "apply: scheduled jobs step skipped without the function" 1 "$(grep -c 'no scheduled jobs function, skipping' "$T/out")"
 eq "apply: name recorded" "core_create_a" "$(sql t1 "select name from supabase_migrations.schema_migrations where version = '20260101000000'")"
 
 # --- 2. idempotent rerun ----------------------------------------------------
@@ -149,6 +172,32 @@ eq "role: password change exit 0" 0 "$rc"
 as_ps "$PS_PW" t4 'select 1' >/dev/null; rc=$?
 nonzero "role: old password rejected" "$rc"
 eq "role: new password works" 0 "$(as_ps "$PS_PW2" t4 'select count(*) from public.late_mig')"
+
+# --- 7. scheduled jobs without pg_cron (the image has none) -----------------
+newdb t5
+migrate t5 sched; rc=$?
+eq "schedule: exit 0 without pg_cron" 0 "$rc"
+eq "schedule: reports nothing scheduled" 1 "$(grep -c 'scheduled jobs: 0' "$T/out")"
+eq "schedule: no cron schema created" "t" "$(sql t5 "select to_regnamespace('cron') is null")"
+migrate t5 sched; rc=$?
+eq "schedule rerun: exit 0" 0 "$rc"
+eq "schedule rerun: nothing applied" 0 "$(grep -c '^applied' "$T/out")"
+eq "schedule rerun: reports nothing scheduled" 1 "$(grep -c 'scheduled jobs: 0' "$T/out")"
+
+# --- 7b. a scheduling failure never fails the deploy ---------------------------
+# The image has no pg_cron, so these stubs stand in for it; the real "pg_cron present" paths are in
+# supabase/tests/database/family-timing/scheduled_jobs.test.sql.
+newdb t6
+migrate t6 schedfail; rc=$?
+eq "schedule error: exit 0" 0 "$rc"
+eq "schedule error: warns" 1 "$(grep -c '^WARN scheduled jobs failed' "$T/out")"
+eq "schedule error: later steps still run" 1 "$(grep -c '^migrate done' "$T/out")"
+newdb t7
+migrate t7 schedwarn; rc=$?
+eq "schedule warning: exit 0" 0 "$rc"
+eq "schedule warning: warns with the SQLSTATE" 1 "$(grep -c '^WARN scheduled jobs failed: SQLSTATE 42501' "$T/out")"
+eq "schedule warning: not reported as nothing to schedule" 0 "$(grep -c 'scheduled jobs: 0 (pg_cron not installed' "$T/out")"
+eq "schedule warning: later steps still run" 1 "$(grep -c '^migrate done' "$T/out")"
 
 # --- no secrets in output ---------------------------------------------------
 migrate t4 okplus -e POWERSYNC_DB_PASSWORD="$PS_PW2"
