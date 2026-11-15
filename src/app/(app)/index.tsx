@@ -28,8 +28,8 @@ const pendingInvitations = createSecureStorePendingInvitationRepository();
 const conflictReview = createSupabaseConflictReviewRepository();
 const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
 
-// "/" is the landing of every role: a guardian opens My athletes and an adult athlete their own profile. Everyone else, school staff and
-// platform admins included, keeps the home screen below. This only decides the screen; the backend still decides what each person sees.
+// "/" is the landing of every role: a guardian or an adult athlete with one athlete in total (the own profile counts) opens that profile, and
+// with two or more opens My athletes. Everyone else, school staff and platform admins included, keeps the home screen below. This only decides the screen; the backend still decides what each person sees.
 export default function Landing() {
   const { session, syncConnectFailed } = useSession();
   const userId = session?.user.id;

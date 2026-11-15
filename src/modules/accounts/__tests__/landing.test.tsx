@@ -13,15 +13,20 @@ import {
 // The sync layer is ESM-only for Jest; the in-memory repositories never reach it.
 jest.mock('../../../core/sync', () => ({ db: {} }));
 
-const guardian: OwnLandingEvidence = { managedCount: 2, selfAthleteId: null, authorized: true };
-const adult: OwnLandingEvidence = { managedCount: 1, selfAthleteId: 'self-1', authorized: true };
-const nobody: OwnLandingEvidence = { managedCount: 0, selfAthleteId: null, authorized: false };
+const guardian: OwnLandingEvidence = { managedCount: 2, selfAthleteId: null, onlyAthleteId: null, authorized: true };
+const guardianOfOne: OwnLandingEvidence = { managedCount: 1, selfAthleteId: null, onlyAthleteId: 'child-1', authorized: true };
+const adult: OwnLandingEvidence = { managedCount: 1, selfAthleteId: 'self-1', onlyAthleteId: 'self-1', authorized: true };
+const nobody: OwnLandingEvidence = { managedCount: 0, selfAthleteId: null, onlyAthleteId: null, authorized: false };
 const base: LandingEvidence = { synced: true, syncGaveUp: false, phoneBar: true, staff: false, own: nobody, platformAdmin: false };
 const landing = (evidence: Partial<LandingEvidence>) => resolveLanding({ ...base, ...evidence });
 
 describe('resolveLanding: one landing per role', () => {
   it('sends a guardian to My athletes', () => {
     expect(landing({ own: guardian })).toEqual({ kind: 'athletes' });
+  });
+
+  it('sends a guardian of one athlete straight to that athlete', () => {
+    expect(landing({ own: guardianOfOne })).toEqual({ kind: 'athlete', athleteId: 'child-1' });
   });
 
   it('sends an adult athlete straight to their own profile', () => {
@@ -31,6 +36,7 @@ describe('resolveLanding: one landing per role', () => {
   // Without the phone bar the profile has no way to My athletes, where the sign-out and the authorizations are (until the account screen).
   it('sends an adult athlete to My athletes when the screen has no phone bar', () => {
     expect(landing({ own: adult, phoneBar: false })).toEqual({ kind: 'athletes' });
+    expect(landing({ own: guardianOfOne, phoneBar: false })).toEqual({ kind: 'athletes' });
   });
 
   it('does not change where a guardian, staff or a platform admin land when there is no phone bar', () => {
@@ -40,7 +46,7 @@ describe('resolveLanding: one landing per role', () => {
   });
 
   it('sends a guardian who has not added an athlete yet to My athletes', () => {
-    expect(landing({ own: { managedCount: 0, selfAthleteId: null, authorized: true } })).toEqual({ kind: 'athletes' });
+    expect(landing({ own: { managedCount: 0, selfAthleteId: null, onlyAthleteId: null, authorized: true } })).toEqual({ kind: 'athletes' });
   });
 
   it('keeps school staff, coach or admin, on the home screen', () => {
@@ -69,9 +75,10 @@ describe('resolveLanding: accounts with several roles', () => {
     expect(landing({ platformAdmin: true, own: guardian })).toEqual({ kind: 'home' });
   });
 
-  // Not decided yet: Mis deportistas holds the own card too. Changing the answer is this one case.
+  // The own profile counts: an adult athlete with one athlete of their own has two to pick from, and My athletes lists both.
   it('sends an adult athlete who also manages others to My athletes', () => {
-    expect(landing({ own: { managedCount: 3, selfAthleteId: 'self-1', authorized: true } })).toEqual({ kind: 'athletes' });
+    expect(landing({ own: { managedCount: 2, selfAthleteId: 'self-1', onlyAthleteId: null, authorized: true } })).toEqual({ kind: 'athletes' });
+    expect(landing({ own: { managedCount: 3, selfAthleteId: 'self-1', onlyAthleteId: null, authorized: true } })).toEqual({ kind: 'athletes' });
   });
 });
 
@@ -127,6 +134,7 @@ describe('useOwnLandingEvidence', () => {
     { userId: 'guardian-1', athleteId: 'a1', relation: 'guardian' },
     { userId: 'guardian-1', athleteId: 'a2', relation: 'guardian' },
     { userId: 'adult-1', athleteId: 'a3', relation: 'self' },
+    { userId: 'guardian-2', athleteId: 'a4', relation: 'guardian' },
     { userId: 'coach-1', athleteId: 'a1', relation: 'guardian' },
   ];
   // Stable identity: the hook looks again whenever a repository changes.
@@ -146,19 +154,25 @@ describe('useOwnLandingEvidence', () => {
   it('counts the athletes of a guardian and finds no own athlete', async () => {
     const seen = await read('guardian-1');
 
-    await waitFor(() => expect(seen.current).toEqual({ managedCount: 2, selfAthleteId: null, authorized: true }));
+    await waitFor(() => expect(seen.current).toEqual({ managedCount: 2, selfAthleteId: null, onlyAthleteId: null, authorized: true }));
+  });
+
+  it('names the only athlete of a guardian of one', async () => {
+    const seen = await read('guardian-2');
+
+    await waitFor(() => expect(seen.current).toEqual({ managedCount: 1, selfAthleteId: null, onlyAthleteId: 'a4', authorized: false }));
   });
 
   it('finds the own athlete of an adult', async () => {
     const seen = await read('adult-1');
 
-    await waitFor(() => expect(seen.current).toEqual({ managedCount: 1, selfAthleteId: 'a3', authorized: true }));
+    await waitFor(() => expect(seen.current).toEqual({ managedCount: 1, selfAthleteId: 'a3', onlyAthleteId: 'a3', authorized: true }));
   });
 
   it('finds nothing for a user with no rows, whatever other users have', async () => {
     const seen = await read('nobody');
 
-    await waitFor(() => expect(seen.current).toEqual({ managedCount: 0, selfAthleteId: null, authorized: false }));
+    await waitFor(() => expect(seen.current).toEqual({ managedCount: 0, selfAthleteId: null, onlyAthleteId: null, authorized: false }));
   });
 
   it('reads as nothing when the local lookup fails, so the home screen stays reachable', async () => {

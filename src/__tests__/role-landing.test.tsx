@@ -18,8 +18,10 @@ type World = {
   ownAuthorizations: boolean;
   // true / false, or 'silent' when the server never answers.
   platformAdmin: boolean | 'silent';
+  // The membership lookup on the device fails.
+  staffLookupFails: boolean;
 };
-const mockWorld: World = { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false };
+const mockWorld: World = { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, staffLookupFails: false };
 
 jest.mock('../core/sync', () => ({
   ...jest.requireActual('../core/sync/syncState'),
@@ -31,7 +33,10 @@ jest.mock('../core/session', () => ({
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   createPowerSyncStaffSchoolRepository: () => ({
-    listStaffSchools: async () => mockWorld.schools.map((id) => ({ id, name: id })),
+    listStaffSchools: async () => {
+      if (mockWorld.staffLookupFails) throw new Error('db');
+      return mockWorld.schools.map((id) => ({ id, name: id }));
+    },
     listAdminSchools: async () => mockWorld.adminSchools.map((id) => ({ id, name: id })),
     // The landing tests only check which screen opens; the coach button of the home screen is tested in home.test.tsx.
     listCoachSchools: async () => [],
@@ -91,10 +96,11 @@ const routes = {
 
 beforeEach(() => {
   mockWidth = 390;
-  Object.assign(mockWorld, { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false });
+  Object.assign(mockWorld, { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, staffLookupFails: false });
 });
 
 const guardian = () => Object.assign(mockWorld, { managedIds: ['a1', 'a2'], ownAuthorizations: true });
+const guardianOfOne = () => Object.assign(mockWorld, { managedIds: ['a1'], ownAuthorizations: true });
 const adult = () => Object.assign(mockWorld, { managedIds: ['self-1'], selfId: 'self-1', ownAuthorizations: true });
 
 // "TrailSkill" is the title of the old home screen.
@@ -111,6 +117,23 @@ describe('landing by role', () => {
 
     expect(await screen.findByText('my athletes')).toBeOnTheScreen();
     expect(screen.queryByText('TrailSkill')).toBeNull();
+  });
+
+  it('takes a guardian of one athlete on a tablet, which has no phone bar, to My athletes', async () => {
+    guardianOfOne();
+    mockWidth = 800;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('my athletes')).toBeOnTheScreen();
+    expect(screen.queryByText(/^profile /)).toBeNull();
+  });
+
+  it('takes a guardian of one athlete straight to that athlete', async () => {
+    guardianOfOne();
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('profile a1')).toBeOnTheScreen();
+    expect(screen.queryByText('my athletes')).toBeNull();
   });
 
   it('takes an adult athlete to their own profile', async () => {
@@ -171,12 +194,30 @@ describe('landing of accounts with several roles', () => {
     await landsOnHome();
   });
 
+  // A failed lookup says nothing about the person, so it keeps the old home screen with every entry they may have (comment in index.tsx).
+  it('keeps a guardian on the old home screen when the membership lookup on the device fails', async () => {
+    guardian();
+    mockWorld.staffLookupFails = true;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    await landsOnHome();
+  });
+
   it('keeps a platform admin who is also a guardian on the old home screen', async () => {
     guardian();
     mockWorld.platformAdmin = true;
     await renderRouter(routes, { initialUrl: '/' });
 
     await landsOnHome();
+  });
+
+  // The count includes the own profile: an adult athlete who is also the guardian of one athlete has two to pick from.
+  it('takes an adult athlete who is also the guardian of one athlete to My athletes', async () => {
+    Object.assign(mockWorld, { managedIds: ['self-1', 'a2'], selfId: 'self-1', ownAuthorizations: true });
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('my athletes')).toBeOnTheScreen();
+    expect(screen.queryByText(/^profile /)).toBeNull();
   });
 
   it('takes an adult athlete who also manages others to My athletes', async () => {
