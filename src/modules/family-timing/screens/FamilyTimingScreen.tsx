@@ -49,7 +49,12 @@ export type FamilyEditView = {
 export type FamilyStopwatchView = {
   status: 'idle' | 'running' | 'stopped';
   time: string;
-  splits: string[];
+  // One row per finished lap: its own time and the total so far.
+  laps: { lap: string; total: string }[];
+  // "Lap 2 de 4" while running; null when the event is a single lap.
+  lapProgress: string | null;
+  // False when the event is one lap: the stopwatch only starts and stops.
+  hasLaps: boolean;
   event: string;
   noTime: boolean;
   /** Which keys time, while the headset or volume keys are on; null otherwise. */
@@ -180,11 +185,14 @@ function StopwatchBody(props: FamilyTimingScreenProps & { stopwatch: FamilyStopw
       {stopwatch.noTime && <Banner variant="warn">{t('family_timing.stopwatch.no_time')}</Banner>}
       {saveError && <Banner variant="warn" icon="error">{t('family_timing.save_error')}</Banner>}
       {stopwatch.status === 'idle' && <Button size="timing" label={t('family_timing.stopwatch.start')} onPress={props.onStart} />}
+      {stopwatch.lapProgress && <Text style={[typography['body-strong'], { color: colors.ink, textAlign: 'center' }]}>{stopwatch.lapProgress}</Text>}
       {stopwatch.status === 'running' && (
         <View style={{ flexDirection: 'row', gap: space[3] }}>
-          <View style={{ flex: 1 }}>
-            <Button size="timing" variant="secondary" label={t('family_timing.stopwatch.split')} onPress={props.onSplit} />
-          </View>
+          {stopwatch.hasLaps && (
+            <View style={{ flex: 1 }}>
+              <Button size="timing" variant="secondary" label={t('family_timing.stopwatch.split')} onPress={props.onSplit} />
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Button size="timing" variant="stop" label={t('family_timing.stopwatch.stop')} onPress={props.onStop} />
           </View>
@@ -196,9 +204,9 @@ function StopwatchBody(props: FamilyTimingScreenProps & { stopwatch: FamilyStopw
           <Button variant="ghost" label={t('family_timing.stopwatch.discard')} onPress={props.onDiscard} />
         </View>
       )}
-      {stopwatch.splits.map((split, index) => (
+      {stopwatch.laps.map((row, index) => (
         <Text key={index} style={[typography['time-sm'], { color: colors.ink }]}>
-          {t('family_timing.stopwatch.split_row', { number: index + 1, time: split })}
+          {t('family_timing.stopwatch.split_row', { number: index + 1, time: row.lap, total: row.total })}
         </Text>
       ))}
     </View>
@@ -331,7 +339,11 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
               onChangeText={(v) => props.onSetupChange('competition', v)}
             />
           )}
-          <Button label={t('family_timing.setup.start')} onPress={props.onGoToStopwatch} />
+          <Button
+            label={t('family_timing.setup.start')}
+            onPress={props.onGoToStopwatch}
+            disabledReason={setup.pool.value ? undefined : t('family_timing.setup.pool_required')}
+          />
           <Button variant="ghost" label={t('family_timing.setup.cancel')} onPress={props.onCancel} />
         </View>
       );

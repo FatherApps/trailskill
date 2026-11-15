@@ -19,6 +19,7 @@ import {
   stopAt,
   type FamilyStopwatch,
 } from '../domain/familyStopwatch';
+import { lapsFor } from '../domain/laps';
 import { localDay } from '../domain/localDay';
 import { officialValue, type OfficialImport } from '../domain/officialValue';
 import { parseTimeEntry } from '../domain/timeEntry';
@@ -44,8 +45,9 @@ export type FamilyTimingContainerProps = {
 
 const targetOf = (sw: FamilyStopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
 
-type Setup = { stroke: StrokeCode; distance: DistanceCode; pool: PoolCode; sessionType: FamilySessionType; competition: string };
-const initialSetup: Setup = { stroke: strokes[0].code, distance: distances[1].code, pool: pools[0].code, sessionType: 'training', competition: '' };
+// The pool starts unchosen: the laps depend on it, so the stopwatch waits until the person picks one.
+type Setup = { stroke: StrokeCode; distance: DistanceCode; pool: PoolCode | null; sessionType: FamilySessionType; competition: string };
+const initialSetup: Setup = { stroke: strokes[0].code, distance: distances[1].code, pool: null, sessionType: 'training', competition: '' };
 
 type Step =
   | { kind: 'list' }
@@ -57,6 +59,19 @@ type Step =
 
 // A deleted time is removed from the server this long after it was deleted.
 const KEEP_DELETED_DAYS = 30;
+
+/**
+ * The lap rows: each finished lap's own time and the total at its end. The last lap ends at the stop, so once stopped it is
+ * a row too (null times stay null, never 0).
+ */
+function lapRows(splits: number[], final: number | null, hasLaps: boolean): { lap: number | null; total: number | null }[] {
+  if (!hasLaps) return [];
+  const ends: (number | null)[] = splits.length > 0 && final !== null ? [...splits, final] : [...splits];
+  return ends.map((total, index) => {
+    const previous = index === 0 ? 0 : ends[index - 1];
+    return { lap: total !== null && previous !== null ? total - previous : null, total };
+  });
+}
 
 // `key` is the athlete and reload count it was read for: a read for another key is still loading.
 type Loaded =
@@ -83,6 +98,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const buttonPrefs = preferences.timingButtons;
   const precision = preferences.timePrecision;
   const format = useCallback((millis: number | null) => formatMillis(millis, { precision }), [precision]);
+  // The lap lines always show minutes ("0:18,40"), as decision 6 of the plan writes them.
+  const formatLap = useCallback((millis: number | null) => formatMillis(millis, { precision, alwaysShowMinutes: true }), [precision]);
 
   const [chosenId, setChosenId] = useState<string | null>(null);
   const selectedId = athletes.some((a) => a.id === chosenId) ? chosenId : (athletes[0]?.id ?? null);
@@ -97,6 +114,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const saving = useRef(false);
 
   // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
+  const laps = setup.pool ? lapsFor(setup.distance, setup.pool) : 1;
   const latestStopwatch = useRef(stopwatch);
   useEffect(() => {
     latestStopwatch.current = stopwatch;
@@ -108,8 +126,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     vibrate: buttonPrefs.vibrate,
     port: buttons,
     onAction: (action, at) => {
-      const next = action === 'start' ? startAt : action === 'split' ? splitAt : stopAt;
-      latestStopwatch.current = next(latestStopwatch.current, at);
+      const sw = latestStopwatch.current;
+      latestStopwatch.current = action === 'start' ? startAt(sw, at) : action === 'split' ? splitAt(sw, at, laps) : stopAt(sw, at);
       setStopwatch(latestStopwatch.current);
     },
   });
@@ -164,7 +182,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         captured: format(m.millis),
         capturedIsHistory: official !== null,
         official,
-        splitsLabel: m.splits.length > 0 ? t('family_timing.card.splits', { count: m.splits.length }) : null,
+        splitsLabel: m.splits.length > 0 ? t('family_timing.card.splits', { count: m.splits.length + 1 }) : null,
         canSetOfficial: m.sessionType === 'competition' && value?.kind !== 'imported',
         hasManualOfficial: m.officialMillis !== null,
       };
@@ -190,7 +208,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   };
 
   async function save() {
-    if (saving.current || stopwatch.status !== 'stopped' || !selectedId) return;
+    if (saving.current || stopwatch.status !== 'stopped' || !selectedId || !setup.pool) return;
     saving.current = true;
     const measurement: FamilyMeasurement = {
       id: randomUUID(),
@@ -257,7 +275,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       setup: {
         stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: setup.stroke },
         distance: { options: distances.map((d) => option(d.code, d.nameKey)), value: setup.distance },
-        pool: { options: pools.map((p) => option(p.code, p.nameKey)), value: setup.pool },
+        pool: { options: pools.map((p) => option(p.code, p.nameKey)), value: setup.pool ?? '' },
         sessionType: {
           options: (['training', 'competition'] as const).map((type) => ({ value: type, label: t(`family_timing.session_type.${type}`) })),
           value: setup.sessionType,
@@ -274,8 +292,13 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       stopwatch: {
         status: stopwatch.status,
         time: stopwatch.status === 'idle' ? format(0) : format(elapsed),
-        splits: splitMillis(stopwatch).map(format),
-        event: eventLabel(setup),
+        laps: lapRows(splitMillis(stopwatch), finalMillis(stopwatch), laps > 1).map(({ lap, total }) => ({ lap: formatLap(lap), total: formatLap(total) })),
+        lapProgress:
+          laps > 1 && stopwatch.status === 'running'
+            ? t('family_timing.stopwatch.lap_progress', { current: stopwatch.splitMarks.length + 1, total: laps })
+            : null,
+        hasLaps: laps > 1,
+        event: eventLabel({ ...setup, pool: setup.pool ?? '' }),
         noTime: stopwatch.status === 'stopped' && finalMillis(stopwatch) === null,
         buttonsHint: keys.active ? buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keys.keyboards[0]?.name) : null,
       },
@@ -313,12 +336,13 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       onNew={() => setStep({ kind: 'setup' })}
       onSetupChange={(field, value) => setSetup((current) => ({ ...current, [field]: value }))}
       onGoToStopwatch={() => {
+        if (!setup.pool) return;
         setStopwatch(idleFamilyStopwatch);
         setStep({ kind: 'stopwatch', saveError: false });
       }}
       onCancel={goToList}
       onStart={() => setStopwatch((sw) => startAt(sw, now()))}
-      onSplit={() => setStopwatch((sw) => splitAt(sw, now()))}
+      onSplit={() => setStopwatch((sw) => splitAt(sw, now(), laps))}
       onStop={() => setStopwatch((sw) => stopAt(sw, now()))}
       onSave={save}
       onDiscard={goToList}

@@ -47,6 +47,7 @@ describe('FamilyTimingContainer', () => {
   it('measures a training time and keeps it on the phone with thousandths', async () => {
     const { repository, clock } = await setup();
     await fireEvent.press(await screen.findByText('Medir un tiempo'));
+    await fireEvent.press(screen.getByText('Piscina de 25 m'));
     await fireEvent.press(screen.getByText('Ir al cronómetro'));
     clock.set(1000);
     await fireEvent.press(screen.getByText('Iniciar'));
@@ -133,6 +134,7 @@ describe('FamilyTimingContainer with the timing buttons', () => {
       </PreferencesProvider>,
     );
     await fireEvent.press(await screen.findByText('Medir un tiempo'));
+    await fireEvent.press(screen.getByText('Piscina de 25 m'));
     await fireEvent.press(screen.getByText('Ir al cronómetro'));
     const press = (keyCode: number) => act(async () => void fake.press(keyCode));
     return { fake, repository, press };
@@ -142,7 +144,7 @@ describe('FamilyTimingContainer with the timing buttons', () => {
     const { fake, repository, press } = await withButtons();
     expect(fake.mode).toBe('capture');
     expect(fake.keys).toEqual([24, 25]);
-    expect(screen.getByText('Subir volumen (+) inicia y detiene · Bajar volumen (−) marca parcial')).toBeTruthy();
+    expect(screen.getByText('Subir volumen (+) inicia y detiene · Bajar volumen (−) marca el lap')).toBeTruthy();
 
     await press(24);
     fake.advance(ms(1_000));
@@ -152,7 +154,8 @@ describe('FamilyTimingContainer with the timing buttons', () => {
     fake.advance(ms(16_123));
     await press(24);
 
-    expect(screen.getByText('Parcial 1 · 15,500')).toBeTruthy();
+    expect(screen.getByText('Lap 1 · 0:15,500 · total 0:15,500')).toBeTruthy();
+    expect(screen.getByText('Lap 2 · 0:16,123 · total 0:31,623')).toBeTruthy();
     await fireEvent.press(screen.getByText('Guardar'));
     await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]).toMatchObject({ millis: 31_623, splits: [15_500] }));
     // Back on the list, the keys go back to the system.
@@ -178,6 +181,6 @@ describe('FamilyTimingContainer with the timing buttons', () => {
   it('names the connected headset', async () => {
     const { fake } = await withButtons();
     await act(async () => fake.connect([{ id: 7, name: 'USB Headset' }]));
-    expect(screen.getByText('Botones: USB Headset · Subir volumen (+) inicia y detiene · Bajar volumen (−) marca parcial')).toBeTruthy();
+    expect(screen.getByText('Botones: USB Headset · Subir volumen (+) inicia y detiene · Bajar volumen (−) marca el lap')).toBeTruthy();
   });
 });
