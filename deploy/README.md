@@ -8,7 +8,7 @@ What Dokploy deploys from this repository on every push to `main`: migrations pl
 | --- | --- |
 | `compose.yaml` | The Compose service Dokploy deploys: `migrate`, `powersync-storage`, `powersync`. |
 | `compose.local.yaml`, `local.env`, `powersync/powersync.local.yaml` | Run PowerSync on a developer's machine next to `supabase start`. Dokploy does not use them. See [Local development](../docs/local-development.md). |
-| `scripts/migrate.sh` | Creates `powersync_role`, applies `supabase/migrations/*.sql`, optional seed. |
+| `scripts/migrate.sh` | Creates `powersync_role`, applies `supabase/migrations/*.sql`, schedules the `pg_cron` jobs, optional seed. |
 | `powersync/powersync.yaml` | PowerSync service config. |
 | `scripts/functions-bundle.sh` | Builds the `results-import` and `school-console-invite-coach` Edge Function bundles and puts them in the Supabase stack's functions volume, see [Edge Functions](#edge-functions). |
 | `scripts/functions-egress.sh` | Checks that the Edge Functions runtime's network can reach the providers' external sources over HTTPS. |
@@ -125,11 +125,51 @@ On every deploy of `main`, `migrate` runs once before PowerSync starts:
 
    **Migration versions must be unique.** `migrate` records and checks only the version (the digits before the first `_`), not the full name. A second file with a version that is already applied is skipped without an error, so its SQL never runs. Before merging a migration, check that no file in `supabase/migrations/` and no open pull request uses its timestamp (this happened once and the file had to be renamed).
 3. Grants `powersync_role` read access (`SELECT`) on `public`, now and for future tables.
-4. With `APPLY_SEED=true` only (the value must be exactly `true` or `false`), applies `supabase/seed.sql` once (recorded by path and hash in `supabase_migrations.seed_files`; see [Demo data](#demo-data)).
+4. Schedules the daily family-timing jobs by calling `app.schedule_family_timing_jobs()`. It does nothing (and logs `scheduled jobs: 0`) while `pg_cron` is not installed, so the deploy never fails for lack of it. See [Scheduled jobs (pg_cron)](#scheduled-jobs-pg_cron).
+5. With `APPLY_SEED=true` only (the value must be exactly `true` or `false`), applies `supabase/seed.sql` once (recorded by path and hash in `supabase_migrations.seed_files`; see [Demo data](#demo-data)).
 
 If anything fails, `migrate` exits non-zero and PowerSync does not start: the deploy fails and PowerSync stays stopped until a fix is merged (see [Rolling back](#rolling-back)).
 
 PowerSync logs replication errors (`Publication 'powersync' does not exist`) until the foundations migration creates the `powersync` publication.
+
+## Scheduled jobs (pg_cron)
+
+Two daily jobs run inside the database, through `pg_cron`:
+
+| Job | Schedule (UTC) | Runs | If it does not run |
+| --- | --- | --- | --- |
+| `family-timing-purge-deleted` | `17 4 * * *` | `select app.purge_family_timing_measurements()` | Times a family deleted are not removed after 30 days, which [`docs/release/data-safety.md`](../docs/release/data-safety.md) promises. |
+| `family-timing-expire-transfers` | `27 4 * * *` | `select app.expire_family_timing_transfers()` | Unanswered "send to another family" requests stay `pending`, although `expires_at` already closes them functionally. |
+
+The first migrations scheduled them only if `pg_cron` already existed when they ran, and applied migrations are never run again, so enabling `pg_cron` later scheduled nothing. Now every deploy calls `app.schedule_family_timing_jobs()` (step 4 of [How migrations run](#how-migrations-run)). It schedules both jobs when `pg_cron` is installed and does nothing otherwise. `cron.schedule` replaces a job with the same name, so repeated deploys keep one job per name.
+
+**Observed locally** with `supabase start` (Postgres 17): `pg_cron` 1.6.4 is available but not installed, it is in `shared_preload_libraries`, and `cron.database_name` is `postgres`. Do not assume the production image matches: check it with the maintainer checklist below.
+
+**Check it locally.** With `supabase start` running (the database tests do this inside a rolled-back transaction):
+
+```sh
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -c "create extension if not exists pg_cron"
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -c "select app.schedule_family_timing_jobs();"
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -c "select jobname, schedule, active from cron.job order by jobname;"
+```
+
+Undo it locally:
+
+```sh
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -c "select cron.unschedule(jobname) from cron.job where jobname like 'family-timing-%'; drop extension pg_cron;"
+```
+
+**Maintainer checklist.** Every step is a **Maintainer action** on production: it needs explicit authorization, and this repository never runs it.
+
+1. **Maintainer action.** On the production database: `select name, installed_version from pg_available_extensions where name = 'pg_cron';`, `show shared_preload_libraries;` and `show cron.database_name;`.
+2. **Maintainer action.** If `pg_cron` is not in `shared_preload_libraries` or `cron.database_name` points to another database, change the Supabase stack configuration in Dokploy and restart the database (short outage, do it outside hours).
+3. **Maintainer action.** With a role that can, in the app database: `create extension if not exists pg_cron;`.
+4. **Maintainer action.** Run the next deploy of `main`, or run `select app.schedule_family_timing_jobs();` once.
+5. **Maintainer action.** Check `select jobname, schedule, active, username from cron.job order by jobname;`: both jobs are there and `username` is a role that can execute the functions.
+6. **Maintainer action.** The next day, `select jobname, status, return_message from cron.job_run_details order by start_time desc limit 5;` shows `succeeded`.
+7. **Maintainer action (optional backlog).** `select app.expire_family_timing_transfers();` and `select app.purge_family_timing_measurements();`. The latter irreversibly deletes the times deleted more than 30 days ago: confirm first.
+
+Rollback: `select cron.unschedule('family-timing-purge-deleted'); select cron.unschedule('family-timing-expire-transfers');`. The next deploy schedules them again while `pg_cron` stays installed; to stop for good, `drop extension pg_cron;`.
 
 ## Edge Functions
 

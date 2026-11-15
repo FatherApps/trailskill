@@ -1,5 +1,5 @@
 #!/bin/sh
-# Applies supabase/migrations to the Supabase Postgres and prepares the PowerSync role.
+# Applies supabase/migrations to the Supabase Postgres, prepares the PowerSync role and schedules the pg_cron jobs.
 # Runs under busybox ash in postgres:17-alpine. Connection: libpq env vars
 # (PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE). Never prints a password.
 #
@@ -119,7 +119,20 @@ alter default privileges in schema public grant select on tables to powersync_ro
 SQL
 log "grants for powersync_role applied"
 
-# f. seed (development only)
+# f. scheduled jobs (pg_cron). Skipped when no migration defines the function yet; the function itself
+#    does nothing without pg_cron, so a database without it still deploys. A failing call fails the run.
+if [ "$($PSQL -Atq -c "select to_regprocedure('app.schedule_family_timing_jobs()') is not null")" = "t" ]; then
+  scheduled=$($PSQL -Atq -c 'select app.schedule_family_timing_jobs()')
+  if [ "$scheduled" = "0" ]; then
+    log "scheduled jobs: 0 (pg_cron not installed, nothing scheduled)"
+  else
+    log "scheduled jobs: $scheduled"
+  fi
+else
+  log "no scheduled jobs function, skipping"
+fi
+
+# g. seed (development only)
 if [ "$APPLY_SEED" = "true" ]; then
   if [ -f "$SEED_FILE" ]; then
     seed_path="supabase/${SEED_FILE##*/}"

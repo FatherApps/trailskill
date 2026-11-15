@@ -50,7 +50,7 @@ nonzero() { if [ "$2" -ne 0 ]; then pass "$1"; else fail "$1" "exit code was 0";
 newdb() { sql postgres "create database $1" >/dev/null; }
 
 # --- fixtures (synthetic) ---------------------------------------------------
-mkdir -p "$T/fx/ok" "$T/fx/okplus" "$T/fx/failing" "$T/fx/badname"
+mkdir -p "$T/fx/ok" "$T/fx/okplus" "$T/fx/failing" "$T/fx/badname" "$T/fx/sched"
 cat >"$T/fx/ok/20260101000000_core_create_a.sql" <<'SQL'
 create table public.a (id int primary key);
 insert into public.a values (1);
@@ -72,6 +72,15 @@ SQL
 cat >"$T/fx/failing/20260101000003_core_later.sql" <<'SQL'
 create table public.d (id int);
 SQL
+cp "$T/fx/ok/"*.sql "$T/fx/sched/"
+cat >"$T/fx/sched/20260101000002_core_app_schema.sql" <<'SQL'
+-- the Supabase roles the real migration revokes from
+select format('create role %I', r) from unnest(array['anon', 'authenticated']) r where not exists (select 1 from pg_roles where rolname = r) \gexec
+create schema if not exists app;
+create function app.purge_family_timing_measurements() returns integer language sql as 'select 0';
+create function app.expire_family_timing_transfers() returns integer language sql as 'select 0';
+SQL
+cp "$HERE/../../supabase/migrations/20261115080000_family-timing_schedule_jobs.sql" "$T/fx/sched/20260101000003_family-timing_schedule_jobs.sql"
 echo 'create table public.nope (id int);' >"$T/fx/badname/notanumber.sql"
 cat >"$T/fx/seed.sql" <<'SQL'
 insert into public.a values (100), (101);
@@ -94,6 +103,7 @@ migrate t1 ok; rc=$?
 eq "apply: exit 0" 0 "$rc"
 eq "apply: both versions recorded" "20260101000000,20260101000001" "$(versions t1)"
 eq "apply: dependent migration ran after its dependency" "1" "$(sql t1 'select count(*) from public.b')"
+eq "apply: scheduled jobs step skipped without the function" 1 "$(grep -c 'no scheduled jobs function, skipping' "$T/out")"
 eq "apply: name recorded" "core_create_a" "$(sql t1 "select name from supabase_migrations.schema_migrations where version = '20260101000000'")"
 
 # --- 2. idempotent rerun ----------------------------------------------------
@@ -149,6 +159,17 @@ eq "role: password change exit 0" 0 "$rc"
 as_ps "$PS_PW" t4 'select 1' >/dev/null; rc=$?
 nonzero "role: old password rejected" "$rc"
 eq "role: new password works" 0 "$(as_ps "$PS_PW2" t4 'select count(*) from public.late_mig')"
+
+# --- 7. scheduled jobs without pg_cron (the image has none) -----------------
+newdb t5
+migrate t5 sched; rc=$?
+eq "schedule: exit 0 without pg_cron" 0 "$rc"
+eq "schedule: reports nothing scheduled" 1 "$(grep -c 'scheduled jobs: 0' "$T/out")"
+eq "schedule: no cron schema created" "t" "$(sql t5 "select to_regnamespace('cron') is null")"
+migrate t5 sched; rc=$?
+eq "schedule rerun: exit 0" 0 "$rc"
+eq "schedule rerun: nothing applied" 0 "$(grep -c '^applied' "$T/out")"
+eq "schedule rerun: reports nothing scheduled" 1 "$(grep -c 'scheduled jobs: 0' "$T/out")"
 
 # --- no secrets in output ---------------------------------------------------
 migrate t4 okplus -e POWERSYNC_DB_PASSWORD="$PS_PW2"
