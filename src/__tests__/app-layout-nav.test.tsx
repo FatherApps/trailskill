@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import { act } from 'react';
+
 import AppLayout from '../app/(app)/_layout';
+import { setFamilyTimingAtList } from '../modules/family-timing/screens/familyTimingAtList';
 import { iconPaths } from '../core/ui/icons';
 
 // Avoid loading the native PowerSync database.
@@ -68,10 +71,10 @@ describe('app layout phone navigation', () => {
     mockOwn = { managedCount: 1, selfAthleteId: 'self-1', authorized: true };
   };
 
-  it('shows Inicio, Historial, Marcas and Deportistas, in that order, to a guardian on a phone', async () => {
+  it('shows Inicio, Historial, Marcas, Mis tiempos, Deportistas and Ajustes, in that order, to a guardian on a phone', async () => {
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Deportistas']);
+    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Mis tiempos', 'Deportistas', 'Ajustes']);
   });
 
   const drawn = () => screen.container.queryAll((node) => node.type === 'RNSVGPath').map((path) => path.props.d);
@@ -79,29 +82,29 @@ describe('app layout phone navigation', () => {
   it('draws the design icons of the guardian bar, in order', async () => {
     await render(<AppLayout />);
 
-    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.group]);
+    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.timer, iconPaths.group, iconPaths.settings]);
   });
 
   it('draws the design icons of the adult bar, in order', async () => {
     adult();
     await render(<AppLayout />);
 
-    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.group]);
+    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.timer, iconPaths.group, iconPaths.settings]);
   });
 
   // Until #778 the adult reaches the sign-out and the authorizations, which live in the footer of "Mis deportistas", through this tab.
-  it('shows Inicio, Historial, Marcas and Deportistas to an adult athlete', async () => {
+  it('shows the same six destinations to an adult athlete', async () => {
     adult();
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Deportistas']);
+    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Mis tiempos', 'Deportistas', 'Ajustes']);
   });
 
   it('keeps Deportistas for an adult who also manages other athletes', async () => {
     mockOwn = { managedCount: 2, selfAthleteId: 'self-1', authorized: true };
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Deportistas']);
+    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Mis tiempos', 'Deportistas', 'Ajustes']);
   });
 
   it('waits for what the device says about the user before it draws the bar', async () => {
@@ -161,6 +164,32 @@ describe('app layout phone navigation', () => {
     await render(<AppLayout />);
     expect(mockUseStaffSchool).not.toHaveBeenCalled();
     expect(mockUseManagedAthletes).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['Mis tiempos', ['(app)', 'family-timing'], '/family-timing'],
+    ['Ajustes', ['(app)', 'settings'], '/settings'],
+  ])('marks %s on its own route and opens it from the bar (issue 999)', async (name, segments, href) => {
+    mockSegments = segments;
+    await render(<AppLayout />);
+    expect(screen.getByRole('tab', { name })).toBeSelected();
+
+    mockSegments = ['(app)', 'home'];
+    await render(<AppLayout />);
+    await fireEvent.press(screen.getByRole('tab', { name }));
+    expect(mockNavigate).toHaveBeenLastCalledWith(href);
+  });
+
+  it('hides the bar in Mis tiempos while a time is measured, edited or sent, and shows it back on its list', async () => {
+    mockSegments = ['(app)', 'family-timing'];
+    await render(<AppLayout />);
+    expect(screen.getByRole('tab', { name: 'Mis tiempos' })).toBeOnTheScreen();
+
+    await act(async () => setFamilyTimingAtList(false));
+    expect(screen.queryByRole('tab')).toBeNull();
+
+    await act(async () => setFamilyTimingAtList(true));
+    expect(screen.getByRole('tab', { name: 'Mis tiempos' })).toBeOnTheScreen();
   });
 
   it('marks the destination of the current route as selected', async () => {

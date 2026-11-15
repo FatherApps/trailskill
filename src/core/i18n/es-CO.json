@@ -13,7 +13,9 @@
       "athletes": "Deportistas",
       "today": "Entreno",
       "history": "Historial",
-      "marks": "Marcas"
+      "marks": "Marcas",
+      "my_times": "Mis tiempos",
+      "settings": "Ajustes"
     }
   },
   "logo": {
