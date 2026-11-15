@@ -198,3 +198,10 @@ streams:
     auto_subscribe: true
     queries:
       - SELECT * FROM family_timing_measurements WHERE owner_user_id = auth.user_id()
+
+  # A time sent to another swimmer's family (#973): the sender and the swimmer's family read the request
+  # (family_timing_transfers_select).
+  family_timing_transfers:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM family_timing_transfers WHERE from_user_id = auth.user_id() OR athlete_id IN managed_athlete_ids

@@ -39,6 +39,20 @@ export type FamilyCard = {
   isBest?: boolean;
   // Not given to a swimmer yet ("Sin asignar").
   unassigned?: boolean;
+  // Sent to another swimmer's family and waiting for their answer: that swimmer's short name.
+  sentTo?: string | null;
+};
+
+// A time another family sent for the selected swimmer, waiting for this family's answer.
+export type FamilyReceivedCard = { id: string; event: string; detail: string; captured: string; splitsLabel: string | null };
+
+export type FamilySendView = {
+  card: FamilyCard;
+  code: string;
+  // The short name of the swimmer with the code, once looked up.
+  found: string | null;
+  busy: boolean;
+  error: string | null;
 };
 
 export type FamilyFilterKey = 'sessionType' | 'stroke' | 'distance' | 'pool';
@@ -54,6 +68,8 @@ export type FamilyEditView = {
   athlete: { options: ChipRowOption<string>[]; value: string };
   confirmingDelete: boolean;
   saveError: boolean;
+  // Sending to another family is offered.
+  canSend?: boolean;
 };
 
 export type FamilyStopwatchView = {
@@ -105,7 +121,17 @@ export type FamilyTimingView =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'no_athletes' }
-  | { kind: 'list'; cards: FamilyCard[]; deletedCount: number; filters: FamilyFiltersView | null; filtered: boolean }
+  | {
+      kind: 'list';
+      cards: FamilyCard[];
+      deletedCount: number;
+      filters: FamilyFiltersView | null;
+      filtered: boolean;
+      received?: FamilyReceivedCard[];
+      // Why the last answer or withdrawal did not go through.
+      transferError?: string | null;
+    }
+  | { kind: 'send'; send: FamilySendView }
   | { kind: 'deleted'; cards: FamilyDeletedCard[]; restoreError: boolean }
   | { kind: 'edit'; edit: FamilyEditView }
   | { kind: 'setup'; setup: FamilySetupView }
@@ -150,6 +176,14 @@ export type FamilyTimingScreenProps = {
   onBackToSeries: () => void;
   onLaneChange: (index: number, field: 'athleteId' | 'stroke', value: string) => void;
   onSaveSeries: () => void;
+  // Sending a time to another swimmer's family, and answering the ones received.
+  onOpenSend?: () => void;
+  onSendCode?: (code: string) => void;
+  onLookUpCode?: () => void;
+  onSendTime?: () => void;
+  onWithdraw?: (measurementId: string) => void;
+  onAccept?: (transferId: string) => void;
+  onReject?: (transferId: string) => void;
 };
 
 function Header({ onBack, title }: { onBack: () => void; title: string }) {
@@ -174,7 +208,17 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Card({ card, onOpenOfficial, onOpenEdit }: { card: FamilyCard; onOpenOfficial?: (id: string) => void; onOpenEdit?: (id: string) => void }) {
+function Card({
+  card,
+  onOpenOfficial,
+  onOpenEdit,
+  onWithdraw,
+}: {
+  card: FamilyCard;
+  onOpenOfficial?: (id: string) => void;
+  onOpenEdit?: (id: string) => void;
+  onWithdraw?: (id: string) => void;
+}) {
   const { colors, space, radius, typography } = useTheme();
   return (
     <View style={{ gap: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'], borderWidth: 1, borderColor: colors.border }}>
@@ -203,7 +247,14 @@ function Card({ card, onOpenOfficial, onOpenEdit }: { card: FamilyCard; onOpenOf
           onPress={() => onOpenOfficial(card.id)}
         />
       )}
-      {onOpenEdit && <Button variant="ghost" label={t('family_timing.card.edit')} onPress={() => onOpenEdit(card.id)} />}
+      {card.sentTo ? (
+        <>
+          <Tag variant="warn" icon="schedule" label={t('family_timing.transfer.sent_tag', { name: card.sentTo })} />
+          {onWithdraw && <Button variant="ghost" label={t('family_timing.transfer.withdraw')} onPress={() => onWithdraw(card.id)} />}
+        </>
+      ) : (
+        onOpenEdit && <Button variant="ghost" label={t('family_timing.card.edit')} onPress={() => onOpenEdit(card.id)} />
+      )}
     </View>
   );
 }
@@ -341,7 +392,7 @@ function SeriesAssignBody(props: FamilyTimingScreenProps & { event: string; lane
 // Presentational: no database or clock; the container supplies the state and handles the events.
 export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
   const { view, athletes, selectedId, onSelectAthlete, onBack } = props;
-  const { colors, space, typography } = useTheme();
+  const { colors, space, radius, typography } = useTheme();
   const showsAthletes = athletes.length > 1 && selectedId !== null && (view.kind === 'list' || view.kind === 'loading' || view.kind === 'error');
 
   let body: ReactNode = null;
@@ -366,6 +417,26 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       body = (
         <View style={{ gap: space[4] }}>
           <Banner variant="info">{t('family_timing.on_device')}</Banner>
+          {view.transferError && (
+            <Banner variant="warn" icon="error">
+              {view.transferError}
+            </Banner>
+          )}
+          {view.received?.map((r) => (
+            <View
+              key={r.id}
+              style={{ gap: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'], borderWidth: 1, borderColor: colors.border }}
+            >
+              <Tag variant="info" icon="family_restroom" label={t('family_timing.transfer.received_tag')} />
+              <Text style={[typography['body-strong'], { color: colors.ink }]}>{r.event}</Text>
+              <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{r.detail}</Text>
+              <Text style={[typography['time-md'], { color: colors.ink }]}>{r.captured}</Text>
+              {r.splitsLabel && <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{r.splitsLabel}</Text>}
+              <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{t('family_timing.transfer.received_help')}</Text>
+              <Button label={t('family_timing.transfer.accept')} onPress={() => props.onAccept?.(r.id)} />
+              <Button variant="secondary" label={t('family_timing.transfer.reject')} onPress={() => props.onReject?.(r.id)} />
+            </View>
+          ))}
           <Button label={t('family_timing.new')} onPress={props.onNew} />
           {view.filters && (
             <View style={{ gap: space[3] }}>
@@ -388,7 +459,9 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
               <StateView kind="empty" title={t('family_timing.empty_title')} message={t('family_timing.empty_message')} />
             )
           ) : (
-            view.cards.map((card) => <Card key={card.id} card={card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} />)
+            view.cards.map((card) => (
+              <Card key={card.id} card={card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
+            ))
           )}
           {view.deletedCount > 0 && (
             <Button variant="ghost" label={t('family_timing.deleted.open', { count: view.deletedCount })} onPress={props.onOpenDeleted} />
@@ -438,6 +511,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             </Banner>
           )}
           <Button label={t('family_timing.edit.save')} onPress={props.onSaveEdit} />
+          {edit.canSend && <Button variant="secondary" label={t('family_timing.transfer.open')} onPress={() => props.onOpenSend?.()} />}
           <Button variant="secondary" label={t('family_timing.edit.delete')} onPress={props.onAskDelete} />
           <Button variant="ghost" label={t('family_timing.edit.cancel')} onPress={props.onCancel} />
           <ConfirmSheet
@@ -508,6 +582,43 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     case 'series_assign':
       body = <SeriesAssignBody {...props} event={view.event} lanes={view.lanes} saveError={view.saveError} />;
       break;
+    case 'send': {
+      const { send } = view;
+      body = (
+        <View style={{ gap: space[4] }}>
+          <Card card={send.card} />
+          <TextField
+            label={t('family_timing.transfer.code_label')}
+            help={t('family_timing.transfer.code_help')}
+            value={send.code}
+            onChangeText={(v) => props.onSendCode?.(v)}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            autoFocus
+          />
+          {send.error && (
+            <Banner variant="warn" icon="error">
+              {send.error}
+            </Banner>
+          )}
+          {send.found ? (
+            <>
+              <Banner variant="info">{t('family_timing.transfer.found', { name: send.found })}</Banner>
+              <Button label={t('family_timing.transfer.send', { name: send.found })} onPress={() => props.onSendTime?.()} loading={send.busy} />
+            </>
+          ) : (
+            <Button
+              label={t('family_timing.transfer.look_up')}
+              onPress={() => props.onLookUpCode?.()}
+              loading={send.busy}
+              disabledReason={send.code.trim() ? undefined : t('family_timing.transfer.code_required')}
+            />
+          )}
+          <Button variant="ghost" label={t('family_timing.edit.cancel')} onPress={props.onCancel} />
+        </View>
+      );
+      break;
+    }
     case 'official':
       body = (
         <View style={{ gap: space[4] }}>
@@ -534,6 +645,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     official: t('family_timing.official.title'),
     edit: t('family_timing.edit.title'),
     deleted: t('family_timing.deleted.title'),
+    send: t('family_timing.transfer.title'),
     series: t('family_timing.series.title'),
     series_assign: t('family_timing.series.assign_title'),
   };

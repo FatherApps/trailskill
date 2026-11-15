@@ -119,6 +119,31 @@
       "save": "Guardar tiempos",
       "save_error": "No pudimos guardar los tiempos. Inténtalo de nuevo.",
       "back_to_series": "Volver al cronómetro"
+    },
+    "transfer": {
+      "open": "Enviar a otra familia",
+      "title": "Enviar a otra familia",
+      "code_label": "Código del nadador",
+      "code_help": "Pídelo a su familia: está en el perfil del nadador, por ejemplo TS-7K4Q2M.",
+      "code_required": "escribe el código",
+      "look_up": "Buscar nadador",
+      "found": "El código es de {{name}}. Su familia decide si acepta el tiempo; mientras tanto queda en «Sin asignar».",
+      "send": "Enviar a {{name}}",
+      "sent_tag": "Enviado a {{name}} · espera respuesta",
+      "withdraw": "Retirar envío",
+      "received_tag": "Otra familia te envió este tiempo",
+      "received_help": "Si lo aceptas, pasa a tus tiempos. Si no, sigue siendo de quien lo midió.",
+      "accept": "Aceptar tiempo",
+      "reject": "No aceptar",
+      "error": {
+        "unknown_code": "Ningún nadador tiene ese código. Revísalo con su familia.",
+        "own_athlete": "Ese nadador es tuyo: asígnalo desde «Editar».",
+        "already_sent": "Este tiempo ya espera respuesta de otra familia.",
+        "too_many_attempts": "Demasiados códigos equivocados. Espera 15 minutos e inténtalo de nuevo.",
+        "request_closed": "Esta solicitud ya no está abierta.",
+        "deleted_time": "Este tiempo está eliminado.",
+        "failed": "No pudimos hacerlo. Revisa la señal e inténtalo de nuevo."
+      }
     }
   }
 }
