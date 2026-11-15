@@ -119,14 +119,20 @@ alter default privileges in schema public grant select on tables to powersync_ro
 SQL
 log "grants for powersync_role applied"
 
-# f. scheduled jobs (pg_cron). Skipped when no migration defines the function yet; the function itself
-#    does nothing without pg_cron, so a database without it still deploys. A failing call fails the run.
+# f. scheduled jobs (pg_cron). Never fails the run: the function returns 0 without pg_cron and, when
+#    cron.schedule is refused, warns with the SQLSTATE and returns 0; a failed call only logs a warning.
+#    Skipped when no migration defines the function yet. stderr holds only the SQLSTATE or a psql error.
 if [ "$($PSQL -Atq -c "select to_regprocedure('app.schedule_family_timing_jobs()') is not null")" = "t" ]; then
-  scheduled=$($PSQL -Atq -c 'select app.schedule_family_timing_jobs()')
-  if [ "$scheduled" = "0" ]; then
-    log "scheduled jobs: 0 (pg_cron not installed, nothing scheduled)"
+  if scheduled=$($PSQL -Atq -c 'select app.schedule_family_timing_jobs()' 2>"$TMP/sched.err") &&
+     ! grep -q 'scheduled jobs failed' "$TMP/sched.err"; then
+    if [ "$scheduled" = "0" ]; then
+      log "scheduled jobs: 0 (pg_cron not installed, nothing scheduled)"
+    else
+      log "scheduled jobs: $scheduled"
+    fi
   else
-    log "scheduled jobs: $scheduled"
+    reason=$(grep -m1 'scheduled jobs failed' "$TMP/sched.err" | sed 's/.*scheduled jobs failed: *//')
+    log "WARN scheduled jobs failed: ${reason:-call failed}"
   fi
 else
   log "no scheduled jobs function, skipping"

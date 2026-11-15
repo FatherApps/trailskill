@@ -7,9 +7,16 @@ begin
   if not exists (select 1 from pg_catalog.pg_extension where extname = 'pg_cron') then
     return 0;
   end if;
-  perform cron.schedule('family-timing-purge-deleted', '17 4 * * *', 'select app.purge_family_timing_measurements()');
-  perform cron.schedule('family-timing-expire-transfers', '27 4 * * *', 'select app.expire_family_timing_transfers()');
-  return 2;
+  -- Never fails the caller: a refused schedule logs the SQLSTATE only and returns 0.
+  -- The block is a subtransaction, so a partial failure leaves none of the new jobs.
+  begin
+    perform cron.schedule('family-timing-purge-deleted', '17 4 * * *', 'select app.purge_family_timing_measurements()');
+    perform cron.schedule('family-timing-expire-transfers', '27 4 * * *', 'select app.expire_family_timing_transfers()');
+    return 2;
+  exception when others then
+    raise warning 'scheduled jobs failed: SQLSTATE %', sqlstate;
+    return 0;
+  end;
 end;
 $$;
 
