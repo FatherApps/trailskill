@@ -88,6 +88,10 @@ async function existing(id: string): Promise<{ session_type: string }> {
   return row;
 }
 
+// The outbox marks of core/sync (writes.ts, connector.ts) for one table: an upload not yet answered, and one the server rejected.
+const pending = 'SELECT record_id FROM pending_writes WHERE table_name = ?';
+const failed = 'SELECT record_id FROM upload_failures WHERE table_name = ?';
+
 // Saved on the device first and queued for upload in the same transaction (core/sync writes), so a time survives no signal.
 export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementRepository {
   return {
@@ -140,16 +144,26 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
       return rows.map(toMeasurement);
     },
     async moveLocal(userId) {
-      const local = await db.getAll<LocalRow>(`SELECT * FROM ${LOCAL_TABLE} WHERE created_by = ?`, [userId]);
-      if (local.length === 0) return 0;
-      // Same ids: if the app dies before the phone copies are removed, the next run updates the moved rows instead of duplicating them.
-      await writeBatch(async (batch) => {
-        for (const row of local) {
-          await batch.write(TABLE, newRow(toMeasurement({ ...row, captured_by: row.created_by, deleted_at: null })));
-        }
-      }, userId);
+      // Copied once: a row already in the synced table, or one the server rejected, is not queued again on every launch.
+      const local = await db.getAll<LocalRow>(
+        `SELECT * FROM ${LOCAL_TABLE} WHERE created_by = ? AND id NOT IN (SELECT id FROM ${TABLE}) AND id NOT IN (${failed})`,
+        [userId, TABLE],
+      );
+      if (local.length > 0) {
+        await writeBatch(async (batch) => {
+          for (const row of local) {
+            await batch.write(TABLE, newRow(toMeasurement({ ...row, captured_by: row.created_by, deleted_at: null })));
+          }
+        }, userId);
+      }
+      // A phone copy goes only once the server accepted the upload: a rejected one can vanish from the synced table on the next sync.
       // The phone-only table is never uploaded, so removing its rows needs no outbox.
-      await db.writeTransaction((tx) => tx.execute(`DELETE FROM ${LOCAL_TABLE} WHERE created_by = ? AND id IN (SELECT id FROM ${TABLE})`, [userId]));
+      await db.writeTransaction((tx) =>
+        tx.execute(
+          `DELETE FROM ${LOCAL_TABLE} WHERE created_by = ? AND id IN (SELECT id FROM ${TABLE}) AND id NOT IN (${pending}) AND id NOT IN (${failed})`,
+          [userId, TABLE, TABLE],
+        ),
+      );
       return local.length;
     },
   };

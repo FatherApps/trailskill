@@ -197,8 +197,8 @@ function AppShell() {
   usePendingInvitations(session?.user.id, invitation.pending, invitation.invitations, lastSyncedAt?.getTime());
   // A person who already had a profile and was invited as coach later gets the membership here.
   useAcceptCoachInvitations(session?.user.id, coachInvitations);
-  // "Mis tiempos" kept only on this phone before they synced move to the server once, so signing out no longer loses them.
-  useMoveLocalFamilyTimes(familyMeasurements, session?.user.id);
+  // "Mis tiempos" kept only on this phone before they synced move to the server, so signing out no longer loses them; a phone copy is removed after a sync confirms its upload.
+  useMoveLocalFamilyTimes(familyMeasurements, session?.user.id, lastSyncedAt?.getTime());
   const { colors, space } = useTheme();
   // A draft typed here and never confirmed by a code is offered once the person is in with the same email.
   if (offer && !('existing' in offer)) {
