@@ -126,12 +126,14 @@ insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000c2', 'guardian')
 on conflict do nothing;
 
--- One synthetic text per purpose. Placeholders only: the real, legally
--- reviewed texts are not part of the repository.
+-- One provisional text per purpose, in Spanish because the screen is. They say
+-- they are provisional and not legal: the real, legally reviewed texts are not
+-- part of the repository (issue #106). A table already seeded keeps its old
+-- rows (`on conflict do nothing`, and the rows cannot be updated): reset it.
 insert into public.authorization_texts (purpose, version, language, body) values
-  ('record_times', 1, 'es-CO', 'SYNTHETIC PLACEHOLDER, not legal text: authorization to record times.'),
-  ('import_official_results', 1, 'es-CO', 'SYNTHETIC PLACEHOLDER, not legal text: authorization to import official results.'),
-  ('share_results_with_school', 1, 'es-CO', 'SYNTHETIC PLACEHOLDER, not legal text: authorization to share results with another school.')
+  ('record_times', 1, 'es-CO', 'TEXTO PROVISIONAL, no es texto legal: autorización para registrar tiempos.'),
+  ('import_official_results', 1, 'es-CO', 'TEXTO PROVISIONAL, no es texto legal: autorización para importar resultados oficiales.'),
+  ('share_results_with_school', 1, 'es-CO', 'TEXTO PROVISIONAL, no es texto legal: autorización para compartir resultados con otra escuela.')
 on conflict do nothing;
 
 -- Authorizations in force: the guardian accepted two purposes for both
