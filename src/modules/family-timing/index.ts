@@ -5,6 +5,7 @@ export {
   NotCompetitionError,
   UnknownMeasurementError,
   type FamilyMeasurement,
+  type FamilyMeasurementEdit,
   type FamilyMeasurementRepository,
   type FamilySessionType,
 } from './data/familyMeasurements';

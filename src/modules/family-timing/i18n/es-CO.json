@@ -49,7 +49,28 @@
       "official_imported_generic": "Oficial importado",
       "set_official": "Poner tiempo oficial",
       "edit_official": "Cambiar tiempo oficial",
-      "splits": "{{count}} parciales"
+      "splits": "{{count}} parciales",
+      "edit": "Editar o eliminar"
+    },
+    "edit": {
+      "title": "Editar tiempo",
+      "save": "Guardar cambios",
+      "delete": "Eliminar tiempo",
+      "cancel": "Cancelar",
+      "delete_title": "¿Eliminar este tiempo?",
+      "delete_message": "Pasa a Eliminados. Puedes recuperarlo durante 30 días; después se borra para siempre.",
+      "delete_confirm": "Eliminar tiempo",
+      "delete_cancel": "Conservar"
+    },
+    "deleted": {
+      "title": "Eliminados",
+      "open": "Eliminados ({{count}})",
+      "info": "Los tiempos eliminados se borran para siempre 30 días después.",
+      "removed_on": "Se borra el {{date}}",
+      "restore": "Recuperar",
+      "restore_error": "No pudimos recuperar el tiempo. Inténtalo de nuevo.",
+      "empty_title": "No hay tiempos eliminados",
+      "empty_message": "Cuando elimines un tiempo, lo verás aquí durante 30 días."
     },
     "official": {
       "title": "Tiempo oficial del evento",

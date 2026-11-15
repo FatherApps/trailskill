@@ -30,12 +30,16 @@ export type FamilyMeasurement = {
   deletedAt?: string | null;
 };
 
+export type FamilyMeasurementEdit = Partial<Pick<FamilyMeasurement, 'stroke' | 'athleteId'>>;
+
 export interface FamilyMeasurementRepository {
   add(measurement: FamilyMeasurement): Promise<void>;
   /** Every measurement of the athlete, newest first (by id on a tie). */
   listByAthlete(athleteId: string): Promise<FamilyMeasurement[]>;
   /** Sets or clears (null) the hand-typed official time of a competition measurement. Training measurements refuse it. */
   setOfficial(id: string, officialMillis: Millis | null, at: string): Promise<void>;
+  /** Corrects the stroke or the swimmer (one the user manages) of a measurement; the captured time never changes. */
+  edit(id: string, changes: FamilyMeasurementEdit): Promise<void>;
   /** Deletes a measurement: it leaves the list and can be restored for 30 days. */
   remove(id: string, at: string): Promise<void>;
   /** Brings back a deleted measurement. */
@@ -73,6 +77,11 @@ export function createInMemoryFamilyMeasurementRepository(initial: FamilyMeasure
       if (!row) throw new UnknownMeasurementError(id);
       if (row.sessionType !== 'competition') throw new NotCompetitionError(id);
       rows.set(id, { ...row, officialMillis, officialSetAt: officialMillis === null ? null : at });
+    },
+    async edit(id, changes) {
+      const row = rows.get(id);
+      if (!row) throw new UnknownMeasurementError(id);
+      rows.set(id, { ...row, ...changes });
     },
     async remove(id, at) {
       const row = rows.get(id);
