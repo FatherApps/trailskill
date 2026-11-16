@@ -9,7 +9,7 @@ const config: ExpoConfig = {
   // Opens school invitation links: swimcro://invite/<token>. The first scheme is the one the app builds links with; trailskill:// stays accepted so links sent before the rename still open.
   // The preview variant answers only to swimcro-preview://, so it does not open swimcro:// or trailskill:// links.
   scheme: preview ? 'swimcro-preview' : ['swimcro', 'trailskill'],
-  version: '1.0.0',
+  version: '0.1.0',
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',
   android: {
