@@ -4,11 +4,11 @@ import { Text } from 'react-native';
 import { ThemeProvider } from '../../../core/theme';
 import { StaffEntries } from '../components/StaffEntries';
 
-const show = async (platformAdmin: boolean) => {
+const show = async () => {
   const onOpen = jest.fn();
   await render(
     <ThemeProvider>
-      <StaffEntries platformAdmin={platformAdmin} onOpen={onOpen}>
+      <StaffEntries onOpen={onOpen}>
         <Text>sign out slot</Text>
       </StaffEntries>
     </ThemeProvider>,
@@ -23,21 +23,15 @@ describe('StaffEntries', () => {
     ['Registrar completado', '/timing?mode=completed'],
     ['Planes de entrenamiento', '/plans'],
   ])('shows %s and opens the route the home screen uses', async (name, href) => {
-    const onOpen = await show(false);
+    const onOpen = await show();
 
     fireEvent.press(await screen.findByRole('button', { name }));
 
     expect(onOpen).toHaveBeenCalledWith(href);
   });
 
-  it('hides the conflict review from anyone who is not a platform admin', async () => {
-    await show(false);
-
-    expect(screen.queryByRole('button', { name: 'Revisar conflictos' })).toBeNull();
-  });
-
-  it('shows the conflict review to a platform admin and opens its route', async () => {
-    const onOpen = await show(true);
+  it('shows the conflict review and opens the route the home screen uses', async () => {
+    const onOpen = await show();
 
     fireEvent.press(await screen.findByRole('button', { name: 'Revisar conflictos' }));
 
@@ -45,7 +39,7 @@ describe('StaffEntries', () => {
   });
 
   it('renders the sign-out slot it receives', async () => {
-    await show(false);
+    await show();
 
     expect(screen.getByText('sign out slot')).toBeOnTheScreen();
   });
