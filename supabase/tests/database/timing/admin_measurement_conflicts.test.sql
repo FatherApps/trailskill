@@ -9,6 +9,8 @@
 -- synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
+-- The demo seed (#1125) holds one open conflict; this test counts conflicts, so it starts without it (rolled back).
+delete from public.measurement_conflicts where id = '00000000-0000-4000-8000-0000000000e4';
 select plan(12);
 
 -- Users: coaches C1 and C2 of e1 (the two authors), coach N of e1 (not an

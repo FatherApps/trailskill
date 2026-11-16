@@ -7,6 +7,8 @@
 -- guardian G of e1, adult athlete AA of e3, N with no role. All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
+-- The demo seed (#1125) holds one open conflict; this test counts conflicts, so it starts without it (rolled back).
+delete from public.measurement_conflicts where id = '00000000-0000-4000-8000-0000000000e4';
 select plan(20);
 
 insert into auth.users (id, email) values
