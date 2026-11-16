@@ -200,6 +200,9 @@ function buttonsHint(startKey: number, splitKey: number, keyboard: string | unde
   return keyboard ? `${t('family_timing.stopwatch.buttons_device', { device: keyboard })} · ${keysLine}` : keysLine;
 }
 
+// "50 m libre": the title of a card.
+const shortEventLabel = (m: { stroke: string; distance: string }) => `${t(`sport.distance.${m.distance}`)} ${t(`sport.stroke.${m.stroke}`).toLowerCase()}`;
+
 const eventLabel = (m: { stroke: string; distance: string; pool: string }) =>
   `${t(`sport.stroke.${m.stroke}`)} ${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
 
@@ -377,6 +380,16 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
             : null;
       return {
         id: m.id,
+        title: shortEventLabel(m),
+        poolLabel: t(`sport.pool.${m.pool}`),
+        sessionLabel: type,
+        athleteId: m.athleteId,
+        subtitle: [t(`sport.pool.${m.pool}`), type, m.competition].filter(Boolean).join(' · '),
+        date,
+        measuredLabel: [
+          t(official !== null ? 'family_timing.card.captured_history' : 'family_timing.card.captured'),
+          m.splits.length > 0 ? t('family_timing.card.lengths', { count: m.splits.length + 1 }) : t('family_timing.card.lengths', { count: 1 }),
+        ].join(' · '),
         event: eventLabel(m),
         detail: [date, type, m.competition].filter(Boolean).join(' · '),
         captured: format(m.millis),
@@ -504,8 +517,38 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       ...(m.competition ? [{ label: t('family_timing.detail.competition'), value: m.competition }] : []),
       { label: t('family_timing.detail.event'), value: eventLabel(m) },
     ];
-    const laps = lapRows(m.splits, m.millis, m.splits.length > 0).map(({ lap, total }) => ({ lap: formatLap(lap), total: formatLap(total) }));
-    return { card, rows, laps };
+    const raw = lapRows(m.splits, m.millis, m.splits.length > 0);
+    const meters = Number.parseInt(m.distance, 10);
+    const each = raw.length > 0 && Number.isFinite(meters) ? meters / raw.length : null;
+    const laps = raw.map(({ lap, total }, i) => ({
+      lap: formatLap(lap),
+      total: formatLap(total),
+      distance: each !== null ? `${Math.round(each * (i + 1))} m` : String(i + 1),
+    }));
+    // The slowest length against the fastest, when every length has a time.
+    const known = raw.map((r) => r.lap);
+    let slowest: string | null = null;
+    if (known.length > 1 && known.every((v): v is number => v !== null)) {
+      const values = known as number[];
+      const max = Math.max(...values);
+      const min = Math.min(...values);
+      const index = values.indexOf(max);
+      const digits = precision === 'thousandths' ? 3 : 2;
+      slowest =
+        max > min
+          ? t('family_timing.detail.slowest', { number: index + 1, diff: ((max - min) / 1000).toFixed(digits).replace('.', ',') })
+          : null;
+    }
+    return {
+      card,
+      rows,
+      laps,
+      when: `${formatDate(day, 'short') ?? day} · ${clock}`,
+      session: t(`family_timing.session_type.${m.sessionType}`),
+      lapsSummary: raw.length > 0 ? t('family_timing.detail.laps_summary', { count: raw.length, distance: t(`sport.distance.${m.distance}`) }) : null,
+      slowest,
+      athleteId: m.athleteId,
+    };
   };
   const listView = (): FamilyTimingView => ({
     kind: 'list',

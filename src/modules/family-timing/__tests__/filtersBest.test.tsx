@@ -59,7 +59,7 @@ async function setup(athletes = [lucia], all = times) {
 
 // Stroke, distance and pool are chosen in the sheet and applied together.
 async function filterBy(label: string) {
-  await fireEvent.press(screen.getByText('Filtros'));
+  await fireEvent.press(screen.getByLabelText('Filtros'));
   await fireEvent.press(screen.getByLabelText(label));
   await fireEvent.press(screen.getByText('Aplicar filtros'));
 }
@@ -103,7 +103,7 @@ describe('filters and best time in Mis tiempos', () => {
 
   it('keeps the filters when the sheet closes without applying, and clears them all', async () => {
     await setup();
-    await fireEvent.press(screen.getByText('Filtros'));
+    await fireEvent.press(screen.getByLabelText('Filtros'));
     await fireEvent.press(screen.getByLabelText('Espalda'));
     await fireEvent.press(screen.getByTestId('filter-sheet-scrim'));
     expect(screen.getAllByText(/^Libre 50 m/)).toHaveLength(3);

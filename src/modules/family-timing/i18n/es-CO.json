@@ -58,7 +58,9 @@
       "edit_official": "Cambiar tiempo oficial",
       "splits": "{{count}} laps",
       "edit": "Editar o eliminar",
-      "best": "Mejor tiempo"
+      "best": "Mejor tiempo",
+      "lengths_one": "{{count}} largo",
+      "lengths_other": "{{count}} largos"
     },
     "filters": {
       "session_type": "Tipo de tiempo",
@@ -163,7 +165,16 @@
       "competition": "Competencia",
       "event": "Prueba",
       "laps": "Vueltas",
-      "back": "Volver a la lista"
+      "back": "Volver a la lista",
+      "slowest": "Largo {{number}}, el más lento: +{{diff}} s",
+      "laps_summary_one": "{{count}} largo · {{distance}}",
+      "laps_summary_other": "{{count}} largos · {{distance}}",
+      "partials": "Parciales",
+      "col_distance": "Distancia",
+      "col_lap": "Parcial",
+      "col_total": "Acumulado",
+      "measured": "Tiempo medido",
+      "edit": "Editar registro"
     },
     "choose_official": {
       "title": "Resultado oficial",
@@ -172,6 +183,10 @@
       "help": "Hay más de un resultado oficial de esta prueba ese día. Elige el que va con este tiempo; cada resultado va con un solo tiempo.",
       "option": "{{time}} · {{detail}}",
       "error": "No pudimos guardar la elección. Inténtalo de nuevo."
-    }
+    },
+    "list_recent": "Más recientes",
+    "list_count_one": "{{count}} registro",
+    "list_count_other": "{{count}} registros",
+    "list_hint": "Toca un registro para ver sus parciales"
   }
 }
