@@ -1,8 +1,10 @@
 -- A coach reads a plan fulfillment only when the swimmer is assigned to them, directly or through a group, in the
 -- school of the fulfillment's assignment, and the coach is active in that school (issue #1127, as #1122 did for
 -- measurements). A swimmer of schools A and B assigned to coach K only in B: K reads the B fulfillments, not the A
--- ones. School admins, the platform admin, guardians and adult athletes read what they read before. The
--- training_plans_fulfillments stream gives staff the same rows; src/modules/training-plans/__tests__/
+-- ones. A school admin reads a fulfillment only when the swimmer is enrolled in a school they administer and the
+-- assignment belongs to that same school (issue #1132): SA of A and SB of B, with e1 and e2 in both schools, read only
+-- the fulfillments of their own school. The platform admin, guardians and adult athletes read what they read before.
+-- The training_plans_fulfillments stream gives staff the same rows; src/modules/training-plans/__tests__/
 -- coachFulfillmentsSyncStream.test.ts pins its queries: change both together.
 -- Users: platform admin P (a1), school admins SA of A (a2) and SB of B (a3), coach K active in A and B (a4, e1
 -- direct in B, e2 through group gB), coach C of A (a5, e1 direct in A, e2 through group gA), coach D deactivated
@@ -11,11 +13,11 @@
 -- Fulfillments (school-wide assignments d1 in A and d2 in B): 41 e1 in A, 42 e2 in A, 43 e3 in A, 44 e1 in B,
 -- 45 e2 in B, 46 e1 in A hidden (captured after the withdrawal of the record_times authorization of e1).
 -- What the policy gave before this change, unchanged for everybody but the coaches: the platform admin all rows; the
--- managers of a swimmer all rows of that swimmer, hidden included; a school admin the not hidden rows of the
--- swimmers of their admin schools, whatever the school of the assignment.
+-- managers of a swimmer all rows of that swimmer, hidden included. Before #1132 a school admin read the not hidden rows
+-- of the swimmers of their admin schools whatever the school of the assignment (SA 41-45, SB 41,42,44,45, M 41-45).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(20);
 
 -- u('a1') is the uuid 11271000-0000-4000-8000-0000000000a1; as_user sets the signed-in user.
 create function pg_temp.u(text) returns uuid language sql as $$ select ('11271000-0000-4000-8000-0000000000' || $1)::uuid $$;
@@ -44,10 +46,11 @@ create function pg_temp.staff_stream_ids(uuid) returns setof uuid language sql a
       and f.hidden = false
       and a.school_id in (select school_id from public.school_memberships where user_id = $1 and deactivated_at is null)
   union
-  select id from public.training_plan_fulfillments
-    where athlete_id in (select athlete_id from public.athlete_schools where school_id in (
-        select school_id from public.school_memberships where user_id = $1 and role = 'school_admin'))
-      and hidden = false $$;
+  select f.id from public.training_plan_fulfillments f
+    join public.training_plan_assignments a on f.assignment_id = a.id
+    join public.athlete_schools s on f.athlete_id = s.athlete_id and a.school_id = s.school_id
+    where a.school_id in (select school_id from public.school_memberships where user_id = $1 and role = 'school_admin')
+      and f.hidden = false $$;
 create temp table rls_seen (who text, id uuid);
 grant all on rls_seen to authenticated;
 
@@ -144,18 +147,18 @@ select is(pg_temp.seen(), '', 'deactivated D reads no fulfillment');
 select pg_temp.as_user('a9');
 select is(pg_temp.seen(), '', 'N reads no fulfillment');
 
--- 4. School admins read the not hidden fulfillments of the swimmers of their schools, whatever the assignment school:
--- SA the swimmers of A (e1, e2, e3), SB those of B (e1, e2).
+-- 4. School admins read the not hidden fulfillments of their school's assignments of the swimmers of that school:
+-- SA the A ones of e1, e2 and e3, SB the B ones of e1 and e2; neither reads the other school's ones of e1 and e2.
 select pg_temp.as_user('a2');
-select is(pg_temp.seen(), '41,42,43,44,45', 'SA reads the not hidden fulfillments of e1, e2 and e3, as before');
+select is(pg_temp.seen(), '41,42,43', 'SA reads the A fulfillments of e1, e2 and e3, not the B ones of e1 and e2');
 insert into rls_seen select 'SA', id from public.training_plan_fulfillments where id::text like '11271000%';
 select pg_temp.as_user('a3');
-select is(pg_temp.seen(), '41,42,44,45', 'SB reads the not hidden fulfillments of e1 and e2, as before');
+select is(pg_temp.seen(), '44,45', 'SB reads the B fulfillments of e1 and e2, not their A ones');
 insert into rls_seen select 'SB', id from public.training_plan_fulfillments where id::text like '11271000%';
 
--- 5. M, admin of A and coach of B with no swimmer assigned in B: as admin of A, the swimmers of A; nothing as coach.
+-- 5. M, admin of A and coach of B with no swimmer assigned in B: as admin of A, the A ones; nothing as coach.
 select pg_temp.as_user('aa');
-select is(pg_temp.seen(), '41,42,43,44,45', 'M reads as admin of A, as before, and gains nothing as coach of B');
+select is(pg_temp.seen(), '41,42,43', 'M reads the A fulfillments as admin of A and gains nothing as coach of B');
 insert into rls_seen select 'M', id from public.training_plan_fulfillments where id::text like '11271000%';
 
 -- 6. Platform admin reads everything, hidden included.
@@ -185,6 +188,15 @@ select ok(
   and (select qual from pg_policies where schemaname = 'public' and tablename = 'training_plan_fulfillments'
      and policyname = 'training_plan_fulfillments_select') not like '%coach_athlete_ids%',
   'the select policy matches the coach pairs of app.coach_athlete_school_pairs() and not coach_athlete_ids');
+
+-- 10. The admin branch uses the (swimmer, school) pairs of app.admin_athlete_school_pairs(), no longer the school-free
+-- admin_athlete_ids.
+select ok(
+  (select qual from pg_policies where schemaname = 'public' and tablename = 'training_plan_fulfillments'
+     and policyname = 'training_plan_fulfillments_select') like '%admin_athlete_school_pairs%'
+  and (select qual from pg_policies where schemaname = 'public' and tablename = 'training_plan_fulfillments'
+     and policyname = 'training_plan_fulfillments_select') not like '%admin_athlete_ids%',
+  'the select policy matches the admin pairs of app.admin_athlete_school_pairs() and not admin_athlete_ids');
 
 select * from finish();
 rollback;
