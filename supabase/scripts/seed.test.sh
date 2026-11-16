@@ -39,6 +39,19 @@ if [ "$before" != "$after" ]; then
 fi
 echo "ok - applying the seed again changes nothing"
 
+# Only the demo school shares its times with guardians by default; no other school changes (#1075).
+psql_run <<'SQL'
+do $$
+begin
+  assert (select array_agg(school_id::text) from public.timing_guardian_sharing_defaults)
+    = array['00000000-0000-4000-8000-0000000000a1'],
+    'only the demo school has a sharing default';
+  assert not exists (select 1 from public.measurements where not guardian_visible),
+    'every demo time is shared with the guardian';
+end;
+$$;
+SQL
+
 psql_run <<'SQL'
 begin;
 set local role authenticated;
@@ -55,6 +68,9 @@ begin
     and (select count(*) from public.measurements where athlete_id not in (
       '00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-0000000000c2')) = 0,
     'guardian sees the times of their athletes only';
+  -- Two athletes, two events, six weeks: the school shares the demo times (#1075).
+  assert (select count(*) from public.measurements) = 24,
+    'guardian sees all 24 demo times of their athletes';
   assert (select count(*) from public.authorization_status where is_granted) = 4,
     'guardian sees both purposes granted for both athletes';
   assert (select count(*) from public.authorizations where withdrawn_at is null) = 4,

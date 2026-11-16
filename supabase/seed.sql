@@ -152,6 +152,12 @@ join public.authorization_texts t
   on t.purpose = v.purpose and t.version = 1 and t.language = 'es-CO'
 on conflict do nothing;
 
+-- The demo school shares its times with guardians (#1018). It is a default, set before the
+-- times so the trigger marks each one as shared; a school without it shares nothing.
+insert into public.timing_guardian_sharing_defaults (school_id, shares_all, updated_by)
+values ('00000000-0000-4000-8000-0000000000a1', true, '00000000-0000-4000-8000-000000000003')
+on conflict do nothing;
+
 -- Times: six weekly training sessions per athlete in two events, entered by the
 -- coach. Week 0 is the latest. Times improve with the weeks (25 hundredths per
 -- week) plus a deterministic wobble, so some weeks are slower and each athlete
