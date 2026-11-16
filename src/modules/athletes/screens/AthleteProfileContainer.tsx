@@ -7,6 +7,7 @@ import { distances, pools, strokes } from '../../../core/sport';
 import { useRecordSyncStates, type RecordSyncState } from '../../../core/sync';
 import { importedAchievement, latestAchievement, type EventAchievement, type ImportedHistoryResult } from '../achievements';
 import { groupImportedResults } from '../groupImported';
+import { repeatedRecordIds } from '../repeatedRecordIds';
 import type { EventValue } from '../components/EventSelector';
 import type { ImportPromptProps } from '../components/ImportPrompt';
 import { ProgressChart } from '../components/ProgressChart';
@@ -283,7 +284,13 @@ export function AthleteProfileContainer({
       ...(other ?? []).filter((m) => !localIds.has(m.id)).map((m) => ({ m: { ...m, origin: 'other_school' as const }, syncState: undefined })),
     ].sort((a, b) => newestFirst(a.m, b.m));
     // Stable by date: the device's own rows keep their order within a day.
-    return [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map((g) => toImportedResult(g.result, g.sourceName, best?.id))].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const results = [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map((g) => toImportedResult(g.result, g.sourceName, best?.id))].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    // Issue 1035: the list and the chart key their rows by id; if a source ever repeats one, development names it (ids and kinds only).
+    if (__DEV__) {
+      const repeated = repeatedRecordIds(results);
+      if (repeated.length > 0) console.warn('[athletes] The profile history repeats a record id', repeated);
+    }
+    return results;
   }, [measurements, imported, other, states, best]);
   const chart = useMemo(() => <ProgressChart results={historyRows} />, [historyRows]);
 
