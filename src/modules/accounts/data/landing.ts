@@ -24,23 +24,32 @@ export type LandingEvidence = {
   // The phone navigation bar is on screen (the width is below the tablet breakpoint). Without it the profile has no way back to My athletes.
   phoneBar: boolean;
   staff: boolean | 'loading';
+  // The staff roles, from the same memberships as `staff`: a school admin lands on the console, a coach on My swimmers.
+  admin: boolean;
+  coach: boolean;
   own: OwnLandingEvidence | 'loading';
   // Online only: the one answer the device cannot give.
   platformAdmin: boolean | 'loading';
 };
 
-// home: the screen every role had so far. It stays the answer whenever nothing says the user is a guardian or an adult.
-export type Landing = { kind: 'loading' } | { kind: 'home' } | { kind: 'athletes' } | { kind: 'athlete'; athleteId: string };
+// home: the screen every role had so far. It stays the answer whenever nothing says the user is school staff, a guardian or an adult.
+export type Landing =
+  | { kind: 'loading' }
+  | { kind: 'home' }
+  | { kind: 'console' }
+  | { kind: 'my-swimmers' }
+  | { kind: 'athletes' }
+  | { kind: 'athlete'; athleteId: string };
 
 const loading: Landing = { kind: 'loading' };
 const home: Landing = { kind: 'home' };
 
-// Where a signed-in user lands on "/". School staff and platform admins keep the home screen, their only way to the timing, the plans, the
-// console and the conflicts. Only a guardian or an adult athlete is sent away, so an unclear account never loses an entry it has today.
-export function resolveLanding({ synced, syncGaveUp, phoneBar, staff, own, platformAdmin }: LandingEvidence): Landing {
+// Where a signed-in user lands on "/". A school admin goes to the console, a coach to My swimmers (both win over a guardian or an adult
+// role); staff with neither role and platform admins keep the home screen, as does an unclear account, so it never loses an entry it has today.
+export function resolveLanding({ synced, syncGaveUp, phoneBar, staff, admin, coach, own, platformAdmin }: LandingEvidence): Landing {
   if (!synced) return syncGaveUp ? home : loading;
   if (staff === 'loading' || own === 'loading') return loading;
-  if (staff) return home;
+  if (staff) return admin ? { kind: 'console' } : coach ? { kind: 'my-swimmers' } : home;
   if (own.managedCount === 0 && !own.authorized) return home;
   // The platform admin is asked online, so it is waited for only now that someone would be sent away.
   if (platformAdmin === 'loading') return loading;

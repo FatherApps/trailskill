@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -37,13 +38,15 @@ export type MySwimmersScreenProps = {
   onBack: () => void;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
+  // The entries the coach no longer finds on the home screen (the timing, the plans, sign out), under the swimmers.
+  footer?: ReactNode;
 };
 
 export const mySwimmersScreenColors: { title: ColorToken; caption: ColorToken } = { title: 'ink', caption: 'ink-muted' };
 
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
 // It is the one screen of the console that a coach receives, so the layout draws no navigation.
-export function MySwimmersScreen({ width, schoolName, view, onOpen, onBack, scrollEnabled }: MySwimmersScreenProps) {
+export function MySwimmersScreen({ width, schoolName, view, onOpen, onBack, scrollEnabled, footer }: MySwimmersScreenProps) {
   const { colors, space, breakpoint, typography } = useTheme();
   const compact = consoleLayoutFor(width, breakpoint) === 'compact';
 
@@ -111,6 +114,7 @@ export function MySwimmersScreen({ width, schoolName, view, onOpen, onBack, scro
         </View>
       </View>
       {body}
+      {footer}
     </ConsoleLayout>
   );
 }

@@ -25,6 +25,7 @@ import { ConsoleNav, type ConsoleDestinationId } from './components/ConsoleNav';
 import { personalBestLabel } from './components/eventLabel';
 import { createInMemoryCategoriesRepository } from './data/categories';
 import { SideSheet } from './components/SideSheet';
+import { StaffEntries } from './components/StaffEntries';
 import { ConsolePreview, filterValues, FullWidth, noop, toggleFilter } from './gallerySupport';
 import { gallerySectionEntries } from './gallerySections';
 import { AthletesScreen, type AthletesContent, type AthletesView } from './screens/AthletesScreen';
@@ -251,6 +252,18 @@ export const galleryEntries: GalleryEntry[] = [
     top: () => (
       <FullWidth>
         <ConsoleNav variant="top" activeId="records" onSelect={noop} schoolName={schoolNameFixture} />
+      </FullWidth>
+    ),
+  }),
+  entry('staffEntries', 'StaffEntries', {
+    staff: () => (
+      <FullWidth>
+        <StaffEntries platformAdmin={false} onOpen={noop} />
+      </FullWidth>
+    ),
+    'platform-admin': () => (
+      <FullWidth>
+        <StaffEntries platformAdmin onOpen={noop} />
       </FullWidth>
     ),
   }),
