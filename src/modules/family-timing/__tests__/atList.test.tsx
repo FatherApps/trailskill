@@ -6,7 +6,7 @@ import { createInMemoryFamilyMeasurementRepository } from '../data/familyMeasure
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 import { useFamilyTimingAtList } from '../screens/familyTimingAtList';
 
-jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
+jest.mock('../../../core/sync', () => ({ db: {}, supabase: {}, useRecordSyncStates: () => new Map() }));
 
 // Shows what the hook says, so the test reads it from the screen.
 function Probe() {

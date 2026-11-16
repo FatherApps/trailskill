@@ -6,7 +6,7 @@ import { idleFamilyStopwatch, splitAt, splitMillis, startAt, finalMillis } from 
 import { lapsFor } from '../domain/laps';
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
-jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync', () => ({ db: {}, useRecordSyncStates: () => new Map() }));
 jest.mock('expo-crypto', () => {
   let n = 0;
   return { randomUUID: () => `id-${++n}` };

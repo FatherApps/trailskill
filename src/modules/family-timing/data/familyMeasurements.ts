@@ -1,6 +1,9 @@
 import type { DistanceCode, PoolCode, StrokeCode } from '../../../core/sport';
 import type { Millis } from '../../../core/time';
 
+// The synced table of the times (core/sync/schema.ts): the sync state of a time is read from it.
+export const FAMILY_MEASUREMENTS_TABLE = 'family_timing_measurements';
+
 export type FamilySessionType = 'training' | 'competition';
 
 /**
@@ -58,6 +61,10 @@ export interface FamilyMeasurementRepository {
    * Times of another user on the same phone stay where they are. Returns how many moved.
    */
   moveLocal(userId: string): Promise<number>;
+  /** This user's phone-only times the server rejected (kept on the phone, #1021), newest first; null for the ones not given to a swimmer. */
+  listRejected(userId: string, athleteId: string | null): Promise<FamilyMeasurement[]>;
+  /** Deletes for good one of this user's rejected phone-only times and its upload failure. Any other time (synced, pending, another user's) is refused with UnknownMeasurementError. */
+  discardRejected(userId: string, id: string): Promise<void>;
 }
 
 export class NotCompetitionError extends Error {
@@ -70,8 +77,13 @@ export class UnknownMeasurementError extends Error {
 
 const newestFirst = (a: FamilyMeasurement, b: FamilyMeasurement) => b.capturedAt.localeCompare(a.capturedAt) || b.id.localeCompare(a.id);
 
-export function createInMemoryFamilyMeasurementRepository(initial: FamilyMeasurement[] = []): FamilyMeasurementRepository {
+// `rejected` are the phone-only times the server refused: they are listed and discarded apart from `initial`.
+export function createInMemoryFamilyMeasurementRepository(
+  initial: FamilyMeasurement[] = [],
+  rejected: FamilyMeasurement[] = [],
+): FamilyMeasurementRepository {
   const rows = new Map(initial.map((m) => [m.id, m]));
+  const refused = new Map(rejected.map((m) => [m.id, m]));
   return {
     async add(measurement) {
       rows.set(measurement.id, measurement);
@@ -116,6 +128,13 @@ export function createInMemoryFamilyMeasurementRepository(initial: FamilyMeasure
     },
     async moveLocal() {
       return 0;
+    },
+    async listRejected(userId, athleteId) {
+      return [...refused.values()].filter((m) => m.createdBy === userId && m.athleteId === athleteId).sort(newestFirst);
+    },
+    async discardRejected(userId, id) {
+      if (refused.get(id)?.createdBy !== userId) throw new UnknownMeasurementError(id);
+      refused.delete(id);
     },
   };
 }

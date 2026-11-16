@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../../../core/i18n';
 import { usePreferences } from '../../../core/preferences';
 import { distances, pools, strokes, type DistanceCode, type PoolCode, type StrokeCode } from '../../../core/sport';
+import { useRecordSyncStates } from '../../../core/sync';
 import { formatMillis, formatTime } from '../../../core/time';
 import type { ChipRowOption } from '../../../core/ui';
 import { athleteDisplay, formatDate, type SchoolAthlete } from '../../athletes';
@@ -20,7 +21,12 @@ import {
   type ButtonTarget,
   type TimingButtonPort,
 } from '../../timing';
-import type { FamilyMeasurement, FamilyMeasurementRepository, FamilySessionType } from '../data/familyMeasurements';
+import {
+  FAMILY_MEASUREMENTS_TABLE,
+  type FamilyMeasurement,
+  type FamilyMeasurementRepository,
+  type FamilySessionType,
+} from '../data/familyMeasurements';
 import { FamilyTransferError, type FamilyTransfer, type FamilyTransferErrorCode, type FamilyTransferRepository } from '../data/familyTransfers';
 import {
   elapsedMillisAt,
@@ -171,7 +177,15 @@ function lapRows(splits: number[], final: number | null, hasLaps: boolean): { la
 type Loaded =
   | { status: 'loading' }
   | { status: 'error'; key: string }
-  | { status: 'ready'; key: string; measurements: FamilyMeasurement[]; deleted: FamilyMeasurement[]; imported: OfficialImport[] };
+  | {
+      status: 'ready';
+      key: string;
+      measurements: FamilyMeasurement[];
+      // Phone-only times the server rejected (#1025): not in `measurements`, they show beside them marked "No enviado".
+      rejected: FamilyMeasurement[];
+      deleted: FamilyMeasurement[];
+      imported: OfficialImport[];
+    };
 
 function seriesButtonsHint(startKey: number, keyboard: string | undefined) {
   const keysLine = t('family_timing.series.buttons', { start: keyName(startKey) });
@@ -250,6 +264,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const [received, setReceived] = useState<FamilyTransfer[]>([]);
   const [settled, setSettled] = useState<string[]>([]);
   const [answerError, setAnswerError] = useState<FamilyTransferErrorCode | null>(null);
+  // The rejected time the person is asked to delete (#1025), and whether the last deletion failed.
+  const [discarding, setDiscarding] = useState<string | null>(null);
+  const [discardError, setDiscardError] = useState(false);
 
   // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
   const laps = setup.pool ? lapsFor(setup.distance, setup.pool) : 1;
@@ -286,13 +303,13 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     const athleteId = selectedId === UNASSIGNED ? null : selectedId;
     // An unreadable import list only hides the imported official values; the guardian's own times still show.
     const officialRead = imports && athleteId ? imports.listByAthlete(athleteId).catch(() => []) : Promise.resolve([]);
-    Promise.all([repository.listByAthlete(athleteId), repository.listDeleted(athleteId), officialRead])
-      .then(([measurements, deleted, imported]) => active && setRead({ status: 'ready', key: readKey, measurements, deleted, imported }))
+    Promise.all([repository.listByAthlete(athleteId), repository.listRejected(userId, athleteId), repository.listDeleted(athleteId), officialRead])
+      .then(([measurements, rejected, deleted, imported]) => active && setRead({ status: 'ready', key: readKey, measurements, rejected, deleted, imported }))
       .catch(() => active && setRead({ status: 'error', key: readKey }));
     return () => {
       active = false;
     };
-  }, [repository, imports, selectedId, reload, syncKey]);
+  }, [repository, userId, imports, selectedId, reload, syncKey]);
 
   useEffect(() => {
     if (!transfers) return;
@@ -315,14 +332,13 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   useEffect(() => {
     let active = true;
     // An unreadable count only hides the chip; the swimmers' own times still show.
-    repository
-      .listByAthlete(null)
-      .then((times) => active && setUnassignedCount(times.length))
+    Promise.all([repository.listByAthlete(null), repository.listRejected(userId, null)])
+      .then(([times, rejected]) => active && setUnassignedCount(times.length + rejected.length))
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [repository, reload, syncKey]);
+  }, [repository, userId, reload, syncKey]);
 
   // The screen stays awake and the time refreshes while the stopwatch runs.
   const running = stopwatch.status === 'running' || (step.kind === 'series' && seriesStatus(series) === 'running');
@@ -379,14 +395,34 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     () => (loaded.status === 'ready' ? officialMatches(loaded.measurements, loaded.imported) : new Map<string, OfficialMatch>()),
     [loaded],
   );
-  const cards = useMemo<FamilyCard[]>(
-    () => (loaded.status === 'ready' ? loaded.measurements.map((m) => cardOf(m, matches.get(m.id))) : []),
-    [loaded, cardOf, matches],
+  // The synced times and the rejected phone-only ones, newest first. A rejected time takes no part in the best time nor in the official one.
+  const everyTime = useMemo(
+    () =>
+      loaded.status === 'ready'
+        ? [...loaded.measurements, ...loaded.rejected].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.id.localeCompare(a.id))
+        : [],
+    [loaded],
   );
+  const rejectedIds = useMemo(() => new Set(loaded.status === 'ready' ? loaded.rejected.map((m) => m.id) : []), [loaded]);
+  const cards = useMemo<FamilyCard[]>(
+    () =>
+      everyTime.map((m) =>
+        rejectedIds.has(m.id)
+          ? { ...cardOf(m, undefined), canSetOfficial: false, notSent: true, canDiscard: true }
+          : cardOf(m, matches.get(m.id)),
+      ),
+    [everyTime, rejectedIds, cardOf, matches],
+  );
+  // The outbox says which synced times the server rejected too (an edit it refused): marked, with their usual actions.
+  const syncStates = useRecordSyncStates(
+    FAMILY_MEASUREMENTS_TABLE,
+    useMemo(() => everyTime.map((m) => m.id), [everyTime]),
+  );
+  const withSync = (card: FamilyCard): FamilyCard => (syncStates.get(card.id) === 'not_sent' ? { ...card, notSent: true } : card);
   // The list: the times that pass the filters, with the best of each event marked. The official time, when there is one, is the record.
   const listed = useMemo(() => {
     if (loaded.status !== 'ready') return { cards: [], filters: null, filtered: false };
-    const all = loaded.measurements;
+    const all = everyTime;
     // A chosen stroke, distance or pool that none of this swimmer's times has (another swimmer, a deleted time) counts as
     // "all": its chip is not offered, so the person could not clear it and would be left on an empty list.
     const active = Object.fromEntries(
@@ -394,7 +430,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     ) as Filters;
     const shown = all.filter((m) => (Object.keys(active) as FamilyFilterKey[]).every((key) => !active[key] || m[key] === active[key]));
     const best = bestTimeIds(
-      shown.map((m) => {
+      shown.filter((m) => !rejectedIds.has(m.id)).map((m) => {
         const value = matches.get(m.id)?.value ?? null;
         const time = value?.kind === 'imported' ? value.hundredths * 10 : value?.kind === 'manual' ? value.millis : m.millis;
         return { id: m.id, stroke: m.stroke, distance: m.distance, pool: m.pool, capturedAt: m.capturedAt, time };
@@ -424,12 +460,12 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     return {
       cards: shown.flatMap((m) => {
         const card = byId.get(m.id);
-        return card ? [{ ...card, isBest: best.has(m.id) }] : [];
+        return card ? [{ ...card, notSent: card.notSent || syncStates.get(card.id) === 'not_sent', isBest: best.has(m.id) }] : [];
       }),
       filters: all.length > 0 ? view : null,
       filtered: Object.values(active).some(Boolean),
     };
-  }, [loaded, cards, filters, matches]);
+  }, [loaded, everyTime, rejectedIds, cards, filters, matches, syncStates]);
   const deletedCards = useMemo<FamilyDeletedCard[]>(() => {
     if (loaded.status !== 'ready') return [];
     return loaded.deleted.map((m) => {
@@ -477,7 +513,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     filtered: listed.filtered,
     showNotice,
     received: receivedCards,
-    transferError: answerError ? t(`family_timing.transfer.error.${answerError}`) : null,
+    transferError: answerError ? t(`family_timing.transfer.error.${answerError}`) : discardError ? t('family_timing.not_sent.delete_error') : null,
   });
 
   // Answers a request (or withdraws one); it leaves the screen at once, and the sync brings the moved time.
@@ -747,8 +783,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   } else if (step.kind === 'deleted') view = { kind: 'deleted', cards: deletedCards, restoreError: step.restoreError };
   else if (step.kind === 'detail') {
     const card = cards.find((c) => c.id === step.id);
-    const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === step.id) : undefined;
-    view = card && m ? { kind: 'detail', detail: detailOf(card, m) } : listView();
+    const m = everyTime.find((x) => x.id === step.id);
+    view = card && m ? { kind: 'detail', detail: detailOf(withSync(card), m) } : listView();
   }
   else if (step.kind === 'send') {
     const card = cards.find((c) => c.id === step.id);
@@ -876,6 +912,26 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         change(
           () => repository.remove(step.id, new Date().toISOString()),
           () => setStep({ ...step, confirmingDelete: false, saveError: true }),
+        );
+      }}
+      confirmingDiscard={discarding !== null}
+      onAskDiscard={(id) => {
+        setDiscardError(false);
+        setDiscarding(id);
+      }}
+      onCancelDiscard={() => setDiscarding(null)}
+      onConfirmDiscard={() => {
+        const id = discarding;
+        if (!id) return;
+        void change(
+          async () => {
+            await repository.discardRejected(userId, id);
+            setDiscarding(null);
+          },
+          () => {
+            setDiscarding(null);
+            setDiscardError(true);
+          },
         );
       }}
       onOpenDeleted={() => setStep({ kind: 'deleted', restoreError: false })}

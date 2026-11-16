@@ -1,0 +1,112 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+
+import { createInMemoryPreferencesRepository, defaultPreferences, PreferencesProvider } from '../../../core/preferences';
+import { createInMemoryFamilyMeasurementRepository, type FamilyMeasurement } from '../data/familyMeasurements';
+import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
+
+// The sync state of each record, as the outbox would tell it; a record not named here is synced.
+let mockStates: Record<string, string> = {};
+jest.mock('../../../core/sync', () => ({
+  db: {},
+  useRecordSyncStates: (_table: string, ids: string[]) => new Map(ids.map((id) => [id, mockStates[id] ?? 'synced'])),
+}));
+beforeEach(() => {
+  mockStates = {};
+});
+
+const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }];
+
+const time = (id: string, distance: FamilyMeasurement['distance'], createdBy = 'u1'): FamilyMeasurement => ({
+  id,
+  athleteId: 'a1',
+  createdBy,
+  stroke: 'FR',
+  distance,
+  pool: 'SCM',
+  sessionType: 'training',
+  competition: null,
+  capturedAt: '2026-11-08T14:00:00.000Z',
+  millis: 47_210,
+  splits: [],
+  officialMillis: null,
+  officialSetAt: null,
+});
+const rejected = time('rej-1', '100m');
+const accepted = time('ok-1', '50m');
+const pendingTime = time('new-1', '25m');
+const otherUsers = time('rej-2', '200m', 'u2');
+
+async function setup(synced: FamilyMeasurement[], phoneOnlyRejected: FamilyMeasurement[]) {
+  const repository = createInMemoryFamilyMeasurementRepository(synced, phoneOnlyRejected);
+  await render(
+    <PreferencesProvider repository={createInMemoryPreferencesRepository({ ...defaultPreferences, timePrecision: 'thousandths' })}>
+      <FamilyTimingContainer userId="u1" athletes={athletes} repository={repository} onBack={jest.fn()} />
+    </PreferencesProvider>,
+  );
+  return repository;
+}
+
+// Issue #1025: a time only on the phone that the server rejected says so, and can be deleted for good after asking.
+describe('a time the server did not accept', () => {
+  it('says "No enviado" on its card in the list and in its detail', async () => {
+    await setup([], [rejected]);
+    expect(await screen.findByText('Libre 100 m · Piscina de 25 m')).toBeTruthy();
+    expect(screen.getAllByLabelText('No enviado')).toHaveLength(1);
+
+    await fireEvent.press(screen.getByText('Libre 100 m · Piscina de 25 m'));
+    expect(await screen.findByText('Detalle del tiempo')).toBeTruthy();
+    expect(screen.getAllByLabelText('No enviado')).toHaveLength(1);
+  });
+
+  it('is not marked on an accepted time nor on a pending one, which offer no direct delete', async () => {
+    mockStates = { 'ok-1': 'synced', 'new-1': 'on_device' };
+    await setup([accepted, pendingTime], []);
+    expect(await screen.findByText('Libre 50 m · Piscina de 25 m')).toBeTruthy();
+    expect(screen.getByText('Libre 25 m · Piscina de 25 m')).toBeTruthy();
+    expect(screen.queryByLabelText('No enviado')).toBeNull();
+    expect(screen.queryByText('Eliminar tiempo')).toBeNull();
+  });
+
+  it('marks a synced time the outbox says was rejected, but keeps editing and gives it no direct delete', async () => {
+    mockStates = { 'ok-1': 'not_sent' };
+    await setup([accepted], []);
+    expect(await screen.findByLabelText('No enviado')).toBeTruthy();
+    expect(screen.getByText('Editar o eliminar')).toBeTruthy();
+    expect(screen.queryByText('Eliminar tiempo')).toBeNull();
+  });
+
+  it('is never the best time nor offers to edit', async () => {
+    await setup([], [rejected]);
+    await screen.findByLabelText('No enviado');
+    expect(screen.queryByLabelText('Mejor tiempo')).toBeNull();
+    expect(screen.queryByText('Editar o eliminar')).toBeNull();
+  });
+
+  it('keeps the time when the confirmation is cancelled', async () => {
+    const repository = await setup([], [rejected]);
+    await fireEvent.press(await screen.findByText('Eliminar tiempo'));
+    expect(await screen.findByText('¿Eliminar este tiempo?')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Conservar'));
+    expect(await repository.listRejected('u1', 'a1')).toHaveLength(1);
+    expect(screen.getByText('Libre 100 m · Piscina de 25 m')).toBeTruthy();
+  });
+
+  it('deletes only after confirming, from the list, and leaves another user\'s rejected time alone', async () => {
+    const repository = await setup([], [rejected, otherUsers]);
+    expect(screen.queryByText('Libre 200 m · Piscina de 25 m')).toBeNull();
+    await fireEvent.press(await screen.findByText('Eliminar tiempo'));
+    await fireEvent.press(screen.getAllByText('Eliminar tiempo').at(-1)!);
+    await waitFor(async () => expect(await repository.listRejected('u1', 'a1')).toEqual([]));
+    await waitFor(() => expect(screen.queryByText('Libre 100 m · Piscina de 25 m')).toBeNull());
+    expect(await repository.listRejected('u2', 'a1')).toHaveLength(1);
+  });
+
+  it('deletes from the detail too and returns to the list', async () => {
+    const repository = await setup([], [rejected]);
+    await fireEvent.press(await screen.findByText('Libre 100 m · Piscina de 25 m'));
+    await fireEvent.press(await screen.findByText('Eliminar tiempo'));
+    await fireEvent.press(screen.getAllByText('Eliminar tiempo').at(-1)!);
+    await waitFor(async () => expect(await repository.listRejected('u1', 'a1')).toEqual([]));
+    expect(await screen.findByText('Medir un tiempo')).toBeTruthy();
+  });
+});
