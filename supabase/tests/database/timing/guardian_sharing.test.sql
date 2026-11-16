@@ -5,7 +5,7 @@
 -- All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(49);
+select plan(52);
 
 -- u('a1') is the uuid 10180000-0000-4000-8000-0000000000a1; as_user sets the signed-in user.
 create function pg_temp.u(text) returns uuid language sql as $$ select ('10180000-0000-4000-8000-0000000000' || $1)::uuid $$;
@@ -29,7 +29,7 @@ begin
   return array_to_string(r, ',');
 end $$;
 -- The guardian queries of timing_measurements in powersync/sync-config.yaml, with the with: subqueries
--- inlined for the user.
+-- inlined for the user. Pinned by src/modules/timing/__tests__/guardianSyncStream.test.ts: change both together.
 create function pg_temp.stream_ids(uuid) returns setof uuid language sql as $$
   select id from public.measurements
     where athlete_id in (select athlete_id from public.athlete_managers where user_id = $1) and guardian_visible = true
@@ -204,6 +204,16 @@ select lives_ok($$ select public.timing_set_guardian_sharing(pg_temp.u('e1'), pg
 select pg_temp.as_user('a3');
 select is(pg_temp.seen(), 'd6', 'the rows are unshared again');
 
+-- e4 has a time in b1 but no athlete_schools row (it was removed after the upload).
+reset role;
+insert into public.athletes (id, first_name, last_name) values (pg_temp.u('e4'), 'Athlete', 'E4');
+insert into public.athlete_schools (athlete_id, school_id) values (pg_temp.u('e4'), pg_temp.u('b1'));
+insert into public.athlete_managers (user_id, athlete_id, relation) values (pg_temp.u('a4'), pg_temp.u('e4'), 'guardian');
+insert into public.measurements (school_id, id, created_by, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+  values (pg_temp.u('b1'), pg_temp.u('da'), pg_temp.u('a1'), 'repetition', pg_temp.u('e4'), 3240, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-c', '2026-10-08 08:00:00+00');
+delete from public.athlete_schools where athlete_id = pg_temp.u('e4');
+set local role authenticated;
+
 -- 7. The school default is for new swimmers: the swimmers without a switch keep what they had.
 select pg_temp.as_user('a2');
 select is(public.timing_guardian_sharing_default(pg_temp.u('b1')), false, 'a school without a default shares nothing');
@@ -211,6 +221,11 @@ select is(public.timing_guardian_sharing(pg_temp.u('e2'), pg_temp.u('b1')), fals
 select lives_ok($$ select public.timing_set_guardian_sharing_default(pg_temp.u('b1'), true) $$, 'S sets the default of b1 to share');
 select is(public.timing_guardian_sharing_default(pg_temp.u('b1')), true, 'the default reads true');
 select is(public.timing_guardian_sharing(pg_temp.u('e2'), pg_temp.u('b1')), false, 'e2 keeps not sharing: its value was frozen');
+reset role;
+select is((select guardian_visible from public.measurements where id = pg_temp.u('da')), false, 'e4, with times and no athlete_schools row, keeps its value');
+update public.measurements set athlete_id = athlete_id where id = pg_temp.u('da');
+select is((select guardian_visible from public.measurements where id = pg_temp.u('da')), false, 'also when the row is rewritten');
+select is((select shares_all from public.timing_guardian_sharing where athlete_id = pg_temp.u('e4') and school_id = pg_temp.u('b1')), false, 'and its switch was frozen');
 reset role;
 insert into public.athletes (id, first_name, last_name) values (pg_temp.u('e5'), 'Athlete', 'E5');
 insert into public.athlete_schools (athlete_id, school_id) values (pg_temp.u('e5'), pg_temp.u('b1'));

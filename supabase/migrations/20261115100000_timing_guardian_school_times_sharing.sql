@@ -76,8 +76,9 @@ revoke execute on function app.measurement_guardian_visible(uuid, uuid, uuid, ti
 
 -- Whatever the client sends is overwritten. Named so it runs after measurements_compute_hidden
 -- (triggers fire in name order), which sets created_at to the server reception time on insert.
--- The second lock is the one a switch change takes after the withdrawal lock, in the same order,
--- so an upload and a switch change of the same pair cannot miss each other.
+-- The school lock is shared, so uploads of one school do not block each other, but a default change
+-- waits for them. The pair lock is the one a switch change takes after the withdrawal lock, in the
+-- same order, so an upload and a switch change of the same pair cannot miss each other.
 create function public.measurements_set_guardian_visible()
 returns trigger
 language plpgsql
@@ -86,6 +87,7 @@ set search_path = ''
 as $$
 begin
   if new.athlete_id is not null and new.school_id is not null then
+    perform pg_advisory_xact_lock_shared(hashtextextended(new.school_id::text || ':guardian_sharing_default', 0));
     perform pg_advisory_xact_lock(hashtextextended(new.athlete_id::text || ':' || new.school_id::text || ':guardian_sharing', 0));
   end if;
   new.guardian_visible := coalesce(
@@ -151,23 +153,33 @@ begin
 end;
 $$;
 
--- The default is for new swimmers: the swimmers of the school without their own switch keep the
--- value they had, written as their switch before the default changes.
+-- The default is for new swimmers: it freezes every swimmer the school has or has times of, with the
+-- value they had, written as their switch before the default changes. The exclusive school lock makes
+-- an upload in flight finish first. It holds only that lock and writes no measurements, so the lock
+-- order stays acyclic.
 create function public.timing_set_guardian_sharing_default(school uuid, shares_all boolean)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_old boolean;
 begin
   perform app.require_timing_staff(school);
   if shares_all is null then
     raise exception 'shares_all is required' using errcode = '22004';
   end if;
+  perform pg_advisory_xact_lock(hashtextextended(school::text || ':guardian_sharing_default', 0));
+  v_old := public.timing_guardian_sharing_default(school);
   insert into public.timing_guardian_sharing (athlete_id, school_id, shares_all, updated_by)
-  select a.athlete_id, a.school_id, public.timing_guardian_sharing_default(a.school_id), auth.uid()
-  from public.athlete_schools a
-  where a.school_id = timing_set_guardian_sharing_default.school
+  select s.athlete_id, timing_set_guardian_sharing_default.school, v_old, auth.uid()
+  from (
+    select a.athlete_id from public.athlete_schools a where a.school_id = timing_set_guardian_sharing_default.school
+    union
+    select m.athlete_id from public.measurements m
+    where m.school_id = timing_set_guardian_sharing_default.school and m.athlete_id is not null
+  ) s
   on conflict (athlete_id, school_id) do nothing;
   insert into public.timing_guardian_sharing_defaults (school_id, shares_all, updated_by)
   values (school, timing_set_guardian_sharing_default.shares_all, auth.uid())
