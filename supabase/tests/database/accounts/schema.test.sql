@@ -66,6 +66,7 @@ values ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000
 insert into public.platform_admins (user_id)
 values ('00000000-0000-4000-8000-0000000000a1');
 
+-- school_memberships has no insert or delete policy on purpose (#1092): accept_coach_invitations() creates them.
 select is_empty(
   $$ select e.name, c.cmd from expected_tables e
      cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) c(cmd)
@@ -74,7 +75,8 @@ select is_empty(
        where p.schemaname = 'public' and p.tablename = e.name
          and 'authenticated' = any (p.roles)
          and p.cmd in (c.cmd, 'ALL')
-     ) $$,
+     )
+     and not (e.name = 'school_memberships' and c.cmd in ('INSERT', 'DELETE')) $$,
   'every table has a policy for each command authenticated uses'
 );
 
