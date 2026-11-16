@@ -88,7 +88,7 @@ describe('school console gallery entries', () => {
       'mySwimmersScreen',
     ]);
     expect(stateKeys('consoleNav')).toEqual(['side', 'top']);
-    expect(stateKeys('staffEntries')).toEqual(['staff', 'platform-admin']);
+    expect(stateKeys('staffEntries')).toEqual(['staff']);
     expect(stateKeys('sideSheet')).toEqual(['open', 'titled']);
     expect(stateKeys('athleteIndicators')).toEqual(['default', 'large-numbers']);
     expect(stateKeys('athleteFilters')).toEqual(['empty', 'with-filter', 'all-filters']);

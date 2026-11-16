@@ -17,11 +17,15 @@ const conflict: OpenConflict = {
   incoming: { hundredths: 3480, author: 'Coach Dos', device: 'Teléfono B', at: new Date(2026, 9, 25, 14, 5).toISOString() },
 };
 
-function renderFlow(repository = createInMemoryConflictReviewRepository({ conflicts: [conflict], admins: ['admin-1'] }), userId: string | null = 'admin-1') {
+function renderFlow(
+  repository = createInMemoryConflictReviewRepository({ conflicts: [conflict], admins: ['admin-1'] }),
+  userId: string | null = 'admin-1',
+  staff: boolean | 'loading' = false,
+) {
   const callbacks = { onDenied: jest.fn(), onBack: jest.fn() };
   const view = render(
     <ThemeProvider>
-      <ReviewConflictsFlow repository={repository} userId={userId ?? undefined} offline={false} {...callbacks} />
+      <ReviewConflictsFlow repository={repository} userId={userId ?? undefined} staff={staff} offline={false} {...callbacks} />
     </ThemeProvider>,
   );
   return view.then(() => ({ repository, ...callbacks }));
@@ -41,8 +45,29 @@ describe('ReviewConflictsFlow', () => {
     expect(onDenied).not.toHaveBeenCalled();
   });
 
+  it('shows school staff the list and the detail read-only, with no way to resolve', async () => {
+    await renderFlow(undefined, 'coach-1', true);
+
+    await fireEvent.press(await screen.findByRole('button', { name: /Mateo C\./ }));
+
+    expect(screen.getByText('Versión guardada')).toBeOnTheScreen();
+    expect(screen.getByText('Versión recibida')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Resolver conflicto' })).toBeNull();
+    expect(screen.queryByLabelText('Motivo')).toBeNull();
+  });
+
+  it('waits for the staff lookup before deciding, neither loading nor sending away', async () => {
+    const { repository, onDenied } = await renderFlow(undefined, 'coach-1', 'loading');
+    const listOpen = jest.spyOn(repository, 'listOpen');
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(onDenied).not.toHaveBeenCalled();
+    expect(listOpen).not.toHaveBeenCalled();
+  });
+
   it.each([
-    ['someone who is not a platform admin', 'user-1'],
+    ['someone who is not a platform admin nor staff', 'user-1'],
     ['no session', null],
   ])('sends %s away without showing any conflict', async (_name, userId) => {
     const { onDenied } = await renderFlow(undefined, userId);

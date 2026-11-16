@@ -5,7 +5,6 @@ import { t } from '../core/i18n';
 import { ThemeProvider } from '../core/theme';
 
 let mockUserId: string | undefined;
-let mockPlatformAdmin = false;
 const mockSignOut = jest.fn();
 jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null, signOut: mockSignOut }),
@@ -28,10 +27,6 @@ jest.mock('../modules/accounts', () => ({
   ...jest.requireActual('../modules/accounts/screens/SignOutContainer'),
   createSecureStoreRegistrationDraftRepository: () => ({ clear: () => Promise.resolve() }),
   createSecureStorePendingInvitationRepository: () => ({ clear: () => Promise.resolve() }),
-}));
-jest.mock('../modules/timing', () => ({
-  ...jest.requireActual('../modules/timing/data/usePlatformAdmin'),
-  createSupabaseConflictReviewRepository: () => ({ isPlatformAdmin: () => Promise.resolve(mockPlatformAdmin) }),
 }));
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -62,7 +57,6 @@ const athlete = (id: string, name: string, coachIds: string[]) => ({
 
 beforeEach(() => {
   mockUserId = 'user-1';
-  mockPlatformAdmin = false;
   mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
   mockPush.mockReset();
   mockReplace.mockReset();
@@ -135,15 +129,7 @@ describe('my swimmers route', () => {
     expect(mockPush).toHaveBeenCalledWith(href);
   });
 
-  it('hides the conflict review from a coach who is not a platform admin', async () => {
-    await show();
-
-    expect(await screen.findByRole('button', { name: 'Toma de tiempos' })).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: 'Revisar conflictos' })).toBeNull();
-  });
-
-  it('gives the conflict review to a coach who is also a platform admin', async () => {
-    mockPlatformAdmin = true;
+  it('gives the conflict review to a coach, which opens the route the home screen uses', async () => {
     await show();
 
     await fireEvent.press(await screen.findByRole('button', { name: 'Revisar conflictos' }));
