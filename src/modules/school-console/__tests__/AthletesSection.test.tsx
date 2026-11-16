@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 
-import { createInMemoryAdultDirectoryRepository, createInMemoryAuthorizationStatusRepository } from '../../accounts';
+import { createInMemoryAdultDirectoryRepository, createInMemoryAuthorizationStatusRepository, createInMemoryInvitationRepository } from '../../accounts';
 import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository, type HistoryMeasurement } from '../../athletes';
 import { ThemeProvider } from '../../../core/theme';
 import { startOfWeek } from '../data/athletesList';
@@ -14,6 +14,8 @@ import { AthletesSection } from '../screens/AthletesSection';
 // Importing the module indexes loads the PowerSync repositories, which need the sync layer mocked.
 jest.mock('../../../core/sync', () => ({ db: {}, writeRecord: jest.fn() }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
+// The real createURL reads the Expo manifest, which does not exist under Jest; the app's first scheme is swimcro (app.config.ts).
+jest.mock('expo-linking', () => ({ createURL: (path: string) => `swimcro://${path}` }));
 
 // The React Native jest setup reports a system font scale of 2: these tests start from 100 %.
 const realGet = Dimensions.get.bind(Dimensions);
@@ -680,6 +682,126 @@ describe('AthletesSection', () => {
 
       expect(await screen.findByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
       expect(screen.queryByRole('radio', { name: 'Compartir todos' })).not.toBeOnTheScreen();
+    });
+  });
+
+  describe('inviting a family', () => {
+    const groupRows = (...groups: [string, string, string][]) =>
+      createInMemorySchoolStructureRepository({
+        categories: [],
+        groups: groups.map(([id, schoolId, name]) => ({ id, schoolId, name })),
+        groupAssignments: [],
+        athleteAssignments: [],
+        coachMemberships: [],
+      });
+    const token = (n: number) => String(n).padStart(32, '0');
+
+    const invite = async (extra: { groups?: ReturnType<typeof groupRows>; invitations?: ReturnType<typeof createInMemoryInvitationRepository> } = {}) => {
+      const invitations = extra.invitations ?? createInMemoryInvitationRepository();
+      const share = jest.fn().mockResolvedValue(undefined);
+      const structure = extra.groups ?? groupRows(['g1', 'school-a', 'Grupo B']);
+      await show(setup().repository, { structure, invitations, share });
+      await athleteRow(/^Lucía Ramírez/);
+      return { invitations, share, structure };
+    };
+    const press = () => fireEvent.press(screen.getByRole('button', { name: 'Invitar acudiente' }));
+
+    it('creates an invitation for the only group of the school and shares the link with its token', async () => {
+      const { invitations, share } = await invite();
+      await press();
+
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      expect(invitations.created).toEqual([{ schoolId: 'school-a', groupId: 'g1' }]);
+      const message = share.mock.calls[0][0] as string;
+      expect(message).toContain(`swimcro://invite/${token(1)}`);
+      expect(message).toContain('Escuela Delfines');
+      // The day depends on the time zone of the machine, the month and the year do not.
+      expect(message).toMatch(/ de noviembre de 2026\.$/);
+    });
+
+    it('asks which group when the school has several, and invites to the one chosen', async () => {
+      const { invitations, share } = await invite({ groups: groupRows(['g1', 'school-a', 'Grupo B'], ['g2', 'school-a', 'Grupo C'], ['g9', 'school-b', 'Otra escuela']) });
+      await press();
+
+      expect(invitations.created).toEqual([]);
+      expect(screen.queryByRole('button', { name: 'Grupo otra escuela' })).toBeNull();
+      await fireEvent.press(await screen.findByRole('button', { name: 'Grupo C' }));
+
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      expect(invitations.created).toEqual([{ schoolId: 'school-a', groupId: 'g2' }]);
+    });
+
+    it('says so, creates nothing and shares nothing when the school has no group', async () => {
+      const { invitations, share } = await invite({ groups: groupRows(['g9', 'school-b', 'Otra escuela']) });
+      await press();
+
+      expect(await screen.findByText(/aún no tiene grupos/)).toBeOnTheScreen();
+      expect(invitations.created).toEqual([]);
+      expect(share).not.toHaveBeenCalled();
+    });
+
+    it('says so, creates nothing and shares nothing when the groups cannot be read', async () => {
+      const structure = { listGroups: jest.fn().mockRejectedValue(new Error('db')) };
+      const { invitations, share } = await invite({ groups: structure as unknown as ReturnType<typeof groupRows> });
+      await press();
+
+      expect(await screen.findByText(/No pudimos leer los grupos/)).toBeOnTheScreen();
+      expect(invitations.created).toEqual([]);
+      expect(share).not.toHaveBeenCalled();
+    });
+
+    it('shows an error, shares nothing and leaves nothing behind when the invitation cannot be created; retrying creates a single one', async () => {
+      const invitations = createInMemoryInvitationRepository({ failing: true });
+      const { share } = await invite({ invitations });
+      await press();
+
+      expect(await screen.findByText(/No pudimos crear la invitación/)).toBeOnTheScreen();
+      expect(invitations.created).toEqual([]);
+      expect(share).not.toHaveBeenCalled();
+
+      invitations.failing = false;
+      await press();
+
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      expect(invitations.created).toEqual([{ schoolId: 'school-a', groupId: 'g1' }]);
+      expect(screen.queryByText(/No pudimos crear la invitación/)).toBeNull();
+      expect(share.mock.calls[0][0]).toContain(`swimcro://invite/${token(1)}`);
+    });
+
+    it('keeps the invitation and shows no error when the share sheet fails', async () => {
+      const { invitations, share } = await invite();
+      share.mockRejectedValue(new Error('share sheet failed'));
+      await press();
+
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      expect(invitations.created).toHaveLength(1);
+      expect(screen.queryByText(/No pudimos crear la invitación/)).toBeNull();
+    });
+
+    it('creates one invitation when the button is pressed twice before the first finishes', async () => {
+      let finish: (invitation: { token: string; expiresAt: string }) => void = () => undefined;
+      const create = jest.fn(() => new Promise<{ token: string; expiresAt: string }>((resolve) => (finish = resolve)));
+      const share = jest.fn().mockResolvedValue(undefined);
+      await show(setup().repository, { structure: groupRows(['g1', 'school-a', 'Grupo B']), invitations: { create }, share });
+      await athleteRow(/^Lucía Ramírez/);
+      await press();
+      await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+      await press();
+
+      await act(async () => finish({ token: token(1), expiresAt: '2026-11-08T12:00:00.000Z' }));
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      expect(create).toHaveBeenCalledTimes(1);
+    });
+
+    it('has no button without the invitation repository or without the groups', async () => {
+      const withoutGroups = await show(setup().repository, { invitations: createInMemoryInvitationRepository() });
+      await athleteRow(/^Lucía Ramírez/);
+      expect(screen.queryByRole('button', { name: 'Invitar acudiente' })).toBeNull();
+      withoutGroups.unmount();
+
+      await show(setup().repository, { structure: groupRows(['g1', 'school-a', 'Grupo B']) });
+      await athleteRow(/^Lucía Ramírez/);
+      expect(screen.queryByRole('button', { name: 'Invitar acudiente' })).toBeNull();
     });
   });
 });

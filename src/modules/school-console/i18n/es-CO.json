@@ -88,6 +88,15 @@
     "updated_now": "Actualizado hace un momento",
     "caption": "{{count}} · {{updated}}",
     "invite": "Invitar acudiente",
+    "invite_error": "No pudimos crear la invitación. Revisa la conexión e inténtalo de nuevo.",
+    "invite_no_groups": "Tu escuela aún no tiene grupos. Crea un grupo antes de invitar a una familia.",
+    "invite_groups_error": "No pudimos leer los grupos de la escuela. Inténtalo de nuevo.",
+    "invite_groups": {
+      "label": "Grupo de la invitación",
+      "title": "¿A qué grupo invitas a la familia?"
+    },
+    "invite_message": "{{school}} te invita a Swimcro para crear el perfil de tu deportista. Abre este enlace: {{link}}. Vence el {{date}}.",
+    "invite_message_no_date": "{{school}} te invita a Swimcro para crear el perfil de tu deportista. Abre este enlace: {{link}}.",
     "retry": "Intentar de nuevo",
     "empty": {
       "title": "Aún no hay deportistas",
