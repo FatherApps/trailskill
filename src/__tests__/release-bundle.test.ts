@@ -38,14 +38,18 @@ function resolveSpecifier(from: string, specifier: string): string | undefined {
     .find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
 }
 
-// Value imports and re-exports (type-only ones are erased), plus `require` calls not guarded by `__DEV__ ?`.
+// Value imports and re-exports (type-only ones are erased), side-effect imports, and `require`/`import()` calls
+// unless they come after `__DEV__ ?` on the same line. `typeof import(...)` is a type and is erased.
 function bundledSpecifiers(source: string): string[] {
-  const statements = [...source.matchAll(/^(?:import|export)\s+(?!type\b)[^;]*?\bfrom\s+['"](\.[^'"]*)['"]/gm)];
-  const requires = source
-    .split('\n')
-    .filter((line) => !line.includes('__DEV__ ?'))
-    .flatMap((line) => [...line.matchAll(/\brequire\(\s*['"](\.[^'"]*)['"]\s*\)/g)]);
-  return [...statements, ...requires].map((match) => match[1]);
+  const statements = [
+    ...source.matchAll(/^(?:import|export)\s+(?!type\b)[^;]*?\bfrom\s+['"](\.[^'"]*)['"]/gm),
+    ...source.matchAll(/^import\s+['"](\.[^'"]*)['"]/gm),
+  ];
+  const calls = source.split('\n').flatMap((line) =>
+    [...line.matchAll(/(?<!typeof\s+)\b(?:require|import)\s*\(\s*['"](\.[^'"]*)['"]\s*\)/g)]
+      .filter((match) => !line.slice(0, match.index).includes('__DEV__ ?')),
+  );
+  return [...statements, ...calls].map((match) => match[1]);
 }
 
 describe('release bundle', () => {
@@ -76,5 +80,29 @@ describe('release bundle', () => {
     for (const entries of [core, accounts, athletes, resultsImport, schoolConsole, timing, trainingPlans]) {
       expect(entries.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('bundledSpecifiers', () => {
+  it.each([
+    ["import './gallery';"],
+    ["import { a } from './gallery';"],
+    ["import {\n  a,\n} from './gallery';"],
+    ["export { a } from './gallery';"],
+    ["const g = require('./gallery');"],
+    ["const g = import('./gallery');"],
+    ["require('./gallery'); const a = __DEV__ ? 1 : 2;"],
+  ])('catches %s', (code) => {
+    expect(bundledSpecifiers(code)).toEqual(['./gallery']);
+  });
+
+  it.each([
+    ["import type { X } from './gallery';"],
+    ["export type { X } from './gallery';"],
+    ["const g: typeof import('./gallery') = x;"],
+    ["export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : [];"],
+    ["const g = __DEV__ ? import('./gallery') : null;"],
+  ])('ignores %s', (code) => {
+    expect(bundledSpecifiers(code)).toEqual([]);
   });
 });
