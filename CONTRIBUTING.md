@@ -111,7 +111,7 @@ Refs #12
 - Examples: `feat(registration): add guardian consent step`, `fix(timing): keep missing times empty instead of zero`.
 - Breaking changes use `!` after the type or a `BREAKING CHANGE:` footer.
 - Write in English.
-- No AI attribution lines (`Co-Authored-By` an AI, "Generated with ..."). The person who opens the pull request is responsible for its content.
+- No AI attribution lines (`Co-Authored-By` an AI, "Generated with ...", `Claude-Session:`). The person who opens the pull request is responsible for its content. CI rejects any commit message of the pull request with a line starting with `Claude-Session:` or `Co-Authored-By:` (any case); see [Required checks](#required-checks). Agent sessions may add `Claude-Session:` by default: remove that line from the commit message before pushing.
 
 ## Pull requests
 
@@ -132,6 +132,7 @@ Refs #12
 Every pull request runs [`.github/workflows/pr-checks.yml`](.github/workflows/pr-checks.yml) and [`.github/workflows/app-checks.yml`](.github/workflows/app-checks.yml):
 
 - **PR title and linked issue:** the title is a Conventional Commit. The description keeps every section of the [PR template](.github/pull_request_template.md) with content: write `N/A` or `Ninguno` when a section does not apply, because only HTML comments, an empty `- ` or `Closes #` without a number count as empty. It links its issue with an English closing keyword (`Closes #12`), or with `Refs #12` when the PR does not close it. The check is [`.github/scripts/check-pr.sh`](.github/scripts/check-pr.sh); run it before opening the PR with `PR_TITLE="..." PR_BODY="$(cat body.md)" sh .github/scripts/check-pr.sh`. Its tests run with `sh .github/scripts/check-pr.test.sh`.
+- **No AI attribution in commits:** no commit message of the pull request (`base..head`) has a line starting with `Claude-Session:` or `Co-Authored-By:`, in any case and anywhere in the message. The failure names the commit and the trailer. The check is [`.github/scripts/check-commit-trailers.sh`](.github/scripts/check-commit-trailers.sh); run it before opening the PR with `COMMIT_RANGE=origin/main..HEAD sh .github/scripts/check-commit-trailers.sh`. Its tests run with `sh .github/scripts/check-commit-trailers.test.sh`. The pull request description is not checked. History already on `main` is not rewritten.
 - **Secret scan:** gitleaks scans the branch history. Any finding fails the check; remove the secret and rotate it.
 
 - **App checks** (`app-checks.yml`): `npm run typecheck`, `npm run lint` and `npm test`.
@@ -145,6 +146,7 @@ A pull request is ready to merge when:
 - [ ] It solves the linked issue and meets its acceptance criteria.
 - [ ] New or changed behavior has tests; a bug fix includes a test that failed before the fix.
 - [ ] All CI checks pass.
+- [ ] No commit message carries AI attribution (`Claude-Session:`, `Co-Authored-By:`).
 - [ ] Docs, help text, and `AGENTS.md` references are updated when behavior or workflow changed.
 - [ ] No secrets, credentials, or real personal data in code, fixtures, logs, or screenshots.
 - [ ] Offline behavior and missing data were considered where they apply (a missing time is not zero).
