@@ -219,6 +219,8 @@ export type FamilyTimingScreenProps = {
   onReject?: (transferId: string) => void;
   // Deleting a time the server rejected, after asking (#1025): "Conservar" only closes the sheet.
   confirmingDiscard?: boolean;
+  // The last deletion of a rejected time failed.
+  discardError?: boolean;
   onAskDiscard?: (id: string) => void;
   onConfirmDiscard?: () => void;
   onCancelDiscard?: () => void;
@@ -483,6 +485,12 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     />
   );
 
+  const discardFailed = props.discardError && (
+    <Banner variant="warn" icon="error">
+      {t('family_timing.not_sent.delete_error')}
+    </Banner>
+  );
+
   let body: ReactNode = null;
   switch (view.kind) {
     case 'loading':
@@ -505,6 +513,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       body = (
         <View style={{ gap: space[4] }}>
           {view.showNotice && <Banner variant="info">{t('family_timing.on_device')}</Banner>}
+          {discardFailed}
           {view.transferError && (
             <Banner variant="warn" icon="error">
               {view.transferError}
@@ -555,6 +564,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       const detail = view.detail;
       body = (
         <View style={{ gap: space[4] }}>
+          {discardFailed}
           <Card card={detail.card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} onAskDiscard={props.onAskDiscard} />
           <View style={{ gap: space[3] }}>
             {detail.rows.map((row) => (

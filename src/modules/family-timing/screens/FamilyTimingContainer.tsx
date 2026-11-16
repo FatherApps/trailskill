@@ -266,7 +266,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const [answerError, setAnswerError] = useState<FamilyTransferErrorCode | null>(null);
   // The rejected time the person is asked to delete (#1025), and whether the last deletion failed.
   const [discarding, setDiscarding] = useState<string | null>(null);
-  const [discardError, setDiscardError] = useState(false);
+  // The warning belongs to the view it appeared in: any other step (a new `step` object) or swimmer hides it.
+  const [discardFailed, setDiscardFailed] = useState<{ step: Step; selectedId: string | null } | null>(null);
+  const discardError = discardFailed?.step === step && discardFailed.selectedId === selectedId;
 
   // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
   const laps = setup.pool ? lapsFor(setup.distance, setup.pool) : 1;
@@ -513,7 +515,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     filtered: listed.filtered,
     showNotice,
     received: receivedCards,
-    transferError: answerError ? t(`family_timing.transfer.error.${answerError}`) : discardError ? t('family_timing.not_sent.delete_error') : null,
+    transferError: answerError ? t(`family_timing.transfer.error.${answerError}`) : null,
   });
 
   // Answers a request (or withdraws one); it leaves the screen at once, and the sync brings the moved time.
@@ -915,8 +917,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         );
       }}
       confirmingDiscard={discarding !== null}
+      discardError={discardError}
       onAskDiscard={(id) => {
-        setDiscardError(false);
+        setDiscardFailed(null);
         setDiscarding(id);
       }}
       onCancelDiscard={() => setDiscarding(null)}
@@ -930,7 +933,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           },
           () => {
             setDiscarding(null);
-            setDiscardError(true);
+            setDiscardFailed({ step, selectedId });
           },
         );
       }}

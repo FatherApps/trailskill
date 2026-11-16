@@ -168,11 +168,11 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
       return local.length;
     },
     async listRejected(userId, athleteId) {
-      // Gone from the synced table (the sync dropped the rejected upload) but still on the phone, with its failure recorded.
+      // Gone from the synced table (the sync dropped the rejected upload) but still on the phone, with its failure recorded and no new upload waiting.
       const rows = await db.getAll<LocalRow>(
-        `SELECT * FROM ${LOCAL_TABLE} WHERE created_by = ? AND ${athleteIs(athleteId)} AND id IN (${failed}) AND id NOT IN (SELECT id FROM ${TABLE})
+        `SELECT * FROM ${LOCAL_TABLE} WHERE created_by = ? AND ${athleteIs(athleteId)} AND id IN (${failed}) AND id NOT IN (${pending}) AND id NOT IN (SELECT id FROM ${TABLE})
          ORDER BY captured_at DESC, id DESC`,
-        [userId, ...athleteParams(athleteId), TABLE],
+        [userId, ...athleteParams(athleteId), TABLE, TABLE],
       );
       return rows.map((row) => toMeasurement({ ...row, captured_by: row.created_by, deleted_at: null }));
     },

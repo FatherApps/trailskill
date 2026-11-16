@@ -268,4 +268,10 @@ describe('a phone-only time the server rejected (issue 1025)', () => {
     expect(pending().map((p) => p.record_id)).toEqual(['new-1']);
     expect((await repo.listByAthlete('a1')).map((m) => m.id).sort()).toEqual(['new-1', 'ok-1']);
   });
+
+  it('does not list a rejected time that has a new upload waiting, as it cannot be deleted', async () => {
+    const repo = await rejectedAndAccepted();
+    server((s) => s.exec("INSERT INTO pending_writes (id, table_name, record_id) VALUES ('p1', 'family_timing_measurements', 'rej-1')"));
+    expect(await repo.listRejected('u1', 'a1')).toEqual([]);
+  });
 });

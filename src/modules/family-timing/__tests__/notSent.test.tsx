@@ -36,8 +36,9 @@ const accepted = time('ok-1', '50m');
 const pendingTime = time('new-1', '25m');
 const otherUsers = time('rej-2', '200m', 'u2');
 
-async function setup(synced: FamilyMeasurement[], phoneOnlyRejected: FamilyMeasurement[]) {
-  const repository = createInMemoryFamilyMeasurementRepository(synced, phoneOnlyRejected);
+async function setup(synced: FamilyMeasurement[], phoneOnlyRejected: FamilyMeasurement[], failing = false) {
+  const fake = createInMemoryFamilyMeasurementRepository(synced, phoneOnlyRejected);
+  const repository = failing ? { ...fake, discardRejected: jest.fn().mockRejectedValue(new Error('offline')) } : fake;
   await render(
     <PreferencesProvider repository={createInMemoryPreferencesRepository({ ...defaultPreferences, timePrecision: 'thousandths' })}>
       <FamilyTimingContainer userId="u1" athletes={athletes} repository={repository} onBack={jest.fn()} />
@@ -108,5 +109,43 @@ describe('a time the server did not accept', () => {
     await fireEvent.press(screen.getAllByText('Eliminar tiempo').at(-1)!);
     await waitFor(async () => expect(await repository.listRejected('u1', 'a1')).toEqual([]));
     expect(await screen.findByText('Medir un tiempo')).toBeTruthy();
+  });
+
+  it('keeps the time and says so when the confirmation is dismissed without choosing, as with Android back or a tap outside', async () => {
+    const repository = await setup([], [rejected]);
+    await fireEvent.press(await screen.findByText('Eliminar tiempo'));
+    await fireEvent.press(await screen.findByTestId('confirm-sheet-scrim'));
+    await waitFor(() => expect(screen.queryByText('¿Eliminar este tiempo?')).toBeNull());
+    expect(await repository.listRejected('u1', 'a1')).toHaveLength(1);
+    expect(screen.getByText('Libre 100 m · Piscina de 25 m')).toBeTruthy();
+  });
+
+  describe('when the deletion fails', () => {
+    const error = 'No pudimos eliminar el tiempo. Inténtalo de nuevo.';
+
+    it('says so in the list, keeps the time, and forgets the warning when asking again', async () => {
+      const repository = await setup([], [rejected], true);
+      await fireEvent.press(await screen.findByText('Eliminar tiempo'));
+      await fireEvent.press(screen.getAllByText('Eliminar tiempo').at(-1)!);
+      expect(await screen.findByText(error)).toBeTruthy();
+      expect(await repository.listRejected('u1', 'a1')).toHaveLength(1);
+      expect(screen.getByText('Libre 100 m · Piscina de 25 m')).toBeTruthy();
+
+      await fireEvent.press(screen.getByText('Eliminar tiempo'));
+      expect(screen.queryByText(error)).toBeNull();
+    });
+
+    it('says so in the detail too, and the warning is gone after going back to the list', async () => {
+      await setup([], [rejected], true);
+      await fireEvent.press(await screen.findByText('Libre 100 m · Piscina de 25 m'));
+      await fireEvent.press(await screen.findByText('Eliminar tiempo'));
+      await fireEvent.press(screen.getAllByText('Eliminar tiempo').at(-1)!);
+      expect(await screen.findByText(error)).toBeTruthy();
+      expect(screen.getByText('Detalle del tiempo')).toBeTruthy();
+
+      await fireEvent.press(screen.getByText('Volver a la lista'));
+      expect(await screen.findByText('Medir un tiempo')).toBeTruthy();
+      expect(screen.queryByText(error)).toBeNull();
+    });
   });
 });
