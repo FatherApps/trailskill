@@ -258,12 +258,7 @@ export const galleryEntries: GalleryEntry[] = [
   entry('staffEntries', 'StaffEntries', {
     staff: () => (
       <FullWidth>
-        <StaffEntries platformAdmin={false} onOpen={noop} />
-      </FullWidth>
-    ),
-    'platform-admin': () => (
-      <FullWidth>
-        <StaffEntries platformAdmin onOpen={noop} />
+        <StaffEntries onOpen={noop} />
       </FullWidth>
     ),
   }),

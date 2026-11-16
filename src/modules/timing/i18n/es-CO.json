@@ -171,6 +171,7 @@
       "reason_error": "Escribe el motivo para resolver.",
       "resolve": "Resolver conflicto",
       "resolving": "Resolviendo…",
+      "read_only": "Solo el administrador de la plataforma resuelve los conflictos. Aquí puedes ver las dos versiones.",
       "offline": "Resolver un conflicto requiere señal. Lo que escribiste se queda aquí.",
       "failure_stale": "La medición cambió mientras la revisabas. Recarga y vuelve a revisarla.",
       "failure_resolved": "Otra persona ya resolvió este conflicto. Recarga la lista.",

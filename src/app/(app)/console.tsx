@@ -13,7 +13,7 @@ import {
   createSupabaseInvitationRepository,
   SignOutContainer,
 } from '../../modules/accounts';
-import { createPowerSyncMeasurementRepository, createSupabaseConflictReviewRepository, usePlatformAdmin } from '../../modules/timing';
+import { createPowerSyncMeasurementRepository } from '../../modules/timing';
 import {
   AthletesSection,
   AuthorizationsSection,
@@ -51,7 +51,6 @@ const coachInvitations = createSupabaseCoachInvitationRepository();
 const familyInvitations = createSupabaseInvitationRepository();
 const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 const pendingInvitations = createSecureStorePendingInvitationRepository();
-const conflictReview = createSupabaseConflictReviewRepository();
 const guardianSharing = { repository: createSupabaseGuardianSharingRepository(), records: createGuardianRecordsRepository(createPowerSyncMeasurementRepository()) };
 
 export default function ConsoleRoute() {
@@ -64,7 +63,6 @@ export default function ConsoleRoute() {
   // Memberships arrive with a sync, so the lookup runs again when one completes.
   const { lastSyncedAt, connection } = useGlobalSyncSummary();
   const access = useAdminSchool(staffSchools, session?.user.id, lastSyncedAt?.getTime());
-  const isPlatformAdmin = usePlatformAdmin(conflictReview, session?.user.id);
 
   if (access.status === 'loading') {
     return (
@@ -103,7 +101,7 @@ export default function ConsoleRoute() {
       onOpenPlans={() => router.push('/plans')}
       // The admin lands here instead of on the home screen, so the entries only the home screen had are here too.
       footer={
-        <StaffEntries platformAdmin={isPlatformAdmin} onOpen={(href) => router.push(href)}>
+        <StaffEntries onOpen={(href) => router.push(href)}>
           <SignOutContainer drafts={registrationDrafts} pending={pendingInvitations} />
         </StaffEntries>
       }

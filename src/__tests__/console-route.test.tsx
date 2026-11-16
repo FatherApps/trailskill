@@ -59,12 +59,9 @@ jest.mock('../modules/school-console', () => ({
     listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
   }),
 }));
-let mockPlatformAdmin = false;
 const mockSignOut = jest.fn();
 jest.mock('../modules/timing', () => ({
-  ...jest.requireActual('../modules/timing/data/usePlatformAdmin'),
   createPowerSyncMeasurementRepository: () => ({}),
-  createSupabaseConflictReviewRepository: () => ({ isPlatformAdmin: () => Promise.resolve(mockPlatformAdmin) }),
 }));
 jest.mock('../modules/accounts', () => ({
   // The real container: only the repositories it receives, which need the device storage, are replaced.
@@ -89,7 +86,6 @@ jest.mock('expo-router', () => {
 
 beforeEach(() => {
   mockUserId = 'user-1';
-  mockPlatformAdmin = false;
   mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
   mockPush.mockReset();
   mockReplace.mockReset();
@@ -253,15 +249,7 @@ describe('console route', () => {
       expect(mockPush).toHaveBeenCalledWith(href);
     });
 
-    it('hides the conflict review from an admin who is not a platform admin', async () => {
-      await show();
-
-      expect(await screen.findByRole('button', { name: 'Toma de tiempos' })).toBeOnTheScreen();
-      expect(screen.queryByRole('button', { name: 'Revisar conflictos' })).toBeNull();
-    });
-
-    it('gives the conflict review to an admin who is also a platform admin', async () => {
-      mockPlatformAdmin = true;
+    it('gives the conflict review to a school admin, which opens the route the home screen uses', async () => {
       await show();
 
       await fireEvent.press(await screen.findByRole('button', { name: 'Revisar conflictos' }));

@@ -23,6 +23,8 @@ export type ReviewConflictsScreenProps = {
   onResolve: (input: ResolveConflictInput) => void;
   onRetry: () => void;
   onBack: () => void;
+  // Only a platform admin resolves; school staff read the same list and detail without the controls. The server rejects anyone else anyway.
+  canResolve?: boolean;
   // Opens a conflict's detail from the start (the gallery shows the detail without a tap).
   initialConflictId?: string;
 };
@@ -45,8 +47,9 @@ function ConflictDetail({
   offline,
   busy,
   failure,
+  canResolve,
   onResolve,
-}: { conflict: OpenConflict } & Pick<ReviewConflictsScreenProps, 'offline' | 'busy' | 'failure' | 'onResolve'>) {
+}: { conflict: OpenConflict; canResolve: boolean } & Pick<ReviewConflictsScreenProps, 'offline' | 'busy' | 'failure' | 'onResolve'>) {
   const { space } = useTheme();
   const [decision, setDecision] = useState<ConflictDecision>('current');
   const [valueText, setValueText] = useState('');
@@ -72,45 +75,50 @@ function ConflictDetail({
 
   return (
     <ScrollView contentContainerStyle={{ gap: space[4], padding: space[4] }} keyboardShouldPersistTaps="handled">
-      {offline && (
+      {!canResolve && <Banner variant="info">{t('timing.review.read_only')}</Banner>}
+      {canResolve && offline && (
         <Banner variant="warn" icon="wifi_off">
           {t('timing.review.offline')}
         </Banner>
       )}
-      {failure && failure !== 'offline' && <Banner variant="warn">{t(`timing.review.failure_${failure}`)}</Banner>}
+      {canResolve && failure && failure !== 'offline' && <Banner variant="warn">{t(`timing.review.failure_${failure}`)}</Banner>}
       <View style={{ flexDirection: 'row', gap: space[3] }}>
         <VersionCard title={t('timing.review.current')} version={conflict.current} />
         <VersionCard title={t('timing.review.incoming')} version={conflict.incoming} />
       </View>
-      <Segmented
-        accessibilityLabel={t('timing.review.decision_label')}
-        value={decision}
-        onChange={setDecision}
-        options={[
-          { value: 'current', label: t('timing.review.keep_current') },
-          { value: 'incoming', label: t('timing.review.use_incoming') },
-          { value: 'value', label: t('timing.review.enter_value') },
-        ]}
-      />
-      {decision === 'value' && (
-        <TextField
-          label={t('timing.review.value_label')}
-          help={t('timing.review.value_help')}
-          error={valueUnreadable ? t('timing.review.value_error') : undefined}
-          value={valueText}
-          onChangeText={setValueText}
-          keyboardType="numbers-and-punctuation"
-          autoCorrect={false}
+      {canResolve && (
+        <>
+        <Segmented
+          accessibilityLabel={t('timing.review.decision_label')}
+          value={decision}
+          onChange={setDecision}
+          options={[
+            { value: 'current', label: t('timing.review.keep_current') },
+            { value: 'incoming', label: t('timing.review.use_incoming') },
+            { value: 'value', label: t('timing.review.enter_value') },
+          ]}
         />
+        {decision === 'value' && (
+          <TextField
+            label={t('timing.review.value_label')}
+            help={t('timing.review.value_help')}
+            error={valueUnreadable ? t('timing.review.value_error') : undefined}
+            value={valueText}
+            onChangeText={setValueText}
+            keyboardType="numbers-and-punctuation"
+            autoCorrect={false}
+          />
+        )}
+        <TextField
+          label={t('timing.review.reason_label')}
+          help={t('timing.review.reason_help')}
+          error={reasonMissing ? t('timing.review.reason_error') : undefined}
+          value={reason}
+          onChangeText={setReason}
+        />
+        <Button label={t('timing.review.resolve')} loadingLabel={t('timing.review.resolving')} loading={busy} onPress={resolve} />
+        </>
       )}
-      <TextField
-        label={t('timing.review.reason_label')}
-        help={t('timing.review.reason_help')}
-        error={reasonMissing ? t('timing.review.reason_error') : undefined}
-        value={reason}
-        onChangeText={setReason}
-      />
-      <Button label={t('timing.review.resolve')} loadingLabel={t('timing.review.resolving')} loading={busy} onPress={resolve} />
     </ScrollView>
   );
 }
@@ -142,7 +150,7 @@ function ConflictRow({ conflict, onPress }: { conflict: OpenConflict; onPress: (
   );
 }
 
-export function ReviewConflictsScreen({ view, conflicts, offline, busy, failure, onResolve, onRetry, onBack, initialConflictId }: ReviewConflictsScreenProps) {
+export function ReviewConflictsScreen({ view, conflicts, offline, busy, failure, canResolve = true, onResolve, onRetry, onBack, initialConflictId }: ReviewConflictsScreenProps) {
   const { colors, space } = useTheme();
   const [selectedId, setSelectedId] = useState<string | null>(initialConflictId ?? null);
   // A resolved conflict leaves the list, which takes the screen back to it.
@@ -162,7 +170,7 @@ export function ReviewConflictsScreen({ view, conflicts, offline, busy, failure,
       />
     );
   else if (selected)
-    body = <ConflictDetail key={selected.id} conflict={selected} offline={offline} busy={busy} failure={failure} onResolve={onResolve} />;
+    body = <ConflictDetail key={selected.id} conflict={selected} offline={offline} busy={busy} failure={failure} canResolve={canResolve} onResolve={onResolve} />;
   else
     body = (
       <ScrollView contentContainerStyle={{ gap: space[2], padding: space[4] }}>
