@@ -71,10 +71,10 @@ describe('app layout phone navigation', () => {
     mockOwn = { managedCount: 1, selfAthleteId: 'self-1', authorized: true };
   };
 
-  it('shows Inicio, Historial, Marcas, Mis tiempos, Deportistas and Ajustes, in that order, to a guardian on a phone', async () => {
+  it('shows Deportistas, Inicio, Historial, Marcas, Mis tiempos and Ajustes, in that order, to a guardian on a phone', async () => {
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Mis tiempos', 'Deportistas', 'Ajustes']);
+    expect(tabNames()).toEqual(['Deportistas', 'Inicio', 'Historial', 'Marcas', 'Mis tiempos', 'Ajustes']);
   });
 
   const drawn = () => screen.container.queryAll((node) => node.type === 'RNSVGPath').map((path) => path.props.d);
@@ -82,14 +82,14 @@ describe('app layout phone navigation', () => {
   it('draws the design icons of the guardian bar, in order', async () => {
     await render(<AppLayout />);
 
-    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.timer, iconPaths.group, iconPaths.settings]);
+    expect(drawn()).toEqual([iconPaths.group, iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.timer, iconPaths.settings]);
   });
 
   it('draws the design icons of the adult bar, in order', async () => {
     adult();
     await render(<AppLayout />);
 
-    expect(drawn()).toEqual([iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.timer, iconPaths.group, iconPaths.settings]);
+    expect(drawn()).toEqual([iconPaths.group, iconPaths.home, iconPaths.timeline, iconPaths.emoji_events, iconPaths.timer, iconPaths.settings]);
   });
 
   // Until #778 the adult reaches the sign-out and the authorizations, which live in the footer of "Mis deportistas", through this tab.
@@ -97,14 +97,14 @@ describe('app layout phone navigation', () => {
     adult();
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Mis tiempos', 'Deportistas', 'Ajustes']);
+    expect(tabNames()).toEqual(['Deportistas', 'Inicio', 'Historial', 'Marcas', 'Mis tiempos', 'Ajustes']);
   });
 
   it('keeps Deportistas for an adult who also manages other athletes', async () => {
     mockOwn = { managedCount: 2, selfAthleteId: 'self-1', authorized: true };
     await render(<AppLayout />);
 
-    expect(tabNames()).toEqual(['Inicio', 'Historial', 'Marcas', 'Mis tiempos', 'Deportistas', 'Ajustes']);
+    expect(tabNames()).toEqual(['Deportistas', 'Inicio', 'Historial', 'Marcas', 'Mis tiempos', 'Ajustes']);
   });
 
   it('waits for what the device says about the user before it draws the bar', async () => {

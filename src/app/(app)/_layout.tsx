@@ -49,7 +49,7 @@ const invitation = { pending: createSecureStorePendingInvitationRepository(), in
 
 type Destination = 'home' | 'history' | 'marks' | 'my_times' | 'athletes' | 'settings';
 
-// Only the destinations that have a screen, in the order of the design. "Entreno" is reached from "Lo próximo" on Inicio.
+// Only the destinations that have a screen, in the order of the bar: Deportistas first, since everything is entered after choosing the swimmer (#1069). "Entreno" is reached from "Lo próximo" on Inicio.
 const home: NavBarItem & { id: Destination } = { id: 'home', label: t('home.nav.home'), icon: 'home' };
 const history: NavBarItem & { id: Destination } = { id: 'history', label: t('home.nav.history'), icon: 'timeline' };
 const marks: NavBarItem & { id: Destination } = { id: 'marks', label: t('home.nav.marks'), icon: 'emoji_events' };
@@ -57,7 +57,7 @@ const athletes: NavBarItem & { id: Destination } = { id: 'athletes', label: t('h
 // "Mis tiempos" and "Ajustes" were buttons on Inicio; the bar has them too, asked by the product owner in #999.
 const myTimes: NavBarItem & { id: Destination } = { id: 'my_times', label: t('home.nav.my_times'), icon: 'timer' };
 const settings: NavBarItem & { id: Destination } = { id: 'settings', label: t('home.nav.settings'), icon: 'settings' };
-const familyItems = [home, history, marks, myTimes, athletes, settings];
+const familyItems = [athletes, home, history, marks, myTimes, settings];
 // Until the account screen (#778) takes sign-out and authorizations out of "Mis deportistas", the adult keeps Deportistas to reach them.
 const adultItems = familyItems;
 
