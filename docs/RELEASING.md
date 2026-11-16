@@ -66,10 +66,11 @@ The first time, the Play build changes backend from QA to PROD (#1120). Precondi
 
 1. **Confirm PROD is ready**: its services are healthy, its first school administrator exists (#1118), and `APPLY_SEED` is `false`.
 2. **Change the EAS values.** In the EAS interface, replace the three `production` values with the PROD ones (`swimcro-api`, `swimcro-sync`, and the anon key issued for PROD). `preview` and test builds stay on QA. The maintainer confirms in #1120, in writing and without transcribing the values, that the environment holds PROD values.
-3. **Use a new version.** Bump `expo.version` for the PROD build. The runtime version follows `expo.version` ([Over-the-air updates](#over-the-air-updates-eas-update)), so builds that still point to QA never receive an OTA update published with PROD values.
-4. **Tag, migrate PROD, build** in the [order above](#order-for-each-version), then submit to the **Internal testing** track.
-5. **Smoke test on a phone, internal team only** ([Release checklist](#release-checklist)): sign in with Google and with the emailed code, sync, and invite a coach. QA accounts do not exist in PROD and register again; check that a QA account cannot sign in to PROD.
-6. **Record the result** in #1120 (evidence without personal data).
+3. **Tag, migrate PROD, build** in the [order above](#order-for-each-version), then submit to the **Internal testing** track.
+4. **Smoke test on a phone, internal team only** ([Release checklist](#release-checklist)): sign in with Google and with the emailed code, sync, and invite a coach. QA accounts do not exist in PROD and register again; check that a QA account cannot sign in to PROD.
+5. **Record the result** in #1120 (evidence without personal data).
+
+**Proposed — to confirm in #1120 (not a confirmed rule):** bump `expo.version` for the PROD build. The runtime version follows `expo.version` ([Over-the-air updates](#over-the-air-updates-eas-update)), so builds that still point to QA would not receive an OTA update published with PROD values. This is a proposal from the author of this page; #1120 decides it.
 
 Real families are **not** invited to PROD until an off-server backup and a tested restore exist (#1119, [ADR 0002 amendment](decisions/0002-backend-hosting-on-dokploy.md#amendment-2026-11-16-qa-and-prod-environments-email-provider-and-backups)). The cut itself does not open PROD to them.
 

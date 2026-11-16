@@ -279,7 +279,7 @@ It builds the bundle in a temporary folder next to a stand-in volume (a `main` r
 | `demo-guardian@example.test` | Guardian of 2 athletes of Group A | Those 2 athletes, their times and authorizations |
 | `demo-admin@example.test` | School administrator | The whole school, including the authorization evidence |
 
-The accounts have no password. They sign in with the email code. Locally, Mailpit receives it. In QA, Auth now sends through Resend and `example.test` is not a real mailbox: **PENDIENTE (maintainer): how a demo account gets its code in QA.** The seed creates them directly in `auth.users`, so no Auth admin API call is needed.
+The accounts have no password. They sign in with the email code, and that works only in the **local** stack, where the code reaches the local Mailpit (`http://127.0.0.1:54324`). In QA the demo accounts cannot sign in: Auth sends through Resend, `example.test` cannot receive email, and nothing reaches QA's Mailpit. In QA, sign in with a real email of your own or with Google. The seed creates them directly in `auth.users`, so no Auth admin API call is needed.
 
 The seed is idempotent: every insert uses fixed ids and `on conflict do nothing`, so applying it again adds only what is missing.
 

@@ -4,7 +4,7 @@ There are two ways to run Swimcro on your machine. Both use the Android developm
 
 | Mode | Backend | Use it for | You need |
 | --- | --- | --- | --- |
-| [Local app, cloud backend](#local-app-cloud-backend) | QA, the shared cloud backend (demo data) | App and interface work against the demo data | The anon key and the Mailpit credentials, from the maintainer |
+| [Local app, cloud backend](#local-app-cloud-backend) | QA, the shared cloud backend | App and interface work against QA's data (the demo accounts cannot sign in there, see below) | The anon key, from the maintainer |
 | [Everything local](#everything-local) | Docker on your machine | Migrations, access policies, sync rules, or anything that could disturb other people | Docker and the Supabase CLI |
 
 ## Start from the latest version
@@ -45,7 +45,7 @@ Do this once for either mode. Details are in [Running the app](../CONTRIBUTING.m
 
 ## Local app, cloud backend
 
-This mode uses **QA**: the shared cloud backend that deploys from `main` and holds demo data. Swimcro also has a separate PROD backend for real data; do not point a development build at it, and never ask for its keys (see [Backend environments](RELEASING.md#backend-environments-and-release-order)).
+This mode uses **QA**: the shared cloud backend that deploys from `main`. Swimcro also has a separate PROD backend for real data; do not point a development build at it, and never ask for its keys (see [Backend environments](RELEASING.md#backend-environments-and-release-order)).
 
 1. Ask the maintainer for a `.env` in the root of your checkout, with the variables of `.env.example`. It is ignored by Git, so a new worktree needs its own copy. The URLs are public; the anon key comes only from the maintainer:
 
@@ -56,7 +56,7 @@ This mode uses **QA**: the shared cloud backend that deploys from `main` and hol
    ```
 
 2. Start Metro: `npx expo start --dev-client --clear`, then press `a`. The variables are copied into the bundle, so use `--clear` after any change to `.env`. A change to `.env` does not need a new development build.
-3. Sign in with `demo-guardian@example.test`, `demo-coach@example.test`, or `demo-admin@example.test`. There is no password. Request the code once and read it at `https://trailskill-mail.tuls.app`, using the credentials from the maintainer.
+3. Sign in with Google, or with a real email of your own (you receive the code in that mailbox). The demo accounts (`demo-*@example.test`) do not work in QA: Auth sends the code through Resend, `example.test` cannot receive email, and nothing reaches QA's Mailpit. They work only in [Everything local](#everything-local), where the code reaches the local Mailpit.
 
 ## Everything local
 
@@ -100,7 +100,7 @@ Install Docker Desktop and the Supabase CLI, start Docker, and run these from th
    npx expo start --dev-client --clear
    ```
 
-4. Press `a` and sign in with a demo account from above. Read the code in Mailpit at `http://127.0.0.1:54324`; it needs no credentials.
+4. Press `a` and sign in with `demo-guardian@example.test`, `demo-coach@example.test`, or `demo-admin@example.test` (no password; request the code once). Read the code in Mailpit at `http://127.0.0.1:54324`; it needs no credentials.
 
 To stop everything and keep the data:
 
