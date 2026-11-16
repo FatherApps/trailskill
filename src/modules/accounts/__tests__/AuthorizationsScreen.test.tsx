@@ -142,6 +142,29 @@ describe('AuthorizationsContainer', () => {
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
   });
 
+  it('managing: a successful Guardar goes back to the previous view, once', async () => {
+    const { onDone } = await renderContainer();
+
+    await fireEvent.press(await screen.findByRole('checkbox', { name: IMPORT }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+  });
+
+  it('managing: a failed Guardar does not go back', async () => {
+    const repository: AuthorizationRepository = {
+      ...createInMemoryAuthorizationRepository(texts),
+      accept: () => Promise.reject(new Error('disk full')),
+    };
+    const { onDone } = await renderContainer({ repository });
+
+    await fireEvent.press(await screen.findByRole('checkbox', { name: IMPORT }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar' }));
+
+    expect(await screen.findByText(/No pudimos guardar en el teléfono/)).toBeOnTheScreen();
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
   it('withdrawing asks first, and only confirming records it while keeping the evidence', async () => {
     const repository = createInMemoryAuthorizationRepository(texts);
     const id = await repository.accept({ userId: 'guardian-1', athleteId: 'a1', text: texts[0]! });
