@@ -8,12 +8,12 @@ Límites de Play Console citados abajo: nombre 30 caracteres, descripción corta
 
 | Campo | Propuesta |
 | --- | --- |
-| Nombre de la app | TrailSkill |
+| Nombre de la app | Swimcro |
 | Idioma predeterminado | Español |
 | Tipo | Aplicación |
 | Gratuita o de pago | Gratuita |
 | Categoría | Deportes |
-| ID de la aplicación | `com.fatherapps.trailskill` (no se cambia) |
+| ID de la aplicación | `com.fatherapps.swimcro` (no se cambia) |
 | Correo de contacto | PENDIENTE: lo define el maintainer |
 | Sitio web | PENDIENTE: lo define el maintainer |
 | URL de la política de privacidad | PENDIENTE: se publica después de la revisión legal de #106 |
@@ -27,7 +27,7 @@ Desarrollo deportivo: tiempos, perfil y entrenamientos de tus nadadores.
 ## Descripción completa (máx. 4000 caracteres)
 
 ```text
-TrailSkill acompaña el desarrollo de deportistas en escuelas y clubes. Empieza con natación.
+Swimcro acompaña el desarrollo de deportistas en escuelas y clubes. Empieza con natación.
 
 PARA FAMILIAS Y DEPORTISTAS ADULTOS
 • Registra a tu deportista (o a ti mismo) y autoriza, paso a paso y con tu propio consentimiento, qué datos se usan y para qué.

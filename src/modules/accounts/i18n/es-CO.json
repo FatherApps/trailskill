@@ -151,7 +151,7 @@
       "help_no_name": "Dáselo a otra familia que tome tiempos de tu nadador: con él te podrá enviar esos tiempos, y tú decides si los aceptas. Solo verá el nombre corto.",
       "code_label": "Código {{code}}",
       "share": "Copiar o compartir código",
-      "share_message": "Código de TrailSkill para compartir tiempos: {{code}}",
+      "share_message": "Código de Swimcro para compartir tiempos: {{code}}",
       "change": "Cambiar código",
       "change_offline": "necesitas señal",
       "change_title": "¿Cambiar el código?",

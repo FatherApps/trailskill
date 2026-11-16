@@ -1,4 +1,4 @@
-// Transcribed from the TrailSkill design system, version 1792879026-78a3 (tokens.json; see design/README.md).
+// Transcribed from the Swimcro design system (formerly TrailSkill), version 1792879026-78a3 (tokens.json; see design/README.md).
 // Aliases such as {coral} are resolved to concrete values here. Do not edit values by hand: change the design system first.
 
 export type ThemeName = 'light' | 'dark';

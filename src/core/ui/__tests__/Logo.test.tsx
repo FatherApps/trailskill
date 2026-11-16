@@ -14,7 +14,7 @@ describe('Logo', () => {
   it('is one labelled image with the lockup proportions', async () => {
     await render(<Logo height={32} />);
 
-    const logo = screen.getByRole('image', { name: 'TrailSkill' });
+    const logo = screen.getByRole('image', { name: 'Swimcro' });
     expect(logo.props.width).toBe((32 * 219) / 64);
     expect(logo.props.height).toBe(32);
     expect([logo.props.vbWidth, logo.props.vbHeight]).toEqual([219, 64]);
@@ -39,15 +39,15 @@ describe('Logo', () => {
 
   it('is hidden from screen readers when decorative, so a title beside it is not announced twice', async () => {
     await render(<><Logo decorative /><LogoSymbol decorative /></>);
-    expect(screen.queryByRole('image', { name: 'TrailSkill' })).toBeNull();
-    expect(screen.queryAllByLabelText('TrailSkill')).toHaveLength(0);
+    expect(screen.queryByRole('image', { name: 'Swimcro' })).toBeNull();
+    expect(screen.queryAllByLabelText('Swimcro')).toHaveLength(0);
   });
 
   describe('LogoSymbol', () => {
     it('is one labelled square image, 44 dp by default', async () => {
       await render(<LogoSymbol />);
 
-      const symbol = screen.getByRole('image', { name: 'TrailSkill' });
+      const symbol = screen.getByRole('image', { name: 'Swimcro' });
       expect([symbol.props.width, symbol.props.height]).toEqual([44, 44]);
       expect([symbol.props.vbWidth, symbol.props.vbHeight]).toEqual([64, 64]);
     });

@@ -17,7 +17,7 @@ const LOCAL_OWNER_KEY = 'trailskill-local-owner';
 /** `azure` is how Supabase names Microsoft. */
 export type AuthProvider = 'google' | 'azure';
 
-// trailskill://auth-callback: the server settings (#84) must allow exactly this URL.
+// swimcro://auth-callback (the first scheme in app.config.ts): the server settings (#84) must allow exactly this URL.
 const AUTH_CALLBACK_PATH = 'auth-callback';
 
 type SignOutResult ={ status: 'signed_out' } | { status: 'blocked_pending'; unsent: number; rejected: number };

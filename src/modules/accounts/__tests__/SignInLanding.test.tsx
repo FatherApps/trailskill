@@ -38,7 +38,7 @@ describe('SignInLanding', () => {
   it('starts on "Crear cuenta": header, lime card, footer and no sign-in form', async () => {
     await render(<SignInLanding onCreateAccount={onCreateAccount} />);
 
-    expect(screen.getByRole('image', { name: 'TrailSkill' })).toBeOnTheScreen();
+    expect(screen.getByRole('image', { name: 'Swimcro' })).toBeOnTheScreen();
     expect(screen.getByRole('radio', { name: 'Crear cuenta' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Ingresar' })).not.toBeChecked();
     expect(screen.getByText('Cada entreno suma a tu camino.')).toBeOnTheScreen();
@@ -87,13 +87,13 @@ describe('SignInLanding', () => {
   it('shows the lilac card, the email step and the footer on "Ingresar", with a single title', async () => {
     await openSignInTab();
 
-    expect(screen.getByRole('image', { name: 'TrailSkill' })).toBeOnTheScreen();
+    expect(screen.getByRole('image', { name: 'Swimcro' })).toBeOnTheScreen();
     expect(screen.getByRole('radio', { name: 'Ingresar' })).toBeChecked();
     expect(screen.getByText('Hola de nuevo')).toBeOnTheScreen();
     expect(screen.getByText('Hola de nuevo').parent).toHaveStyle({ backgroundColor: colors.light.lilac });
     expect(screen.getByTestId('color-card-ring', { includeHiddenElements: true })).toBeTruthy();
     expect(screen.getByText('Ingresa con la misma opción que usaste al crear tu cuenta.')).toBeOnTheScreen();
-    expect(screen.queryByText('Ingresa a TrailSkill')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Ingresa a Swimcro')).not.toBeOnTheScreen();
     expect(screen.getByLabelText('Correo electrónico')).toBeOnTheScreen();
     expect(screen.getByText(/Sin señal:/)).toBeOnTheScreen();
     expect(screen.getByText(/para ingresar necesitas conexión/)).toBeOnTheScreen();

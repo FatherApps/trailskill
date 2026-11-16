@@ -33,7 +33,7 @@ describe('SignInScreen states', () => {
   it('initial: providers first, then the email with a code', async () => {
     await renderScreen();
 
-    expect(screen.getByRole('header', { name: 'Ingresa a TrailSkill' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Ingresa a Swimcro' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Continuar con Google' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Continuar con Microsoft' })).toBeOnTheScreen();
     expect(screen.getByText('o con un código por correo')).toBeOnTheScreen();

@@ -4,7 +4,7 @@ Entry point for AI agents working on TrailSkill. It is a map, not the rulebook: 
 
 ## Project
 
-TrailSkill is a modular athlete-development platform for multiple schools and, later, multiple sports. It starts with swimming in Colombia. La Academia (Liga Atlántico) is the pilot school, not the brand.
+Swimcro is a modular athlete-development platform for multiple schools and, later, multiple sports. It starts with swimming in Colombia. La Academia (Liga Atlántico) is the pilot school, not the brand.
 
 Stack: React Native + Expo (Android first, iOS from the same code) with Supabase and PowerSync for the backend and offline sync. See [`docs/decisions/0001-app-and-backend-stack.md`](docs/decisions/0001-app-and-backend-stack.md).
 

@@ -1,6 +1,6 @@
 # Local development
 
-There are two ways to run TrailSkill on your machine. Both use the Android development build; only the backend changes.
+There are two ways to run Swimcro on your machine. Both use the Android development build; only the backend changes.
 
 | Mode | Backend | Use it for | You need |
 | --- | --- | --- | --- |
@@ -119,7 +119,7 @@ Run one full local stack per machine. The Edge Functions are not covered here; s
 
 ## When something fails
 
-The sign-in screen shows one message ("No pudimos enviar el código") for every failure. In the cloud mode, check the `api-gw` logs of the `supabase` compose in Dokploy; in the local mode, run `docker logs supabase_kong_trailskill`.
+The sign-in screen shows one message ("No pudimos enviar el código") for every failure. In the cloud mode, check the `api-gw` logs of the `supabase` compose in Dokploy; in the local mode, run `docker logs supabase_kong_swimcro`.
 
 | What you see | Cause | Fix |
 | --- | --- | --- |

@@ -91,7 +91,7 @@ describe('the code challenge method auth-js picks', () => {
     });
     const { data } = await client.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: 'trailskill://auth-callback', skipBrowserRedirect: true },
+      options: { redirectTo: 'swimcro://auth-callback', skipBrowserRedirect: true },
     });
     return new URL(data.url ?? '');
   }

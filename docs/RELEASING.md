@@ -1,4 +1,4 @@
-# Releasing TrailSkill
+# Releasing Swimcro
 
 Releases, over-the-air updates, and Google Play publishing are done **by the maintainer only**. Contributors and agents never run `eas build --profile production`, `eas submit`, or `eas update`, and never touch Play Console, signing keys, or store credentials.
 
@@ -65,7 +65,7 @@ Created together with the project scaffold in `eas.json`:
 
 ### One-time setup (maintainer)
 
-- **Account type and production access.** The TrailSkill Play developer account is **personal**. Personal developer accounts created after 13 November 2023 must run a closed test with at least 12 testers opted in for 14 consecutive days before applying for production access. The La Academia pilot runs on the closed testing track and its testers must satisfy this requirement. ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en))
+- **Account type and production access.** The Swimcro Play developer account is **personal**. Personal developer accounts created after 13 November 2023 must run a closed test with at least 12 testers opted in for 14 consecutive days before applying for production access. The La Academia pilot runs on the closed testing track and its testers must satisfy this requirement. ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en))
 - **Application ID.** A neutral, company-based reverse-domain ID. It cannot change after the first release; the display name can.
 - **EAS Submit credentials.** EAS submits with a Google service account key stored in EAS credentials, never in the repository. The first release can be created by `eas submit` on the internal track; a manual first upload is optional. ([Expo: submit to Google Play](https://docs.expo.dev/submit/android/))
 - **Target API level.** From 31 August 2026, new apps and app updates must target Android 16 (API level 36) or higher; an extension to 1 November 2026 can be requested. ([Android Developers: target API level](https://developer.android.com/google/play/requirements/target-sdk))
@@ -96,7 +96,7 @@ Nothing here puts the app in front of the public: Internal testing is limited to
 
 ### Before you start
 
-- [ ] An Expo account with the TrailSkill project created on expo.dev. Copy its **project ID** (not a secret) and the **owner** (the account or organization that owns the project).
+- [ ] An Expo account with the Swimcro project (slug `swimcro`) created on expo.dev. Copy its **project ID** (not a secret) and the **owner** (the account or organization that owns the project).
 - [ ] The EAS project ID and owner are still missing from `app.config.ts` on purpose: an invalid ID breaks every EAS command, `development` profile included. Add both in the same pull request that carries this guide, once you have the real values:
 
   ```ts
@@ -129,8 +129,8 @@ eas env:create --name EXPO_PUBLIC_POWERSYNC_URL --environment production --visib
 
 ### 2. Create the app in Play Console
 
-1. Play Console → **Create app**. Name: TrailSkill. Default language: Spanish. Type: App, Free.
-2. Package name: `com.fatherapps.trailskill`. It cannot change after the first upload (see [One-time setup](#one-time-setup-maintainer)).
+1. Play Console → **Create app**. Name: Swimcro. Default language: Spanish. Type: App, Free.
+2. Package name: `com.fatherapps.swimcro`. It cannot change after the first upload (see [One-time setup](#one-time-setup-maintainer)).
 3. Accept **Play App Signing** (the default for new apps). Google keeps the app signing key; EAS generates and keeps the upload key in its credentials.
 4. Fill the declarations Play asks for before any closed test, using the drafts as the starting point:
    - Store listing: [`docs/release/play-listing.es.md`](release/play-listing.es.md).
@@ -184,7 +184,7 @@ Before the closed test, sign in once with the dedicated account on an Internal t
 Closed testing is the track that counts for production access. Before moving there:
 
 - **Target API level 36 or higher** on every build, as AGENTS.md requires ([source](https://developer.android.com/google/play/requirements/target-sdk)).
-- **At least 12 testers opted in for 14 consecutive days.** The TrailSkill Play developer account is personal, so Play asks for a closed test with this many testers before it grants production access ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en)). Keep the 14 days unbroken: a tester who opts out lowers the count.
+- **At least 12 testers opted in for 14 consecutive days.** The Swimcro Play developer account is personal, so Play asks for a closed test with this many testers before it grants production access ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en)). Keep the 14 days unbroken: a tester who opts out lowers the count.
 - Completed store listing, privacy policy URL, Data safety form, content rating, and target audience declaration ([Store listing and policy](#store-listing-and-policy)).
 - The App access form filled in with the dedicated review account ([step 7](#7-access-for-play-reviewers)).
 - Open decisions settled and closed, because each one changes what the forms must say:
@@ -200,9 +200,9 @@ An installable APK for walking through the app against the test backend, without
 
 | | Usual | `APP_VARIANT=preview` |
 | --- | --- | --- |
-| Package | `com.fatherapps.trailskill` | `com.fatherapps.trailskill.preview` |
-| Name | TrailSkill | TrailSkill (prueba) |
-| Scheme | `trailskill` | `trailskill-preview` |
+| Package | `com.fatherapps.swimcro` | `com.fatherapps.swimcro.preview` |
+| Name | Swimcro | Swimcro (prueba) |
+| Scheme | `swimcro`, plus `trailskill` for links sent before the rename | `swimcro-preview` |
 
 Requirements: JDK, the Android SDK (`ANDROID_HOME` set), and `adb` with an emulator or device attached. No EAS account, release keystore, or Play credentials are involved.
 
@@ -231,16 +231,16 @@ Requirements: JDK, the Android SDK (`ANDROID_HOME` set), and `adb` with an emula
 
    ```bash
    adb -s <device> install android/app/build/outputs/apk/release/app-release.apk
-   adb -s <device> shell monkey -p com.fatherapps.trailskill.preview -c android.intent.category.LAUNCHER 1
+   adb -s <device> shell monkey -p com.fatherapps.swimcro.preview -c android.intent.category.LAUNCHER 1
    ```
 
    The preview package differs from the development client's, so a plain `install` leaves the client untouched: do not use `-r` and do not uninstall anything. Only if you build without `APP_VARIANT=preview` does the APK share the client's package and debug key, and `-r` then replaces the client (reinstall it with `npx expo run:android` or an EAS `development` build).
 
 5. Smoke test: the app opens with no Metro server running, signs in with a demo account, and shows synced data.
 
-Sign-in by one-time code works in the preview variant as is. To sign in with Google or another OAuth provider, the preview variant needs `trailskill-preview://auth-callback` in `ADDITIONAL_REDIRECT_URLS` of the backend it points to (production today), next to `trailskill://auth-callback`. Without it, GoTrue falls back to `SITE_URL` and the browser ends on that page instead of returning to the app. This is a maintainer step on the server, not a change in this repository.
+Sign-in by one-time code works in the preview variant as is. To sign in with Google or another OAuth provider, the preview variant needs `swimcro-preview://auth-callback` in `ADDITIONAL_REDIRECT_URLS` of the backend it points to (production today), next to `swimcro://auth-callback` (and `trailskill://auth-callback`, kept for builds from before the rename). Without it, GoTrue falls back to `SITE_URL` and the browser ends on that page instead of returning to the app. This is a maintainer step on the server, not a change in this repository.
 
-School invitation links do not open the preview variant. A link such as `trailskill://invite/<token>` belongs to the app whose scheme is `trailskill` (the usual build and the Play build); the preview app (`com.fatherapps.trailskill.preview`) answers only to `trailskill-preview://`. To test an invitation in the preview variant, open `trailskill-preview://invite/<token>` by hand, for example `adb shell am start -a android.intent.action.VIEW -d "trailskill-preview://invite/<token>"`.
+School invitation links do not open the preview variant. A link such as `swimcro://invite/<token>` (or `trailskill://invite/<token>`, sent before the rename) belongs to the usual build and the Play build; the preview app (`com.fatherapps.swimcro.preview`) answers only to `swimcro-preview://`. To test an invitation in the preview variant, open `swimcro-preview://invite/<token>` by hand, for example `adb shell am start -a android.intent.action.VIEW -d "swimcro-preview://invite/<token>"`.
 
 A build without the three variables still opens, but sign-in and sync report a missing configuration. Rebuild after changing any `EXPO_PUBLIC_*` value, because they are inlined at build time.
 

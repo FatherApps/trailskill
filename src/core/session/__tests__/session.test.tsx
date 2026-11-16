@@ -32,7 +32,7 @@ jest.mock('expo-web-browser', () => ({
 
 // The real createURL and parse read the Expo manifest, which does not exist under Jest.
 jest.mock('expo-linking', () => ({
-  createURL: (path: string) => `trailskill://${path}`,
+  createURL: (path: string) => `swimcro://${path}`,
   parse: (url: string) => ({ queryParams: Object.fromEntries(new URL(url).searchParams) }),
 }));
 
@@ -105,7 +105,7 @@ beforeEach(() => {
   mockExchangeCode.mockReset().mockResolvedValue({ data: { session: mockSignedIn }, error: null });
   mockOpenAuthSession
     .mockReset()
-    .mockResolvedValue({ type: 'success', url: 'trailskill://auth-callback?code=one-time-code' });
+    .mockResolvedValue({ type: 'success', url: 'swimcro://auth-callback?code=one-time-code' });
 });
 
 async function renderSession() {
@@ -129,7 +129,7 @@ async function renderProbe() {
 }
 
 describe('signInWithProvider', () => {
-  const redirectTo = 'trailskill://auth-callback';
+  const redirectTo = 'swimcro://auth-callback';
 
   it('opens the provider in the system browser, then trades the returned code for the session', async () => {
     const session = await renderSession();
@@ -253,7 +253,7 @@ describe('resumeProviderSignIn', () => {
     // The link reaches the router before the browser call returns.
     await session.current.resumeProviderSignIn('one-time-code');
     expect(mockExchangeCode).not.toHaveBeenCalled();
-    finishBrowser({ type: 'success', url: 'trailskill://auth-callback?code=one-time-code' });
+    finishBrowser({ type: 'success', url: 'swimcro://auth-callback?code=one-time-code' });
 
     await expect(waiting).resolves.toBe('signed_in');
     expect(mockExchangeCode).toHaveBeenCalledTimes(1);
@@ -288,7 +288,7 @@ describe('resumeProviderSignIn', () => {
     await expect(first).resolves.toBe('cancelled');
     await session.current.resumeProviderSignIn('shared-code');
     expect(mockExchangeCode).not.toHaveBeenCalled();
-    finishBrowser[1]({ type: 'success', url: 'trailskill://auth-callback?code=shared-code' });
+    finishBrowser[1]({ type: 'success', url: 'swimcro://auth-callback?code=shared-code' });
 
     await expect(second).resolves.toBe('signed_in');
     expect(mockExchangeCode).toHaveBeenCalledTimes(1);

@@ -20,7 +20,7 @@ beforeEach(() => {
   mockResume.mockReset().mockResolvedValue(undefined);
 });
 
-// trailskill://auth-callback reaches the router when the system browser returns. A sign-in that is waiting reads the
+// swimcro://auth-callback reaches the router when the system browser returns. A sign-in that is waiting reads the
 // result itself; when the app was closed meanwhile, this route is the only one that sees the code.
 describe('auth-callback route', () => {
   it('goes back to the screen the person was on, so a failure shows where it started', async () => {

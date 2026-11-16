@@ -1,6 +1,6 @@
 # Product rules
 
-Product rules for TrailSkill, one document per topic. Each rule carries a status:
+Product rules for Swimcro, one document per topic. Each rule carries a status:
 
 - **confirmed**: the maintainer or Mario accepted it. Only confirmed items are requirements.
 - **proposed**: suggested, not yet accepted. Do not implement.

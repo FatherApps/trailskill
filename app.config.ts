@@ -4,10 +4,11 @@ import type { ExpoConfig } from 'expo/config';
 const preview = process.env.APP_VARIANT === 'preview';
 
 const config: ExpoConfig = {
-  name: preview ? 'TrailSkill (prueba)' : 'TrailSkill',
-  slug: 'trailskill',
-  // Opens school invitation links: trailskill://invite/<token>. The preview variant answers only to trailskill-preview://, so it does not open trailskill:// links.
-  scheme: preview ? 'trailskill-preview' : 'trailskill',
+  name: preview ? 'Swimcro (prueba)' : 'Swimcro',
+  slug: 'swimcro',
+  // Opens school invitation links: swimcro://invite/<token>. The first scheme is the one the app builds links with; trailskill:// stays accepted so links sent before the rename still open.
+  // The preview variant answers only to swimcro-preview://, so it does not open swimcro:// or trailskill:// links.
+  scheme: preview ? 'swimcro-preview' : ['swimcro', 'trailskill'],
   version: '1.0.0',
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',
@@ -17,8 +18,8 @@ const config: ExpoConfig = {
       // Background layer of the official adaptive icon (design/README.md, Logo files).
       backgroundColor: '#141414',
     },
-    // Provisional until the maintainer confirms it, before the first Play upload.
-    package: preview ? 'com.fatherapps.trailskill.preview' : 'com.fatherapps.trailskill',
+    // Confirmed by the maintainer before the first Play upload (#1097). Play never lets an app change its package after that upload.
+    package: preview ? 'com.fatherapps.swimcro.preview' : 'com.fatherapps.swimcro',
   },
   plugins: [
     'expo-router',

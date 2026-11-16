@@ -20,7 +20,7 @@ describe('AthleteShareCodeContainer', () => {
     expect(await screen.findByText('TS-AAAAA1')).toBeTruthy();
     expect(screen.getByText(/otra familia que tome tiempos de Ana/)).toBeTruthy();
     await fireEvent.press(screen.getByText('Copiar o compartir código'));
-    expect(share).toHaveBeenCalledWith('Código de TrailSkill para compartir tiempos: TS-AAAAA1');
+    expect(share).toHaveBeenCalledWith('Código de Swimcro para compartir tiempos: TS-AAAAA1');
   });
 
   it('changes the code after confirming, and the old one stops finding the swimmer', async () => {
