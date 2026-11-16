@@ -5,7 +5,7 @@
 -- All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(52);
+select plan(56);
 
 -- u('a1') is the uuid 10180000-0000-4000-8000-0000000000a1; as_user sets the signed-in user.
 create function pg_temp.u(text) returns uuid language sql as $$ select ('10180000-0000-4000-8000-0000000000' || $1)::uuid $$;
@@ -28,6 +28,17 @@ begin
   end loop;
   return array_to_string(r, ',');
 end $$;
+-- What the two default functions answer for school b2 to the current user.
+create function pg_temp.try_defaults_b2() returns text language plpgsql as $$
+declare r text[] := '{}'; q text;
+begin
+  foreach q in array array[
+    format('select public.timing_guardian_sharing_default(%L)', pg_temp.u('b2')),
+    format('select public.timing_set_guardian_sharing_default(%L, true)', pg_temp.u('b2'))] loop
+    begin execute q; r := r || 'ok'; exception when others then r := r || sqlstate; end;
+  end loop;
+  return array_to_string(r, ',');
+end $$;
 -- The guardian queries of timing_measurements in powersync/sync-config.yaml, with the with: subqueries
 -- inlined for the user. Pinned by src/modules/timing/__tests__/guardianSyncStream.test.ts: change both together.
 create function pg_temp.stream_ids(uuid) returns setof uuid language sql as $$
@@ -43,23 +54,25 @@ create temp table rls_seen (who text, id uuid);
 grant all on rls_seen to authenticated;
 
 -- Users: coach C (a1), school admin S (a2), guardian G of e1 (a3), guardian G2 of e2 (a4), coach X of
--- another school (a5), platform admin P (a6), adult athlete A, self of e3 (a7).
+-- another school (a5), platform admin P (a6), adult athlete A, self of e3 (a7), coach D deactivated in b1 (a8).
 insert into auth.users (id, email) values
   (pg_temp.u('a1'), 'coach-c@example.test'), (pg_temp.u('a2'), 'admin-s@example.test'),
   (pg_temp.u('a3'), 'guardian-g@example.test'), (pg_temp.u('a4'), 'guardian-g2@example.test'),
   (pg_temp.u('a5'), 'coach-x@example.test'), (pg_temp.u('a6'), 'platform-p@example.test'),
-  (pg_temp.u('a7'), 'adult-a@example.test');
+  (pg_temp.u('a7'), 'adult-a@example.test'), (pg_temp.u('a8'), 'coach-d@example.test');
 insert into public.schools (id, name) values (pg_temp.u('b1'), 'Sharing School One'), (pg_temp.u('b2'), 'Sharing School Two');
 insert into public.school_memberships (school_id, user_id, role) values
   (pg_temp.u('b1'), pg_temp.u('a1'), 'coach'), (pg_temp.u('b1'), pg_temp.u('a2'), 'school_admin'),
   (pg_temp.u('b2'), pg_temp.u('a5'), 'coach');
+insert into public.school_memberships (school_id, user_id, role, deactivated_at)
+  values (pg_temp.u('b1'), pg_temp.u('a8'), 'coach', now());
 insert into public.platform_admins (user_id) values (pg_temp.u('a6'));
--- e1 swims in both schools; e2 and e3 only in b1.
+-- e1 and e3 swim in both schools; e2 only in b1.
 insert into public.athletes (id, first_name, last_name) values
   (pg_temp.u('e1'), 'Athlete', 'E1'), (pg_temp.u('e2'), 'Athlete', 'E2'), (pg_temp.u('e3'), 'Athlete', 'E3');
 insert into public.athlete_schools (athlete_id, school_id) values
   (pg_temp.u('e1'), pg_temp.u('b1')), (pg_temp.u('e1'), pg_temp.u('b2')),
-  (pg_temp.u('e2'), pg_temp.u('b1')), (pg_temp.u('e3'), pg_temp.u('b1'));
+  (pg_temp.u('e2'), pg_temp.u('b1')), (pg_temp.u('e3'), pg_temp.u('b1')), (pg_temp.u('e3'), pg_temp.u('b2'));
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
   (pg_temp.u('a1'), pg_temp.u('e1'), pg_temp.u('b1')), (pg_temp.u('a1'), pg_temp.u('e2'), pg_temp.u('b1')),
   (pg_temp.u('a1'), pg_temp.u('e3'), pg_temp.u('b1')), (pg_temp.u('a5'), pg_temp.u('e1'), pg_temp.u('b2'));
@@ -77,7 +90,7 @@ insert into public.authorizations (id, athlete_id, purpose, text_id, accepted_at
 update public.authorizations set withdrawn_at = '2026-10-05 09:00:00+00' where id = pg_temp.u('f2');
 reset role;
 
--- d1, d2: e1 in b1. d3: e1 in b2. d4: e2. d5: e3. d6: e1 in b1, hidden. d7: e2, the client sends guardian_visible = true.
+-- d1, d2: e1 in b1. d3: e1 in b2. db: e3 in b2, written by coach X. d4: e2. d5: e3. d6: e1 in b1, hidden. d7: e2, the client sends guardian_visible = true.
 insert into public.measurements (school_id, id, created_by, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at) values
   (pg_temp.u('b1'), pg_temp.u('d1'), pg_temp.u('a1'), 'repetition', pg_temp.u('e1'), 3150, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-c', '2026-10-02 08:00:00+00'),
   (pg_temp.u('b1'), pg_temp.u('d2'), pg_temp.u('a1'), 'repetition', pg_temp.u('e1'), 3160, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-c', '2026-10-03 08:00:00+00'),
@@ -87,6 +100,9 @@ insert into public.measurements (school_id, id, created_by, kind, athlete_id, hu
   (pg_temp.u('b1'), pg_temp.u('d6'), pg_temp.u('a1'), 'repetition', pg_temp.u('e1'), 3200, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-c', '2026-10-06 08:00:00+00');
 insert into public.measurements (school_id, id, created_by, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, guardian_visible)
   values (pg_temp.u('b1'), pg_temp.u('d7'), pg_temp.u('a1'), 'repetition', pg_temp.u('e2'), 3210, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-c', '2026-10-03 08:30:00+00', true);
+
+insert into public.measurements (school_id, id, created_by, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+  values (pg_temp.u('b2'), pg_temp.u('db'), pg_temp.u('a5'), 'repetition', pg_temp.u('e3'), 3250, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-x', '2026-10-03 09:00:00+00');
 
 -- 1. Schema.
 select has_column('public', 'measurements', 'guardian_visible', 'measurements has guardian_visible');
@@ -124,11 +140,11 @@ select is(pg_temp.seen(), 'd1,d2,d4,d5,d7', 'coach C reads the times of b1, not 
 select pg_temp.as_user('a2');
 select is(pg_temp.seen(), 'd1,d2,d4,d5,d7', 'school admin S reads the same');
 select pg_temp.as_user('a6');
-select is(pg_temp.seen(), 'd1,d2,d3,d4,d5,d6,d7', 'platform admin P reads everything');
+select is(pg_temp.seen(), 'd1,d2,d3,d4,d5,d6,d7,db', 'platform admin P reads everything');
 select pg_temp.as_user('a5');
 select is(pg_temp.seen(), 'd3', 'coach X reads only the time of b2');
 select pg_temp.as_user('a7');
-select is(pg_temp.seen(), 'd5', 'adult athlete A reads all their own times with nothing shared');
+select is(pg_temp.seen(), 'd5,db', 'adult athlete A reads all their own times, in both schools, with nothing shared');
 
 -- 3. The switch of e1 in b1.
 select pg_temp.as_user('a1');
@@ -177,6 +193,14 @@ select pg_temp.as_user('a5');
 select is(pg_temp.try_setters(), '42501,42501,42501,42501,42501', 'coach X of another school cannot call any of them');
 select pg_temp.as_user('a7');
 select is(pg_temp.try_setters(), '42501,42501,42501,42501,42501', 'adult athlete A cannot call any of them');
+select pg_temp.as_user('a6');
+select is(pg_temp.try_setters(), '42501,42501,42501,42501,42501', 'platform admin P is not staff and cannot call any of them');
+select pg_temp.as_user('a8');
+select is(pg_temp.try_setters(), '42501,42501,42501,42501,42501', 'coach D, deactivated in b1, cannot call any of them');
+select pg_temp.as_user('a1');
+select is(pg_temp.try_defaults_b2(), '42501,42501', 'coach C of b1 cannot read nor set the default of b2');
+select pg_temp.as_user('a2');
+select is(pg_temp.try_defaults_b2(), '42501,42501', 'school admin S of b1 cannot read nor set the default of b2');
 reset role;
 set local role anon;
 select is(pg_temp.try_setters(), '42501,42501,42501,42501,42501', 'anon cannot call any of them');

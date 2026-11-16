@@ -32,3 +32,16 @@ test("the queries of timing_measurements that read by managed or self athletes a
     "SELECT * FROM measurements WHERE athlete_id IN self_athlete_ids",
   ]);
 });
+
+test("no line of the file, quoted or elsewhere, reads measurements by managed or self athletes except the guardian queries", () => {
+  const guardian = [
+    "SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids AND guardian_visible = true",
+    "SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids AND hidden = true",
+    "SELECT * FROM measurements WHERE athlete_id IN self_athlete_ids",
+  ];
+  const lines = config
+    .split("\n")
+    .filter((line) => /\b(managed|self)_athlete_ids\b/.test(line) && /FROM measurements\b/.test(line));
+
+  expect(lines.map((line) => line.trim().replace(/^- /, ""))).toEqual(guardian);
+});

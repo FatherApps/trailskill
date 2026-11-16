@@ -155,8 +155,9 @@ $$;
 
 -- The default is for new swimmers: it freezes every swimmer the school has or has times of, with the
 -- value they had, written as their switch before the default changes. The exclusive school lock makes
--- an upload in flight finish first. It holds only that lock and writes no measurements, so the lock
--- order stays acyclic.
+-- an upload in flight finish first. A default change (school lock, then the pair rows) and a switch
+-- change of a swimmer of the school with rows to recompute (pair row, then the shared school lock in
+-- the trigger) can deadlock: Postgres aborts one of them with 40P01, nothing ends wrong, retry it.
 create function public.timing_set_guardian_sharing_default(school uuid, shares_all boolean)
 returns void
 language plpgsql
