@@ -51,7 +51,8 @@ export function ConsoleScreen({ width, schoolName, sections, scrollEnabled, onOp
   if (!footer) return section;
   return (
     <View style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
-      {section}
+      {/* The section fills only the height the footer leaves: its layout does not shrink, so beside the footer it would take the whole height. */}
+      <View style={{ flex: 1 }}>{section}</View>
       <View style={{ padding: space[4] }}>{footer}</View>
     </View>
   );
