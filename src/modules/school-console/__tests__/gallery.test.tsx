@@ -83,6 +83,7 @@ describe('school console gallery entries', () => {
       'measurementsScreen',
       'authorizationList',
       'authorizationsScreen',
+      'guardianSharingPanel',
       'mySwimmersScreen',
     ]);
     expect(stateKeys('consoleNav')).toEqual(['side', 'top']);

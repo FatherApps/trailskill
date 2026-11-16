@@ -32,6 +32,9 @@ jest.mock('../modules/school-console', () => ({
     listBests: (...args: unknown[]) => mockConsoleAthletes.listBests(...args),
   }),
   ...jest.requireActual('../modules/school-console/screens/CategoriesSection'),
+  ...jest.requireActual('../modules/school-console/screens/GuardianSharingSection'),
+  createGuardianRecordsRepository: () => ({ list: () => Promise.resolve([]) }),
+  createSupabaseGuardianSharingRepository: () => jest.requireActual('../modules/school-console/data/guardianSharing').createInMemoryGuardianSharingRepository(),
   createPowerSyncCategoriesRepository: () => ({
     list: (...args: unknown[]) => mockListCategories(...args),
   }),
@@ -55,6 +58,7 @@ jest.mock('../modules/school-console', () => ({
     listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
   }),
 }));
+jest.mock('../modules/timing', () => ({ createPowerSyncMeasurementRepository: () => ({}) }));
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => {
@@ -255,6 +259,18 @@ describe('console route', () => {
     expect(await screen.findByRole('header', { name: 'Categorías' })).toBeOnTheScreen();
     expect(await screen.findByText('Categoría A')).toBeOnTheScreen();
     expect(mockListCategories).toHaveBeenCalledWith('s1');
+  });
+
+  it('lets the admin choose the default of the school for what the guardian sees, under Ajustes', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockListCategories.mockResolvedValue([]);
+    await show();
+
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Ajustes' }));
+
+    expect(await screen.findByRole('header', { name: 'Tiempos de la escuela para los acudientes' })).toBeOnTheScreen();
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Compartir todos' }));
+    expect(await screen.findByText(/empiezan con todos sus tiempos compartidos/)).toBeOnTheScreen();
   });
 
   it.each([

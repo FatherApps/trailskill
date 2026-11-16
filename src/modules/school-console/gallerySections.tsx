@@ -11,6 +11,7 @@ import { longTextMeasurementFixture, measurementsFixture, measurementsUpdatedMin
 import { longTextRecordFixture, recordCategoryFixture, recordsFixture, recordsUpdatedMinutesAgo } from './__fixtures__/records';
 import { AuthorizationList, SharingRequestList } from './components/AuthorizationList';
 import { CoachList } from './components/CoachList';
+import { GuardianSharingPanel, type SharingRecordRow, type SharingRecordsView, type SharingSwitchView } from './components/GuardianSharingPanel';
 import { InviteCoachSheet } from './components/InviteCoachSheet';
 import { MeasurementLog } from './components/MeasurementLog';
 import { RecordTable } from './components/RecordTable';
@@ -67,6 +68,37 @@ const entry = (id: string, title: string, states: Record<string, () => ReactElem
 
 // A side sheet fills the layout that holds it: give it a stage tall enough for its fields.
 const SheetStage = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch', height: 640 }}>{children}</View>;
+
+// Synthetic records of one swimmer: shared, not shared, and one the device does not know yet.
+const sharingRows: SharingRecordRow[] = [
+  { id: 'r1', event: 'Libre 50', date: '2026-11-01', time: 3482, shared: true },
+  { id: 'r2', event: 'Espalda 100', date: '2026-10-28', time: 7391, shared: false },
+  { id: 'r3', event: 'Pecho 50', date: '2026-10-21', time: null, shared: null },
+];
+const sharingReady = (shared: boolean, over: Partial<Extract<SharingSwitchView, { kind: 'ready' }>> = {}): SharingSwitchView => ({
+  kind: 'ready',
+  shared,
+  saving: false,
+  error: null,
+  onChange: noop,
+  ...over,
+});
+const sharingRecords = (over: Partial<Extract<SharingRecordsView, { kind: 'ready' }>> = {}): SharingRecordsView => ({
+  kind: 'ready',
+  rows: sharingRows,
+  error: null,
+  busyId: null,
+  onToggle: noop,
+  ...over,
+});
+const sharing = (scope: 'school' | 'swimmer', view: SharingSwitchView, records?: SharingRecordsView) =>
+  function SharingPreview() {
+    return (
+      <FullWidth>
+        <GuardianSharingPanel scope={scope} view={view} records={records} />
+      </FullWidth>
+    );
+  };
 
 const coachesContent: CoachesContent = { updatedMinutesAgo: 2, coaches: [...coachesFixture, pendingCoachFixture] };
 
@@ -284,6 +316,20 @@ export const gallerySectionEntries: GalleryEntry[] = [
       />
     )),
   ),
+  entry('guardianSharingPanel', 'GuardianSharingPanel', {
+    'school-not-shared': sharing('school', sharingReady(false)),
+    'school-shared': sharing('school', sharingReady(true)),
+    'school-loading': sharing('school', { kind: 'loading' }),
+    'school-error': sharing('school', { kind: 'error', onRetry: noop }),
+    'school-offline': sharing('school', { kind: 'offline' }),
+    'school-save-denied': sharing('school', sharingReady(false, { error: 'No tienes permiso para cambiar esto.' })),
+    'swimmer-off-with-records': sharing('swimmer', sharingReady(false), sharingRecords()),
+    'swimmer-on': sharing('swimmer', sharingReady(true)),
+    'swimmer-records-loading': sharing('swimmer', sharingReady(false), { kind: 'loading' }),
+    'swimmer-records-error': sharing('swimmer', sharingReady(false), { kind: 'error', onRetry: noop }),
+    'swimmer-records-empty': sharing('swimmer', sharingReady(false), sharingRecords({ rows: [] })),
+    'swimmer-record-denied': sharing('swimmer', sharingReady(false), sharingRecords({ error: 'No tienes permiso para cambiar esto.' })),
+  }),
   entry('mySwimmersScreen', 'MySwimmersScreen', {
     'with-data': mySwimmersScreen(mySwimmersData),
     loading: mySwimmersScreen({ kind: 'loading' }),

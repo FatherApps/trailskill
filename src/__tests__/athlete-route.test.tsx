@@ -4,6 +4,7 @@ import AthleteRoute from '../app/(app)/athletes/[id]';
 
 let mockUserId: string | undefined;
 let mockStaff = false;
+let mockSwimmerSchoolIds: string[] = [];
 let mockCanGoBack = true;
 let mockImportedAt: string | null = null;
 let mockConfirmed = false;
@@ -49,7 +50,7 @@ jest.mock('../modules/athletes', () => {
   return {
     createPowerSyncSchoolAthleteRepository: () => ({}),
     createPowerSyncHistoryRepository: () => ({}),
-    createPowerSyncAthleteSchoolRepository: () => ({}),
+    createPowerSyncAthleteSchoolRepository: () => ({ listByAthlete: async () => mockSwimmerSchoolIds.map((schoolId) => ({ schoolId, categoryId: null })) }),
     createSupabaseOtherSchoolResultsRepository: () => ({}),
     useManagedAthletes: () => mockManaged,
     AthleteProfileContainer: ({
@@ -61,6 +62,7 @@ jest.mock('../modules/athletes', () => {
       importPrompt,
       officialUpdate,
       shareCode,
+      guardianSharing,
       onBack,
     }: {
       athleteId: string;
@@ -71,21 +73,30 @@ jest.mock('../modules/athletes', () => {
       importPrompt?: object;
       officialUpdate?: import('react').ReactNode;
       shareCode?: import('react').ReactNode;
+      guardianSharing?: import('react').ReactNode;
       onBack: () => void;
     }) => (
       <Pressable accessibilityRole="button" onPress={onBack}>
         <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}${name ? ` named ${name}` : ''} pending ${pendingChanges}`}</Text>
         {officialUpdate}
         {shareCode}
+        {guardianSharing}
       </Pressable>
     ),
   };
 });
+jest.mock('../modules/timing', () => ({ createPowerSyncMeasurementRepository: () => ({}) }));
 jest.mock('../modules/school-console', () => ({
+  createGuardianRecordsRepository: () => ({}),
+  createSupabaseGuardianSharingRepository: () => ({}),
+  SwimmerSharingSection: ({ athleteId, schoolId }: { athleteId: string; schoolId: string }) => {
+    const { Text } = jest.requireActual('react-native');
+    return <Text>{`guardian sharing of ${athleteId} in ${schoolId}`}</Text>;
+  },
   createPowerSyncSchoolNameRepository: () => ({}),
   createPowerSyncSchoolStructureRepository: () => ({}),
   createPowerSyncStaffSchoolRepository: () => ({}),
-  useStaffSchool: () => ({ status: mockStaff ? 'staff' : 'none' }),
+  useStaffSchool: () => ({ status: mockStaff ? 'staff' : 'none', schools: mockStaff ? [{ id: 'school-a', name: 'Escuela A' }] : [] }),
 }));
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: mockId, name: mockName }),
@@ -98,6 +109,7 @@ describe('athlete profile route', () => {
     mockName = undefined;
     mockUnsent = { pending: 0, failed: 0 };
     mockMounted.mockClear();
+    mockSwimmerSchoolIds = [];
   });
 
   it('mounts a new official update container when the athlete in the address changes', async () => {
@@ -132,6 +144,37 @@ describe('athlete profile route', () => {
     mockStaff = false;
 
     expect(await screen.findByText('profile of a1 with other schools online pending 0')).toBeOnTheScreen();
+  });
+
+  describe('what the guardian sees', () => {
+    afterEach(() => {
+      mockStaff = false;
+    });
+
+    it('gives the controls to staff of a school the swimmer belongs to', async () => {
+      mockUserId = 'user-1';
+      mockStaff = true;
+      mockSwimmerSchoolIds = ['school-b', 'school-a'];
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('guardian sharing of a1 in school-a')).toBeOnTheScreen();
+    });
+
+    it('does not give them when the swimmer is in no school of the user, or the user is not staff', async () => {
+      mockUserId = 'user-1';
+      mockStaff = true;
+      mockSwimmerSchoolIds = ['school-b'];
+      const { unmount } = await render(<AthleteRoute />);
+      expect(await screen.findByText(/^profile of a1/)).toBeOnTheScreen();
+      expect(screen.queryByText(/guardian sharing/)).not.toBeOnTheScreen();
+      await unmount();
+
+      mockStaff = false;
+      mockSwimmerSchoolIds = ['school-a'];
+      await render(<AthleteRoute />);
+      expect(await screen.findByText(/^profile of a1/)).toBeOnTheScreen();
+      expect(screen.queryByText(/guardian sharing/)).not.toBeOnTheScreen();
+    });
   });
 
   describe('share code', () => {

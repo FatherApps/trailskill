@@ -64,6 +64,7 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
         <Text style={[typography.body, { color: colors[athleteDetailColors.title] }]}>{athlete.guardian.name ?? noData}</Text>
         <Text style={[typography.body, { color: colors[athleteDetailColors.caption] }]}>{athlete.guardian.contact ?? noData}</Text>
       </View>
+      {athlete.guardianSharing}
       <View>
         <Text accessibilityRole="header" style={[typography.label, { color: colors[athleteDetailColors.title] }]}>
           {t('schoolConsole.detail.bests')}

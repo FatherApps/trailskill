@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -26,6 +26,8 @@ export type CategoriesScreenProps = {
   onRetry?: () => void;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
+  // Shown above the categories: the other school settings.
+  above?: ReactNode;
   // Where the screen starts: a row being renamed, or the confirmation of a deactivation already open (gallery and tests).
   initialRenamingId?: string;
   initialConfirmId?: string;
@@ -155,6 +157,7 @@ export function CategoriesScreen({
   onSetActive,
   onRetry,
   scrollEnabled = true,
+  above,
   initialRenamingId,
   initialConfirmId,
 }: CategoriesScreenProps) {
@@ -238,7 +241,10 @@ export function CategoriesScreen({
       >
         {t('schoolConsole.sections.settings_title')}
       </Text>
-      <View style={{ width: '100%', maxWidth: 640, gap: space[4] }}>{body}</View>
+      <View style={{ width: '100%', maxWidth: 640, gap: space[4] }}>
+        {above}
+        {body}
+      </View>
       <ConfirmSheet
         visible={confirming !== undefined}
         title={t('schoolConsole.categories.confirm.title', { name: confirming?.name ?? '' })}

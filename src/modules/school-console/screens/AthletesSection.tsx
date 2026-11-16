@@ -8,10 +8,12 @@ import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '.
 import { personalBestLabel } from '../components/eventLabel';
 import { localDate } from '../components/formatDate';
 import type { CategoriesRepository, Category } from '../data/categories';
+import type { GuardianRecordsRepository, GuardianSharingRepository } from '../data/guardianSharing';
 import { athleteIndicators, filterAthletes, filterOptions, startOfWeek } from '../data/athletesList';
 import { CONSOLE_BEST_EVENT, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import { AthletesScreen, type AthletesContent, type AthletesView } from './AthletesScreen';
 import type { ConsoleSectionProps } from './ConsoleScreen';
+import { SwimmerSharingSection } from './GuardianSharingSection';
 
 export type AthletesSectionProps = ConsoleSectionProps & {
   schoolId: string;
@@ -20,6 +22,8 @@ export type AthletesSectionProps = ConsoleSectionProps & {
   categories?: CategoriesRepository;
   // Without it the detail shows no guardian.
   guardians?: Pick<AdultDirectoryRepository, 'listGuardians'>;
+  // Without it the detail has no controls for what the guardian sees.
+  sharing?: { repository: GuardianSharingRepository; records?: GuardianRecordsRepository };
   // The list is read again when this changes (a sync completed).
   refreshKey?: unknown;
   // When the local database last finished a sync; `null` when it never did.
@@ -97,6 +101,7 @@ export function AthletesSection({
   repository,
   categories,
   guardians,
+  sharing,
   refreshKey,
   lastSyncedAt,
   connection,
@@ -204,6 +209,18 @@ export function AthletesSection({
             // Until the athlete's own bests arrive the list is empty, never another athlete's.
             bests: bests?.athleteId === selected.id ? bests.bests : [],
             bestsError: bests?.athleteId === selected.id && bests.failed,
+            guardianSharing: sharing && (
+              <SwimmerSharingSection
+                // A new swimmer remounts it, so the switch and the records of the previous one never show.
+                key={selected.id}
+                repository={sharing.repository}
+                records={sharing.records}
+                athleteId={selected.id}
+                schoolId={schoolId}
+                connection={connection}
+                refreshKey={refreshKey}
+              />
+            ),
             categoryChoice: categories && {
               options: categoryOptions(categoryList, selected.categoryId),
               selectedId: selected.categoryId,
