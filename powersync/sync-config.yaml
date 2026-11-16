@@ -7,7 +7,8 @@
 # training-plans_assignment_scope_and_withdrawal, timing_school_id,
 # school-console_coach_assignment_school, timing_admin_measurement_conflicts,
 # training-plans_notices, results-import_provenance,
-# accounts_admin_reads_adult_profiles, family-timing_measurements):
+# accounts_admin_reads_adult_profiles, family-timing_measurements,
+# timing_guardian_school_times_sharing):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -15,6 +16,7 @@ config:
 
 with:
   managed_athlete_ids: SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()
+  self_athlete_ids: SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id() AND relation = 'self'
   coach_direct_athlete_ids: SELECT athlete_id FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id() AND school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL)
   coach_group_athlete_ids: SELECT athlete_id FROM athlete_groups WHERE group_id IN (SELECT group_id FROM coach_group_assignments WHERE coach_user_id = auth.user_id() AND group_id IN (SELECT id FROM training_groups WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL)))
   admin_school_ids: SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin'
@@ -96,8 +98,11 @@ streams:
   timing_measurements:
     auto_subscribe: true
     queries:
-      # Guardians and adult athletes also get the rows hidden after a withdrawal; everyone else does not.
-      - SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids
+      # The guardian branches of measurements_select (#1018): a guardian gets the school times the school shares and
+      # the rows hidden after a withdrawal; an adult athlete gets all their own. Everyone else does not get hidden rows.
+      - SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids AND guardian_visible = true
+      - SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids AND hidden = true
+      - SELECT * FROM measurements WHERE athlete_id IN self_athlete_ids
       # One query per source, so each stays a plain AND of conditions. Staff get
       # only the marks of their own schools (issue #291); other schools read online (#68).
       - SELECT * FROM measurements WHERE athlete_id IN coach_direct_athlete_ids AND hidden = false AND school_id IN member_school_ids

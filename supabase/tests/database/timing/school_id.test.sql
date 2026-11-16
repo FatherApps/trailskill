@@ -73,6 +73,9 @@ insert into public.schools (id, name) values
   ('29100000-0000-4000-8000-0000000000b1', 'School Id School A'),
   ('29100000-0000-4000-8000-0000000000b2', 'School Id School B');
 
+-- #1018: this school shares its times with guardians.
+insert into public.timing_guardian_sharing_defaults (school_id, shares_all, updated_by) values ('29100000-0000-4000-8000-0000000000b1', true, '29100000-0000-4000-8000-0000000000a1'), ('29100000-0000-4000-8000-0000000000b2', true, '29100000-0000-4000-8000-0000000000a1');
+
 insert into public.school_memberships (school_id, user_id, role) values
   ('29100000-0000-4000-8000-0000000000b1', '29100000-0000-4000-8000-0000000000a1', 'coach'),
   ('29100000-0000-4000-8000-0000000000b1', '29100000-0000-4000-8000-0000000000a2', 'school_admin'),
