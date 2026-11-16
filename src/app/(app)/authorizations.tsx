@@ -1,5 +1,4 @@
-import { useRouter } from 'expo-router';
-
+import { useGoBack } from '../../core/navigation';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import {
@@ -15,7 +14,7 @@ const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 
 // Management: accept more purposes or withdraw one, for each athlete the person manages.
 export default function Authorizations() {
-  const router = useRouter();
+  const goBack = useGoBack('/athletes');
   const { session } = useSession();
   const userId = session?.user.id;
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();
@@ -29,7 +28,7 @@ export default function Authorizations() {
       refreshKey={lastSyncedAt}
       athletes={managed.athletes.map((athlete) => ({ id: athlete.id, name: athleteDisplay(athlete).shortName }))}
       mode="manage"
-      onDone={() => router.back()}
+      onDone={goBack}
     />
   );
 }

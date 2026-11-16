@@ -119,6 +119,8 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
       return true;
     }
     await load();
+    // Managing: a saved change returns to the view the person came from.
+    onDone();
     return true;
   }
 
