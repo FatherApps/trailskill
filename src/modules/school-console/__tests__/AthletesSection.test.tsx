@@ -6,6 +6,7 @@ import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository,
 import { ThemeProvider } from '../../../core/theme';
 import { startOfWeek } from '../data/athletesList';
 import { createInMemoryCategoriesRepository, type CategoriesRepository } from '../data/categories';
+import { createInMemoryGuardianSharingRepository } from '../data/guardianSharing';
 import { createConsoleAthletesRepository, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import { createInMemorySchoolStructureRepository } from '../data/schoolStructure';
 import { AthletesSection } from '../screens/AthletesSection';
@@ -661,6 +662,24 @@ describe('AthletesSection', () => {
       expect(rows.length).toBeGreaterThan(0);
       expect(rows.length).toBeLessThan(60);
       expect(screen.getByLabelText('Activos: 300')).toBeOnTheScreen();
+    });
+  });
+
+  describe('what the guardian sees', () => {
+    it('shows the switch of the open swimmer when the section has the sharing repository', async () => {
+      await show(setup().repository, { sharing: { repository: createInMemoryGuardianSharingRepository() } });
+      await fireEvent.press(await athleteRow(/Lucía Ramírez/));
+
+      expect(await screen.findByRole('radio', { name: 'Compartir todos' })).toBeOnTheScreen();
+      expect(screen.getByRole('header', { name: 'Compartir todos los tiempos con el acudiente' })).toBeOnTheScreen();
+    });
+
+    it('shows no controls without it', async () => {
+      await show(setup().repository);
+      await fireEvent.press(await athleteRow(/Lucía Ramírez/));
+
+      expect(await screen.findByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
+      expect(screen.queryByRole('radio', { name: 'Compartir todos' })).not.toBeOnTheScreen();
     });
   });
 });

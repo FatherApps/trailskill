@@ -387,5 +387,40 @@
     },
     "connecting_empty": "Todavía no hay nadadores guardados en este dispositivo. Aparecerán cuando termine la primera sincronización.",
     "offline_empty": "No hay nadadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión."
+  },
+  "sharing": {
+    "on": "Compartir todos",
+    "off": "No compartir",
+    "retry": "Intentar de nuevo",
+    "load_error_title": "No pudimos cargar esta opción",
+    "load_error_message": "Revisa tu conexión e inténtalo de nuevo.",
+    "offline": "Cambiar esto necesita conexión. Podrás hacerlo cuando vuelva.",
+    "school": {
+      "title": "Tiempos de la escuela para los acudientes",
+      "help": "Compartir los tiempos con el acudiente es una decisión de la escuela. Este valor es para los nadadores nuevos: los que ya están no cambian, y los tiempos guardados antes de esta regla se siguen viendo.",
+      "state_on": "Los nadadores nuevos empiezan con todos sus tiempos compartidos con el acudiente.",
+      "state_off": "Los nadadores nuevos empiezan sin compartir sus tiempos con el acudiente."
+    },
+    "swimmer": {
+      "title": "Compartir todos los tiempos con el acudiente",
+      "help": "Es una decisión de la escuela. Los tiempos guardados antes de esta regla siguen siendo visibles para el acudiente.",
+      "state_on": "Encendido: el acudiente ve todos los tiempos que la escuela registre de este nadador.",
+      "state_off": "Apagado: el acudiente solo ve los tiempos que compartas uno por uno."
+    },
+    "errors": {
+      "denied": "No tienes permiso para cambiar esto.",
+      "busy": "No se pudo guardar porque el servidor estaba ocupado. Inténtalo de nuevo.",
+      "other": "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo."
+    },
+    "records": {
+      "title": "Tiempos uno por uno",
+      "help": "Con el interruptor apagado, elige qué tiempos ve el acudiente.",
+      "empty": "Este nadador aún no tiene tiempos de la escuela.",
+      "error_title": "No pudimos cargar los tiempos",
+      "shared": "Compartido",
+      "not_shared": "No compartido",
+      "share": "Compartir",
+      "unshare": "Dejar de compartir"
+    }
   }
 }

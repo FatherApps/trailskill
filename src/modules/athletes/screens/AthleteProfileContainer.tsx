@@ -53,6 +53,8 @@ export type AthleteProfileContainerProps = {
   officialUpdate?: ReactNode;
   // The code to share times with the swimmer, from the accounts module; the route passes it only to who manages the swimmer.
   shareCode?: ReactNode;
+  // What the school lets the guardian see of this swimmer, from the school-console module; the route passes it only to staff of the swimmer's school.
+  guardianSharing?: ReactNode;
   // Only guardians and adults get it: the route decides by passing it or not.
   importPrompt?: ImportPromptProps;
   // Where the band's back button goes; the route decides (the module has no router).
@@ -175,6 +177,7 @@ export function AthleteProfileContainer({
   sessionDated,
   officialUpdate,
   shareCode,
+  guardianSharing,
   importPrompt,
   onBack,
 }: AthleteProfileContainerProps) {
@@ -356,6 +359,7 @@ export function AthleteProfileContainer({
     chart,
     ...(officialUpdate ? { officialUpdate } : {}),
     ...(shareCode ? { shareCode } : {}),
+    ...(guardianSharing ? { guardianSharing } : {}),
     ...(importPrompt ? { importPrompt } : {}),
     ...(otherSchoolResults && !online ? { otherSchoolOffline: true } : {}),
     // Connected but the server failed or did not answer: not the offline notice, a retry of this section only.

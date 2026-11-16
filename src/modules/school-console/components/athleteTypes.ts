@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import type { Hundredths } from '../../../core/time';
 import type { SwimmerRowProps } from '../../../core/ui';
 
@@ -50,6 +52,8 @@ export type AthleteDetailData = {
   bestsError?: boolean;
   // Absent while the console has no categories to choose from: the detail only shows the category tag.
   categoryChoice?: CategoryChoice;
+  // The guardian sharing controls (a container that reads and changes the choice); absent when the caller has no repository for them.
+  guardianSharing?: ReactNode;
 };
 
 export type AthleteFilterId = 'category' | 'group' | 'coach';

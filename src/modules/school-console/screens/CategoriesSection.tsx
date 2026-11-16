@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import { useCategories } from '../data/useCategories';
 import type { CategoriesRepository } from '../data/categories';
 import { CategoriesScreen } from './CategoriesScreen';
@@ -10,6 +12,8 @@ export type CategoriesSectionProps = ConsoleSectionProps & {
   refreshKey?: unknown;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
+  // Shown above the categories: the other school settings.
+  above?: ReactNode;
 };
 
 // The categories section of the console: the screen over the repository of the school.

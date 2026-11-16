@@ -24,6 +24,8 @@ type MeasurementRow = {
   edit_reason: string | null;
   discarded_at: string | null;
   discarded_by: string | null;
+  // Absent on a device whose schema predates the column.
+  guardian_visible?: number | null;
 };
 
 // Rows are trusted: the server enforces the kind/hundredths rule, so the union is restored by cast.
@@ -50,6 +52,8 @@ function toMeasurement(row: MeasurementRow): Measurement {
     editedBy: row.edited_by,
     editedAt: row.edited_at,
     editReason: row.edit_reason,
+    // A column the device does not have yet stays absent, a null one is null: neither is false.
+    guardianVisible: row.guardian_visible == null ? row.guardian_visible : row.guardian_visible !== 0,
   } as Measurement;
 }
 

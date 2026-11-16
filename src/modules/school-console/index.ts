@@ -82,6 +82,17 @@ export { MySwimmersSection, type MySwimmersSectionProps } from './screens/MySwim
 export { createInMemoryCoachInvitationRepository, createSupabaseCoachInvitationRepository, type CoachInvitationRepository, type SentCoachInvitation } from './data/coachInvitations';
 export { createInMemoryCoachRepository, createPowerSyncCoachRepository } from './data/coaches';
 export type { Coach, CoachMembershipRow, CoachRepository } from './data/coaches';
+export { GuardianSharingPanel, type GuardianSharingPanelProps, type SharingRecordRow, type SharingRecordsView, type SharingSwitchView } from './components/GuardianSharingPanel';
+export { SchoolSharingDefaultSection, SwimmerSharingSection, type SwimmerSharingSectionProps } from './screens/GuardianSharingSection';
+export {
+  createGuardianRecordsRepository,
+  createInMemoryGuardianSharingRepository,
+  createSupabaseGuardianSharingRepository,
+  GuardianSharingError,
+  type GuardianRecord,
+  type GuardianRecordsRepository,
+  type GuardianSharingRepository,
+} from './data/guardianSharing';
 export { galleryEntries } from './gallery';
 export { createInMemoryStaffSchoolRepository, createPowerSyncStaffSchoolRepository } from './data/staffSchools';
 export type { StaffMembershipRow, StaffSchool, StaffSchoolRepository } from './data/staffSchools';

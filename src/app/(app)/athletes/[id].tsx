@@ -28,10 +28,14 @@ import {
   OfficialUpdateContainer,
   useImportSources,
 } from '../../../modules/results-import';
+import { createPowerSyncMeasurementRepository } from '../../../modules/timing';
 import {
+  createGuardianRecordsRepository,
   createPowerSyncSchoolNameRepository,
   createPowerSyncSchoolStructureRepository,
   createPowerSyncStaffSchoolRepository,
+  createSupabaseGuardianSharingRepository,
+  SwimmerSharingSection,
   useStaffSchool,
 } from '../../../modules/school-console';
 
@@ -51,6 +55,8 @@ const changeResolver = createSupabasePendingChangeResolver();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const importSources = createSupabaseImportSourcesRepository();
 const shareCodes = createSupabaseAthleteShareCodeRepository();
+const guardianSharing = createSupabaseGuardianSharingRepository();
+const guardianRecords = createGuardianRecordsRepository(createPowerSyncMeasurementRepository());
 
 export default function AthleteProfileRoute() {
   // `name` is the only thing besides the id the route carries: the band shows it from the first frame.
@@ -73,7 +79,21 @@ export default function AthleteProfileRoute() {
     };
   }, [id, syncedAt]);
   // Only school staff can be entitled to another school's results; the server decides which.
-  const isStaff = useStaffSchool(staffSchools, session?.user.id, summary.lastSyncedAt?.getTime()).status === 'staff';
+  const staff = useStaffSchool(staffSchools, session?.user.id, summary.lastSyncedAt?.getTime());
+  const isStaff = staff.status === 'staff';
+  // The school whose choice of what the guardian sees this screen shows: the first school of the user that the swimmer belongs to.
+  const [swimmerSchoolIds, setSwimmerSchoolIds] = useState<{ athleteId: string; ids: string[] }>();
+  useEffect(() => {
+    let active = true;
+    schoolLinks.listByAthlete(id).then(
+      (links) => active && setSwimmerSchoolIds({ athleteId: id, ids: links.map((link) => link.schoolId) }),
+      () => active && setSwimmerSchoolIds({ athleteId: id, ids: [] }),
+    );
+    return () => {
+      active = false;
+    };
+  }, [id, syncedAt]);
+  const sharingSchool = staff.status === 'staff' && swimmerSchoolIds?.athleteId === id ? staff.schools.find((school) => swimmerSchoolIds.ids.includes(school.id)) : undefined;
 
   const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, summary.lastSyncedAt?.getTime());
   const sources = useImportSources(importSources, summary.connection === 'connected');
@@ -142,6 +162,20 @@ export default function AthleteProfileRoute() {
             athleteName={managedAthlete.firstName}
             repository={shareCodes}
             online={summary.connection === 'connected'}
+          />
+        ) : undefined
+      }
+      // Staff of the swimmer's school choose what the guardian sees; the server refuses anyone else.
+      guardianSharing={
+        sharingSchool ? (
+          <SwimmerSharingSection
+            key={`guardian-sharing-${id}-${sharingSchool.id}`}
+            repository={guardianSharing}
+            records={guardianRecords}
+            athleteId={id}
+            schoolId={sharingSchool.id}
+            connection={summary.connection}
+            refreshKey={syncedAt}
           />
         ) : undefined
       }

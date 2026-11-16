@@ -28,6 +28,8 @@ type MeasurementBase = {
   editedBy: string | null; // null while never edited
   editedAt: string | null; // ISO 8601
   editReason: string | null;
+  // Whether the guardian reads the row (issue 1018). The server owns it. `null` or absent is unknown, never false.
+  guardianVisible?: boolean | null;
 };
 
 // A missing time is null, never 0; a completed measurement never has one.
