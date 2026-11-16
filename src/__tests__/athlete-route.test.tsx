@@ -147,6 +147,17 @@ describe('athlete profile route', () => {
       expect(await screen.findByText('share code of a1 for Ana')).toBeOnTheScreen();
     });
 
+    it('renders the official update and the share code as siblings with different keys (issue 1035)', async () => {
+      mockUserId = 'user-1';
+      mockManaged = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
+      const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
+      await render(<AthleteRoute />);
+
+      await screen.findByText('share code of a1 for Ana');
+      expect(errors.mock.calls.filter((call) => String(call[0]).includes('same key'))).toEqual([]);
+      errors.mockRestore();
+    });
+
     it('gives no share code to anyone else, for example the coach', async () => {
       mockUserId = 'user-1';
       mockManaged = { status: 'ready', athletes: [] };
