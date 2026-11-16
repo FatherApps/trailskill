@@ -76,7 +76,7 @@ Every module has the same shape: `src/modules/<module>/index.ts` (its only publi
 | Running locally: cloud test backend or everything in Docker | [`docs/local-development.md`](docs/local-development.md) |
 | Product rules and pilot scope | [`docs/product/`](docs/product/README.md) and [`PROJECT-HANDOFF-2026-10-24.md`](PROJECT-HANDOFF-2026-10-24.md) (moving to `docs/product/`) |
 | Architecture decisions | [`docs/decisions/`](docs/decisions/) |
-| Visual design: palette, typography, components, logo | [`design/README.md`](design/README.md), which links the design system (the source of truth) |
+| Visual design: palette, typography, components, logo | [`design/README.md`](design/README.md), which links the two Claude Design artifacts: the [design system](https://claude.ai/artifact/SoMStMt7XvkqiqkkgJoitf) (the source of truth for palette, typography, and components) and the [screen mockups «TrailSkill — mockups (dirección lima)»](https://claude.ai/artifact/MH2dwQ2tgTFo2LTh44mY5R) (reference for screens) |
 
 Product documents mark items as **confirmed**, **proposed**, or **open**. Only confirmed items are requirements.
 
