@@ -122,7 +122,8 @@ export default function AthleteProfileRoute() {
       officialUpdate={
         <OfficialUpdateContainer
           // A new athlete remounts it, so the list, selection and notices of the previous one never show.
-          key={id}
+          // The slot name keeps the key distinct from its sibling, the share code.
+          key={`official-update-${id}`}
           athleteId={id}
           update={officialUpdate}
           repository={importedResults}
@@ -136,7 +137,7 @@ export default function AthleteProfileRoute() {
       shareCode={
         managedAthlete ? (
           <AthleteShareCodeContainer
-            key={id}
+            key={`share-code-${id}`}
             athleteId={id}
             athleteName={managedAthlete.firstName}
             repository={shareCodes}
