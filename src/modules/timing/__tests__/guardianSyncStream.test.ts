@@ -14,6 +14,16 @@ const streamQueries =
     .split("\n")
     .flatMap((line) => line.match(/^\s+- (SELECT .+)$/)?.[1] ?? []);
 
+// Every column of public.measurements except the staff authors (#1020): a guardian does not need who wrote, edited or
+// discarded a time. guardian_visible stays: the console reads it, and a row the user also gets as staff keeps one copy.
+const guardianColumns =
+  "id, created_at, device_id, kind, athlete_id, series_id, arrival_position, hundredths, stroke, distance, pool, session_type, source, captured_at, parent_id, discarded_at, version, base_version, edited_device_id, edited_at, edit_reason, hidden, school_id, guardian_visible";
+const guardian = [
+  `SELECT ${guardianColumns} FROM measurements WHERE athlete_id IN managed_athlete_ids AND guardian_visible = true`,
+  `SELECT ${guardianColumns} FROM measurements WHERE athlete_id IN managed_athlete_ids AND hidden = true`,
+  `SELECT ${guardianColumns} FROM measurements WHERE athlete_id IN self_athlete_ids`,
+];
+
 test("the guardian ids are the managed ones and the ones the user manages as themselves", () => {
   expect(definition("managed_athlete_ids")).toBe(
     "SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()",
@@ -24,21 +34,28 @@ test("the guardian ids are the managed ones and the ones the user manages as the
 });
 
 test("the queries of timing_measurements that read by managed or self athletes are exactly the three guardian ones", () => {
-  expect(
-    streamQueries.filter((query) => /\b(managed|self)_athlete_ids\b/.test(query)),
-  ).toEqual([
-    "SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids AND guardian_visible = true",
-    "SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids AND hidden = true",
-    "SELECT * FROM measurements WHERE athlete_id IN self_athlete_ids",
+  expect(streamQueries.filter((query) => /\b(managed|self)_athlete_ids\b/.test(query))).toEqual(guardian);
+});
+
+test("no guardian query sends every column or the staff authors", () => {
+  const read = streamQueries.filter((query) => /\b(managed|self)_athlete_ids\b/.test(query));
+  expect(read).toHaveLength(3);
+  for (const query of read) {
+    expect(query).not.toMatch(/SELECT \*/);
+    expect(query).not.toMatch(/\b(created_by|edited_by|discarded_by)\b/);
+  }
+});
+
+test("the staff queries of timing_measurements still send every column", () => {
+  expect(streamQueries.filter((query) => !/\b(managed|self)_athlete_ids\b/.test(query))).toEqual([
+    "SELECT * FROM measurements WHERE athlete_id IN coach_direct_athlete_ids AND hidden = false AND school_id IN member_school_ids",
+    "SELECT * FROM measurements WHERE athlete_id IN coach_group_athlete_ids AND hidden = false AND school_id IN member_school_ids",
+    "SELECT * FROM measurements WHERE athlete_id IN admin_athlete_ids AND hidden = false AND school_id IN member_school_ids",
+    "SELECT * FROM measurements WHERE athlete_id IS NULL AND series_id IN own_series_ids",
   ]);
 });
 
 test("no line of the file, quoted or elsewhere, reads measurements by managed or self athletes except the guardian queries", () => {
-  const guardian = [
-    "SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids AND guardian_visible = true",
-    "SELECT * FROM measurements WHERE athlete_id IN managed_athlete_ids AND hidden = true",
-    "SELECT * FROM measurements WHERE athlete_id IN self_athlete_ids",
-  ];
   const lines = config
     .split("\n")
     .filter((line) => /\b(managed|self)_athlete_ids\b/.test(line) && /FROM measurements\b/.test(line));
