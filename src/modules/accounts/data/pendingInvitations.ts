@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
 
 import type { InvitationRepository } from './invitations';
-import { DRAFT_TTL_MS } from './registrationDraft';
+import { DRAFT_TTL_MS } from './draftTtl';
 
 // An invitation waiting to be accepted for one athlete. It keeps its own token: the registration draft is cleared by the authorizations step.
 export type PendingInvitation = {

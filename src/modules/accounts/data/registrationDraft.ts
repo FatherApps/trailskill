@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
 
 import type { SwimmerChoice } from '../screens/WhoSwimsScreen';
+import { DRAFT_TTL_MS } from './draftTtl';
 import type { AdultProfileRepository } from './adultProfiles';
 import type { InvitationRepository } from './invitations';
 import type { ManagedAthleteProfileRepository } from './managedAthleteProfiles';
@@ -67,7 +68,7 @@ export function createSecureStoreRegistrationDraftRepository(): RegistrationDraf
   };
 }
 
-export const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+export { DRAFT_TTL_MS };
 
 // Run when the app opens: a draft older than 24 hours is dropped, so a phone passed to someone else never keeps it for long.
 // A draft with no stamp predates the expiry and is dropped too.

@@ -24,6 +24,6 @@ export {
 } from './data/noticeSeen';
 export { useMoveLocalFamilyTimes } from './data/useMoveLocalFamilyTimes';
 export { FamilyTimingContainer, type FamilyTimingContainerProps } from './screens/FamilyTimingContainer';
-export { useFamilyTimingAtList } from './screens/familyTimingAtList';
+export { setFamilyTimingAtList, useFamilyTimingAtList } from './screens/familyTimingAtList';
 export { FamilyTimingScreen, type FamilyTimingScreenProps, type FamilyTimingView } from './screens/FamilyTimingScreen';
 export { officialValue, type OfficialImport, type OfficialValue } from './domain/officialValue';
