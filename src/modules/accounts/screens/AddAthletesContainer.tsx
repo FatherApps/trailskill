@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { useHardwareBack } from '../../../core/ui';
+import { ConfirmSheet, useHardwareBack } from '../../../core/ui';
 import { athleteDisplay, type AthleteRepository } from '../../athletes';
 import { isValidIdentityNumber, normalizeIdentityNumber, type IdentityNumberHold } from '../data/identityDocuments';
 import type { InvitationRepository } from '../data/invitations';
 import { queueInvitation, type PendingInvitationRepository } from '../data/pendingInvitations';
 import type { RegistrationDraft, RegistrationDraftRepository } from '../data/registrationDraft';
 import type { ManagedAthleteProfileRepository } from '../data/managedAthleteProfiles';
+import { t } from '../i18n';
 import { useInvitation } from './useInvitation';
 import { AddAthletesScreen, type AddAthleteField, type AddedAthlete } from './AddAthletesScreen';
 
@@ -23,10 +24,8 @@ export type AddAthletesContainerProps = {
   // Where the optional identity number waits for the authorizations step. Memory only: it never goes to the draft.
   identityNumbers?: IdentityNumberHold;
   renderStatus?: (athleteId: string) => ReactNode;
-  // Opt-in: the route that makes "Continuar" the only way out asks to ignore the system back button.
-  blockSystemBack?: boolean;
-  // Where back goes once "Continuar" is not a way out (see `blockSystemBack`). The route reached this screen with `replace`, so it decides where there is no history.
-  onBack?: () => void;
+  // "Salir" and the Android back button leave the registration through here: the account exists already, so there is no previous step. The route decides where to (the role landing).
+  onExit: () => void;
   onContinue: () => void;
 };
 
@@ -43,8 +42,6 @@ const sameRegistration = (a: RegistrationDraft, b: RegistrationDraft) =>
 // it depends on the stable key named in the `sameRegistration` shortcut above (issue 611, point 2: registration identity by fields), and the rule here stays as is until that key exists.
 const holds = (draft: RegistrationDraft, names?: typeof empty) =>
   !!names && draft.athlete?.firstName === names.firstName && draft.athlete?.lastName === names.lastName;
-// Stable, so the back subscription is made once while the block holds.
-const swallowBack = () => {};
 
 export function AddAthletesContainer({
   userId,
@@ -57,8 +54,7 @@ export function AddAthletesContainer({
   pending,
   identityNumbers,
   renderStatus,
-  blockSystemBack = false,
-  onBack,
+  onExit,
   onContinue,
 }: AddAthletesContainerProps) {
   const [values, setValues] = useState(empty);
@@ -108,14 +104,20 @@ export function AddAthletesContainer({
     );
   }, [athletes, userId, ifMounted]);
 
-  // The route asked for it because "Continuar" is the only way out of this step. When that way is shut (the step cannot be kept, or adding failed and nobody is known to be added to continue with), back leaves through `onBack`.
-  const noWayOut = failed === 'continue' || (failed === 'add' && !unreadable && added.length === 0);
-  // Leaving here cuts the registration, so the held number is dropped (Continuar keeps it for the authorizations step).
+  const [confirmingExit, setConfirmingExit] = useState(false);
+  // Leaving here cuts the registration, so the held number is dropped (Continuar keeps it for the authorizations step). The athletes already added and the draft stay as they are.
   const leave = useCallback(() => {
     identityNumbers?.clear();
-    onBack?.();
-  }, [identityNumbers, onBack]);
-  useHardwareBack(blockSystemBack ? (noWayOut ? onBack && leave : swallowBack) : undefined);
+    onExit();
+  }, [identityNumbers, onExit]);
+  // Only a form typed and not added yet would be lost, so only that asks first. Read from the refs: the Android back button must see what is in the form right now.
+  const exit = () => {
+    const half = typed.current.firstName.trim() !== '' || typed.current.lastName.trim() !== '' || identityTyped.current !== '';
+    if (half) setConfirmingExit(true);
+    else leave();
+  };
+  // "Salir" and the Android back button do the same.
+  useHardwareBack(exit);
 
   useEffect(() => {
     mounted.current = true;
@@ -284,26 +286,42 @@ export function AddAthletesContainer({
   }
 
   return (
-    <AddAthletesScreen
-      step={step}
-      total={total}
-      values={values}
-      athletes={added}
-      canContinue={added.length > 0 || unreadable}
-      busy={busy}
-      continuing={finishing}
-      failed={failed}
-      categories={categories}
-      categoryId={categoryId}
-      onCategoryChange={chooseCategory}
-      identityNumber={identityNumber}
-      identityNumberInvalid={identityInvalid}
-      onIdentityNumberChange={changeIdentityNumber}
-      renderStatus={renderStatus}
-      onChange={change}
-      onAdd={() => void add()}
-      onContinue={() => void finish()}
-    />
+    <>
+      <AddAthletesScreen
+        step={step}
+        total={total}
+        values={values}
+        athletes={added}
+        canContinue={added.length > 0 || unreadable}
+        busy={busy}
+        continuing={finishing}
+        failed={failed}
+        categories={categories}
+        categoryId={categoryId}
+        onCategoryChange={chooseCategory}
+        identityNumber={identityNumber}
+        identityNumberInvalid={identityInvalid}
+        onIdentityNumberChange={changeIdentityNumber}
+        renderStatus={renderStatus}
+        onChange={change}
+        onAdd={() => void add()}
+        onContinue={() => void finish()}
+        onExit={exit}
+      />
+      <ConfirmSheet
+        visible={confirmingExit}
+        title={t('accounts.athletes.exit_title')}
+        message={t('accounts.athletes.exit_message')}
+        confirmLabel={t('accounts.athletes.exit_confirm')}
+        cancelLabel={t('accounts.athletes.exit_cancel')}
+        destructive
+        onConfirm={() => {
+          setConfirmingExit(false);
+          leave();
+        }}
+        onCancel={() => setConfirmingExit(false)}
+      />
+    </>
   );
 }
 

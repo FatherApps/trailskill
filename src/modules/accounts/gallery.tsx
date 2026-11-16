@@ -41,6 +41,7 @@ function AddAthletesPreview(props: Partial<AddAthletesScreenProps>) {
         athletes={[]}
         onAdd={noop}
         onContinue={noop}
+        onExit={noop}
         {...props}
         values={values}
         categoryId={categoryId}

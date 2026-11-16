@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { View } from 'react-native';
 
 import { Banner, Button, ColorCard, Segmented, StepHeader, TextField } from '../../../core/ui';
 import { AddAthleteCard } from '../components/AddAthleteCard';
@@ -43,6 +44,8 @@ export type AddAthletesScreenProps = {
   onChange: (field: AddAthleteField, value: string) => void;
   onAdd: () => void;
   onContinue: () => void;
+  // "Salir": leaves the registration (the account exists already, so there is no step to go back to). Without it the step shows no way out but "Continuar".
+  onExit?: () => void;
 };
 
 // The server rejects a name longer than this (accounts_adult_profiles and the managed profiles check constraints).
@@ -68,6 +71,7 @@ export function AddAthletesScreen({
   onChange,
   onAdd,
   onContinue,
+  onExit,
 }: AddAthletesScreenProps) {
   const [submitted, setSubmitted] = useState(false);
   const missing = (field: AddAthleteField) => submitted && values[field].trim() === '';
@@ -84,6 +88,14 @@ export function AddAthletesScreen({
   return (
     <ScreenFrame
       title={t('accounts.create_title')}
+      // "Salir" sits where "Volver" does in the other steps. StepHeader's own back button is always "Volver", and there is no step to go back to here.
+      before={
+        onExit && (
+          <View style={{ alignItems: 'flex-start' }}>
+            <Button variant="ghost" label={t('accounts.athletes.exit')} onPress={onExit} />
+          </View>
+        )
+      }
       footer={
         <Button
           label={t('accounts.athletes.continue')}
@@ -94,7 +106,7 @@ export function AddAthletesScreen({
         />
       }
     >
-      {/* No Back button: the account already exists, so going back would leave the registration half done. */}
+      {/* No "Volver": the account already exists, so there is no previous step to return to. The way out is "Salir" above, which leaves the registration for the role landing. */}
       <StepHeader step={step} total={total} title={t('accounts.athletes.title')} />
       {athletes.map((athlete) => (
         <ColorCard key={athlete.id} color={athlete.color} title={athlete.name} detail={t('accounts.athletes.relation_guardian')}>

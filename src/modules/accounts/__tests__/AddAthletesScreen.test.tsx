@@ -180,3 +180,22 @@ describe('AddAthletesScreen states', () => {
     expect(StyleSheet.flatten(add.props.style).borderColor).toBe(colors.dark['border-strong']);
   });
 });
+
+describe('AddAthletesScreen Salir', () => {
+  it('shows "Salir" and presses through to onExit', async () => {
+    const onExit = jest.fn();
+    await renderScreen({ onExit });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Salir' }));
+
+    expect(onExit).toHaveBeenCalledTimes(1);
+    // The account exists already: there is no previous step to go back to.
+    expect(screen.queryByRole('button', { name: 'Volver' })).toBeNull();
+  });
+
+  it('shows no "Salir" for a caller that gives no way out', async () => {
+    await renderScreen();
+
+    expect(screen.queryByRole('button', { name: 'Salir' })).toBeNull();
+  });
+});
