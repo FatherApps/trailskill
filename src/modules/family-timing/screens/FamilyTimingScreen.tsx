@@ -262,7 +262,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-// a round outlined button with the filter icon; filled, with the count, while filters are in use.
+// An outlined pill with "Filtros"; filled, with the count, while filters are in use. The design system has no filter icon yet.
 function FilterButton({ active, onPress }: { active: number; onPress: () => void }) {
   const { colors, radius, size, space, typography } = useTheme();
   return (
@@ -271,17 +271,17 @@ function FilterButton({ active, onPress }: { active: number; onPress: () => void
       accessibilityLabel={active > 0 ? t('family_timing.filters.open_active', { count: active }) : t('family_timing.filters.open')}
       onPress={onPress}
       style={{
-        width: size['target-min'] + space[2],
-        height: size['target-min'] + space[2],
+        minHeight: size['target-min'],
         alignItems: 'center',
         justifyContent: 'center',
+        paddingHorizontal: space[4],
         borderRadius: radius.full,
-        borderWidth: 1.5,
+        borderWidth: 1,
         borderColor: colors.ink,
         backgroundColor: active > 0 ? colors.primary : colors['surface-0'],
       }}
     >
-      <Icon name="tune" color={active > 0 ? 'on-primary' : 'ink'} />
+      <Text style={[typography['body-strong'], { color: colors[active > 0 ? 'on-primary' : 'ink'] }]}>{t('family_timing.filters.open')}</Text>
       {active > 0 && (
         <View
           style={{
@@ -304,7 +304,7 @@ function FilterButton({ active, onPress }: { active: number; onPress: () => void
   );
 }
 
-// The list: accent bar in the swimmer's colour, title, pool and type, the time large with "Mejor tiempo",
+// The list card: accent bar in the swimmer's colour, title, pool and type, the time large with "Mejor tiempo",
 // and the date with "Medido · N largos". Touching the card opens the detail; edit lives in the detail.
 function ListCard({
   card,
@@ -336,7 +336,7 @@ function ListCard({
         borderColor: colors.border,
       }}
     >
-      <View style={{ width: space[1] + 2, backgroundColor: colors[accent] }} />
+      <View style={{ width: space[1], backgroundColor: colors[accent] }} />
       <View style={{ flex: 1, gap: space[3], padding: space[4] }}>
         <Pressable
           disabled={!onOpenDetail}
@@ -355,9 +355,10 @@ function ListCard({
             {card.isBest && <Tag variant="ok" icon="emoji_events" label={t('family_timing.card.best')} />}
           </View>
           {card.official && (
-            <Text style={[typography.caption, { color: colors['ink-muted'] }]}>
-              {card.official.label} · {t('family_timing.card.captured')} {card.captured}
-            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
+              <Tag variant="ok" icon="verified_user" label={card.official.label} />
+              <Text style={[typography['time-sm'], { color: colors['ink-muted'] }]}>{card.captured}</Text>
+            </View>
           )}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: space[2], marginTop: space[1] }}>
             <Text style={[typography.body, { color: colors['ink-muted'] }]}>{card.date}</Text>
@@ -460,7 +461,7 @@ function DangerButton({ label, onPress }: { label: string; onPress: () => void }
         justifyContent: 'center',
         paddingHorizontal: space[5],
         borderRadius: radius.full,
-        borderWidth: 1.5,
+        borderWidth: 1,
         borderColor: colors['danger-text'],
         backgroundColor: colors['danger-bg'],
       }}
@@ -815,6 +816,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             .map((a) => (
               <ChipRow key={a.id} accessibilityLabel={t('family_timing.athlete')} value={a.id} onChange={() => undefined} options={[{ value: a.id, label: a.name, dot: a.dot }]} />
             ))}
+          {card.notSent && <SyncStatus state="not_sent" />}
           <TimeHero card={card} color={heroColor} when={detail.when} competition={detail.rows.find((row) => row.label === t('family_timing.detail.competition'))?.value} />
           {detail.laps.length > 0 && (
             <View style={{ gap: space[3], padding: space[5], borderRadius: radius.lg, backgroundColor: colors['surface-1'] }}>
@@ -876,6 +878,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
               <Button variant="dark" icon={<Icon name="edit" color="on-primary" />} label={t('family_timing.detail.edit')} onPress={() => props.onOpenEdit?.(card.id)} />
             )
           )}
+          <Button variant="ghost" label={t('family_timing.detail.back')} onPress={props.onCancel} />
           {discardSheet}
         </View>
       );

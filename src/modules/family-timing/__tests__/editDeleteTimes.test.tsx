@@ -37,10 +37,20 @@ async function setup(initial: FamilyMeasurement[]) {
   return repository;
 }
 
+
+// The edit screen opens from the time's detail ("Editar registro").
+async function openDetail(index = 0) {
+  await fireEvent.press((await screen.findAllByHintText('Abre el detalle del tiempo'))[index]);
+}
+async function openEdit(index = 0) {
+  await openDetail(index);
+  await fireEvent.press(await screen.findByText('Editar registro'));
+}
+
 describe('editing and deleting a family time', () => {
   it('corrects the stroke and keeps the captured time', async () => {
     const repository = await setup([training]);
-    await fireEvent.press(await screen.findByText('Editar o eliminar'));
+    await openEdit();
     await fireEvent.press(screen.getByText('Espalda'));
     await fireEvent.press(screen.getByText('Guardar cambios'));
     await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]).toMatchObject({ stroke: 'BK', millis: 47_210 }));
@@ -49,7 +59,7 @@ describe('editing and deleting a family time', () => {
 
   it('moves a time to another of my swimmers and shows that swimmer', async () => {
     const repository = await setup([training]);
-    await fireEvent.press(await screen.findByText('Editar o eliminar'));
+    await openEdit();
     await fireEvent.press(screen.getByLabelText('Tomás R.'));
     await fireEvent.press(screen.getByText('Guardar cambios'));
     await waitFor(async () => expect((await repository.listByAthlete('a2')).map((m) => m.id)).toEqual(['m1']));
@@ -59,7 +69,7 @@ describe('editing and deleting a family time', () => {
 
   it('deletes only after confirming, and restores from Eliminados', async () => {
     const repository = await setup([training]);
-    await fireEvent.press(await screen.findByText('Editar o eliminar'));
+    await openEdit();
     await fireEvent.press(screen.getByText('Eliminar tiempo'));
     await fireEvent.press(screen.getByText('Conservar'));
     expect(await repository.listByAthlete('a1')).toHaveLength(1);
