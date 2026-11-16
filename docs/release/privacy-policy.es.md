@@ -1,4 +1,4 @@
-# Política de privacidad de TrailSkill (BORRADOR)
+# Política de privacidad de Swimcro (BORRADOR)
 
 > **BORRADOR. No publicar.** Texto propuesto a partir de lo que la app guarda hoy (ver [`data-safety.md`](data-safety.md), que cita tablas y módulos). **Lo valida la revisión legal de #106** antes de publicarse en una URL pública y de pegarse en Play Console. Los campos marcados PENDIENTE los define el maintainer. No contiene nombres de escuelas, federaciones, ligas ni personas.
 
@@ -10,7 +10,7 @@ PENDIENTE: nombre o razón social, documento de identificación, dirección y co
 
 ## 2. A quién se aplica
 
-Esta política cubre a quienes usan TrailSkill: familias (acudientes), deportistas adultos, entrenadores y administradores de escuela. La aplicación guarda datos de deportistas que pueden ser menores de edad; esos datos los registra y autoriza su acudiente, o el propio deportista si es adulto.
+Esta política cubre a quienes usan Swimcro: familias (acudientes), deportistas adultos, entrenadores y administradores de escuela. La aplicación guarda datos de deportistas que pueden ser menores de edad; esos datos los registra y autoriza su acudiente, o el propio deportista si es adulto.
 
 ## 3. Qué datos recogemos
 

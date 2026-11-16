@@ -40,20 +40,20 @@ For an agent, **done means the pull request is open.** Opening it does not end t
 
 ## Running the app
 
-The app uses native modules (op-sqlite, PowerSync) that Expo Go does not include, so it runs in a **development build**: a debug build of TrailSkill with `expo-dev-client` that loads its JavaScript from Metro.
+The app uses native modules (op-sqlite, PowerSync) that Expo Go does not include, so it runs in a **development build**: a debug build of Swimcro with `expo-dev-client` that loads its JavaScript from Metro.
 
 Prerequisites: Android Studio with the Android SDK, the `Medium_Phone_API_37.0` emulator running, and `JAVA_HOME` set to Android Studio's JDK (on macOS, `/Applications/Android Studio.app/Contents/jbr/Contents/Home`).
 
 1. Install dependencies: `npm ci`.
 2. Build and install the development build on the emulator: `npx expo run:android --no-bundler`. It generates `android/` (ignored by Git). Rebuild only when a native dependency or a config plugin changes; JavaScript changes do not need a new build. The local database is encrypted with SQLCipher, so pull the change that enabled it and rebuild once; the first launch deletes the old unencrypted local database and creates an empty encrypted one, which syncs again from the server.
-3. Start Metro in watch mode: `npx expo start --dev-client`, then press `a` to open TrailSkill on the emulator. Saving a file reloads the app.
+3. Start Metro in watch mode: `npx expo start --dev-client`, then press `a` to open Swimcro on the emulator. Saving a file reloads the app.
 
 Several worktrees and sessions share the emulator:
 
 - If port 8081 is taken, add `--port <free port>` to step 3. Do not set `CI=1`: it turns off reloads.
-- Sessions that cannot press `a` run `adb reverse tcp:<port> tcp:<port>`, open TrailSkill on the emulator, and connect the launcher to `http://localhost:<port>` (type it under Development servers and tap Connect, or tap it under Recently opened).
+- Sessions that cannot press `a` run `adb reverse tcp:<port> tcp:<port>`, open Swimcro on the emulator, and connect the launcher to `http://localhost:<port>` (type it under Development servers and tap Connect, or tap it under Recently opened).
 - On its first start the launcher asks for the nearby devices permission to find local servers; allow it on the emulator.
-- Expo Go (`host.exp.exponent`) is a different app. Before a screenshot, check that TrailSkill is in front: `adb shell dumpsys activity activities | grep topResumedActivity` must show `com.fatherapps.trailskill`.
+- Expo Go (`host.exp.exponent`) is a different app. Before a screenshot, check that Swimcro is in front: `adb shell dumpsys activity activities | grep topResumedActivity` must show `com.fatherapps.swimcro`.
 
 **Screenshots.** Sessions that check visual work capture the emulator with `adb exec-out screencap -p > <name>.png` and attach the image to the pull request. Use synthetic data only and keep screenshots out of the repository.
 

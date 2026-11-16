@@ -1,6 +1,6 @@
 {
   "home": {
-    "title": "TrailSkill",
+    "title": "Swimcro",
     "timing": "Toma de tiempos",
     "timing_series": "Toma en serie",
     "timing_completed": "Registrar completado",
@@ -19,10 +19,10 @@
     }
   },
   "logo": {
-    "label": "TrailSkill"
+    "label": "Swimcro"
   },
   "auth": {
-    "email_title": "Ingresa a TrailSkill",
+    "email_title": "Ingresa a Swimcro",
     "email_label": "Correo electrónico",
     "send_code": "Enviar código",
     "not_configured_title": "La app no está lista para ingresar",

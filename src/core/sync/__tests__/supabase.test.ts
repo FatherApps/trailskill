@@ -91,7 +91,7 @@ describe('supabase client configuration', () => {
 
       const { data } = await supabase.auth.signInWithOAuth({
         provider: 'azure',
-        options: { redirectTo: 'trailskill://auth-callback', skipBrowserRedirect: true },
+        options: { redirectTo: 'swimcro://auth-callback', skipBrowserRedirect: true },
       });
 
       expect(new URL(data.url ?? '').searchParams.get('code_challenge_method')).toBe('s256');

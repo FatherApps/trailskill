@@ -1,4 +1,4 @@
-# TrailSkill
+# Swimcro
 
 Plataforma modular de desarrollo de deportistas para varias escuelas y, más adelante, varios deportes. Empieza con natación en Colombia, con una escuela piloto. La escuela piloto no es la marca: el código no depende de ninguna escuela, liga ni federación concreta.
 

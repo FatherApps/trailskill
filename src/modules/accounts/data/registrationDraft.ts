@@ -19,7 +19,7 @@ export type RegistrationDraft = {
   // The sign-up code was asked for from the registration screen for this email: verifying it completes this registration.
   // Without it the draft was only typed, and a later sign-in with that email is asked before the draft is resumed.
   codeRequested?: boolean;
-  // From a school invitation link (trailskill://invite/<token>); kept in every rewrite until a later step accepts it.
+  // From a school invitation link (swimcro://invite/<token>, or trailskill:// from before the rename); kept in every rewrite until a later step accepts it.
   invitationToken?: string;
   // Stamped by the SecureStore repository on every save; never set by callers.
   savedAt?: number;

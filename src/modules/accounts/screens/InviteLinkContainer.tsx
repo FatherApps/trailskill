@@ -9,7 +9,7 @@ export type InviteLinkContainerProps = {
   onDone: (next: 'register' | 'home') => void;
 };
 
-// trailskill://invite/<token>: keeps the token in the registration draft, then moves on.
+// swimcro://invite/<token> (or trailskill://): keeps the token in the registration draft, then moves on.
 // A failed local save must not block the person: the screens simply show no invitation.
 export function InviteLinkContainer({ token, signedIn, drafts, onDone }: InviteLinkContainerProps) {
   useEffect(() => {

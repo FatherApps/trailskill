@@ -14,7 +14,7 @@ const LOGO_RATIO = 219 / 64;
 export type LogoProps = {
   // Rendered height in dp; the width follows the lockup's proportions.
   height?: number;
-  // Hidden from screen readers when a title or name next to it already says "TrailSkill".
+  // Hidden from screen readers when a title or name next to it already says "Swimcro".
   decorative?: boolean;
 };
 
@@ -24,7 +24,7 @@ export type LogoSymbolProps = {
   decorative?: boolean;
 };
 
-// Screen-reader props: one "TrailSkill" image, or nothing when the logo only decorates.
+// Screen-reader props: one "Swimcro" image, or nothing when the logo only decorates.
 const a11y = (decorative: boolean | undefined, label: string) =>
   decorative
     ? ({ accessible: false, importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const)

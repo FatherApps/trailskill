@@ -103,9 +103,9 @@ const guardian = () => Object.assign(mockWorld, { managedIds: ['a1', 'a2'], ownA
 const guardianOfOne = () => Object.assign(mockWorld, { managedIds: ['a1'], ownAuthorizations: true });
 const adult = () => Object.assign(mockWorld, { managedIds: ['self-1'], selfId: 'self-1', ownAuthorizations: true });
 
-// "TrailSkill" is the title of the old home screen.
+// "Swimcro" is the title of the old home screen.
 async function landsOnHome() {
-  expect(await screen.findByText('TrailSkill')).toBeOnTheScreen();
+  expect(await screen.findByText('Swimcro')).toBeOnTheScreen();
   expect(screen.queryByText('my athletes')).toBeNull();
   expect(screen.queryByText(/^profile /)).toBeNull();
 }
@@ -116,7 +116,7 @@ describe('landing by role', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     expect(await screen.findByText('my athletes')).toBeOnTheScreen();
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
   });
 
   it('takes a guardian of one athlete on a tablet, which has no phone bar, to My athletes', async () => {
@@ -141,7 +141,7 @@ describe('landing by role', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     expect(await screen.findByText('profile self-1')).toBeOnTheScreen();
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
   });
 
   it('takes an adult athlete on a tablet, which has no phone bar, to My athletes', async () => {
@@ -201,7 +201,7 @@ describe('landing of accounts with several roles', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     expect(await screen.findByText('my athletes')).toBeOnTheScreen();
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
   });
 
   it('takes a guardian of one athlete to that athlete when the membership lookup on the device fails', async () => {
@@ -253,7 +253,7 @@ describe('landing while data is missing', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     await act(async () => {});
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
     expect(screen.queryByText('my athletes')).toBeNull();
   });
 
@@ -274,7 +274,7 @@ describe('landing while data is missing', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     await act(async () => {});
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
     expect(screen.queryByText('my athletes')).toBeNull();
   });
 });
@@ -290,6 +290,6 @@ describe('the end of the registration', () => {
     await act(async () => screen.getByText('Continuar').props.onPress());
 
     expect(await screen.findByText(text)).toBeOnTheScreen();
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
   });
 });
