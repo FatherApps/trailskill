@@ -2,8 +2,10 @@ package expo.modules.videorecorder
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PorterDuff
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
@@ -45,29 +47,44 @@ data class StopwatchOverlay(
 
   /**
    * Draws on a buffer of [bufferWidth] x [bufferHeight] whose content is shown rotated by [rotationDegrees] clockwise, so
-   * the strip is upright in the video as people watch it.
+   * the strip is upright in the video as people watch it. [crop] is the part of the buffer that ends up in the video; the
+   * strip sits in its top-left corner, so a video cropped from a wider buffer does not cut it.
    */
-  fun draw(canvas: Canvas, bufferWidth: Float, bufferHeight: Float, rotationDegrees: Int, now: Long = SystemClock.elapsedRealtimeNanos()) {
+  fun draw(
+    canvas: Canvas,
+    bufferWidth: Float,
+    bufferHeight: Float,
+    rotationDegrees: Int,
+    crop: Rect? = null,
+    now: Long = SystemClock.elapsedRealtimeNanos(),
+  ) {
     canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
     if (!enabled) return
-    canvas.save()
+    // Upright drawing coordinates -> buffer coordinates.
+    val toBuffer = Matrix()
     when (((rotationDegrees % 360) + 360) % 360) {
       90 -> {
-        canvas.translate(0f, bufferHeight)
-        canvas.rotate(-90f)
+        toBuffer.setTranslate(0f, bufferHeight)
+        toBuffer.preRotate(-90f)
       }
       180 -> {
-        canvas.translate(bufferWidth, bufferHeight)
-        canvas.rotate(180f)
+        toBuffer.setTranslate(bufferWidth, bufferHeight)
+        toBuffer.preRotate(180f)
       }
       270 -> {
-        canvas.translate(bufferWidth, 0f)
-        canvas.rotate(90f)
+        toBuffer.setTranslate(bufferWidth, 0f)
+        toBuffer.preRotate(90f)
       }
     }
-    val upright = rotationDegrees % 180 == 0
-    val width = if (upright) bufferWidth else bufferHeight
-    val height = if (upright) bufferHeight else bufferWidth
+    val visible = RectF(crop?.let { RectF(it) } ?: RectF(0f, 0f, bufferWidth, bufferHeight))
+    val toUpright = Matrix()
+    toBuffer.invert(toUpright)
+    toUpright.mapRect(visible)
+    canvas.save()
+    canvas.concat(toBuffer)
+    canvas.translate(visible.left, visible.top)
+    val width = visible.width()
+    val height = visible.height()
     // Sized on the shorter side, so portrait and landscape videos get the same strip.
     val unit = minOf(width, height)
 

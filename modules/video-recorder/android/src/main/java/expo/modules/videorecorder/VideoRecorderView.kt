@@ -4,13 +4,17 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraEffect
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCaseGroup
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.effects.OverlayEffect
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FallbackStrategy
@@ -30,7 +34,9 @@ import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
 import java.io.File
 
-// The rear camera with the stopwatch strip drawn into the preview and the recorded video (#1088).
+// The rear camera, full screen, with the stopwatch strip drawn into the recorded video (#1088). The screen shows the
+// stopwatch with its own controls on top of the image, so the strip is drawn only into the video. Preview and video are
+// both 16:9 and the preview fills the screen from the centre, so the video always holds at least what the screen shows.
 class VideoRecorderView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
   // PreviewView lays out its own children (the surface), so Android layout runs inside this view.
   override val shouldUseAndroidLayout = true
@@ -40,7 +46,7 @@ class VideoRecorderView(context: Context, appContext: AppContext) : ExpoView(con
   private val previewView =
     PreviewView(context).apply {
       implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-      scaleType = PreviewView.ScaleType.FIT_CENTER
+      scaleType = PreviewView.ScaleType.FILL_CENTER
     }
 
   var audio: Boolean = true
@@ -51,6 +57,7 @@ class VideoRecorderView(context: Context, appContext: AppContext) : ExpoView(con
   private var provider: ProcessCameraProvider? = null
   private var videoCapture: VideoCapture<Recorder>? = null
   private var effect: OverlayEffect? = null
+  private var preview: Preview? = null
   private var recording: Recording? = null
   private var pending: Promise? = null
 
@@ -76,11 +83,20 @@ class VideoRecorderView(context: Context, appContext: AppContext) : ExpoView(con
     bind()
   }
 
+  // The screen turns with the phone: the next video is recorded the way the phone is held.
+  override fun onConfigurationChanged(newConfig: Configuration?) {
+    super.onConfigurationChanged(newConfig)
+    val rotation = display?.rotation ?: return
+    preview?.targetRotation = rotation
+    if (recording == null) videoCapture?.targetRotation = rotation
+  }
+
   override fun onDetachedFromWindow() {
     stopRecording()
     provider?.unbindAll()
     effect?.close()
     effect = null
+    preview = null
     videoCapture = null
     super.onDetachedFromWindow()
   }
@@ -92,25 +108,39 @@ class VideoRecorderView(context: Context, appContext: AppContext) : ExpoView(con
       {
         val cameraProvider = runCatching { future.get() }.getOrNull() ?: return@addListener
         provider = cameraProvider
-        val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
+        val selector =
+          ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY).build()
+        val livePreview =
+          Preview.Builder().setResolutionSelector(selector).build().also { it.surfaceProvider = previewView.surfaceProvider }
         val recorder =
           Recorder.Builder()
+            .setAspectRatio(AspectRatio.RATIO_16_9)
             .setQualitySelector(QualitySelector.from(quality, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)))
             .build()
         val capture = VideoCapture.withOutput(recorder)
-        val overlayEffect =
-          OverlayEffect(CameraEffect.PREVIEW or CameraEffect.VIDEO_CAPTURE, 0, Handler(Looper.getMainLooper())) {}
+        display?.rotation?.let {
+          livePreview.targetRotation = it
+          capture.targetRotation = it
+        }
+        val overlayEffect = OverlayEffect(CameraEffect.VIDEO_CAPTURE, 0, Handler(Looper.getMainLooper())) {}
         overlayEffect.setOnDrawListener { frame ->
-          overlay.draw(frame.overlayCanvas, frame.size.width.toFloat(), frame.size.height.toFloat(), frame.rotationDegrees)
+          overlay.draw(
+            frame.overlayCanvas,
+            frame.size.width.toFloat(),
+            frame.size.height.toFloat(),
+            frame.rotationDegrees,
+            frame.cropRect,
+          )
           true
         }
-        val group = UseCaseGroup.Builder().addUseCase(preview).addUseCase(capture).addEffect(overlayEffect).build()
+        val group = UseCaseGroup.Builder().addUseCase(livePreview).addUseCase(capture).addEffect(overlayEffect).build()
         runCatching {
           cameraProvider.unbindAll()
           cameraProvider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, group)
         }.onSuccess {
           effect?.close()
           effect = overlayEffect
+          preview = livePreview
           videoCapture = capture
           onReady(mapOf())
         }

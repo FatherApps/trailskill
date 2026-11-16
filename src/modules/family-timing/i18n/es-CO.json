@@ -184,12 +184,18 @@
       "camera_starting": "La cámara está encendiendo",
       "record_first": "Primero toca Grabar",
       "start_both": "Iniciar y grabar",
-      "recording": "Grabando {{time}}",
+      "recording": "REC {{time}}",
       "calls_hint": "Activa «No molestar» para que una llamada no corte la toma. Si contestas una llamada, se cancelan el tiempo y el video.",
       "low_space": "Queda poco espacio en el teléfono: el video puede cortarse.",
       "saving_video": "Tiempo guardado. El video termina de grabar y se guarda en la Galería.",
       "denied": "Sin permiso para usar la cámara y guardar videos no se puede grabar. Puedes darlo en los ajustes del teléfono.",
-      "cancelled": "Se cancelaron el tiempo y el video porque la app dejó de estar en pantalla (por ejemplo, al contestar una llamada)."
+      "cancelled": "Se cancelaron el tiempo y el video porque la app dejó de estar en pantalla (por ejemplo, al contestar una llamada).",
+      "split": "Parcial",
+      "split_row": "Parcial {{number}}",
+      "in_progress": "En curso",
+      "time_running": "Tiempo en curso",
+      "time_final": "Tiempo final",
+      "time_ready": "Listo para iniciar"
     }
   }
 }

@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, IconButton, Tag } from '../../../core/ui';
+import { Banner, Button, Icon, IconButton } from '../../../core/ui';
 import '../i18n';
 
 export type VideoStopwatchView = {
@@ -33,7 +33,7 @@ export type VideoStopwatchView = {
 
 export type VideoStopwatchScreenProps = {
   view: VideoStopwatchView;
-  /** The camera's live image, filling its frame. */
+  /** The camera's live image; it fills the whole screen. */
   preview: ReactNode;
   onBack: () => void;
   onRecord: () => void;
@@ -45,72 +45,144 @@ export type VideoStopwatchScreenProps = {
   onDiscard: () => void;
 };
 
-// Presentational. The camera fills its own frame and the controls sit beside it (landscape) or under it (portrait), on the
-// design system's surfaces: nothing is drawn over the image.
+type MainAction = { kind: 'record' | 'stop'; label: string; onPress: () => void; disabledReason?: string };
+
+/** The step's main action, on the big round button: Grabar → Iniciar → Detener → Parar video. */
+function mainAction(view: VideoStopwatchView, props: VideoStopwatchScreenProps): MainAction | null {
+  if (view.savingVideo) return view.recording ? { kind: 'stop', label: t('family_timing.video.stop_recording'), onPress: props.onStopRecording } : null;
+  if (view.status === 'idle') {
+    if (!view.recording && view.startWithTime) {
+      return {
+        kind: 'record',
+        label: t('family_timing.video.start_both'),
+        onPress: props.onStart,
+        disabledReason: view.canStart ? undefined : t('family_timing.video.camera_starting'),
+      };
+    }
+    if (!view.recording) {
+      return {
+        kind: 'record',
+        label: t('family_timing.video.record'),
+        onPress: props.onRecord,
+        disabledReason: view.cameraReady ? undefined : t('family_timing.video.camera_starting'),
+      };
+    }
+    return { kind: 'record', label: t('family_timing.stopwatch.start'), onPress: props.onStart };
+  }
+  if (view.status === 'running') return { kind: 'stop', label: t('family_timing.stopwatch.stop'), onPress: props.onStop };
+  return view.recording ? { kind: 'stop', label: t('family_timing.video.stop_recording'), onPress: props.onStopRecording } : null;
+}
+
+// The big round button: a coral ring with a dot (record or start) or a square (stop), its name under it.
+function RoundButton({ action }: { action: MainAction }) {
+  const { colors, space, radius, size, typography } = useTheme();
+  const unavailable = action.disabledReason !== undefined;
+  const ring = unavailable ? colors['border-strong'] : colors.coral;
+  const label = unavailable ? `${action.label} · ${action.disabledReason}` : action.label;
+  const inner = size['target-timing'] - space[6];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: unavailable }}
+      disabled={unavailable}
+      onPress={action.onPress}
+      style={({ pressed }) => ({ alignItems: 'center', gap: space[1], opacity: pressed ? 0.8 : 1 })}
+    >
+      <View
+        style={{
+          width: size['target-timing'],
+          height: size['target-timing'],
+          borderRadius: radius.full,
+          borderWidth: space[1],
+          borderColor: ring,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.scrim,
+        }}
+      >
+        {unavailable ? (
+          <Icon name="lock" color="on-header" />
+        ) : action.kind === 'record' ? (
+          <View style={{ width: inner, height: inner, borderRadius: radius.full, backgroundColor: ring }} />
+        ) : (
+          <View style={{ width: inner / 2, height: inner / 2, borderRadius: space[1], backgroundColor: ring }} />
+        )}
+      </View>
+      <Text style={[typography['body-strong'], { color: colors['on-header'], textAlign: 'center' }]} numberOfLines={2}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// Presentational. The camera fills the whole screen and the stopwatch sits on top of the image, on small scrim panels so
+// it reads over any scene: in portrait the time at the top and the controls at the bottom; in landscape the time at the
+// top-left and the controls in a column on the right.
 export function VideoStopwatchScreen(props: VideoStopwatchScreenProps) {
   const { view } = props;
-  const { colors, space, radius, typography } = useTheme();
+  const { colors, space, radius, size, typography } = useTheme();
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
+  const onImage = colors['on-header'];
+  const panel: ViewStyle = { backgroundColor: colors.scrim, borderRadius: radius.sm, paddingHorizontal: space[3], paddingVertical: space[1] };
 
-  const recordButton = view.recording ? (
-    <Button size="timing" variant="stop" label={t('family_timing.video.stop_recording')} onPress={props.onStopRecording} />
-  ) : view.savingVideo ? null : (
-    <Button
-      size="timing"
-      variant="dark"
-      label={t('family_timing.video.record')}
-      onPress={props.onRecord}
-      disabledReason={view.cameraReady ? undefined : t('family_timing.video.camera_starting')}
-    />
-  );
+  const main = view.phase === 'ready' ? mainAction(view, props) : null;
 
-  const clockButtons =
-    view.status === 'idle' ? (
-      <Button
-        size="timing"
-        label={view.startWithTime && !view.recording ? t('family_timing.video.start_both') : t('family_timing.stopwatch.start')}
-        onPress={props.onStart}
-        disabledReason={view.canStart ? undefined : t('family_timing.video.record_first')}
-      />
-    ) : view.status === 'running' ? (
-      <View style={{ flexDirection: 'row', gap: space[3] }}>
-        {view.hasLaps && (
-          <View style={{ flex: 1 }}>
-            <Button size="timing" variant="secondary" label={t('family_timing.stopwatch.split')} onPress={props.onSplit} />
-          </View>
-        )}
-        <View style={{ flex: 1 }}>
-          <Button size="timing" variant="stop" label={t('family_timing.stopwatch.stop')} onPress={props.onStop} />
-        </View>
-      </View>
-    ) : view.savingVideo ? null : (
-      <View style={{ gap: space[3] }}>
-        <Button label={t('family_timing.stopwatch.save')} onPress={props.onSave} disabledReason={view.noTime ? t('family_timing.stopwatch.no_time') : undefined} />
-        <Button variant="ghost" label={t('family_timing.stopwatch.discard')} onPress={props.onDiscard} />
-      </View>
-    );
+  const stopVideo = view.recording ? (
+    <Button variant="secondary" label={t('family_timing.video.stop_recording')} onPress={props.onStopRecording} />
+  ) : null;
 
-  const panel = (
-    <ScrollView contentContainerStyle={{ gap: space[3], padding: space[4] }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
-        <IconButton icon="arrow_back" label={t('family_timing.video.back')} onPress={props.onBack} />
-        <Text style={[typography.caption, { color: colors['ink-muted'], flex: 1 }]} numberOfLines={2}>
-          {view.event}
-        </Text>
-        {view.recordingTime && <Tag variant="warn" label={t('family_timing.video.recording', { time: view.recordingTime })} />}
-      </View>
-      <View style={{ alignItems: 'center', gap: space[1], padding: space[4], borderRadius: radius.lg, backgroundColor: colors.header }}>
+  // Beside the round button: Parcial while the clock runs, Parar video before it starts, Descartar and Guardar at the end.
+  const side =
+    view.phase !== 'ready' || view.savingVideo
+      ? null
+      : view.status === 'running'
+        ? view.hasLaps
+          ? { left: <Button variant="secondary" label={t('family_timing.video.split')} onPress={props.onSplit} />, right: stopVideo }
+          : { left: null, right: stopVideo }
+        : view.status === 'idle'
+          ? view.recording
+            ? { left: stopVideo, right: null }
+            : null
+          : {
+              left: <Button variant="secondary" label={t('family_timing.stopwatch.discard')} onPress={props.onDiscard} />,
+              right: (
+                <Button
+                  label={t('family_timing.stopwatch.save')}
+                  onPress={props.onSave}
+                  disabledReason={view.noTime ? t('family_timing.stopwatch.no_time') : undefined}
+                />
+              ),
+            };
+
+  const caption =
+    view.lapProgress ??
+    (view.status === 'running'
+      ? t('family_timing.video.time_running')
+      : view.status === 'stopped'
+        ? t('family_timing.video.time_final')
+        : t('family_timing.video.time_ready'));
+
+  const time = (
+    <View style={{ alignItems: landscape ? 'flex-start' : 'center' }}>
+      <View style={[panel, { alignItems: landscape ? 'flex-start' : 'center' }]}>
         <Text
           accessibilityLiveRegion={view.status === 'running' ? 'none' : 'polite'}
           adjustsFontSizeToFit
           numberOfLines={1}
-          style={[typography['time-display'], { color: colors['on-header'] }]}
+          style={[typography['time-display'], { color: onImage }]}
         >
           {view.time}
         </Text>
-        {view.buttonsHint && <Text style={[typography.caption, { color: colors['on-header-muted'], textAlign: 'center' }]}>{view.buttonsHint}</Text>}
+        <Text style={[typography.body, { color: onImage }]}>{caption}</Text>
       </View>
+    </View>
+  );
+
+  const banners = (
+    <View style={{ gap: space[2] }}>
+      {view.phase === 'asking' && <Banner variant="info">{t('family_timing.video.asking')}</Banner>}
       {view.phase === 'ready' && view.status === 'idle' && !view.recording && <Banner variant="info">{t('family_timing.video.calls_hint')}</Banner>}
       {view.lowSpace && <Banner variant="warn">{t('family_timing.video.low_space')}</Banner>}
       {view.noTime && <Banner variant="warn">{t('family_timing.stopwatch.no_time')}</Banner>}
@@ -120,34 +192,92 @@ export function VideoStopwatchScreen(props: VideoStopwatchScreenProps) {
         </Banner>
       )}
       {view.savingVideo && <Banner variant="info">{t('family_timing.video.saving_video')}</Banner>}
-      {view.lapProgress && <Text style={[typography['body-strong'], { color: colors.ink, textAlign: 'center' }]}>{view.lapProgress}</Text>}
-      {view.phase === 'ready' && (
-        <>
-          {recordButton}
-          {clockButtons}
-        </>
-      )}
-      {view.laps.map((row, index) => (
-        <Text key={index} style={[typography['time-sm'], { color: colors.ink }]}>
-          {t('family_timing.stopwatch.split_row', { number: index + 1, time: row.lap, total: row.total })}
-        </Text>
-      ))}
-    </ScrollView>
+    </View>
   );
 
-  return (
-    <SafeAreaView style={{ flex: 1, flexDirection: landscape ? 'row' : 'column', backgroundColor: colors['surface-0'] }}>
-      <View
-        accessibilityLabel={t('family_timing.video.camera')}
-        style={{ flex: landscape ? 3 : 1, overflow: 'hidden', backgroundColor: colors.header, borderRadius: radius.lg, margin: space[2] }}
-      >
-        {view.phase === 'asking' ? (
-          <Text style={[typography.body, { color: colors['on-header'], margin: space[4] }]}>{t('family_timing.video.asking')}</Text>
-        ) : (
-          props.preview
+  const splits =
+    view.laps.length > 0 || (view.hasLaps && view.status === 'running') ? (
+      <View style={[panel, { alignSelf: 'flex-start', gap: space[1] }]}>
+        {view.laps.map((row, index) => (
+          <View key={index} style={{ flexDirection: 'row', gap: space[3] }}>
+            <Text style={[typography.body, { color: onImage }]}>{t('family_timing.video.split_row', { number: index + 1 })}</Text>
+            <Text style={[typography['time-sm'], { color: onImage }]}>{row.lap}</Text>
+          </View>
+        ))}
+        {view.status === 'running' && view.hasLaps && (
+          <View style={{ flexDirection: 'row', gap: space[3] }}>
+            <Text style={[typography.body, { color: onImage }]}>{t('family_timing.video.split_row', { number: view.laps.length + 1 })}</Text>
+            <Text style={[typography.body, { color: onImage, fontStyle: 'italic' }]}>{t('family_timing.video.in_progress')}</Text>
+          </View>
         )}
       </View>
-      <View style={landscape ? { flex: 2 } : { maxHeight: '55%' }}>{panel}</View>
-    </SafeAreaView>
+    ) : null;
+
+  const hint = view.buttonsHint ? (
+    <Text style={[typography.caption, panel, { color: onImage, textAlign: 'center', alignSelf: 'center' }]}>{view.buttonsHint}</Text>
+  ) : null;
+
+  const topBar = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+      <IconButton icon="arrow_back" label={t('family_timing.video.back')} onPress={props.onBack} />
+      {landscape ? (
+        <Text style={[typography['body-strong'], panel, { color: onImage, flexShrink: 1 }]} numberOfLines={1}>
+          {view.event}
+        </Text>
+      ) : null}
+      <View style={{ flex: 1 }} />
+      {view.recordingTime && (
+        <View style={[panel, { flexDirection: 'row', alignItems: 'center', gap: space[2] }]}>
+          <View style={{ width: space[3], height: space[3], borderRadius: radius.full, backgroundColor: colors.coral }} />
+          <Text style={[typography['body-strong'], { color: onImage }]}>{t('family_timing.video.recording', { time: view.recordingTime })}</Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const slot = (node: ReactNode) => <View style={landscape ? undefined : { flex: 1 }}>{node}</View>;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.header }}>
+      <View accessibilityLabel={t('family_timing.video.camera')} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+        {props.preview}
+      </View>
+      <SafeAreaView style={{ flex: 1, padding: space[4], flexDirection: landscape ? 'row' : 'column', gap: space[4] }}>
+        {landscape ? (
+          <>
+            <View style={{ flex: 1, gap: space[3] }}>
+              {topBar}
+              {time}
+              {banners}
+              <View style={{ flex: 1 }} />
+              {splits}
+              {hint}
+            </View>
+            <View style={{ justifyContent: 'center', alignItems: 'center', gap: space[4] }}>
+              {side?.left && slot(side.left)}
+              {main && <RoundButton action={main} />}
+              {side?.right && slot(side.right)}
+            </View>
+          </>
+        ) : (
+          <>
+            {topBar}
+            <Text style={[typography['body-strong'], panel, { color: onImage, textAlign: 'center', alignSelf: 'center' }]} numberOfLines={2}>
+              {view.event}
+            </Text>
+            {time}
+            {banners}
+            <View style={{ flex: 1 }} />
+            {splits}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+              {slot(side?.left ?? null)}
+              {main ? <RoundButton action={main} /> : <View style={{ width: size['target-timing'] }} />}
+              {slot(side?.right ?? null)}
+            </View>
+            {hint}
+          </>
+        )}
+      </SafeAreaView>
+    </View>
   );
 }

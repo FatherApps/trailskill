@@ -261,7 +261,7 @@ describe('FamilyTimingContainer with the video camera', () => {
     await fireEvent.press(screen.getByText('Grabar'));
     await waitFor(() => expect(video.state.audioAsked).toEqual([true]));
     // The camera screen: the clock waits for the video.
-    expect(await screen.findByText(/Primero toca Grabar/)).toBeTruthy();
+    expect(await screen.findByText('Listo para iniciar')).toBeTruthy();
     expect(screen.queryByText('Abre la cámara con el cronómetro')).toBeNull();
   });
 });

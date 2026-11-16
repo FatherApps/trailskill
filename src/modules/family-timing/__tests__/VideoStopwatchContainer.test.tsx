@@ -59,7 +59,8 @@ describe('VideoStopwatchContainer', () => {
     const { buttons, fake, saved, cameraOn } = await setup({ video: { stopAfterSeconds: 10 } });
     await cameraOn();
 
-    await fireEvent.press(screen.getByText('Iniciar · Primero toca Grabar'));
+    // Iniciar shows up only once the video records.
+    expect(screen.queryByText('Iniciar')).toBeNull();
     expect(screen.getByText('0,000')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('Grabar'));
@@ -207,7 +208,7 @@ describe('VideoStopwatchContainer stopwatch strip', () => {
     await fireEvent.press(screen.getByText('Grabar'));
     await fireEvent.press(screen.getByText('Iniciar'));
     buttons.advance(ms(15_000));
-    await fireEvent.press(screen.getByText('Lap'));
+    await fireEvent.press(screen.getByText('Parcial'));
     expect(fake.state.overlay).toMatchObject({ startedAt: ms(1000), splits: [ms(16_000)], stoppedAt: null });
   });
 
