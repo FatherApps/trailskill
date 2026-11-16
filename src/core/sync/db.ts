@@ -1,10 +1,11 @@
 import { open } from '@op-engineering/op-sqlite';
-import { createConsoleLogger, LogLevels, PowerSyncDatabase, SyncStreamConnectionMethod, type SyncOptions } from '@powersync/react-native';
+import { LogLevels, PowerSyncDatabase, SyncStreamConnectionMethod, type SyncOptions } from '@powersync/react-native';
 import { getRandomBytes } from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 
 import { ENCRYPTED_DB_FILENAME, prepareEncryptedDatabase } from './databaseKey';
 import { AppSchema } from './schema';
+import { createSyncLogger } from './syncLogger';
 
 // SecureStore keys allow only letters, digits, ".", "-" and "_".
 const DATABASE_KEY_NAME = 'trailskill.local-database-key';
@@ -32,7 +33,8 @@ export const db = new PowerSyncDatabase({
   schema: AppSchema,
   database: { dbFilename: ENCRYPTED_DB_FILENAME, sqliteOptions: { encryptionKey } },
   // Debug lines in development show why a downloaded checkpoint is not applied; sync errors are logged at every level.
-  logger: createConsoleLogger({ minLevel: __DEV__ ? LogLevels.debug : LogLevels.info }),
+  // A connection drop the client retries is a warning, so it does not open the red LogBox overlay.
+  logger: createSyncLogger({ minLevel: __DEV__ ? LogLevels.debug : LogLevels.info }),
 });
 
 // Debug builds get a network inspector (added by expo-dev-launcher) that reads up to 1 MB of every HTTP response before
