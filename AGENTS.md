@@ -74,7 +74,7 @@ Every module has the same shape: `src/modules/<module>/index.ts` (its only publi
 | Workflow, branches, commits, pull requests, Definition of Done | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Versioning, releases, OTA updates, Google Play | [`docs/RELEASING.md`](docs/RELEASING.md) |
 | Running locally: cloud test backend or everything in Docker | [`docs/local-development.md`](docs/local-development.md) |
-| Product rules and pilot scope | [`PROJECT-HANDOFF-2026-10-24.md`](PROJECT-HANDOFF-2026-10-24.md) (moving to `docs/product/`) |
+| Product rules and pilot scope | [`docs/product/`](docs/product/README.md) and [`PROJECT-HANDOFF-2026-10-24.md`](PROJECT-HANDOFF-2026-10-24.md) (moving to `docs/product/`) |
 | Architecture decisions | [`docs/decisions/`](docs/decisions/) |
 | Visual design: palette, typography, components, logo | [`design/README.md`](design/README.md), which links the design system (the source of truth) |
 
