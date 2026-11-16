@@ -4,7 +4,7 @@ import { createInMemoryPreferencesRepository, defaultPreferences, PreferencesPro
 import { createInMemoryFamilyMeasurementRepository, type FamilyMeasurement } from '../data/familyMeasurements';
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
-jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync', () => ({ db: {}, useRecordSyncStates: () => new Map() }));
 
 const athletes = [
   { id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] },

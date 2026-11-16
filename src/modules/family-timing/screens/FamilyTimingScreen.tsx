@@ -13,6 +13,7 @@ import {
   IconButton,
   Segmented,
   StateView,
+  SyncStatus,
   Tag,
   TextField,
   type ChipRowOption,
@@ -45,6 +46,10 @@ export type FamilyCard = {
   unassigned?: boolean;
   // Sent to another swimmer's family and waiting for their answer: that swimmer's short name.
   sentTo?: string | null;
+  // The server did not accept it ("No enviado").
+  notSent?: boolean;
+  // Only on the phone and rejected by the server: it can be deleted for good, instead of edited.
+  canDiscard?: boolean;
 };
 
 // Everything known about one saved time, opened by touching its card (#1002).
@@ -212,6 +217,13 @@ export type FamilyTimingScreenProps = {
   onWithdraw?: (measurementId: string) => void;
   onAccept?: (transferId: string) => void;
   onReject?: (transferId: string) => void;
+  // Deleting a time the server rejected, after asking (#1025): "Conservar" only closes the sheet.
+  confirmingDiscard?: boolean;
+  // The last deletion of a rejected time failed.
+  discardError?: boolean;
+  onAskDiscard?: (id: string) => void;
+  onConfirmDiscard?: () => void;
+  onCancelDiscard?: () => void;
 };
 
 function Header({ onBack, title, action }: { onBack: () => void; title: string; action?: ReactNode }) {
@@ -244,6 +256,7 @@ function Card({
   onOpenChooseOfficial,
   onOpenEdit,
   onWithdraw,
+  onAskDiscard,
 }: {
   card: FamilyCard;
   onOpenDetail?: (id: string) => void;
@@ -251,6 +264,7 @@ function Card({
   onOpenChooseOfficial?: (id: string) => void;
   onOpenEdit?: (id: string) => void;
   onWithdraw?: (id: string) => void;
+  onAskDiscard?: (id: string) => void;
 }) {
   const { colors, space, radius, typography } = useTheme();
   return (
@@ -282,6 +296,7 @@ function Card({
           </View>
         )}
         {card.splitsLabel && <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{card.splitsLabel}</Text>}
+        {card.notSent && <SyncStatus state="not_sent" />}
       </Pressable>
       {card.officialChoice && onOpenChooseOfficial && (
         <Button
@@ -302,6 +317,8 @@ function Card({
           <Tag variant="warn" icon="schedule" label={t('family_timing.transfer.sent_tag', { name: card.sentTo })} />
           {onWithdraw && <Button variant="ghost" label={t('family_timing.transfer.withdraw')} onPress={() => onWithdraw(card.id)} />}
         </>
+      ) : card.canDiscard ? (
+        onAskDiscard && <Button variant="secondary" label={t('family_timing.edit.delete')} onPress={() => onAskDiscard(card.id)} />
       ) : (
         onOpenEdit && <Button variant="ghost" label={t('family_timing.card.edit')} onPress={() => onOpenEdit(card.id)} />
       )}
@@ -455,6 +472,25 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
   const activeInSheet = sheetSections.filter((s) => s.value !== '').length;
   const showsAthletes = athletes.length > 1 && selectedId !== null && (view.kind === 'list' || view.kind === 'loading' || view.kind === 'error');
 
+  const discardSheet = (
+    <ConfirmSheet
+      visible={!!props.confirmingDiscard}
+      title={t('family_timing.edit.delete_title')}
+      message={t('family_timing.not_sent.delete_message')}
+      confirmLabel={t('family_timing.edit.delete_confirm')}
+      cancelLabel={t('family_timing.edit.delete_cancel')}
+      destructive
+      onConfirm={() => props.onConfirmDiscard?.()}
+      onCancel={() => props.onCancelDiscard?.()}
+    />
+  );
+
+  const discardFailed = props.discardError && (
+    <Banner variant="warn" icon="error">
+      {t('family_timing.not_sent.delete_error')}
+    </Banner>
+  );
+
   let body: ReactNode = null;
   switch (view.kind) {
     case 'loading':
@@ -477,6 +513,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       body = (
         <View style={{ gap: space[4] }}>
           {view.showNotice && <Banner variant="info">{t('family_timing.on_device')}</Banner>}
+          {discardFailed}
           {view.transferError && (
             <Banner variant="warn" icon="error">
               {view.transferError}
@@ -513,12 +550,13 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             )
           ) : (
             view.cards.map((card) => (
-              <Card key={card.id} card={card} onOpenDetail={props.onOpenDetail} onOpenOfficial={props.onOpenOfficial} onOpenChooseOfficial={props.onOpenChooseOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
+              <Card key={card.id} card={card} onOpenDetail={props.onOpenDetail} onOpenOfficial={props.onOpenOfficial} onOpenChooseOfficial={props.onOpenChooseOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} onAskDiscard={props.onAskDiscard} />
             ))
           )}
           {view.deletedCount > 0 && (
             <Button variant="ghost" label={t('family_timing.deleted.open', { count: view.deletedCount })} onPress={props.onOpenDeleted} />
           )}
+          {discardSheet}
         </View>
       );
       break;
@@ -526,7 +564,8 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       const detail = view.detail;
       body = (
         <View style={{ gap: space[4] }}>
-          <Card card={detail.card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} />
+          {discardFailed}
+          <Card card={detail.card} onOpenOfficial={props.onOpenOfficial} onOpenEdit={props.onOpenEdit} onWithdraw={props.onWithdraw} onAskDiscard={props.onAskDiscard} />
           <View style={{ gap: space[3] }}>
             {detail.rows.map((row) => (
               <View key={row.label} style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: space[2] }}>
@@ -548,6 +587,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             </View>
           )}
           <Button variant="ghost" label={t('family_timing.detail.back')} onPress={props.onCancel} />
+          {discardSheet}
         </View>
       );
       break;

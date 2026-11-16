@@ -5,7 +5,7 @@ import { createFakeTimingButton } from '../../timing';
 import { createInMemoryFamilyMeasurementRepository, type FamilyMeasurement } from '../data/familyMeasurements';
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
-jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync', () => ({ db: {}, useRecordSyncStates: () => new Map() }));
 jest.mock('expo-crypto', () => {
   let n = 0;
   return { randomUUID: () => `id-${++n}` };

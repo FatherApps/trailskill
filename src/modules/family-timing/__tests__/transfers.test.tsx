@@ -5,7 +5,7 @@ import { createInMemoryFamilyMeasurementRepository, type FamilyMeasurement } fro
 import { createInMemoryFamilyTransferRepository, type FamilyTransfer } from '../data/familyTransfers';
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
-jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
+jest.mock('../../../core/sync', () => ({ db: {}, supabase: {}, useRecordSyncStates: () => new Map() }));
 jest.mock('expo-crypto', () => {
   let n = 0;
   return { randomUUID: () => `id-${++n}` };

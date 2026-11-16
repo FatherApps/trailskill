@@ -5,7 +5,7 @@ import { createInMemoryFamilyMeasurementRepository } from '../data/familyMeasure
 import { createInMemoryFamilyTimingNoticeStore } from '../data/noticeSeen';
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
-jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
+jest.mock('../../../core/sync', () => ({ db: {}, supabase: {}, useRecordSyncStates: () => new Map() }));
 
 const athletes = [
   {

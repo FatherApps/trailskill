@@ -219,3 +219,59 @@ describe('PowerSync family measurements', () => {
     expect(mockDb.getAll('SELECT id FROM family_timing_measurements')).toEqual([]);
   });
 });
+
+describe('a phone-only time the server rejected (issue 1025)', () => {
+  const failures = () => mockDb.getAll<{ record_id: string }>('SELECT record_id FROM upload_failures ORDER BY record_id').map((r) => r.record_id);
+
+  // rej-1 and rej-2 were rejected (the sync dropped rej-1's synced copy); ok-1 was accepted and is still in the synced table.
+  async function rejectedAndAccepted() {
+    seedLocal(['rej-1', 'u1', 35_120], ['ok-1', 'u1', 36_000], ['rej-2', 'u2', 40_000]);
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.moveLocal('u1');
+    server((s) => {
+      s.exec('DELETE FROM pending_writes');
+      const reject = s.prepare(
+        "INSERT INTO upload_failures (id, table_name, record_id, op, payload, error_code, failed_at) VALUES (?, 'family_timing_measurements', ?, 'PUT', '{}', '42501', '2026-11-10T10:00:00.000Z')",
+      );
+      reject.run('f1', 'rej-1');
+      reject.run('f2', 'rej-2');
+      s.prepare("DELETE FROM family_timing_measurements WHERE id = 'rej-1'").run();
+    });
+    return repo;
+  }
+
+  it('lists only this user\'s rejected phone-only time, not an accepted one nor another user\'s', async () => {
+    const repo = await rejectedAndAccepted();
+    expect((await repo.listRejected('u1', 'a1')).map((m) => [m.id, m.createdBy, m.millis, m.deletedAt])).toEqual([['rej-1', 'u1', 35_120, null]]);
+    expect(await repo.listRejected('u1', 'other-athlete')).toEqual([]);
+    expect(await repo.listRejected('u1', null)).toEqual([]);
+  });
+
+  it('deletes the time and its upload failure, and no other user\'s, without queueing anything', async () => {
+    const repo = await rejectedAndAccepted();
+    await repo.discardRejected('u1', 'rej-1');
+    expect(localIds()).toEqual(['ok-1', 'rej-2']);
+    expect(failures()).toEqual(['rej-2']);
+    expect(pending()).toEqual([]);
+    expect(await repo.listRejected('u1', 'a1')).toEqual([]);
+    expect(mockDb.getAll('SELECT id FROM family_timing_measurements ORDER BY id')).toEqual([{ id: 'ok-1' }]);
+  });
+
+  it('refuses another user\'s rejected time, an accepted one and a pending one, changing nothing', async () => {
+    const repo = await rejectedAndAccepted();
+    await repo.add({ ...base, id: 'new-1' });
+    for (const id of ['rej-2', 'ok-1', 'new-1', 'nope']) {
+      await expect(repo.discardRejected('u1', id)).rejects.toBeInstanceOf(UnknownMeasurementError);
+    }
+    expect(localIds()).toEqual(['ok-1', 'rej-1', 'rej-2']);
+    expect(failures()).toEqual(['rej-1', 'rej-2']);
+    expect(pending().map((p) => p.record_id)).toEqual(['new-1']);
+    expect((await repo.listByAthlete('a1')).map((m) => m.id).sort()).toEqual(['new-1', 'ok-1']);
+  });
+
+  it('does not list a rejected time that has a new upload waiting, as it cannot be deleted', async () => {
+    const repo = await rejectedAndAccepted();
+    server((s) => s.exec("INSERT INTO pending_writes (id, table_name, record_id) VALUES ('p1', 'family_timing_measurements', 'rej-1')"));
+    expect(await repo.listRejected('u1', 'a1')).toEqual([]);
+  });
+});

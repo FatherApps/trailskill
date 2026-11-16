@@ -87,6 +87,10 @@
       "delete_confirm": "Eliminar tiempo",
       "delete_cancel": "Conservar"
     },
+    "not_sent": {
+      "delete_message": "Este tiempo no se pudo enviar y solo está en este teléfono. Si lo eliminas, se borra para siempre.",
+      "delete_error": "No pudimos eliminar el tiempo. Inténtalo de nuevo."
+    },
     "deleted": {
       "title": "Eliminados",
       "open": "Eliminados ({{count}})",

@@ -1,5 +1,6 @@
 import { db, writeBatch, writeRecord } from '../../../core/sync';
 import {
+  FAMILY_MEASUREMENTS_TABLE,
   NotCompetitionError,
   UnknownMeasurementError,
   type FamilyMeasurement,
@@ -7,7 +8,7 @@ import {
 } from './familyMeasurements';
 
 // The synced table (core/sync/schema.ts) and the phone-only one the times lived in before #967.
-const TABLE = 'family_timing_measurements';
+const TABLE = FAMILY_MEASUREMENTS_TABLE;
 const LOCAL_TABLE = 'family_measurements';
 
 type Row = {
@@ -165,6 +166,27 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
         ),
       );
       return local.length;
+    },
+    async listRejected(userId, athleteId) {
+      // Gone from the synced table (the sync dropped the rejected upload) but still on the phone, with its failure recorded and no new upload waiting.
+      const rows = await db.getAll<LocalRow>(
+        `SELECT * FROM ${LOCAL_TABLE} WHERE created_by = ? AND ${athleteIs(athleteId)} AND id IN (${failed}) AND id NOT IN (${pending}) AND id NOT IN (SELECT id FROM ${TABLE})
+         ORDER BY captured_at DESC, id DESC`,
+        [userId, ...athleteParams(athleteId), TABLE, TABLE],
+      );
+      return rows.map((row) => toMeasurement({ ...row, captured_by: row.created_by, deleted_at: null }));
+    },
+    async discardRejected(userId, id) {
+      // Both tables are phone-only (never uploaded), so deleting from them needs no outbox. One transaction: the time and its failure go together.
+      await db.writeTransaction(async (tx) => {
+        const row = await tx.getOptional<{ id: string }>(
+          `SELECT id FROM ${LOCAL_TABLE} WHERE id = ? AND created_by = ? AND id IN (${failed}) AND id NOT IN (${pending}) AND id NOT IN (SELECT id FROM ${TABLE})`,
+          [id, userId, TABLE, TABLE],
+        );
+        if (!row) throw new UnknownMeasurementError(id);
+        await tx.execute(`DELETE FROM ${LOCAL_TABLE} WHERE id = ? AND created_by = ?`, [id, userId]);
+        await tx.execute('DELETE FROM upload_failures WHERE table_name = ? AND record_id = ?', [TABLE, id]);
+      });
     },
   };
 }

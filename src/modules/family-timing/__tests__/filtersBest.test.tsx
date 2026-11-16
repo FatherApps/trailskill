@@ -5,7 +5,7 @@ import { createInMemoryFamilyMeasurementRepository, type FamilyMeasurement } fro
 import { bestTimeIds } from '../domain/bestTimes';
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
-jest.mock('../../../core/sync', () => ({ db: {} }));
+jest.mock('../../../core/sync', () => ({ db: {}, useRecordSyncStates: () => new Map() }));
 
 describe('bestTimeIds', () => {
   const t = (id: string, time: number | null, capturedAt = '2026-11-01', pool = 'SCM') => ({ id, stroke: 'FR', distance: '50m', pool, capturedAt, time });
