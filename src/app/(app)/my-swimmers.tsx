@@ -7,16 +7,26 @@ import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, StateView } from '../../core/ui';
+import {
+  createSecureStorePendingInvitationRepository,
+  createSecureStoreRegistrationDraftRepository,
+  SignOutContainer,
+} from '../../modules/accounts';
 import { athleteProfileHref } from '../../modules/athletes';
 import {
   createPowerSyncConsoleAthletesRepository,
   createPowerSyncStaffSchoolRepository,
   MySwimmersSection,
+  StaffEntries,
   useCoachSchool,
 } from '../../modules/school-console';
+import { createSupabaseConflictReviewRepository, usePlatformAdmin } from '../../modules/timing';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
 const consoleAthletes = createPowerSyncConsoleAthletesRepository();
+const registrationDrafts = createSecureStoreRegistrationDraftRepository();
+const pendingInvitations = createSecureStorePendingInvitationRepository();
+const conflictReview = createSupabaseConflictReviewRepository();
 
 // "/my-swimmers": the athletes assigned to the coach. Hiding the entry is not protection: a user who is not a coach of a school
 // leaves this route, and the backend still decides which athletes reach the device.
@@ -29,6 +39,7 @@ export default function MySwimmersRoute() {
   // Memberships and assignments arrive with a sync, so the lookups run again when one completes.
   const { lastSyncedAt, connection } = useGlobalSyncSummary();
   const access = useCoachSchool(staffSchools, session?.user.id, lastSyncedAt?.getTime());
+  const isPlatformAdmin = usePlatformAdmin(conflictReview, session?.user.id);
   const frame = { flex: 1, justifyContent: 'center', padding: space[4], backgroundColor: colors['surface-0'] } as const;
 
   if (access.status === 'loading') {
@@ -67,6 +78,12 @@ export default function MySwimmersRoute() {
       connection={connection}
       onOpenAthlete={(id, name) => router.push(athleteProfileHref(id, name))}
       onBack={goBack}
+      // The coach lands here instead of on the home screen, so the entries only the home screen had are here too.
+      footer={
+        <StaffEntries platformAdmin={isPlatformAdmin} onOpen={(href) => router.push(href)}>
+          <SignOutContainer drafts={registrationDrafts} pending={pendingInvitations} />
+        </StaffEntries>
+      }
     />
   );
 }

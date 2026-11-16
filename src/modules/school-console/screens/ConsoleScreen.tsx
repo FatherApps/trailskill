@@ -1,4 +1,7 @@
 import { useState, type ReactNode } from 'react';
+import { View } from 'react-native';
+
+import { useTheme } from '../../../core/theme';
 
 import { consoleDestinations, type ConsoleDestinationId } from '../components/ConsoleNav';
 import { EmptySectionScreen } from './EmptySectionScreen';
@@ -21,17 +24,20 @@ export type ConsoleScreenProps = {
   onOpenPlans?: () => void;
   // The section to open first, as a plan route asks for it in the URL. Anything that is not a destination is ignored.
   initialSection?: string;
+  // Shown under the active section, always in view, for the entries that live outside the console (the timing, the plans, sign out).
+  footer?: ReactNode;
 };
 
 // Holds the active section above the layout, so it survives a change of width (rotation, split screen).
 const isSection = (id: string | undefined): id is ConsoleDestinationId =>
   id !== undefined && id !== 'plans' && consoleDestinations.some((destination) => destination.id === id);
 
-export function ConsoleScreen({ width, schoolName, sections, scrollEnabled, onOpenPlans, initialSection }: ConsoleScreenProps) {
+export function ConsoleScreen({ width, schoolName, sections, scrollEnabled, onOpenPlans, initialSection, footer }: ConsoleScreenProps) {
+  const { colors, space } = useTheme();
   const [activeId, setActiveId] = useState<ConsoleDestinationId>(isSection(initialSection) ? initialSection : 'athletes');
   const navigate = (id: ConsoleDestinationId) => (id === 'plans' ? onOpenPlans?.() : setActiveId(id));
   const render = sections?.[activeId];
-  return render ? (
+  const section = render ? (
     render({ width, schoolName, onNavigate: navigate })
   ) : (
     <EmptySectionScreen
@@ -41,5 +47,12 @@ export function ConsoleScreen({ width, schoolName, sections, scrollEnabled, onOp
       onNavigate={navigate}
       scrollEnabled={scrollEnabled}
     />
+  );
+  if (!footer) return section;
+  return (
+    <View style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
+      {section}
+      <View style={{ padding: space[4] }}>{footer}</View>
+    </View>
   );
 }

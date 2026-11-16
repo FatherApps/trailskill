@@ -28,8 +28,9 @@ const pendingInvitations = createSecureStorePendingInvitationRepository();
 const conflictReview = createSupabaseConflictReviewRepository();
 const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
 
-// "/" is the landing of every role: a guardian or an adult athlete with one athlete in total (the own profile counts) opens that profile, and
-// with two or more opens My athletes. Everyone else, school staff and platform admins included, keeps the home screen below. This only decides the screen; the backend still decides what each person sees.
+// "/" is the landing of every role: a school admin opens the console and a coach My swimmers; a guardian or an adult athlete with one athlete in
+// total (the own profile counts) opens that profile, and with two or more opens My athletes. Everyone else (platform admins, an unclear account,
+// a sync that gave up) keeps the home screen below, the fallback. This only decides the screen; the backend still decides what each person sees.
 export default function Landing() {
   const { session, syncConnectFailed } = useSession();
   const userId = session?.user.id;
@@ -38,6 +39,8 @@ export default function Landing() {
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();
   const waitExpired = useFirstSyncWaitExpired();
   const staff = useStaffSchool(staffSchools, userId, lastSyncedAt);
+  const adminSchool = useAdminSchool(staffSchools, userId, lastSyncedAt);
+  const coachSchool = useCoachSchool(staffSchools, userId, lastSyncedAt);
   const own = useOwnLandingEvidence(managedAthletes, hasOwnAuthorizations, userId, lastSyncedAt);
   const platformAdmin = usePlatformAdminStatus(conflictReview, userId);
   const landing = resolveLanding({
@@ -45,8 +48,10 @@ export default function Landing() {
     syncGaveUp: syncConnectFailed || waitExpired,
     // The same width the phone navigation bar checks in _layout.tsx.
     phoneBar: width < breakpoint['bp-medium'],
-    // Only a found school counts as staff. A failed lookup ('error') counts as not staff, as the navigation bar does: the backend still decides what is shown, and staff reach the console from the menu.
-    staff: staff.status === 'loading' ? 'loading' : staff.status === 'staff',
+    // Only a found school counts as staff, and only a found admin or coach school gives a role. A failed lookup ('error') counts as nothing, as the navigation bar does: the backend still decides what is shown, and the home screen is the fallback.
+    staff: [staff, adminSchool, coachSchool].some((lookup) => lookup.status === 'loading') ? 'loading' : staff.status === 'staff',
+    admin: adminSchool.status === 'admin',
+    coach: coachSchool.status === 'coach',
     own,
     platformAdmin,
   });
@@ -57,6 +62,10 @@ export default function Landing() {
           <StateView kind="loading" />
         </View>
       );
+    case 'console':
+      return <Redirect href="/console" />;
+    case 'my-swimmers':
+      return <Redirect href="/my-swimmers" />;
     case 'athletes':
       return <Redirect href="/athletes" />;
     case 'athlete':

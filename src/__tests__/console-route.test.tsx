@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import ConsoleRoute from '../app/(app)/console';
@@ -6,7 +6,7 @@ import { colors, space, ThemeProvider, type ThemeName } from '../core/theme';
 
 let mockUserId: string | undefined;
 jest.mock('../core/session', () => ({
-  useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
+  useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null, signOut: mockSignOut }),
 }));
 jest.mock('../core/sync', () => ({
   useGlobalSyncSummary: () => ({ lastSyncedAt: null, connected: true, connection: 'connected' }),
@@ -24,6 +24,7 @@ const mockListRecords = jest.fn();
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   ...jest.requireActual('../modules/school-console/screens/ConsoleScreen'),
+  ...jest.requireActual('../modules/school-console/components/StaffEntries'),
   ...jest.requireActual('../modules/school-console/screens/AthletesSection'),
   createPowerSyncConsoleAthletesRepository: () => ({
     listAthletes: (...args: unknown[]) => mockConsoleAthletes.listAthletes(...args),
@@ -58,7 +59,21 @@ jest.mock('../modules/school-console', () => ({
     listAdminSchools: (...args: unknown[]) => mockListAdminSchools(...args),
   }),
 }));
-jest.mock('../modules/timing', () => ({ createPowerSyncMeasurementRepository: () => ({}) }));
+let mockPlatformAdmin = false;
+const mockSignOut = jest.fn();
+jest.mock('../modules/timing', () => ({
+  ...jest.requireActual('../modules/timing/data/usePlatformAdmin'),
+  createPowerSyncMeasurementRepository: () => ({}),
+  createSupabaseConflictReviewRepository: () => ({ isPlatformAdmin: () => Promise.resolve(mockPlatformAdmin) }),
+}));
+jest.mock('../modules/accounts', () => ({
+  // The real container: only the repositories it receives, which need the device storage, are replaced.
+  ...jest.requireActual('../modules/accounts/screens/SignOutContainer'),
+  createPowerSyncAdultDirectoryRepository: () => ({}),
+  createSupabaseInvitationRepository: () => ({}),
+  createSecureStoreRegistrationDraftRepository: () => ({ clear: () => Promise.resolve() }),
+  createSecureStorePendingInvitationRepository: () => ({ clear: () => Promise.resolve() }),
+}));
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 // The section the plan routes ask the console to open (`?section=`), as the router hands it over.
@@ -74,6 +89,9 @@ jest.mock('expo-router', () => {
 
 beforeEach(() => {
   mockUserId = 'user-1';
+  mockPlatformAdmin = false;
+  mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
+  mockPush.mockReset();
   mockReplace.mockReset();
   mockParams = {};
   mockListAdminSchools.mockReset().mockResolvedValue([]);
@@ -216,6 +234,57 @@ describe('console route', () => {
 
     expect(await screen.findByRole('header', { name: 'Deportistas' })).toBeOnTheScreen();
     expect(screen.queryByText(/redirected/)).toBeNull();
+  });
+
+  // The admin lands here instead of on the home screen, so the entries only the home screen had are here too.
+  describe('entries of the home screen', () => {
+    beforeEach(() => mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]));
+
+    it.each([
+      ['Toma de tiempos', '/timing'],
+      ['Toma en serie', '/timing?mode=series'],
+      ['Registrar completado', '/timing?mode=completed'],
+      ['Planes de entrenamiento', '/plans'],
+    ])('gives the admin %s, which opens the route the home screen uses', async (name, href) => {
+      await show();
+
+      await fireEvent.press(await screen.findByRole('button', { name }));
+
+      expect(mockPush).toHaveBeenCalledWith(href);
+    });
+
+    it('hides the conflict review from an admin who is not a platform admin', async () => {
+      await show();
+
+      expect(await screen.findByRole('button', { name: 'Toma de tiempos' })).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: 'Revisar conflictos' })).toBeNull();
+    });
+
+    it('gives the conflict review to an admin who is also a platform admin', async () => {
+      mockPlatformAdmin = true;
+      await show();
+
+      await fireEvent.press(await screen.findByRole('button', { name: 'Revisar conflictos' }));
+
+      expect(mockPush).toHaveBeenCalledWith('/review-conflicts');
+    });
+
+    it('signs the admin out from the sign-out button', async () => {
+      await show();
+
+      await fireEvent.press(await screen.findByRole('button', { name: 'Cerrar sesión' }));
+
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1));
+    });
+
+    it('shows no entry to someone who is not an admin, who leaves the route', async () => {
+      mockListAdminSchools.mockResolvedValue([]);
+      await show();
+
+      expect(await screen.findByText('redirected to /')).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: 'Toma de tiempos' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
+    });
   });
 
   it('opens the existing plans route from the Planes destination', async () => {
