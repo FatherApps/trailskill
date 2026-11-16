@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
@@ -27,11 +27,14 @@ function useSharingSwitch(
   const [attempt, setAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<{ key: string; message: string }>();
+  // Counts the changes, at their start and at their end: a read that began before the last one may hold the old value, so the last change wins.
+  const changes = useRef(0);
 
   useEffect(() => {
     if (!online) return;
     let active = true;
-    const settle = (value: boolean | 'error') => active && setAnswer({ key, attempt, value });
+    const startedAt = changes.current;
+    const settle = (value: boolean | 'error') => active && changes.current === startedAt && setAnswer({ key, attempt, value });
     read().then(settle, () => settle('error'));
     return () => {
       active = false;
@@ -48,11 +51,15 @@ function useSharingSwitch(
     saving,
     error: failure?.key === key ? failure.message : null,
     onChange: (shared) => {
+      changes.current += 1;
       setSaving(true);
       setFailure(undefined);
       write(shared)
         .then(
-          () => setAnswer({ key, attempt, value: shared }),
+          () => {
+            changes.current += 1;
+            setAnswer({ key, attempt, value: shared });
+          },
           (error: unknown) => setFailure({ key, message: failureText(error) }),
         )
         .finally(() => setSaving(false));

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../../core/theme';
 import {
@@ -130,6 +130,38 @@ describe('the switch of a swimmer', () => {
 
     expect(await screen.findByText('No tienes permiso para cambiar esto.')).toBeOnTheScreen();
     expect(screen.getByText(/solo ve los tiempos que compartas/)).toBeOnTheScreen();
+  });
+
+  it('keeps the value just saved when a slower read that started before the save answers afterwards', async () => {
+    const repository = createInMemoryGuardianSharingRepository();
+    let answerSlowRead: (shared: boolean) => void = () => undefined;
+    const getSwimmer = jest
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (answerSlowRead = resolve)));
+    const element = (refreshKey: number) => (
+      <ThemeProvider>
+        <SwimmerSharingSection
+          repository={{ ...repository, getSwimmer }}
+          athleteId="a1"
+          schoolId="school-a"
+          connection="connected"
+          refreshKey={refreshKey}
+        />
+      </ThemeProvider>
+    );
+    const view = await render(element(1));
+    await screen.findByText(/solo ve los tiempos que compartas uno por uno/);
+
+    // A sync completed: the read it starts is slow.
+    await view.rerender(element(2));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Compartir todos' }));
+    expect(await screen.findByText(/el acudiente ve todos los tiempos/)).toBeOnTheScreen();
+
+    // The read answers with the value from before the save: it must not win.
+    await act(async () => answerSlowRead(false));
+    expect(screen.getByText(/el acudiente ve todos los tiempos/)).toBeOnTheScreen();
+    expect(screen.queryByText(/solo ve los tiempos que compartas uno por uno/)).not.toBeOnTheScreen();
   });
 
   describe('record by record', () => {
