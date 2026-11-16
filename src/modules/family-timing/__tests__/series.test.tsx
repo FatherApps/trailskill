@@ -14,6 +14,16 @@ jest.mock('expo-crypto', () => {
 
 const ms = (n: number) => BigInt(n) * 1_000_000n;
 
+
+// The edit screen opens from the time's detail ("Editar registro").
+async function openDetail(index = 0) {
+  await fireEvent.press((await screen.findAllByHintText('Abre el detalle del tiempo'))[index]);
+}
+async function openEdit(index = 0) {
+  await openDetail(index);
+  await fireEvent.press(await screen.findByText('Editar registro'));
+}
+
 describe('familySeries', () => {
   it('keeps the size between 2 and 8', () => {
     expect(newFamilySeries(1).size).toBe(2);
@@ -123,7 +133,7 @@ describe('Tiempo por serie', () => {
     // The time without a swimmer has its own chip, and can be given to one later.
     await fireEvent.press(await screen.findByLabelText('Sin asignar'));
     expect(await screen.findByText('32,00')).toBeTruthy();
-    await fireEvent.press(screen.getByText('Editar o eliminar'));
+    await openEdit();
     await fireEvent.press(screen.getAllByLabelText('Lucía R.').at(-1)!);
     await fireEvent.press(screen.getByText('Guardar cambios'));
     await waitFor(async () => expect(await repository.listByAthlete('a1')).toHaveLength(2));

@@ -59,7 +59,7 @@ async function setup(athletes = [lucia], all = times) {
 
 // Stroke, distance and pool are chosen in the sheet and applied together.
 async function filterBy(label: string) {
-  await fireEvent.press(screen.getByText('Filtros'));
+  await fireEvent.press(screen.getByLabelText('Filtros'));
   await fireEvent.press(screen.getByLabelText(label));
   await fireEvent.press(screen.getByText('Aplicar filtros'));
 }
@@ -70,24 +70,24 @@ describe('filters and best time in Mis tiempos', () => {
   it('marks the best of each event, counting the official time', async () => {
     await setup();
     expect(bestCount()).toBe(2);
-    expect(screen.getAllByText(/^Libre 50 m/)).toHaveLength(3);
+    expect(screen.getAllByText(/^50 m libre$/)).toHaveLength(3);
   });
 
   it('shows training only, and the best among them', async () => {
     await setup();
     await fireEvent.press(screen.getByText('Entrenos'));
     expect(screen.queryByText('35,20')).toBeNull();
-    expect(screen.getAllByText(/^Libre 50 m|^Espalda 50 m/)).toHaveLength(3);
+    expect(screen.getAllByText(/^50 m (libre|espalda)$/)).toHaveLength(3);
     expect(bestCount()).toBe(2);
     await fireEvent.press(screen.getByText('Competencias'));
-    expect(screen.getAllByText(/50 m ·/)).toHaveLength(1);
+    expect(screen.getAllByText(/^50 m [a-z]+$/)).toHaveLength(1);
   });
 
   it('filters by stroke and says when nothing matches', async () => {
     await setup();
     await filterBy('Espalda');
-    expect(screen.getAllByText(/50 m ·/)).toHaveLength(1);
-    expect(screen.getByText('Filtros (1)')).toBeTruthy();
+    expect(screen.getAllByText(/^50 m [a-z]+$/)).toHaveLength(1);
+    expect(screen.getByLabelText('Filtros (1)')).toBeTruthy();
     await fireEvent.press(screen.getByText('Competencias'));
     expect(screen.getByText('Ningún tiempo con estos filtros')).toBeTruthy();
   });
@@ -97,23 +97,30 @@ describe('filters and best time in Mis tiempos', () => {
     await setup([lucia, mateo], [...times, { ...base, id: 'm5', athleteId: 'a2', millis: 38_000 }]);
     await filterBy('Espalda');
     await fireEvent.press(screen.getByLabelText('Mateo G.'));
-    expect(await screen.findByText(/^Libre 50 m/)).toBeTruthy();
+    expect(await screen.findByText(/^50 m libre$/)).toBeTruthy();
     expect(screen.queryByText('Ningún tiempo con estos filtros')).toBeNull();
   });
 
   it('keeps the filters when the sheet closes without applying, and clears them all', async () => {
     await setup();
-    await fireEvent.press(screen.getByText('Filtros'));
+    await fireEvent.press(screen.getByLabelText('Filtros'));
     await fireEvent.press(screen.getByLabelText('Espalda'));
     await fireEvent.press(screen.getByTestId('filter-sheet-scrim'));
-    expect(screen.getAllByText(/^Libre 50 m/)).toHaveLength(3);
+    expect(screen.getAllByText(/^50 m libre$/)).toHaveLength(3);
 
     await filterBy('Espalda');
-    expect(screen.queryByText(/^Libre 50 m/)).toBeNull();
-    await fireEvent.press(screen.getByText('Filtros (1)'));
+    expect(screen.queryByText(/^50 m libre$/)).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Filtros (1)'));
     await fireEvent.press(screen.getByText('Quitar filtros'));
     await fireEvent.press(screen.getByText('Aplicar filtros'));
-    expect(screen.getAllByText(/^Libre 50 m/)).toHaveLength(3);
-    expect(screen.getByText('Filtros')).toBeTruthy();
+    expect(screen.getAllByText(/^50 m libre$/)).toHaveLength(3);
+    expect(screen.getByLabelText('Filtros')).toBeTruthy();
+  });
+
+  it('offers the filters even when every time is of the same event', async () => {
+    await setup([lucia], [times[0]]);
+    await fireEvent.press(screen.getByLabelText('Filtros'));
+    expect(screen.getByText('Filtrar tiempos')).toBeTruthy();
+    expect(screen.getByLabelText('Libre')).toBeTruthy();
   });
 });

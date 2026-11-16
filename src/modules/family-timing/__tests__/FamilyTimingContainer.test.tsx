@@ -73,7 +73,7 @@ describe('FamilyTimingContainer', () => {
 
     await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]?.officialMillis).toBe(42_710));
     expect((await repository.listByAthlete('a1'))[0]?.millis).toBe(47_210);
-    expect(await screen.findByText('Medido (histórico, no oficial)')).toBeTruthy();
+    expect(await screen.findByText(/^Medido \(histórico, no oficial\)/)).toBeTruthy();
     expect(screen.getByText('42,710')).toBeTruthy();
   });
 
@@ -87,7 +87,7 @@ describe('FamilyTimingContainer', () => {
 
   it('offers no official time on training', async () => {
     await setup([{ ...competition, sessionType: 'training', competition: null }]);
-    await screen.findByText('Medido');
+    await screen.findByText(/^Medido ·/);
     expect(screen.queryByText('Poner tiempo oficial')).toBeNull();
   });
 });
@@ -105,7 +105,7 @@ describe('FamilyTimingContainer with imported results', () => {
     );
     expect(await screen.findByLabelText('Oficial · Federación de prueba')).toBeTruthy();
     expect(screen.getByText('42,71')).toBeTruthy();
-    expect(screen.getByText('Medido (histórico, no oficial)')).toBeTruthy();
+    expect(screen.getByText(/^Medido \(histórico, no oficial\)/)).toBeTruthy();
     expect(screen.getByText('47,210')).toBeTruthy();
     expect(screen.queryByText('Cambiar tiempo oficial')).toBeNull();
     // The hand-typed value stays stored, untouched.
