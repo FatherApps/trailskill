@@ -119,7 +119,12 @@
       "category_none": "Sin categoría",
       "name_limit": "Hasta {{max}} caracteres.",
       "add_failed": "No pudimos guardar el deportista. Inténtalo de nuevo.",
-      "continue_failed": "No pudimos guardar el avance. Inténtalo de nuevo."
+      "continue_failed": "No pudimos guardar el avance. Inténtalo de nuevo.",
+      "exit": "Salir",
+      "exit_title": "¿Salir sin agregar este deportista?",
+      "exit_message": "Escribiste datos de un deportista que aún no agregas. Los deportistas ya agregados se conservan, y puedes agregar más después con «+» en Deportistas.",
+      "exit_confirm": "Salir sin agregar",
+      "exit_cancel": "Seguir aquí"
     },
     "provider_registration": {
       "title": "Casi listo, {{name}}",

@@ -35,9 +35,8 @@ export default function AddAthletesRoute() {
       invitations={invitations}
       pending={pending}
       identityNumbers={identityNumbers}
-      // The account exists already: back must not drop the person on a half-done registration.
-      blockSystemBack
-      onBack={goBack}
+      // "Salir" and the Android back button leave through the same action. The registration reaches this route with `replace`, so with no history it falls back to the role landing ('/'); from "+" in Deportistas it returns there.
+      onExit={goBack}
       renderStatus={(id) => <RecordSyncStatus table="athletes" id={id} />}
       onContinue={() => router.replace('/athletes/authorizations')}
     />

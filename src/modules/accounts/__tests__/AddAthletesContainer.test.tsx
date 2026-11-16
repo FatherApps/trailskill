@@ -29,8 +29,8 @@ function setup(invitationToken?: string) {
   const pending = createInMemoryPendingInvitationRepository();
   const invitations = createInMemoryInvitationRepository({ invitations: { 'tok-1': invitation } });
   const onContinue = jest.fn();
-  const onBack = jest.fn();
-  const mount = (props: { blockSystemBack?: boolean } = {}) =>
+  const onExit = jest.fn();
+  const mount = () =>
     render(
       <AddAthletesContainer
         userId="guardian-1"
@@ -40,11 +40,10 @@ function setup(invitationToken?: string) {
         invitations={invitations}
         pending={pending}
         onContinue={onContinue}
-        onBack={onBack}
-        {...props}
+        onExit={onExit}
       />,
     );
-  return { mount, onContinue, onBack, drafts, profiles, athletes, rows, pending, invitations };
+  return { mount, onContinue, onExit, drafts, profiles, athletes, rows, pending, invitations };
 }
 
 // The registration `setup()` seeds. If it stops seeding, a test that builds on it would exercise another shape of registration without saying so, so it fails here instead.
@@ -380,153 +379,208 @@ describe('AddAthletesContainer', () => {
     expect(screen.queryByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeNull();
   });
 
-  describe('Android back button', () => {
+  // The account already exists at this step: "Salir" leaves the flow (the route decides where to), it never goes back to a previous step.
+  describe('Salir', () => {
     afterEach(() => jest.restoreAllMocks());
 
-    // Records the subscriptions the container makes, so a test can press back and count removals.
+    // The handler the container has subscribed to the Android back button and not removed: a second live one is a leak, and BackHandler would run both.
     function spyOnBack() {
-      const subscriptions: { event: string; handler: Parameters<typeof BackHandler.addEventListener>[1]; remove: jest.Mock }[] = [];
-      jest.spyOn(BackHandler, 'addEventListener').mockImplementation((event, handler) => {
+      const subscriptions: { handler: Parameters<typeof BackHandler.addEventListener>[1]; remove: jest.Mock }[] = [];
+      jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
         const remove = jest.fn();
-        subscriptions.push({ event, handler, remove });
+        subscriptions.push({ handler, remove });
         return { remove };
       });
-      return subscriptions;
+      const live = () => {
+        const active = subscriptions.filter((s) => s.remove.mock.calls.length === 0);
+        expect(active).toHaveLength(1);
+        return active[0]!;
+      };
+      return { subscriptions, androidBack: () => live().handler(undefined as never) };
     }
 
-    it('is left to the navigator unless the route asks to block it', async () => {
-      const subscriptions = spyOnBack();
-      const { mount } = setup();
-
-      await mount();
-
-      expect(subscriptions).toEqual([]);
-    });
-
-    it('does nothing when the route blocks it, and stops listening when the screen goes away', async () => {
-      const subscriptions = spyOnBack();
-      const { mount, onContinue } = setup();
-      const view = await mount({ blockSystemBack: true });
-
-      // Handled (true) means the navigator never sees the press; Continuar stays the only way out.
-      expect(subscriptions).toHaveLength(1);
-      expect(subscriptions[0].event).toBe('hardwareBackPress');
-      expect(subscriptions[0].handler(undefined as never)).toBe(true);
-      expect(onContinue).not.toHaveBeenCalled();
-
-      await view.unmount();
-      expect(subscriptions[0].remove).toHaveBeenCalledTimes(1);
-    });
-
-    // The one handler the container has subscribed and not removed: a second live one is a leak, and BackHandler would run both.
-    const live = (subscriptions: ReturnType<typeof spyOnBack>) => {
-      const active = subscriptions.filter((s) => s.remove.mock.calls.length === 0);
-      expect(active).toHaveLength(1);
-      return active[0];
+    const QUESTION = '¿Salir sin agregar este deportista?';
+    const salir = () => fireEvent.press(screen.getByRole('button', { name: 'Salir' }));
+    const type = async (first: string, last: string) => {
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), first);
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), last);
     };
 
-    it('while Continuar is failing, back runs onBack instead of being swallowed, and is swallowed again after a retry', async () => {
-      const subscriptions = spyOnBack();
-      const { mount, drafts, profiles, onBack } = setup();
-      await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Lucía', lastName: 'Rojas', relation: 'guardian' });
-      await mount({ blockSystemBack: true });
-      await screen.findByText('Lucía R.');
-      live(subscriptions)!.handler(undefined as never);
-      expect(onBack).not.toHaveBeenCalled();
-      const failing = jest.spyOn(drafts, 'save').mockRejectedValue(new Error('store failed'));
+    it('is visible from the start, with nobody added and the form empty', async () => {
+      const { mount } = setup();
+      await mount();
 
-      await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
-
-      expect(await screen.findByText('No pudimos guardar el avance. Inténtalo de nuevo.')).toBeOnTheScreen();
-      expect(live(subscriptions)!.handler(undefined as never)).toBe(true);
-      expect(onBack).toHaveBeenCalledTimes(1);
-
-      failing.mockRestore();
-      await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
-      await waitFor(() => expect(screen.queryByText('No pudimos guardar el avance. Inténtalo de nuevo.')).toBeNull());
-      // After the retry the press is handled and swallowed again, not left to the navigator.
-      expect(live(subscriptions).handler(undefined as never)).toBe(true);
-      expect(onBack).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: 'Salir' })).toBeOnTheScreen();
     });
 
-    it('when adding fails and nobody is added yet, back runs onBack: there is no other way out', async () => {
-      const subscriptions = spyOnBack();
-      const { mount, profiles, onBack } = setup();
-      jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValue(new Error('write failed'));
-      await mount({ blockSystemBack: true });
-      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+    it('with an empty form leaves at once, without asking', async () => {
+      const { mount, onExit } = setup();
+      await mount();
 
+      await salir();
+
+      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText(QUESTION)).toBeNull();
+    });
+
+    it('a form with only blanks counts as empty', async () => {
+      const { mount, onExit } = setup();
+      await mount();
+      await type('   ', ' ');
+
+      await salir();
+
+      expect(onExit).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['the first name', 'Lucía', ''],
+      ['the last name', '', 'Rojas'],
+      ['both names', 'Lucía', 'Rojas'],
+    ])('with %s typed asks first, and does not leave while the question is open', async (_label, first, last) => {
+      const { mount, onExit } = setup();
+      await mount();
+      await type(first, last);
+
+      await salir();
+
+      expect(await screen.findByText(QUESTION)).toBeOnTheScreen();
+      expect(onExit).not.toHaveBeenCalled();
+    });
+
+    it('asks when only the identity number is typed', async () => {
+      const { mount, onExit } = setup();
+      await mount();
+      await fireEvent.changeText(screen.getByLabelText('Número de identificación (opcional)'), '987654321');
+
+      await salir();
+
+      expect(await screen.findByText(QUESTION)).toBeOnTheScreen();
+      expect(onExit).not.toHaveBeenCalled();
+    });
+
+    it('"Seguir aquí" keeps the screen and what was typed', async () => {
+      const { mount, onExit } = setup();
+      await mount();
+      await type('Lucía', 'Rojas');
+      await salir();
+
+      await fireEvent.press(await screen.findByRole('button', { name: 'Seguir aquí' }));
+
+      expect(onExit).not.toHaveBeenCalled();
+      expect(screen.queryByText(QUESTION)).toBeNull();
+      expect(screen.getByDisplayValue('Lucía')).toBeOnTheScreen();
+      expect(screen.getByDisplayValue('Rojas')).toBeOnTheScreen();
+    });
+
+    it('the confirmation leaves', async () => {
+      const { mount, onExit } = setup();
+      await mount();
+      await type('Lucía', 'Rojas');
+      await salir();
+
+      await fireEvent.press(await screen.findByRole('button', { name: 'Salir sin agregar' }));
+
+      expect(onExit).toHaveBeenCalledTimes(1);
+    });
+
+    it('once the form is added there is nothing half-filled: leaves at once and keeps the added athlete', async () => {
+      const { mount, onExit, rows } = setup();
+      await mount();
+      await type('Lucía', 'Rojas');
       await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await screen.findByText('Lucía R.');
 
-      expect(await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeOnTheScreen();
-      expect(live(subscriptions)!.handler(undefined as never)).toBe(true);
-      expect(onBack).toHaveBeenCalledTimes(1);
+      await salir();
+
+      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText(QUESTION)).toBeNull();
+      expect(rows).toHaveLength(1);
     });
 
-    it('when adding fails but someone is already added, Continuar is the way out and back stays swallowed', async () => {
-      const subscriptions = spyOnBack();
-      const { mount, profiles, onBack } = setup();
+    it('never removes the athletes already added, even when it leaves with a half-filled form', async () => {
+      const { mount, onExit, rows, profiles } = setup();
       await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
-      jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValue(new Error('write failed'));
-      await mount({ blockSystemBack: true });
+      await mount();
       await screen.findByText('Mateo G.');
-      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+      await type('Lucía', 'Rojas');
+      await salir();
 
-      await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Salir sin agregar' }));
 
-      expect(await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeOnTheScreen();
-      live(subscriptions)!.handler(undefined as never);
-      expect(onBack).not.toHaveBeenCalled();
+      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(rows).toHaveLength(1);
+      expect(screen.getByText('Mateo G.')).toBeOnTheScreen();
     });
 
-    // A list that could not be read says nothing about who is added: a missing datum is not zero.
-    it('when the list cannot be read and adding fails, back stays swallowed: someone may already be added', async () => {
-      const subscriptions = spyOnBack();
-      const { mount, profiles, athletes, onBack } = setup();
+    it('leaves without touching the registration draft: it stays as it was', async () => {
+      const { mount, drafts, onExit } = setup();
+      await mount();
+      const before = await seededDraft(() => drafts.load());
+      const save = jest.spyOn(drafts, 'save');
+      const clear = jest.spyOn(drafts, 'clear');
+
+      await salir();
+
+      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(save).not.toHaveBeenCalled();
+      expect(clear).not.toHaveBeenCalled();
+      expect(await drafts.load()).toEqual(before);
+    });
+
+    it('is still there when Continuar fails', async () => {
+      const { mount, onExit, drafts, profiles } = setup();
       await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
-      jest.spyOn(athletes, 'listManaged').mockRejectedValue(new Error('read failed'));
-      jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValue(new Error('write failed'));
-      await mount({ blockSystemBack: true });
-      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
+      await mount();
+      await screen.findByText('Mateo G.');
+      jest.spyOn(drafts, 'save').mockRejectedValue(new Error('store failed'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+      await screen.findByText('No pudimos guardar el avance. Inténtalo de nuevo.');
 
-      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await salir();
 
-      expect(await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.')).toBeOnTheScreen();
-      expect(live(subscriptions).handler(undefined as never)).toBe(true);
-      expect(onBack).not.toHaveBeenCalled();
+      expect(onExit).toHaveBeenCalledTimes(1);
     });
 
-    it('once the list reads again and nobody is added, a failed add lets back leave', async () => {
-      const subscriptions = spyOnBack();
-      const { mount, profiles, athletes, onBack } = setup();
-      const reading = jest.spyOn(athletes, 'listManaged').mockRejectedValueOnce(new Error('read failed'));
-      jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValueOnce(new Error('write failed'));
-      await mount({ blockSystemBack: true });
-      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
-      await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.');
-      expect(live(subscriptions).handler(undefined as never)).toBe(true);
-      expect(onBack).not.toHaveBeenCalled();
+    it('the Android back button leaves like Salir with an empty form, and stops listening when the screen goes away', async () => {
+      const { subscriptions, androidBack } = spyOnBack();
+      const { mount, onExit } = setup();
+      const view = await mount();
 
-      // The retry saves (nothing was lost) and its read works: the list is known again.
-      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
-      await screen.findByText('Lucía R.');
-      // The list is known again: Continuar is enabled because Lucía is listed, not because the read failed.
-      expect(screen.getByRole('button', { name: 'Continuar' }).props.accessibilityState.disabled).toBeFalsy();
-      reading.mockRestore();
-      jest.spyOn(profiles, 'createManagedAthlete').mockRejectedValue(new Error('write failed'));
-      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
-      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Gil');
-      await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
-      await screen.findByText('No pudimos guardar el deportista. Inténtalo de nuevo.');
+      // Handled (true) means the navigator never sees the press.
+      expect(androidBack()).toBe(true);
 
-      // Lucía is added, so Continuar is the way out and back stays swallowed.
-      live(subscriptions).handler(undefined as never);
-      expect(onBack).not.toHaveBeenCalled();
+      expect(onExit).toHaveBeenCalledTimes(1);
+      await view.unmount();
+      expect(subscriptions.every((s) => s.remove.mock.calls.length > 0)).toBe(true);
+    });
+
+    it('the Android back button asks like Salir with a half-filled form, and its confirmation leaves', async () => {
+      const { androidBack } = spyOnBack();
+      const { mount, onExit } = setup();
+      await mount();
+      await type('Lucía', 'Rojas');
+
+      await act(async () => {
+        androidBack();
+      });
+
+      expect(await screen.findByText(QUESTION)).toBeOnTheScreen();
+      expect(onExit).not.toHaveBeenCalled();
+      await fireEvent.press(screen.getByRole('button', { name: 'Salir sin agregar' }));
+      expect(onExit).toHaveBeenCalledTimes(1);
+    });
+
+    it('the Android back button sees the form as it is now, not as it was when it subscribed', async () => {
+      const { androidBack } = spyOnBack();
+      const { mount, onExit } = setup();
+      await mount();
+      await type('Lucía', 'Rojas');
+      await type('', '');
+
+      androidBack();
+
+      expect(onExit).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1182,7 +1236,7 @@ describe('the optional identity number', () => {
   function setupWithHold() {
     const base = setup();
     const identityNumbers = createIdentityNumberHold();
-    const mount = (props: { blockSystemBack?: boolean } = {}) =>
+    const mount = () =>
       render(
         <AddAthletesContainer
           userId="guardian-1"
@@ -1193,8 +1247,7 @@ describe('the optional identity number', () => {
           pending={base.pending}
           identityNumbers={identityNumbers}
           onContinue={base.onContinue}
-          onBack={base.onBack}
-          {...props}
+          onExit={base.onExit}
         />,
       );
     return { ...base, mount, identityNumbers };
@@ -1243,30 +1296,19 @@ describe('the optional identity number', () => {
     expect(identityNumbers.take(rows[0]!.athleteId)).toBeUndefined();
   });
 
-  it('leaving through back drops it, so a later registration cannot send it', async () => {
-    const subscriptions: { handler: Parameters<typeof BackHandler.addEventListener>[1]; remove: jest.Mock }[] = [];
-    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
-      const remove = jest.fn();
-      subscriptions.push({ handler, remove });
-      return { remove };
-    });
-    const { mount, drafts, identityNumbers, rows, onBack } = setupWithHold();
-    await mount({ blockSystemBack: true });
+  it('leaving through Salir drops it, so a later registration cannot send it', async () => {
+    const { mount, identityNumbers, rows, onExit } = setupWithHold();
+    await mount();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
     await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
     await fireEvent.changeText(screen.getByLabelText(NUMBER_LABEL), '987654321');
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
     await screen.findByText('Lucía R.');
-    // Back only leaves once Continuar failed.
-    jest.spyOn(drafts, 'save').mockRejectedValue(new Error('store failed'));
-    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
-    await screen.findByText('No pudimos guardar el avance. Inténtalo de nuevo.');
 
-    subscriptions.filter((s) => s.remove.mock.calls.length === 0).at(-1)!.handler(undefined as never);
+    await fireEvent.press(screen.getByRole('button', { name: 'Salir' }));
 
-    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onExit).toHaveBeenCalledTimes(1);
     expect(identityNumbers.take(rows[0]!.athleteId)).toBeUndefined();
-    jest.restoreAllMocks();
   });
 
   it('rejects anything but letters and digits, or more than 20, and keeps what was typed', async () => {
