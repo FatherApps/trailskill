@@ -89,11 +89,11 @@ select is((select deactivated_at from u), now(), 'repeating the deactivation doe
 select throws_ok(
   $$update public.school_memberships set deactivated_at = null where id = '96300000-0000-4000-8000-0000000000d1'$$,
   '42501', 'a deactivated coach cannot be reactivated', 'a deactivated coach cannot be reactivated');
-select throws_ok(
-  $$update public.school_memberships set deactivated_at = now() where id = '96300000-0000-4000-8000-0000000000d3'$$,
-  '23514', null, 'only a coach membership can be deactivated');
+-- Since #1092 the update policy only reaches coach rows, so an admin row is not deactivated.
+with u as (update public.school_memberships set deactivated_at = now() where id = '96300000-0000-4000-8000-0000000000d3' returning 1)
+select is((select count(*)::int from u), 0, 'only a coach membership can be deactivated');
 
--- The platform admin is allowed by school_memberships_write, in any school.
+-- The platform admin is allowed by school_memberships_deactivate, in any school.
 set local request.jwt.claims = '{"sub": "96300000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
 with u as (update public.school_memberships set deactivated_at = now() where id = '96300000-0000-4000-8000-0000000000d5' returning 1)
 select is((select count(*)::int from u), 1, 'the platform admin deactivates C2 in B');

@@ -158,6 +158,7 @@ select set_eq(
 
 -- 9. The school_admin role is required: S1 as a plain coach reads nothing.
 reset role;
+select set_config('request.jwt.claims', '', true); -- owner update: no auth.uid() (#1092 guard)
 update public.school_memberships set role = 'coach'
   where school_id = '31600000-0000-4000-8000-0000000000b1' and user_id = '31600000-0000-4000-8000-0000000000a5';
 set local role authenticated;
@@ -167,6 +168,7 @@ select is_empty(
   'S1 as a plain coach of the school reads no conflict'
 );
 reset role;
+select set_config('request.jwt.claims', '', true); -- owner update: no auth.uid() (#1092 guard)
 update public.school_memberships set role = 'school_admin'
   where school_id = '31600000-0000-4000-8000-0000000000b1' and user_id = '31600000-0000-4000-8000-0000000000a5';
 

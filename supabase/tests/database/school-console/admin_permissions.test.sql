@@ -175,10 +175,13 @@ select lives_ok(
      values ('20000000-0000-4000-8000-0000000000a4', '20000000-0000-4000-8000-0000000000e2', 'guardian') $$,
   'platform admin P can create a guardian link'
 );
+-- Since #1092 nobody deletes a membership through RLS; the owner clears the school first.
+reset role;
+delete from public.school_memberships where school_id = '20000000-0000-4000-8000-0000000000b3';
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "20000000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
 select isnt_empty(
-  $$ with m as (delete from public.school_memberships
-                where school_id = '20000000-0000-4000-8000-0000000000b3')
-     delete from public.schools
+  $$ delete from public.schools
      where id = '20000000-0000-4000-8000-0000000000b3' returning id $$,
   'platform admin P can delete a school'
 );
