@@ -72,26 +72,33 @@ function Records({ view }: { view: SharingRecordsView }) {
           {view.error && <Banner variant="warn" icon="error">{view.error}</Banner>}
           {view.rows.length === 0 && <Text style={[typography.body, { color: colors[guardianSharingColors.caption] }]}>{t('schoolConsole.sharing.records.empty')}</Text>}
           {view.rows.map((row, index) => (
+            // One layout for every row, whatever the length of the time: the event, date and time on the left,
+            // the badge and the button stacked on the right. Nothing wraps, so the text length never moves them.
             <View
               key={row.id}
+              testID={`sharing-record-${row.id}`}
               style={[
-                { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2], paddingVertical: space[3] },
+                { flexDirection: 'row', alignItems: 'center', gap: space[3], paddingVertical: space[3] },
                 index < view.rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors[guardianSharingColors.divider] },
               ]}
             >
-              <Text style={[typography.body, { flexGrow: 1, color: colors[guardianSharingColors.title] }]}>{`${row.event} · ${row.date}`}</Text>
-              <TimeValue value={row.time} size="time-sm" />
-              <Tag
-                label={row.shared === null ? t('schoolConsole.common.no_data') : t(row.shared ? 'schoolConsole.sharing.records.shared' : 'schoolConsole.sharing.records.not_shared')}
-                variant={row.shared ? 'ok' : undefined}
-              />
-              {row.shared !== null && (
-                <Button
-                  variant="secondary"
-                  label={t(row.shared ? 'schoolConsole.sharing.records.unshare' : 'schoolConsole.sharing.records.share')}
-                  onPress={() => view.busyId === null && view.onToggle(row.id, !row.shared)}
+              <View testID={`sharing-record-${row.id}-info`} style={{ flex: 1, minWidth: 0, gap: space[1] }}>
+                <Text style={[typography.body, { color: colors[guardianSharingColors.title] }]}>{`${row.event} · ${row.date}`}</Text>
+                <TimeValue value={row.time} size="time-sm" />
+              </View>
+              <View testID={`sharing-record-${row.id}-actions`} style={{ flexShrink: 0, alignItems: 'flex-start', gap: space[2] }}>
+                <Tag
+                  label={row.shared === null ? t('schoolConsole.common.no_data') : t(row.shared ? 'schoolConsole.sharing.records.shared' : 'schoolConsole.sharing.records.not_shared')}
+                  variant={row.shared ? 'ok' : undefined}
                 />
-              )}
+                {row.shared !== null && (
+                  <Button
+                    variant="secondary"
+                    label={t(row.shared ? 'schoolConsole.sharing.records.unshare' : 'schoolConsole.sharing.records.share')}
+                    onPress={() => view.busyId === null && view.onToggle(row.id, !row.shared)}
+                  />
+                )}
+              </View>
             </View>
           ))}
         </>
