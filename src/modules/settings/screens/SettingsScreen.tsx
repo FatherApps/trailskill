@@ -10,6 +10,9 @@ import {
   type ThemeMode,
   type TimePrecision,
   type TimingButtonPreferences,
+  videoQualities,
+  videoStopAfterSeconds,
+  type VideoRecordingPreferences,
 } from '../../../core/preferences';
 import { useTheme } from '../../../core/theme';
 import { formatMillis } from '../../../core/time';
@@ -24,6 +27,13 @@ export type SettingsScreenProps = {
   onBack: () => void;
   /** The headset or volume keys; null where the phone cannot use them (iOS, or a build without the module). */
   buttons: SettingsButtonsView | null;
+  /** Recording the individual stopwatch on video. */
+  video: SettingsVideoView;
+};
+
+export type SettingsVideoView = {
+  settings: VideoRecordingPreferences;
+  onChange: (changes: Partial<VideoRecordingPreferences>) => void;
 };
 
 export type ButtonKey = 'start' | 'split';
@@ -139,8 +149,52 @@ function ButtonsSettings({ view }: { view: SettingsButtonsView }) {
   );
 }
 
+function VideoSettings({ view }: { view: SettingsVideoView }) {
+  const { settings } = view;
+  const onOff = [
+    { value: 'on', label: t('settings.video.on') },
+    { value: 'off', label: t('settings.video.off') },
+  ];
+  return (
+    <>
+      <Section label={t('settings.video.quality_label')} hint={t('settings.video.quality_hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.video.quality_label')}
+          value={settings.quality}
+          onChange={(quality) => view.onChange({ quality })}
+          options={videoQualities.map((quality) => ({ value: quality, label: t(`settings.video.quality.${quality}`) }))}
+        />
+      </Section>
+      <Section label={t('settings.video.audio_label')} hint={t('settings.video.audio_hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.video.audio_label')}
+          value={settings.audio ? 'on' : 'off'}
+          onChange={(value) => view.onChange({ audio: value === 'on' })}
+          options={onOff}
+        />
+      </Section>
+      <Section label={t('settings.video.start_with_time_label')} hint={t('settings.video.start_with_time_hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.video.start_with_time_label')}
+          value={settings.startWithTime ? 'on' : 'off'}
+          onChange={(value) => view.onChange({ startWithTime: value === 'on' })}
+          options={onOff}
+        />
+      </Section>
+      <Section label={t('settings.video.stop_after_label')} hint={t('settings.video.stop_after_hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.video.stop_after_label')}
+          value={String(settings.stopAfterSeconds)}
+          onChange={(value) => view.onChange({ stopAfterSeconds: Number(value) })}
+          options={videoStopAfterSeconds.map((seconds) => ({ value: String(seconds), label: t('settings.video.seconds', { count: seconds }) }))}
+        />
+      </Section>
+    </>
+  );
+}
+
 // Presentational: the caller reads and saves the preferences.
-export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, onTimePrecisionChange, onBack, buttons }: SettingsScreenProps) {
+export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, onTimePrecisionChange, onBack, buttons, video }: SettingsScreenProps) {
   const { colors, space, typography } = useTheme();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
@@ -171,6 +225,10 @@ export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, on
           </Text>
         </Section>
         {buttons && <ButtonsSettings view={buttons} />}
+        <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+          {t('settings.video.title')}
+        </Text>
+        <VideoSettings view={video} />
       </ScrollView>
     </SafeAreaView>
   );

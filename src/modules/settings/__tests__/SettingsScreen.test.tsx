@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 
-import { defaultTimingButtons } from '../../../core/preferences';
+import { defaultTimingButtons, defaultVideoRecording } from '../../../core/preferences';
 import { SettingsScreen, type SettingsButtonsView } from '../screens/SettingsScreen';
 
 async function setup(overrides: Partial<Parameters<typeof SettingsScreen>[0]> = {}) {
@@ -11,6 +11,7 @@ async function setup(overrides: Partial<Parameters<typeof SettingsScreen>[0]> = 
     onTimePrecisionChange: jest.fn(),
     onBack: jest.fn(),
     buttons: null,
+    video: { settings: defaultVideoRecording, onChange: jest.fn() },
     ...overrides,
   };
   await render(<SettingsScreen {...props} />);
@@ -68,7 +69,8 @@ describe('SettingsScreen timing buttons', () => {
     expect(screen.getByText('Iniciar y detener: Subir volumen (+)')).toBeTruthy();
     expect(screen.getByText('Parcial: Bajar volumen (−)')).toBeTruthy();
     expect(screen.getByText('No hay diadema conectada: se usan los botones de volumen del teléfono.')).toBeTruthy();
-    for (const label of ['0 s', '1 s', '2 s', '3 s', '5 s', '10 s']) expect(screen.getByText(label)).toBeTruthy();
+    const lockout = within(screen.getByLabelText('Bloqueo después de iniciar'));
+    for (const label of ['0 s', '1 s', '2 s', '3 s', '5 s', '10 s']) expect(lockout.getByText(label)).toBeTruthy();
     expect(screen.getByText('Vibrar al marcar')).toBeTruthy();
   });
 
@@ -80,7 +82,7 @@ describe('SettingsScreen timing buttons', () => {
   it('reports the lockout, the vibration and turning the buttons off', async () => {
     const buttons = buttonsView();
     await setup({ buttons });
-    await fireEvent.press(screen.getByText('5 s'));
+    await fireEvent.press(within(screen.getByLabelText('Bloqueo después de iniciar')).getByText('5 s'));
     expect(buttons.onChange).toHaveBeenCalledWith({ lockoutSeconds: 5 });
     await fireEvent.press(screen.getAllByText('No')[1]!);
     expect(buttons.onChange).toHaveBeenCalledWith({ vibrate: false });
@@ -103,5 +105,27 @@ describe('SettingsScreen timing buttons', () => {
   it('shows only the switch when the buttons are off', async () => {
     await setup({ buttons: buttonsView({ settings: { ...defaultTimingButtons, enabled: false } }) });
     expect(screen.queryByText('Teclas')).toBeNull();
+  });
+});
+
+describe('SettingsScreen video recording', () => {
+  it('offers the three qualities and the four stop delays', async () => {
+    await setup();
+    expect(screen.getByText('Grabación de video')).toBeTruthy();
+    for (const label of ['Baja 480p', 'Media 720p', 'Alta 1080p']) expect(screen.getByText(label)).toBeTruthy();
+    const stopAfter = within(screen.getByLabelText('Parar el video después de detener el reloj'));
+    for (const label of ['0 s', '3 s', '5 s', '10 s']) expect(stopAfter.getByText(label)).toBeTruthy();
+    expect(stopAfter.queryByText('1 s')).toBeNull();
+  });
+
+  it('reports each change', async () => {
+    const onChange = jest.fn();
+    await setup({ video: { settings: defaultVideoRecording, onChange } });
+    await fireEvent.press(screen.getByText('Alta 1080p'));
+    await fireEvent.press(within(screen.getByLabelText('Parar el video después de detener el reloj')).getByText('10 s'));
+    await fireEvent.press(within(screen.getByLabelText('Grabar con audio')).getByText('No'));
+    expect(onChange).toHaveBeenCalledWith({ audio: false });
+    expect(onChange).toHaveBeenCalledWith({ quality: 'high' });
+    expect(onChange).toHaveBeenCalledWith({ stopAfterSeconds: 10 });
   });
 });

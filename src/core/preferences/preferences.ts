@@ -9,15 +9,32 @@ export type TimePrecision = 'hundredths' | 'thousandths';
 /** The timing buttons (headset or the phone's volume keys): Android key codes, start lockout in seconds, and a vibration per press. */
 export type TimingButtonPreferences = { enabled: boolean; startKey: number; splitKey: number; lockoutSeconds: number; vibrate: boolean };
 
-export type Preferences = { themeMode: ThemeMode; timePrecision: TimePrecision; timingButtons: TimingButtonPreferences };
+export type VideoQuality = 'low' | 'medium' | 'high';
+
+/** Recording the individual stopwatch on video: quality, sound, one button for recording and time, and how long the video keeps going after the clock stops. */
+export type VideoRecordingPreferences = { quality: VideoQuality; audio: boolean; startWithTime: boolean; stopAfterSeconds: number };
+
+export type Preferences = { themeMode: ThemeMode; timePrecision: TimePrecision; timingButtons: TimingButtonPreferences; videoRecording: VideoRecordingPreferences };
 
 // Volume up (24) starts and stops, volume down (25) marks a split: the headset's "+" and "−", and the phone's own keys.
 export const defaultTimingButtons: TimingButtonPreferences = { enabled: true, startKey: 24, splitKey: 25, lockoutSeconds: 3, vibrate: true };
 
-export const defaultPreferences: Preferences = { themeMode: 'system', timePrecision: 'hundredths', timingButtons: defaultTimingButtons };
+// 720p plays well on most phones; a person picks 1080p in Ajustes when their phone can take it.
+export const defaultVideoRecording: VideoRecordingPreferences = { quality: 'medium', audio: true, startWithTime: false, stopAfterSeconds: 5 };
+
+export const defaultPreferences: Preferences = {
+  themeMode: 'system',
+  timePrecision: 'hundredths',
+  timingButtons: defaultTimingButtons,
+  videoRecording: defaultVideoRecording,
+};
 
 /** The start lockouts offered, in seconds. */
 export const lockoutSeconds: readonly number[] = [0, 1, 2, 3, 5, 10];
+
+export const videoQualities: readonly VideoQuality[] = ['low', 'medium', 'high'];
+/** How long the video may keep recording after the clock stops, in seconds: 10 at most. */
+export const videoStopAfterSeconds: readonly number[] = [0, 3, 5, 10];
 
 export const themeModes: readonly ThemeMode[] = ['system', 'light', 'dark', 'sun'];
 export const timePrecisions: readonly TimePrecision[] = ['hundredths', 'thousandths'];
@@ -32,7 +49,7 @@ export function parsePreferences(raw: unknown): Preferences {
   const value = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const themeMode = themeModes.find((m) => m === value.themeMode) ?? defaultPreferences.themeMode;
   const timePrecision = timePrecisions.find((p) => p === value.timePrecision) ?? defaultPreferences.timePrecision;
-  return { themeMode, timePrecision, timingButtons: parseTimingButtons(value.timingButtons) };
+  return { themeMode, timePrecision, timingButtons: parseTimingButtons(value.timingButtons), videoRecording: parseVideoRecording(value.videoRecording) };
 }
 
 const isKeyCode = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0 && v < 1000;
@@ -46,6 +63,17 @@ function parseTimingButtons(raw: unknown): TimingButtonPreferences {
     splitKey: isKeyCode(value.splitKey) ? value.splitKey : d.splitKey,
     lockoutSeconds: lockoutSeconds.find((s) => s === value.lockoutSeconds) ?? d.lockoutSeconds,
     vibrate: typeof value.vibrate === 'boolean' ? value.vibrate : d.vibrate,
+  };
+}
+
+function parseVideoRecording(raw: unknown): VideoRecordingPreferences {
+  const value = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const d = defaultVideoRecording;
+  return {
+    quality: videoQualities.find((q) => q === value.quality) ?? d.quality,
+    audio: typeof value.audio === 'boolean' ? value.audio : d.audio,
+    startWithTime: typeof value.startWithTime === 'boolean' ? value.startWithTime : d.startWithTime,
+    stopAfterSeconds: videoStopAfterSeconds.find((s) => s === value.stopAfterSeconds) ?? d.stopAfterSeconds,
   };
 }
 
