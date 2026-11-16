@@ -61,17 +61,21 @@ jest.mock('../modules/school-console', () => ({
 jest.mock('../modules/timing', () => ({ createPowerSyncMeasurementRepository: () => ({}) }));
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
+// The section the plan routes ask the console to open (`?section=`), as the router hands it over.
+let mockParams: { section?: string; at?: string } = {};
 jest.mock('expo-router', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     Redirect: ({ href }: { href: string }) => <Text>{`redirected to ${href}`}</Text>,
     useRouter: () => ({ push: mockPush, replace: mockReplace }),
+    useLocalSearchParams: () => mockParams,
   };
 });
 
 beforeEach(() => {
   mockUserId = 'user-1';
   mockReplace.mockReset();
+  mockParams = {};
   mockListAdminSchools.mockReset().mockResolvedValue([]);
   mockConsoleAthletes.listAthletes.mockReset().mockResolvedValue([]);
   mockConsoleAthletes.listAthleteGroups.mockReset().mockResolvedValue([]);
@@ -285,6 +289,35 @@ describe('console route', () => {
     expect(screen.getByRole('header', { name: tab })).toBeOnTheScreen();
     expect(screen.getByText(emptyTitle)).toBeOnTheScreen();
     expect(screen.getByRole('tab', { name: tab })).toBeSelected();
+  });
+
+  it.each([
+    ['records', 'Récords'],
+    ['nope', 'Deportistas'],
+    ['plans', 'Deportistas'],
+  ])('opens the section %s a plan route asks for as the tab %s, and the first one when it is not a section', async (section, tab) => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockParams = { section, at: '1' };
+    await show();
+
+    expect(await screen.findByRole('tab', { name: tab, selected: true })).toBeOnTheScreen();
+  });
+
+  it('opens the section again when a plan route asks for the one already in the URL after the admin moved on', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockParams = { section: 'athletes', at: '1' };
+    const view = await show();
+    await fireEvent.press(await screen.findByRole('tab', { name: 'Récords' }));
+    expect(await screen.findByRole('tab', { name: 'Récords', selected: true })).toBeOnTheScreen();
+
+    mockParams = { section: 'athletes', at: '2' };
+    view.rerender(
+      <ThemeProvider>
+        <ConsoleRoute />
+      </ThemeProvider>,
+    );
+
+    expect(await screen.findByRole('tab', { name: 'Deportistas', selected: true })).toBeOnTheScreen();
   });
 
   it('shows the best marks of the first category of the school of the admin under Récords', async () => {
