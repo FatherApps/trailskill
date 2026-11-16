@@ -1,3 +1,5 @@
+import type { GalleryEntry } from './gallery';
+
 export { useFocusRing } from './focusRing';
 export { useHardwareBack } from './useHardwareBack';
 export { Button, type ButtonProps, type ButtonVariant } from './Button';
@@ -21,4 +23,7 @@ export { ColorCard, colorCardColors, type ColorCardColor, type ColorCardDecorati
 export { ColorHeader, colorHeaderColors, type ColorHeaderProps } from './ColorHeader';
 export { Chip, InitialsDot, chipColors, type ChipProps, type InitialsDotProps } from './Chip';
 export { ChipRow, type ChipRowOption, type ChipRowProps } from './ChipRow';
-export { galleryEntries, type GalleryEntry } from './gallery';
+export type { GalleryEntry } from './gallery';
+// Dev only: Metro drops this require from release bundles (issue 1040).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- a static import would bundle the gallery in release builds
+export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : [];

@@ -1,3 +1,5 @@
+import type { GalleryEntry } from '../../core/ui';
+
 export type { ImportedResult, ImportedResultsRepository, PendingResultChange } from './data/importedResults';
 export { createInMemoryImportedResultsRepository } from './data/inMemoryImportedResultsRepository';
 export { createPowerSyncImportedResultsRepository } from './data/powerSyncImportedResultsRepository';
@@ -23,7 +25,9 @@ export { OfficialUpdateContainer, type OfficialUpdateContainerProps } from './sc
 export { OfficialUpdateButton, type OfficialUpdateButtonProps } from './components/OfficialUpdateButton';
 export { PendingChangeCard, type PendingChangeCardProps } from './components/PendingChangeCard';
 export { ResultRow, type ResultRowProps } from './components/ResultRow';
-export { galleryEntries } from './gallery';
+// Dev only: Metro drops this require from release bundles (issue 1040).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- a static import would bundle the gallery in release builds
+export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : [];
 export { ConfirmPersonContainer, formatRetryTime, type ConfirmPersonContainerProps } from './screens/ConfirmPersonContainer';
 export { TournamentImportContainer, type TournamentImportContainerProps } from './screens/TournamentImportContainer';
 export { ConfirmPersonScreen, type ConfirmPersonScreenProps, type ConfirmPersonView } from './screens/ConfirmPersonScreen';
