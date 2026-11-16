@@ -13,8 +13,8 @@ jest.mock('../core/sync', () => ({
   useGlobalSyncSummary: () => ({ lastSyncedAt: mockLastSyncedAt }),
 }));
 const mockListStaffSchools = jest.fn();
-jest.mock('../modules/school-console', () => ({
-  ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
+// The container lives in school-console and builds its repositories itself: only the PowerSync school lookup is replaced.
+jest.mock('../modules/school-console/data/staffSchools', () => ({
   createPowerSyncStaffSchoolRepository: () => ({ listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args) }),
 }));
 const mockPersonalBestTime = jest.fn();

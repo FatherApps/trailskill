@@ -29,12 +29,11 @@ jest.mock('../modules/training-plans', () => {
   return {
     createPowerSyncTrainingPlanRepository: () => ({}),
     createPowerSyncAssignmentRepository: () => ({}),
-    createPowerSyncFulfillmentRepository: () => ({}),
     planVocabulary: () => ({}),
     PlansScreen: () => <Marker>Pantalla de planes</Marker>,
     PlanEditorScreen: () => <Marker>Pantalla del plan</Marker>,
     AssignPlanContainer: () => <Marker>Pantalla de asignar</Marker>,
-    FulfillmentContainer: () => <Marker>Pantalla de cumplimiento</Marker>,
+    FulfillmentFlow: () => <Marker>Pantalla de cumplimiento</Marker>,
   };
 });
 jest.mock('../modules/athletes', () => ({ createPowerSyncSchoolAthleteRepository: () => ({}) }));

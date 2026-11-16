@@ -9,21 +9,12 @@ jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
 jest.mock('../core/sync', () => ({ db: { getClientId: () => mockClientId() } }));
-jest.mock('../modules/school-console', () => ({
-  createPowerSyncSchoolStructureRepository: () => ({}),
-  createPowerSyncStaffSchoolRepository: () => ({}),
-}));
-jest.mock('../modules/athletes', () => ({ createPowerSyncSchoolAthleteRepository: () => ({}) }));
-jest.mock('../modules/accounts', () => ({ createPowerSyncAuthorizationStatusRepository: () => ({}) }));
-jest.mock('../modules/timing', () => ({ createPowerSyncSeriesRepository: () => ({}) }));
 type ContainerProps = { userId: string; deviceId: string; assignmentId: string; day: string; refreshKey: number; onOpenTiming: (blockId: string) => void };
 let mockProps: ContainerProps;
-jest.mock('../modules/training-plans', () => {
+// The flow lives in training-plans: only the grid it renders is replaced, so the session, the device and the repositories are its own.
+jest.mock('../modules/training-plans/screens/FulfillmentContainer', () => {
   const { Text } = jest.requireActual('react-native');
   return {
-    createPowerSyncTrainingPlanRepository: () => ({}),
-    createPowerSyncAssignmentRepository: () => ({}),
-    createPowerSyncFulfillmentRepository: () => ({}),
     FulfillmentContainer: (props: ContainerProps) => {
       mockProps = props;
       return <Text>{`grid of ${props.assignmentId} on ${props.day} by ${props.userId} on ${props.deviceId} (${props.refreshKey})`}</Text>;
