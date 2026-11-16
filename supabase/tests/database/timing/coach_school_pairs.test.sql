@@ -5,7 +5,8 @@
 -- Users: coach C (a1) active in A and B, coach K (a2) active in A and deactivated in B, N with no role (a3), school
 -- admin SA of A (a4), R (a5) coach of A and B who authored every mark and conflict. Schools: A (b1), B (b2).
 -- Swimmers: X (e1) only in A, assigned to C directly in A; Y (e2) in A and B, assigned to C directly only in B and
--- to K directly in B; Z (e3) in A and B, in group gB (c1, school B) coached by C and assigned to K directly in A.
+-- to K directly in B; Z (e3) in A and B, in group gB (c1, school B) coached by C and by K (K is deactivated in B, so
+-- the group gives K nothing), and assigned to K directly in A.
 -- Marks: d1 X in A, d2 Y in A, d3 Y in B, d4 Z in A, d5 Z in B; conflict f1..f5 on d1..d5.
 -- All users and data here are synthetic.
 begin;
@@ -55,7 +56,9 @@ insert into public.athlete_schools (athlete_id, school_id) values
 insert into public.training_groups (id, school_id, name) values
   (pg_temp.u('c1'), pg_temp.u('b2'), 'Pairs Group B');
 insert into public.athlete_groups (athlete_id, group_id) values (pg_temp.u('e3'), pg_temp.u('c1'));
-insert into public.coach_group_assignments (coach_user_id, group_id) values (pg_temp.u('a1'), pg_temp.u('c1'));
+insert into public.coach_group_assignments (coach_user_id, group_id) values
+  (pg_temp.u('a1'), pg_temp.u('c1')),
+  (pg_temp.u('a2'), pg_temp.u('c1'));
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
   (pg_temp.u('a1'), pg_temp.u('e1'), pg_temp.u('b1')),
   (pg_temp.u('a1'), pg_temp.u('e2'), pg_temp.u('b2')),
@@ -81,8 +84,8 @@ from generate_series(1, 5) n;
 
 set local role authenticated;
 
--- 1-3. The pairs: C has X in A, Y in B and Z in B (group); K keeps only Z in A, its B assignment drops with the
--- deactivation; N has none.
+-- 1-3. The pairs: C has X in A, Y in B and Z in B (group); K keeps only Z in A, its direct B assignment and its
+-- group of B both drop with the deactivation; N has none.
 select pg_temp.as_user('a1');
 select is(pg_temp.pairs(), 'e1/b1,e2/b2,e3/b2', 'C has the pairs X in A, Y in B and Z in B');
 select pg_temp.as_user('a2');
