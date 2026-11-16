@@ -51,6 +51,8 @@ export const AppSchema = new Schema({
       // "Deshacer última" (issue #50): the author discards an unassigned series arrival once; the row stays and every read leaves it out.
       discarded_at: column.text,
       discarded_by: column.text,
+      // Whether the guardian reads the row (issue 1018). The server owns it; nullable: a device that has not synced it yet knows nothing.
+      guardian_visible: column.integer,
     },
     { indexes: { series: ['series_id'] } },
   ),
