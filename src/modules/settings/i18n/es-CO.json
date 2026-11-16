@@ -52,6 +52,8 @@
       },
       "audio_label": "Grabar con audio",
       "audio_hint": "Sin audio, la app no pide permiso para usar el micrófono.",
+      "show_stopwatch_label": "Mostrar el cronómetro en el video",
+      "show_stopwatch_hint": "El video queda grabado con el tiempo corriendo, los parciales y la prueba, para verlo como guía en la Galería o al compartirlo.",
       "start_with_time_label": "Iniciar grabación y tiempo con el mismo botón",
       "start_with_time_hint": "Con Sí, Iniciar arranca el video y el cronómetro a la vez; puede faltar el primer medio segundo del video, pero el tiempo no cambia. Con No, primero se graba y después se inicia el tiempo.",
       "stop_after_label": "Parar el video después de detener el reloj",

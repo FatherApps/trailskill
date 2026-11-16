@@ -65,7 +65,7 @@ describe('SettingsContainer video recording', () => {
     await waitFor(async () => expect((await repository.load()).videoRecording.quality).toBe('high'));
     await fireEvent.press(within(screen.getByLabelText('Parar el video después de detener el reloj')).getByText('10 s'));
     await waitFor(async () =>
-      expect((await repository.load()).videoRecording).toEqual({ quality: 'high', audio: true, startWithTime: false, stopAfterSeconds: 10 }),
+      expect((await repository.load()).videoRecording).toEqual({ quality: 'high', audio: true, showStopwatch: true, startWithTime: false, stopAfterSeconds: 10 }),
     );
   });
 });

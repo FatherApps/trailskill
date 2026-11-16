@@ -173,6 +173,14 @@ function VideoSettings({ view }: { view: SettingsVideoView }) {
           options={onOff}
         />
       </Section>
+      <Section label={t('settings.video.show_stopwatch_label')} hint={t('settings.video.show_stopwatch_hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.video.show_stopwatch_label')}
+          value={settings.showStopwatch ? 'on' : 'off'}
+          onChange={(value) => view.onChange({ showStopwatch: value === 'on' })}
+          options={onOff}
+        />
+      </Section>
       <Section label={t('settings.video.start_with_time_label')} hint={t('settings.video.start_with_time_hint')}>
         <Segmented
           accessibilityLabel={t('settings.video.start_with_time_label')}

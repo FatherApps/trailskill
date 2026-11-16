@@ -11,8 +11,11 @@ export type TimingButtonPreferences = { enabled: boolean; startKey: number; spli
 
 export type VideoQuality = 'low' | 'medium' | 'high';
 
-/** Recording the individual stopwatch on video: quality, sound, one button for recording and time, and how long the video keeps going after the clock stops. */
-export type VideoRecordingPreferences = { quality: VideoQuality; audio: boolean; startWithTime: boolean; stopAfterSeconds: number };
+/**
+ * Recording the individual stopwatch on video: quality, sound, the stopwatch drawn into the video, one button for recording
+ * and time, and how long the video keeps going after the clock stops.
+ */
+export type VideoRecordingPreferences = { quality: VideoQuality; audio: boolean; showStopwatch: boolean; startWithTime: boolean; stopAfterSeconds: number };
 
 export type Preferences = { themeMode: ThemeMode; timePrecision: TimePrecision; timingButtons: TimingButtonPreferences; videoRecording: VideoRecordingPreferences };
 
@@ -20,7 +23,7 @@ export type Preferences = { themeMode: ThemeMode; timePrecision: TimePrecision; 
 export const defaultTimingButtons: TimingButtonPreferences = { enabled: true, startKey: 24, splitKey: 25, lockoutSeconds: 3, vibrate: true };
 
 // 720p plays well on most phones; a person picks 1080p in Ajustes when their phone can take it.
-export const defaultVideoRecording: VideoRecordingPreferences = { quality: 'medium', audio: true, startWithTime: false, stopAfterSeconds: 5 };
+export const defaultVideoRecording: VideoRecordingPreferences = { quality: 'medium', audio: true, showStopwatch: true, startWithTime: false, stopAfterSeconds: 5 };
 
 export const defaultPreferences: Preferences = {
   themeMode: 'system',
@@ -72,6 +75,7 @@ function parseVideoRecording(raw: unknown): VideoRecordingPreferences {
   return {
     quality: videoQualities.find((q) => q === value.quality) ?? d.quality,
     audio: typeof value.audio === 'boolean' ? value.audio : d.audio,
+    showStopwatch: typeof value.showStopwatch === 'boolean' ? value.showStopwatch : d.showStopwatch,
     startWithTime: typeof value.startWithTime === 'boolean' ? value.startWithTime : d.startWithTime,
     stopAfterSeconds: videoStopAfterSeconds.find((s) => s === value.stopAfterSeconds) ?? d.stopAfterSeconds,
   };

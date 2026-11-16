@@ -124,7 +124,9 @@ describe('SettingsScreen video recording', () => {
     await fireEvent.press(screen.getByText('Alta 1080p'));
     await fireEvent.press(within(screen.getByLabelText('Parar el video después de detener el reloj')).getByText('10 s'));
     await fireEvent.press(within(screen.getByLabelText('Grabar con audio')).getByText('No'));
+    await fireEvent.press(within(screen.getByLabelText('Mostrar el cronómetro en el video')).getByText('No'));
     expect(onChange).toHaveBeenCalledWith({ audio: false });
+    expect(onChange).toHaveBeenCalledWith({ showStopwatch: false });
     expect(onChange).toHaveBeenCalledWith({ quality: 'high' });
     expect(onChange).toHaveBeenCalledWith({ stopAfterSeconds: 10 });
   });
