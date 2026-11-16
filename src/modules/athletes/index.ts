@@ -1,4 +1,5 @@
 import './i18n';
+import type { GalleryEntry } from '../../core/ui';
 
 export { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHeader';
 export { EventSelector, type EventSelectorProps, type EventValue } from './components/EventSelector';
@@ -18,7 +19,9 @@ export {
   type AthleteProfileScreenProps,
   type AthleteProfileView,
 } from './screens/AthleteProfileScreen';
-export { galleryEntries } from './gallery';
+// Dev only: Metro drops this require from release bundles (issue 1040).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- a static import would bundle the gallery in release builds
+export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : [];
 export type { HistoryMeasurement, HistoryRepository } from './data/history';
 export {
   createInMemorySchoolAthleteRepository,

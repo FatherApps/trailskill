@@ -1,4 +1,5 @@
 import './i18n';
+import type { GalleryEntry } from '../../core/ui';
 
 export { ConsoleNav, type ConsoleDestinationId, type ConsoleNavProps } from './components/ConsoleNav';
 export { SideSheet, type SideSheetProps } from './components/SideSheet';
@@ -94,7 +95,9 @@ export {
   type GuardianRecordsRepository,
   type GuardianSharingRepository,
 } from './data/guardianSharing';
-export { galleryEntries } from './gallery';
+// Dev only: Metro drops this require from release bundles (issue 1040).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- a static import would bundle the gallery in release builds
+export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : [];
 export { createInMemoryStaffSchoolRepository, createPowerSyncStaffSchoolRepository } from './data/staffSchools';
 export type { StaffMembershipRow, StaffSchool, StaffSchoolRepository } from './data/staffSchools';
 export {

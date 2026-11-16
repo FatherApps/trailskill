@@ -1,4 +1,5 @@
 import './i18n';
+import type { GalleryEntry } from '../../core/ui';
 
 export { AccountDetailsScreen, type AccountDetailsField, type AccountDetailsScreenProps } from './screens/AccountDetailsScreen';
 export { SignInScreen, type SignInField, type SignInScreenProps } from './screens/SignInScreen';
@@ -31,7 +32,9 @@ export { ExistingAccountSheet, type ExistingAccountSheetProps } from './componen
 export { LEGAL_REVIEW_PENDING } from './legalReview';
 export { AddAthletesScreen, type AddAthleteField, type AddAthletesScreenProps, type AddedAthlete } from './screens/AddAthletesScreen';
 export { AddAthletesContainer, type AddAthletesContainerProps, } from './screens/AddAthletesContainer';
-export { galleryEntries } from './gallery';
+// Dev only: Metro drops this require from release bundles (issue 1040).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- a static import would bundle the gallery in release builds
+export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : [];
 export {
   createInMemoryAuthorizationStatusRepository,
   createPowerSyncAuthorizationStatusRepository,

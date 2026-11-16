@@ -1,4 +1,5 @@
 import './i18n';
+import type { GalleryEntry } from '../../core/ui';
 
 export { BlockCard, type BlockCardProps } from './components/BlockCard';
 export { FulfillmentGrid, type FulfillmentGridProps } from './components/FulfillmentGrid';
@@ -31,7 +32,9 @@ export { PlanEditorScreen, type PlanEditorScreenProps } from './screens/PlanEdit
 export { PlansScreen, type PlansScreenProps } from './screens/PlansScreen';
 export { PlanListScreen, type PlanListScreenProps, type PlanListView } from './screens/PlanListScreen';
 export { planVocabulary } from './vocabulary';
-export { galleryEntries } from './gallery';
+// Dev only: Metro drops this require from release bundles (issue 1040).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- a static import would bundle the gallery in release builds
+export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : [];
 export { createInMemoryTrainingPlanRepository, type InMemoryTrainingPlanRepository } from './data/inMemoryTrainingPlanRepository';
 export { createPowerSyncTrainingPlanRepository } from './data/powerSyncTrainingPlanRepository';
 export { BlockHasFulfillmentError } from './data/plans';
