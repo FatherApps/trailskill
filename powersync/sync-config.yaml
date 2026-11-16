@@ -8,7 +8,8 @@
 # school-console_coach_assignment_school, timing_admin_measurement_conflicts,
 # training-plans_notices, results-import_provenance,
 # accounts_admin_reads_adult_profiles, family-timing_measurements,
-# timing_guardian_school_times_sharing, timing_coach_reads_assignment_school):
+# timing_guardian_school_times_sharing, timing_coach_reads_assignment_school,
+# training-plans_coach_reads_fulfillments_assignment_school):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -157,8 +158,10 @@ streams:
     queries:
       # Guardians and adult athletes also get the marks hidden after a withdrawal; everyone else does not.
       - SELECT * FROM training_plan_fulfillments WHERE athlete_id IN managed_athlete_ids
-      - SELECT * FROM training_plan_fulfillments WHERE athlete_id IN coach_direct_athlete_ids AND hidden = false AND assignment_id IN (SELECT id FROM training_plan_assignments WHERE school_id IN member_school_ids)
-      - SELECT * FROM training_plan_fulfillments WHERE athlete_id IN coach_group_athlete_ids AND hidden = false AND assignment_id IN (SELECT id FROM training_plan_assignments WHERE school_id IN member_school_ids)
+      # A coach gets a fulfillment only for a swimmer assigned in the school of its assignment, directly or through a
+      # group of that school (#1127), so the joins bind swimmer and school, as timing_measurements does (#1122).
+      - SELECT training_plan_fulfillments.* FROM training_plan_fulfillments JOIN training_plan_assignments ON training_plan_fulfillments.assignment_id = training_plan_assignments.id JOIN coach_athlete_assignments ON training_plan_fulfillments.athlete_id = coach_athlete_assignments.athlete_id AND training_plan_assignments.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND training_plan_fulfillments.hidden = false AND training_plan_assignments.school_id IN member_school_ids
+      - SELECT training_plan_fulfillments.* FROM training_plan_fulfillments JOIN training_plan_assignments ON training_plan_fulfillments.assignment_id = training_plan_assignments.id JOIN athlete_groups ON training_plan_fulfillments.athlete_id = athlete_groups.athlete_id JOIN training_groups ON athlete_groups.group_id = training_groups.id AND training_plan_assignments.school_id = training_groups.school_id WHERE athlete_groups.group_id IN coach_group_ids AND training_plan_fulfillments.hidden = false AND training_plan_assignments.school_id IN member_school_ids
       - SELECT * FROM training_plan_fulfillments WHERE athlete_id IN admin_athlete_ids AND hidden = false
 
   # Notes of guardians and adult athletes on a session. Only the people who manage

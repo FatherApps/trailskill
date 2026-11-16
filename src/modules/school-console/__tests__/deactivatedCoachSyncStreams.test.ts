@@ -61,10 +61,15 @@ test("a coach gets the school, group and mark rows of an athlete only in their a
     expect(visible).toContain(
       `SELECT * FROM athlete_groups WHERE athlete_id IN ${source} AND group_id IN member_group_ids`,
     );
-    expect(marks).toContain(
-      `SELECT * FROM training_plan_fulfillments WHERE athlete_id IN ${source} AND hidden = false AND assignment_id IN (SELECT id FROM training_plan_assignments WHERE school_id IN member_school_ids)`,
-    );
   }
+  // The fulfillment coach queries bind the swimmer to the assignment school since issue 1127 and stay limited to active schools through member_school_ids.
+  const coachMarks = marks.filter((query) => query.includes("coach_"));
+  expect(coachMarks).toHaveLength(2);
+  expect(
+    coachMarks.every((query) =>
+      query.endsWith("AND training_plan_assignments.school_id IN member_school_ids"),
+    ),
+  ).toBe(true);
   // No query gives the coach sources an athlete's school or group rows without the school filter.
   expect(
     visible
