@@ -32,6 +32,7 @@ export {
 } from './screens/AthletesScreen';
 export { AthletesSection, type AthletesSectionProps } from './screens/AthletesSection';
 export { ConsoleScreen, type ConsoleScreenProps, type ConsoleSectionProps } from './screens/ConsoleScreen';
+export { ConsoleFrame, type ConsoleFrameProps } from './screens/ConsoleFrame';
 export { EmptySectionScreen, type EmptySectionScreenProps } from './screens/EmptySectionScreen';
 export { useAdminSchool, useCoachSchool, useStaffSchool, type AdminSchoolResult, type CoachSchoolResult, type StaffSchoolResult } from './data/useAdminSchool';
 export { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from './screens/CoachesScreen';

@@ -1,4 +1,4 @@
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../core/i18n';
@@ -45,6 +45,8 @@ const guardianSharing = { repository: createSupabaseGuardianSharingRepository(),
 
 export default function ConsoleRoute() {
   const router = useRouter();
+  // A plan route sends the admin back here with the section to open; `at` changes on every press, so the same section opens again.
+  const { section, at } = useLocalSearchParams<{ section?: string; at?: string }>();
   const { session } = useSession();
   const { width } = useWindowDimensions();
   const { colors, space } = useTheme();
@@ -82,6 +84,8 @@ export default function ConsoleRoute() {
   const schoolId = access.school.id;
   return (
     <ConsoleScreen
+      key={at}
+      initialSection={section}
       width={width}
       schoolName={access.school.name}
       onOpenPlans={() => router.push('/plans')}
