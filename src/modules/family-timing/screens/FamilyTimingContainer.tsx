@@ -66,6 +66,8 @@ import {
   type FamilyTimingView,
 } from './FamilyTimingScreen';
 import type { FamilyTimingNoticeStore } from '../data/noticeSeen';
+import type { VideoCamera } from '../data/videoCamera';
+import { VideoStopwatchContainer } from './VideoStopwatchContainer';
 import '../i18n';
 
 const KEEP_AWAKE_TAG = 'family-timing';
@@ -91,6 +93,8 @@ export type FamilyTimingContainerProps = {
   syncKey?: number;
   // Remembers that the notice was seen, so it shows on the first visit only. Without it the notice always shows.
   notice?: FamilyTimingNoticeStore;
+  // The rear camera and the gallery for the stopwatch with video (#1088); without it «Grabar» is not offered.
+  videoCamera?: VideoCamera | null;
 };
 
 const targetOf = (sw: FamilyStopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
@@ -141,7 +145,8 @@ const swimmerCounts = Array.from({ length: MAX_SWIMMERS - MIN_SWIMMERS + 1 }, (_
 type Step =
   | { kind: 'list' }
   | { kind: 'setup' }
-  | { kind: 'stopwatch'; saveError: boolean }
+  | { kind: 'stopwatch'; saveError: boolean; videoNotice?: 'denied' | 'cancelled' }
+  | { kind: 'video' }
   | { kind: 'series' }
   | { kind: 'series_assign'; lanes: Lane[]; saveError: boolean }
   | { kind: 'official'; id: string; text: string; invalid: boolean }
@@ -209,6 +214,8 @@ const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice } = props;
+  // The video draws the stopwatch from the buttons' clock, so recording needs the native clock too.
+  const videoCamera = props.videoCamera && buttons.available ? props.videoCamera : null;
   const now = props.now ?? buttons.now;
   const { preferences } = usePreferences();
   const buttonPrefs = preferences.timingButtons;
@@ -601,24 +608,31 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     }
   }
 
+  // The time as the stopwatch measured it, ready for Mis tiempos; the same with or without video.
+  const measurementOf = (sw: FamilyStopwatch): FamilyMeasurement | null =>
+    sw.status !== 'stopped' || !setup.pool
+      ? null
+      : {
+          id: randomUUID(),
+          athleteId: athleteOfSelected,
+          createdBy: userId,
+          stroke: setup.stroke,
+          distance: setup.distance,
+          pool: setup.pool,
+          sessionType: setup.sessionType,
+          competition: setup.sessionType === 'competition' && setup.competition.trim() ? setup.competition.trim() : null,
+          capturedAt: new Date().toISOString(),
+          millis: finalMillis(sw),
+          splits: splitMillis(sw),
+          officialMillis: null,
+          officialSetAt: null,
+        };
+
   async function save() {
     if (saving.current || stopwatch.status !== 'stopped' || !selectedId || !setup.pool) return;
+    const measurement = measurementOf(stopwatch);
+    if (!measurement) return;
     saving.current = true;
-    const measurement: FamilyMeasurement = {
-      id: randomUUID(),
-      athleteId: athleteOfSelected,
-      createdBy: userId,
-      stroke: setup.stroke,
-      distance: setup.distance,
-      pool: setup.pool,
-      sessionType: setup.sessionType,
-      competition: setup.sessionType === 'competition' && setup.competition.trim() ? setup.competition.trim() : null,
-      capturedAt: new Date().toISOString(),
-      millis: finalMillis(stopwatch),
-      splits: splitMillis(stopwatch),
-      officialMillis: null,
-      officialSetAt: null,
-    };
     try {
       await repository.add(measurement);
       goToList();
@@ -702,6 +716,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         event: eventLabel({ ...setup, pool: setup.pool ?? '' }),
         noTime: stopwatch.status === 'stopped' && finalMillis(stopwatch) === null,
         buttonsHint: keys.active ? buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keys.keyboards[0]?.name) : null,
+        canRecord: Boolean(videoCamera) && stopwatch.status === 'idle',
+        videoNotice: step.videoNotice ? t(`family_timing.video.${step.videoNotice}`) : null,
       },
     };
   } else if (step.kind === 'series') {
@@ -805,6 +821,35 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   }
   else view = listView();
 
+  if (step.kind === 'video' && videoCamera && setup.pool) {
+    return (
+      <VideoStopwatchContainer
+        event={eventLabel({ ...setup, pool: setup.pool })}
+        laps={laps}
+        now={now}
+        buttons={buttons}
+        camera={videoCamera}
+        buttonsHint={(keyboard) => buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keyboard)}
+        saveTime={async (sw) => {
+          const measurement = measurementOf(sw);
+          if (!measurement) throw new Error('The stopwatch is not stopped');
+          await repository.add(measurement);
+          return measurement.id;
+        }}
+        onClose={(result) => {
+          if (result === 'saved') {
+            goToList();
+            setReload((n) => n + 1);
+          } else if (result === 'discarded') goToList();
+          else {
+            setStopwatch(idleFamilyStopwatch);
+            setStep({ kind: 'stopwatch', saveError: false, videoNotice: result });
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <FamilyTimingScreen
       view={view}
@@ -851,6 +896,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       onSaveSeries={saveSeries}
       onCancel={goToList}
       onStart={() => setStopwatch((sw) => startAt(sw, now()))}
+      onOpenVideo={() => {
+        if (!videoCamera || stopwatch.status !== 'idle') return;
+        setStep({ kind: 'video' });
+      }}
       onSplit={() => setStopwatch((sw) => splitAt(sw, now(), laps))}
       onStop={() => setStopwatch((sw) => stopAt(sw, now()))}
       onSave={save}

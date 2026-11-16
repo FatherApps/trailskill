@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { createInMemoryPreferencesRepository, defaultPreferences, PreferencesProvider } from '../../../core/preferences';
 import { createFakeTimingButton } from '../../timing';
 import { createInMemoryFamilyMeasurementRepository, type FamilyMeasurement } from '../data/familyMeasurements';
+import { createFakeVideoCamera } from '../data/videoCamera';
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
 jest.mock('../../../core/sync', () => ({ db: {}, useRecordSyncStates: () => new Map() }));
@@ -220,5 +221,47 @@ describe('FamilyTimingContainer with the timing buttons', () => {
     const { fake } = await withButtons();
     await act(async () => fake.connect([{ id: 7, name: 'USB Headset' }]));
     expect(screen.getByText('Botones: USB Headset · Subir volumen (+) inicia y detiene · Bajar volumen (−) marca el lap')).toBeTruthy();
+  });
+});
+
+describe('FamilyTimingContainer with the video camera', () => {
+  async function open(withCamera: boolean) {
+    const fake = createFakeTimingButton(ms(10_000));
+    const video = createFakeVideoCamera();
+    const repository = createInMemoryFamilyMeasurementRepository();
+    await render(
+      <PreferencesProvider repository={createInMemoryPreferencesRepository({ ...defaultPreferences, timePrecision: 'thousandths' })}>
+        <FamilyTimingContainer
+          userId="u1"
+          athletes={athletes}
+          repository={repository}
+          buttons={fake.port}
+          videoCamera={withCamera ? video.camera : null}
+          onBack={jest.fn()}
+        />
+      </PreferencesProvider>,
+    );
+    await fireEvent.press(await screen.findByText('Medir un tiempo'));
+    await fireEvent.press(screen.getByText('Piscina de 25 m'));
+    await fireEvent.press(screen.getByText('Ir al cronómetro'));
+    return video;
+  }
+
+  it('keeps the stopwatch as it is when the phone has no camera module', async () => {
+    await open(false);
+    expect(screen.getByText('Iniciar')).toBeTruthy();
+    expect(screen.queryByText('Grabar')).toBeNull();
+    expect(screen.queryByText('Abre la cámara con el cronómetro')).toBeNull();
+  });
+
+  it('adds Grabar beside Iniciar and opens the camera', async () => {
+    const video = await open(true);
+    expect(screen.getByText('Iniciar')).toBeTruthy();
+    expect(screen.getByText('Abre la cámara con el cronómetro')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Grabar'));
+    await waitFor(() => expect(video.state.audioAsked).toEqual([true]));
+    // The camera screen: the clock waits for the video.
+    expect(await screen.findByText(/Primero toca Grabar/)).toBeTruthy();
+    expect(screen.queryByText('Abre la cámara con el cronómetro')).toBeNull();
   });
 });

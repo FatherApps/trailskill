@@ -23,6 +23,17 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-secure-store',
+    // The individual stopwatch with video (#1088): saving the videos to the gallery. The camera and microphone
+    // permissions come with the local module modules/video-recorder.
+    [
+      'expo-media-library',
+      {
+        photosPermission: 'TrailSkill revisa si el video de un tiempo sigue en tu galería.',
+        savePhotosPermission: 'TrailSkill guarda en tu galería los videos que grabas con el cronómetro.',
+        isAccessMediaLocationEnabled: false,
+        granularPermissions: ['video'],
+      },
+    ],
     [
       'expo-splash-screen',
       {

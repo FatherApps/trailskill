@@ -46,7 +46,9 @@
       "no_time": "El tiempo quedó sin valor: detuviste en el mismo instante de la salida.",
       "buttons": "{{start}} inicia y detiene · {{split}} marca el lap",
       "buttons_start_only": "{{start}} inicia y detiene",
-      "buttons_device": "Botones: {{device}}"
+      "buttons_device": "Botones: {{device}}",
+      "record": "Grabar",
+      "record_hint": "Abre la cámara con el cronómetro"
     },
     "card": {
       "captured": "Medido",
@@ -172,6 +174,22 @@
       "help": "Hay más de un resultado oficial de esta prueba ese día. Elige el que va con este tiempo; cada resultado va con un solo tiempo.",
       "option": "{{time}} · {{detail}}",
       "error": "No pudimos guardar la elección. Inténtalo de nuevo."
+    },
+    "video": {
+      "camera": "Cámara",
+      "back": "Volver",
+      "asking": "Pidiendo permiso para usar la cámara…",
+      "record": "Grabar",
+      "stop_recording": "Parar video",
+      "camera_starting": "La cámara está encendiendo",
+      "record_first": "Primero toca Grabar",
+      "start_both": "Iniciar y grabar",
+      "recording": "Grabando {{time}}",
+      "calls_hint": "Activa «No molestar» para que una llamada no corte la toma. Si contestas una llamada, se cancelan el tiempo y el video.",
+      "low_space": "Queda poco espacio en el teléfono: el video puede cortarse.",
+      "saving_video": "Tiempo guardado. El video termina de grabar y se guarda en la Galería.",
+      "denied": "Sin permiso para usar la cámara y guardar videos no se puede grabar. Puedes darlo en los ajustes del teléfono.",
+      "cancelled": "Se cancelaron el tiempo y el video porque la app dejó de estar en pantalla (por ejemplo, al contestar una llamada)."
     }
   }
 }
