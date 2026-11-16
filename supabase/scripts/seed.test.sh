@@ -116,6 +116,15 @@ begin
     = array['00000000-0000-4000-8000-0000000000e4']
     and (select count(*) from public.measurement_conflicts) = 1,
     'coach reads exactly the one open demo conflict (#1125)';
+  -- The screen names both authors from adult_profiles (#1130): demo-coach wrote the stored and the received version.
+  assert (select c.current_by = '00000000-0000-4000-8000-000000000001'
+                 and c.incoming_by = '00000000-0000-4000-8000-000000000001'
+          from public.measurement_conflicts c),
+    'the demo conflict authors are demo-coach';
+  assert (select count(*) from public.measurement_conflicts c
+          where exists (select 1 from public.adult_profiles p where p.user_id = c.current_by)
+            and exists (select 1 from public.adult_profiles p where p.user_id = c.incoming_by)) = 1,
+    'coach reads the profile of both authors of the demo conflict';
 end;
 $$;
 
@@ -147,6 +156,12 @@ begin
     = array['00000000-0000-4000-8000-0000000000e4']
     and (select count(*) from public.measurement_conflicts) = 1,
     'school admin reads exactly the one open demo conflict (#1125)';
+  assert (select count(*) from public.measurement_conflicts c
+          where exists (select 1 from public.adult_profiles p
+                        where p.user_id = c.current_by and btrim(p.first_name || p.last_name) <> '')
+            and exists (select 1 from public.adult_profiles p
+                        where p.user_id = c.incoming_by and btrim(p.first_name || p.last_name) <> '')) = 1,
+    'school admin reads a named profile for both authors of the demo conflict (#1130)';
   -- Two different versions of one demo time, and the stored time is the current one.
   assert (select c.current_values -> 'hundredths' is distinct from c.incoming_values -> 'hundredths'
                  and (c.current_values ->> 'hundredths')::int = m.hundredths
@@ -221,6 +236,8 @@ begin
   assert not exists (select 1 from public.measurement_conflicts
                      where id = '00000000-0000-4000-8000-0000000000e4'), 'the demo conflict removed';
   assert not exists (select 1 from auth.users where email like 'demo-%@example.test'), 'accounts removed';
+  assert not exists (select 1 from public.adult_profiles where user_id = '00000000-0000-4000-8000-000000000001'),
+    'the demo coach profile removed';
   assert not exists (select 1 from public.organizations
                      where id in ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000102')),
     'organizations removed';

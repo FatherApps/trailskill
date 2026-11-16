@@ -77,6 +77,12 @@ insert into public.school_memberships (school_id, user_id, role) values
   ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-000000000003', 'school_admin')
 on conflict do nothing;
 
+-- The coach has a profile, so the conflicts review screen (#1125) names the author of both versions (#1130).
+-- The school admin reads it through app.school_admin_adult_ids(); no other demo account can author a time edit.
+insert into public.adult_profiles (user_id, first_name, last_name)
+values ('00000000-0000-4000-8000-000000000001', 'Demo', 'Coach')
+on conflict do nothing;
+
 -- The coach trains Group A only.
 insert into public.coach_group_assignments (coach_user_id, group_id)
 values ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000b1')
