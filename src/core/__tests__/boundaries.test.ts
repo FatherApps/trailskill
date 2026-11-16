@@ -21,10 +21,13 @@ const files = [
   'src/modules/timing/index.ts',
   'src/modules/timing/screens/x.ts',
   'src/core/theme/colors.ts',
+  'src/core/cycle/a.ts',
+  'src/core/cycle/b.ts',
 ];
 
 let root: string;
 let eslint: ESLint;
+let cycleEslint: ESLint;
 let cwd: jest.SpyInstance;
 
 beforeAll(() => {
@@ -34,9 +37,18 @@ beforeAll(() => {
     fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     fs.writeFileSync(path.join(root, file), 'export const x = 1;\n');
   }
+  // A real two-file loop: import/no-cycle reads the dependency graph from disk, so it needs files that exist.
+  fs.writeFileSync(path.join(root, 'src/core/cycle/a.ts'), "import { b } from './b';\nexport const a = () => b;\n");
+  fs.writeFileSync(path.join(root, 'src/core/cycle/b.ts'), "import { a } from './a';\nexport const b = () => a;\n");
   // The rule resolves its zones against process.cwd().
   cwd = jest.spyOn(process, 'cwd').mockReturnValue(root);
   eslint = new ESLint({
+    cwd: root,
+    overrideConfigFile: true,
+    // import/no-cycle cannot lint a snippet that is not on disk, so the snippet cases turn it off and the cycle case below keeps it on.
+    baseConfig: [...eslintConfig, { settings: { react: { version: '19' } } }, { rules: { 'import/no-cycle': 'off' as const } }],
+  });
+  cycleEslint = new ESLint({
     cwd: root,
     overrideConfigFile: true,
     baseConfig: [...eslintConfig, { settings: { react: { version: '19' } } }],
@@ -106,6 +118,34 @@ describe('module boundaries', () => {
 
     it('passes on src/core', async () => {
       expect(await violations(from, '../core/theme/colors')).toEqual([]);
+    });
+  });
+
+  describe('src/__tests__ importing', () => {
+    const from = 'src/__tests__/a.test.ts';
+
+    it('fails on a module internal', async () => {
+      await expectBoundaryViolation(from, '../modules/timing/screens/x', MODULE_MSG);
+    });
+
+    it('passes on a module index.ts', async () => {
+      expect(await violations(from, '../modules/timing')).toEqual([]);
+    });
+
+    it('passes on src/core', async () => {
+      expect(await violations(from, '../core/theme/colors')).toEqual([]);
+    });
+  });
+
+  describe('import cycles', () => {
+    it('fails on a file that imports back the file that imports it', async () => {
+      const [result] = await cycleEslint.lintFiles([path.join(root, 'src/core/cycle/a.ts')]);
+      expect(result.messages.map((m) => m.ruleId)).toContain('import/no-cycle');
+    });
+
+    it('passes on a file without a loop', async () => {
+      const [result] = await cycleEslint.lintFiles([path.join(root, 'src/core/theme/colors.ts')]);
+      expect(result.messages.map((m) => m.ruleId)).not.toContain('import/no-cycle');
     });
   });
 });

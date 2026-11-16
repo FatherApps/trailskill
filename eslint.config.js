@@ -38,15 +38,18 @@ module.exports = defineConfig([
           zones: [
             ...otherModules,
             { target: './src/core', from: './src/modules', message: 'src/core must not import modules.' },
-            ...modules.map((m) => ({
-              target: './src/app',
-              from: `./src/modules/${m}`,
-              except: indexOnly,
-              message: 'src/app may use a module only through its index.ts.',
-            })),
+            ...['./src/app', './src/__tests__'].flatMap((target) =>
+              modules.map((m) => ({
+                target,
+                from: `./src/modules/${m}`,
+                except: indexOnly,
+                message: `${target} may use a module only through its index.ts.`,
+              })),
+            ),
           ],
         },
       ],
+      'import/no-cycle': 'error',
     },
   },
   {

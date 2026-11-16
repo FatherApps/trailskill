@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { act } from 'react';
 
 import AppLayout from '../app/(app)/_layout';
-import { setFamilyTimingAtList } from '../modules/family-timing/screens/familyTimingAtList';
+import { setFamilyTimingAtList } from '../modules/family-timing';
 import { iconPaths } from '../core/ui/icons';
 
 // Avoid loading the native PowerSync database.

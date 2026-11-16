@@ -1,8 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { i18n } from '..';
-import { namedText, trimName } from '../namedText';
+import { i18n, namedText, trimName } from '..';
 
 // Every module that uses `namedText` adds its source folder and its catalog here. The catalogs are read as files:
 // `src/core` never imports a module, so the keys are checked in the module's own `i18n/es-CO.json`.
