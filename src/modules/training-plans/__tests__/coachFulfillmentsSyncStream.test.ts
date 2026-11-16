@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// The staff queries of training_plans_fulfillments mirror the coach branch of training_plan_fulfillments_select (#1127):
-// a coach gets a fulfillment only for a swimmer assigned in the school of the fulfillment's assignment. The pgTAP test
+// The staff queries of training_plans_fulfillments mirror the coach (#1127) and admin (#1132) branches of
+// training_plan_fulfillments_select: staff get a fulfillment only for a swimmer of theirs in the school of the
+// fulfillment's assignment. The pgTAP test
 // supabase/tests/database/training-plans/coach_fulfillments_assignment_school.test.sql (pg_temp.staff_stream_ids) holds
 // a copy of them: change both together.
 const config = readFileSync(
@@ -42,11 +43,21 @@ test("no line of the file, quoted or elsewhere, reads training_plan_fulfillments
   expect(lines).toEqual([]);
 });
 
-test("the guardian and adult athlete query and the admin query are unchanged", () => {
+test("the guardian and adult athlete query is unchanged", () => {
   expect(streamQueries.filter((query) => /\bmanaged_athlete_ids\b/.test(query))).toEqual([
     "SELECT * FROM training_plan_fulfillments WHERE athlete_id IN managed_athlete_ids",
   ]);
-  expect(streamQueries.filter((query) => /\badmin_athlete_ids\b/.test(query))).toEqual([
-    "SELECT * FROM training_plan_fulfillments WHERE athlete_id IN admin_athlete_ids AND hidden = false",
+});
+
+// A school admin gets a fulfillment only for a swimmer of their school and an assignment of that same school (#1132).
+test("the admin query binds the swimmer's school to the school of the assignment", () => {
+  expect(streamQueries.filter((query) => /\badmin_(athlete|school)_ids\b/.test(query))).toEqual([
+    "SELECT training_plan_fulfillments.* FROM training_plan_fulfillments JOIN training_plan_assignments ON training_plan_fulfillments.assignment_id = training_plan_assignments.id JOIN athlete_schools ON training_plan_fulfillments.athlete_id = athlete_schools.athlete_id AND training_plan_assignments.school_id = athlete_schools.school_id WHERE training_plan_assignments.school_id IN admin_school_ids AND training_plan_fulfillments.hidden = false",
   ]);
+});
+
+test("no line of the file reads training_plan_fulfillments by the admin athlete ids that carry no school", () => {
+  const lines = config.split("\n").filter((line) => /\badmin_athlete_ids\b/.test(line) && /FROM training_plan_fulfillments\b/.test(line));
+
+  expect(lines).toEqual([]);
 });
