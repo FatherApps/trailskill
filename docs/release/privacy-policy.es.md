@@ -22,6 +22,11 @@ Esta política cubre a quienes usan Swimcro: familias (acudientes), deportistas 
 | Número de identificación del deportista (opcional) | Deportista | Importar sus resultados oficiales cuando la familia lo autoriza |
 | Escuela, categoría y grupo del deportista; quién lo acompaña como acudiente o entrenador | Deportista, acudiente, personal de la escuela | Organizar la escuela y decidir quién puede ver qué |
 | Tiempos de entrenamientos y competencias (estilo, distancia, piscina, fecha y hora de captura) | Deportista | Su historial y su evolución |
+| Tiempos que una familia o un deportista adulto mide por su cuenta («Mis tiempos»), con parciales y, si lo escribe, el tiempo oficial | Acudiente o deportista adulto | Su historial personal; solo lo ve quien lo midió |
+| Código para compartir de cada deportista y registro de las consultas de un código (quién, cuándo y si coincidió; se conserva un día) | Deportista, usuario que consulta | Que otra familia pueda enviar tiempos medidos para ese deportista, y limitar los intentos fallidos |
+| Tiempos enviados a otra familia (copia del tiempo, quién lo envía, a qué deportista y si se aceptó) | Deportista, acudiente que envía | Entregar el tiempo a la familia que lo acepta; una solicitud sin respuesta se cierra a los 30 días |
+| Correo de un entrenador invitado, estado de la invitación, vencimiento (14 días) y quién la aceptó | Entrenador invitado | Que solo esa persona entre como entrenador de la escuela; solo lo leen los administradores de la escuela |
+| Enlace de invitación de una familia (contiene un código aleatorio, sin nombre ni correo) | Familia invitada | Que la familia cree el perfil de su deportista en la escuela |
 | Entrenamientos planificados y si se cumplieron | Deportista | Seguimiento del entrenamiento |
 | Notas que escribe una familia sobre una sesión (hasta 500 caracteres) | Deportista | Comunicarse con el entrenador sobre esa sesión |
 | Autorizaciones que se aceptan o se retiran, con el texto, su versión y la fecha | Acudiente o deportista adulto | Dejar constancia de qué se autorizó y para qué |
@@ -45,9 +50,10 @@ Para cada deportista, el acudiente (o el propio deportista adulto) acepta de for
 
 ## 6. Con quién se comparten los datos
 
-- **Escuela del deportista:** su personal ve los datos de los deportistas de su escuela, según su rol (administrador o entrenador). Compartir los resultados con la escuela requiere su propia autorización.
+- **Escuela del deportista:** su personal ve los datos de los deportistas de su escuela, según su rol (administrador o entrenador), y los administradores ven además el nombre y el correo de contacto de los acudientes de sus deportistas y de los entrenadores de la escuela. Compartir los resultados con la escuela requiere su propia autorización: la familia ve un tiempo de la escuela solo si la escuela lo comparte con ella. Un entrenador al que la escuela desactiva deja de ver los datos de esa escuela.
+- **Otra familia:** si un acudiente da el código de su deportista a otra familia, esa familia solo ve el nombre corto del deportista («Ana M.»), y puede enviarle tiempos que el acudiente decide aceptar. Puede cambiar el código en cualquier momento, y el anterior deja de servir.
 - **Fuente de resultados oficiales:** si se usa «Importar resultados oficiales», enviamos el nombre del deportista y, si la familia lo registró, su número de identificación a la fuente oficial que se elija para buscar sus resultados, solo con autorización. PENDIENTE de revisión legal: confirmar cómo se describe esta transferencia.
-- **Proveedores de servicios:** el alojamiento de los datos y el envío del correo con el código se hacen con proveedores que tratan los datos por nuestra cuenta y solo para prestar el servicio. PENDIENTE: nombrar a los proveedores y el país donde se alojan los datos.
+- **Proveedores de servicios:** el alojamiento de los datos y el envío del correo con el código se hacen con proveedores que tratan los datos por nuestra cuenta y solo para prestar el servicio. El correo con el código lo envía Resend (confirmado por el maintainer el 2026-11-15). Si la persona ingresa con Google, Google le pide autorización y nos entrega su correo (y su nombre, si lo devuelve). PENDIENTE: nombrar al proveedor de alojamiento y el país donde se alojan los datos, y revisar con la asesoría legal los términos de cada proveedor.
 
 No compartimos datos con nadie más, salvo que una autoridad competente lo exija conforme a la ley.
 

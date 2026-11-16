@@ -90,32 +90,60 @@ Complete before the first closed-track release and keep up to date:
 
 ## First internal testing release
 
-Step by step for the maintainer, to put the first build in front of testers on the Play **Internal testing** track. Agents prepare this page and the drafts in [`docs/release/`](release/); only the maintainer runs the commands below, because they touch Expo, EAS credentials, and Play Console.
+Step by step to put the first build in front of testers on the Play **Internal testing** track. Agents prepare this page and the drafts in [`docs/release/`](release/); only the maintainer runs the commands below, because they touch Expo, EAS credentials, Play Console, and Dokploy. Every step says **who** does it and **where**.
 
-Nothing here puts the app in front of the public: Internal testing is limited to the testers you list (up to 100).
+Nothing here puts the app in front of the public: Internal testing is limited to the testers you list (up to 100), and Play does not review the app for this track. Play states that you can start an internal test before completing the app setup, and that apps active only on internal testing tracks are exempt from the Data safety section ([Play Console Help: set up a test](https://support.google.com/googleplay/android-developer/answer/9845334)). What Play asks before the closed test is in [What Play asks, track by track](#what-play-asks-track-by-track).
+
+### State on 16 November 2026
+
+Read this before the steps. Each line is a fact checked in this repository or in the issue tracker on that date; re-check the open ones.
+
+| Topic | State | Consequence |
+| --- | --- | --- |
+| Backend | One deployment exists: the one in [`deploy/README.md`](../deploy/README.md), which the preview APK already uses. This guide calls it **QA**. The planner is designing a separate **PROD** that starts empty (no copy of QA data). | The first build points to QA. |
+| EAS `production` environment | **Temporarily holds the QA values.** The `production` build profile in `eas.json` reads that environment, so the Play build talks to QA. | Replace the three values with PROD ones and ship a new build when PROD exists. Anything the testers create in QA is not carried to PROD. |
+| Secret rotation (#914) | **Open**, no comments, last updated 3 November 2026. | **Blocks today**, see step 1. |
+| Sign-in by emailed code | Auth sends the code through Resend. This is **confirmed by Mario and the maintainer (2026-11-15)**: codes for `@example.test` stopped reaching Mailpit. The repository does not show it (the SMTP host is a redacted Dokploy variable). | Second sign-in path. Test it with a real address before inviting testers, step 4. |
+| Sign-in with Google | The maintainer verified authorize, provider, callback in the auth logs (see [`data-safety.md`](release/data-safety.md)). #84 (Google and Microsoft in the self-hosted auth) is still open. | Main sign-in path. Test it on the preview APK before building, step 4. |
+| Expo project | Not created. `owner` and `extra.eas.projectId` are missing from `app.config.ts` on purpose. | Steps 2 and 3. |
+| App name and package | Swimcro, `com.fatherapps.swimcro` (#1097). Logo and wordmark are pending (#1099). | The store listing can use the current icon; the graphics are the maintainer's. |
+| `expo.version` | `0.1.0` (the pilot stays on `0.y.z`, see [Versioning](#versioning)). The Android `versionCode` is still managed by EAS. | The first upload is `0.1.0`. |
 
 ### Before you start
 
-- [ ] An Expo account with the Swimcro project (slug `swimcro`) created on expo.dev. Copy its **project ID** (not a secret) and the **owner** (the account or organization that owns the project).
-- [ ] The EAS project ID and owner are still missing from `app.config.ts` on purpose: an invalid ID breaks every EAS command, `development` profile included. Add both in the same pull request that carries this guide, once you have the real values:
-
-  ```ts
-  owner: '<expo account or organization>',
-  extra: { eas: { projectId: '<project id from expo.dev>' } },
-  ```
-
 - [ ] A Google Play developer account (personal) with access to Play Console.
+- [ ] An Expo account (free) to create the project in step 2.
+- [ ] A device with the Play Store signed in with a Google account, for the smoke test.
 - [ ] The drafts in [`docs/release/`](release/) reviewed. They are drafts: the privacy policy needs the legal review of issue #106 before it is published anywhere.
 
 `LEGAL_REVIEW_PENDING` stays `true` for this release. The [Release checklist](#release-checklist) forbids only **production** while it is `true`; Internal and Closed testing are not production.
 
-### 1. Build variables in EAS (once)
+### 1. Secret rotation (#914): does it block?
 
-The app reads three public values at build time. They never go in the repository: `eas.json` has no `EXPO_PUBLIC_*` value, and the `production` build profile reads the EAS environment named `production`.
+**Who:** Mario, on Dokploy and Vault. **No agent does this step.**
 
-**Prerequisite:** complete the secret rotation of #914 first, so that you load the new keys (including the anon key) directly.
+**Conclusion: yes, #914 blocks today.**
 
-Create each variable in that environment. Leave out `--value`, so the CLI asks for it and the value stays out of your shell history and of this repository (if your `eas-cli` rejects the missing value, pass it with `--value` from your own terminal only):
+Evidence:
+
+- #914 is open with no comments or closing note (last update 3 November 2026), so there is no record that the exposed secrets were rotated. Its acceptance criteria require the new `ANON` key to reach the EAS `production` variables.
+- It concerns the secrets of the compose in `deploy/` (database password, `SUPABASE_JWT_SECRET`, both PowerSync passwords). That compose is the only deployment this repository documents, and it is the backend the EAS variables will point to in step 2.
+- The anon key that goes into the build is a JWT signed with `SUPABASE_JWT_SECRET`. If that secret was exposed, anyone with it can mint tokens for this backend, including `service_role`. A public build must not ship the key of such a backend.
+- Rotating the JWT secret **after** the build invalidates the anon key inside every installed app: testers would need a new build. Rotate first.
+
+What lifts the block:
+
+- Preferred: complete #914 first, as that issue describes, and use the **new** anon key in step 2.
+- Alternative: Mario confirms in #914, in writing and without values, that the exposed secrets belong to a deployment other than the one the EAS variables point to. This guide cannot tell that from the repository, so it does not guess.
+- Waiving the block and accepting the risk is the maintainer's decision, recorded in #914. No agent decides it.
+
+### 2. Expo project and the EAS variables
+
+**Who:** Mario, on expo.dev and in his own terminal.
+
+**The project.** On expo.dev create the project with slug `swimcro`. Copy its **project ID** (not a secret) and the **owner** (the account or organization that owns it). Give both to the developer who opens the small pull request of step 3. Do not run `eas init`: it cannot edit a dynamic `app.config.ts`.
+
+**The variables.** The build reads three public values from the EAS environment named `production`. They never go in the repository: `eas.json` has no `EXPO_PUBLIC_*` value. **Today they are the QA values** (temporary decision, see [State](#state-on-16-november-2026)). Create each variable without `--value`, so the CLI asks for it and the value stays out of your shell history and of this repository (if your `eas-cli` rejects the missing value, pass it with `--value` from your own terminal only):
 
 ```bash
 eas env:create --name EXPO_PUBLIC_SUPABASE_URL --environment production --visibility plaintext
@@ -123,74 +151,121 @@ eas env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --environment production --v
 eas env:create --name EXPO_PUBLIC_POWERSYNC_URL --environment production --visibility plaintext
 ```
 
-- Use the values of the **production** backend, not the test one.
-- `plaintext` is the right visibility: everything with the `EXPO_PUBLIC_` prefix is inlined into the app and readable by anyone who installs it. The Supabase anon key is public by design; row-level security is what protects the data. Never put a service-role key or any other secret in an `EXPO_PUBLIC_*` variable.
+- `plaintext` is the right visibility: everything with the `EXPO_PUBLIC_` prefix is inlined into the app and readable by anyone who installs it. The Supabase anon key is public by design; row-level security protects the data. Never put a service-role key or any other secret in an `EXPO_PUBLIC_*` variable.
+- Use the anon key issued **after** step 1.
 - Check them with `eas env:list --environment production`. If your `eas-cli` no longer has `env:create`, the equivalent in current Expo docs is `eas env:set` with the same flags ([Expo: environment variables](https://docs.expo.dev/eas/environment-variables/)).
+- **When PROD exists:** update the three values (`eas env:update`) and ship a new build. Nothing else changes in this guide.
 
-### 2. Create the app in Play Console
+### 3. Pull request with `owner` and `projectId`
 
-1. Play Console → **Create app**. Name: Swimcro. Default language: Spanish. Type: App, Free.
+**Who:** a developer, after Mario hands over the two values. This is a **later, small pull request**, not part of the pull request that carries this guide: an invalid ID breaks every EAS command, `development` profile included, so the values are added only when real.
+
+```ts
+owner: '<expo account or organization>',
+extra: { eas: { projectId: '<project id from expo.dev>' } },
+```
+
+Merge it before step 6: the build must come from a commit that has both.
+
+### 4. Sign-in settings on the backend
+
+**Who:** Mario, on Dokploy (the Supabase stack, not versioned in this repository) and on the Google Cloud project.
+
+The app signs in through the system browser: `supabase.auth.signInWithOAuth` with `skipBrowserRedirect` and `WebBrowser.openAuthSessionAsync`, returning to `swimcro://auth-callback` (`src/core/session/SessionProvider.tsx`). 
+
+1. **Redirect URL.** In the Supabase stack's environment in Dokploy, add `swimcro://auth-callback` to `ADDITIONAL_REDIRECT_URLS` of the auth service (GoTrue) of the **QA** deployment, and redeploy that service. Without it GoTrue falls back to `SITE_URL` and the browser ends on that page instead of returning to the app. `trailskill://auth-callback` stays for builds from before the rename; `swimcro-preview://auth-callback` is for the preview APK ([Test builds](#test-builds-debug-signed-apk)). Note: `ADDITIONAL_REDIRECT_URLS` is a single comma-separated value; keep the entries already there.
+2. **Google.** GoTrue talks to Google with a **web** OAuth client (client ID and secret in the auth service, authorized redirect URI `<API_EXTERNAL_URL>/auth/v1/callback`). Check that it exists and works: sign in with Google on the preview APK before building. **PENDIENTE (Mario): confirm.** If the OAuth consent screen in Google Cloud is in **Testing**, only the accounts listed as test users can sign in: add every tester's Google account there, or publish the consent screen (the app asks for the basic email and profile scopes only). **PENDIENTE (Mario): which of the two.**
+3. **Email code (second path).** Auth sends it through Resend, confirmed by Mario and the maintainer on 2026-11-15; this repository cannot show it. **Before inviting testers, Mario requests a code in the preview APK with a real address of his own and checks that the email arrives** (look in spam too). If it does not arrive, remove the email option from the tester message and tell testers to use Google only.
+
+### 5. Create the app in Play Console
+
+**Who:** Mario, in Play Console.
+
+1. **Create app**. Name: Swimcro. Default language: Spanish. Type: App, Free.
 2. Package name: `com.fatherapps.swimcro`. It cannot change after the first upload (see [One-time setup](#one-time-setup-maintainer)).
 3. Accept **Play App Signing** (the default for new apps). Google keeps the app signing key; EAS generates and keeps the upload key in its credentials.
-4. Fill the declarations Play asks for before any closed test, using the drafts as the starting point:
-   - Store listing: [`docs/release/play-listing.es.md`](release/play-listing.es.md).
-   - Data safety: [`docs/release/data-safety.md`](release/data-safety.md).
-   - Privacy policy URL: the published version of [`docs/release/privacy-policy.es.md`](release/privacy-policy.es.md) (needs a public URL and the legal review of #106 first).
-   - Content rating questionnaire and target audience (see Open decisions: the app stores minors' data while its users are adults).
+4. You do **not** need to finish the store listing, Data safety, privacy policy, content rating, or target audience to release on Internal testing. Fill them before the closed test, using the drafts as the starting point: [`play-listing.es.md`](release/play-listing.es.md), [`data-safety.md`](release/data-safety.md), and, once published at a public URL after the legal review of #106, [`privacy-policy.es.md`](release/privacy-policy.es.md).
 
-### 3. Build the AAB
+### 6. Build the AAB
 
-Run it from a clean checkout of the commit you want to test, with the EAS variables above in place:
+**Who:** Mario, in his own terminal.
+
+Run it from a clean checkout of `main` at the commit that contains the pull request of step 3, with the EAS variables in place:
 
 ```bash
 eas build --profile production --platform android
 ```
 
-- The first run asks to generate an upload keystore: accept, and let EAS keep it.
+- The first run asks to generate an upload keystore: accept, and let EAS keep it. Never download or commit it.
 - `autoIncrement` raises the `versionCode` by itself ([Versioning](#versioning)).
 - **Target API level.** The bundle must target Android 16 (API level 36) or higher; Play rejects it otherwise. Before uploading, confirm the value that the installed React Native version sets (`rg -n targetSdk node_modules/react-native/gradle/libs.versions.toml` after `npm ci`) and re-check the [official requirement](https://developer.android.com/google/play/requirements/target-sdk) for the date of the upload. Never lower `targetSdkVersion`.
+- The Play build talks to QA, which holds demo accounts and seed data. This is an accepted exception to the "no test accounts or seed data" line of the [Release checklist](#release-checklist), only while the track is Internal testing and the production environment holds QA values.
 
-### 4. Upload to Internal testing
+### 7. Upload to Internal testing
+
+**Who:** Mario, in Play Console.
 
 1. Download the `.aab` from the EAS build page.
-2. Play Console → **Testing → Internal testing → Create new release** → upload the `.aab`. Add a release name (for example the `expo.version`) and short release notes.
+2. **Testing → Internal testing → Create new release** → upload the `.aab`. Add a release name (for example the `expo.version`) and short release notes (the draft is in [`play-listing.es.md`](release/play-listing.es.md)).
 3. Review and roll out. Internal testing releases are available to testers within minutes, with no Google review of the app content.
+4. Tag the built commit `vX.Y.Z` ([Versioning](#versioning)).
 
 A manual upload keeps the first release free of service-account credentials. `eas submit` for later releases is covered in [Standard release from `main`](#standard-release-from-main).
 
-### 5. Testers and opt-in link
+### 8. Testers and opt-in link
 
-1. **Testing → Internal testing → Testers** → create an email list (for example "Internal team") and add each tester's Google account email.
-2. Copy the **opt-in link** from the same page and send it to the testers. Each tester opens it **signed in with the listed Google account**, accepts, and then installs the app from the Play Store link that follows.
-3. Testers who changed their Google account or skipped the opt-in step will see "item not found": ask them to open the opt-in link again.
+**Who:** Mario, in Play Console; each tester on their own phone.
 
-### 6. Smoke test
+1. **Testing → Internal testing → Testers → Create email list** (for example "Internal team") and add each tester's Google account email. Use the same account that will sign in to Swimcro with Google. Emails go only in Play Console, never in this repository.
+2. In step 4 add the same accounts as test users in Google Cloud if the consent screen is in Testing.
+3. Copy the **opt-in link** from the same page. Play shows it once the release is published. Send it with the message in [`docs/release/tester-message.es.md`](release/tester-message.es.md).
+4. **What each tester does:** opens the link on their phone **signed in with the listed Google account**, accepts, installs Swimcro from the Play Store page that follows, opens it, and signs in with Google, or asks for the code that arrives by email (the second path, once Mario's test of step 4 passed).
+5. A tester who sees "item not found" used another Google account or skipped the opt-in: ask them to open the link again with the listed account. The Play app can take a few minutes to show a new internal release.
 
-Run the smoke test of the [Release checklist](#release-checklist) on a device installed from the Internal testing track.
+### 9. Smoke test
 
-### 7. Access for Play reviewers
+**Who:** Mario, on a device installed from the Internal testing track.
+
+Run the smoke test of the [Release checklist](#release-checklist). Then confirm that a second Google account from the tester list can sign in, and that the email code arrives for a real address.
+
+## What Play asks, track by track
+
+| Requirement | Internal testing (today) | Closed testing (pilot) |
+| --- | --- | --- |
+| App created, bundle uploaded, tester list | Yes | Yes |
+| Target API level 36 or higher | Yes, the upload is rejected otherwise | Yes |
+| Store listing, icon, graphics, screenshots | No | Yes |
+| Privacy policy URL (needs the legal review of #106) | No | Yes |
+| Data safety form ([`data-safety.md`](release/data-safety.md)) | No: apps only on internal tracks are exempt | Yes, accurate to the build |
+| Content rating questionnaire | No | Yes |
+| Target audience and Families Policy answer | No | Yes: decide with #107 |
+| App access (credentials for reviewers) | No | Yes, see below |
+| Data deletion path (in the app and on the web) | No | Yes: decide between a request by email and building it |
+| At least 12 testers opted in for 14 consecutive days | No | This is what the track is for: the account is personal, so production needs it |
+| Google review of the app | No | Yes |
+
+### Access for Play reviewers (closed test and later)
 
 Play may ask for sign-in credentials in **App content → App access** (the app asks for a sign-in on first launch). Reviewers cannot read a stranger's email, so the emailed code is not enough for them. Decided by the maintainer (issue #910):
 
-- **Use a dedicated Google account** (Google sign-in is enabled in production and does not depend on #84). Create it for the review only, with no 2-step verification that needs a phone, and use only synthetic data in the athletes it manages. Mario creates and keeps it; **its email and password go only in the App access form of Play Console, never in the repository, an issue, or a pull request.**
+- **Use a dedicated Google account** (Google sign-in is enabled in production and does not depend on #84). Create it for the review only, with no 2-step verification that needs a phone, and use only synthetic data in the athletes it manages. Mario creates and keeps it; **its email and password go only in the App access form of Play Console, never in the repository, an issue, or a pull request.** If the consent screen is in Testing, add it as a test user.
 - Microsoft sign-in (the sign-in screen has a button for it) is **to be confirmed by Mario**: this guide does not say whether it is enabled in production. Do not use it for the review account until he confirms.
-- **Backup:** a dedicated mailbox for the review, whose address and password go in the same form. The reviewer opens that mailbox to read the emailed code, so keep it free of 2-step verification and send the code only when the reviewer asks.
+- **Backup:** a dedicated mailbox for the review, whose address and password go in the same form. It works only if the email test of step 4 passed.
 - Not allowed: a fixed-code or other authentication shortcut on the server.
 
 Before the closed test, sign in once with the dedicated account on an Internal testing install and check that it reaches the home screen.
 
-### 8. What Play requires before a closed test
+### Before the closed test
 
 Closed testing is the track that counts for production access. Before moving there:
 
-- **Target API level 36 or higher** on every build, as AGENTS.md requires ([source](https://developer.android.com/google/play/requirements/target-sdk)).
-- **At least 12 testers opted in for 14 consecutive days.** The Swimcro Play developer account is personal, so Play asks for a closed test with this many testers before it grants production access ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en)). Keep the 14 days unbroken: a tester who opts out lowers the count.
-- Completed store listing, privacy policy URL, Data safety form, content rating, and target audience declaration ([Store listing and policy](#store-listing-and-policy)).
-- The App access form filled in with the dedicated review account ([step 7](#7-access-for-play-reviewers)).
+- **At least 12 testers opted in for 14 consecutive days** ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en)). Keep the 14 days unbroken: a tester who opts out lowers the count.
+- Everything marked "Closed testing" in the table above.
 - Open decisions settled and closed, because each one changes what the forms must say:
-  - **Data deletion.** The app has no way to delete an account or its data, and Play asks apps that create accounts for a deletion path in the app and on the web. Decide between a request by email (stated in the privacy policy) and building it.
+  - **Data deletion.** The app has no way to delete an account or its data. Decide between a request by email (stated in the privacy policy) and building it.
   - **Target audience** and Families Policy applicability (the app stores minors' data while its users are adults; see [Open decisions](#open-decisions)).
-  - **Legal review** of the authorization texts and the privacy policy (issue #106). The privacy policy needs it before it gets a public URL.
+  - **Legal review** of the authorization texts and the privacy policy (issue #106).
+  - **Backend.** The closed test must not run against QA data by accident: decide with the planner whether the pilot build points to PROD, and rebuild if so.
 
 ## Test builds (debug-signed APK)
 
