@@ -163,11 +163,11 @@ select lives_ok(
      where id = '32100000-0000-4000-8000-0000000000f6' $$,
   'C names an arrival of A with X'
 );
-select throws_ok(
+-- Since #1122 a coach reads a mark only where the swimmer is assigned to them, so the update finds no row.
+select is_empty(
   $$ update public.measurements set athlete_id = '32100000-0000-4000-8000-0000000000e1', base_version = 1
-     where id = '32100000-0000-4000-8000-0000000000f7' $$,
-  '42501', 'the athlete of a measurement can only move between athletes of the coach',
-  'C cannot move their own mark of Y in A to X: Y is not in C''s charge in A'
+     where id = '32100000-0000-4000-8000-0000000000f7' returning id $$,
+  'C cannot move their own mark of Y in A to X: Y is not in C''s charge in A, so since #1122 C does not even read it'
 );
 
 -- D coaches Y only in B, so in A D edits as a school admin, with a reason.

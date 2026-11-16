@@ -48,9 +48,9 @@ test("no guardian query sends every column or the staff authors", () => {
 
 test("the staff queries of timing_measurements still send every column", () => {
   expect(streamQueries.filter((query) => !/\b(managed|self)_athlete_ids\b/.test(query))).toEqual([
-    "SELECT * FROM measurements WHERE athlete_id IN coach_direct_athlete_ids AND hidden = false AND school_id IN member_school_ids",
-    "SELECT * FROM measurements WHERE athlete_id IN coach_group_athlete_ids AND hidden = false AND school_id IN member_school_ids",
-    "SELECT * FROM measurements WHERE athlete_id IN admin_athlete_ids AND hidden = false AND school_id IN member_school_ids",
+    "SELECT measurements.* FROM measurements JOIN coach_athlete_assignments ON measurements.athlete_id = coach_athlete_assignments.athlete_id AND measurements.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND measurements.hidden = false AND measurements.school_id IN member_school_ids",
+    "SELECT measurements.* FROM measurements JOIN athlete_groups ON measurements.athlete_id = athlete_groups.athlete_id JOIN training_groups ON athlete_groups.group_id = training_groups.id AND measurements.school_id = training_groups.school_id WHERE athlete_groups.group_id IN coach_group_ids AND measurements.hidden = false AND measurements.school_id IN member_school_ids",
+    "SELECT * FROM measurements WHERE athlete_id IN admin_athlete_ids AND hidden = false AND school_id IN admin_school_ids",
     "SELECT * FROM measurements WHERE athlete_id IS NULL AND series_id IN own_series_ids",
   ]);
 });
