@@ -1,7 +1,9 @@
 -- School admins read the edit conflicts of their school's measurements
 -- (issue #316), so the console can flag "Revisar". The school comes from
--- measurements.school_id and only the school_admin role counts (never a plain
--- coach). Also pins the readers that already existed: the two authors while
+-- measurements.school_id and only the school_admin role reads every conflict of
+-- the school; since #1109 an active coach also reads the conflicts of the
+-- measurements of their school they can already read (see
+-- staff_measurement_conflicts.test.sql). Also pins the readers that already existed: the two authors while
 -- they can read the measurement, and the platform admin. The last sections
 -- mirror the timing_measurement_conflicts stream. All users and data are
 -- synthetic.
@@ -122,11 +124,12 @@ select set_eq(
   'school admin S2 reads only the conflict of school two'
 );
 
--- 4. A coach who is not an author does not.
+-- 4. Since #1109 a coach who is not an author reads the conflict of their athlete, not the hidden one.
 set local request.jwt.claims = '{"sub": "31600000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
-select is_empty(
+select set_eq(
   $$ select id from public.measurement_conflicts $$,
-  'a coach who is not an author reads no conflict'
+  $$ values ('31600000-0000-4000-8000-0000000000f1'::uuid) $$,
+  'a coach who is not an author reads the conflict of their athlete and not the hidden one'
 );
 
 -- 5-8. Regression: the authors, the other school's coach and the platform admin.
@@ -156,7 +159,7 @@ select set_eq(
   'the platform admin still reads every conflict, the hidden one included'
 );
 
--- 9. The school_admin role is required: S1 as a plain coach reads nothing.
+-- 9. The school_admin role is required to read every conflict: S1 as a plain coach with no athletes reads nothing.
 reset role;
 select set_config('request.jwt.claims', '', true); -- owner update: no auth.uid() (#1092 guard)
 update public.school_memberships set role = 'coach'
@@ -165,7 +168,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub": "31600000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
 select is_empty(
   $$ select id from public.measurement_conflicts $$,
-  'S1 as a plain coach of the school reads no conflict'
+  'S1 as a plain coach with no athletes reads no conflict'
 );
 reset role;
 select set_config('request.jwt.claims', '', true); -- owner update: no auth.uid() (#1092 guard)
