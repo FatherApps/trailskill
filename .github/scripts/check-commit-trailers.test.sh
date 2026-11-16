@@ -79,6 +79,17 @@ expect_fail 'a trailer in the middle of the body fails' 'trailer "Claude-Session
 reset
 
 commit 'feat: add widget
+Claude-Session: https://example.test/session/1'
+expect_fail 'a trailer on the line right after the subject fails' 'trailer "Claude-Session:"'
+reset
+
+git commit -q --allow-empty -F - <<'MSG'
+Co-Authored-By: Someone <someone@example.test>
+MSG
+expect_fail 'a trailer as the whole subject line fails' 'trailer "Co-Authored-By:"'
+reset
+
+commit 'feat: add widget
 
 The Co-Authored-By: trailer is rejected here, and a Claude-Session: line too.'
 expect_pass 'a sentence that mentions a trailer name mid-line passes'

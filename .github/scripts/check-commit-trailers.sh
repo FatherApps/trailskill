@@ -11,14 +11,16 @@ if [ -z "${COMMIT_RANGE:-}" ]; then
   exit 2
 fi
 
-# One record per commit: a marker line with the hash and subject, then the full message.
-if ! log=$(git log --format='%x01%h %s%n%b' "$COMMIT_RANGE" 2>&1); then
+# One record per commit: a marker line with the hash, then the raw message (%B). %s and %b would
+# fold a trailer on the line after the subject into the subject, where it would go unchecked.
+if ! log=$(git log --format='%x01%h%n%B' "$COMMIT_RANGE" 2>&1); then
   printf '%s\n' "$log" >&2
   exit 2
 fi
 
 printf '%s\n' "$log" | awk '
-  /^\001/ { commit = substr($0, 2); next }
+  /^\001/ { commit = substr($0, 2); subject = 1; next }
+  subject { commit = commit " " $0; subject = 0 }
   {
     l = tolower($0)
     if (l ~ /^claude-session:/) t = "Claude-Session:"
