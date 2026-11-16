@@ -1064,4 +1064,29 @@ describe('athlete profile container', () => {
       expect(screen.getByRole('radio', { name: 'Libre 50 metros' })).toBeChecked();
     });
   });
+
+  // Issue 1035: a repeated record id in the history rows is named in development, with ids and kinds only.
+  describe('a record id repeated in the history', () => {
+    const imported = (id: string) => ({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: 2910, swumOn: '2026-09-05' });
+    const importedRepo = (rows: ReturnType<typeof imported>[]) => ({ listByAthlete: jest.fn().mockResolvedValue(rows) });
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+    afterEach(() => warn.mockRestore());
+
+    it('warns with the id and the source of each row when a measurement and an imported result share it', async () => {
+      await show({ importedResults: importedRepo([imported('m1')]) });
+      await screen.findByRole('header', { name: 'Ana Marin' });
+
+      expect(warn).toHaveBeenCalledWith('[athletes] The profile history repeats a record id', [{ id: 'm1', sources: ['own/race', 'import/race'] }]);
+    });
+
+    it('does not warn when every id is unique', async () => {
+      await show({ importedResults: importedRepo([imported('i1')]) });
+      await screen.findByRole('header', { name: 'Ana Marin' });
+
+      expect(warn).not.toHaveBeenCalled();
+    });
+  });
 });
