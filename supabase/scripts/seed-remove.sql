@@ -59,7 +59,16 @@ where athlete_id in (select id from seed_remove_athletes)
 delete from public.training_plan_assignments
 where school_id = '00000000-0000-4000-8000-0000000000a1';
 
--- Times.
+-- Times. A conflict someone resolved has a resolution row that points at it.
+delete from public.measurement_conflict_resolutions
+where conflict_id in (
+  select c.id from public.measurement_conflicts c
+  where c.measurement_id in (
+    select id from public.measurements
+    where athlete_id in (select id from seed_remove_athletes)
+       or created_by in (select id from seed_remove_users)
+  )
+);
 delete from public.measurement_conflicts
 where measurement_id in (
   select id from public.measurements

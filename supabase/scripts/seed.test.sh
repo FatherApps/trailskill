@@ -86,6 +86,7 @@ begin
     'the demo assignment of the plan to Group A exists and the guardian reads it';
   assert exists (select 1 from public.organizations where id = '00000000-0000-4000-8000-000000000101'),
     'guardian reads the parent organization';
+  assert not exists (select 1 from public.measurement_conflicts), 'guardian reads no edit conflict';
 end;
 $$;
 
@@ -111,6 +112,10 @@ begin
     = array['00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000102'],
     'coach reads the school organization and its parent';
   assert (select count(*) from public.categories) = 3, 'coach reads the three categories of the school';
+  assert (select array_agg(id::text) from public.measurement_conflicts where status = 'open')
+    = array['00000000-0000-4000-8000-0000000000e4']
+    and (select count(*) from public.measurement_conflicts) = 1,
+    'coach reads exactly the one open demo conflict (#1125)';
 end;
 $$;
 
@@ -138,11 +143,45 @@ begin
     'school admin reads the three templates of the parent';
   assert (select count(*) from public.athlete_schools where category_id is not null) = 10,
     'every demo athlete has a category';
+  assert (select array_agg(id::text) from public.measurement_conflicts where status = 'open')
+    = array['00000000-0000-4000-8000-0000000000e4']
+    and (select count(*) from public.measurement_conflicts) = 1,
+    'school admin reads exactly the one open demo conflict (#1125)';
+  -- Two different versions of one demo time, and the stored time is the current one.
+  assert (select c.current_values -> 'hundredths' is distinct from c.incoming_values -> 'hundredths'
+                 and (c.current_values ->> 'hundredths')::int = m.hundredths
+                 and (c.current_values ->> 'version')::int = m.version
+                 and m.school_id = '00000000-0000-4000-8000-0000000000a1'
+          from public.measurement_conflicts c join public.measurements m on m.id = c.measurement_id),
+    'the demo conflict has two different versions and the time keeps the stored one';
 end;
 $$;
 rollback;
 SQL
 echo "ok - each demo account sees what its role allows"
+
+# A platform admin resolves the demo conflict with the existing function; rolled back, so it stays open.
+psql_run <<'SQL'
+begin;
+insert into public.platform_admins (user_id) values ('00000000-0000-4000-8000-000000000003');
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "00000000-0000-4000-8000-000000000003", "role": "authenticated"}';
+do $$
+declare resolved uuid;
+begin
+  resolved := public.resolve_measurement_conflict(
+    '00000000-0000-4000-8000-0000000000e4',
+    (select m.version from public.measurements m join public.measurement_conflicts c on c.measurement_id = m.id
+     where c.id = '00000000-0000-4000-8000-0000000000e4'),
+    'current', null, 'Demo check');
+  assert resolved is not null
+    and (select status from public.measurement_conflicts where id = '00000000-0000-4000-8000-0000000000e4') = 'resolved',
+    'a platform admin resolves the demo conflict';
+end;
+$$;
+rollback;
+SQL
+echo "ok - a platform admin can resolve the demo conflict"
 
 # Runs seed-remove.sql in a transaction that is rolled back: $1 is SQL to run
 # before it, $2 the assertions to run after it.
@@ -179,6 +218,8 @@ begin
   assert not exists (select 1 from public.schools where id = '00000000-0000-4000-8000-0000000000a1'), 'school removed';
   assert not exists (select 1 from public.athletes where id::text like '00000000-0000-4000-8000-0000000000%'), 'athletes removed';
   assert not exists (select 1 from public.measurements where created_by::text like '00000000-0000-4000-8000-00000000000%'), 'times removed';
+  assert not exists (select 1 from public.measurement_conflicts
+                     where id = '00000000-0000-4000-8000-0000000000e4'), 'the demo conflict removed';
   assert not exists (select 1 from auth.users where email like 'demo-%@example.test'), 'accounts removed';
   assert not exists (select 1 from public.organizations
                      where id in ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000102')),
@@ -202,6 +243,32 @@ $$;
 SQL
 )"
 echo "ok - seed-remove.sql removes the demo"
+
+# A conflict that someone resolved while trying the demo goes too, with its resolution.
+remove_check "$(cat <<'SQL'
+insert into public.platform_admins (user_id) values ('00000000-0000-4000-8000-000000000003');
+do $$
+begin
+  perform set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-000000000003", "role": "authenticated"}', true);
+  perform public.resolve_measurement_conflict(
+    '00000000-0000-4000-8000-0000000000e4',
+    (select m.version from public.measurements m join public.measurement_conflicts c on c.measurement_id = m.id
+     where c.id = '00000000-0000-4000-8000-0000000000e4'),
+    'current', null, 'Demo check');
+end;
+$$;
+SQL
+)" "$(cat <<'SQL'
+do $$
+begin
+  assert not exists (select 1 from public.measurement_conflicts where id = '00000000-0000-4000-8000-0000000000e4'),
+    'the resolved demo conflict removed';
+  assert not exists (select 1 from public.measurement_conflict_resolutions), 'its resolution removed';
+end;
+$$;
+SQL
+)"
+echo "ok - seed-remove.sql removes a resolved demo conflict"
 
 # An athlete who also belongs to another school stays, linked to that school only.
 remove_check "$(cat <<'SQL'

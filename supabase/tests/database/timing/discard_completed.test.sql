@@ -6,6 +6,8 @@
 -- users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
+-- The demo seed (#1125) holds one open conflict; this test counts conflicts, so it starts without it (rolled back).
+delete from public.measurement_conflicts where id = '00000000-0000-4000-8000-0000000000e4';
 select plan(23);
 
 -- Users: coach A (the author) and coach B of e1, guardian G of e1, school admin
