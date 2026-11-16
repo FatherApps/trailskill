@@ -1,6 +1,27 @@
 # deploy/
 
-What Dokploy deploys from this repository on every push to `main`: migrations plus PowerSync. Design and exposure rules: [ADR 0002](../docs/decisions/0002-backend-hosting-on-dokploy.md).
+What Dokploy deploys from this repository: migrations plus PowerSync. Design and exposure rules: [ADR 0002](../docs/decisions/0002-backend-hosting-on-dokploy.md), including its [2026-11-16 amendment](../docs/decisions/0002-backend-hosting-on-dokploy.md#amendment-2026-11-16-qa-and-prod-environments-email-provider-and-backups).
+
+## Environments
+
+There are two backend environments on the same Dokploy server. They run the same `compose.yaml` and scripts, and they share no data and no secrets.
+
+| | QA | PROD |
+| --- | --- | --- |
+| Status | Exists today (the deployment this document describes). | **Not built yet.** Runbooks and compose: issues #1115 to #1118. |
+| Dokploy project | `TrailSkill` | A separate project, «Swimcro PROD». |
+| Deploys from | Every push to `main` (see [Continuous deployment](#continuous-deployment)). | A release tag `vX.Y.Z` that the maintainer starts. A push to `main` never changes PROD. The mechanism is settled in #1116. |
+| App hostnames | `trailskill-api`, `trailskill-sync` | `swimcro-api`, `swimcro-sync` |
+| Mailpit (`trailskill-mail`) and Studio | Mailpit stays in the stack, behind basic authentication; Studio is internal only. | Neither is deployed or published. |
+| Email | Resend over SMTP, sender `Swimcro <no-reply@send.tuls.app>` | The same provider and sender; the maintainer first confirms which sending domain is verified in Resend (ADR 0002). |
+| Demo seed (`APPLY_SEED`) | May be applied by the maintainer, see [Demo data](#demo-data). | Never: `APPLY_SEED` stays `false`. |
+| Secrets | Its own | Its own, never the same value as QA's. |
+| Backups | None. | A gate before inviting real families: #1119. |
+| TLS to the origin | **PENDIENTE (#1113)** | **PENDIENTE (#1113)** |
+
+The Dokploy deploy webhook hostname (`trailskill-deploy`) is shared by both. Capacity of the server for two stacks is **PENDIENTE (#1113)**: this document does not state it.
+
+Unless a section says otherwise, everything below describes QA, the deployment that exists. PROD differs only as this table says; the step-by-step setup of PROD is in issues #1115 to #1118 and is not written here yet. Secret values are set only by the maintainer in the Dokploy and EAS interfaces, never in this repository.
 
 ## What is here and what is not
 
@@ -14,19 +35,19 @@ What Dokploy deploys from this repository on every push to `main`: migrations pl
 | `scripts/functions-egress.sh` | Checks that the Edge Functions runtime's network can reach the providers' external sources over HTTPS. |
 | `scripts/*.test.sh` | Local tests, see [Tests](#tests). |
 
-Not here: the **Supabase** stack (including Mailpit and the email template). It is set up once in Dokploy and is not versioned in this repository. Changes to it are made in Dokploy and deployed by hand; continuous deployment covers only this compose.
+Not here: the **Supabase** stack (including Mailpit and the email template) of each environment. It is set up once in Dokploy and is not versioned in this repository. Changes to it are made in Dokploy and deployed by hand; continuous deployment covers only this compose.
 
 ## One-time setup in Dokploy
 
-Organization `fatherApps`, project `TrailSkill`.
+QA: organization `fatherApps`, project `TrailSkill`. (PROD gets its own project, see [Environments](#environments).)
 
 1. **Supabase**, from the Dokploy Supabase template. The template's default public `sslip.io` domain was removed: the stack has no public domain of its own (see [Public and internal](#public-and-internal)).
    - The database is only on the stack's default network (`<supabase app name>_default`). `migrate` and `powersync` join that network; put its name in `SUPABASE_NETWORK` and use `db` as `SUPABASE_DB_HOST`.
    - Two services were added to the stack's compose in Dokploy:
-     - `mailpit` (`axllent/mailpit:v1.22.3`): test SMTP on port 1025, for the test environment only. Since 2026-11-15 Auth sends the sign-in code through Resend (confirmed by the maintainer; the SMTP host is a redacted Dokploy variable this repository does not show), so codes no longer reach Mailpit and the lines below describe the earlier setup. Its environment is set by the maintainer on the `mailpit` service of that compose in Dokploy; values never go in the repository:
-       - `MP_SMTP_ALLOWED_RECIPIENTS` = `^demo-[a-z]+@example\.test$`: Mailpit accepts email only for `demo-*@example.test` and rejects every other recipient (`550`), so only demo accounts could get a code through it. This restriction no longer limits who can sign in now that Auth sends through Resend.
+     - `mailpit` (`axllent/mailpit:v1.22.3`): test SMTP on port 1025. **QA only.** Since 2026-11-15 Auth sends the sign-in code through Resend (confirmed by the maintainer; the SMTP host is a redacted Dokploy variable this repository does not show), so sign-in codes no longer reach Mailpit. It stays in the QA stack, not used by Auth, and PROD does not have it. Its environment is set by the maintainer on the `mailpit` service of that compose in Dokploy; values never go in the repository:
+       - `MP_SMTP_ALLOWED_RECIPIENTS` = `^demo-[a-z]+@example\.test$`: Mailpit accepts email only for `demo-*@example.test` and rejects every other recipient (`550`). This restriction does not limit who can sign in, because Auth no longer sends through Mailpit.
        - `MP_UI_AUTH`: the basic authentication credential for the web UI and API.
-       - Domain `trailskill-mail.tuls.app` on port `8025`, HTTPS off (see [Public and internal](#public-and-internal)). To sign in to a demo account, for example from a test APK, request the code in the app and read it there.
+       - Domain `trailskill-mail.tuls.app` on port `8025`, HTTPS off (TLS mode: see [Public and internal](#public-and-internal)).
        - Alternative without publishing it: leave out `MP_UI_AUTH` and the domain. The maintainer reads the code in the internal Mailpit and passes it on, so every demo sign-in depends on the maintainer.
      - `mail-templates` (`busybox:1.37` running `httpd -f -p 8080 -h /www`): serves `../files/mail-templates` read-only. The email template is a Dokploy file mount, `mail-templates/otp.html`, and it contains `{{ .Token }}`.
    - Environment added to the Auth service in that compose:
@@ -34,33 +55,36 @@ Organization `fatherApps`, project `TrailSkill`.
      - `GOTRUE_MAILER_SUBJECTS_MAGIC_LINK` and `GOTRUE_MAILER_SUBJECTS_CONFIRMATION` = `Tu código de Swimcro`
      - `GOTRUE_MAILER_OTP_LENGTH` is not set: GoTrue's default is 6, which is the code length we use.
    - Stack environment changed:
-     - `SMTP_HOST=mailpit`, `SMTP_PORT=1025`, empty SMTP user and password.
+     - SMTP variables (host, port, user, password): they point to Resend. The maintainer sets them in the Dokploy interface and this repository shows none of them. The sender is `Swimcro <no-reply@send.tuls.app>`. They replaced the earlier test values (`mailpit`, port 1025, empty user and password).
      - `ENABLE_EMAIL_AUTOCONFIRM=false`, `ENABLE_PHONE_SIGNUP=false`, `ENABLE_ANONYMOUS_USERS=false`.
      - `SUPABASE_HOST`, `SUPABASE_PUBLIC_URL` and `API_EXTERNAL_URL` = the public API hostname. `API_EXTERNAL_URL` is also the JWT issuer.
-2. **This Compose service**: source GitHub, this repository, branch `main`, compose path `deploy/compose.yaml`. Set the environment variables below. Add a domain for the `powersync` service on port `8080` with HTTPS **off** (HTTPS ends at Cloudflare). Then turn on continuous deployment, see [Continuous deployment](#continuous-deployment).
+2. **This Compose service**: source GitHub, this repository, branch `main`, compose path `deploy/compose.yaml`. Set the environment variables below. Add a domain for the `powersync` service on port `8080` with HTTPS **off** (the TLS mode is **PENDIENTE (#1113)**, see [Public and internal](#public-and-internal)). Then turn on continuous deployment, see [Continuous deployment](#continuous-deployment).
 
 ## Continuous deployment
 
-On. Dokploy's GitHub App sends push events to `https://trailskill-deploy.tuls.app/api/deploy/github`, and Dokploy verifies the GitHub signature. The `deploy` compose has auto deploy on for branch `main` with watch paths `deploy/**`, `supabase/**` and `powersync/**`, so app-only changes do not redeploy it.
+**QA:** on. Dokploy's GitHub App sends push events to `https://trailskill-deploy.tuls.app/api/deploy/github`, and Dokploy verifies the GitHub signature. The `deploy` compose has auto deploy on for branch `main` with watch paths `deploy/**`, `supabase/**` and `powersync/**`, so app-only changes do not redeploy it.
 
 What a deploy does: it re-clones `main` and recreates the services. `migrate` runs first (pending migrations, grants, optional seed). `powersync` starts only if `migrate` exits 0, so a failing migration leaves PowerSync stopped until a fix is merged. `powersync` is built from the pinned image with `powersync/sync-config.yaml` copied in, so a deploy that changes only that file recreates `powersync`, which logs `Sync config updated` and applies the new Sync Streams without a manual restart. An unchanged file reuses the cached image and leaves `powersync` running.
 
-Accepted risk (maintainer, 2026-10-25): `main` has no GitHub ruleset (Free plan), only the pre-push hook and the PR flow. Any push to `main` runs on the server. When the organization moves to GitHub Team, add the ruleset and CODEOWNERS for `deploy/**` and `supabase/**`.
+**PROD:** not on `main`. It deploys only from a release tag that the maintainer starts, so a push to `main` never changes PROD. The mechanism and its rollback (go back to the previous tag) are settled in #1116.
+
+Accepted risk (maintainer, 2026-10-25): `main` has no GitHub ruleset (Free plan), only the pre-push hook and the PR flow. Any push to `main` runs on the QA server. When the organization moves to GitHub Team, add the ruleset and CODEOWNERS for `deploy/**` and `supabase/**`.
 
 Manual deploy is still available (Deploy button in Dokploy).
 
-To turn it off: switch off Auto Deploy on the `deploy` compose in Dokploy, or remove the `trailskill-deploy.tuls.app` tunnel rule.
+To turn it off: switch off Auto Deploy on the `deploy` compose in Dokploy, or block the `trailskill-deploy.tuls.app` route in Cloudflare.
 
 ## Rolling back
 
 - **Code or config regression:** revert the merge on `main` (a PR with `git revert`). Continuous deployment deploys the reverted state.
 - **Migrations are forward-only.** Never edit or delete an applied migration; fix it with a new migration. Reverting a commit does not undo an applied migration.
 - **Failed `migrate`:** PowerSync stays stopped. Read the `migrate` logs in Dokploy, merge a fix (or a revert), and it redeploys.
-- **Data loss or corruption:** restore from a database backup. There is no automated backup yet; it is still an open item in ADR 0002.
+- **Data loss or corruption:** restore from a database backup. There is no automated backup yet. For PROD, an off-server backup and a tested restore are a gate before real families are invited (#1119, ADR 0002 amendment); QA is not backed up.
+- **PROD:** go back to the previous release tag (procedure in #1116). Migrations already applied stay: fix forward.
 
 ## Environment variables of `compose.yaml`
 
-Set them in the environment of this Compose service in Dokploy.
+Set them in the environment of this Compose service in Dokploy, once per environment. Every secret value is its own in each environment and is never copied from QA to PROD.
 
 | Variable | Required / default | Purpose | Value comes from |
 | --- | --- | --- | --- |
@@ -83,13 +107,14 @@ Passwords go inside connection URIs, so they must be URL-safe: letters and digit
 
 ## Credentials
 
+- Each environment has its own credentials, never shared. They are set only by the maintainer, in the Dokploy interface (backend) and the EAS interface (the app's public values); agents never see them.
 - Credentials live only in each service's environment in Dokploy. Never in the repo, never in `.env` files that are committed.
 - The app receives only `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` and `EXPO_PUBLIC_POWERSYNC_URL`.
 - The `service_role` key and the database passwords never go to the app.
 
 ### Identity number key (Vault)
 
-**Do this first, before the migration of issue #799 is applied** (on a server where it is already applied, before the first official results import). The identity number of an athlete (issue #799) is stored encrypted with a key kept in Supabase Vault under the name `athlete_identity_key`. The migration does not create it and the key is never committed: create it once on the server, as a privileged role (Supabase Studio SQL editor, or `psql` as `postgres`):
+**Do this first, in each environment with its own key, before the migration of issue #799 is applied** (on a server where it is already applied, before the first official results import). The identity number of an athlete (issue #799) is stored encrypted with a key kept in Supabase Vault under the name `athlete_identity_key`. The migration does not create it and the key is never committed: create it once on the server, as a privileged role (Supabase Studio SQL editor, or `psql` as `postgres`):
 
 ```sql
 select vault.create_secret('<output of: openssl rand -base64 32>', 'athlete_identity_key');
@@ -101,7 +126,7 @@ select vault.create_secret('<output of: openssl rand -base64 32>', 'athlete_iden
 
 ## Public and internal
 
-The Dokploy server never publishes ports (0 published ports). Public traffic enters through a Cloudflare Tunnel (named "Dokploy Server", managed in the Cloudflare dashboard). Its rules send each hostname to the server's Traefik on `http://localhost`, or to the Dokploy panel on `http://localhost:3000`. HTTPS ends at Cloudflare's edge, so Dokploy domains are created with HTTPS off.
+**PENDIENTE (#1113): how public traffic reaches the origin.** This document used to say that every hostname enters through a Cloudflare Tunnel with no published ports and that HTTPS ends at Cloudflare's edge. The diagnosis in #951 says instead that Cloudflare reaches the origin over plain HTTP on port 80 (Flexible mode). The read-only checks of #1113 decide which is true. Until that report is written, this document states neither, and the Dokploy domains below keep HTTPS off as they are today.
 
 Public hostnames (zone `tuls.app`):
 
@@ -109,12 +134,14 @@ Public hostnames (zone `tuls.app`):
 | --- | --- | --- |
 | `trailskill-api.tuls.app` | Supabase `api-gw`, port 8000 | The tunnel rule only allows paths matching `^/(auth\|rest\|storage\|functions\|realtime)/v1/`. Studio (the gateway root) is not reachable (404). |
 | `trailskill-sync.tuls.app` | `powersync`, port 8080 | |
-| `trailskill-mail.tuls.app` | Supabase stack `mailpit`, port 8025 | Test environment only. Mailpit basic authentication (`MP_UI_AUTH`). Holds only `demo-*@example.test` emails (see `MP_SMTP_ALLOWED_RECIPIENTS`). |
-| `trailskill-deploy.tuls.app` | Dokploy panel | Only paths matching `^/api/deploy/` (the GitHub webhook). Everything else is 404. |
+| `trailskill-mail.tuls.app` | Supabase stack `mailpit`, port 8025 | QA only. Mailpit basic authentication (`MP_UI_AUTH`). Auth no longer sends through it (Resend), so it receives no sign-in code. |
+| `trailskill-deploy.tuls.app` | Dokploy panel | Only paths matching `^/api/deploy/` (the GitHub webhook). Everything else is 404. Shared by QA and PROD. |
+| `swimcro-api.tuls.app` | PROD Supabase `api-gw`, port 8000 | **PROD, planned (#1116), not live.** Same path restriction as `trailskill-api`. Route and TLS: **PENDIENTE (#1113)**. |
+| `swimcro-sync.tuls.app` | PROD `powersync`, port 8080 | **PROD, planned (#1116), not live.** Route and TLS: **PENDIENTE (#1113)**. |
 
-Internal only: Dokploy panel, Studio, Postgres, PowerSync storage. Mailpit is public only behind its basic authentication. Details in ADR 0002.
+Internal only: Dokploy panel, Studio, Postgres, PowerSync storage. In QA, Mailpit is public only behind its basic authentication; PROD publishes no Mailpit and no Studio. Details in ADR 0002.
 
-To add or change a public hostname: add a Dokploy domain (HTTPS off), then add a tunnel rule and a proxied CNAME to the tunnel. Insert the rule before the tunnel's final 404 rule. The same tunnel serves other sites, so never replace or reorder its existing rules. Use single-level names (`name.tuls.app`): Cloudflare's free certificate does not cover `a.b.tuls.app`.
+To add or change a public hostname (as done for QA; whether new PROD hostnames follow this route is **PENDIENTE (#1113)**): add a Dokploy domain (HTTPS off), then add a tunnel rule and a proxied CNAME to the tunnel. Insert the rule before the tunnel's final 404 rule. The same tunnel serves other sites, so never replace or reorder its existing rules. Use single-level names (`name.tuls.app`): Cloudflare's free certificate does not cover `a.b.tuls.app`.
 
 ## How migrations run
 
@@ -244,7 +271,7 @@ It builds the bundle in a temporary folder next to a stand-in volume (a `main` r
 
 ## Demo data
 
-`supabase/seed.sql` is the demo for development and walkthroughs. Everything in it is invented: a school ("Demo Swim School") with its own organization, hanging from a parent league organization ("Demo Swim League") whose three category templates (`Under 11`, `Under 14`, `Open`) become the school's categories, two groups and ten athletes (each with a category), six weeks of times in two events (so there is history and personal bests), one training plan, and the authorizations in force for two athletes. It has no platform admin account; if a walkthrough needs one, add it later.
+`supabase/seed.sql` is the demo for development and walkthroughs. It is for QA and local use only: PROD never applies it (`APPLY_SEED=false`). Everything in it is invented: a school ("Demo Swim School") with its own organization, hanging from a parent league organization ("Demo Swim League") whose three category templates (`Under 11`, `Under 14`, `Open`) become the school's categories, two groups and ten athletes (each with a category), six weeks of times in two events (so there is history and personal bests), one training plan, and the authorizations in force for two athletes. It has no platform admin account; if a walkthrough needs one, add it later.
 
 | Account | Role | Sees |
 | --- | --- | --- |
@@ -252,7 +279,7 @@ It builds the bundle in a temporary folder next to a stand-in volume (a `main` r
 | `demo-guardian@example.test` | Guardian of 2 athletes of Group A | Those 2 athletes, their times and authorizations |
 | `demo-admin@example.test` | School administrator | The whole school, including the authorization evidence |
 
-The accounts have no password. They sign in with the email code (Mailpit receives it). The seed creates them directly in `auth.users`, so no Auth admin API call is needed.
+The accounts have no password. They sign in with the email code. Locally, Mailpit receives it. In QA, Auth now sends through Resend and `example.test` is not a real mailbox: **PENDIENTE (maintainer): how a demo account gets its code in QA.** The seed creates them directly in `auth.users`, so no Auth admin API call is needed.
 
 The seed is idempotent: every insert uses fixed ids and `on conflict do nothing`, so applying it again adds only what is missing.
 

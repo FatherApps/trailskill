@@ -1,6 +1,6 @@
 # 0002. Backend hosting: self-hosted on Dokploy
 
-- Status: Accepted
+- Status: Accepted; amended 2026-11-16 (environments, email provider, backups)
 - Date: 2026-10-24
 - Decider: maintainer
 - Issue: #15
@@ -50,6 +50,8 @@ Only over HTTPS on a public domain, with certificates managed by Dokploy's Traef
 
 ## Open
 
+As of 2026-11-16, three of the points below are closed by the [amendment](#amendment-2026-11-16-qa-and-prod-environments-email-provider-and-backups): the environments, the email provider and the backups (destination, schedule and restore test stay open there until their issues close). The list is kept as written on 2026-10-24.
+
 - Public domain and DNS, and how the server is exposed (port forwarding with a fixed IP, or a tunnel).
 - Physical location of the server, to confirm data residency under Colombian Law 1581 of 2012.
 - Backup destination, schedule and restore test.
@@ -57,3 +59,39 @@ Only over HTTPS on a public domain, with certificates managed by Dokploy's Traef
 - How migrations and Edge Functions from `supabase/` are applied on each deployment.
 - PowerSync Open Edition license terms for this use.
 - Still open from ADR 0001: the email provider, now only for the fallback sign-in code and invitations ([ADR 0004](0004-sign-in-with-google-microsoft-and-email-code.md)), and the hosting budget.
+
+## Amendment 2026-11-16: QA and PROD environments, email provider and backups
+
+Tracking issue: #1114. This amendment closes three points of the Open list above. It does not change the decisions above: the services, the exposure table and the consequences apply to each environment. It contains no values, secrets or account identifiers: those live only in the Dokploy and EAS interfaces, where the maintainer sets them.
+
+### Environments
+
+There are two backend environments, not one.
+
+| | QA | PROD |
+| --- | --- | --- |
+| What it is | The deployment that exists today, renamed. | A new deployment that starts empty. |
+| Data | Demo data and test accounts. | Real data only. Nothing is copied from QA, and QA accounts are registered again. |
+| Deployed from | Every push to `main`, as before. | A release tag `vX.Y.Z` that the maintainer starts. A push to `main` never changes PROD. The mechanism (a `production` branch that only the maintainer advances to the tag, or a direct deploy by tag if Dokploy supports it) is settled in #1116. |
+| Hostnames | `trailskill-api`, `trailskill-sync`, `trailskill-mail` (unchanged). | `swimcro-api`, `swimcro-sync`. No Mailpit and no Studio. |
+| Secrets | Its own. | Its own, never shared with QA: JWT secret and anon key, database and PowerSync passwords, the Vault `athlete_identity_key`, and its own Google OAuth client. |
+| Demo seed | May be applied (`APPLY_SEED`). | Never: `APPLY_SEED` stays `false`. |
+| Email | Resend (see below). | Resend (see below). |
+
+Both environments run the same `deploy/compose.yaml` on the same Dokploy server, PROD in its own Dokploy project. The Dokploy deploy webhook hostname is shared. The internal build that is on Google Play today and the EAS `production` environment point to QA until the cut to PROD (#1120); `preview` and test builds stay on QA.
+
+Not decided here, and pending the read-only checks of #1113: whether one server has the capacity for two Supabase stacks (see the sizing in Consequences), and how Cloudflare reaches the origin for the new hostnames (the TLS mode). The runbooks must not state either as a fact until #1113 reports.
+
+Order of change: the backend always goes first. A release moves PROD's migrations forward before any build from the same tag reaches users, and migrations are forward-only (expand, then contract). The steps are in [`docs/RELEASING.md`](../RELEASING.md#backend-environments-and-release-order).
+
+### Email provider
+
+Auth sends the sign-in code and invitations through Resend over SMTP, with the sender `Swimcro <no-reply@send.tuls.app>`. QA already sends this way: Mailpit no longer receives the codes. Before any new DNS record is created for PROD, the maintainer confirms which sending domain is already verified in Resend. The SMTP credentials are set only in the Dokploy interface.
+
+### Backups
+
+A database backup that leaves the server, and a restore that was tested, are a gate: real families are not invited to PROD until both exist (#1119). The destination is chosen by the maintainer. QA is not backed up.
+
+### Series issues
+
+#1113 (read-only checks before building PROD), #1115 (Supabase PROD stack runbook), #1116 (PROD compose, domains and deploy by tag), #1117 (Edge Functions and `pg_cron` in PROD), #1118 (first school administrator and school rows in PROD), #1119 (backups and a tested restore), #1120 (cut to PROD: EAS `production`, internal build and smoke test).

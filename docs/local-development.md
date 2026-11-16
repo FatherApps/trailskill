@@ -4,7 +4,7 @@ There are two ways to run Swimcro on your machine. Both use the Android developm
 
 | Mode | Backend | Use it for | You need |
 | --- | --- | --- | --- |
-| [Local app, cloud backend](#local-app-cloud-backend) | The shared test backend | App and interface work against the demo data | The anon key and the Mailpit credentials, from the maintainer |
+| [Local app, cloud backend](#local-app-cloud-backend) | QA, the shared cloud backend (demo data) | App and interface work against the demo data | The anon key and the Mailpit credentials, from the maintainer |
 | [Everything local](#everything-local) | Docker on your machine | Migrations, access policies, sync rules, or anything that could disturb other people | Docker and the Supabase CLI |
 
 ## Start from the latest version
@@ -33,7 +33,7 @@ After updating:
 - If a native dependency or config plugin changed, repeat the development build (step 3 of the next section).
 - In **Everything local**, apply new migrations by running the `docker compose ... up` command of step 2 again.
 
-The test backend is shared. Do not delete or rewrite data other people may be using. A migration reaches it only when its pull request is merged into `main`, so try it in **Everything local** first.
+The QA backend is shared. Do not delete or rewrite data other people may be using. A migration reaches it only when its pull request is merged into `main`, so try it in **Everything local** first.
 
 ## Prepare the app
 
@@ -44,6 +44,8 @@ Do this once for either mode. Details are in [Running the app](../CONTRIBUTING.m
 3. Build and install the development build: `npx expo run:android --no-bundler`. Repeat it only when a native dependency or config plugin changes.
 
 ## Local app, cloud backend
+
+This mode uses **QA**: the shared cloud backend that deploys from `main` and holds demo data. Swimcro also has a separate PROD backend for real data; do not point a development build at it, and never ask for its keys (see [Backend environments](RELEASING.md#backend-environments-and-release-order)).
 
 1. Ask the maintainer for a `.env` in the root of your checkout, with the variables of `.env.example`. It is ignored by Git, so a new worktree needs its own copy. The URLs are public; the anon key comes only from the maintainer:
 

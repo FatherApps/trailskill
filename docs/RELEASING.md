@@ -26,6 +26,53 @@ Created together with the project scaffold in `eas.json`:
 | `preview` | Builds for team testing | internal | `preview` |
 | `production` | Google Play builds (AAB) | store | `production` |
 
+## Backend environments and release order
+
+There are two backends, described in [`deploy/README.md`](../deploy/README.md#environments) and the [2026-11-16 amendment of ADR 0002](decisions/0002-backend-hosting-on-dokploy.md#amendment-2026-11-16-qa-and-prod-environments-email-provider-and-backups):
+
+- **QA** is the deployment that exists today. It deploys from `main` on every push, so a migration reaches it as soon as its pull request merges. It holds demo data.
+- **PROD** is a separate deployment that starts empty and receives no data from QA. It deploys only from a release tag `vX.Y.Z` that the maintainer starts, never from a push to `main`. It does not exist yet; it is built by the issues #1115 to #1118.
+
+### Which backend each build uses
+
+The app takes its three public values (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_POWERSYNC_URL`) from the EAS environment at build time. The maintainer sets them in the EAS interface; they are never in the repository and agents never see them.
+
+| Build | EAS environment | Backend |
+| --- | --- | --- |
+| `development` (and local runs) | None (see [Local development](local-development.md)) | Local, or QA |
+| `preview`, and the [debug-signed test APK](#test-builds-debug-signed-apk) | Not `production` | QA |
+| `production` (Google Play) | `production` | **QA until the cut to PROD**, then PROD |
+
+Today the EAS `production` environment still holds the QA values (see [State on 16 November 2026](#state-on-16-november-2026)), so the Play build talks to QA. The cut below changes that. An OTA update on the `production` channel carries the values of the environment it was published from.
+
+### Order for each version
+
+Once PROD exists, a release goes in this order and never in another:
+
+1. **Tag.** `vX.Y.Z` on the merge commit of the release pull request ([Standard release](#standard-release-from-main)).
+2. **Migrate PROD from the tag.** The backend always goes first. PROD deploys from the tag (mechanism and rollback: #1116); read the `migrate` log and confirm it exited 0. If the release changes an Edge Function, deliver it too, as in [Edge Functions](../deploy/README.md#edge-functions).
+3. **Build and submit from the same tag.** `eas build` and `eas submit` ([Standard release](#standard-release-from-main)), only after step 2 passed.
+4. **Smoke test, then promote** through the tracks.
+
+Why the backend first, and what that demands of migrations:
+
+- Migrations are forward-only: an applied migration is never edited or reverted; a mistake is fixed by a new migration ([Rolling back](../deploy/README.md#rolling-back)).
+- Phones keep running the previous build for days. Use expand, then contract: a release first adds what the new build needs while keeping what the old build still uses; a later release removes the old shape, only after the build that no longer needs it is out and adopted. The `results-import` claim change (#896, contract #931) is the example in [Edge Functions](../deploy/README.md#edge-functions).
+- QA runs ahead of PROD, because it migrates on every merge. Use it to see a migration work on real shapes before the tag, but QA passing does not replace the PROD check in step 2.
+
+### Cut to PROD (once)
+
+The first time, the Play build changes backend from QA to PROD (#1120). Preconditions: PROD is built and checked (#1115 to #1118) and the read-only checks of #1113 are approved. The cut is done by the maintainer; agents never run a production build, `eas submit`, or touch EAS or Play credentials.
+
+1. **Confirm PROD is ready**: its services are healthy, its first school administrator exists (#1118), and `APPLY_SEED` is `false`.
+2. **Change the EAS values.** In the EAS interface, replace the three `production` values with the PROD ones (`swimcro-api`, `swimcro-sync`, and the anon key issued for PROD). `preview` and test builds stay on QA. The maintainer confirms in #1120, in writing and without transcribing the values, that the environment holds PROD values.
+3. **Use a new version.** Bump `expo.version` for the PROD build. The runtime version follows `expo.version` ([Over-the-air updates](#over-the-air-updates-eas-update)), so builds that still point to QA never receive an OTA update published with PROD values.
+4. **Tag, migrate PROD, build** in the [order above](#order-for-each-version), then submit to the **Internal testing** track.
+5. **Smoke test on a phone, internal team only** ([Release checklist](#release-checklist)): sign in with Google and with the emailed code, sync, and invite a coach. QA accounts do not exist in PROD and register again; check that a QA account cannot sign in to PROD.
+6. **Record the result** in #1120 (evidence without personal data).
+
+Real families are **not** invited to PROD until an off-server backup and a tested restore exist (#1119, [ADR 0002 amendment](decisions/0002-backend-hosting-on-dokploy.md#amendment-2026-11-16-qa-and-prod-environments-email-provider-and-backups)). The cut itself does not open PROD to them.
+
 ## Standard release from `main`
 
 1. All pull requests for the release are merged and `main` is green.
@@ -37,11 +84,12 @@ Created together with the project scaffold in `eas.json`:
    git push origin vX.Y.Z
    ```
 
-4. Build from the tag: `eas build --platform android --profile production`.
-5. Submit to the internal testing track: `eas submit --platform android --profile production`.
-6. Run the smoke test (see [Release checklist](#release-checklist)) on an internal-track install.
-7. Promote in Play Console: internal → closed (pilot) → production with a staged rollout. See [Tracks](#tracks).
-8. Publish a GitHub Release for the tag with the changelog notes.
+4. Migrate PROD from the tag first, once PROD exists ([Order for each version](#order-for-each-version)). Until the cut, the Play build uses QA, which already migrated when its pull requests merged.
+5. Build from the tag: `eas build --platform android --profile production`.
+6. Submit to the internal testing track: `eas submit --platform android --profile production`.
+7. Run the smoke test (see [Release checklist](#release-checklist)) on an internal-track install.
+8. Promote in Play Console: internal → closed (pilot) → production with a staged rollout. See [Tracks](#tracks).
+9. Publish a GitHub Release for the tag with the changelog notes.
 
 ## Hotfixes
 
@@ -313,7 +361,7 @@ Requirements: JDK, the Android SDK (`ANDROID_HOME` set), and `adb` with an emula
 
 5. Smoke test: the app opens with no Metro server running, signs in with a demo account, and shows synced data.
 
-Sign-in by one-time code works in the preview variant as is. To sign in with Google or another OAuth provider, the preview variant needs `swimcro-preview://auth-callback` in `ADDITIONAL_REDIRECT_URLS` of the backend it points to (production today), next to `swimcro://auth-callback` (and `trailskill://auth-callback`, kept for builds from before the rename). Without it, GoTrue falls back to `SITE_URL` and the browser ends on that page instead of returning to the app. This is a maintainer step on the server, not a change in this repository.
+Sign-in by one-time code works in the preview variant as is. To sign in with Google or another OAuth provider, the preview variant needs `swimcro-preview://auth-callback` in `ADDITIONAL_REDIRECT_URLS` of the backend it points to (QA today), next to `swimcro://auth-callback` (and `trailskill://auth-callback`, kept for builds from before the rename). Without it, GoTrue falls back to `SITE_URL` and the browser ends on that page instead of returning to the app. This is a maintainer step on the server, not a change in this repository.
 
 School invitation links do not open the preview variant. A link such as `swimcro://invite/<token>` (or `trailskill://invite/<token>`, sent before the rename) belongs to the usual build and the Play build; the preview app (`com.fatherapps.swimcro.preview`) answers only to `swimcro-preview://`. To test an invitation in the preview variant, open `swimcro-preview://invite/<token>` by hand, for example `adb shell am start -a android.intent.action.VIEW -d "swimcro-preview://invite/<token>"`.
 
@@ -322,6 +370,7 @@ A build without the three variables still opens, but sign-in and sync report a m
 ## Release checklist
 
 - [ ] `main` (or `release/X.Y`) is green and the tag points to the built commit.
+- [ ] Once PROD exists: PROD was migrated from the tag before the build, and the EAS `production` environment holds the values of the backend the build is meant for.
 - [ ] `CHANGELOG.md` and the GitHub Release notes are written.
 - [ ] Smoke test on an internal-track install: sign in as a guardian, register an athlete, record a training time offline, reconnect and confirm sync.
 - [ ] Data safety form still matches what the app collects and shares.
