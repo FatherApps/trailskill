@@ -10,7 +10,7 @@
 #
 # Env: BACKUP_FETCH_CMD      shell command run as `sh -c "$BACKUP_FETCH_CMD" fetch <dir>`; it must write
 #                            trailskill-prod-latest.dump.age and trailskill-prod-latest.manifest into <dir>.
-#      BACKUP_MAX_AGE_HOURS  oldest accepted copy, in hours (digits only, default 26)
+#      BACKUP_MAX_AGE_HOURS  oldest accepted copy, in hours (digits only, at most 8760, default 26)
 #      RESTORE_CHECK_CONTAINER_NAME  optional name of the temporary container (default restore-check-<pid>-<time>)
 #      BACKUP_RESTORE_IMAGE  default public.ecr.aws/supabase/postgres:17.11.0.006 (Supabase roles exist).
 #                            Use the same image major as PROD.
@@ -52,6 +52,7 @@ sh -c "$BACKUP_FETCH_CMD" fetch "$WORK" || die "fetch command failed"
 # Manifest checks, before anything is decrypted.
 MAX_AGE=${BACKUP_MAX_AGE_HOURS:-26}
 case $MAX_AGE in '' | *[!0-9]* | 0[0-9]*) die "BACKUP_MAX_AGE_HOURS must be a whole number of hours" ;; esac
+[ "${#MAX_AGE}" -le 4 ] && [ "$MAX_AGE" -le 8760 ] || die "BACKUP_MAX_AGE_HOURS must be at most 8760"
 CREATED=$(mf created_at)
 echo "$CREATED" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' ||
   die "manifest created_at is missing or malformed"

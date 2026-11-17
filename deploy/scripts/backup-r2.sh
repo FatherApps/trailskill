@@ -12,6 +12,10 @@
 # <remote>/dumps/<encrypted_sha256>.dump.age (content-addressed). S3 has no rename, so the replace is:
 # upload the new dump, verify it by reading it back, publish the manifest, and only then delete older dumps.
 # A crash at any point leaves the manifest naming a complete dump; stray dumps are removed by the next push.
+# Run ONE backup at a time. The guards (only dumps strictly older than the new one are deleted, never the one
+# the manifest names, and push fails when the manifest ends up naming a missing dump) turn an overlap into a
+# loud failure; they do not make two simultaneous pushes safe. A listing or manifest read that merely fails
+# after the commit point is a warning, not an error (see cleanup).
 set -eu
 set -f
 umask 077
@@ -29,6 +33,67 @@ USAGE="usage: backup-r2.sh push <encrypted file> <manifest> | fetch <dir>"
 R=${BACKUP_RCLONE_REMOTE%/}
 MANIFEST_KEY=trailskill-prod-latest.manifest
 
+# dumps/ as "<time>|<name>" lines; the time is the source mtime, which rclone stores with the object
+dump_list() { rclone lsf --format tp --separator '|' "$R/dumps/" </dev/null; }
+# tnum TIME: TIME ("YYYY-MM-DD hh:mm:ss") as digits, or failure when it is not that
+tnum() { echo "$1" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$' && echo "$1" | tr -d ' :-'; }
+# dump_time NAME: NAME's time as digits from $list; fails when NAME is not listed or its time is unreadable
+dump_time() {
+  while IFS='|' read -r t f; do
+    [ "$f" = "$1" ] && tnum "$t" && return 0
+  done <<LIST_END
+$list
+LIST_END
+  return 1
+}
+# the dump the remote manifest names right now
+remote_sha() {
+  s=$(rclone cat "$R/$MANIFEST_KEY" </dev/null | sed -n 's/^encrypted_sha256=//p' | head -n 1) || return 1
+  valid_sha "$s" && echo "$s"
+}
+
+# After the manifest is published (the commit point) the new dump was already verified by read-back, nothing is
+# deleted without a successful listing, and the daily restore-check.sh --freshness job independently checks the
+# published pair. So a failure to LIST or to re-read the manifest here is a warning (exit 0) and cleanup is skipped;
+# only a CONFIRMED problem (the listing works and a dump is absent) is an error.
+# 4-5. our dump must still be there (a concurrent push may have cleaned it up; then do not clean up), then delete
+# dumps strictly older than ours, never the one the remote manifest names right now (a second push may have
+# published it since). Dumps kept for being not older, or for an unreadable time, are reported in one warning.
+cleanup() {
+  list=$(dump_list) || { warn "could not list dumps/ to clean up; nothing was deleted, the next run retries"; return 0; }
+  own=$(dump_time "$name") || die "the new dump dumps/$name is missing after its manifest was published (a second push running at the same time?); nothing was cleaned up: run one backup by hand, only one at a time"
+  nested=0
+  kept=
+  while IFS='|' read -r t f; do
+    [ -n "$f" ] && [ "$f" != "$name" ] || continue
+    case $f in */) nested=1; continue ;; esac
+    tt=$(tnum "$t") || { kept="${kept:+$kept; }dumps/$f: its time is unreadable"; continue; }
+    [ "$tt" -lt "$own" ] || { kept="${kept:+$kept; }dumps/$f: not older than the new copy (clock or same-second push)"; continue; }
+    live=$(remote_sha) || { warn "cannot re-read the remote manifest; leaving the old dumps, the next run retries"; break; }
+    [ "$f" != "$live.dump.age" ] || continue
+    rclone deletefile "$R/dumps/$f" </dev/null || warn "could not delete old object dumps/$f; the next run retries"
+  done <<LIST_END
+$list
+LIST_END
+  [ -z "$kept" ] || warn "kept $kept; the next run retries"
+  [ "$nested" -eq 0 ] || warn "dumps/ holds folders; they are left alone"
+}
+
+# 6. the published manifest must name a dump that exists, whatever ran at the same time. If the manifest or the
+# listing cannot be read the problem is neither confirmed nor ruled out: warn, the freshness job checks the pair.
+confirm() {
+  if live=$(remote_sha); then
+    if list=$(dump_list); then
+      dump_time "$live.dump.age" >/dev/null ||
+        die "the published manifest names a missing dump (dumps/$live.dump.age); run one backup by hand, only one at a time"
+    else
+      warn "could not list dumps/ to confirm the published copy; the freshness job will check the pair"
+    fi
+  else
+    warn "could not re-read the remote manifest to confirm the published copy; the freshness job will check the pair"
+  fi
+}
+
 push() {
   [ $# -eq 2 ] || die "$USAGE"
   enc=$1
@@ -37,7 +102,8 @@ push() {
   sha=$(mfval "$mf" encrypted_sha256)
   valid_sha "$sha" || die "manifest encrypted_sha256 is missing or malformed"
   [ "$(sha256 <"$enc")" = "$sha" ] || die "the manifest does not describe the encrypted file"
-  obj=$R/dumps/$sha.dump.age
+  name=$sha.dump.age
+  obj=$R/dumps/$name
 
   # 1-2. new dump under its own key, then read it back and compare (a failed read hashes differently)
   rclone copyto "$enc" "$obj" || die "upload failed; previous copy untouched"
@@ -49,16 +115,9 @@ push() {
   rclone copyto "$mf" "$R/$MANIFEST_KEY" || die "cannot publish the manifest; the previous copy is still the latest"
   rclone cat "$R/$MANIFEST_KEY" | cmp -s - "$mf" || die "the published manifest differs from the local one"
 
-  # 4. cleanup: every older dump. A failure here is only a warning; the next run retries.
-  if old=$(rclone lsf "$R/dumps/"); then
-    echo "$old" | while IFS= read -r f; do
-      [ -n "$f" ] && [ "$f" != "$sha.dump.age" ] || continue
-      rclone deletefile "$R/dumps/$f" || warn "could not delete old object dumps/$f; the next run retries"
-    done
-  else
-    warn "could not list dumps/ for cleanup; the next run retries"
-  fi
-  echo "pushed $sha.dump.age and the manifest to $R"
+  cleanup
+  confirm
+  echo "pushed $name and the manifest to $R"
 }
 
 fetch() {
