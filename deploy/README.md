@@ -21,7 +21,7 @@ There are two backend environments on the same Dokploy server. They run the same
 
 The Dokploy deploy webhook hostname (`trailskill-deploy`) is shared by both. Capacity of the server for two stacks: it fits at the ADR 0002 minimum, with little margin. Mario decided (Q6) that PROD goes on the same server, in its own project «Swimcro PROD»; if room is needed, QA gets memory and CPU limits (step planned in #1116), and capacity is watched with thresholds (#1115). See the [#1113 report](../docs/deploy/prod-step0-readonly-checks.md).
 
-Unless a section says otherwise, everything below describes QA, the deployment that exists. PROD differs only as this table says; the step-by-step setup of PROD is in issues #1115 to #1118 and is not written here yet. Secret values are set only by the maintainer in the Dokploy and EAS interfaces, never in this repository.
+Unless a section says otherwise, everything below describes QA, the deployment that exists. PROD differs only as this table says; the Supabase stack of PROD is set up by hand following the [PROD Supabase stack runbook](../docs/deploy/prod-supabase-runbook.md) (#1115); the compose, domains and deploy by tag are #1116 to #1118 and are not written here yet. Secret values are set only by the maintainer in the Dokploy and EAS interfaces, never in this repository.
 
 ## What is here and what is not
 
