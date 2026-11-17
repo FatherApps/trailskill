@@ -234,7 +234,7 @@ The app signs in through the system browser: `supabase.auth.signInWithOAuth` wit
 
 **Who:** Mario, in his own terminal.
 
-Run it from a clean checkout of `main` at the commit that contains the pull request of step 3, with the EAS variables in place:
+Run it from a clean checkout of `main` at a commit that has the link of step 3, with the EAS variables in place:
 
 ```bash
 eas build --profile production --platform android
