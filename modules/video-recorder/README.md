@@ -12,7 +12,7 @@ The view is `VideoRecorder` (`requireNativeViewManager('VideoRecorder')`):
 - Events: `onReady` (the camera is bound) and `onError` (the camera could not open).
 - `now()`: the same clock as the timing buttons.
 
-The manifest of this module declares `CAMERA` and `RECORD_AUDIO`, which the build merges into the app's manifest, and `camera.any` as not required. The permissions are asked from JavaScript when the video screen opens, and the microphone only when the sound setting is on. See `docs/release/data-safety.md`.
+The manifest of this module declares `CAMERA` and `RECORD_AUDIO`, which the build merges into the app's manifest, and `camera.any` as not required. The permissions are asked from JavaScript when the video screen opens (after a first-time explanation screen), and the microphone only when the sound setting is on. See `docs/release/data-safety.md`.
 
 iOS has no counterpart: `"platforms": ["android"]`, so `requireOptionalNativeModule('VideoRecorder')` is `null` there and «Grabar» is not offered.
 

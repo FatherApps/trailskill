@@ -4,9 +4,10 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { createInMemoryPreferencesRepository, defaultPreferences, defaultVideoRecording, PreferencesProvider, type VideoRecordingPreferences } from '../../../core/preferences';
 import { createFakeTimingButton } from '../../timing';
+import { createInMemoryFamilyTimingNoticeStore } from '../data/noticeSeen';
 import { createFakeVideoCamera } from '../testing/fakeVideoCamera';
 import { finalMillis, type FamilyStopwatch } from '../domain/familyStopwatch';
-import { CAMERA_OPEN_TIMEOUT_MS, LOW_SPACE_BYTES, VideoStopwatchContainer, videoName, type VideoStopwatchResult } from '../screens/VideoStopwatchContainer';
+import { CAMERA_OPEN_TIMEOUT_MS, LOW_SPACE_BYTES, VideoStopwatchContainer, videoName, type VideoStopwatchContainerProps, type VideoStopwatchResult } from '../screens/VideoStopwatchContainer';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
 
@@ -22,7 +23,7 @@ function AfterLoad({ children }: { children: ReactNode }) {
   return ready ? children : null;
 }
 
-async function setup(options: { video?: Partial<VideoRecordingPreferences>; granted?: boolean; freeBytes?: number | null; laps?: number; failToOpen?: boolean; failKeep?: boolean } = {}) {
+async function setup(options: { video?: Partial<VideoRecordingPreferences>; granted?: boolean; freeBytes?: number | null; laps?: number; failToOpen?: boolean; failKeep?: boolean; intro?: VideoStopwatchContainerProps['intro'] } = {}) {
   const buttons = createFakeTimingButton(ms(1000));
   const fake = createFakeVideoCamera({ granted: options.granted, freeBytes: options.freeBytes, failToOpen: options.failToOpen, failKeep: options.failKeep });
   const saved: FamilyStopwatch[] = [];
@@ -40,6 +41,7 @@ async function setup(options: { video?: Partial<VideoRecordingPreferences>; gran
         laps={options.laps ?? 1}
         buttons={buttons.port}
         camera={fake.camera}
+        intro={options.intro}
         saveTime={saveTime}
         buttonsHint={() => 'Subir volumen (+) inicia y detiene'}
         onClose={onClose}
@@ -201,6 +203,50 @@ describe('VideoStopwatchContainer', () => {
     await act(async () => void buttons.press(24));
     expect(screen.getByText('Detener')).toBeTruthy();
     expect(fake.state.recordings).toBe(1);
+  });
+
+  describe('the explanation before the permissions (#1173)', () => {
+    const asked = () => ({ store: createInMemoryFamilyTimingNoticeStore(), userId: 'user-1' });
+
+    it('explains what is recorded and where it stays before the system asks, and asks once the person continues', async () => {
+      const intro = asked();
+      const { fake, cameraOn } = await setup({ intro });
+      expect(await screen.findByText('Antes de grabar')).toBeTruthy();
+      expect(screen.getByText(/queda solo en tu teléfono, en el álbum «Swimcro»/)).toBeTruthy();
+      expect(screen.getByText(/solo cuando una grabación está en curso/)).toBeTruthy();
+      expect(fake.state.audioAsked).toEqual([]);
+      expect(fake.state.ready).toBeNull();
+
+      await fireEvent.press(screen.getByText('Continuar'));
+      await cameraOn();
+      expect(fake.state.audioAsked).toEqual([true]);
+      expect(screen.queryByText('Antes de grabar')).toBeNull();
+      expect(intro.store.seenBy.has('user-1')).toBe(true);
+    });
+
+    it('does not explain again once it was seen, and asks for the permissions at once', async () => {
+      const intro = { store: createInMemoryFamilyTimingNoticeStore(['user-1']), userId: 'user-1' };
+      const { fake, cameraOn } = await setup({ intro });
+      await cameraOn();
+      expect(screen.queryByText('Antes de grabar')).toBeNull();
+      expect(fake.state.audioAsked).toEqual([true]);
+    });
+
+    it('leaves without asking for anything, and shows the explanation again next time, when the person goes back', async () => {
+      const intro = asked();
+      const { fake, onClose } = await setup({ intro });
+      await fireEvent.press(await screen.findByLabelText('Volver'));
+      expect(onClose).toHaveBeenCalledWith('discarded');
+      expect(fake.state.audioAsked).toEqual([]);
+      expect(intro.store.seenBy.size).toBe(0);
+    });
+
+    it('still asks for the permissions when the store cannot be read', async () => {
+      const store = { ...createInMemoryFamilyTimingNoticeStore(), seen: () => Promise.reject(new Error('no store')) };
+      const { fake, cameraOn } = await setup({ intro: { store, userId: 'user-1' } });
+      await cameraOn();
+      expect(fake.state.audioAsked).toEqual([true]);
+    });
   });
 
   it('closes when the permissions are refused, and asks for the microphone only with sound', async () => {
