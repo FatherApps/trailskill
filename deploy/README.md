@@ -16,7 +16,7 @@ There are two backend environments on the same Dokploy server. They run the same
 | Email | Resend over SMTP, sender `Swimcro <no-reply@send.tuls.app>` | The same provider and sender; the maintainer first confirms which sending domain is verified in Resend (ADR 0002). |
 | Demo seed (`APPLY_SEED`) | May be applied by the maintainer, see [Demo data](#demo-data). | Never: `APPLY_SEED` stays `false`. |
 | Secrets | Its own | Its own, never the same value as QA's. |
-| Backups | None. | A gate before inviting real families: #1119. |
+| Backups | None. | A gate before inviting real families: #1119 ([runbook](../docs/deploy/prod-backup-restore.md)). |
 | TLS to the origin | Cloudflare Tunnel ends TLS at the edge, then plain HTTP to the Dokploy proxy on port 80. Dokploy domains keep HTTPS off ([Public and internal](#public-and-internal)). | The same route. The hostnames are free and the tunnel can route them ([#1113 report](../docs/deploy/prod-step0-readonly-checks.md)). |
 
 The Dokploy deploy webhook hostname (`trailskill-deploy`) is shared by both. Capacity of the server for two stacks: it fits at the ADR 0002 minimum, with little margin. Mario decided (Q6) that PROD goes on the same server, in its own project «Swimcro PROD»; if room is needed, QA gets memory and CPU limits (step planned in #1116), and capacity is watched with thresholds (#1115). See the [#1113 report](../docs/deploy/prod-step0-readonly-checks.md).
