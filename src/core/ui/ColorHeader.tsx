@@ -11,8 +11,9 @@ export type ColorHeaderProps = {
   color: ColorCardColor;
   title: string;
   subtitle?: string;
-  // Back is always on screen: the flow never depends on the system back button.
-  onBack: () => void;
+  // Back is on screen whenever the screen can go back, so the flow never depends on the system back button. A screen that is the root of its role
+  // (nowhere to go back to) leaves it out: a button that does nothing is not drawn.
+  onBack?: () => void;
   // Below the title, for example a ChipRow.
   children?: ReactNode;
   // Decoration behind the whole band (back button and title included); it takes no layout and screen readers skip it.
@@ -63,26 +64,28 @@ export function ColorHeader({ color, title, subtitle, onBack, children, backgrou
           {background}
         </View>
       ) : null}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('common.back')}
-        onPress={onBack}
-        {...focusProps}
-        style={[
-          {
-            alignSelf: 'flex-start',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: size['target-min'],
-            minHeight: size['target-min'],
-            borderRadius: radius.full,
-            backgroundColor: colors[colorHeaderColors.backButton],
-          },
-          ring,
-        ]}
-      >
-        <Icon name="arrow_back" color={colorHeaderColors.backIcon} />
-      </Pressable>
+      {onBack && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          onPress={onBack}
+          {...focusProps}
+          style={[
+            {
+              alignSelf: 'flex-start',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: size['target-min'],
+              minHeight: size['target-min'],
+              borderRadius: radius.full,
+              backgroundColor: colors[colorHeaderColors.backButton],
+            },
+            ring,
+          ]}
+        >
+          <Icon name="arrow_back" color={colorHeaderColors.backIcon} />
+        </Pressable>
+      )}
       {/* An empty title keeps its Text so the band layout does not move; only the header role goes, so TalkBack announces no empty heading. */}
       <Text accessibilityRole={title ? 'header' : undefined} style={[typography['title-lg'], text]}>
         {title}

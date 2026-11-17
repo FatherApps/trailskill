@@ -1,6 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useGoBack } from '../../../core/navigation';
 import { useSession } from '../../../core/session';
 import { useGlobalSyncSummary } from '../../../core/sync';
 import {
@@ -62,7 +61,6 @@ export default function AthleteProfileRoute() {
   // `name` is the only thing besides the id the route carries: the band shows it from the first frame.
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const router = useRouter();
-  const goBack = useGoBack();
   const { session } = useSession();
   const summary = useGlobalSyncSummary();
   const lastSyncedAt = summary.lastSyncedAt ?? null;
@@ -147,7 +145,8 @@ export default function AthleteProfileRoute() {
       // Records waiting to be sent or that failed to send: with none, connected, the sync tag says "Al día".
       pendingChanges={summary.pending + summary.failed}
       importPrompt={importPrompt}
-      onBack={goBack}
+      // Without history (the landing sent a one-athlete guardian here) there is nowhere to go back to, so no back button.
+      onBack={router.canGoBack() ? () => router.back() : undefined}
     />
   );
 }

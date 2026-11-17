@@ -23,8 +23,8 @@ export type ProfileHeaderProps = {
   upToDate?: boolean;
   // The athlete's colour (same on every screen); a neutral brand colour when the caller has none.
   color?: ColorCardColor;
-  // Back is always on screen, so the caller must say where it goes.
-  onBack: () => void;
+  // Where the back button goes. Left out on the root screen of a role (nowhere to go back to): no button is drawn.
+  onBack?: () => void;
   // Below the school and authorization rows, inside the band: the event chips.
   children?: ReactNode;
 };
@@ -40,6 +40,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   // Over the back-button row: the sync tag sits at the right of the button.
   sync: { position: 'absolute', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
+  syncInFlow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
 });
 
 export function ProfileHeader({
@@ -85,9 +86,11 @@ export function ProfileHeader({
       {(upToDate || updatedMinutesAgo !== null) && (
         <View
           style={[
-            styles.sync,
-            // Stops at the back button, so a long label wraps instead of covering it.
-            { top: space[4], left: space[4] + size['target-min'] + space[2], right: space[4], height: size['target-min'] },
+            // Over the back-button row, stopping at the button so a long label wraps instead of covering it; without the button there is no
+            // row to sit on, so the tag takes its place in the flow.
+            onBack
+              ? [styles.sync, { top: space[4], left: space[4] + size['target-min'] + space[2], right: space[4], height: size['target-min'] }]
+              : styles.syncInFlow,
           ]}
         >
           <View>
