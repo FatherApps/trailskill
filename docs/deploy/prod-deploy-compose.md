@@ -19,7 +19,7 @@ This document contains no secrets, IP addresses, or account, zone, tunnel or con
 
 ## a) Collision report: two copies of `deploy/compose.yaml` on one server
 
-Dokploy v0.31.4 (`packages/server/src/utils/builders/compose.ts`, `createCommand`) runs `docker compose -p <appName> ... -f deploy/compose.yaml up -d --build --remove-orphans`. The `-p` flag overrides the top-level `name: trailskill-deploy`, so each Dokploy compose uses its own app name as the Compose project, and Dokploy keeps app names unique.
+Dokploy v0.31.3 (latest tag at the time of writing; confirm the version the server runs in the Dokploy settings before applying) (`packages/server/src/utils/builders/compose.ts`, `createCommand`) runs `docker compose -p <appName> ... -f deploy/compose.yaml up -d --build --remove-orphans`. The `-p` flag overrides the top-level `name: trailskill-deploy`, so each Dokploy compose uses its own app name as the Compose project, and Dokploy keeps app names unique.
 
 | Name checked | How it is formed | Result |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ Dokploy v0.31.4 (`packages/server/src/utils/builders/compose.ts`, `createCommand
 
 ## b) Deploy by tag: why a `production` branch
 
-Checked in Dokploy v0.31.4 source:
+Checked in Dokploy v0.31.3 source:
 
 - Dokploy has a `tag` trigger type (`triggerType: tag`). But the GitHub webhook (`apps/dokploy/pages/api/deploy/github.ts`) fires it on **any** `refs/tags/*` push, for every tag-trigger compose of the repository. The deploy then runs `git clone --branch <configured branch> --depth 1` (`packages/server/src/utils/providers/github.ts`): the tag name is not used. A tag trigger would deploy the head of a branch, on any tag. **Not usable.**
 - The branch field in the Dokploy UI lists only branches, so pointing the compose at a tag is not a UI option either.
