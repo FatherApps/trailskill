@@ -154,14 +154,14 @@ Read this before the steps. Each line is a fact checked in this repository or in
 | Secret rotation (#914) | **Open**, no comments, last updated 3 November 2026. | **Blocks today**, see step 1. |
 | Sign-in by emailed code | Auth sends the code through Resend. This is **confirmed by Mario and the maintainer (2026-11-15)**: codes for `@example.test` stopped reaching Mailpit. The repository does not show it (the SMTP host is a redacted Dokploy variable). | Second sign-in path. Test it with a real address before inviting testers, step 4. |
 | Sign-in with Google | The maintainer verified authorize, provider, callback in the auth logs (see [`data-safety.md`](release/data-safety.md)). #84 (Google and Microsoft in the self-hosted auth) is still open. | Main sign-in path. Test it on the preview APK before building, step 4. |
-| Expo project | Not created. `owner` and `extra.eas.projectId` are missing from `app.config.ts` on purpose. | Steps 2 and 3. |
+| Expo project | Exists: slug `swimcro`, owner `fatherapps`. `app.config.ts` links it with `owner` and `extra.eas.projectId` (#1160). | Nothing to create. Step 2 keeps only the EAS variables. |
 | App name and package | Swimcro, `com.fatherapps.swimcro` (#1097). Logo and wordmark are pending (#1099). | The store listing can use the current icon; the graphics are the maintainer's. |
 | `expo.version` | `0.1.0` (the pilot stays on `0.y.z`, see [Versioning](#versioning)). The Android `versionCode` is still managed by EAS. | The first upload is `0.1.0`. |
 
 ### Before you start
 
 - [ ] A Google Play developer account (personal) with access to Play Console.
-- [ ] An Expo account (free) to create the project in step 2.
+- [x] The Expo project already exists (slug `swimcro`, owner `fatherapps`) and `app.config.ts` links it (#1160). You need access to that account to run `eas`.
 - [ ] A device with the Play Store signed in with a Google account, for the smoke test.
 - [ ] The drafts in [`docs/release/`](release/) reviewed. They are drafts: the privacy policy needs the legal review of issue #106 before it is published anywhere.
 
@@ -186,11 +186,11 @@ What lifts the block:
 - Alternative: Mario confirms in #914, in writing and without values, that the exposed secrets belong to a deployment other than the one the EAS variables point to. This guide cannot tell that from the repository, so it does not guess.
 - Waiving the block and accepting the risk is the maintainer's decision, recorded in #914. No agent decides it.
 
-### 2. Expo project and the EAS variables
+### 2. EAS variables
 
 **Who:** Mario, on expo.dev and in his own terminal.
 
-**The project.** On expo.dev create the project with slug `swimcro`. Copy its **project ID** (not a secret) and the **owner** (the account or organization that owns it). Give both to the developer who opens the small pull request of step 3. Do not run `eas init`: it cannot edit a dynamic `app.config.ts`.
+**The project.** It already exists (slug `swimcro`, owner `fatherapps`) and is linked in `app.config.ts`. Do not run `eas init` again: it cannot edit a dynamic `app.config.ts`.
 
 **The variables.** The build reads three public values from the EAS environment named `production`. They never go in the repository: `eas.json` has no `EXPO_PUBLIC_*` value. **Today they are the QA values** (temporary decision, see [State](#state-on-16-november-2026)). Create each variable without `--value`, so the CLI asks for it and the value stays out of your shell history and of this repository (if your `eas-cli` rejects the missing value, pass it with `--value` from your own terminal only):
 
@@ -205,16 +205,11 @@ eas env:create --name EXPO_PUBLIC_POWERSYNC_URL --environment production --visib
 - Check them with `eas env:list --environment production`. If your `eas-cli` no longer has `env:create`, the equivalent in current Expo docs is `eas env:set` with the same flags ([Expo: environment variables](https://docs.expo.dev/eas/environment-variables/)).
 - **When PROD exists:** update the three values (`eas env:update`) and ship a new build. Nothing else changes in this guide.
 
-### 3. Pull request with `owner` and `projectId`
+### 3. Link in `app.config.ts`
 
-**Who:** a developer, after Mario hands over the two values. This is a **later, small pull request**, not part of the pull request that carries this guide: an invalid ID breaks every EAS command, `development` profile included, so the values are added only when real.
+**Who:** already done (#1160). `app.config.ts` declares `owner: 'fatherapps'` and `extra.eas.projectId`, for the normal and the `preview` variant (same project).
 
-```ts
-owner: '<expo account or organization>',
-extra: { eas: { projectId: '<project id from expo.dev>' } },
-```
-
-Merge it before step 6: the build must come from a commit that has both.
+Build from a commit that has both (step 6).
 
 ### 4. Sign-in settings on the backend
 
