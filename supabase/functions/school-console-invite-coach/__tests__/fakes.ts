@@ -1,5 +1,8 @@
 import type { CreateOutcome, Invitation, InvitationStore } from '../port.ts';
 
+/** The school name every in-memory invitation carries. */
+export const SCHOOL_NAME = 'Escuela de prueba';
+
 /** An in-memory store that mimics the database rule: only an admin of the school creates an invitation, and one pending invitation exists per school and email. */
 export function createMemoryStore(adminOf: string[]) {
   const invitations: Invitation[] = [];
@@ -8,7 +11,7 @@ export function createMemoryStore(adminOf: string[]) {
       if (!adminOf.includes(schoolId)) return { ok: false, error: { code: 'not_authorized' } };
       const existing = invitations.find((i) => i.schoolId === schoolId && i.email === email);
       if (existing) return { ok: true, value: existing };
-      const created = { id: `invitation-${invitations.length + 1}`, schoolId, email };
+      const created = { id: `invitation-${invitations.length + 1}`, schoolId, email, schoolName: SCHOOL_NAME };
       invitations.push(created);
       return { ok: true, value: created };
     },

@@ -1,22 +1,24 @@
 import { createInviteCoach } from '../service.ts';
+import { createResendSender } from '../resendSender.ts';
 import { createTestSender, TEST_SENDER_LIMIT } from '../testSender.ts';
-import { createMemoryStore } from './fakes.ts';
+import { createMemoryStore, SCHOOL_NAME } from './fakes.ts';
 
 const SCHOOL = '11111111-1111-4111-8111-111111111111';
 const OTHER_SCHOOL = '22222222-2222-4222-8222-222222222222';
 const EMAIL = 'coach@example.test';
+const INVITATION = { schoolId: SCHOOL, email: EMAIL, schoolName: SCHOOL_NAME };
 
 describe('createTestSender', () => {
   it('sends nothing and records what it was asked to deliver', async () => {
     const sender = createTestSender();
-    await sender.deliver({ id: 'i1', schoolId: SCHOOL, email: EMAIL });
-    expect(sender.delivered).toEqual([{ id: 'i1', schoolId: SCHOOL, email: EMAIL }]);
+    await sender.deliver({ id: 'i1', ...INVITATION });
+    expect(sender.delivered).toEqual([{ id: 'i1', ...INVITATION }]);
   });
 
   it('keeps only the last TEST_SENDER_LIMIT deliveries, in the same array', async () => {
     const sender = createTestSender();
     const delivered = sender.delivered;
-    for (let i = 0; i <= TEST_SENDER_LIMIT; i++) await sender.deliver({ id: `i${i}`, schoolId: SCHOOL, email: EMAIL });
+    for (let i = 0; i <= TEST_SENDER_LIMIT; i++) await sender.deliver({ id: `i${i}`, ...INVITATION });
     expect(sender.delivered).toBe(delivered);
     expect(delivered).toHaveLength(TEST_SENDER_LIMIT);
     expect(delivered[0].id).toBe('i1');
@@ -31,7 +33,7 @@ describe('inviteCoach', () => {
     const outcome = await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: EMAIL });
     expect(outcome).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
     expect(invitations).toHaveLength(1);
-    expect(sender.delivered).toEqual([{ id: 'invitation-1', schoolId: SCHOOL, email: EMAIL }]);
+    expect(sender.delivered).toEqual([{ id: 'invitation-1', ...INVITATION }]);
   });
 
   it('refuses a caller who is not an admin of the school, and delivers nothing', async () => {
@@ -52,6 +54,28 @@ describe('inviteCoach', () => {
     expect(await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
     expect(invitations).toHaveLength(1);
     expect(sender.delivered).toHaveLength(1);
+  });
+
+  it('answers unavailable when Resend fails, leaks nothing, and inviting again reuses the invitation and delivers', async () => {
+    const KEY = 're_test_not_a_real_key';
+    const { store, invitations } = createMemoryStore([SCHOOL]);
+    const calls: string[] = [];
+    let status = 500;
+    const fetch = (async (_url: string, init: RequestInit) => {
+      calls.push(init.body as string);
+      return new Response(`secret-body-detail ${KEY}`, { status });
+    }) as unknown as typeof globalThis.fetch;
+    const inviteCoach = createInviteCoach({ store, sender: createResendSender({ apiKey: KEY, from: 'Swimcro <no-reply@example.test>', fetch }) });
+
+    const outcome = await inviteCoach({ schoolId: SCHOOL, email: EMAIL });
+    expect(outcome).toEqual({ ok: false, error: { code: 'unavailable' } });
+    expect(JSON.stringify(outcome)).not.toMatch(/re_test|secret-body-detail/);
+    expect(invitations).toHaveLength(1);
+
+    status = 200;
+    expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+    expect(invitations).toHaveLength(1);
+    expect(calls).toHaveLength(2);
   });
 
   it('lets a store failure through', async () => {

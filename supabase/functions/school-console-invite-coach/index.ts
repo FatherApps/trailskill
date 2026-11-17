@@ -4,6 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 import { createInvitationStore, type Db } from './adapters.ts';
 import { createHandler } from './handler.ts';
+import { createResendSender } from './resendSender.ts';
 import { createInviteCoach } from './service.ts';
 import { createTestSender } from './testSender.ts';
 
@@ -32,8 +33,9 @@ const authenticate = async (request: Request) => {
   return error ? null : (data.user?.id ?? null);
 };
 
-// The real sending provider is an open maintainer decision (#63): until then the test sender delivers nothing.
-const sender = createTestSender();
+// Without the key (development, tests) the test sender delivers nothing.
+const resendKey = Deno.env.get('RESEND_API_KEY');
+const sender = resendKey ? createResendSender({ apiKey: resendKey, from: Deno.env.get('RESEND_FROM') ?? '', fetch }) : createTestSender();
 
 Deno.serve((request) => {
   const authorization = request.headers.get('Authorization');

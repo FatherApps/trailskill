@@ -129,7 +129,7 @@ echo "PASS: a catalogs.ts with imports (also multi-line or dynamic), or another 
 
 # 5. The egress script finds every host the providers query, without Docker. Each case is a scratch tree with its own providers.
 egress_clone() { mkdir -p "$1/deploy/scripts" "$1/supabase/functions/results-import/providers"; cp "$HERE/functions-egress.sh" "$1/deploy/scripts/"; }
-[ "$(sh "$HERE/functions-egress.sh" --list)" = "$(printf 'ecoapplet.co\nwww.colombiaacuatica.com')" ] || fail "--list on the repository is not exactly the two provider hosts: $(sh "$HERE/functions-egress.sh" --list 2>&1)"
+[ "$(sh "$HERE/functions-egress.sh" --list)" = "$(printf 'api.resend.com\necoapplet.co\nwww.colombiaacuatica.com')" ] || fail "--list on the repository is not exactly the Resend host and the two provider hosts: $(sh "$HERE/functions-egress.sh" --list 2>&1)"
 E=$T/egress-ok
 egress_clone "$E"
 mkdir -p "$E/supabase/functions/results-import/providers/xx-a/__tests__" "$E/supabase/functions/results-import/providers/xx-b"

@@ -22,6 +22,12 @@ const failure = (what: string, error: DbError | null) => new Error(`${what} fail
  * lowercased differently (JavaScript and Postgres disagree on some characters, such as 'İ'): the caller's input, so bad_request.
  */
 export function createInvitationStore(db: Db): InvitationStore {
+  // Read as the caller too: an admin of the school reads it, and the message names it.
+  const readSchoolName = async (schoolId: string) => {
+    const { data, error } = await db.selectOne('schools', { id: schoolId }, 'name');
+    if (error || typeof data?.name !== 'string' || data.name === '') throw failure('Reading the school', error);
+    return data.name;
+  };
   return {
     async create(schoolId, email): Promise<CreateOutcome> {
       const { data, error } = await db.insert('coach_invitations', { school_id: schoolId, email });
@@ -30,10 +36,10 @@ export function createInvitationStore(db: Db): InvitationStore {
       if (error?.code === UNIQUE_VIOLATION) {
         const existing = await db.selectOne('coach_invitations', { school_id: schoolId, email, status: 'pending' }, 'id');
         if (existing.error || typeof existing.data?.id !== 'string') throw failure('Reading the pending invitation', existing.error);
-        return { ok: true, value: { id: existing.data.id, schoolId, email } };
+        return { ok: true, value: { id: existing.data.id, schoolId, email, schoolName: await readSchoolName(schoolId) } };
       }
       if (error || typeof data?.id !== 'string') throw failure('Creating the invitation', error);
-      return { ok: true, value: { id: data.id, schoolId, email } };
+      return { ok: true, value: { id: data.id, schoolId, email, schoolName: await readSchoolName(schoolId) } };
     },
   };
 }
