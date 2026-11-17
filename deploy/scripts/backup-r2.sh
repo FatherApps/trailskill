@@ -56,12 +56,19 @@ remote_sha() {
 # deleted without a successful listing, and the daily restore-check.sh --freshness job independently checks the
 # published pair. So a failure to LIST or to re-read the manifest here is a warning (exit 0) and cleanup is skipped;
 # only a CONFIRMED problem (the listing works and a dump is absent) is an error.
-# 4-5. our dump must still be there (a concurrent push may have cleaned it up; then do not clean up), then delete
+# 4-5. our dump must still be there (a concurrent push may have cleaned it up; then upload it again, verify it and
+# fail without cleaning up), then delete
 # dumps strictly older than ours, never the one the remote manifest names right now (a second push may have
 # published it since). Dumps kept for being not older, or for an unreadable time, are reported in one warning.
 cleanup() {
   list=$(dump_list) || { warn "could not list dumps/ to clean up; nothing was deleted, the next run retries"; return 0; }
-  own=$(dump_time "$name") || die "the new dump dumps/$name is missing after its manifest was published (a second push running at the same time?); nothing was cleaned up: run one backup by hand, only one at a time"
+  own=$(dump_time "$name") || {
+    # Repair: only adds an object (same content-addressed key), never deletes; the push still fails.
+    if rclone copyto "$enc" "$obj" && [ "$(rclone cat "$obj" | sha256)" = "$sha" ]; then
+      die "the new dump dumps/$name was missing after its manifest was published (a second push at the same time?); it was uploaded again and verified, nothing was cleaned up: check that only one backup runs at a time"
+    fi
+    die "the new dump dumps/$name is missing after its manifest was published (a second push running at the same time?); nothing was cleaned up: run one backup by hand, only one at a time"
+  }
   nested=0
   kept=
   while IFS='|' read -r t f; do
