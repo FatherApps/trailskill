@@ -145,7 +145,7 @@ const swimmerCounts = Array.from({ length: MAX_SWIMMERS - MIN_SWIMMERS + 1 }, (_
 type Step =
   | { kind: 'list' }
   | { kind: 'setup' }
-  | { kind: 'stopwatch'; saveError: boolean; videoNotice?: 'denied' | 'cancelled' }
+  | { kind: 'stopwatch'; saveError: boolean; videoNotice?: 'denied' | 'cancelled' | 'camera_error' }
   | { kind: 'video' }
   | { kind: 'series' }
   | { kind: 'series_assign'; lanes: Lane[]; saveError: boolean }

@@ -23,9 +23,11 @@ import '../i18n';
 const KEEP_AWAKE_TAG = 'family-timing-video';
 // Below this free space a warning shows before recording: about 8 minutes of 1080p.
 export const LOW_SPACE_BYTES = 500 * 1024 * 1024;
+// CameraX opens in about a second; past this the camera is stuck (the native error never arrived) and the person goes back to the plain stopwatch.
+export const CAMERA_OPEN_TIMEOUT_MS = 10_000;
 
-/** How the screen closed: the time saved, the time discarded, the permissions refused, or the take cancelled by leaving the app. */
-export type VideoStopwatchResult = 'saved' | 'discarded' | 'denied' | 'cancelled';
+/** How the screen closed: the time saved, the time discarded, the permissions refused, the take cancelled by leaving the app, or the camera that did not open. */
+export type VideoStopwatchResult = 'saved' | 'discarded' | 'denied' | 'cancelled' | 'camera_error';
 
 export type VideoStopwatchContainerProps = {
   /** "Libre 50 m · Piscina de 25 m". */
@@ -98,6 +100,12 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     onClose(result);
   };
 
+  // The camera failed to open: the screen goes back to the stopwatch without video. Unmounting stops anything recording.
+  const cameraFailed = () => {
+    outcome.current.cancelled = true;
+    close('camera_error');
+  };
+
   useEffect(() => {
     let active = true;
     camera
@@ -116,6 +124,14 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     // Asked once, when the screen opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A camera that never says ready nor fails does not leave the person stuck.
+  useEffect(() => {
+    if (phase !== 'ready' || cameraReady) return;
+    const timer = setTimeout(cameraFailed, CAMERA_OPEN_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, cameraReady]);
 
   // The screen stays awake the whole time the camera is open, and the clocks refresh while something runs.
   useEffect(() => {
@@ -329,6 +345,7 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
               thousandths: precision === 'thousandths',
             }}
             onReady={() => setCameraReady(true)}
+            onError={cameraFailed}
             style={StyleSheet.absoluteFill}
           />
         ) : null
