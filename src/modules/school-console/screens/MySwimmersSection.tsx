@@ -21,7 +21,7 @@ export type MySwimmersSectionProps = {
   // 'connecting' is not 'offline': PowerSync is still reaching the backend, so nothing says the device lacks a network yet.
   connection: SyncConnection;
   onOpenAthlete: (id: string, name: string) => void;
-  onBack: () => void;
+  onBack?: () => void;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
   footer?: ReactNode;

@@ -31,11 +31,12 @@ jest.mock('../modules/accounts', () => ({
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
+let mockCanGoBack = true;
 jest.mock('expo-router', () => {
   const { Text } = jest.requireActual('react-native');
   return {
     Redirect: ({ href }: { href: string }) => <Text>{`redirected to ${href}`}</Text>,
-    useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack, canGoBack: () => true }),
+    useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack, canGoBack: () => mockCanGoBack }),
   };
 });
 
@@ -61,6 +62,7 @@ beforeEach(() => {
   mockPush.mockReset();
   mockReplace.mockReset();
   mockBack.mockReset();
+  mockCanGoBack = true;
   mockListCoachSchools.mockReset().mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
   mockListAthletes.mockReset().mockResolvedValue([
     athlete('a1', 'Lucía Ramírez', ['user-1']),
@@ -100,6 +102,16 @@ describe('my swimmers route', () => {
     await fireEvent.press(await screen.findByRole('button', { name: t('common.back') }));
 
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  // The landing redirects here with no history: '/' would send the coach straight back, so the button would do nothing.
+  it('shows no back button when there is no history to go back to', async () => {
+    mockCanGoBack = false;
+    await show();
+
+    expect(await screen.findByRole('button', { name: /^Lucía Ramírez/ })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: t('common.back') })).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it.each([

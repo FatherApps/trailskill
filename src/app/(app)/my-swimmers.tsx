@@ -2,7 +2,6 @@ import { Redirect, useRouter } from 'expo-router';
 import { useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../core/i18n';
-import { useGoBack } from '../../core/navigation';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
@@ -30,7 +29,6 @@ const pendingInvitations = createSecureStorePendingInvitationRepository();
 // leaves this route, and the backend still decides which athletes reach the device.
 export default function MySwimmersRoute() {
   const router = useRouter();
-  const goBack = useGoBack('/');
   const { session } = useSession();
   const { width } = useWindowDimensions();
   const { colors, space } = useTheme();
@@ -74,7 +72,8 @@ export default function MySwimmersRoute() {
       lastSyncedAt={lastSyncedAt}
       connection={connection}
       onOpenAthlete={(id, name) => router.push(athleteProfileHref(id, name))}
-      onBack={goBack}
+      // Without history ('/' sends the coach straight back here) there is nowhere to go back to, so no back button.
+      onBack={router.canGoBack() ? () => router.back() : undefined}
       // The coach lands here instead of on the home screen, so the entries only the home screen had are here too.
       footer={
         <StaffEntries onOpen={(href) => router.push(href)}>

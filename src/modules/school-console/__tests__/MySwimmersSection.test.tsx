@@ -132,6 +132,13 @@ describe('MySwimmersSection', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  it('draws no back button when it has nowhere to go back to', async () => {
+    await show({ onBack: undefined });
+
+    await screen.findByRole('button', { name: /^Lucía Ramírez/ });
+    expect(screen.queryByRole('button', { name: t('common.back') })).toBeNull();
+  });
+
   it('has no console navigation: the coach does not receive the admin sections', async () => {
     await show();
 
