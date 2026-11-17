@@ -26,8 +26,11 @@ export const LOW_SPACE_BYTES = 500 * 1024 * 1024;
 // CameraX opens in about a second; past this the camera is stuck (the native error never arrived) and the person goes back to the plain stopwatch.
 export const CAMERA_OPEN_TIMEOUT_MS = 10_000;
 
-/** How the screen closed: the time saved, the time discarded, the permissions refused, the take cancelled by leaving the app, or the camera that did not open. */
-export type VideoStopwatchResult = 'saved' | 'discarded' | 'denied' | 'cancelled' | 'camera_error';
+/**
+ * How the screen closed: the time saved, the time discarded, the permissions refused, the take cancelled by leaving the app, or the camera that did not open.
+ * `saved_no_video` and `discarded_no_video` are the first two when the gallery refused the video (#1172).
+ */
+export type VideoStopwatchResult = 'saved' | 'saved_no_video' | 'discarded' | 'discarded_no_video' | 'denied' | 'cancelled' | 'camera_error';
 
 export type VideoStopwatchContainerProps = {
   /** "Libre 50 m · Piscina de 25 m". */
@@ -147,11 +150,13 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     return () => clearInterval(timer);
   }, [ticking]);
 
+  // The time is already saved (or discarded on purpose); a video the gallery refused is lost, not the time, and the person is told when the screen closes.
   async function keepVideo(uri: string, measurementId: string | null) {
     try {
       await camera.keep(uri, videoName(measurementId));
+      return true;
     } catch {
-      // The time is already saved; a video the gallery refused is lost, not the time.
+      return false;
     }
   }
 
@@ -166,8 +171,7 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     }
     if (o.cancelled) return camera.discard(uri);
     if (o.savedId) {
-      await keepVideo(uri, o.savedId);
-      return close('saved');
+      return close((await keepVideo(uri, o.savedId)) ? 'saved' : 'saved_no_video');
     }
     // A video without a started clock is not kept (decision 9); the person may record again.
     if (!o.clockStarted) {
@@ -177,8 +181,7 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     }
     // A discarded time keeps its video in the gallery, without a time (decision 8).
     if (o.discarded) {
-      await keepVideo(uri, null);
-      return close('discarded');
+      return close((await keepVideo(uri, null)) ? 'discarded' : 'discarded_no_video');
     }
     setPending(uri);
   }
@@ -269,8 +272,7 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
       const uri = pending.current;
       setPending(null);
       if (uri) {
-        await keepVideo(uri, id);
-        close('saved');
+        close((await keepVideo(uri, id)) ? 'saved' : 'saved_no_video');
       } else if (recording.current) setSavingVideo(true);
       else close('saved');
     } catch {
@@ -285,8 +287,7 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     const uri = pending.current;
     setPending(null);
     if (uri) {
-      await keepVideo(uri, null);
-      return close('discarded');
+      return close((await keepVideo(uri, null)) ? 'discarded' : 'discarded_no_video');
     }
     if (recording.current) return stopRecording();
     close('discarded');
