@@ -11,7 +11,9 @@ describe('school-console-invite-coach entry point', () => {
     expect(source).toMatch(/Authorization/);
   });
 
-  it('wires the test sender, the only adapter of the sending port', () => {
-    expect(source).toMatch(/createTestSender\(\)/);
+  it('reads the sending configuration from RESEND_API_KEY and RESEND_FROM and selects the sender with selectSender', () => {
+    expect(source).toMatch(/Deno\.env\.get\('RESEND_API_KEY'\)/);
+    expect(source).toMatch(/Deno\.env\.get\('RESEND_FROM'\)/);
+    expect(source).toMatch(/selectSender\(/);
   });
 });

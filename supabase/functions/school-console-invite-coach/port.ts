@@ -1,5 +1,5 @@
-/** A pending invitation of a coach to a school. */
-export type Invitation = { id: string; schoolId: string; email: string };
+/** A pending invitation of a coach to a school. The school name is there because the message must say who invites. */
+export type Invitation = { id: string; schoolId: string; email: string; schoolName: string };
 
 export type CreateOutcome = { ok: true; value: Invitation } | { ok: false; error: { code: 'not_authorized' } | { code: 'bad_request' } };
 

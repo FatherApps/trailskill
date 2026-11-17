@@ -6,7 +6,7 @@
 # Hosts: every non-test .ts module under supabase/functions/*/ is scanned for `https://` URLs: a literal host (also inside
 # template literals) or `https://${NAME}` with `const NAME = '<host>'` in the same file. A host that cannot be resolved, or a
 # results-import provider folder (providers/<name>/) with no host at all, is a FAIL: a provider left out of the check never
-# passes. Any other function may have no host (school-console-invite-coach has none: its test sender opens no connection).
+# passes. Any other function may have no host (school-console-invite-coach has only api.resend.com, from its Resend sender).
 # The edge-runtime image has no shell tools to fetch with, so a throwaway Deno container joins that network and sends a
 # HEAD request to https://<host>/ for each host: it leaves the host the same way the function's requests do.
 # A PASS covers: DNS, the route out, a TLS handshake with a certificate the container trusts for that host name, and an HTTP

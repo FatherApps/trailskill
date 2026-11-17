@@ -2,7 +2,7 @@ import { createInvitationStore, type Db } from '../adapters.ts';
 import { createHandler } from '../handler.ts';
 import { createInviteCoach } from '../service.ts';
 import { createTestSender } from '../testSender.ts';
-import { createMemoryStore } from './fakes.ts';
+import { createMemoryStore, SCHOOL_NAME } from './fakes.ts';
 
 const SCHOOL = '11111111-1111-4111-8111-111111111111';
 const OTHER_SCHOOL = '22222222-2222-4222-8222-222222222222';
@@ -25,7 +25,7 @@ describe('school-console-invite-coach handler', () => {
     const response = await s.post({ schoolId: SCHOOL, email: '  Coach@Example.TEST ' });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
-    expect(s.invitations).toEqual([{ id: 'invitation-1', schoolId: SCHOOL, email: 'coach@example.test' }]);
+    expect(s.invitations).toEqual([{ id: 'invitation-1', schoolId: SCHOOL, email: 'coach@example.test', schoolName: SCHOOL_NAME }]);
     expect(s.delivered).toEqual(s.invitations);
   });
 
