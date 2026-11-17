@@ -2,7 +2,7 @@
 # End-to-end test of backup-prod.sh and restore-check.sh (#1119) with a throwaway source database
 # (the Supabase Postgres image with the repo migrations and synthetic rows), a real age key and a local
 # directory as the "destination". No host ports are published. Needs Docker and network (to build an
-# alpine image with age). Usage: sh deploy/scripts/backup-prod.test.sh
+# alpine image with age and rclone). Usage: sh deploy/scripts/backup-prod.test.sh
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -12,6 +12,7 @@ ID="ts-bktest-$$-$(date +%s)"
 NET=$ID
 DB=$ID-db
 TOOLS=$ID-tools
+S3=$ID-s3
 T=$(mktemp -d)
 rand() { od -An -N12 -tx1 /dev/urandom | tr -d ' \n'; }
 PW=$(rand)
@@ -23,6 +24,7 @@ mkdir -p "$DEST" "$BKTMP" "$T/rc-tmp" "$T/bin" "$T/shim"
 
 cleanup() {
   docker rm -f "$DB" >/dev/null 2>&1
+  docker rm -f -v "$S3" >/dev/null 2>&1
   docker rm -f -v "$RCNAME" >/dev/null 2>&1
   docker network rm "$NET" >/dev/null 2>&1
   docker rmi "$TOOLS" >/dev/null 2>&1
@@ -38,7 +40,7 @@ nonzero() { if [ "$2" -ne 0 ]; then pass "$1"; else fail "$1" "exit code was 0";
 has() { if grep -q -e "$2" "$T/out"; then pass "$1"; else fail "$1" "output lacks '$2'"; fi; }
 
 # --- infrastructure ---------------------------------------------------------
-printf 'FROM postgres:17-alpine\nRUN apk add --no-cache age\n' | docker build -q -t "$TOOLS" - >/dev/null || { echo "cannot build tools image"; exit 2; }
+printf 'FROM postgres:17-alpine\nRUN apk add --no-cache age rclone\n' | docker build -q -t "$TOOLS" - >/dev/null || { echo "cannot build tools image"; exit 2; }
 docker network create "$NET" >/dev/null || exit 2
 docker run -d --name "$DB" --network "$NET" -e POSTGRES_PASSWORD="$PW" "$PGIMG" >/dev/null || exit 2
 sql() { docker exec -i "$DB" psql -X -U supabase_admin -d postgres -Atq -v ON_ERROR_STOP=1 "$@"; }
@@ -74,6 +76,23 @@ agek() { docker run --rm -v "$T:$T" "$TOOLS" age-keygen "$@" 2>&1; }
 agek -o "$T/key1.txt" >/dev/null; agek -o "$T/key2.txt" >/dev/null
 PUB=$(sed -n 's/^# public key: //p' "$T/key1.txt")
 
+# Throwaway S3 endpoint for the R2 destination: `rclone serve s3` on the test network, no host port, no
+# real bucket and no real credentials. (MinIO images are no longer pullable, rclone is already in the image.)
+S3AK=$(rand); S3SK=$(rand)
+R2ENV="-e RCLONE_CONFIG_R2_TYPE=s3 -e RCLONE_CONFIG_R2_PROVIDER=Rclone -e RCLONE_CONFIG_R2_ACCESS_KEY_ID=$S3AK -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=$S3SK -e RCLONE_CONFIG_R2_ENDPOINT=http://$S3:9000"
+BUCKET=ts-bucket
+cat >"$T/bin/rclone" <<SH
+#!/bin/sh
+exec docker run --rm -i --network "$NET" --user "$(id -u):$(id -g)" -e HOME=/tmp $R2ENV -v "$T:$T" -w "$T" "$TOOLS" rclone "\$@"
+SH
+chmod +x "$T/bin/rclone"
+docker run -d --name "$S3" --network "$NET" "$TOOLS" rclone serve s3 /data --addr :9000 --auth-key "$S3AK,$S3SK" >/dev/null || exit 2
+i=0
+until "$T/bin/rclone" mkdir "r2:$BUCKET" >/dev/null 2>&1; do
+  i=$((i + 1)); [ "$i" -gt 30 ] && { echo "s3 endpoint did not start"; exit 2; }
+  sleep 1
+done
+
 # A pg_dump that writes garbage, for the failed-verification case.
 cat >"$T/shim/pg_dump" <<'SH'
 #!/bin/sh
@@ -104,14 +123,14 @@ FETCH='cp '"$DEST"'/trailskill-prod-latest.* "$1"/'
 
 # bk [docker run options...]: backup-prod.sh in the tools container, on the source database's network.
 bk() {
-  docker run --rm --network "$NET" --user "$(id -u):$(id -g)" -v "$T:$T" -v "$HERE/backup-prod.sh:/backup-prod.sh:ro" \
+  docker run --rm --network "$NET" --user "$(id -u):$(id -g)" -v "$T:$T" -v "$HERE/backup-prod.sh:/backup-prod.sh:ro" -v "$HERE:/scripts:ro" \
     -e TMPDIR="$BKTMP" -e PGHOST="$DB" -e PGUSER=supabase_admin -e PGPASSWORD="$PW" -e PGDATABASE=postgres \
     -e BACKUP_PUSH_CMD="$PUSH" "$@" "$TOOLS" sh /backup-prod.sh >"$T/out" 2>&1
 }
 # rc KEYFILE: restore-check.sh on the host (Docker for the temporary database, age through the wrapper).
 rc() { PATH="$T/bin:$PATH" TMPDIR="$T/rc-tmp" BACKUP_FETCH_CMD="$FETCH" RESTORE_CHECK_CONTAINER_NAME="$RCNAME" sh "$HERE/restore-check.sh" "$1" >"$T/out" 2>&1; }
 # rcf [hours]: restore-check.sh --freshness (no key, no docker, no age); optional BACKUP_MAX_AGE_HOURS.
-rcf() { env ${1:+"BACKUP_MAX_AGE_HOURS=$1"} TMPDIR="$T/rc-tmp" BACKUP_FETCH_CMD="$FETCH" sh "$HERE/restore-check.sh" --freshness >"$T/out" 2>&1; }
+rcf() { env ${1:+"BACKUP_MAX_AGE_HOURS=$1"} PATH="$T/bin:$PATH" TMPDIR="$T/rc-tmp" BACKUP_FETCH_CMD="$FETCH" sh "$HERE/restore-check.sh" --freshness >"$T/out" 2>&1; }
 sums() { (cd "$DEST" && for f in trailskill-prod-latest.*; do echo "$f $(shasum -a 256 <"$f")"; done); }
 leftovers() { ls -A "$BKTMP" | wc -l | tr -d ' '; }
 
@@ -268,6 +287,114 @@ rcf; r=$?
 nonzero "freshness: tampered copy fails" "$r"
 has "freshness: tampered copy says why" "checksum does not match"
 eq "freshness: no files left in TMPDIR" 0 "$(ls -A "$T/rc-tmp" | wc -l | tr -d ' ')"
+
+# --- 7. Cloudflare R2 destination (backup-r2.sh) against the throwaway S3 endpoint ---------------------
+R2P='sh /scripts/backup-r2.sh "$0" "$@"'
+FETCH='sh '"$HERE"'/backup-r2.sh "$0" "$@"'
+PATH="$T/bin:$PATH"; export PATH
+BACKUP_RCLONE_REMOTE=r2:$BUCKET
+export BACKUP_RCLONE_REMOTE
+rcl() { "$T/bin/rclone" "$@"; }
+# bkr: a real backup pushed to the bucket by backup-r2.sh.
+bkr() { bk $R2ENV -e BACKUP_RCLONE_REMOTE="$BACKUP_RCLONE_REMOTE" -e BACKUP_PUSH_CMD="$R2P" -e BACKUP_AGE_RECIPIENT="$PUB"; }
+remote_sha() { rcl cat "$BACKUP_RCLONE_REMOTE/trailskill-prod-latest.manifest" | sed -n 's/^encrypted_sha256=//p'; }
+dumps() { rcl lsf "$BACKUP_RCLONE_REMOTE/dumps/" | sort | tr '\n' ' '; }
+# fetched DIR EXPECTED-MANIFEST: fetch through backup-r2.sh and check the pair is the expected, consistent one.
+fetched() {
+  rm -rf "$T/f" && mkdir "$T/f" && sh "$HERE/backup-r2.sh" fetch "$T/f" >"$T/out" 2>&1 || return 1
+  cmp -s "$T/f/trailskill-prod-latest.manifest" "$1" &&
+    [ "$(shasum -a 256 <"$T/f/trailskill-prod-latest.dump.age" | cut -d' ' -f1)" = "$(sed -n 's/^encrypted_sha256=//p' "$T/f/trailskill-prod-latest.manifest")" ]
+}
+
+# (a) first backup
+bkr; r=$?
+eq "r2: backup exit 0" 0 "$r"
+SHA_A=$(remote_sha)
+eq "r2: exactly the manifest and dumps/ at the remote" "dumps/ trailskill-prod-latest.manifest " "$(rcl lsf "$BACKUP_RCLONE_REMOTE" | sort | tr '\n' ' ')"
+eq "r2: one dump, named by the manifest's encrypted_sha256" "$SHA_A.dump.age " "$(dumps)"
+# (b) restore through the R2 fetch
+rc "$T/key1.txt"; r=$?
+eq "r2: full restore check passes through fetch" 0 "$r"
+has "r2: restore prints OK" "restore check OK"
+rcf; r=$?
+eq "r2: freshness passes through fetch" 0 "$r"
+# (c) second backup replaces the first
+sql -c "insert into public.athletes (first_name, last_name) values ('Second', 'Synthetic')"
+bkr; r=$?
+eq "r2: second backup exit 0" 0 "$r"
+SHA_C=$(remote_sha)
+eq "r2: second backup: still one dump, new name" "$SHA_C.dump.age " "$(dumps)"
+[ "$SHA_C" != "$SHA_A" ] && pass "r2: second backup: the name changed" || fail "r2: second backup: the name changed" "same sha"
+
+# (d) crash at every step boundary. State A is the committed pair now at the remote; B is a second real backup
+# made into the local directory. Each case puts the bucket in the exact state a crash would leave.
+mkdir "$T/A" "$T/B"
+rcl copyto "$BACKUP_RCLONE_REMOTE/trailskill-prod-latest.manifest" "$T/A/m" && rcl copyto "$BACKUP_RCLONE_REMOTE/dumps/$SHA_C.dump.age" "$T/A/d"
+sql -c "insert into public.athletes (first_name, last_name) values ('Third', 'Synthetic')"
+bk -e BACKUP_AGE_RECIPIENT="$PUB"; r=$?
+eq "r2 crash setup: second real backup (B) made locally" 0 "$r"
+cp "$DEST/trailskill-prod-latest.manifest" "$T/B/m"; cp "$DEST/trailskill-prod-latest.dump.age" "$T/B/d"
+SHA_B=$(sed -n 's/^encrypted_sha256=//p' "$T/B/m")
+RR=$BACKUP_RCLONE_REMOTE
+state() { # state MANIFEST-FILE DUMP-SPEC...: wipe the bucket, then put the named objects (name=file)
+  rcl delete "$RR" >/dev/null 2>&1; m=$1; shift
+  rcl copyto "$m" "$RR/trailskill-prod-latest.manifest" || return 1
+  for o in "$@"; do rcl copyto "${o#*=}" "$RR/dumps/${o%%=*}.dump.age" || return 1; done
+}
+# 1. crash after uploading the new dump (B dump present, manifest still A). The verify step (2) leaves the
+# very same bucket state, so one assertion set covers both.
+state "$T/A/m" "$SHA_C=$T/A/d" "$SHA_B=$T/B/d"
+rcf; r=$?
+eq "r2 crash after upload/verify: freshness passes" 0 "$r"
+fetched "$T/A/m"; r=$?
+eq "r2 crash after upload/verify: fetch returns the consistent old pair A" 0 "$r"
+# 3. crash after publishing the manifest (manifest B, dumps A and B)
+state "$T/B/m" "$SHA_C=$T/A/d" "$SHA_B=$T/B/d"
+rcf; r=$?
+eq "r2 crash after publish: freshness passes" 0 "$r"
+fetched "$T/B/m"; r=$?
+eq "r2 crash after publish: fetch returns the consistent new pair B" 0 "$r"
+rc "$T/key1.txt"; r=$?
+eq "r2 crash after publish: full restore (decrypt + restore) passes" 0 "$r"
+has "r2 crash after publish: restores the athletes of B (6 rows)" "public.athletes  *6  *6"
+# Freshness reads created_at of the PUBLISHED manifest, never object timestamps: re-uploading dumps (new
+# mtime) changes nothing, and a fresh upload of an old manifest still fails.
+rcl copyto "$T/A/d" "$RR/dumps/$SHA_C.dump.age"
+rcf; r=$?
+eq "r2 freshness ignores a re-uploaded old dump" 0 "$r"
+sed "s/^created_at=.*/created_at=$(ago 27)/" "$T/B/m" >"$T/B/m.old"
+rcl copyto "$T/B/m.old" "$RR/trailskill-prod-latest.manifest"
+rcf; r=$?
+nonzero "r2 freshness: a just-uploaded manifest with an old created_at fails" "$r"
+has "r2 freshness: judged by created_at, not by object age" "older than 26 h"
+# 4. crash mid-cleanup (manifest B, B dump, one stray old dump left)
+printf 'orphan' >"$T/orphan"
+state "$T/B/m" "$SHA_B=$T/B/d" "orphan=$T/orphan"
+rcf; r=$?
+eq "r2 crash mid-cleanup: freshness passes" 0 "$r"
+fetched "$T/B/m"; r=$?
+eq "r2 crash mid-cleanup: fetch returns the consistent new pair B" 0 "$r"
+# next normal backup from that state leaves exactly one dump
+bkr; r=$?
+eq "r2: backup after a crash exits 0" 0 "$r"
+SHA_D=$(remote_sha)
+eq "r2: backup after a crash leaves exactly one dump (stray ones removed)" "$SHA_D.dump.age " "$(dumps)"
+
+# (e) manifest naming a missing dump, (f) malformed sha, (g) usage
+rcl deletefile "$RR/dumps/$SHA_D.dump.age"
+rcf; r=$?
+nonzero "r2: missing dump: freshness fails" "$r"
+has "r2: missing dump: clear message" "the copy named by the manifest is missing"
+sed 's/^encrypted_sha256=.*/encrypted_sha256=..\/..\/x/' "$T/B/m" | rcl rcat "$RR/trailskill-prod-latest.manifest"
+rcf; r=$?
+nonzero "r2: malformed encrypted_sha256: fetch fails" "$r"
+has "r2: malformed encrypted_sha256: clear message" "encrypted_sha256 is missing or malformed"
+sh "$HERE/backup-r2.sh" bogus >"$T/out" 2>&1; r=$?
+nonzero "r2: wrong subcommand fails" "$r"
+has "r2: wrong subcommand prints usage" "usage: backup-r2.sh"
+env -u BACKUP_RCLONE_REMOTE sh "$HERE/backup-r2.sh" fetch "$T/f" >"$T/out" 2>&1; r=$?
+nonzero "r2: missing BACKUP_RCLONE_REMOTE fails" "$r"
+has "r2: missing BACKUP_RCLONE_REMOTE says so" "BACKUP_RCLONE_REMOTE is required"
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL PASSED"; else echo "$FAILS FAILED"; exit 1; fi
