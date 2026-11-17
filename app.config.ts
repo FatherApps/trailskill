@@ -30,6 +30,8 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-secure-store',
+    // Removes android:requestLegacyExternalStorage, which expo-media-library adds (#1173); keep it before that plugin.
+    './plugins/without-legacy-external-storage',
     // The individual stopwatch with video (#1088): saving the videos to the gallery. The camera and microphone
     // permissions come with the local module modules/video-recorder.
     // Write only (#1169): an empty granularPermissions (omitted means photo, video and audio) and no iOS read description.
