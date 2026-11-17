@@ -1,12 +1,66 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { createCoColombiaacuatica } from '../providers/co-colombiaacuatica/index.ts';
+import { createCoFecna } from '../providers/co-fecna/index.ts';
+import { createProviderRegistry, type OrganizationData } from '../registry.ts';
+
 // index.ts starts Deno.serve on import and cannot load under Jest, so the wiring is checked on its source.
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.ts'), 'utf8');
 
 describe('results-import entry point', () => {
-  it('registers the co-fecna adapter in the production registry', () => {
+  it('registers the co-fecna adapter and the co-colombiaacuatica platform in the production registry', () => {
     expect(source).toMatch(/import \{ createCoFecna \} from '\.\/providers\/co-fecna\/index\.ts';/);
-    expect(source).toMatch(/createProviderRegistry\(\[\s*createCoFecna\(\)\s*\]\)/);
+    expect(source).toMatch(/import \{ createCoColombiaacuatica \} from '\.\/providers\/co-colombiaacuatica\/index\.ts';/);
+    expect(source).toMatch(/createProviderRegistry\(\[\s*createCoFecna\(\)\s*\],\s*\[\s*createCoColombiaacuatica\(\)\s*\]\)/);
+  });
+});
+
+describe('production providers side by side', () => {
+  const fecna = createCoFecna();
+  const platform = createCoColombiaacuatica();
+  const country = fecna.key.slice(0, 2).toUpperCase();
+  const organization = (id: string, type: OrganizationData['type'], parentId: string | null, provider: string | null): OrganizationData => ({
+    id,
+    type,
+    countryCode: country,
+    parentId,
+    provider,
+  });
+
+  it('builds without a key clash and the two keys differ', () => {
+    expect(() => createProviderRegistry([fecna], [platform])).not.toThrow();
+    expect(fecna.key).not.toBe(platform.key);
+  });
+
+  it('keeps resolving the federation adapter from its school and from the federation, and never as a platform', () => {
+    const registry = createProviderRegistry([fecna], [platform]);
+    const organizations = [
+      organization('federation', 'federation', null, fecna.key),
+      organization('league', 'league', 'federation', null),
+      organization('school', 'school', 'league', null),
+    ];
+    expect(registry.resolve(organizations, 'school')).toBe(fecna);
+    expect(registry.resolve(organizations, 'federation')).toBe(fecna);
+    expect(registry.platformFor(organizations, 'federation')).toBeNull();
+  });
+
+  it('resolves a results platform organization to the platform adapter, which has no parent to resolve from', () => {
+    const registry = createProviderRegistry([fecna], [platform]);
+    const organizations = [organization('platform', 'results_platform', null, platform.key)];
+    expect(registry.platformFor(organizations, 'platform')).toBe(platform);
+    expect(registry.resolve(organizations, 'platform')).toBeNull();
+  });
+
+  it('never crosses keys between organization types', () => {
+    const registry = createProviderRegistry([fecna], [platform]);
+    const organizations = [
+      organization('platform', 'results_platform', null, fecna.key),
+      organization('federation', 'federation', null, platform.key),
+    ];
+    expect(registry.platformFor(organizations, 'platform')).toBeNull();
+    expect(registry.resolve(organizations, 'platform')).toBeNull();
+    expect(registry.platformFor(organizations, 'federation')).toBeNull();
+    expect(registry.resolve(organizations, 'federation')).toBeNull();
   });
 });
