@@ -515,8 +515,45 @@ SH
 arm before "lsf:dumps/"
 bkx; r=$?
 nonzero "r2 overlap (c), own dump deleted after the publish: backup exits non-zero" "$r"
-has "r2 overlap (c): says the new dump is missing" "is missing after its manifest was published"
-eq "r2 overlap (c): nothing else was deleted" "$SHA_XA.dump.age " "$(dumps)"
+has "r2 overlap (c): says the new dump was missing" "was missing after its manifest was published"
+has "r2 overlap (c): says it was uploaded again and verified" "uploaded again and verified, nothing was cleaned up"
+SHA_XB=$(remote_sha)
+eq "r2 overlap (c): nothing else was deleted, the own dump is back" "$(printf '%s\n%s\n' "$SHA_XA.dump.age" "$SHA_XB.dump.age" | sort | tr '\n' ' ')" "$(dumps)"
+rcl cat "$RR/trailskill-prod-latest.manifest" >"$T/Bm"
+fetched "$T/Bm"; r=$?; eq "r2 overlap (c): fetch returns the pair whose dump was uploaded again" 0 "$r"
+rcf; r=$?; eq "r2 overlap (c): freshness passes" 0 "$r"
+
+# (c2) the same, but the upload again fails: the existing error stays and the bucket is not touched further
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+printf 'copyto:dumps/\n' >"$T/fake/hookfail"
+cat >"$T/fake/before.sh" <<SH
+/usr/bin/rclone delete "$RR/dumps/" --exclude "$SHA_XA.dump.age"
+cp "$T/fake/hookfail" "$T/fake/fail"
+SH
+arm before "lsf:dumps/"
+bkx; r=$?
+nonzero "r2 overlap (c2), own dump deleted and the upload again fails: backup exits non-zero" "$r"
+has "r2 overlap (c2): keeps the error that the new dump is missing" "is missing after its manifest was published"
+eq "r2 overlap (c2): nothing else was deleted" "$SHA_XA.dump.age " "$(dumps)"
+
+# (S7) cleanup re-reads the remote manifest before EACH delete: a second push publishes a manifest naming one of two
+# old dumps (H) after the delete of the other (L) was reached. Both are strictly older than the new dump. The
+# listing is sorted by name, so L (the smaller sha) is deleted first; the hook runs just before that delete.
+touch -t 202001010000.00 "$T/XA/d" "$T/XC/d"
+L=$(printf '%s\n%s\n' "$SHA_XA" "$SHA_XC" | sort | head -n 1)
+if [ "$L" = "$SHA_XA" ]; then H=$SHA_XC; HD=$T/XC; else H=$SHA_XA; HD=$T/XA; fi
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d" "$SHA_XC=$T/XC/d"
+cat >"$T/fake/before.sh" <<SH
+/usr/bin/rclone copyto "$HD/m" "$RR/trailskill-prod-latest.manifest"
+SH
+arm before "deletefile:dumps/$L.dump.age"
+bkx; r=$?
+eq "r2 overlap (S7), manifest names an old dump between two deletes: backup exits 0" 0 "$r"
+has_dump "$H"; r=$?; eq "r2 overlap (S7): the dump the manifest names now is not deleted" 0 "$r"
+has_dump "$L"; r=$?; nonzero "r2 overlap (S7): the other old dump is deleted" "$r"
+same_manifest "$HD/m"; r=$?; eq "r2 overlap (S7): the remote manifest is the one the second push published" 0 "$r"
+fetched "$HD/m"; r=$?; eq "r2 overlap (S7): fetch returns a consistent pair" 0 "$r"
+rcf; r=$?; eq "r2 overlap (S7): freshness passes" 0 "$r"
 
 # a listing or a manifest read that fails AFTER the manifest is published is a warning, not an error: nothing is
 # deleted without a listing and the freshness job checks the pair. A confirmed problem stays an error.
