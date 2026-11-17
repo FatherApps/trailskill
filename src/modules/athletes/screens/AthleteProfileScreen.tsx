@@ -57,8 +57,8 @@ export type AthleteProfileScreenProps = {
   view: AthleteProfileView;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
-  // Where the band's back button goes in the states without content; the states with content take it from their header.
-  onBack: () => void;
+  // Where the band's back button goes in the states without content; the states with content take it from their header. Left out when there is nowhere to go back to.
+  onBack?: () => void;
 };
 
 const NO_BREAK_SPACE = '\u00A0';

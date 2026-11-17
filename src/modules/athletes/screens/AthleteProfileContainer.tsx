@@ -57,8 +57,8 @@ export type AthleteProfileContainerProps = {
   guardianSharing?: ReactNode;
   // Only guardians and adults get it: the route decides by passing it or not.
   importPrompt?: ImportPromptProps;
-  // Where the band's back button goes; the route decides (the module has no router).
-  onBack: () => void;
+  // Where the band's back button goes; the route decides (the module has no router). Left out when there is nowhere to go back to: no button.
+  onBack?: () => void;
 };
 
 type ProfileSchool = { id: string; name: string; category: string };

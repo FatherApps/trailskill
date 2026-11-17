@@ -46,7 +46,7 @@ jest.mock('../modules/results-import', () => ({
   },
 }));
 jest.mock('../modules/athletes', () => {
-  const { Pressable, Text } = jest.requireActual('react-native');
+  const { Pressable, Text, View } = jest.requireActual('react-native');
   return {
     createPowerSyncSchoolAthleteRepository: () => ({}),
     createPowerSyncHistoryRepository: () => ({}),
@@ -76,14 +76,15 @@ jest.mock('../modules/athletes', () => {
       officialUpdate?: import('react').ReactNode;
       shareCode?: import('react').ReactNode;
       guardianSharing?: import('react').ReactNode;
-      onBack: () => void;
+      onBack?: () => void;
     }) => (
-      <Pressable accessibilityRole="button" onPress={onBack}>
+      <View>
+        {onBack && <Pressable accessibilityRole="button" accessibilityLabel="back" onPress={onBack} />}
         <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}${name ? ` named ${name}` : ''} pending ${pendingChanges}`}</Text>
         {officialUpdate}
         {shareCode}
         {guardianSharing}
-      </Pressable>
+      </View>
     ),
   };
 });
@@ -280,23 +281,23 @@ describe('athlete profile route', () => {
     mockReplace.mockClear();
     await render(<AthleteRoute />);
 
-    await fireEvent.press(await screen.findByRole('button'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'back' }));
 
     expect(mockBack).toHaveBeenCalledTimes(1);
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it('goes to the root when the profile was opened with an empty stack (deep link, cold start)', async () => {
+  // The landing sends a guardian with one athlete straight here with an empty stack; '/' would redirect back to this profile, so a back button would do nothing.
+  it('passes no back action when the profile was opened with an empty stack (landing, deep link, cold start)', async () => {
     mockUserId = 'user-1';
     mockCanGoBack = false;
     mockBack.mockClear();
     mockReplace.mockClear();
     await render(<AthleteRoute />);
 
-    await fireEvent.press(await screen.findByRole('button'));
-
-    expect(mockReplace).toHaveBeenCalledWith('/');
-    expect(mockBack).not.toHaveBeenCalled();
+    expect(await screen.findByText(/^profile of a1/)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'back' })).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it('shows nothing to a signed-out user', async () => {

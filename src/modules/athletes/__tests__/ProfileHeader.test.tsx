@@ -45,15 +45,14 @@ describe('ProfileHeader', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  // A type check: jest does not type-check, so this passes at runtime whatever the props say. The @ts-expect-error below is what
-  // fails `npm run typecheck` when onBack becomes optional again.
-  it('requires onBack at compile time, so the header never shows a "Volver" that does nothing', () => {
+  // The root screen of a role has nowhere to go back to: a "Volver" that does nothing is not drawn, and the sync tag still shows.
+  it('draws no back button without onBack, and still shows the sync tag', async () => {
     const { onBack, ...withoutBack } = base;
-    // @ts-expect-error a header without onBack would show a "Volver" that does nothing
-    const element = <ProfileHeader {...withoutBack} />;
+    await render(<ProfileHeader {...withoutBack} upToDate />);
 
     expect(onBack).toBeDefined();
-    expect(element).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Volver' })).toBeNull();
+    expect(screen.getByLabelText('Al día')).toBeOnTheScreen();
   });
 
   it('says the authorization is valid or pending, in text', async () => {

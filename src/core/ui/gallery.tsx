@@ -447,6 +447,12 @@ export const galleryEntries: GalleryEntry[] = [
           <ColorHeader color="athlete-4" title={chd.title} subtitle={chd.subtitle} onBack={noop} background={<RingBackground />} />
         </FullWidth>
       ),
+      // The root screen of a role has nowhere to go back to, so the band draws no button.
+      'no-back': () => (
+        <FullWidth>
+          <ColorHeader color="athlete-1" title={chd.title} subtitle={chd.subtitle} />
+        </FullWidth>
+      ),
       'long-text': () => (
         <FullWidth>
           <ColorHeader color="athlete-2" title={chd.longTitle} subtitle={chd.longSubtitle} onBack={noop} />

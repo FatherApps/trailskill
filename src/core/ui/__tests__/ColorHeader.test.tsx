@@ -78,6 +78,13 @@ describe('ColorHeader', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  it('draws no back button without onBack, and keeps the title', async () => {
+    await renderHeader({ onBack: undefined });
+
+    expect(screen.queryByRole('button', { name: 'Volver' })).toBeNull();
+    expect(screen.getByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
+  });
+
   it('draws no background layer without the slot, so the band is unchanged', async () => {
     await renderHeader();
 
