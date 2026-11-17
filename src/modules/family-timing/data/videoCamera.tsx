@@ -38,7 +38,7 @@ export type VideoCamera = {
   requestPermissions(audio: boolean): Promise<boolean>;
   /** Free space on the phone in bytes, or null when unknown. */
   freeBytes(): number | null;
-  /** Keeps a finished recording in the TrailSkill album of the gallery, under `name`. */
+  /** Keeps a finished recording in the Swimcro album of the gallery, under `name`. */
   keep(uri: string, name: string): Promise<void>;
   /** Deletes a finished recording that is not kept. */
   discard(uri: string): void;
@@ -47,7 +47,7 @@ export type VideoCamera = {
 };
 
 /** The gallery album where the videos go. */
-export const VIDEO_ALBUM = 'TrailSkill';
+export const VIDEO_ALBUM = 'Swimcro';
 
 type NativeOverlay = { enabled: boolean; event: string; startedAt: string | null; stoppedAt: string | null; splits: string[]; thousandths: boolean };
 type NativeRecorderProps = { quality: VideoQuality; audio: boolean; overlay: NativeOverlay; onReady: () => void; style?: StyleProp<ViewStyle> };
