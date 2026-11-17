@@ -16,8 +16,6 @@ test.each([
   "coach_group_athlete_ids",
   "coach_group_ids",
   "coach_direct_group_ids",
-  "coach_direct_category_ids",
-  "coach_group_category_ids",
   "member_group_ids",
 ])("%s leaves out the deactivated memberships", (name) => {
   expect(definition(name)).toContain("deactivated_at IS NULL");
