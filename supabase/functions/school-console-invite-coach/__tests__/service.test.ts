@@ -78,6 +78,26 @@ describe('inviteCoach', () => {
     expect(calls).toHaveLength(2);
   });
 
+  it('answers unavailable when Resend times out, keeps the invitation, and inviting again reuses it and sends the same Idempotency-Key', async () => {
+    const { store, invitations } = createMemoryStore([SCHOOL]);
+    const keys: string[] = [];
+    let answers = false;
+    const fetch = (async (_url: string, init: RequestInit) => {
+      keys.push((init.headers as Record<string, string>)['Idempotency-Key']);
+      if (answers) return new Response('{}', { status: 200 });
+      return new Promise<Response>((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(init.signal?.reason)));
+    }) as unknown as typeof globalThis.fetch;
+    const inviteCoach = createInviteCoach({ store, sender: createResendSender({ apiKey: 're_test_not_a_real_key', from: 'Swimcro <no-reply@example.test>', fetch, timeoutMs: 20 }) });
+
+    expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'unavailable' } });
+    expect(invitations).toHaveLength(1);
+
+    answers = true;
+    expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+    expect(invitations).toHaveLength(1);
+    expect(keys).toEqual(['coach-invitation/invitation-1', 'coach-invitation/invitation-1']);
+  });
+
   it('lets a store failure through', async () => {
     const store = { create: async () => Promise.reject(new Error('boom')) };
     await expect(createInviteCoach({ store, sender: createTestSender() })({ schoolId: SCHOOL, email: EMAIL })).rejects.toThrow('boom');

@@ -1,12 +1,26 @@
 import type { Invitation, InvitationSender } from './port.ts';
 import { resendBody, resendSubject } from './resendTexts.ts';
 
+/** How long a call to Resend may take: a hung connection must not hold the invitation request open. */
+export const RESEND_TIMEOUT_MS = 10_000;
+
 /**
  * Sends the invitation as an email through Resend. Rejects when it was not delivered. The errors say the HTTP status or
  * "network" and nothing else: the response body, the request and the error of a failed call could echo the key or the address.
- * `from` is the sender verified in Resend; without it every delivery fails before any request leaves.
+ * `from` is the sender verified in Resend; without it every delivery fails before any request leaves. A timeout counts as a
+ * network failure. The Idempotency-Key is per invitation: for 24 hours Resend answers a repeated delivery without sending again.
  */
-export function createResendSender({ apiKey, from, fetch }: { apiKey: string; from: string; fetch: typeof globalThis.fetch }): InvitationSender {
+export function createResendSender({
+  apiKey,
+  from,
+  fetch,
+  timeoutMs = RESEND_TIMEOUT_MS,
+}: {
+  apiKey: string;
+  from: string;
+  fetch: typeof globalThis.fetch;
+  timeoutMs?: number;
+}): InvitationSender {
   return {
     async deliver(invitation: Invitation) {
       if (!from) throw new Error('Resend sender is not configured');
@@ -14,8 +28,9 @@ export function createResendSender({ apiKey, from, fetch }: { apiKey: string; fr
       try {
         response = await fetch('https://api.resend.com/emails', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `coach-invitation/${invitation.id}` },
           body: JSON.stringify({ from, to: [invitation.email], subject: resendSubject(invitation), text: resendBody(invitation) }),
+          signal: AbortSignal.timeout(timeoutMs),
         });
       } catch {
         throw new Error('Resend delivery failed (network)');

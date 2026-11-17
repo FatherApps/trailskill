@@ -231,6 +231,8 @@ Each new bundle is built beside the old one (`.<function>.staging`) and they are
 
 The maintainer sets both only in the environment of the Supabase stack's `functions` service in Dokploy, per environment; their values never go in this repository. When Resend fails (HTTP error or no network) the function answers 502 `unavailable` and the invitation stays pending: inviting the same email again reuses it and sends the email again.
 
+A call to Resend times out after 10 seconds and counts as `unavailable`. Each email carries `Idempotency-Key: coach-invitation/<invitation id>`, which Resend keeps for 24 hours: inviting the same email again within 24 hours of a delivered send does not send a second email (Resend answers the original result), and after a lost response the retry does not duplicate it. After 24 hours, inviting again sends a new email. If the school is renamed within those 24 hours the payload differs and Resend answers 409, which the function reports as `unavailable` until the 24 hours pass.
+
 ### Steps (maintainer)
 
 The migrations and the function go together, neither without the other: the claim migrations change the shape of the claim responses and the function reads the new shape. Do steps 3 to 5 right after the deploy of step 2.
