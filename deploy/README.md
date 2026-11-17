@@ -17,9 +17,9 @@ There are two backend environments on the same Dokploy server. They run the same
 | Demo seed (`APPLY_SEED`) | May be applied by the maintainer, see [Demo data](#demo-data). | Never: `APPLY_SEED` stays `false`. |
 | Secrets | Its own | Its own, never the same value as QA's. |
 | Backups | None. | A gate before inviting real families: #1119. |
-| TLS to the origin | **PENDIENTE (#1113)** | **PENDIENTE (#1113)** |
+| TLS to the origin | Cloudflare Tunnel ends TLS at the edge, then plain HTTP to the Dokploy proxy on port 80. Dokploy domains keep HTTPS off ([Public and internal](#public-and-internal)). | The same route. The hostnames are free and the tunnel can route them ([#1113 report](../docs/deploy/prod-step0-readonly-checks.md)). |
 
-The Dokploy deploy webhook hostname (`trailskill-deploy`) is shared by both. Capacity of the server for two stacks is **PENDIENTE (#1113)**: this document does not state it.
+The Dokploy deploy webhook hostname (`trailskill-deploy`) is shared by both. Capacity of the server for two stacks: it fits at the ADR 0002 minimum, with little margin. Mario decided (Q6) that PROD goes on the same server, in its own project «Swimcro PROD»; if room is needed, QA gets memory and CPU limits (step planned in #1116), and capacity is watched with thresholds (#1115). See the [#1113 report](../docs/deploy/prod-step0-readonly-checks.md).
 
 Unless a section says otherwise, everything below describes QA, the deployment that exists. PROD differs only as this table says; the step-by-step setup of PROD is in issues #1115 to #1118 and is not written here yet. Secret values are set only by the maintainer in the Dokploy and EAS interfaces, never in this repository.
 
@@ -58,7 +58,7 @@ QA: organization `fatherApps`, project `TrailSkill`. (PROD gets its own project,
      - SMTP variables (host, port, user, password): they point to Resend. The maintainer sets them in the Dokploy interface and this repository shows none of them. The sender is `Swimcro <no-reply@send.tuls.app>`. They replaced the earlier test values (`mailpit`, port 1025, empty user and password).
      - `ENABLE_EMAIL_AUTOCONFIRM=false`, `ENABLE_PHONE_SIGNUP=false`, `ENABLE_ANONYMOUS_USERS=false`.
      - `SUPABASE_HOST`, `SUPABASE_PUBLIC_URL` and `API_EXTERNAL_URL` = the public API hostname. `API_EXTERNAL_URL` is also the JWT issuer.
-2. **This Compose service**: source GitHub, this repository, branch `main`, compose path `deploy/compose.yaml`. Set the environment variables below. Add a domain for the `powersync` service on port `8080` with HTTPS **off** (the TLS mode is **PENDIENTE (#1113)**, see [Public and internal](#public-and-internal)). Then turn on continuous deployment, see [Continuous deployment](#continuous-deployment).
+2. **This Compose service**: source GitHub, this repository, branch `main`, compose path `deploy/compose.yaml`. Set the environment variables below. Add a domain for the `powersync` service on port `8080` with HTTPS **off** (see [Public and internal](#public-and-internal)). Then turn on continuous deployment, see [Continuous deployment](#continuous-deployment).
 
 ## Continuous deployment
 
@@ -126,7 +126,7 @@ select vault.create_secret('<output of: openssl rand -base64 32>', 'athlete_iden
 
 ## Public and internal
 
-**PENDIENTE (#1113): how public traffic reaches the origin.** This document used to say that every hostname enters through a Cloudflare Tunnel with no published ports and that HTTPS ends at Cloudflare's edge. The diagnosis in #951 says instead that Cloudflare reaches the origin over plain HTTP on port 80 (Flexible mode). The read-only checks of #1113 decide which is true. Until that report is written, this document states neither, and the Dokploy domains below keep HTTPS off as they are today.
+**How public traffic reaches the origin** (read-only checks of #1113, 2026-11-16, [#1113 report](../docs/deploy/prod-step0-readonly-checks.md)). Every public hostname enters through a Cloudflare Tunnel with no published origin ports. Cloudflare ends TLS at its edge, and `cloudflared` then talks plain HTTP to the Dokploy proxy on port 80. The zone SSL mode is Full, not Flexible, and it takes no part in the tunnel hop. With HTTPS **on** in a Dokploy domain, the Dokploy proxy redirects to HTTPS while `cloudflared` enters over HTTP, which makes a redirect loop: that is why the Dokploy domains below keep HTTPS **off**.
 
 Public hostnames (zone `tuls.app`):
 
@@ -136,12 +136,12 @@ Public hostnames (zone `tuls.app`):
 | `trailskill-sync.tuls.app` | `powersync`, port 8080 | |
 | `trailskill-mail.tuls.app` | Supabase stack `mailpit`, port 8025 | QA only. Mailpit basic authentication (`MP_UI_AUTH`). Auth no longer sends through it (Resend), so it receives no sign-in code. |
 | `trailskill-deploy.tuls.app` | Dokploy panel | Only paths matching `^/api/deploy/` (the GitHub webhook). Everything else is 404. Shared by QA and PROD. |
-| `swimcro-api.tuls.app` | PROD Supabase `api-gw`, port 8000 | **PROD, planned (#1116), not live.** Same path restriction as `trailskill-api`. Route and TLS: **PENDIENTE (#1113)**. |
-| `swimcro-sync.tuls.app` | PROD `powersync`, port 8080 | **PROD, planned (#1116), not live.** Route and TLS: **PENDIENTE (#1113)**. |
+| `swimcro-api.tuls.app` | PROD Supabase `api-gw`, port 8000 | **PROD, planned (#1116), not live.** Same path restriction as `trailskill-api`. Route and TLS: as for QA; the hostname is free and the tunnel can route it. |
+| `swimcro-sync.tuls.app` | PROD `powersync`, port 8080 | **PROD, planned (#1116), not live.** Route and TLS: as for QA; the hostname is free and the tunnel can route it. |
 
 Internal only: Dokploy panel, Studio, Postgres, PowerSync storage. In QA, Mailpit is public only behind its basic authentication; PROD publishes no Mailpit and no Studio. Details in ADR 0002.
 
-To add or change a public hostname (as done for QA; whether new PROD hostnames follow this route is **PENDIENTE (#1113)**): add a Dokploy domain (HTTPS off), then add a tunnel rule and a proxied CNAME to the tunnel. Insert the rule before the tunnel's final 404 rule. The same tunnel serves other sites, so never replace or reorder its existing rules. Use single-level names (`name.tuls.app`): Cloudflare's free certificate does not cover `a.b.tuls.app`.
+To add or change a public hostname (as done for QA; the new PROD hostnames follow the same route): add a Dokploy domain (HTTPS off), then add a tunnel rule and a proxied CNAME to the tunnel. Insert the rule before the tunnel's final 404 rule. The same tunnel serves other sites, so never replace or reorder its existing rules. Use single-level names (`name.tuls.app`): Cloudflare's free certificate does not cover `a.b.tuls.app`.
 
 ## How migrations run
 
