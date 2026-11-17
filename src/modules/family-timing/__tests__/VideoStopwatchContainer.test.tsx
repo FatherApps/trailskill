@@ -91,7 +91,7 @@ describe('VideoStopwatchContainer', () => {
 
     await fireEvent.press(screen.getByText('Parar video'));
     await waitFor(() => expect(onClose).toHaveBeenCalledWith('saved'));
-    expect(fake.state.kept).toEqual([{ uri: 'file:///cache/recording-1.mp4', name: 'TrailSkill_time-1' }]);
+    expect(fake.state.kept).toEqual([{ uri: 'file:///cache/recording-1.mp4', name: 'Swimcro_time-1' }]);
   });
 
   it('stops the video by itself the chosen seconds after the clock', async () => {
@@ -115,7 +115,7 @@ describe('VideoStopwatchContainer', () => {
     expect(fake.state.kept).toEqual([]);
     await fireEvent.press(screen.getByText('Guardar'));
     await waitFor(() => expect(onClose).toHaveBeenCalledWith('saved'));
-    expect(fake.state.kept).toEqual([{ uri: 'file:///cache/recording-1.mp4', name: 'TrailSkill_time-1' }]);
+    expect(fake.state.kept).toEqual([{ uri: 'file:///cache/recording-1.mp4', name: 'Swimcro_time-1' }]);
   });
 
   it('does not keep a video recorded without starting the clock, and lets the person record again', async () => {
@@ -139,7 +139,7 @@ describe('VideoStopwatchContainer', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledWith('discarded'));
     expect(saved).toHaveLength(0);
     expect(fake.state.kept).toHaveLength(1);
-    expect(fake.state.kept[0]!.name).toMatch(/^TrailSkill_\d{4}-\d{2}-\d{2}T/);
+    expect(fake.state.kept[0]!.name).toMatch(/^Swimcro_\d{4}-\d{2}-\d{2}T/);
   });
 
   it('starts recording and the clock with one press when Ajustes says so', async () => {
@@ -236,8 +236,8 @@ describe('VideoStopwatchContainer', () => {
 
 describe('videoName', () => {
   it('carries the time id, or the moment for a video without a time', () => {
-    expect(videoName('abc')).toBe('TrailSkill_abc');
-    expect(videoName(null, new Date('2026-11-16T12:34:56.789Z'))).toBe('TrailSkill_2026-11-16T12-34-56-789Z');
+    expect(videoName('abc')).toBe('Swimcro_abc');
+    expect(videoName(null, new Date('2026-11-16T12:34:56.789Z'))).toBe('Swimcro_2026-11-16T12-34-56-789Z');
   });
 });
 

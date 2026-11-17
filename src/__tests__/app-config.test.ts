@@ -131,8 +131,7 @@ describe('gallery permissions', () => {
 
   it('keeps the description of saving videos to the gallery', () => {
     const { savePhotosPermission } = mediaLibraryOptions()!;
-    expect(typeof savePhotosPermission).toBe('string');
-    expect(savePhotosPermission.length).toBeGreaterThan(0);
+    expect(savePhotosPermission).toBe('Swimcro guarda en tu galería los videos que grabas con el cronómetro.');
   });
 
   it('removes the reads the plugin and the library manifest always add, and keeps WRITE_EXTERNAL_STORAGE for Android 7 to 9', () => {
