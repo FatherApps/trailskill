@@ -50,7 +50,7 @@ Today the EAS `production` environment still holds the QA values (see [State on 
 Once PROD exists, a release goes in this order and never in another:
 
 1. **Tag.** `vX.Y.Z` on the merge commit of the release pull request ([Standard release](#standard-release-from-main)).
-2. **Migrate PROD from the tag.** The backend always goes first. PROD deploys from the tag (mechanism and rollback: #1116); read the `migrate` log and confirm it exited 0. If the release changes an Edge Function, deliver it too, as in [Edge Functions](../deploy/README.md#edge-functions).
+2. **Migrate PROD from the tag.** The backend always goes first. PROD deploys from the tag, through the `production` branch ([mechanism and rollback](deploy/prod-deploy-compose.md)); read the `migrate` log and confirm it exited 0. If the release changes an Edge Function, deliver it too, as in [Edge Functions](../deploy/README.md#edge-functions).
 3. **Build and submit from the same tag.** `eas build` and `eas submit` ([Standard release](#standard-release-from-main)), only after step 2 passed.
 4. **Smoke test, then promote** through the tracks.
 
