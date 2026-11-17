@@ -40,7 +40,7 @@ export type VideoCamera = {
   requestPermissions(audio: boolean): Promise<boolean>;
   /** Free space on the phone in bytes, or null when unknown. */
   freeBytes(): number | null;
-  /** Keeps a finished recording in the Swimcro album of the gallery, under `name`. */
+  /** Keeps a finished recording in the Swimcro album of the gallery, under `name`; rejects when the gallery refuses it, and the file is deleted either way. */
   keep(uri: string, name: string): Promise<void>;
   /** Deletes a finished recording that is not kept. */
   discard(uri: string): void;
@@ -111,15 +111,21 @@ function nativeVideoCamera(): VideoCamera {
       // The file is renamed first, so the gallery shows the time's id in its name.
       const recorded = new File(uri);
       const named = new File(Paths.cache, `${name}.mp4`);
-      await recorded.move(named);
-      const asset = await Asset.create(named.uri);
-      const album = await Album.get(VIDEO_ALBUM);
-      if (album) await album.add(asset);
-      else await Album.create(VIDEO_ALBUM, [asset], true);
       try {
-        if (named.exists) named.delete();
-      } catch {
-        // The gallery already has its copy; a leftover in the cache is cleared by the system.
+        await recorded.move(named);
+        const asset = await Asset.create(named.uri);
+        const album = await Album.get(VIDEO_ALBUM);
+        if (album) await album.add(asset);
+        else await Album.create(VIDEO_ALBUM, [asset], true);
+      } finally {
+        // Kept or refused, no copy stays in the cache: a refusal is often a full phone, and retrying is not offered (#1172).
+        for (const file of [named, recorded]) {
+          try {
+            if (file.exists) file.delete();
+          } catch {
+            // The gallery already has its copy, or the file is gone; a leftover in the cache is cleared by the system.
+          }
+        }
       }
     },
     discard(uri) {
@@ -136,8 +142,8 @@ function nativeVideoCamera(): VideoCamera {
 /** The phone's camera with the stopwatch drawn into the video; null where the module is missing (iOS, tests, an old build). */
 export const videoCamera: VideoCamera | null = requireOptionalNativeModule('VideoRecorder') ? nativeVideoCamera() : null;
 
-/** A camera the tests drive by hand: finish() ends the recording as the camera would; failToOpen makes it fail to open, fail() later. */
-export function createFakeVideoCamera(options: { granted?: boolean; freeBytes?: number | null; failToOpen?: boolean } = {}) {
+/** A camera the tests drive by hand: finish() ends the recording as the camera would; failToOpen makes it fail to open, fail() later; failKeep makes the gallery refuse every video. */
+export function createFakeVideoCamera(options: { granted?: boolean; freeBytes?: number | null; failToOpen?: boolean; failKeep?: boolean } = {}) {
   const state = {
     granted: options.granted ?? true,
     free: options.freeBytes === undefined ? 10_000_000_000 : options.freeBytes,
@@ -145,6 +151,7 @@ export function createFakeVideoCamera(options: { granted?: boolean; freeBytes?: 
     recording: false,
     stops: 0,
     kept: [] as { uri: string; name: string }[],
+    keepAttempts: 0,
     discarded: [] as string[],
     audioAsked: [] as boolean[],
     ready: null as (() => void) | null,
@@ -193,6 +200,8 @@ export function createFakeVideoCamera(options: { granted?: boolean; freeBytes?: 
     },
     freeBytes: () => state.free,
     async keep(uri, name) {
+      state.keepAttempts += 1;
+      if (options.failKeep) throw new Error('The gallery refused the video');
       state.kept.push({ uri, name });
     },
     discard(uri) {

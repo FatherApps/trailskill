@@ -225,7 +225,7 @@ describe('FamilyTimingContainer with the timing buttons', () => {
 });
 
 describe('FamilyTimingContainer with the video camera', () => {
-  async function open(withCamera: boolean, cameraOptions: { failToOpen?: boolean } = {}) {
+  async function open(withCamera: boolean, cameraOptions: { failToOpen?: boolean; failKeep?: boolean } = {}) {
     const fake = createFakeTimingButton(ms(10_000));
     const video = createFakeVideoCamera(cameraOptions);
     const repository = createInMemoryFamilyMeasurementRepository();
@@ -244,7 +244,7 @@ describe('FamilyTimingContainer with the video camera', () => {
     await fireEvent.press(await screen.findByText('Medir un tiempo'));
     await fireEvent.press(screen.getByText('Piscina de 25 m'));
     await fireEvent.press(screen.getByText('Ir al cronómetro'));
-    return video;
+    return Object.assign(video, { buttons: fake });
   }
 
   it('keeps the stopwatch as it is when the phone has no camera module', async () => {
@@ -272,5 +272,22 @@ describe('FamilyTimingContainer with the video camera', () => {
     expect(screen.getByText('Iniciar')).toBeTruthy();
     await fireEvent.press(screen.getByText('Iniciar'));
     expect(await screen.findByText('Detener')).toBeTruthy();
+  });
+
+  it('keeps the time and warns once, in the stopwatch, when the gallery refuses the video', async () => {
+    const video = await open(true, { failKeep: true });
+    await fireEvent.press(screen.getByText('Grabar'));
+    await waitFor(() => expect(video.state.ready).not.toBeNull());
+    await act(async () => video.state.ready?.());
+    await fireEvent.press(screen.getByText('Grabar'));
+    await fireEvent.press(screen.getByText('Iniciar'));
+    video.buttons.advance(ms(20_000));
+    await fireEvent.press(screen.getByText('Detener'));
+    await fireEvent.press(screen.getByText('Parar video'));
+    await fireEvent.press(screen.getByText('Guardar'));
+    const notice = 'El tiempo quedó guardado, pero el video no se pudo guardar en la Galería. Libera espacio en el teléfono y vuelve a grabar la próxima vez.';
+    expect(await screen.findAllByText(notice)).toHaveLength(1);
+    expect(video.state.keepAttempts).toBe(1);
+    expect(screen.getByText('Iniciar')).toBeTruthy();
   });
 });

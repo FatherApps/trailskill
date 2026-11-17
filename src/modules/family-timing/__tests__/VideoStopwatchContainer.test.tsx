@@ -22,9 +22,9 @@ function AfterLoad({ children }: { children: ReactNode }) {
   return ready ? children : null;
 }
 
-async function setup(options: { video?: Partial<VideoRecordingPreferences>; granted?: boolean; freeBytes?: number | null; laps?: number; failToOpen?: boolean } = {}) {
+async function setup(options: { video?: Partial<VideoRecordingPreferences>; granted?: boolean; freeBytes?: number | null; laps?: number; failToOpen?: boolean; failKeep?: boolean } = {}) {
   const buttons = createFakeTimingButton(ms(1000));
-  const fake = createFakeVideoCamera({ granted: options.granted, freeBytes: options.freeBytes, failToOpen: options.failToOpen });
+  const fake = createFakeVideoCamera({ granted: options.granted, freeBytes: options.freeBytes, failToOpen: options.failToOpen, failKeep: options.failKeep });
   const saved: FamilyStopwatch[] = [];
   const saveTime = jest.fn(async (sw: FamilyStopwatch) => {
     saved.push(sw);
@@ -140,6 +140,47 @@ describe('VideoStopwatchContainer', () => {
     expect(saved).toHaveLength(0);
     expect(fake.state.kept).toHaveLength(1);
     expect(fake.state.kept[0]!.name).toMatch(/^Swimcro_\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('saves the time and closes with a video notice when the gallery refuses the video', async () => {
+    const { buttons, fake, saved, onClose, cameraOn } = await setup({ video: { stopAfterSeconds: 10 }, failKeep: true });
+    await cameraOn();
+    await fireEvent.press(screen.getByText('Grabar'));
+    await fireEvent.press(screen.getByText('Iniciar'));
+    buttons.advance(ms(20_000));
+    await fireEvent.press(screen.getByText('Detener'));
+    await fireEvent.press(screen.getByText('Parar video'));
+    await fireEvent.press(screen.getByText('Guardar'));
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith('saved_no_video'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(saved).toHaveLength(1);
+    expect(fake.state.keepAttempts).toBe(1);
+  });
+
+  it('closes with the same notice when the video ends after Guardar and the gallery refuses it', async () => {
+    const { buttons, saved, onClose, cameraOn } = await setup({ video: { stopAfterSeconds: 10 }, failKeep: true });
+    await cameraOn();
+    await fireEvent.press(screen.getByText('Grabar'));
+    await fireEvent.press(screen.getByText('Iniciar'));
+    buttons.advance(ms(20_000));
+    await fireEvent.press(screen.getByText('Detener'));
+    await fireEvent.press(screen.getByText('Guardar'));
+    await fireEvent.press(await screen.findByText('Parar video'));
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith('saved_no_video'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(saved).toHaveLength(1);
+  });
+
+  it('says the video was lost, not saved, when the discarded time keeps no video', async () => {
+    const { saved, onClose, cameraOn } = await setup({ video: { stopAfterSeconds: 10 }, failKeep: true });
+    await cameraOn();
+    await fireEvent.press(screen.getByText('Grabar'));
+    await fireEvent.press(screen.getByText('Iniciar'));
+    await fireEvent.press(screen.getByText('Detener'));
+    await fireEvent.press(screen.getByText('Descartar'));
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith('discarded_no_video'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(saved).toHaveLength(0);
   });
 
   it('starts recording and the clock with one press when Ajustes says so', async () => {

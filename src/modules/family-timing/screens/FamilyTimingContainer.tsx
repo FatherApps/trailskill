@@ -67,7 +67,7 @@ import {
 } from './FamilyTimingScreen';
 import type { FamilyTimingNoticeStore } from '../data/noticeSeen';
 import type { VideoCamera } from '../data/videoCamera';
-import { VideoStopwatchContainer } from './VideoStopwatchContainer';
+import { VideoStopwatchContainer, type VideoStopwatchResult } from './VideoStopwatchContainer';
 import '../i18n';
 
 const KEEP_AWAKE_TAG = 'family-timing';
@@ -145,7 +145,7 @@ const swimmerCounts = Array.from({ length: MAX_SWIMMERS - MIN_SWIMMERS + 1 }, (_
 type Step =
   | { kind: 'list' }
   | { kind: 'setup' }
-  | { kind: 'stopwatch'; saveError: boolean; videoNotice?: 'denied' | 'cancelled' | 'camera_error' }
+  | { kind: 'stopwatch'; saveError: boolean; videoNotice?: Exclude<VideoStopwatchResult, 'saved' | 'discarded'> }
   | { kind: 'video' }
   | { kind: 'series' }
   | { kind: 'series_assign'; lanes: Lane[]; saveError: boolean }
@@ -885,6 +885,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
             setReload((n) => n + 1);
           } else if (result === 'discarded') goToList();
           else {
+            // The time is saved even when the video is not: the list reloads, and the notice shows in the stopwatch.
+            if (result === 'saved_no_video') setReload((n) => n + 1);
             setStopwatch(idleFamilyStopwatch);
             setStep({ kind: 'stopwatch', saveError: false, videoNotice: result });
           }

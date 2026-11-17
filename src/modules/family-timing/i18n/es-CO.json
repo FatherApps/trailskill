@@ -202,6 +202,8 @@
       "denied": "Sin permiso para usar la cámara y guardar videos no se puede grabar. Puedes darlo en los ajustes del teléfono.",
       "cancelled": "Se cancelaron el tiempo y el video porque la app dejó de estar en pantalla (por ejemplo, al contestar una llamada).",
       "camera_error": "No se pudo abrir la cámara. Puedes cronometrar sin video.",
+      "saved_no_video": "El tiempo quedó guardado, pero el video no se pudo guardar en la Galería. Libera espacio en el teléfono y vuelve a grabar la próxima vez.",
+      "discarded_no_video": "El tiempo se descartó y el video no se pudo guardar en la Galería. Libera espacio en el teléfono y vuelve a grabar la próxima vez.",
       "split": "Parcial",
       "split_row": "Parcial {{number}}",
       "in_progress": "En curso",
