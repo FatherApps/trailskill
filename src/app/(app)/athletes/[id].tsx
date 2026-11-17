@@ -1,5 +1,4 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
 
 import { useGoBack } from '../../../core/navigation';
 import { useSession } from '../../../core/session';
@@ -16,6 +15,7 @@ import {
   createPowerSyncHistoryRepository,
   createPowerSyncSchoolAthleteRepository,
   createSupabaseOtherSchoolResultsRepository,
+  useAthleteProfileRoute,
   useManagedAthletes,
 } from '../../../modules/athletes';
 import {
@@ -65,62 +65,26 @@ export default function AthleteProfileRoute() {
   const goBack = useGoBack();
   const { session } = useSession();
   const summary = useGlobalSyncSummary();
-  const [importDismissed, setImportDismissed] = useState(false);
   const lastSyncedAt = summary.lastSyncedAt ?? null;
   const syncedAt = lastSyncedAt?.getTime();
-  // The invitation is only for a guardian who has not started: once the identity is confirmed or something was imported, the
-  // results panel takes over (updating is its button), even before the first import.
-  const [started, setStarted] = useState(false);
-  useEffect(() => {
-    let active = true;
-    Promise.all([importedResults.lastImportedAt(id).catch(() => null), identity.isConfirmed(id)]).then(([at, confirmed]) => active && setStarted(at !== null || confirmed));
-    return () => {
-      active = false;
-    };
-  }, [id, syncedAt]);
   // Only school staff can be entitled to another school's results; the server decides which.
-  const staff = useStaffSchool(staffSchools, session?.user.id, summary.lastSyncedAt?.getTime());
-  const isStaff = staff.status === 'staff';
-  // The school whose choice of what the guardian sees this screen shows: the first school of the user that the swimmer belongs to.
-  const [swimmerSchoolIds, setSwimmerSchoolIds] = useState<{ athleteId: string; ids: string[] }>();
-  useEffect(() => {
-    let active = true;
-    schoolLinks.listByAthlete(id).then(
-      (links) => active && setSwimmerSchoolIds({ athleteId: id, ids: links.map((link) => link.schoolId) }),
-      () => active && setSwimmerSchoolIds({ athleteId: id, ids: [] }),
-    );
-    return () => {
-      active = false;
-    };
-  }, [id, syncedAt]);
-  const sharingSchool = staff.status === 'staff' && swimmerSchoolIds?.athleteId === id ? staff.schools.find((school) => swimmerSchoolIds.ids.includes(school.id)) : undefined;
-
-  const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, summary.lastSyncedAt?.getTime());
+  const staff = useStaffSchool(staffSchools, session?.user.id, syncedAt);
+  const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, syncedAt);
   const sources = useImportSources(importSources, summary.connection === 'connected');
-  // The organization behind each imported result, from data; without a connection the marks show the generic origin.
-  const sourceNames = useMemo(() => Object.fromEntries(sources.map((source) => [source.provider, source.name])), [sources]);
-  // A results platform dates each result by its session: that date wins when two sources hold the same swim.
-  const sessionDated = useMemo(() => sources.filter((source) => source.kind === 'platform').map((source) => source.provider), [sources]);
+  const { isStaff, sharingSchoolId, sourceNames, sessionDated, managedAthlete, importPrompt } = useAthleteProfileRoute({
+    athleteId: id,
+    syncedAt,
+    importedResults,
+    identity,
+    schoolLinks,
+    staff,
+    sources,
+    managed,
+    onImport: () => router.push(`/athletes/import/${id}`),
+    onImportTournament: () => router.push(`/athletes/import-tournament/${id}`),
+  });
 
   if (!session) return null;
-  // Only a guardian or an adult athlete is offered the import; the source's name comes from data.
-  const managedAthlete = managed.status === 'ready' ? managed.athletes.find((candidate) => candidate.id === id) : undefined;
-  // The federation is searched by person; a results platform is reached by the address of one tournament.
-  const federation = sources.find((source) => source.kind === 'federation');
-  const hasPlatform = sources.some((source) => source.kind === 'platform');
-  const importPrompt =
-    managedAthlete && ((federation && !started) || hasPlatform) && !importDismissed
-      ? {
-          sourceName: federation && !started ? federation.name : undefined,
-          athleteName: managedAthlete.firstName,
-          imported: false,
-          onDismiss: () => setImportDismissed(true),
-          // Never shown while `imported` is false; the update lives in the results panel.
-          onRefresh: () => undefined,
-          onStart: () => router.push(`/athletes/import/${id}`),
-          onStartTournament: hasPlatform ? () => router.push(`/athletes/import-tournament/${id}`) : undefined,
-        }
-      : undefined;
   // The container shows "private" for an athlete that is not on this device; the backend decides what reaches it.
   return (
     <AthleteProfileContainer
@@ -167,13 +131,13 @@ export default function AthleteProfileRoute() {
       }
       // Staff of the swimmer's school choose what the guardian sees; the server refuses anyone else.
       guardianSharing={
-        sharingSchool ? (
+        sharingSchoolId ? (
           <SwimmerSharingSection
-            key={`guardian-sharing-${id}-${sharingSchool.id}`}
+            key={`guardian-sharing-${id}-${sharingSchoolId}`}
             repository={guardianSharing}
             records={guardianRecords}
             athleteId={id}
-            schoolId={sharingSchool.id}
+            schoolId={sharingSchoolId}
             connection={summary.connection}
             refreshKey={syncedAt}
           />
