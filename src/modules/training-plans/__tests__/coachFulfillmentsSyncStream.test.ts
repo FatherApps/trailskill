@@ -26,6 +26,7 @@ test("every coach query of training_plans_fulfillments binds the swimmer and the
   const group = coach.filter((query) => /JOIN training_groups\b/.test(query));
   expect(direct).toHaveLength(1);
   expect(group).toHaveLength(1);
+  expect(direct[0]).toContain("WHERE coach_athlete_assignments.coach_user_id = auth.user_id()");
   expect(direct[0]).toContain("JOIN training_plan_assignments ON training_plan_fulfillments.assignment_id = training_plan_assignments.id");
   expect(direct[0]).toContain("ON training_plan_fulfillments.athlete_id = coach_athlete_assignments.athlete_id AND training_plan_assignments.school_id = coach_athlete_assignments.school_id");
   expect(group[0]).toContain("JOIN training_plan_assignments ON training_plan_fulfillments.assignment_id = training_plan_assignments.id");

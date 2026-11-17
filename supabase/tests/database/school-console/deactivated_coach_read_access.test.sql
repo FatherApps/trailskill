@@ -265,16 +265,19 @@ select is_empty(
        and athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null)) $$,
   'coach_direct_category_ids gives C no category: the one of W2 is in A');
 select set_eq(
-  $$ select athlete_id, school_id from public.athlete_schools
-     where athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null))
-       and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null) $$,
+  $$ select s.athlete_id, s.school_id from public.athlete_schools s
+     join public.coach_athlete_assignments ca on s.athlete_id = ca.athlete_id and s.school_id = ca.school_id
+     where ca.coach_user_id = '10310000-0000-4000-8000-0000000000a3'
+       and s.school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null) $$,
   $$ values ('10310000-0000-4000-8000-0000000000e3'::uuid, '10310000-0000-4000-8000-0000000000b2'::uuid),
             ('10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-0000000000b2') $$,
   'the athlete_schools query for C returns the B rows of Z and W2, none of A');
 select set_eq(
-  $$ select athlete_id, group_id from public.athlete_groups
-     where athlete_id in (select athlete_id from public.coach_athlete_assignments where coach_user_id = '10310000-0000-4000-8000-0000000000a3' and school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null))
-       and group_id in (select id from public.training_groups where school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null)) $$,
+  $$ select ag.athlete_id, ag.group_id from public.athlete_groups ag
+     join public.training_groups tg on ag.group_id = tg.id
+     join public.coach_athlete_assignments ca on ag.athlete_id = ca.athlete_id and tg.school_id = ca.school_id
+     where ca.coach_user_id = '10310000-0000-4000-8000-0000000000a3'
+       and ag.group_id in (select id from public.training_groups where school_id in (select school_id from public.school_memberships where user_id = '10310000-0000-4000-8000-0000000000a3' and deactivated_at is null)) $$,
   $$ values ('10310000-0000-4000-8000-0000000000e3'::uuid, '10310000-0000-4000-8000-000000000092'::uuid),
             ('10310000-0000-4000-8000-0000000000e5', '10310000-0000-4000-8000-000000000092') $$,
   'the athlete_groups query for C returns the B rows of Z and W2, none of A');
