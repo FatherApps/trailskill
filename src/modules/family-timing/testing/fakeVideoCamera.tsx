@@ -65,6 +65,7 @@ export function createFakeVideoCamera(options: { granted?: boolean; freeBytes?: 
       state.keepAttempts += 1;
       if (options.failKeep) throw new Error('The gallery refused the video');
       state.kept.push({ uri, name });
+      return `asset-${state.kept.length}`;
     },
     discard(uri) {
       state.discarded.push(uri);

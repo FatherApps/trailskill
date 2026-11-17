@@ -44,6 +44,8 @@ export type VideoStopwatchContainerProps = {
   intro?: { store: FamilyTimingNoticeStore; userId: string };
   /** Saves the stopped time in Mis tiempos as the stopwatch without video does, and returns its id. */
   saveTime: (stopwatch: FamilyStopwatch) => Promise<string>;
+  /** Links a saved time to its video in the gallery, with where in the video the clock started (#1089). */
+  linkVideo?: (measurementId: string, assetId: string, startOffsetMillis: number) => Promise<void>;
   /** The keys line under the time, given the connected headset's name. */
   buttonsHint: (keyboard: string | undefined) => string;
   onClose: (result: VideoStopwatchResult) => void;
@@ -62,7 +64,7 @@ export const videoName = (measurementId: string | null, at: Date = new Date()) =
 // The individual stopwatch with the rear camera (#1088). The stopwatch works as without video, on the same clock and
 // keys; recording only starts and stops with its own button, or a few seconds after the clock stops (Ajustes).
 export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
-  const { event, laps, camera, intro, saveTime, onClose, buttonsHint } = props;
+  const { event, laps, camera, intro, saveTime, linkVideo, onClose, buttonsHint } = props;
   const buttons = props.buttons ?? timingButton;
   const now = props.now ?? buttons.now;
   const { preferences } = usePreferences();
@@ -82,6 +84,8 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
   const preview = useRef<CameraPreviewHandle>(null);
   const latest = useRef(stopwatch);
   const recording = useRef(false);
+  // When the last recording started, on the clock of the buttons: the start of the clock is this far into the video.
+  const recordStart = useRef<bigint | null>(null);
   // What happens to the video when its recording ends.
   const outcome = useRef<{ savedId: string | null; discarded: boolean; cancelled: boolean; leaving: boolean; clockStarted: boolean }>({
     savedId: null,
@@ -176,12 +180,20 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
 
   // The time is already saved (or discarded on purpose); a video the gallery refused is lost, not the time, and the person is told when the screen closes.
   async function keepVideo(uri: string, measurementId: string | null) {
+    let assetId: string;
     try {
-      await camera.keep(uri, videoName(measurementId));
-      return true;
+      assetId = await camera.keep(uri, videoName(measurementId));
     } catch {
       return false;
     }
+    const sw = latest.current;
+    if (!measurementId || !linkVideo || sw.status === 'idle' || recordStart.current === null) return true;
+    try {
+      await linkVideo(measurementId, assetId, Math.max(0, millisFromNanos(sw.startedAt - recordStart.current)));
+    } catch {
+      // Without the link the video is still in the gallery; only the button in Mis tiempos is missing.
+    }
+    return true;
   }
 
   async function finished(uri: string | null) {
@@ -214,7 +226,9 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     const camera = preview.current;
     if (!camera || recording.current || !cameraReady || closed.current) return false;
     recording.current = true;
-    setRecordingSince(now());
+    const at = now();
+    recordStart.current = at;
+    setRecordingSince(at);
     camera.record().then(finished, () => finished(null));
     return true;
   }
