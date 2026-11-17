@@ -122,6 +122,10 @@ export type FamilyStopwatchView = {
   noTime: boolean;
   /** Which keys time, while the headset or volume keys are on; null otherwise. */
   buttonsHint: string | null;
+  /** «Grabar» is offered: the phone has the camera, and the stopwatch has not started. */
+  canRecord?: boolean;
+  /** Why the camera closed without a time (permissions refused, or the take cancelled by leaving the app). */
+  videoNotice?: string | null;
 };
 
 export type FamilySeriesView = {
@@ -193,6 +197,8 @@ export type FamilyTimingScreenProps = {
   onGoToStopwatch: () => void;
   onCancel: () => void;
   onStart: () => void;
+  // Opens the camera with the stopwatch (#1088).
+  onOpenVideo?: () => void;
   onSplit: () => void;
   onStop: () => void;
   onSave: () => void;
@@ -569,7 +575,23 @@ function StopwatchBody(props: FamilyTimingScreenProps & { stopwatch: FamilyStopw
       </View>
       {stopwatch.noTime && <Banner variant="warn">{t('family_timing.stopwatch.no_time')}</Banner>}
       {saveError && <Banner variant="warn" icon="error">{t('family_timing.save_error')}</Banner>}
-      {stopwatch.status === 'idle' && <Button size="timing" label={t('family_timing.stopwatch.start')} onPress={props.onStart} />}
+      {stopwatch.videoNotice && <Banner variant="warn">{stopwatch.videoNotice}</Banner>}
+      {stopwatch.status === 'idle' &&
+        (stopwatch.canRecord && props.onOpenVideo ? (
+          <View style={{ gap: space[2] }}>
+            <View style={{ flexDirection: 'row', gap: space[3] }}>
+              <View style={{ flex: 1 }}>
+                <Button size="timing" label={t('family_timing.stopwatch.start')} onPress={props.onStart} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button size="timing" variant="secondary" label={t('family_timing.stopwatch.record')} onPress={props.onOpenVideo} />
+              </View>
+            </View>
+            <Text style={[typography.caption, { color: colors['ink-muted'], textAlign: 'center' }]}>{t('family_timing.stopwatch.record_hint')}</Text>
+          </View>
+        ) : (
+          <Button size="timing" label={t('family_timing.stopwatch.start')} onPress={props.onStart} />
+        ))}
       {stopwatch.lapProgress && <Text style={[typography['body-strong'], { color: colors.ink, textAlign: 'center' }]}>{stopwatch.lapProgress}</Text>}
       {stopwatch.status === 'running' && (
         <View style={{ flexDirection: 'row', gap: space[3] }}>

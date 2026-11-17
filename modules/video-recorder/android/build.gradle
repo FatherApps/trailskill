@@ -1,0 +1,27 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.fatherapps.trailskill'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.videorecorder"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+// CameraX: the effects artifact draws the stopwatch onto the preview and the recorded video (OverlayEffect).
+def camerax = "1.4.2"
+
+dependencies {
+  implementation "androidx.camera:camera-core:$camerax"
+  implementation "androidx.camera:camera-camera2:$camerax"
+  implementation "androidx.camera:camera-lifecycle:$camerax"
+  implementation "androidx.camera:camera-video:$camerax"
+  implementation "androidx.camera:camera-view:$camerax"
+  implementation "androidx.camera:camera-effects:$camerax"
+}

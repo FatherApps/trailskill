@@ -9,6 +9,7 @@ import {
   createPowerSyncFamilyMeasurementRepository,
   createPowerSyncFamilyTransferRepository,
   createSecureStoreFamilyTimingNoticeStore,
+  videoCamera,
   FamilyTimingContainer,
 } from '../../modules/family-timing';
 import { createPowerSyncImportedResultsRepository, createSupabaseImportSourcesRepository, useImportSources } from '../../modules/results-import';
@@ -42,6 +43,7 @@ export default function FamilyTimingRoute() {
       transfers={familyTransfers}
       shareCodes={shareCodes}
       notice={notice}
+      videoCamera={videoCamera}
       // Requests and times moved by another family arrive by sync.
       syncKey={lastSyncedAt?.getTime()}
       onBack={goBack}

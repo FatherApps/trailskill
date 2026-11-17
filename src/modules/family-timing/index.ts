@@ -22,6 +22,7 @@ export {
   createSecureStoreFamilyTimingNoticeStore,
   type FamilyTimingNoticeStore,
 } from './data/noticeSeen';
+export { createFakeVideoCamera, VIDEO_ALBUM, videoCamera, type VideoCamera } from './data/videoCamera';
 export { useMoveLocalFamilyTimes } from './data/useMoveLocalFamilyTimes';
 export { FamilyTimingContainer, type FamilyTimingContainerProps } from './screens/FamilyTimingContainer';
 export { setFamilyTimingAtList, useFamilyTimingAtList } from './screens/familyTimingAtList';
