@@ -26,7 +26,7 @@ mf() { sed -n "s/^$1=//p" "$MANIFEST" | head -n 1; }
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/restore-check.XXXXXX")
 CT=restore-check-$$-$(date +%s)
 cleanup() {
-  docker rm -f "$CT" >/dev/null 2>&1 || true
+  docker rm -f -v "$CT" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT

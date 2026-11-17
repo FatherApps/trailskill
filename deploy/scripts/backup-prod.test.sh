@@ -56,6 +56,8 @@ insert into auth.users (id, email) values
 insert into public.organizations (type, name) values ('club', 'Synthetic Club');
 insert into public.schools (id, name) values ('00000000-0000-4000-8000-0000000000b1', 'Synthetic School');
 insert into public.athletes (first_name, last_name) values ('Ana', 'Synthetic'), ('Luis', 'Synthetic'), ('Eva', 'Synthetic');
+create table public.copy_probe (label text);
+insert into public.copy_probe values ('COPY looks like a header'), ('plain');
 insert into public.school_memberships (school_id, user_id, role)
   values ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000a1', 'coach');
 SQL
@@ -101,7 +103,8 @@ nonzero "bad key: exit non-zero" "$r"
 
 # --- 2. backup -> push ------------------------------------------------------
 t0=$(date +%s)
-bk -e BACKUP_AGE_RECIPIENT="$PUB"; r=$?
+docker volume ls -q | sort >"$T/vols.before"
+bk -e BACKUP_AGE_RECIPIENT="$PUB" -e BACKUP_COUNT_TABLES="auth.users public.organizations public.schools public.athletes public.school_memberships public.copy_probe"; r=$?
 echo "backup elapsed: $(($(date +%s) - t0)) s"
 eq "backup: exit 0" 0 "$r"
 eq "backup: encrypted copy and manifest pushed" 2 "$(ls "$DEST" | wc -l | tr -d ' ')"
@@ -109,6 +112,7 @@ eq "backup: pushed file is age, not a plain dump" "age-encryption.org" "$(head -
 eq "backup: no plaintext dump left behind" 0 "$(leftovers)"
 eq "backup: manifest has the synthetic user count" 2 "$(sed -n 's/^count\.auth\.users=//p' "$DEST/trailskill-prod-latest.manifest")"
 eq "backup: manifest athletes count equals the synthetic rows" 3 "$(sed -n 's/^count\.public\.athletes=//p' "$DEST/trailskill-prod-latest.manifest")"
+eq "backup: a row starting with COPY is counted" 2 "$(sed -n 's/^count\.public\.copy_probe=//p' "$DEST/trailskill-prod-latest.manifest")"
 eq "backup: manifest holds counts only (no emails)" 0 "$(grep -c 'example.test' "$DEST/trailskill-prod-latest.manifest")"
 eq "backup: password not printed" 0 "$(grep -c "$PW" "$T/out")"
 GOOD=$(sums)
@@ -154,6 +158,7 @@ printf 'x' >>"$DEST/trailskill-prod-latest.dump.age"
 rc "$T/key1.txt"; r=$?
 nonzero "tampered copy: exit non-zero" "$r"
 has "tampered copy: checksum mismatch" "checksum does not match"
+eq "no volume left by the restore containers" "" "$(docker volume ls -q | sort | comm -13 "$T/vols.before" -)"
 eq "failures: temporary container removed" 0 "$(docker ps -aq --filter 'name=restore-check-' | wc -l | tr -d ' ')"
 eq "failures: decrypted files removed" 0 "$(ls -A "$T/rc-tmp" | wc -l | tr -d ' ')"
 

@@ -63,7 +63,7 @@ DUMP_BYTES=$(bytes "$DUMP")
 # Row counts come from the dump itself (same snapshot, exact): one line per row between COPY and \. .
 for t in $BACKUP_COUNT_TABLES; do
   pg_restore --data-only --schema="${t%%.*}" --table="${t#*.}" -f "$WORK/copy.sql" "$DUMP" || die "cannot read $t from the dump"
-  n=$(awk '/^COPY /{c=1;next} c&&/^\\\.$/{c=0} c{n++} END{print n+0}' "$WORK/copy.sql")
+  n=$(awk '!c&&/^COPY /{c=1;next} c&&/^\\\.$/{c=0} c{n++} END{print n+0}' "$WORK/copy.sql")
   rm -f "$WORK/copy.sql"
   echo "count.$t=$n" >>"$MANIFEST"
 done
