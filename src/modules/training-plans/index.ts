@@ -63,3 +63,4 @@ export { createPowerSyncNoticeRepository } from './data/powerSyncNoticeRepositor
 export { InvalidNoticeError, MAX_NOTICE_LENGTH, type Notice, type NewNotice, type NoticeRepository } from './data/notices';
 export { TodayContainer, type TodayContainerProps } from './screens/TodayContainer';
 export { HomeContainer, type HomeContainerProps } from './screens/HomeContainer';
+export { FulfillmentFlow, type FulfillmentFlowProps, type FulfillmentRepositories } from './screens/FulfillmentFlow';

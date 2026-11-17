@@ -142,3 +142,4 @@ export {
 export { CategoriesScreen, type CategoriesContent, type CategoriesScreenProps } from './screens/CategoriesScreen';
 export { CategoriesSection, type CategoriesSectionProps } from './screens/CategoriesSection';
 export { useCategories, type CategoriesState, type UseCategories } from './data/useCategories';
+export { SchoolTimingContainer, type SchoolTimingContainerProps, type SchoolTimingRepositories } from './screens/SchoolTimingContainer';

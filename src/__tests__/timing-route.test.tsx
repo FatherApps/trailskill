@@ -13,8 +13,8 @@ jest.mock('../core/sync', () => ({
   useGlobalSyncSummary: () => ({ lastSyncedAt: mockLastSyncedAt }),
 }));
 const mockListStaffSchools = jest.fn();
-jest.mock('../modules/school-console', () => ({
-  ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
+// The container lives in school-console and builds its repositories itself: only the PowerSync school lookup is replaced.
+jest.mock('../modules/school-console/data/staffSchools', () => ({
   createPowerSyncStaffSchoolRepository: () => ({ listStaffSchools: (...args: unknown[]) => mockListStaffSchools(...args) }),
 }));
 const mockPersonalBestTime = jest.fn();
@@ -46,6 +46,7 @@ jest.mock('../modules/timing', () => {
         ))}
       </>
     ),
+    CompletedFlow: ({ subtitle, schoolId }: { subtitle: string; schoolId: string }) => <Text>{`completed flow for ${subtitle} (${schoolId})`}</Text>,
     SeriesTimingFlow: ({ subtitle, schoolId }: { subtitle: string; schoolId: string }) => <Text>{`series flow for ${subtitle} (${schoolId})`}</Text>,
     IndividualTimingFlow: ({ subtitle, schoolId, userId, deviceId, loadRoster, loadBestTime }: { subtitle: string; schoolId: string; userId: string; deviceId: string; loadRoster: typeof mockLoadRoster; loadBestTime: typeof mockLoadBestTime }) => {
       mockFlowSchoolId = schoolId;
@@ -176,6 +177,15 @@ describe('timing route', () => {
     await render(<TimingRoute />);
 
     expect(await screen.findByText('series flow for Escuela Delfines (s1)')).toBeOnTheScreen();
+    expect(screen.queryByText(/timing flow/)).toBeNull();
+  });
+
+  it('opens the completed flow, which records the work without a time, with mode=completed', async () => {
+    mockParams = { mode: 'completed' };
+    mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    await render(<TimingRoute />);
+
+    expect(await screen.findByText('completed flow for Escuela Delfines (s1)')).toBeOnTheScreen();
     expect(screen.queryByText(/timing flow/)).toBeNull();
   });
 
