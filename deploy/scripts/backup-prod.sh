@@ -79,7 +79,7 @@ done
 [ "$TOTAL" -gt 0 ] || die "every key table has 0 rows ($BACKUP_COUNT_TABLES): refusing to replace the previous copy with an empty one"
 for m in ${BACKUP_MIN_COUNTS:-}; do
   t=${m%%=*}
-  n=$(sed -n "s/^count\.$t=//p" "$MANIFEST")
+  n=$(awk -F= -v k="count.$t" '$1==k{print $2; exit}' "$MANIFEST")
   [ "$n" -ge "${m#*=}" ] || die "$t has $n rows, below the minimum ${m#*=} (BACKUP_MIN_COUNTS): refusing to replace the previous copy"
 done
 log "dump verified (pg_restore --list ok, $DUMP_BYTES bytes)"

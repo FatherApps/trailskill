@@ -248,6 +248,8 @@ setmf() { sed "$1" "$T/good/trailskill-prod-latest.manifest" >"$DEST/trailskill-
 rcf; r=$?
 eq "freshness: fresh copy exits 0" 0 "$r"
 has "freshness: prints OK" "freshness OK"
+rcf 8760; r=$?
+eq "freshness: BACKUP_MAX_AGE_HOURS=8760 is accepted" 0 "$r"
 setmf "s/^created_at=.*/created_at=$(ago 25)/"
 rcf; r=$?
 eq "freshness: 25 h old passes" 0 "$r"
@@ -274,6 +276,11 @@ nonzero "freshness: non-numeric BACKUP_MAX_AGE_HOURS fails" "$r"
 rcf 08; r=$?
 nonzero "freshness: zero-padded BACKUP_MAX_AGE_HOURS fails" "$r"
 has "freshness: zero-padded BACKUP_MAX_AGE_HOURS says why" "must be a whole number of hours"
+for h in 8761 99999999999999999999; do
+  rcf "$h"; r=$?
+  nonzero "freshness: BACKUP_MAX_AGE_HOURS=$h fails" "$r"
+  has "freshness: BACKUP_MAX_AGE_HOURS=$h says the bound" "BACKUP_MAX_AGE_HOURS must be at most 8760"
+done
 setmf 's/^\(count\..*\)=.*/\1=0/'
 rcf; r=$?
 nonzero "freshness: all counts 0 fails" "$r"
@@ -296,7 +303,7 @@ BACKUP_RCLONE_REMOTE=r2:$BUCKET
 export BACKUP_RCLONE_REMOTE
 rcl() { "$T/bin/rclone" "$@"; }
 # bkr: a real backup pushed to the bucket by backup-r2.sh.
-bkr() { bk $R2ENV -e BACKUP_RCLONE_REMOTE="$BACKUP_RCLONE_REMOTE" -e BACKUP_PUSH_CMD="$R2P" -e BACKUP_AGE_RECIPIENT="$PUB"; }
+bkr() { bk $R2ENV -e BACKUP_RCLONE_REMOTE="$BACKUP_RCLONE_REMOTE" -e BACKUP_PUSH_CMD="$R2P" -e BACKUP_AGE_RECIPIENT="$PUB" "$@"; }
 remote_sha() { rcl cat "$BACKUP_RCLONE_REMOTE/trailskill-prod-latest.manifest" | sed -n 's/^encrypted_sha256=//p'; }
 dumps() { rcl lsf "$BACKUP_RCLONE_REMOTE/dumps/" | sort | tr '\n' ' '; }
 # fetched DIR EXPECTED-MANIFEST: fetch through backup-r2.sh and check the pair is the expected, consistent one.
@@ -395,6 +402,130 @@ has "r2: wrong subcommand prints usage" "usage: backup-r2.sh"
 env -u BACKUP_RCLONE_REMOTE sh "$HERE/backup-r2.sh" fetch "$T/f" >"$T/out" 2>&1; r=$?
 nonzero "r2: missing BACKUP_RCLONE_REMOTE fails" "$r"
 has "r2: missing BACKUP_RCLONE_REMOTE says so" "BACKUP_RCLONE_REMOTE is required"
+
+# --- 8. the replace order and overlapping pushes (R2) ------------------------------------------------------
+# A real backup (B) is pushed with backup-prod.sh while a test-only rclone in front of the real one (the same
+# trick as the pg_dump shim) injects one failure, or runs one action before one call. Control files in
+# $T/fake are one-shot; with none present the shim only passes the call through. Nothing in backup-r2.sh knows.
+mkdir "$T/fake" "$T/fakebin"
+printf '#!/bin/sh\nF=%s\n' "$T/fake" >"$T/fakebin/rclone"
+cat >>"$T/fakebin/rclone" <<'SH'
+# First line of a control file: "<subcommand>:<substring of an argument>".
+#   fail     exit 1 without doing anything       garbage  for `cat`, print garbage instead of the object
+#   before   run $F/before.sh, then the real call
+hit() {
+  c=$1; shift
+  [ -s "$F/$c" ] || return 1
+  spec=$(head -n 1 "$F/$c")
+  [ "$1" = "${spec%%:*}" ] || return 1
+  for a in "$@"; do case $a in *"${spec#*:}"*) rm -f "$F/$c"; return 0 ;; esac; done
+  return 1
+}
+hit fail "$@" && { echo "fake rclone: injected failure: $*" >&2; exit 1; }
+hit garbage "$@" && { echo "not the dump"; exit 0; }
+hit before "$@" && sh "$F/before.sh"
+exec /usr/bin/rclone "$@"
+SH
+chmod +x "$T/fakebin/rclone"
+bkx() { bkr -e PATH="$T/fakebin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"; }
+arm() { printf '%s\n' "$2" >"$T/fake/$1"; }
+disarm() { rm -f "$T/fake/"*; }
+mk_pair() { mkdir "$1" && bk -e BACKUP_AGE_RECIPIENT="$PUB" && cp "$DEST/trailskill-prod-latest.manifest" "$1/m" && cp "$DEST/trailskill-prod-latest.dump.age" "$1/d"; }
+has_dump() { rcl lsf "$RR/dumps/" | grep -Fxq "$1.dump.age"; }
+same_manifest() { rcl cat "$RR/trailskill-prod-latest.manifest" | cmp -s - "$1"; }
+mfsha() { sed -n 's/^encrypted_sha256=//p' "$1/m"; }
+
+mk_pair "$T/XA"; r=$?
+eq "r2 order setup: pair A made" 0 "$r"
+mk_pair "$T/XC"; r=$?
+eq "r2 order setup: pair C made" 0 "$r"
+SHA_XA=$(mfsha "$T/XA"); SHA_XC=$(mfsha "$T/XC")
+# a_kept: the failed push of B left the committed pair A exactly as it was
+a_kept() {
+  same_manifest "$T/XA/m"; r=$?; eq "$1: the remote manifest is byte-identical to A's" 0 "$r"
+  has_dump "$SHA_XA"; r=$?; eq "$1: dump A still exists" 0 "$r"
+  rcf; r=$?; eq "$1: freshness passes" 0 "$r"
+  fetched "$T/XA/m"; r=$?; eq "$1: fetch returns pair A" 0 "$r"
+}
+# push_fails NAME ARM-KIND SPEC MESSAGE: B's push fails at that step and A is untouched
+push_fails() {
+  disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+  arm "$2" "$3"
+  bkx; r=$?
+  nonzero "$1: backup exits non-zero" "$r"
+  has "$1: says why" "$4"
+  a_kept "$1"
+}
+push_fails "r2 step 1, dump upload fails" fail "copyto:.dump.age" "upload failed"
+push_fails "r2 step 2, read-back fails" fail "cat:dumps/" "does not verify"
+push_fails "r2 step 2, read-back returns garbage (manifest must not be published)" garbage "cat:dumps/" "does not verify"
+push_fails "r2 step 3, manifest publish fails" fail "copyto:.manifest" "cannot publish the manifest"
+# step 4: a failed delete is only a warning; the new pair is already committed
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+arm fail "deletefile:dumps/"
+bkx; r=$?
+eq "r2 step 4, cleanup delete fails: backup exits 0" 0 "$r"
+has "r2 step 4, cleanup delete fails: warns" "could not delete old object"
+SHA_XB=$(remote_sha)
+[ "$SHA_XB" != "$SHA_XA" ] && pass "r2 step 4, cleanup delete fails: the manifest is B's" || fail "r2 step 4, cleanup delete fails: the manifest is B's" "still A"
+has_dump "$SHA_XB"; r=$?; eq "r2 step 4, cleanup delete fails: dump B exists" 0 "$r"
+rcl cat "$RR/trailskill-prod-latest.manifest" >"$T/Bm"
+fetched "$T/Bm"; r=$?; eq "r2 step 4, cleanup delete fails: fetch returns B" 0 "$r"
+
+# overlapping pushes: another push acts between B's publish and B's cleanup (the hook runs before B's first lsf)
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+cat >"$T/fake/before.sh" <<SH
+touch -t 203001010000.00 "$T/XC/d"
+/usr/bin/rclone copyto "$T/XC/d" "$RR/dumps/$SHA_XC.dump.age"
+SH
+arm before "lsf:dumps/"
+bkx; r=$?
+eq "r2 overlap (a), newer unpublished dump C: backup exits 0" 0 "$r"
+has_dump "$SHA_XC"; r=$?; eq "r2 overlap (a): the newer dump C is not deleted" 0 "$r"
+has_dump "$SHA_XA"; r=$?; nonzero "r2 overlap (a): the older dump A is deleted" "$r"
+SHA_XB=$(remote_sha)
+has_dump "$SHA_XB"; r=$?; eq "r2 overlap (a): the manifest names an existing dump (B)" 0 "$r"
+
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+cat >"$T/fake/before.sh" <<SH
+touch -t 202001010000.00 "$T/XC/d"
+/usr/bin/rclone copyto "$T/XC/d" "$RR/dumps/$SHA_XC.dump.age" && /usr/bin/rclone copyto "$T/XC/m" "$RR/trailskill-prod-latest.manifest"
+SH
+arm before "lsf:dumps/"
+bkx; r=$?
+eq "r2 overlap (b1), C published before B lists dumps/: backup exits 0" 0 "$r"
+has_dump "$SHA_XC"; r=$?; eq "r2 overlap (b1): C is older than B but named by the manifest, so it is not deleted" 0 "$r"
+fetched "$T/XC/m"; r=$?; eq "r2 overlap (b1): fetch returns pair C" 0 "$r"
+
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+arm before "deletefile:dumps/"
+cat >"$T/fake/before.sh" <<SH
+touch -t 202001010000.00 "$T/XC/d"
+/usr/bin/rclone copyto "$T/XC/d" "$RR/dumps/$SHA_XC.dump.age" && /usr/bin/rclone copyto "$T/XC/m" "$RR/trailskill-prod-latest.manifest"
+SH
+bkx; r=$?
+eq "r2 overlap (b2), C published before B's first delete: backup exits 0" 0 "$r"
+has_dump "$SHA_XC"; r=$?; eq "r2 overlap (b2): C's dump is not deleted" 0 "$r"
+fetched "$T/XC/m"; r=$?; eq "r2 overlap (b2): fetch returns pair C" 0 "$r"
+
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+cat >"$T/fake/before.sh" <<SH
+/usr/bin/rclone delete "$RR/dumps/" --exclude "$SHA_XA.dump.age"
+SH
+arm before "lsf:dumps/"
+bkx; r=$?
+nonzero "r2 overlap (c), own dump deleted after the publish: backup exits non-zero" "$r"
+has "r2 overlap (c): says the new dump is missing" "is missing after its manifest was published"
+eq "r2 overlap (c): nothing else was deleted" "$SHA_XA.dump.age " "$(dumps)"
+
+# nested folders under dumps/ are left alone with one warning in total
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+rcl copyto "$T/XA/m" "$RR/dumps/n1/x" && rcl copyto "$T/XA/m" "$RR/dumps/n2/x"
+bkr; r=$?
+eq "r2 nested folders: backup exits 0" 0 "$r"
+eq "r2 nested folders: one warning in total" 1 "$(grep -c 'holds folders' "$T/out")"
+eq "r2 nested folders: the folders are left alone, the old dump is gone" "$(remote_sha).dump.age n1/ n2/ " "$(dumps)"
+disarm
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL PASSED"; else echo "$FAILS FAILED"; exit 1; fi

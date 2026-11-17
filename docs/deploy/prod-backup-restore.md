@@ -53,13 +53,14 @@ Why rclone and not the aws CLI: one small binary available in alpine; the Cloudf
 
 ### Atomic replace on S3 (no rename)
 
-S3 has no rename, so `backup-r2.sh` replaces the previous copy in five steps. The remote holds only the manifest at a fixed key (`trailskill-prod-latest.manifest`, the **commit point**) and the encrypted copy at a content-addressed key (`dumps/<encrypted_sha256>.dump.age`):
+S3 has no rename, so `backup-r2.sh` replaces the previous copy in six steps. The remote holds only the manifest at a fixed key (`trailskill-prod-latest.manifest`, the **commit point**) and the encrypted copy at a content-addressed key (`dumps/<encrypted_sha256>.dump.age`):
 
 1. Check locally that `encrypted_sha256` in the manifest is well formed and equals the sha256 of the encrypted file.
 2. Upload the new copy to `dumps/<sha>.dump.age`. It never overwrites the previous copy, which has another name.
 3. Read it back from the bucket and compare its sha256. If it does not verify, exit non-zero: the manifest is untouched. The object is not deleted (a re-push of the same pair has the same key as the live copy); the next successful push removes any stray object.
 4. Publish the manifest (a single object put, atomic) and read it back.
-5. Only now delete every other object under `dumps/`. A failure here is a warning with exit 0 (the new copy is already committed); the next run retries.
+5. Check that the new dump still exists (a second push running at the same time could have removed it; if so, exit non-zero and delete nothing). Then delete the other objects under `dumps/`, but only those strictly older than the new dump (by the modification time rclone keeps with each object) and never the one the remote manifest names at that moment, which is read again before each delete. Folders under `dumps/` are left alone with one warning. A failed delete is a warning with exit 0 (the new copy is already committed); the next run retries.
+6. Read the remote manifest again and check that the dump it names exists. If not, exit non-zero ("the published manifest names a missing dump"): run one backup by hand.
 
 A crash at any point leaves a consistent pair: until step 4 the manifest still names the previous, complete copy (a new object is just an orphan, removed by the next successful push); after step 4 it names the new, verified one. `fetch` reads the manifest first and then the exact dump it names, and checks that dump against `encrypted_sha256`. Retention stays **the latest copy only**.
 
@@ -68,9 +69,9 @@ The generic requirements still apply to any other destination (and are what `bac
 1. upload the copy and the manifest under names that never overwrite the previous pair;
 2. verify the stored copy by reading it back (size and sha256 against `encrypted_bytes` and `encrypted_sha256`);
 3. only then make the new pair current, and exit non-zero leaving the previous pair untouched on any failure;
-4. remove what it created on failure.
+4. remove what it created on failure, except what may be the live copy: `backup-r2.sh` does not delete a dump that failed its read-back, because its key is content-addressed and a re-push of the same pair has the same key as the live copy. The next successful push removes any stray object.
 
-A destination that can only rename (a plain directory) has a residual window between renaming the dump and the manifest: a crash there leaves a pair whose checksums do not match, which `restore-check.sh --freshness` reports. The reference shape for a local directory is the `push.sh` that [`backup-prod.test.sh`](../../deploy/scripts/backup-prod.test.sh) writes and runs. The tests also run `backup-r2.sh` against a throwaway S3 endpoint, including the bucket states a crash leaves at each step. They cannot inject a failed verification into the script without a test hook, so that branch is covered by reading the code only; check the first real run by hand (see the checklist).
+A destination that can only rename (a plain directory) has a residual window between renaming the dump and the manifest: a crash there leaves a pair whose checksums do not match, which `restore-check.sh --freshness` reports. The reference shape for a local directory is the `push.sh` that [`backup-prod.test.sh`](../../deploy/scripts/backup-prod.test.sh) writes and runs. The tests also run `backup-r2.sh` against a throwaway S3 endpoint, including the bucket states a crash leaves at each step. A fake `rclone` placed in front of the real one in the test (no hook in the script) forces a failure at each step of the replace (upload, read-back failing or returning garbage, manifest publish, a cleanup delete) and runs an action between the publish and the cleanup to simulate a second push; the suite checks that the previous pair stays intact and that the order cannot change unnoticed. Check the first real run by hand all the same (see the checklist).
 
 ### Lifecycle rules
 
@@ -112,6 +113,15 @@ sh deploy/scripts/restore-check.sh --freshness
 with `BACKUP_FETCH_CMD` set (the `backup-r2.sh` line and the read-only token) and optionally `BACKUP_MAX_AGE_HOURS` (default 26). It needs no private key, no Docker and no `age`. It fails when the copy is older than the limit (the backup failed or stopped running, including a scheduler that never fired), when every key table in the manifest has 0 rows, when the manifest is unreadable, or when the stored file does not match its manifest checksum (for example a half-replaced pair). Route its failure to the same notification.
 
 Schedule the freshness job **hours apart** from the backup. `fetch` reads the manifest and then the dump it names in two requests; if a push publishes a new manifest and deletes the old dump in between, the fetch fails with "the copy named by the manifest is missing" although the stored pair is healthy. That can only happen when the two jobs overlap, and a single rerun resolves it (there is no retry code).
+
+### One backup at a time
+
+Run **one** backup job: exactly one scheduled job, and if the host can run two (a manual run while the schedule fires), wrap the command in `flock` (for example `flock -n /var/lock/trailskill-backup.lock <backup command>`) so a second one exits instead of overlapping. The manual first-run check in the checklist must not overlap the scheduled run either. A push against another push is the one case the replace cannot make safe by itself: the guards in `backup-r2.sh` only turn it into a loud failure. They are:
+
+- cleanup deletes only dumps strictly older than the new one (an equal or newer dump, such as another push's not yet published upload, is kept) and never the dump the remote manifest names, which is read again before each delete;
+- before cleaning up, push checks that its own dump still exists and, at the end, that the dump the manifest names exists; otherwise it exits non-zero with "run one backup by hand".
+
+What remains: in a bad interleaving the bucket can be left with a manifest that names a missing dump. That is never silent: the push exits non-zero, and the freshness job fails with "the copy named by the manifest is missing" until one backup is run by hand, alone.
 
 ## Encryption key
 
@@ -164,7 +174,7 @@ Not decided. Proposed: at first setup, after every major Postgres or Supabase up
 
 - [ ] Private R2 bucket and the bucket-scoped API token (Object Read & Write) created; the variables above set in the scheduler (and a read-only token for the freshness job and the restore test).
 - [ ] Key pair generated on Mario's machine; private key stored off the server.
-- [ ] Daily job scheduled; first run exits 0 and the bucket holds the manifest plus exactly one object under `dumps/`.
-- [ ] Second run checked by hand: still exactly one object under `dumps/`, and the manifest names it.
+- [ ] Daily job scheduled with a single runner (one job, or `flock`); first run exits 0 and the bucket holds the manifest plus exactly one object under `dumps/`.
+- [ ] Second run checked by hand, not while the scheduled job runs: still exactly one object under `dumps/`, and the manifest names it.
 - [ ] Restore test done and recorded in the results table.
 - [ ] Mario confirmed the restore frequency.
