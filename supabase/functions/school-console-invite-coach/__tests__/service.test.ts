@@ -3,7 +3,8 @@ import { createInviteCoach } from '../service.ts';
 import { createResendSender } from '../resendSender.ts';
 import { selectSender } from '../selectSender.ts';
 import { createTestSender, TEST_SENDER_LIMIT } from '../testSender.ts';
-import { createMemoryStore, SCHOOL_NAME } from './fakes.ts';
+import { withSendLimit } from '../sendLimit.ts';
+import { createMemoryLimiter, createMemoryStore, SCHOOL_NAME } from './fakes.ts';
 
 const SCHOOL = '11111111-1111-4111-8111-111111111111';
 const OTHER_SCHOOL = '22222222-2222-4222-8222-222222222222';
@@ -143,6 +144,41 @@ describe('inviteCoach', () => {
         ...(await fail({ deliver: async () => Promise.reject(`${EMAIL} ${KEY}`) })),
       ];
       expect(logged).toEqual(['school-console-invite-coach delivery failed: unknown', 'school-console-invite-coach delivery failed: unknown']);
+    });
+  });
+
+  describe('with the send limit', () => {
+    const OTHER_EMAIL = 'other-coach@example.test';
+    const limited = (limits: { callerLimit: number; recipientLimit: number }) => {
+      const { store } = createMemoryStore([SCHOOL]);
+      const limiter = createMemoryLimiter(limits);
+      const sender = createTestSender();
+      return { inviteCoach: createInviteCoach({ store: withSendLimit(store, limiter.rpc), sender }), sender, limiter };
+    };
+
+    it('resends under the limit', async () => {
+      const { inviteCoach, sender } = limited({ callerLimit: 5, recipientLimit: 2 });
+      expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+      expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+      expect(sender.delivered).toHaveLength(2);
+    });
+
+    it('answers recipient_rate_limited above the recipient limit and sends no email, while another recipient still gets theirs', async () => {
+      const { inviteCoach, sender } = limited({ callerLimit: 5, recipientLimit: 2 });
+      await inviteCoach({ schoolId: SCHOOL, email: EMAIL });
+      await inviteCoach({ schoolId: SCHOOL, email: EMAIL });
+      expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'recipient_rate_limited' } });
+      expect(sender.delivered).toHaveLength(2);
+      expect(await inviteCoach({ schoolId: SCHOOL, email: OTHER_EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-2' } });
+      expect(sender.delivered).toHaveLength(3);
+    });
+
+    it('answers caller_rate_limited above the caller limit, whatever the recipient, and sends no email', async () => {
+      const { inviteCoach, sender } = limited({ callerLimit: 2, recipientLimit: 5 });
+      await inviteCoach({ schoolId: SCHOOL, email: EMAIL });
+      await inviteCoach({ schoolId: SCHOOL, email: OTHER_EMAIL });
+      expect(await inviteCoach({ schoolId: SCHOOL, email: 'third-coach@example.test' })).toEqual({ ok: false, error: { code: 'caller_rate_limited' } });
+      expect(sender.delivered).toHaveLength(2);
     });
   });
 

@@ -4,7 +4,12 @@ import type { InvitationSender, InvitationStore } from './port.ts';
 // could carry the address, an id or a response) is logged as "unknown".
 const LOGGABLE = /^Resend (delivery failed \((network|HTTP \d{3})\)|sender is not configured)$/;
 
-export type InviteError = { code: 'not_authorized' } | { code: 'bad_request' } | { code: 'unavailable' };
+export type InviteError =
+  | { code: 'not_authorized' }
+  | { code: 'bad_request' }
+  | { code: 'caller_rate_limited' }
+  | { code: 'recipient_rate_limited' }
+  | { code: 'unavailable' };
 export type InviteOutcome = { ok: true; value: { invitationId: string } } | { ok: false; error: InviteError };
 
 /**

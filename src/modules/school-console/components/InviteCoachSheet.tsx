@@ -45,7 +45,8 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
   // The ref is the guard (a second press can arrive before the next render); the state only draws the button busy.
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // The translation key of what went wrong on the last try, or null.
+  const [failure, setFailure] = useState<string | null>(null);
 
   const available = Array.isArray(groups) ? groups : [];
   const isChosen = (id: string) => picked[id] ?? id === initialGroupId;
@@ -61,7 +62,7 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
   // Nothing changes while an invitation is on its way; a change clears the error of the last try.
   const edit = (change: () => void) => {
     if (sending.current) return;
-    setFailed(false);
+    setFailure(null);
     change();
   };
   const toggle = (id: string) => edit(() => setPicked((current) => ({ ...current, [id]: !isChosen(id) })));
@@ -69,11 +70,13 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
     if (sending.current) return;
     sending.current = true;
     setBusy(true);
-    setFailed(false);
+    setFailure(null);
     try {
       await onSubmit({ name: name.trim(), email: email.trim(), groupIds: available.filter((group) => isChosen(group.id)).map((group) => group.id) });
-    } catch {
-      setFailed(true);
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      // The server's send-limit codes each have their own text; any other rejection shows the generic one.
+      setFailure(`schoolConsole.coaches.invite_sheet.${code === 'caller_rate_limited' || code === 'recipient_rate_limited' ? code : 'failed'}`);
     } finally {
       sending.current = false;
       setBusy(false);
@@ -111,9 +114,9 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
           </View>
         </View>
       )}
-      {failed && (
+      {failure && (
         <Banner variant="warn" icon="error">
-          {t('schoolConsole.coaches.invite_sheet.failed')}
+          {t(failure)}
         </Banner>
       )}
       <Button
