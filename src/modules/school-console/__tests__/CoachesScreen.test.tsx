@@ -184,7 +184,7 @@ describe('CoachesScreen', () => {
       expect(onInvite).not.toHaveBeenCalled();
     });
 
-    it('confirming calls onInvite with the name, the email and the chosen groups, and closes the sheet', async () => {
+    it('confirming calls onInvite with the name, the email and the chosen groups, and shows the created invitation', async () => {
       const { onInvite } = await open();
 
       await fireEvent.changeText(screen.getByLabelText('Nombre'), '  Rosa Londoño ');
@@ -196,6 +196,10 @@ describe('CoachesScreen', () => {
 
       expect(onInvite).toHaveBeenCalledTimes(1);
       expect(onInvite).toHaveBeenCalledWith({ name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g3'] });
+      // The sheet stays open on the created invitation, with the way to share it; Listo closes it.
+      expect(screen.getByText('Invitación creada para rosa@example.com.')).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Compartir invitación' })).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Listo' }));
       expect(screen.queryByTestId('side-sheet')).toBeNull();
     });
 
@@ -396,7 +400,7 @@ describe('CoachesScreen', () => {
         expect(screen.queryByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeNull();
       });
 
-      it('closes the sheet when a retry works, and sends the same data again', async () => {
+      it('shows the created invitation when a retry works, and sends the same data again', async () => {
         const onInvite = jest.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined);
         await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
         await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
@@ -407,7 +411,7 @@ describe('CoachesScreen', () => {
 
         expect(onInvite).toHaveBeenCalledTimes(2);
         expect(onInvite).toHaveBeenLastCalledWith({ name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g1'] });
-        expect(screen.queryByTestId('side-sheet')).toBeNull();
+        expect(screen.getByText('Invitación creada para rosa@example.com.')).toBeOnTheScreen();
       });
 
       it('stays open until a slow invitation ends, and does not send twice meanwhile', async () => {
@@ -424,7 +428,7 @@ describe('CoachesScreen', () => {
         expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
 
         await act(async () => finish());
-        expect(screen.queryByTestId('side-sheet')).toBeNull();
+        expect(screen.getByText('Invitación creada para rosa@example.com.')).toBeOnTheScreen();
       });
     });
 
@@ -642,7 +646,8 @@ describe('CoachesScreen', () => {
 
         expect(onInvite).toHaveBeenCalledTimes(1);
         await finish();
-        expect(screen.queryByTestId('side-sheet')).toBeNull();
+        // The sheet of the second opening shows its created invitation; the second send did not call onInvite again.
+        expect(screen.getByText('Invitación creada para Rosa@Example.com.')).toBeOnTheScreen();
       });
 
       describe('two invitations to the same email', () => {
