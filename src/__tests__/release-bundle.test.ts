@@ -1,5 +1,5 @@
 /** @jest-environment node */
-// #1040: Metro folds `__DEV__` before collecting dependencies, so only a `require` behind `__DEV__ ?` keeps the gallery and its fixtures out of release bundles.
+// #1040 (and #1173 for the testing folders): Metro folds `__DEV__` before collecting dependencies, so only a `require` behind `__DEV__ ?` keeps the gallery and its fixtures out of release bundles.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -29,7 +29,7 @@ function sourceFiles(dir: string): string[] {
 }
 
 const isDevOnly = (file: string) =>
-  file.split(path.sep).includes('__fixtures__') || /^gallery\w*\.tsx?$/.test(path.basename(file));
+  file.split(path.sep).some((part) => part === '__fixtures__' || part === 'testing') || /^gallery\w*\.tsx?$/.test(path.basename(file));
 
 function resolveSpecifier(from: string, specifier: string): string | undefined {
   const base = path.resolve(path.dirname(from), specifier);
@@ -61,7 +61,7 @@ describe('release bundle', () => {
     expect(rel.some((file) => file.split(path.sep).includes('__fixtures__'))).toBe(true);
   });
 
-  it('never imports the gallery or its fixtures outside a __DEV__ guard', () => {
+  it('never imports the gallery, its fixtures or a testing folder outside a __DEV__ guard', () => {
     const leaks = files
       .filter((file) => !isDevOnly(file))
       .flatMap((file) =>

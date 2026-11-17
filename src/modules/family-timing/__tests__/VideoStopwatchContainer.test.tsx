@@ -4,7 +4,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { createInMemoryPreferencesRepository, defaultPreferences, defaultVideoRecording, PreferencesProvider, type VideoRecordingPreferences } from '../../../core/preferences';
 import { createFakeTimingButton } from '../../timing';
-import { createFakeVideoCamera } from '../data/videoCamera';
+import { createFakeVideoCamera } from '../testing/fakeVideoCamera';
 import { finalMillis, type FamilyStopwatch } from '../domain/familyStopwatch';
 import { CAMERA_OPEN_TIMEOUT_MS, LOW_SPACE_BYTES, VideoStopwatchContainer, videoName, type VideoStopwatchResult } from '../screens/VideoStopwatchContainer';
 
