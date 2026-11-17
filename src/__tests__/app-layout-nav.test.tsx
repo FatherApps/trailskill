@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { act } from 'react';
 
 import AppLayout from '../app/(app)/_layout';
-import { setFamilyTimingAtList } from '../modules/family-timing/screens/familyTimingAtList';
+import { setFamilyTimingAtList } from '../modules/family-timing';
 import { iconPaths } from '../core/ui/icons';
 
 // Avoid loading the native PowerSync database.
@@ -29,8 +29,9 @@ jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
 
 let mockStaff: 'staff' | 'denied' | 'loading' | 'error' = 'denied';
 const mockUseStaffSchool = jest.fn(() => ({ status: mockStaff }));
-jest.mock('../modules/school-console', () => ({
-  ...jest.requireActual('../modules/school-console'),
+// The layout lives in school-console and reads the staff lookup from its own data folder.
+jest.mock('../modules/school-console/data/useAdminSchool', () => ({
+  ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   useStaffSchool: () => mockUseStaffSchool(),
 }));
 

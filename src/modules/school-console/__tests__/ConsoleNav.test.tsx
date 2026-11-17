@@ -40,7 +40,7 @@ describe('ConsoleNav', () => {
   it('shows the logo and the school name passed by props', async () => {
     await render(<ConsoleNav {...base} />);
 
-    expect(screen.getByRole('image', { name: 'TrailSkill' })).toBeOnTheScreen();
+    expect(screen.getByRole('image', { name: 'Swimcro' })).toBeOnTheScreen();
     expect(screen.getByText('Escuela Delfines')).toBeOnTheScreen();
   });
 

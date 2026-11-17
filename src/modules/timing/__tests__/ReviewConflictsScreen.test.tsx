@@ -164,4 +164,17 @@ describe('ReviewConflictsScreen', () => {
     expect(again.onRetry).toHaveBeenCalled();
     expect(onRetry).not.toHaveBeenCalled();
   });
+
+  it('shows the two versions without any resolving control when the user cannot resolve', async () => {
+    const { onResolve } = await renderScreen({ canResolve: false, offline: true, failure: 'stale' });
+    await open('Mateo C.');
+
+    expect(screen.getByText('Versión guardada')).toBeOnTheScreen();
+    expect(screen.getByText('Versión recibida')).toBeOnTheScreen();
+    expect(screen.getByText(/Solo el administrador de la plataforma resuelve/)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Resolver conflicto' })).toBeNull();
+    expect(screen.queryByLabelText('Motivo')).toBeNull();
+    expect(screen.queryByText(/requiere señal/)).toBeNull();
+    expect(onResolve).not.toHaveBeenCalled();
+  });
 });

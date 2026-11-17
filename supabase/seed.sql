@@ -77,6 +77,12 @@ insert into public.school_memberships (school_id, user_id, role) values
   ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-000000000003', 'school_admin')
 on conflict do nothing;
 
+-- The coach has a profile, so the conflicts review screen (#1125) names the author of both versions (#1130).
+-- The school admin reads it through app.school_admin_adult_ids(); no other demo account can author a time edit.
+insert into public.adult_profiles (user_id, first_name, last_name)
+values ('00000000-0000-4000-8000-000000000001', 'Demo', 'Coach')
+on conflict do nothing;
+
 -- The coach trains Group A only.
 insert into public.coach_group_assignments (coach_user_id, group_id)
 values ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000b1')
@@ -189,6 +195,25 @@ from (
 ) a
 cross join (values ('FR', '50m', 3000), ('BK', '100m', 7000)) as e(stroke, distance, base)
 cross join generate_series(0, 5) as w(week)
+on conflict do nothing;
+
+-- One open edit conflict (#1125) on the latest 50m freestyle time of the first athlete of Group A, so the
+-- conflicts review screen of the school staff has something to show. The coach saved the stored version; another
+-- device sent a different time that was not applied. The measurement stays as it was: that is what a detected
+-- conflict leaves. Both versions are kept as hundredths, and the incoming one is 0.35 s slower. Looked up from
+-- the time above and with a fixed id, so a second run inserts nothing.
+insert into public.measurement_conflicts (
+  id, measurement_id, current_values, current_by, current_device, current_at,
+  incoming_values, incoming_by, incoming_device
+)
+select
+  '00000000-0000-4000-8000-0000000000e4', m.id,
+  jsonb_build_object('hundredths', m.hundredths, 'athlete_id', m.athlete_id, 'version', m.version),
+  m.created_by, m.device_id, m.created_at,
+  jsonb_build_object('hundredths', m.hundredths + 35, 'athlete_id', m.athlete_id, 'edit_reason', null),
+  m.created_by, 'demo-device-2'
+from public.measurements m
+where m.id = md5('demo-measurement:00000000-0000-4000-8000-0000000000c1:FR50m:0')::uuid
 on conflict do nothing;
 
 -- A training plan of the school with one version of four blocks.

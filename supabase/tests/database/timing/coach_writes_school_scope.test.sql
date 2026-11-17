@@ -2,10 +2,12 @@
 -- measurement's school (issue #321). Coach C coaches in schools A and B. X is
 -- only in A and assigned to C in A. Y is in A and B and assigned to C only in
 -- B. Z is in A and B and in a training group of B coached by C. C may write Y
--- and Z only in B, and X in A. All users and data here are synthetic.
+-- and Z only in B, and X in A. W is only in A and not assigned to C anywhere; C is W's guardian
+-- and has a mark of W (f8), so C reads it without it being in C's charge. All
+-- users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(30);
 
 -- Users: C, coach CA of A, coach CB of B, D (school admin of A and coach of B,
 -- Y assigned to D in B) and N, with no relations.
@@ -28,18 +30,24 @@ insert into public.school_memberships (school_id, user_id, role) values
   ('32100000-0000-4000-8000-0000000000b1', '32100000-0000-4000-8000-0000000000a4', 'school_admin'),
   ('32100000-0000-4000-8000-0000000000b2', '32100000-0000-4000-8000-0000000000a4', 'coach');
 
--- e1 is X (only A), e2 is Y and e3 is Z (both A and B).
+-- e1 is X (only A), e2 is Y and e3 is Z (both A and B), e4 is W (only A).
 insert into public.athletes (id, first_name, last_name) values
   ('32100000-0000-4000-8000-0000000000e1', 'Athlete', 'X'),
   ('32100000-0000-4000-8000-0000000000e2', 'Athlete', 'Y'),
-  ('32100000-0000-4000-8000-0000000000e3', 'Athlete', 'Z');
+  ('32100000-0000-4000-8000-0000000000e3', 'Athlete', 'Z'),
+  ('32100000-0000-4000-8000-0000000000e4', 'Athlete', 'W');
 
 insert into public.athlete_schools (athlete_id, school_id) values
   ('32100000-0000-4000-8000-0000000000e1', '32100000-0000-4000-8000-0000000000b1'),
   ('32100000-0000-4000-8000-0000000000e2', '32100000-0000-4000-8000-0000000000b1'),
   ('32100000-0000-4000-8000-0000000000e2', '32100000-0000-4000-8000-0000000000b2'),
   ('32100000-0000-4000-8000-0000000000e3', '32100000-0000-4000-8000-0000000000b1'),
-  ('32100000-0000-4000-8000-0000000000e3', '32100000-0000-4000-8000-0000000000b2');
+  ('32100000-0000-4000-8000-0000000000e3', '32100000-0000-4000-8000-0000000000b2'),
+  ('32100000-0000-4000-8000-0000000000e4', '32100000-0000-4000-8000-0000000000b1');
+
+-- C is W's guardian, so C reads W's marks in A, a school where C is staff, without W being in C's charge.
+insert into public.athlete_managers (user_id, athlete_id, relation) values
+  ('32100000-0000-4000-8000-0000000000a1', '32100000-0000-4000-8000-0000000000e4', 'guardian');
 
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
   ('32100000-0000-4000-8000-0000000000a1', '32100000-0000-4000-8000-0000000000e1', '32100000-0000-4000-8000-0000000000b1'),
@@ -61,6 +69,7 @@ insert into public.timing_series (id, created_by, school_id, stroke, distance, p
 
 -- f1: CA's mark of Y in A. f2: CA's mark of X in A. f4: CB's mark of Y in B.
 -- f5, f6: unassigned arrivals of C's series in A. f7: C's own mark of Y in A.
+-- f8: C's own mark of W in A.
 insert into public.measurements
   (id, created_by, school_id, kind, athlete_id, series_id, arrival_position, hundredths,
    stroke, distance, pool, session_type, source, device_id, captured_at)
@@ -78,7 +87,9 @@ from (values
   ('32100000-0000-4000-8000-0000000000f6', '32100000-0000-4000-8000-0000000000a1', '32100000-0000-4000-8000-0000000000b1',
    null, '32100000-0000-4000-8000-0000000000c1', 2),
   ('32100000-0000-4000-8000-0000000000f7', '32100000-0000-4000-8000-0000000000a1', '32100000-0000-4000-8000-0000000000b1',
-   '32100000-0000-4000-8000-0000000000e2', null, null)
+   '32100000-0000-4000-8000-0000000000e2', null, null),
+  ('32100000-0000-4000-8000-0000000000f8', '32100000-0000-4000-8000-0000000000a1', '32100000-0000-4000-8000-0000000000b1',
+   '32100000-0000-4000-8000-0000000000e4', null, null)
 ) as v(id, author, school, athlete, series, pos);
 
 set local role authenticated;
@@ -163,11 +174,18 @@ select lives_ok(
      where id = '32100000-0000-4000-8000-0000000000f6' $$,
   'C names an arrival of A with X'
 );
+-- Since #1122 a coach reads a mark only where the swimmer is assigned to them, so the update finds no row.
+select is_empty(
+  $$ update public.measurements set athlete_id = '32100000-0000-4000-8000-0000000000e1', base_version = 1
+     where id = '32100000-0000-4000-8000-0000000000f7' returning id $$,
+  'C cannot move their own mark of Y in A to X: Y is not in C''s charge in A, so since #1122 C does not even read it'
+);
+-- Restores the coach-level check of the old athlete branch of the move guard that the assertion above lost in #1122.
 select throws_ok(
   $$ update public.measurements set athlete_id = '32100000-0000-4000-8000-0000000000e1', base_version = 1
-     where id = '32100000-0000-4000-8000-0000000000f7' $$,
+     where id = '32100000-0000-4000-8000-0000000000f8' $$,
   '42501', 'the athlete of a measurement can only move between athletes of the coach',
-  'C cannot move their own mark of Y in A to X: Y is not in C''s charge in A'
+  'C reads their own mark of W in A as W''s guardian but cannot move it to X: W is not in C''s charge in A (old athlete branch of the guard)'
 );
 
 -- D coaches Y only in B, so in A D edits as a school admin, with a reason.

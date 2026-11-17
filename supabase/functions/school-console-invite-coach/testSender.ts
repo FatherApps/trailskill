@@ -4,9 +4,8 @@ import type { Invitation, InvitationSender } from './port.ts';
 export const TEST_SENDER_LIMIT = 100;
 
 /**
- * The only adapter of the sending port. It sends nothing and opens no connection: it records what it was asked to deliver,
- * the last TEST_SENDER_LIMIT only.
- * The real provider (email or SMS) is an open maintainer decision (#63); it will be a new adapter of the same port.
+ * The adapter of the sending port used without a Resend key (development, tests). It sends nothing and opens no connection: it
+ * records what it was asked to deliver, the last TEST_SENDER_LIMIT only.
  */
 export function createTestSender(): InvitationSender & { delivered: Invitation[] } {
   const delivered: Invitation[] = [];

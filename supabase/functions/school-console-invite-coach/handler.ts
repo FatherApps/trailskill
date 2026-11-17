@@ -12,6 +12,8 @@ const STATUS: Record<HandlerError['code'], number> = {
   bad_request: 400,
   unauthenticated: 401,
   not_authorized: 403,
+  caller_rate_limited: 429,
+  recipient_rate_limited: 429,
   internal: 500,
   unavailable: 502,
 };

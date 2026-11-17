@@ -4,8 +4,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 import { createInvitationStore, type Db } from './adapters.ts';
 import { createHandler } from './handler.ts';
+import { selectSender } from './selectSender.ts';
+import { withSendLimit } from './sendLimit.ts';
 import { createInviteCoach } from './service.ts';
-import { createTestSender } from './testSender.ts';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -25,6 +26,8 @@ const userDb = (client: ReturnType<typeof clientOf>): Db => ({
   },
 });
 
+const rpcOf = (client: ReturnType<typeof clientOf>) => async (fn: string, args: Record<string, unknown>) => client.rpc(fn, args);
+
 const authenticate = async (request: Request) => {
   const authorization = request.headers.get('Authorization');
   if (!authorization) return null;
@@ -32,12 +35,12 @@ const authenticate = async (request: Request) => {
   return error ? null : (data.user?.id ?? null);
 };
 
-// The real sending provider is an open maintainer decision (#63): until then the test sender delivers nothing.
-const sender = createTestSender();
+const sender = selectSender({ RESEND_API_KEY: Deno.env.get('RESEND_API_KEY'), RESEND_FROM: Deno.env.get('RESEND_FROM') }, fetch);
 
 Deno.serve((request) => {
   const authorization = request.headers.get('Authorization');
   // Without a token the handler answers 401 before the store is used.
-  const store = createInvitationStore(userDb(clientOf(authorization ?? '')));
+  const client = clientOf(authorization ?? '');
+  const store = withSendLimit(createInvitationStore(userDb(client)), rpcOf(client));
   return createHandler({ authenticate, service: { inviteCoach: createInviteCoach({ store, sender }) } })(request);
 });

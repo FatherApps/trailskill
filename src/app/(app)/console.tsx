@@ -6,7 +6,13 @@ import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, StateView } from '../../core/ui';
-import { createPowerSyncAdultDirectoryRepository } from '../../modules/accounts';
+import {
+  createPowerSyncAdultDirectoryRepository,
+  createSecureStorePendingInvitationRepository,
+  createSecureStoreRegistrationDraftRepository,
+  createSupabaseInvitationRepository,
+  SignOutContainer,
+} from '../../modules/accounts';
 import { createPowerSyncMeasurementRepository } from '../../modules/timing';
 import {
   AthletesSection,
@@ -28,6 +34,7 @@ import {
   createPowerSyncStaffSchoolRepository,
   MeasurementsSection,
   RecordsSection,
+  StaffEntries,
   useAdminSchool,
 } from '../../modules/school-console';
 
@@ -41,6 +48,9 @@ const schoolStructure = createPowerSyncSchoolStructureRepository();
 const adults = createPowerSyncAdultDirectoryRepository();
 const coaches = createPowerSyncCoachRepository(adults);
 const coachInvitations = createSupabaseCoachInvitationRepository();
+const familyInvitations = createSupabaseInvitationRepository();
+const registrationDrafts = createSecureStoreRegistrationDraftRepository();
+const pendingInvitations = createSecureStorePendingInvitationRepository();
 const guardianSharing = { repository: createSupabaseGuardianSharingRepository(), records: createGuardianRecordsRepository(createPowerSyncMeasurementRepository()) };
 
 export default function ConsoleRoute() {
@@ -89,12 +99,18 @@ export default function ConsoleRoute() {
       width={width}
       schoolName={access.school.name}
       onOpenPlans={() => router.push('/plans')}
+      // The admin lands here instead of on the home screen, so the entries only the home screen had are here too.
+      footer={
+        <StaffEntries onOpen={(href) => router.push(href)}>
+          <SignOutContainer drafts={registrationDrafts} pending={pendingInvitations} />
+        </StaffEntries>
+      }
       sections={{
         coaches: (props) => (
           <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} invitations={coachInvitations} />
         ),
         athletes: (props) => (
-          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} structure={schoolStructure} invitations={familyInvitations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         records: (props) => (
           <RecordsSection {...props} schoolId={schoolId} repository={categoryRecords} categories={categories} structure={schoolStructure} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />

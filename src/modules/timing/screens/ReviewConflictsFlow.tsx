@@ -6,16 +6,19 @@ import { ReviewConflictsScreen } from './ReviewConflictsScreen';
 export type ReviewConflictsFlowProps = {
   repository: ConflictReviewRepository;
   userId: string | undefined;
+  // Whether the user is staff of a school ('loading' while that is looked up). Staff read the conflicts of their school; the server limits them.
+  staff: boolean | 'loading';
   // The device has no connection: resolving needs the server.
   offline: boolean;
   onDenied: () => void;
   onBack: () => void;
 };
 
-// Only a platform admin sees the conflicts; the server function checks the role again on every resolution.
-export function ReviewConflictsFlow({ repository, userId, offline, onDenied, onBack }: ReviewConflictsFlowProps) {
+// A platform admin reads and resolves the conflicts; school staff only read them. The server decides what each one reads and checks the role again on every resolution.
+export function ReviewConflictsFlow({ repository, userId, staff, offline, onDenied, onBack }: ReviewConflictsFlowProps) {
   const [view, setView] = useState<'loading' | 'error' | 'ready'>('loading');
   const [conflicts, setConflicts] = useState<OpenConflict[]>([]);
+  const [canResolve, setCanResolve] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ConflictFailure | null>(null);
   // A resolution that never reached the server tells the screen it is offline even when the sync status has not noticed yet.
@@ -36,12 +39,14 @@ export function ReviewConflictsFlow({ repository, userId, offline, onDenied, onB
       onDenied();
       return;
     }
+    if (staff === 'loading') return;
     repository
       .isPlatformAdmin(userId)
       .catch(() => false)
       .then((admin) => {
         if (!active) return;
-        if (admin) void load();
+        setCanResolve(admin);
+        if (admin || staff) void load();
         else onDenied();
       });
     return () => {
@@ -49,7 +54,7 @@ export function ReviewConflictsFlow({ repository, userId, offline, onDenied, onB
     };
     // `onDenied` is a navigation callback: asking again when it changes identity would reload the list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repository, userId, load]);
+  }, [repository, userId, staff, load]);
 
   async function resolve(input: ResolveConflictInput) {
     setBusy(true);
@@ -80,6 +85,7 @@ export function ReviewConflictsFlow({ repository, userId, offline, onDenied, onB
       conflicts={conflicts}
       offline={offline || unreachable}
       busy={busy}
+      canResolve={canResolve}
       failure={failure}
       onResolve={resolve}
       onRetry={retry}

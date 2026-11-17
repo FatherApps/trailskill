@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import * as Linking from 'expo-linking';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Share } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
 import '../i18n';
-import type { AdultDirectoryRepository, Guardian } from '../../accounts';
+import type { AdultDirectoryRepository, Guardian, InvitationRepository } from '../../accounts';
 import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
-import { localDate } from '../components/formatDate';
+import { formatDate, localDate } from '../components/formatDate';
 import type { CategoriesRepository, Category } from '../data/categories';
 import type { GuardianRecordsRepository, GuardianSharingRepository } from '../data/guardianSharing';
 import { athleteIndicators, filterAthletes, filterOptions, startOfWeek } from '../data/athletesList';
+import type { SchoolGroup, SchoolStructureRepository } from '../data/schoolStructure';
 import { CONSOLE_BEST_EVENT, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import { AthletesScreen, type AthletesContent, type AthletesView } from './AthletesScreen';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -24,6 +27,11 @@ export type AthletesSectionProps = ConsoleSectionProps & {
   guardians?: Pick<AdultDirectoryRepository, 'listGuardians'>;
   // Without it the detail has no controls for what the guardian sees.
   sharing?: { repository: GuardianSharingRepository; records?: GuardianRecordsRepository };
+  // Inviting a family needs both: the school's groups (an invitation belongs to one) and the invitations. Without either the button is not shown.
+  structure?: Pick<SchoolStructureRepository, 'listGroups'>;
+  invitations?: Pick<InvitationRepository, 'create'>;
+  // Opens the system share sheet with the invitation message; replaced in tests.
+  share?: (message: string) => Promise<unknown>;
   // The list is read again when this changes (a sync completed).
   refreshKey?: unknown;
   // When the local database last finished a sync; `null` when it never did.
@@ -53,6 +61,7 @@ const guardianDetail = (list: Guardian[], noData: string) => {
 };
 
 const defaultNow = () => new Date();
+const defaultShare = (message: string) => Share.share({ message });
 
 const MINUTE_MS = 60_000;
 
@@ -102,6 +111,9 @@ export function AthletesSection({
   categories,
   guardians,
   sharing,
+  structure,
+  invitations,
+  share = defaultShare,
   refreshKey,
   lastSyncedAt,
   connection,
@@ -119,6 +131,15 @@ export function AthletesSection({
   const [assignFailure, setAssignFailure] = useState<{ athleteId: string; message: string }>();
   const [bests, setBests] = useState<{ athleteId: string; bests: AthleteBest[]; failed: boolean }>();
   const [guardianList, setGuardianList] = useState<{ athleteId: string; guardians: Guardian[] }>();
+
+  // Stored with the school they belong to, so another school never inherits the groups to pick from or the error.
+  const [picking, setPicking] = useState<{ schoolId: string; groups: SchoolGroup[] } | null>(null);
+  const [failure, setFailure] = useState<{ schoolId: string; message: string } | null>(null);
+  const pickingGroup = picking?.schoolId === schoolId ? picking.groups : null;
+  const inviteError = failure?.schoolId === schoolId ? failure.message : null;
+  const setInviteError = (message: string | null) => setFailure(message === null ? null : { schoolId, message });
+  // A ref, not state: a second press can arrive before a re-render shows the first is running.
+  const inviting = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -241,12 +262,62 @@ export function AthletesSection({
     view = connection !== 'offline' ? { kind: 'data', content } : { kind: 'offline', storedOn: lastSyncedAt ? localDate(lastSyncedAt) : '', content };
   }
 
+  // The school invites, the family creates the profile. The invitation needs a group: the only one of the school, or the one the admin picks.
+  const invite = async (chosenGroupId?: string) => {
+    if (!structure || !invitations || inviting.current) return;
+    inviting.current = true;
+    setInviteError(null);
+    try {
+      let groupId = chosenGroupId;
+      if (groupId === undefined) {
+        let groups: SchoolGroup[];
+        try {
+          groups = await structure.listGroups(schoolId);
+        } catch {
+          return setInviteError(t('schoolConsole.screen.invite_groups_error'));
+        }
+        if (groups.length === 0) return setInviteError(t('schoolConsole.screen.invite_no_groups'));
+        if (groups.length > 1) return setPicking({ schoolId, groups });
+        groupId = groups[0].id;
+      }
+      setPicking(null);
+      let message: string;
+      try {
+        const invitation = await invitations.create({ schoolId, groupId });
+        // A date that cannot be read drops the expiry sentence instead of leaving it blank.
+        const date = formatDate(localDate(new Date(invitation.expiresAt)), 'long');
+        message = t(date === null ? 'schoolConsole.screen.invite_message_no_date' : 'schoolConsole.screen.invite_message', {
+          school: schoolName,
+          link: Linking.createURL(`invite/${invitation.token}`),
+          date: date ?? '',
+        });
+      } catch {
+        return setInviteError(t('schoolConsole.screen.invite_error'));
+      }
+      // Closing the share sheet without sending is the admin's choice, not a failure: the invitation stays valid.
+      await share(message).catch(() => undefined);
+    } finally {
+      inviting.current = false;
+    }
+  };
+
   return (
     <AthletesScreen
       width={width}
       schoolName={schoolName}
       view={view}
       onNavigate={onNavigate}
+      onInvite={structure && invitations ? () => void invite() : undefined}
+      inviteError={inviteError}
+      inviteGroupSheet={
+        pickingGroup
+          ? {
+              options: pickingGroup.map((group) => ({ id: group.id, label: group.name })),
+              onChoose: (groupId) => void invite(groupId),
+              onClose: () => setPicking(null),
+            }
+          : undefined
+      }
       onQueryChange={setQuery}
       onFilterPress={(id) => {
         if (filters[id] === undefined) return setSheetId(id);

@@ -5,7 +5,7 @@ import { createSecureStoreRegistrationDraftRepository, InviteLinkContainer } fro
 
 const drafts = createSecureStoreRegistrationDraftRepository();
 
-// trailskill://invite/<token>: outside both guarded groups, so it opens signed in or out.
+// swimcro://invite/<token> (or trailskill://, sent before the rename): outside both guarded groups, so it opens signed in or out.
 export default function InviteLink() {
   const router = useRouter();
   const { token } = useLocalSearchParams<{ token: string }>();

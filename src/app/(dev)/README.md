@@ -10,11 +10,11 @@ Shows components and screens with synthetic data, in every state, in light and d
 ## Add an entry
 
 1. Put synthetic fixtures in `src/modules/<module>/__fixtures__/` (or `src/core/ui/__fixtures__/`). Use fictional names such as "Lucía R."; never real names, documents, birth dates, or federation, league or school names. No hex colors: `src/__tests__/fixtures.test.ts` enforces it.
-2. Export `galleryEntries: GalleryEntry[]` from the module `index.ts` (the `GalleryEntry` type comes from `src/core/ui`). Each entry has an `id`, a `title` and `states`, a map from state name to a function that renders it.
+2. Export `galleryEntries: GalleryEntry[]` from the module `index.ts` (the `GalleryEntry` type comes from `src/core/ui`) with the same `__DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : []` form the other modules use, on one line. Each entry has an `id`, a `title` and `states`, a map from state name to a function that renders it.
 3. Add the group to `galleryGroups` in `src/app/(dev)/_layout.tsx`: `{ id, title, entries }`, importing the entries only from the module `index.ts`.
 
 Do not add `.ts` or `.tsx` files other than routes in this folder: Expo Router turns each one into a route.
 
-## Open decision
+## Release bundles
 
-`galleryEntries` is exported from the module `index.ts`, so the fixtures ship in the production bundle even though the route is unreachable there.
+`galleryEntries` is exported behind `__DEV__` and is an empty array in release bundles: Metro folds `__DEV__` before collecting dependencies, so the gallery and its fixtures are not bundled. `src/__tests__/release-bundle.test.ts` fails if a gallery or fixture file is imported any other way.

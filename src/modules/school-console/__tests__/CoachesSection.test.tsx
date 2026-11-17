@@ -410,7 +410,7 @@ describe('CoachesSection', () => {
     expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
   });
 
-  it('hands the whole invitation to the invitations repository with the school id, and closes the sheet', async () => {
+  it('hands the whole invitation to the invitations repository with the school id, and shows the created invitation', async () => {
     const invitations = createInMemoryCoachInvitationRepository();
     await show(coachRepository(), { invitations });
     await rows();
@@ -421,7 +421,7 @@ describe('CoachesSection', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
 
-    await waitFor(() => expect(screen.queryByTestId('side-sheet')).toBeNull());
+    await waitFor(() => expect(screen.getByText('Invitación creada para rosa@example.com.')).toBeOnTheScreen());
     expect(invitations.sent).toEqual([{ schoolId: 'school-a', invitation: { name: 'Rosa', email: 'rosa@example.com', groupIds: ['g2'] } }]);
   });
 

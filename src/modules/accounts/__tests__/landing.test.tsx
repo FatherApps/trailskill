@@ -17,7 +17,7 @@ const guardian: OwnLandingEvidence = { managedCount: 2, selfAthleteId: null, onl
 const guardianOfOne: OwnLandingEvidence = { managedCount: 1, selfAthleteId: null, onlyAthleteId: 'child-1', authorized: true };
 const adult: OwnLandingEvidence = { managedCount: 1, selfAthleteId: 'self-1', onlyAthleteId: 'self-1', authorized: true };
 const nobody: OwnLandingEvidence = { managedCount: 0, selfAthleteId: null, onlyAthleteId: null, authorized: false };
-const base: LandingEvidence = { synced: true, syncGaveUp: false, phoneBar: true, staff: false, own: nobody, platformAdmin: false };
+const base: LandingEvidence = { synced: true, syncGaveUp: false, phoneBar: true, staff: false, admin: false, coach: false, own: nobody, platformAdmin: false };
 const landing = (evidence: Partial<LandingEvidence>) => resolveLanding({ ...base, ...evidence });
 
 describe('resolveLanding: one landing per role', () => {
@@ -41,7 +41,7 @@ describe('resolveLanding: one landing per role', () => {
 
   it('does not change where a guardian, staff or a platform admin land when there is no phone bar', () => {
     expect(landing({ own: guardian, phoneBar: false })).toEqual({ kind: 'athletes' });
-    expect(landing({ staff: true, own: adult, phoneBar: false })).toEqual({ kind: 'home' });
+    expect(landing({ staff: true, coach: true, own: adult, phoneBar: false })).toEqual({ kind: 'my-swimmers' });
     expect(landing({ platformAdmin: true, own: adult, phoneBar: false })).toEqual({ kind: 'home' });
   });
 
@@ -49,7 +49,19 @@ describe('resolveLanding: one landing per role', () => {
     expect(landing({ own: { managedCount: 0, selfAthleteId: null, onlyAthleteId: null, authorized: true } })).toEqual({ kind: 'athletes' });
   });
 
-  it('keeps school staff, coach or admin, on the home screen', () => {
+  it('sends a school admin to the console', () => {
+    expect(landing({ staff: true, admin: true })).toEqual({ kind: 'console' });
+  });
+
+  it('sends a coach to My swimmers', () => {
+    expect(landing({ staff: true, coach: true })).toEqual({ kind: 'my-swimmers' });
+  });
+
+  it('sends someone who is both a school admin and a coach to the console', () => {
+    expect(landing({ staff: true, admin: true, coach: true })).toEqual({ kind: 'console' });
+  });
+
+  it('keeps school staff with neither the admin nor the coach role on the home screen', () => {
     expect(landing({ staff: true })).toEqual({ kind: 'home' });
   });
 
@@ -63,12 +75,16 @@ describe('resolveLanding: one landing per role', () => {
 });
 
 describe('resolveLanding: accounts with several roles', () => {
-  it('lets staff win over a guardian, who keeps the timing entry', () => {
-    expect(landing({ staff: true, own: guardian })).toEqual({ kind: 'home' });
+  it('lets a coach win over a guardian, who keeps the timing entry', () => {
+    expect(landing({ staff: true, coach: true, own: guardian })).toEqual({ kind: 'my-swimmers' });
   });
 
-  it('lets staff win over an adult athlete', () => {
-    expect(landing({ staff: true, own: adult })).toEqual({ kind: 'home' });
+  it('lets a school admin win over an adult athlete', () => {
+    expect(landing({ staff: true, admin: true, own: adult })).toEqual({ kind: 'console' });
+  });
+
+  it('lets a school admin who is also a platform admin land on the console', () => {
+    expect(landing({ staff: true, admin: true, platformAdmin: true })).toEqual({ kind: 'console' });
   });
 
   it('lets a platform admin who is also a guardian keep the home screen', () => {
@@ -85,7 +101,12 @@ describe('resolveLanding: accounts with several roles', () => {
 describe('resolveLanding: waiting for data', () => {
   it('waits for the first sync, because a membership may not be on the device yet', () => {
     expect(landing({ synced: false, own: guardian })).toEqual({ kind: 'loading' });
-    expect(landing({ synced: false, staff: true })).toEqual({ kind: 'loading' });
+    expect(landing({ synced: false, staff: true, admin: true })).toEqual({ kind: 'loading' });
+  });
+
+  it('ends the wait for the first sync in the home screen, even for a school admin or a coach', () => {
+    expect(landing({ synced: false, syncGaveUp: true, staff: true, admin: true })).toEqual({ kind: 'home' });
+    expect(landing({ synced: true, syncGaveUp: true, staff: true, coach: true })).toEqual({ kind: 'my-swimmers' });
   });
 
   it('ends the wait for the first sync in the home screen, which shows the sync state and signs out', () => {
@@ -105,7 +126,7 @@ describe('resolveLanding: waiting for data', () => {
     expect(landing({ platformAdmin: 'loading', own: guardian })).toEqual({ kind: 'loading' });
     expect(landing({ platformAdmin: 'loading', own: adult })).toEqual({ kind: 'loading' });
     expect(landing({ platformAdmin: 'loading', own: nobody })).toEqual({ kind: 'home' });
-    expect(landing({ platformAdmin: 'loading', staff: true, own: guardian })).toEqual({ kind: 'home' });
+    expect(landing({ platformAdmin: 'loading', staff: true, coach: true, own: guardian })).toEqual({ kind: 'my-swimmers' });
   });
 });
 

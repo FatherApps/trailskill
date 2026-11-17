@@ -1,10 +1,11 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { Share, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { Banner, Button, Chip, TextField } from '../../../core/ui';
 import '../i18n';
+import { inviteShareText } from './inviteShare';
 import { SideSheet } from './SideSheet';
 
 export type InviteGroup = { id: string; name: string };
@@ -16,17 +17,20 @@ export type InviteGroups = InviteGroup[] | 'loading' | 'error';
 export type CoachInvitation = { name: string; email: string; groupIds: string[] };
 
 export type InviteCoachSheetProps = {
+  // The school that invites, named in the text that is shared.
+  schoolName: string;
   // The groups of the school, one chip each. While they are 'loading' or failed ('error') the invitation cannot be sent.
   groups: InviteGroups;
   // The group the invitation link came from, chosen when the sheet opens; ignored when the school has no such group.
   initialGroupId?: string;
   // The sheet stays open until this finishes; if it throws or rejects, what was typed is kept and the error is shown.
+  // When it resolves the sheet does not close: it shows the created invitation with the way to share it, and `onClose` closes it.
   // A caller that swallows its own error resolves, and the sheet takes that as sent: the promise must reject when the invitation fails.
   // The person can still close the sheet meanwhile; what this settles afterwards is the caller's to handle, the sheet is gone.
   onSubmit: (invitation: CoachInvitation) => void | Promise<void>;
   // Reads the groups again; offered next to the error when they failed to load.
   onRetryGroups?: () => void;
-  // Something the caller needs the person to see while the sheet is open, shown above the form (for example an earlier invitation that failed).
+  // Something the caller needs the person to see while the sheet is open, shown above the form and above the created invitation (for example an earlier invitation that failed, or an email that did not go out).
   notice?: ReactNode;
   onClose: () => void;
 };
@@ -35,7 +39,7 @@ export type InviteCoachSheetProps = {
 const EMAIL = /^\S+@\S+\.\S+$/;
 
 // The invitation form in a side sheet. It keeps its own typing, so it is mounted anew each time it opens.
-export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGroups, notice, onClose }: InviteCoachSheetProps) {
+export function InviteCoachSheet({ schoolName, groups, initialGroupId, onSubmit, onRetryGroups, notice, onClose }: InviteCoachSheetProps) {
   const { colors, space, typography } = useTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -45,7 +49,14 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
   // The ref is the guard (a second press can arrive before the next render); the state only draws the button busy.
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // The translation key of what went wrong on the last try, or null.
+  const [failure, setFailure] = useState<string | null>(null);
+  // The email of the invitation once it was created; the sheet then shows how to share it instead of the form.
+  const [created, setCreated] = useState<string | null>(null);
+  // Same as `sending`: the ref guards a second press, the state draws the button busy.
+  const sharing = useRef(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
 
   const available = Array.isArray(groups) ? groups : [];
   const isChosen = (id: string) => picked[id] ?? id === initialGroupId;
@@ -61,7 +72,7 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
   // Nothing changes while an invitation is on its way; a change clears the error of the last try.
   const edit = (change: () => void) => {
     if (sending.current) return;
-    setFailed(false);
+    setFailure(null);
     change();
   };
   const toggle = (id: string) => edit(() => setPicked((current) => ({ ...current, [id]: !isChosen(id) })));
@@ -69,16 +80,53 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
     if (sending.current) return;
     sending.current = true;
     setBusy(true);
-    setFailed(false);
+    setFailure(null);
     try {
       await onSubmit({ name: name.trim(), email: email.trim(), groupIds: available.filter((group) => isChosen(group.id)).map((group) => group.id) });
-    } catch {
-      setFailed(true);
+      setCreated(email.trim());
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      // The server's send-limit codes each have their own text; any other rejection shows the generic one.
+      setFailure(`schoolConsole.coaches.invite_sheet.${code === 'caller_rate_limited' || code === 'recipient_rate_limited' ? code : 'failed'}`);
     } finally {
       sending.current = false;
       setBusy(false);
     }
   };
+
+  const share = async () => {
+    if (sharing.current || created === null) return;
+    sharing.current = true;
+    setShareBusy(true);
+    setShareFailed(false);
+    try {
+      // Closing the system sheet without choosing resolves with `dismissedAction`: the person changed their mind, which is not an error.
+      await Share.share({ message: inviteShareText(schoolName, created) });
+    } catch {
+      setShareFailed(true);
+    } finally {
+      sharing.current = false;
+      setShareBusy(false);
+    }
+  };
+
+  if (created !== null) {
+    return (
+      <SideSheet label={t('schoolConsole.coaches.invite_sheet.label')} titleKey="schoolConsole.coaches.invite" onClose={onClose}>
+        {notice}
+        <Banner variant="success" icon="check_circle">
+          {t('schoolConsole.coaches.invite_sheet.created', { email: created })}
+        </Banner>
+        {shareFailed && (
+          <Banner variant="warn" icon="error">
+            {t('schoolConsole.coaches.invite_sheet.share_failed')}
+          </Banner>
+        )}
+        <Button variant="secondary" label={t('schoolConsole.coaches.invite_sheet.share_invitation')} loading={shareBusy} onPress={() => void share()} />
+        <Button label={t('schoolConsole.coaches.invite_sheet.done')} onPress={onClose} />
+      </SideSheet>
+    );
+  }
 
   return (
     <SideSheet label={t('schoolConsole.coaches.invite_sheet.label')} titleKey="schoolConsole.coaches.invite" onClose={onClose}>
@@ -111,9 +159,9 @@ export function InviteCoachSheet({ groups, initialGroupId, onSubmit, onRetryGrou
           </View>
         </View>
       )}
-      {failed && (
+      {failure && (
         <Banner variant="warn" icon="error">
-          {t('schoolConsole.coaches.invite_sheet.failed')}
+          {t(failure)}
         </Banner>
       )}
       <Button

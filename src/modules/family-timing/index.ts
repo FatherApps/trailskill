@@ -25,6 +25,6 @@ export {
 export { createFakeVideoCamera, VIDEO_ALBUM, videoCamera, type VideoCamera } from './data/videoCamera';
 export { useMoveLocalFamilyTimes } from './data/useMoveLocalFamilyTimes';
 export { FamilyTimingContainer, type FamilyTimingContainerProps } from './screens/FamilyTimingContainer';
-export { useFamilyTimingAtList } from './screens/familyTimingAtList';
+export { setFamilyTimingAtList, useFamilyTimingAtList } from './screens/familyTimingAtList';
 export { FamilyTimingScreen, type FamilyTimingScreenProps, type FamilyTimingView } from './screens/FamilyTimingScreen';
 export { officialValue, type OfficialImport, type OfficialValue } from './domain/officialValue';

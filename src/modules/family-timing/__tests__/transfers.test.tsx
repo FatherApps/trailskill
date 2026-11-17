@@ -41,6 +41,16 @@ async function open(props: Partial<Parameters<typeof FamilyTimingContainer>[0]>,
 
 const shareCodes = { find: async (code: string) => (code.toUpperCase() === 'TS-BBBBBB' ? 'Ana M.' : null) };
 
+
+// The edit screen opens from the time's detail ("Editar registro").
+async function openDetail(index = 0) {
+  await fireEvent.press((await screen.findAllByHintText('Abre el detalle del tiempo'))[index]);
+}
+async function openEdit(index = 0) {
+  await openDetail(index);
+  await fireEvent.press(await screen.findByText('Editar registro'));
+}
+
 describe('sending a time to another family', () => {
   it('finds the swimmer by the code, sends the time, shows it waiting, and withdraws it', async () => {
     const transfers = createInMemoryFamilyTransferRepository({
@@ -49,7 +59,7 @@ describe('sending a time to another family', () => {
     });
     await open({ transfers, shareCodes }, [time]);
     await fireEvent.press(await screen.findByLabelText('Sin asignar'));
-    await fireEvent.press(await screen.findByText('Editar o eliminar'));
+    await openEdit();
     await fireEvent.press(screen.getByText('Enviar a otra familia'));
 
     await fireEvent.changeText(screen.getByLabelText('Código del nadador'), 'ts-zzzzzz');
@@ -61,18 +71,19 @@ describe('sending a time to another family', () => {
     await fireEvent.press(await screen.findByText('Enviar a Ana M.'));
 
     expect(await screen.findByLabelText('Enviado a Ana M. · espera respuesta')).toBeTruthy();
-    expect(screen.queryByText('Editar o eliminar')).toBeNull();
+    expect(screen.queryByText('Editar registro')).toBeNull();
     expect([...transfers.rows.values()][0]).toMatchObject({ measurementId: 'm1', athleteId: 'b2', status: 'pending' });
 
     await fireEvent.press(screen.getByText('Retirar envío'));
     await waitFor(() => expect(screen.queryByLabelText('Enviado a Ana M. · espera respuesta')).toBeNull());
     expect([...transfers.rows.values()][0].status).toBe('withdrawn');
-    expect(screen.getByText('Editar o eliminar')).toBeTruthy();
+    await openDetail();
+    expect(await screen.findByText('Editar registro')).toBeTruthy();
   });
 
   it('is not offered without the share code lookup', async () => {
     await open({}, [{ ...time, athleteId: 'a1' }]);
-    await fireEvent.press(await screen.findByText('Editar o eliminar'));
+    await openEdit();
     expect(screen.queryByText('Enviar a otra familia')).toBeNull();
   });
 });

@@ -12,6 +12,7 @@ type World = {
   // Memberships on the device; the second list is the school_admin ones.
   schools: string[];
   adminSchools: string[];
+  coachSchools: string[];
   // The athlete links of the user, and the id of the 'self' one.
   managedIds: string[];
   selfId: string | null;
@@ -21,7 +22,7 @@ type World = {
   // The membership lookup on the device fails.
   staffLookupFails: boolean;
 };
-const mockWorld: World = { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, staffLookupFails: false };
+const mockWorld: World = { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], coachSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, staffLookupFails: false };
 
 jest.mock('../core/sync', () => ({
   ...jest.requireActual('../core/sync/syncState'),
@@ -38,8 +39,7 @@ jest.mock('../modules/school-console', () => ({
       return mockWorld.schools.map((id) => ({ id, name: id }));
     },
     listAdminSchools: async () => mockWorld.adminSchools.map((id) => ({ id, name: id })),
-    // The landing tests only check which screen opens; the coach button of the home screen is tested in home.test.tsx.
-    listCoachSchools: async () => [],
+    listCoachSchools: async () => mockWorld.coachSchools.map((id) => ({ id, name: id })),
   }),
 }));
 jest.mock('../modules/accounts', () => ({
@@ -92,20 +92,22 @@ const routes = {
   '(app)/athletes/index': () => <Text>my athletes</Text>,
   '(app)/athletes/[id]': Profile,
   '(app)/athletes/authorizations': AuthorizationsRoute,
+  '(app)/console': () => <Text>console</Text>,
+  '(app)/my-swimmers': () => <Text>my swimmers</Text>,
 };
 
 beforeEach(() => {
   mockWidth = 390;
-  Object.assign(mockWorld, { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, staffLookupFails: false });
+  Object.assign(mockWorld, { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], coachSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, staffLookupFails: false });
 });
 
 const guardian = () => Object.assign(mockWorld, { managedIds: ['a1', 'a2'], ownAuthorizations: true });
 const guardianOfOne = () => Object.assign(mockWorld, { managedIds: ['a1'], ownAuthorizations: true });
 const adult = () => Object.assign(mockWorld, { managedIds: ['self-1'], selfId: 'self-1', ownAuthorizations: true });
 
-// "TrailSkill" is the title of the old home screen.
+// "Swimcro" is the title of the old home screen.
 async function landsOnHome() {
-  expect(await screen.findByText('TrailSkill')).toBeOnTheScreen();
+  expect(await screen.findByText('Swimcro')).toBeOnTheScreen();
   expect(screen.queryByText('my athletes')).toBeNull();
   expect(screen.queryByText(/^profile /)).toBeNull();
 }
@@ -116,7 +118,7 @@ describe('landing by role', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     expect(await screen.findByText('my athletes')).toBeOnTheScreen();
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
   });
 
   it('takes a guardian of one athlete on a tablet, which has no phone bar, to My athletes', async () => {
@@ -141,7 +143,7 @@ describe('landing by role', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     expect(await screen.findByText('profile self-1')).toBeOnTheScreen();
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
   });
 
   it('takes an adult athlete on a tablet, which has no phone bar, to My athletes', async () => {
@@ -153,21 +155,32 @@ describe('landing by role', () => {
     expect(screen.queryByText(/^profile /)).toBeNull();
   });
 
-  it('keeps a coach on the old home screen, with the timing', async () => {
+  it('takes a coach to My swimmers instead of the old home screen', async () => {
     mockWorld.schools = ['s1'];
+    mockWorld.coachSchools = ['s1'];
     await renderRouter(routes, { initialUrl: '/' });
 
-    await landsOnHome();
-    expect(await screen.findByRole('button', { name: 'Toma de tiempos' })).toBeOnTheScreen();
+    expect(await screen.findByText('my swimmers')).toBeOnTheScreen();
+    expect(screen.queryByText('Swimcro')).toBeNull();
   });
 
-  it('keeps a school admin on the old home screen, with the console', async () => {
+  it('takes a school admin to the console instead of the old home screen', async () => {
     mockWorld.schools = ['s1'];
     mockWorld.adminSchools = ['s1'];
     await renderRouter(routes, { initialUrl: '/' });
 
-    await landsOnHome();
-    expect(await screen.findByRole('button', { name: 'Consola' })).toBeOnTheScreen();
+    expect(await screen.findByText('console')).toBeOnTheScreen();
+    expect(screen.queryByText('Swimcro')).toBeNull();
+  });
+
+  it('takes someone who is both a school admin and a coach to the console', async () => {
+    mockWorld.schools = ['s1'];
+    mockWorld.adminSchools = ['s1'];
+    mockWorld.coachSchools = ['s1'];
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('console')).toBeOnTheScreen();
+    expect(screen.queryByText('my swimmers')).toBeNull();
   });
 
   it('keeps a platform admin on the old home screen, with the conflict review', async () => {
@@ -186,8 +199,17 @@ describe('landing by role', () => {
 });
 
 describe('landing of accounts with several roles', () => {
-  it('keeps a coach who is also a guardian on the old home screen', async () => {
+  it('takes a coach who is also a guardian to My swimmers', async () => {
     guardian();
+    mockWorld.schools = ['s1'];
+    mockWorld.coachSchools = ['s1'];
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('my swimmers')).toBeOnTheScreen();
+    expect(screen.queryByText('my athletes')).toBeNull();
+  });
+
+  it('keeps school staff with neither the admin nor the coach role on the old home screen', async () => {
     mockWorld.schools = ['s1'];
     await renderRouter(routes, { initialUrl: '/' });
 
@@ -201,7 +223,7 @@ describe('landing of accounts with several roles', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     expect(await screen.findByText('my athletes')).toBeOnTheScreen();
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
   });
 
   it('takes a guardian of one athlete to that athlete when the membership lookup on the device fails', async () => {
@@ -253,7 +275,7 @@ describe('landing while data is missing', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     await act(async () => {});
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
     expect(screen.queryByText('my athletes')).toBeNull();
   });
 
@@ -268,13 +290,24 @@ describe('landing while data is missing', () => {
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeOnTheScreen();
   });
 
+  it('shows the home screen, not My swimmers, to a coach when the first sync cannot connect', async () => {
+    mockWorld.schools = ['s1'];
+    mockWorld.coachSchools = ['s1'];
+    mockWorld.synced = false;
+    mockWorld.syncConnectFailed = true;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    await landsOnHome();
+    expect(screen.queryByText('my swimmers')).toBeNull();
+  });
+
   it('waits for the platform admin answer before sending a guardian away', async () => {
     guardian();
     mockWorld.platformAdmin = 'silent';
     await renderRouter(routes, { initialUrl: '/' });
 
     await act(async () => {});
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
     expect(screen.queryByText('my athletes')).toBeNull();
   });
 });
@@ -290,6 +323,6 @@ describe('the end of the registration', () => {
     await act(async () => screen.getByText('Continuar').props.onPress());
 
     expect(await screen.findByText(text)).toBeOnTheScreen();
-    expect(screen.queryByText('TrailSkill')).toBeNull();
+    expect(screen.queryByText('Swimcro')).toBeNull();
   });
 });

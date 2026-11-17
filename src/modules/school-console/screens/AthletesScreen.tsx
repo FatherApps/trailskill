@@ -5,7 +5,7 @@ import { useTheme, type ColorToken } from '../../../core/theme';
 import { Banner, Button, Icon, StateView } from '../../../core/ui';
 import '../i18n';
 import { AthleteDetail } from '../components/AthleteDetail';
-import { AthleteFilterOptions, filterSheetLabel, type AthleteFilterOption } from '../components/AthleteFilterOptions';
+import { AthleteFilterOptions, filterSheetLabel, OptionRow, type AthleteFilterOption } from '../components/AthleteFilterOptions';
 import { AthleteFilters, type AthleteFiltersProps } from '../components/AthleteFilters';
 import { AthleteIndicators, type AthleteIndicatorsProps } from '../components/AthleteIndicators';
 import { AthleteTable, AthleteTableHeader, AthleteTableRow, useTableForm } from '../components/AthleteTable';
@@ -51,6 +51,13 @@ export type AthletesFilterSheet = {
   onClose: () => void;
 };
 
+// The groups of the school when the invitation must go to one of several: shown in a side sheet over the screen.
+export type AthletesInviteGroupSheet = {
+  options: { id: string; label: string }[];
+  onChoose: (groupId: string) => void;
+  onClose: () => void;
+};
+
 export type AthletesScreenProps = {
   // The width available to the console in dp: the caller measures it (window or preview).
   width: number;
@@ -59,6 +66,9 @@ export type AthletesScreenProps = {
   onNavigate: (id: ConsoleDestinationId) => void;
   // Absent while there is no invitation flow: the button is not shown.
   onInvite?: () => void;
+  // Why the last invitation could not be made; shown under the header.
+  inviteError?: string | null;
+  inviteGroupSheet?: AthletesInviteGroupSheet;
   onQueryChange: (query: string) => void;
   onFilterPress: (id: AthleteFilterId) => void;
   onSelect: (id: string) => void;
@@ -86,6 +96,8 @@ export function AthletesScreen({
   view,
   onNavigate,
   onInvite,
+  inviteError,
+  inviteGroupSheet,
   onQueryChange,
   onFilterPress,
   onSelect,
@@ -135,6 +147,13 @@ export function AthletesScreen({
           onPress={onInvite}
         />
       )}
+      {inviteError ? (
+        <View style={{ width: '100%' }}>
+          <Banner variant="warn" icon="error">
+            {inviteError}
+          </Banner>
+        </View>
+      ) : null}
     </View>
   );
 
@@ -290,7 +309,22 @@ export function AthletesScreen({
       scrollEnabled={scrollEnabled}
       childrenScroll={virtualized}
       sheet={
-        filterSheet
+        inviteGroupSheet
+          ? {
+              label: t('schoolConsole.screen.invite_groups.label'),
+              content: (
+                <View style={{ gap: space[2] }}>
+                  <Text accessibilityRole="header" style={[typography.title, { color: colors[athletesScreenColors.title] }]}>
+                    {t('schoolConsole.screen.invite_groups.title')}
+                  </Text>
+                  {inviteGroupSheet.options.map((option) => (
+                    <OptionRow key={option.id} label={option.label} selected={false} onPress={() => inviteGroupSheet.onChoose(option.id)} />
+                  ))}
+                </View>
+              ),
+              onClose: inviteGroupSheet.onClose,
+            }
+          : filterSheet
           ? {
               label: filterSheetLabel(filterSheet.id),
               content: (

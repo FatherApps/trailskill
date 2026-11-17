@@ -69,7 +69,7 @@ describe('home screen', () => {
   it('shows the app title', async () => {
     await render(<Home />);
 
-    expect(screen.getByText('TrailSkill')).toBeTruthy();
+    expect(screen.getByText('Swimcro')).toBeTruthy();
   });
 
   it('shows records waiting on the phone', async () => {
@@ -250,7 +250,7 @@ describe('sign out from home', () => {
 
 describe('t', () => {
   it('returns the es-CO text of a known key', () => {
-    expect(t('home.title')).toBe('TrailSkill');
+    expect(t('home.title')).toBe('Swimcro');
   });
 
   it('returns the key itself when the translation is missing', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
@@ -24,6 +24,7 @@ export type MySwimmersSectionProps = {
   onBack: () => void;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
+  footer?: ReactNode;
 };
 
 // The answer is stored with what it answers, so another coach or a retry never inherits it while its own read runs.
@@ -52,6 +53,7 @@ export function MySwimmersSection({
   onOpenAthlete,
   onBack,
   scrollEnabled,
+  footer,
 }: MySwimmersSectionProps) {
   const [answer, setAnswer] = useState<Answer>();
   const [attempt, setAttempt] = useState(0);
@@ -96,6 +98,7 @@ export function MySwimmersSection({
       onOpen={onOpenAthlete}
       onBack={onBack}
       scrollEnabled={scrollEnabled}
+      footer={footer}
     />
   );
 }

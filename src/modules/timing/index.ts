@@ -1,3 +1,5 @@
+import type { GalleryEntry } from '../../core/ui';
+
 export { createInMemoryMeasurementRepository } from './data/inMemoryMeasurementRepository';
 export { CompletedMeasurementTimeError, DiscardedMeasurementError, InvalidMeasurementTimeError } from './data/measurements';
 export type {
@@ -9,7 +11,9 @@ export type {
   SessionType,
 } from './data/measurements';
 export { createPowerSyncMeasurementRepository } from './data/powerSyncMeasurementRepository';
-export { galleryEntries } from './gallery';
+// Dev only: Metro drops this require from release bundles (issue 1040).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- a static import would bundle the gallery in release builds
+export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : [];
 export { ArrivalButton, type ArrivalButtonProps } from './components/ArrivalButton';
 export { ArrivalList, type ArrivalListProps } from './components/ArrivalList';
 export { NameCard, type NameCardProps } from './components/NameCard';

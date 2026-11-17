@@ -91,7 +91,7 @@ describe('laps in the individual time', () => {
     expect(screen.getByText('Lap 4 · 0:18,31 · total 1:12,31')).toBeTruthy();
     await fireEvent.press(screen.getByText('Guardar'));
     await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]).toMatchObject({ millis: 72_310, splits: [16_720, 35_120, 54_000], pool: 'SCM' }));
-    expect(await screen.findByText('4 laps')).toBeTruthy();
+    expect(await screen.findByText('Medido · 4 largos')).toBeTruthy();
   });
 
   it('offers no lap button when the event is one length', async () => {

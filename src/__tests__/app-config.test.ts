@@ -39,16 +39,16 @@ function loadConfig(variant?: string): ExpoConfig {
 describe('preview test build variant', () => {
   it('installs next to the demo client with its own package, name and scheme when APP_VARIANT is preview', () => {
     const preview = loadConfig('preview');
-    expect(preview.android?.package).toBe('com.fatherapps.trailskill.preview');
-    expect(preview.name).toBe('TrailSkill (prueba)');
-    expect(preview.scheme).toBe('trailskill-preview');
+    expect(preview.android?.package).toBe('com.fatherapps.swimcro.preview');
+    expect(preview.name).toBe('Swimcro (prueba)');
+    expect(preview.scheme).toBe('swimcro-preview');
   });
 
   it.each([undefined, '', 'production'])('keeps the usual package, name and scheme when APP_VARIANT is %p', (variant) => {
     const usual = loadConfig(variant);
-    expect(usual.android?.package).toBe('com.fatherapps.trailskill');
-    expect(usual.name).toBe('TrailSkill');
-    expect(usual.scheme).toBe('trailskill');
+    expect(usual.android?.package).toBe('com.fatherapps.swimcro');
+    expect(usual.name).toBe('Swimcro');
+    expect(usual.scheme).toEqual(['swimcro', 'trailskill']);
   });
 
   it('changes nothing else in the preview variant', () => {
@@ -61,9 +61,23 @@ describe('preview test build variant', () => {
   });
 });
 
+describe('EAS project link', () => {
+  // The project ID is public (not a secret). The preview variant builds from the same EAS project.
+  it.each([undefined, 'preview'])('links the EAS project of fatherapps when APP_VARIANT is %p', (variant) => {
+    const loaded = loadConfig(variant);
+    expect(loaded.owner).toBe('fatherapps');
+    expect(loaded.extra?.eas?.projectId).toBe('09e9d4f5-fe9e-4c74-a084-aaf9a9cfe9a0');
+  });
+});
+
 describe('app icon and splash configuration', () => {
-  it('registers the trailskill:// scheme so school invitation links open the app', () => {
-    expect(config.scheme).toBe('trailskill');
+  it('builds links with swimcro:// and still opens trailskill:// links sent before the rename', () => {
+    // expo-linking builds URLs (auth redirect, invitations) with the first scheme.
+    expect(config.scheme).toEqual(['swimcro', 'trailskill']);
+  });
+
+  it('uses swimcro as the Expo slug', () => {
+    expect(config.slug).toBe('swimcro');
   });
 
   it('uses a 1024 px square app icon', () => {

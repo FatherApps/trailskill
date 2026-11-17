@@ -66,6 +66,7 @@ describe('school console gallery entries', () => {
   it('have unique ids and the expected states', () => {
     expect(galleryEntries.map((entry) => entry.id)).toEqual([
       'consoleNav',
+      'staffEntries',
       'sideSheet',
       'athleteIndicators',
       'athleteFilters',
@@ -87,6 +88,7 @@ describe('school console gallery entries', () => {
       'mySwimmersScreen',
     ]);
     expect(stateKeys('consoleNav')).toEqual(['side', 'top']);
+    expect(stateKeys('staffEntries')).toEqual(['staff']);
     expect(stateKeys('sideSheet')).toEqual(['open', 'titled']);
     expect(stateKeys('athleteIndicators')).toEqual(['default', 'large-numbers']);
     expect(stateKeys('athleteFilters')).toEqual(['empty', 'with-filter', 'all-filters']);

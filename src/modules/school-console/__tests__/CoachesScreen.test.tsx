@@ -6,6 +6,9 @@ import { coachesFixture, inviteGroupsFixture, pendingCoachFixture } from '../__f
 import { schoolNameFixture, storedOnFixture } from '../__fixtures__/athletes';
 import { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from '../screens/CoachesScreen';
 
+// What CoachInvitationError carries: the server's code on the error (the data layer is not loaded here).
+const serverError = (code: string) => Object.assign(new Error(`The coach invitation was not sent (${code})`), { code });
+
 const content: CoachesContent = { updatedMinutesAgo: 2, coaches: coachesFixture };
 
 const show = async (view: CoachesView, extra: Partial<CoachesScreenProps> = {}) => {
@@ -181,7 +184,7 @@ describe('CoachesScreen', () => {
       expect(onInvite).not.toHaveBeenCalled();
     });
 
-    it('confirming calls onInvite with the name, the email and the chosen groups, and closes the sheet', async () => {
+    it('confirming calls onInvite with the name, the email and the chosen groups, and shows the created invitation', async () => {
       const { onInvite } = await open();
 
       await fireEvent.changeText(screen.getByLabelText('Nombre'), '  Rosa Londoño ');
@@ -193,6 +196,10 @@ describe('CoachesScreen', () => {
 
       expect(onInvite).toHaveBeenCalledTimes(1);
       expect(onInvite).toHaveBeenCalledWith({ name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g3'] });
+      // The sheet stays open on the created invitation, with the way to share it; Listo closes it.
+      expect(screen.getByText('Invitación creada para rosa@example.com.')).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Compartir invitación' })).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Listo' }));
       expect(screen.queryByTestId('side-sheet')).toBeNull();
     });
 
@@ -364,7 +371,36 @@ describe('CoachesScreen', () => {
         expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
       });
 
-      it('closes the sheet when a retry works, and sends the same data again', async () => {
+      it.each([
+        ['caller_rate_limited', 'Enviaste muchas invitaciones hoy. Inténtalo de nuevo más tarde.'],
+        ['recipient_rate_limited', 'Ya enviamos varias invitaciones a este correo hoy. Inténtalo de nuevo más tarde.'],
+      ])('says why when the server answers %s, and not the generic text', async (code, text) => {
+        const onInvite = jest.fn().mockRejectedValue(serverError(code));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fill();
+
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        expect(screen.getByText(text)).toBeOnTheScreen();
+        expect(screen.queryByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeNull();
+        expect(screen.getByLabelText('Correo')).toHaveDisplayValue('rosa@example.com');
+      });
+
+      it('keeps the generic text for any other server code, and clears the error when the typing changes', async () => {
+        const onInvite = jest.fn().mockRejectedValue(serverError('unavailable'));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fill();
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+        expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
+
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa');
+
+        expect(screen.queryByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeNull();
+      });
+
+      it('shows the created invitation when a retry works, and sends the same data again', async () => {
         const onInvite = jest.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined);
         await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
         await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
@@ -375,7 +411,7 @@ describe('CoachesScreen', () => {
 
         expect(onInvite).toHaveBeenCalledTimes(2);
         expect(onInvite).toHaveBeenLastCalledWith({ name: 'Rosa Londoño', email: 'rosa@example.com', groupIds: ['g1'] });
-        expect(screen.queryByTestId('side-sheet')).toBeNull();
+        expect(screen.getByText('Invitación creada para rosa@example.com.')).toBeOnTheScreen();
       });
 
       it('stays open until a slow invitation ends, and does not send twice meanwhile', async () => {
@@ -392,7 +428,7 @@ describe('CoachesScreen', () => {
         expect(screen.getByTestId('side-sheet')).toBeOnTheScreen();
 
         await act(async () => finish());
-        expect(screen.queryByTestId('side-sheet')).toBeNull();
+        expect(screen.getByText('Invitación creada para rosa@example.com.')).toBeOnTheScreen();
       });
     });
 
@@ -610,7 +646,8 @@ describe('CoachesScreen', () => {
 
         expect(onInvite).toHaveBeenCalledTimes(1);
         await finish();
-        expect(screen.queryByTestId('side-sheet')).toBeNull();
+        // The sheet of the second opening shows its created invitation; the second send did not call onInvite again.
+        expect(screen.getByText('Invitación creada para Rosa@Example.com.')).toBeOnTheScreen();
       });
 
       describe('two invitations to the same email', () => {

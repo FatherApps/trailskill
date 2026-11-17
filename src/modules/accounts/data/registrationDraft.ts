@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
 
 import type { SwimmerChoice } from '../screens/WhoSwimsScreen';
+import { DRAFT_TTL_MS } from './draftTtl';
 import type { AdultProfileRepository } from './adultProfiles';
 import type { InvitationRepository } from './invitations';
 import type { ManagedAthleteProfileRepository } from './managedAthleteProfiles';
@@ -19,7 +20,7 @@ export type RegistrationDraft = {
   // The sign-up code was asked for from the registration screen for this email: verifying it completes this registration.
   // Without it the draft was only typed, and a later sign-in with that email is asked before the draft is resumed.
   codeRequested?: boolean;
-  // From a school invitation link (trailskill://invite/<token>); kept in every rewrite until a later step accepts it.
+  // From a school invitation link (swimcro://invite/<token>, or trailskill:// from before the rename); kept in every rewrite until a later step accepts it.
   invitationToken?: string;
   // Stamped by the SecureStore repository on every save; never set by callers.
   savedAt?: number;
@@ -67,7 +68,7 @@ export function createSecureStoreRegistrationDraftRepository(): RegistrationDraf
   };
 }
 
-export const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+export { DRAFT_TTL_MS };
 
 // Run when the app opens: a draft older than 24 hours is dropped, so a phone passed to someone else never keeps it for long.
 // A draft with no stamp predates the expiry and is dropped too.

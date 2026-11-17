@@ -1,7 +1,9 @@
 import './i18n';
+import type { GalleryEntry } from '../../core/ui';
 
 export { ConsoleNav, type ConsoleDestinationId, type ConsoleNavProps } from './components/ConsoleNav';
 export { SideSheet, type SideSheetProps } from './components/SideSheet';
+export { StaffEntries, type StaffEntriesProps } from './components/StaffEntries';
 export { ConsoleLayout, consoleLayoutFor, type ConsoleLayoutKind, type ConsoleLayoutProps } from './components/ConsoleLayout';
 export { AthleteIndicators, type AthleteIndicatorsProps } from './components/AthleteIndicators';
 export { AthleteFilters, type AthleteFiltersProps } from './components/AthleteFilters';
@@ -94,7 +96,9 @@ export {
   type GuardianRecordsRepository,
   type GuardianSharingRepository,
 } from './data/guardianSharing';
-export { galleryEntries } from './gallery';
+// Dev only: Metro drops this require from release bundles (issue 1040).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- a static import would bundle the gallery in release builds
+export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as typeof import('./gallery')).galleryEntries : [];
 export { createInMemoryStaffSchoolRepository, createPowerSyncStaffSchoolRepository } from './data/staffSchools';
 export type { StaffMembershipRow, StaffSchool, StaffSchoolRepository } from './data/staffSchools';
 export {
@@ -138,3 +142,5 @@ export {
 export { CategoriesScreen, type CategoriesContent, type CategoriesScreenProps } from './screens/CategoriesScreen';
 export { CategoriesSection, type CategoriesSectionProps } from './screens/CategoriesSection';
 export { useCategories, type CategoriesState, type UseCategories } from './data/useCategories';
+export { SchoolTimingContainer, type SchoolTimingContainerProps, type SchoolTimingRepositories } from './screens/SchoolTimingContainer';
+export { AppLayoutContainer, type AppLayoutContainerProps, type LayoutRouter } from './screens/AppLayoutContainer';

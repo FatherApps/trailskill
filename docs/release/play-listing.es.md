@@ -8,12 +8,12 @@ Límites de Play Console citados abajo: nombre 30 caracteres, descripción corta
 
 | Campo | Propuesta |
 | --- | --- |
-| Nombre de la app | TrailSkill |
+| Nombre de la app | Swimcro |
 | Idioma predeterminado | Español |
 | Tipo | Aplicación |
 | Gratuita o de pago | Gratuita |
 | Categoría | Deportes |
-| ID de la aplicación | `com.fatherapps.trailskill` (no se cambia) |
+| ID de la aplicación | `com.fatherapps.swimcro` (no se cambia) |
 | Correo de contacto | PENDIENTE: lo define el maintainer |
 | Sitio web | PENDIENTE: lo define el maintainer |
 | URL de la política de privacidad | PENDIENTE: se publica después de la revisión legal de #106 |
@@ -27,7 +27,7 @@ Desarrollo deportivo: tiempos, perfil y entrenamientos de tus nadadores.
 ## Descripción completa (máx. 4000 caracteres)
 
 ```text
-TrailSkill acompaña el desarrollo de deportistas en escuelas y clubes. Empieza con natación.
+Swimcro acompaña el desarrollo de deportistas en escuelas y clubes. Empieza con natación.
 
 PARA FAMILIAS Y DEPORTISTAS ADULTOS
 • Registra a tu deportista (o a ti mismo) y autoriza, paso a paso y con tu propio consentimiento, qué datos se usan y para qué.
@@ -38,6 +38,7 @@ PARA FAMILIAS Y DEPORTISTAS ADULTOS
 • Cada nadador tiene un código para compartir tiempos con otras familias; solo muestra su nombre corto y lo puedes cambiar cuando quieras.
 
 PARA ENTRENADORES
+• Consulta los nadadores que tienes asignados.
 • Toma tiempos con el cronómetro en pantalla o con un botón externo, incluso sin conexión.
 • Asigna las llegadas a cada deportista y guarda los parciales.
 • Consulta los entrenamientos planificados y registra su cumplimiento.
@@ -59,7 +60,7 @@ Esta versión está en prueba. Si tienes una invitación, ingresa con tu correo 
 ## Notas de la versión (prueba interna)
 
 ```text
-Primera versión de prueba. Ingresa con el correo invitado (recibirás un código) o con tu cuenta de Google. Cuéntanos qué falla o qué no se entiende.
+Primera versión de prueba. Ingresa con tu cuenta de Google o con tu correo (recibirás un código). Cuéntanos qué falla o qué no se entiende.
 ```
 
 ## Recursos gráficos
@@ -70,6 +71,19 @@ Primera versión de prueba. Ingresa con el correo invitado (recibirás un códig
 | Gráfico de funciones (1024 × 500) | PENDIENTE: lo prepara el maintainer con el logo oficial |
 | Capturas de teléfono | PENDIENTE: usar datos sintéticos, nunca personas ni escuelas reales |
 | Capturas de tableta (consola de escuela) | PENDIENTE: ídem |
+
+## Qué pide Play y cuándo
+
+Revisado el 2026-11-16 contra la app y [`docs/RELEASING.md`](../RELEASING.md#what-play-asks-track-by-track). Para la **prueba interna** Play no exige la ficha ni las declaraciones de abajo: basta con crear la app, subir el paquete (AAB, API de destino 36 o superior) y la lista de testers ([ayuda de Play Console](https://support.google.com/googleplay/android-developer/answer/9845334)). Todo lo de esta página es necesario antes de la **prueba cerrada**; el texto de la descripción y las notas de la versión sí se pueden pegar ya en la prueba interna.
+
+| Elemento | Prueba interna | Prueba cerrada |
+| --- | --- | --- |
+| Descripción, icono, gráficos y capturas | No | Sí |
+| URL de la política de privacidad (tras la revisión legal de #106) | No | Sí |
+| Data safety | No | Sí |
+| Cuestionario de clasificación y público objetivo | No | Sí |
+| Acceso a la app para revisores | No | Sí |
+| Vía para pedir la eliminación de datos | No | Sí |
 
 ## Declaraciones que Play pide además de la ficha
 

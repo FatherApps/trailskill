@@ -102,7 +102,11 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "41000000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
 
-select is((select count(*) from public.adult_profiles), 2::bigint, 'P reads both profiles');
+-- The demo seed adds a profile of its own (#1130), so only the profiles of this test are counted.
+select is(
+  (select count(*) from public.adult_profiles where user_id::text like '41000000-%'),
+  2::bigint, 'P reads both profiles'
+);
 select lives_ok(
   $$ update public.adult_profiles set first_name = 'Hacked'
      where user_id = '41000000-0000-4000-8000-0000000000a1' $$,

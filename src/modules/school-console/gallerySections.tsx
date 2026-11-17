@@ -203,12 +203,12 @@ export const gallerySectionEntries: GalleryEntry[] = [
   entry('inviteCoachSheet', 'InviteCoachSheet', {
     default: () => (
       <SheetStage>
-        <InviteCoachSheet groups={inviteGroupsFixture} onSubmit={noop} onClose={noop} />
+        <InviteCoachSheet schoolName={schoolNameFixture} groups={inviteGroupsFixture} onSubmit={noop} onClose={noop} />
       </SheetStage>
     ),
     'group-from-context': () => (
       <SheetStage>
-        <InviteCoachSheet groups={inviteGroupsFixture} initialGroupId="g2" onSubmit={noop} onClose={noop} />
+        <InviteCoachSheet schoolName={schoolNameFixture} groups={inviteGroupsFixture} initialGroupId="g2" onSubmit={noop} onClose={noop} />
       </SheetStage>
     ),
   }),

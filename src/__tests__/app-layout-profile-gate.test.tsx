@@ -110,8 +110,9 @@ jest.mock('../modules/accounts', () => ({
     },
   }),
 }));
-jest.mock('../modules/school-console', () => ({
-  ...jest.requireActual('../modules/school-console'),
+// The layout lives in school-console and builds its repositories itself: only the PowerSync school lookup is replaced.
+jest.mock('../modules/school-console/data/staffSchools', () => ({
+  ...jest.requireActual('../modules/school-console/data/staffSchools'),
   createPowerSyncStaffSchoolRepository: () =>
     mockLazy((w) => ({
       listStaffSchools: async () => (w.localStaff ? [{ id: 's1', name: 'School' }] : []),

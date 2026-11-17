@@ -1,5 +1,5 @@
 // Third-party brand marks. Their brand guidelines require them unmodified, so these are the official
-// colors of each provider, not TrailSkill colors: this is the only file of the module allowed to hold color literals.
+// colors of each provider, not Swimcro colors: this is the only file of the module allowed to hold color literals.
 //
 // Microsoft: the four-square mark, copied from the official SVG (ms-symbollockup_mssymbol_19.svg) of
 // https://learn.microsoft.com/en-us/entra/identity-platform/howto-add-branding-in-apps

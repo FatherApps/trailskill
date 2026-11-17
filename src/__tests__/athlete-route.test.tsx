@@ -53,6 +53,8 @@ jest.mock('../modules/athletes', () => {
     createPowerSyncAthleteSchoolRepository: () => ({ listByAthlete: async () => mockSwimmerSchoolIds.map((schoolId) => ({ schoolId, categoryId: null })) }),
     createSupabaseOtherSchoolResultsRepository: () => ({}),
     useManagedAthletes: () => mockManaged,
+    // The real hook: the route test keeps checking what the route does with the state this hook owns.
+    useAthleteProfileRoute: jest.requireActual('../modules/athletes/data/useAthleteProfileRoute').useAthleteProfileRoute,
     AthleteProfileContainer: ({
       athleteId,
       name,

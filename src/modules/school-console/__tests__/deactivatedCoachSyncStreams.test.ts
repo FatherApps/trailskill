@@ -16,8 +16,6 @@ test.each([
   "coach_group_athlete_ids",
   "coach_group_ids",
   "coach_direct_group_ids",
-  "coach_direct_category_ids",
-  "coach_group_category_ids",
   "member_group_ids",
 ])("%s leaves out the deactivated memberships", (name) => {
   expect(definition(name)).toContain("deactivated_at IS NULL");
@@ -51,30 +49,38 @@ test("a coach gets the school, group and mark rows of an athlete only in their a
   const visible = queriesOf("athletes_visible");
   const marks = queriesOf("training_plans_fulfillments");
 
-  for (const source of [
-    "coach_direct_athlete_ids",
-    "coach_group_athlete_ids",
-  ]) {
-    expect(visible).toContain(
-      `SELECT * FROM athlete_schools WHERE athlete_id IN ${source} AND school_id IN member_school_ids`,
-    );
-    expect(visible).toContain(
-      `SELECT * FROM athlete_groups WHERE athlete_id IN ${source} AND group_id IN member_group_ids`,
-    );
-    expect(marks).toContain(
-      `SELECT * FROM training_plan_fulfillments WHERE athlete_id IN ${source} AND hidden = false AND assignment_id IN (SELECT id FROM training_plan_assignments WHERE school_id IN member_school_ids)`,
-    );
-  }
-  // No query gives the coach sources an athlete's school or group rows without the school filter.
+  // The enrollment and group coach queries bind the swimmer to the school of the assignment since issue 1132 and stay
+  // limited to active schools and groups through member_school_ids and member_group_ids.
+  const coachRows = visible.filter(
+    (query) =>
+      /FROM athlete_(schools|groups) /.test(query) && query.includes("coach_"),
+  );
+  expect(coachRows).toHaveLength(4);
   expect(
-    visible
-      .filter(
-        (query) =>
-          /^SELECT \* FROM athlete_(schools|groups) /.test(query) &&
-          query.includes("coach_"),
-      )
-      .every((query) =>
-        /AND (school|group)_id IN member_(school|group)_ids$/.test(query),
-      ),
+    coachRows.every(
+      (query) =>
+        query.endsWith("AND athlete_schools.school_id IN member_school_ids") ||
+        query.endsWith("AND athlete_groups.group_id IN member_group_ids"),
+    ),
+  ).toBe(true);
+  // The fulfillment coach queries bind the swimmer to the assignment school since issue 1127 and stay limited to active schools through member_school_ids.
+  const coachMarks = marks.filter((query) => query.includes("coach_"));
+  expect(coachMarks).toHaveLength(2);
+  expect(
+    coachMarks.every((query) =>
+      query.endsWith("AND training_plan_assignments.school_id IN member_school_ids"),
+    ),
+  ).toBe(true);
+  // No other query gives the coach sources an athlete's school or group rows without the school filter.
+  const bound = visible.filter(
+    (query) =>
+      /^SELECT athlete_(schools|groups)\.\* FROM athlete_/.test(query) &&
+      query.includes("coach_"),
+  );
+  expect(bound).toHaveLength(4);
+  expect(
+    bound.every((query) =>
+      /AND athlete_(schools\.school|groups\.group)_id IN member_(school|group)_ids$/.test(query),
+    ),
   ).toBe(true);
 });

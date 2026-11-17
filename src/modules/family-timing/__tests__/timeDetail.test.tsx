@@ -37,16 +37,22 @@ async function open(times: FamilyMeasurement[]) {
 describe('the detail of a saved time', () => {
   it('shows each lap with its own time and the total, and the session information', async () => {
     await open([withLaps]);
-    await fireEvent.press(await screen.findByText('Libre 100 m · Piscina de 25 m'));
+    await fireEvent.press(await screen.findByText('100 m libre'));
 
     expect(screen.getByText('Detalle del tiempo')).toBeTruthy();
-    expect(screen.getByText('Lap 1 · 0:17,10 · total 0:17,10')).toBeTruthy();
-    expect(screen.getByText('Lap 2 · 0:18,20 · total 0:35,30')).toBeTruthy();
-    expect(screen.getByText('Lap 3 · 0:18,60 · total 0:53,90')).toBeTruthy();
-    expect(screen.getByText('Lap 4 · 0:18,50 · total 1:12,40')).toBeTruthy();
-    expect(screen.getByText('Lucía Rojas')).toBeTruthy();
+    expect(screen.getByText('Parciales')).toBeTruthy();
+    expect(screen.getByText('4 largos · 100 m')).toBeTruthy();
+    // Each length: its distance, its own time and the total at its end.
+    for (const distance of ['25 m', '50 m', '75 m']) expect(screen.getByText(distance)).toBeTruthy();
+    expect(screen.getAllByText('0:17,10')).toHaveLength(2);
+    expect(screen.getByText('0:18,20')).toBeTruthy();
+    expect(screen.getByText('0:35,30')).toBeTruthy();
+    expect(screen.getByText('0:53,90')).toBeTruthy();
+    expect(screen.getAllByText('1:12,40')).toHaveLength(2);
+    expect(screen.getByText('Largo 3, el más lento: +1,50 s')).toBeTruthy();
+    expect(screen.getAllByLabelText('Lucía R.').length).toBeGreaterThan(0);
     expect(screen.getByText('Festival de prueba')).toBeTruthy();
-    expect(screen.getAllByText('Competencia').length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('Competencia').length).toBeGreaterThan(0);
 
     await fireEvent.press(screen.getByText('Volver a la lista'));
     expect(await screen.findByText('Medir un tiempo')).toBeTruthy();
@@ -54,9 +60,9 @@ describe('the detail of a saved time', () => {
 
   it('shows a time without laps with no laps section, and reaches the official time from there', async () => {
     await open([{ ...withLaps, distance: '25m', splits: [], millis: 16_900 }]);
-    await fireEvent.press(await screen.findByText('Libre 25 m · Piscina de 25 m'));
+    await fireEvent.press(await screen.findByText('25 m libre'));
 
-    expect(screen.queryByText('Vueltas')).toBeNull();
+    expect(screen.queryByText('Parciales')).toBeNull();
     await fireEvent.press(screen.getByText('Poner tiempo oficial'));
     expect(await screen.findByLabelText('Tiempo oficial')).toBeTruthy();
   });

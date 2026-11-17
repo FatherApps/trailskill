@@ -4,6 +4,10 @@ The single source of truth for TrailSkill's visual design is the **TrailSkill de
 
 **https://claude.ai/artifact/SoMStMt7XvkqiqkkgJoitf**
 
+Screen mockups «TrailSkill — mockups (dirección lima)», a reference for the screens (not the source of truth):
+
+**https://claude.ai/artifact/MH2dwQ2tgTFo2LTh44mY5R**
+
 It defines the palette, typography, shapes, spacing, iconography, components, reference screens, content voice, view states, and accessibility rules. Read its README and sections before any UI work.
 
 ## Rules

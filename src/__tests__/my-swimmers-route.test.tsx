@@ -1,12 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import MySwimmersRoute from '../app/(app)/my-swimmers';
 import { t } from '../core/i18n';
 import { ThemeProvider } from '../core/theme';
 
 let mockUserId: string | undefined;
+const mockSignOut = jest.fn();
 jest.mock('../core/session', () => ({
-  useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
+  useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null, signOut: mockSignOut }),
 }));
 jest.mock('../core/sync', () => ({
   useGlobalSyncSummary: () => ({ lastSyncedAt: new Date(2026, 9, 24, 11, 55, 0), connected: true, connection: 'connected' }),
@@ -16,10 +17,17 @@ const mockListAthletes = jest.fn();
 jest.mock('../modules/school-console', () => ({
   ...jest.requireActual('../modules/school-console/data/useAdminSchool'),
   ...jest.requireActual('../modules/school-console/screens/MySwimmersSection'),
+  ...jest.requireActual('../modules/school-console/components/StaffEntries'),
   createPowerSyncStaffSchoolRepository: () => ({ listCoachSchools: (...args: unknown[]) => mockListCoachSchools(...args) }),
   createPowerSyncConsoleAthletesRepository: () => ({ listAthletes: (...args: unknown[]) => mockListAthletes(...args) }),
 }));
 jest.mock('../modules/athletes', () => jest.requireActual('../modules/athletes/athleteProfileHref'));
+jest.mock('../modules/accounts', () => ({
+  // The real container: only the repositories it receives, which need the device storage, are replaced.
+  ...jest.requireActual('../modules/accounts/screens/SignOutContainer'),
+  createSecureStoreRegistrationDraftRepository: () => ({ clear: () => Promise.resolve() }),
+  createSecureStorePendingInvitationRepository: () => ({ clear: () => Promise.resolve() }),
+}));
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
@@ -49,6 +57,7 @@ const athlete = (id: string, name: string, coachIds: string[]) => ({
 
 beforeEach(() => {
   mockUserId = 'user-1';
+  mockSignOut.mockReset().mockResolvedValue({ status: 'signed_out' });
   mockPush.mockReset();
   mockReplace.mockReset();
   mockBack.mockReset();
@@ -104,6 +113,45 @@ describe('my swimmers route', () => {
     expect(await screen.findByText('redirected to /')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: /^Lucía Ramírez/ })).toBeNull();
     expect(mockListAthletes).not.toHaveBeenCalled();
+  });
+
+  // The coach lands here instead of on the home screen, so the entries only the home screen had are here too.
+  it.each([
+    ['Toma de tiempos', '/timing'],
+    ['Toma en serie', '/timing?mode=series'],
+    ['Registrar completado', '/timing?mode=completed'],
+    ['Planes de entrenamiento', '/plans'],
+  ])('gives the coach %s, which opens the route the home screen uses', async (name, href) => {
+    await show();
+
+    await fireEvent.press(await screen.findByRole('button', { name }));
+
+    expect(mockPush).toHaveBeenCalledWith(href);
+  });
+
+  it('gives the conflict review to a coach, which opens the route the home screen uses', async () => {
+    await show();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Revisar conflictos' }));
+
+    expect(mockPush).toHaveBeenCalledWith('/review-conflicts');
+  });
+
+  it('signs the coach out from the sign-out button', async () => {
+    await show();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Cerrar sesión' }));
+
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows no entry to someone who is not a coach, who leaves the route', async () => {
+    mockListCoachSchools.mockResolvedValue([]);
+    await show();
+
+    expect(await screen.findByText('redirected to /')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Toma de tiempos' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
   });
 
   it('shows the loading state, not a redirect, while the role is looked up', async () => {

@@ -88,6 +88,15 @@
     "updated_now": "Actualizado hace un momento",
     "caption": "{{count}} · {{updated}}",
     "invite": "Invitar acudiente",
+    "invite_error": "No pudimos crear la invitación. Revisa la conexión e inténtalo de nuevo.",
+    "invite_no_groups": "Tu escuela aún no tiene grupos. Crea un grupo antes de invitar a una familia.",
+    "invite_groups_error": "No pudimos leer los grupos de la escuela. Inténtalo de nuevo.",
+    "invite_groups": {
+      "label": "Grupo de la invitación",
+      "title": "¿A qué grupo invitas a la familia?"
+    },
+    "invite_message": "{{school}} te invita a Swimcro para crear el perfil de tu deportista. Abre este enlace: {{link}}. Vence el {{date}}.",
+    "invite_message_no_date": "{{school}} te invita a Swimcro para crear el perfil de tu deportista. Abre este enlace: {{link}}.",
     "retry": "Intentar de nuevo",
     "empty": {
       "title": "Aún no hay deportistas",
@@ -145,7 +154,15 @@
       "send": "Enviar invitación",
       "incomplete": "Escribe el nombre y un correo válido",
       "failed": "No pudimos enviar la invitación. Inténtalo de nuevo.",
-      "failed_to": "No pudimos enviar la invitación a {{email}}. Inténtalo de nuevo."
+      "caller_rate_limited": "Enviaste muchas invitaciones hoy. Inténtalo de nuevo más tarde.",
+      "recipient_rate_limited": "Ya enviamos varias invitaciones a este correo hoy. Inténtalo de nuevo más tarde.",
+      "failed_to": "No pudimos enviar la invitación a {{email}}. Inténtalo de nuevo.",
+      "created": "Invitación creada para {{email}}.",
+      "share_invitation": "Compartir invitación",
+      "share_failed": "No pudimos compartir la invitación. Inténtalo de nuevo.",
+      "share_text": "{{school}} te invitó como entrenador en Swimcro. Descarga la app e inicia sesión con este correo: {{email}}.",
+      "share_link": "Descárgala aquí: {{link}}",
+      "done": "Listo"
     },
     "status": {
       "active": "Activo",
@@ -309,8 +326,8 @@
     "connecting_empty": "Todavía no hay autorizaciones guardadas en este dispositivo. Aparecerán cuando termine la primera sincronización.",
     "resend_error": "No pudimos crear la invitación. Revisa la conexión e inténtalo de nuevo.",
     "sharing_error": "No pudimos actualizar la solicitud. Revisa la conexión e inténtalo de nuevo.",
-    "share_message": "{{school}} te invita a TrailSkill para responder las autorizaciones de tu deportista. Código de invitación: {{token}}. Vence el {{date}}.",
-    "share_message_no_date": "{{school}} te invita a TrailSkill para responder las autorizaciones de tu deportista. Código de invitación: {{token}}."
+    "share_message": "{{school}} te invita a Swimcro para responder las autorizaciones de tu deportista. Código de invitación: {{token}}. Vence el {{date}}.",
+    "share_message_no_date": "{{school}} te invita a Swimcro para responder las autorizaciones de tu deportista. Código de invitación: {{token}}."
   },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
