@@ -61,6 +61,15 @@ describe('preview test build variant', () => {
   });
 });
 
+describe('EAS project link', () => {
+  // The project ID is public (not a secret). The preview variant builds from the same EAS project.
+  it.each([undefined, 'preview'])('links the EAS project of fatherapps when APP_VARIANT is %p', (variant) => {
+    const loaded = loadConfig(variant);
+    expect(loaded.owner).toBe('fatherapps');
+    expect(loaded.extra?.eas?.projectId).toBe('09e9d4f5-fe9e-4c74-a084-aaf9a9cfe9a0');
+  });
+});
+
 describe('app icon and splash configuration', () => {
   it('builds links with swimcro:// and still opens trailskill:// links sent before the rename', () => {
     // expo-linking builds URLs (auth redirect, invitations) with the first scheme.
