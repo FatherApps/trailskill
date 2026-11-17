@@ -3,7 +3,7 @@
 The `results-import` Edge Function only serves a provider when the database holds the rows that describe it. **No migration and no seed creates those rows**: writing the name of a federation, a results platform or a country in the repository goes against `AGENTS.md` (Generic organizations) and its limit on real data. The maintainer loads them once per environment with this runbook. The repository holds only the template; every value in angle brackets is filled in by the maintainer at run time and never committed.
 
 - **Who:** the maintainer, as `postgres` (Supabase Studio SQL editor or `psql`). Nobody else can read the QA or PROD database, and agents never run this.
-- **When:** after the migrations and the function are delivered (see [Edge Functions](../../deploy/README.md#edge-functions)), before the first import. PROD: step «load the results providers (runbook)» of the bootstrap issue #1118, next to the first `school_admin`; it stays on HOLD with the rest of the series #1113-#1120.
+- **When:** after the migrations and the function are delivered (see [Edge Functions](../../deploy/README.md#edge-functions)), before the first import. PROD: step «load the results providers (runbook)» of the cut to PROD (#1120), after the first `school_admin` ([runbook](../deploy/prod-first-admin-runbook.md)); it stays on HOLD with the rest of the series #1113-#1120.
 - **What it does not do:** it does not turn on tournament import (a maintainer decision, see `deploy/README.md`) and it does not change the schema or the function.
 
 ## What the function needs
@@ -131,7 +131,7 @@ Run the step 1 query again. Every row must read `OK`. Save nothing from the outp
 ## Per environment
 
 - **QA:** the first action is the step 1 query. Load (step 2) only the providers that read `MISSING`, then verify again (step 3).
-- **PROD:** same sequence, as a step of #1118, after its first `school_admin` step. PROD never receives QA data; the rows are loaded here from the template, not copied.
+- **PROD:** same sequence, as a step of the cut to PROD (#1120), after the first `school_admin` step. PROD never receives QA data; the rows are loaded here from the template, not copied.
 - **Local and demo:** the seed carries no provider rows on purpose. The function registers only its own adapters, so a made-up key would never be served. To exercise the flow locally, run the same template against the local database with local values.
 
 ## If a load is wrong

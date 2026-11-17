@@ -282,3 +282,7 @@ commit;
 ```
 
 The `auth.users` row of the administrator is never touched: the person can sign in again and the SQL of step 3 can be run again.
+
+## What comes next
+
+Loading the results providers is a later step of the cut to PROD (#1120), after the first `school_admin`: see [`docs/release/results-providers.md`](../release/results-providers.md). It is not part of this runbook.
