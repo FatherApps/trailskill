@@ -93,6 +93,8 @@ export type FamilyTimingContainerProps = {
   syncKey?: number;
   // Remembers that the notice was seen, so it shows on the first visit only. Without it the notice always shows.
   notice?: FamilyTimingNoticeStore;
+  // Remembers that the explanation before the camera permissions was seen (#1173), so it shows the first time only. Without it there is no explanation.
+  videoIntro?: FamilyTimingNoticeStore;
   // The rear camera and the gallery for the stopwatch with video (#1088); without it «Grabar» is not offered.
   videoCamera?: VideoCamera | null;
 };
@@ -216,7 +218,7 @@ const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.
 
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
-  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice } = props;
+  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice, videoIntro } = props;
   // The video draws the stopwatch from the buttons' clock, so recording needs the native clock too.
   const videoCamera = props.videoCamera && buttons.available ? props.videoCamera : null;
   const now = props.now ?? buttons.now;
@@ -872,6 +874,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         now={now}
         buttons={buttons}
         camera={videoCamera}
+        intro={videoIntro ? { store: videoIntro, userId } : undefined}
         buttonsHint={(keyboard) => buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keyboard)}
         saveTime={async (sw) => {
           const measurement = measurementOf(sw);

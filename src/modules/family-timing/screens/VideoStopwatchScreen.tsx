@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { Pressable, ScrollView, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
@@ -9,8 +9,8 @@ import '../i18n';
 
 export type VideoStopwatchView = {
   event: string;
-  /** Asking for the camera, microphone and gallery permissions; then ready. */
-  phase: 'asking' | 'ready';
+  /** Reading whether the explanation was seen; the explanation (#1173); asking for the camera, microphone and gallery permissions; then ready. */
+  phase: 'checking' | 'intro' | 'asking' | 'ready';
   status: 'idle' | 'running' | 'stopped';
   time: string;
   recording: boolean;
@@ -36,6 +36,8 @@ export type VideoStopwatchScreenProps = {
   /** The camera's live image; it fills the whole screen. */
   preview: ReactNode;
   onBack: () => void;
+  /** Leaves the explanation for the system's permission dialogs. */
+  onContinue: () => void;
   onRecord: () => void;
   onStopRecording: () => void;
   onStart: () => void;
@@ -126,6 +128,30 @@ export function VideoStopwatchScreen(props: VideoStopwatchScreenProps) {
   const landscape = width > height;
   const onImage = colors['on-header'];
   const panel: ViewStyle = { backgroundColor: colors.scrim, borderRadius: radius.sm, paddingHorizontal: space[3], paddingVertical: space[1] };
+
+  if (view.phase === 'intro') {
+    // Before the system's dialogs: what is recorded, where it stays and when the camera and the microphone are used. Same text as the privacy policy.
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.header }}>
+        <SafeAreaView style={{ flex: 1, padding: space[4], gap: space[4] }}>
+          <View style={{ flexDirection: 'row' }}>
+            <IconButton icon="arrow_back" label={t('family_timing.video.back')} onPress={props.onBack} />
+          </View>
+          <ScrollView contentContainerStyle={{ gap: space[3], flexGrow: 1 }}>
+            <Text accessibilityRole="header" style={[typography.title, { color: onImage }]}>
+              {t('family_timing.video.intro_title')}
+            </Text>
+            {(['intro_record', 'intro_stays', 'intro_when', 'intro_next'] as const).map((key) => (
+              <Text key={key} style={[typography.body, { color: onImage }]}>
+                {t(`family_timing.video.${key}`)}
+              </Text>
+            ))}
+          </ScrollView>
+          <Button label={t('family_timing.video.intro_continue')} onPress={props.onContinue} />
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   const main = view.phase === 'ready' ? mainAction(view, props) : null;
 

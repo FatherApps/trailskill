@@ -143,3 +143,16 @@ describe('gallery permissions', () => {
     expect(blocked).not.toContain('android.permission.WRITE_EXTERNAL_STORAGE');
   });
 });
+
+describe('Android manifest', () => {
+  // expo-media-library's plugin sets android:requestLegacyExternalStorage; Expo runs mods last-registered first, so the plugin that removes it must be listed before the library (#1173).
+  // Whether the flag is really gone is checked with `npx expo config --type introspect`.
+  it('lists the plugin that removes requestLegacyExternalStorage before expo-media-library', () => {
+    const plugins = config.plugins ?? [];
+    const remover = plugins.indexOf('./plugins/without-legacy-external-storage');
+    const library = plugins.findIndex((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-media-library');
+    expect(existsSync(resolve(root, 'plugins/without-legacy-external-storage.js'))).toBe(true);
+    expect(remover).toBeGreaterThanOrEqual(0);
+    expect(remover).toBeLessThan(library);
+  });
+});

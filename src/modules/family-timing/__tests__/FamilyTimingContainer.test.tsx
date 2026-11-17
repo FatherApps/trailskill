@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { createInMemoryPreferencesRepository, defaultPreferences, PreferencesProvider } from '../../../core/preferences';
 import { createFakeTimingButton } from '../../timing';
 import { createInMemoryFamilyMeasurementRepository, type FamilyMeasurement } from '../data/familyMeasurements';
-import { createFakeVideoCamera } from '../data/videoCamera';
+import { createFakeVideoCamera } from '../testing/fakeVideoCamera';
 import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
 jest.mock('../../../core/sync', () => ({ db: {}, useRecordSyncStates: () => new Map() }));

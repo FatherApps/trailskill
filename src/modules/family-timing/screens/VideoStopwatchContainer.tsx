@@ -6,6 +6,7 @@ import { t } from '../../../core/i18n';
 import { usePreferences } from '../../../core/preferences';
 import { formatMillis, millisFromNanos } from '../../../core/time';
 import { buttonAction, nanosFromSeconds, timingButton, useTimingButtons, type TimingButtonPort } from '../../timing';
+import type { FamilyTimingNoticeStore } from '../data/noticeSeen';
 import type { CameraPreviewHandle, VideoCamera } from '../data/videoCamera';
 import {
   elapsedMillisAt,
@@ -39,6 +40,8 @@ export type VideoStopwatchContainerProps = {
   now?: () => bigint;
   buttons?: TimingButtonPort;
   camera: VideoCamera;
+  /** Remembers that the explanation before the permissions was seen, so it shows the first time only. Without it the screen asks for the permissions at once. */
+  intro?: { store: FamilyTimingNoticeStore; userId: string };
   /** Saves the stopped time in Mis tiempos as the stopwatch without video does, and returns its id. */
   saveTime: (stopwatch: FamilyStopwatch) => Promise<string>;
   /** The keys line under the time, given the connected headset's name. */
@@ -59,7 +62,7 @@ export const videoName = (measurementId: string | null, at: Date = new Date()) =
 // The individual stopwatch with the rear camera (#1088). The stopwatch works as without video, on the same clock and
 // keys; recording only starts and stops with its own button, or a few seconds after the clock stops (Ajustes).
 export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
-  const { event, laps, camera, saveTime, onClose, buttonsHint } = props;
+  const { event, laps, camera, intro, saveTime, onClose, buttonsHint } = props;
   const buttons = props.buttons ?? timingButton;
   const now = props.now ?? buttons.now;
   const { preferences } = usePreferences();
@@ -67,7 +70,7 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
   const buttonPrefs = preferences.timingButtons;
   const precision = preferences.timePrecision;
 
-  const [phase, setPhase] = useState<'asking' | 'ready'>('asking');
+  const [phase, setPhase] = useState<'checking' | 'intro' | 'asking' | 'ready'>(intro ? 'checking' : 'asking');
   const [lowSpace, setLowSpace] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [recordingSince, setRecordingSince] = useState<bigint | null>(null);
@@ -109,7 +112,28 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     close('camera_error');
   };
 
+  // The first time, the person is told what the camera and the microphone are for before the system asks (#1173). A store that cannot be read skips it.
   useEffect(() => {
+    if (!intro) return;
+    let active = true;
+    intro.store
+      .seen(intro.userId)
+      .catch(() => true)
+      .then((seen) => active && setPhase(seen ? 'asking' : 'intro'));
+    return () => {
+      active = false;
+    };
+    // Read once, when the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const continueFromIntro = () => {
+    intro?.store.markSeen(intro.userId).catch(() => undefined);
+    setPhase('asking');
+  };
+
+  useEffect(() => {
+    if (phase !== 'asking') return;
     let active = true;
     camera
       .requestPermissions(video.audio)
@@ -124,9 +148,9 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     return () => {
       active = false;
     };
-    // Asked once, when the screen opens.
+    // Asked once, when the screen gets to this phase.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [phase]);
 
   // A camera that never says ready nor fails does not leave the person stuck.
   useEffect(() => {
@@ -352,6 +376,7 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
         ) : null
       }
       onBack={back}
+      onContinue={continueFromIntro}
       onRecord={() => {
         if (!hasPending) startRecording();
       }}

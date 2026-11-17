@@ -22,6 +22,7 @@ const shareCodes = createSupabaseAthleteShareCodeRepository();
 const importedResults = createPowerSyncImportedResultsRepository();
 const importSources = createSupabaseImportSourcesRepository();
 const notice = createSecureStoreFamilyTimingNoticeStore();
+const videoIntro = createSecureStoreFamilyTimingNoticeStore('video-intro');
 
 // "/family-timing": "Mis tiempos", the times a guardian or adult athlete measures on their own phone.
 export default function FamilyTimingRoute() {
@@ -43,6 +44,7 @@ export default function FamilyTimingRoute() {
       transfers={familyTransfers}
       shareCodes={shareCodes}
       notice={notice}
+      videoIntro={videoIntro}
       videoCamera={videoCamera}
       // Requests and times moved by another family arrive by sync.
       syncKey={lastSyncedAt?.getTime()}

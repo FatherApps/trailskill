@@ -1,21 +1,23 @@
 import * as SecureStore from 'expo-secure-store';
 
-// Whether this person already saw the notice that explains "Mis tiempos". It shows on the first visit only, on this phone.
+// Whether this person already saw a notice: the one that explains "Mis tiempos", or the one before the camera permissions (#1173). Each shows on the first visit only, on this phone.
 export interface FamilyTimingNoticeStore {
   seen(userId: string): Promise<boolean>;
   markSeen(userId: string): Promise<void>;
 }
 
-// SecureStore keys take letters, digits, ".", "-" and "_"; a user id is a UUID.
-const keyOf = (userId: string) => `trailskill-family-timing-notice-${userId.replace(/[^A-Za-z0-9._-]/g, '_')}`;
+export type FamilyTimingNoticeKind = 'notice' | 'video-intro';
 
-export function createSecureStoreFamilyTimingNoticeStore(): FamilyTimingNoticeStore {
+// SecureStore keys take letters, digits, ".", "-" and "_"; a user id is a UUID. The first kind keeps the key it always had.
+const keyOf = (kind: FamilyTimingNoticeKind, userId: string) => `trailskill-family-timing-${kind}-${userId.replace(/[^A-Za-z0-9._-]/g, '_')}`;
+
+export function createSecureStoreFamilyTimingNoticeStore(kind: FamilyTimingNoticeKind = 'notice'): FamilyTimingNoticeStore {
   return {
     async seen(userId) {
-      return (await SecureStore.getItemAsync(keyOf(userId))) === '1';
+      return (await SecureStore.getItemAsync(keyOf(kind, userId))) === '1';
     },
     async markSeen(userId) {
-      await SecureStore.setItemAsync(keyOf(userId), '1');
+      await SecureStore.setItemAsync(keyOf(kind, userId), '1');
     },
   };
 }
