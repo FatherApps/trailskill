@@ -518,6 +518,72 @@ nonzero "r2 overlap (c), own dump deleted after the publish: backup exits non-ze
 has "r2 overlap (c): says the new dump is missing" "is missing after its manifest was published"
 eq "r2 overlap (c): nothing else was deleted" "$SHA_XA.dump.age " "$(dumps)"
 
+# a listing or a manifest read that fails AFTER the manifest is published is a warning, not an error: nothing is
+# deleted without a listing and the freshness job checks the pair. A confirmed problem stays an error.
+# step 4 (before the cleanup): the listing fails once; B is committed, A is left in place
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+arm fail "lsf:dumps/"
+bkx; r=$?
+eq "r2 step 4 listing fails: backup exits 0" 0 "$r"
+has "r2 step 4 listing fails: warns that it cannot clean up" "could not list dumps/ to clean up"
+SHA_XB=$(remote_sha)
+[ "$SHA_XB" != "$SHA_XA" ] && pass "r2 step 4 listing fails: the manifest is the new one" || fail "r2 step 4 listing fails: the manifest is the new one" "still A"
+has_dump "$SHA_XA"; r=$?; eq "r2 step 4 listing fails: nothing deleted, old dump A still there" 0 "$r"
+has_dump "$SHA_XB"; r=$?; eq "r2 step 4 listing fails: dump B exists" 0 "$r"
+# step 6: the first delete is reached, then the hook breaks what step 6 reads, or the manifest it names
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+printf 'lsf:dumps/\n' >"$T/fake/hookfail"
+cat >"$T/fake/before.sh" <<SH
+cp "$T/fake/hookfail" "$T/fake/fail"
+SH
+arm before "deletefile:dumps/"
+bkx; r=$?
+eq "r2 step 6 listing fails: backup exits 0" 0 "$r"
+has "r2 step 6 listing fails: warns it could not confirm" "could not list dumps/ to confirm the published copy"
+has_dump "$(remote_sha)"; r=$?; eq "r2 step 6 listing fails: the manifest names an existing dump" 0 "$r"
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+printf 'cat:trailskill-prod-latest.manifest\n' >"$T/fake/hookfail"
+cat >"$T/fake/before.sh" <<SH
+cp "$T/fake/hookfail" "$T/fake/fail"
+SH
+arm before "deletefile:dumps/"
+bkx; r=$?
+eq "r2 step 6 manifest re-read fails: backup exits 0" 0 "$r"
+has "r2 step 6 manifest re-read fails: warns it could not confirm" "could not re-read the remote manifest to confirm"
+# step 6 confirmed problem: the listing works and the manifest names a dump that does not exist
+FAKESHA=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+cat >"$T/fake/before.sh" <<SH
+sed 's/^encrypted_sha256=.*/encrypted_sha256=$FAKESHA/' "$T/XA/m" | /usr/bin/rclone rcat "$RR/trailskill-prod-latest.manifest"
+SH
+arm before "deletefile:dumps/"
+bkx; r=$?
+nonzero "r2 step 6 manifest names a missing dump: backup exits non-zero" "$r"
+has "r2 step 6 manifest names a missing dump: says so" "the published manifest names a missing dump (dumps/$FAKESHA.dump.age)"
+
+# strictly older: with the same listed time as the new dump a dump is kept (one warning), one second older it is
+# deleted. The hook reads the new dump's listed time, then uploads C with that time and A one second earlier.
+cp "$T/XC/d" "$T/XC/d.eq"; cp "$T/XA/d" "$T/XA/d.old"
+disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
+cat >"$T/fake/before.sh" <<SH
+S=\$(/usr/bin/rclone cat "$RR/trailskill-prod-latest.manifest" | sed -n 's/^encrypted_sha256=//p')
+T0=\$(/usr/bin/rclone lsf --format t --include "\$S.dump.age" "$RR/dumps/")
+E=\$(date -d "\$T0" +%s)
+touch -d "\$T0" "$T/XC/d.eq"
+touch -d "\$(date -d "@\$((E - 1))" +'%Y-%m-%d %H:%M:%S')" "$T/XA/d.old"
+/usr/bin/rclone copyto "$T/XC/d.eq" "$RR/dumps/$SHA_XC.dump.age"
+/usr/bin/rclone deletefile "$RR/dumps/$SHA_XA.dump.age"
+/usr/bin/rclone copyto "$T/XA/d.old" "$RR/dumps/$SHA_XA.dump.age"
+SH
+arm before "lsf:dumps/"
+bkx; r=$?
+eq "r2 strictly older: backup exits 0" 0 "$r"
+has_dump "$SHA_XC"; r=$?; eq "r2 strictly older: a dump with the same time is kept" 0 "$r"
+has "r2 strictly older: the kept dump is reported with the reason" "kept dumps/$SHA_XC.dump.age: not older than the new copy"
+eq "r2 strictly older: one kept warning in total" 1 "$(grep -c '^warning: kept' "$T/out")"
+has_dump "$SHA_XA"; r=$?; nonzero "r2 strictly older: a dump one second older is deleted" "$r"
+has_dump "$(remote_sha)"; r=$?; eq "r2 strictly older: the manifest names an existing dump" 0 "$r"
+
 # nested folders under dumps/ are left alone with one warning in total
 disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
 rcl copyto "$T/XA/m" "$RR/dumps/n1/x" && rcl copyto "$T/XA/m" "$RR/dumps/n2/x"
