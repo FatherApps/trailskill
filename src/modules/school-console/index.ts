@@ -82,7 +82,7 @@ export {
 export { CoachesSection, type CoachesSectionProps } from './screens/CoachesSection';
 export { MySwimmersScreen, type MySwimmersScreenProps, type MySwimmersView } from './screens/MySwimmersScreen';
 export { MySwimmersSection, type MySwimmersSectionProps } from './screens/MySwimmersSection';
-export { createInMemoryCoachInvitationRepository, createSupabaseCoachInvitationRepository, type CoachInvitationRepository, type SentCoachInvitation } from './data/coachInvitations';
+export { createInMemoryCoachInvitationRepository, createSupabaseCoachInvitationRepository, type CoachInvitationRepository, type CoachInvitationResult, type SentCoachInvitation } from './data/coachInvitations';
 export { createInMemoryCoachRepository, createPowerSyncCoachRepository } from './data/coaches';
 export type { Coach, CoachMembershipRow, CoachRepository } from './data/coaches';
 export { GuardianSharingPanel, type GuardianSharingPanelProps, type SharingRecordRow, type SharingRecordsView, type SharingSwitchView } from './components/GuardianSharingPanel';

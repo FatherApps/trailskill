@@ -27,7 +27,7 @@ export type CoachesSectionProps = ConsoleSectionProps & {
   // The clock. A stable function: the caption is computed again when it changes.
   now?: () => Date;
   // Where the invitations go. Offline «Invitar» is shown disabled: an invitation is sent to the server, never queued.
-  // `invite` must reject when the invitation fails, or the sheet closes as if it had been sent.
+  // `invite` must reject when the invitation fails, or the sheet shows it as created; it resolves `{ emailSent: false }` when it was created without its email.
   invitations: CoachInvitationRepository;
 };
 

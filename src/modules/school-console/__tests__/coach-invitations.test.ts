@@ -20,6 +20,40 @@ describe('supabase coach invitation repository', () => {
     return { invoke, client: { functions: { invoke } } };
   };
 
+  const refusal = (body: unknown) => ({ name: 'FunctionsHttpError', context: { json: async () => body } });
+
+  it('reports the email as sent for a 200 with emailSent true, and for an old function that does not say', async () => {
+    const sent = clientAnswering({ data: { ok: true, value: { invitationId: 'i1', emailSent: true } } });
+    const old = clientAnswering({ data: { ok: true, value: { invitationId: 'i1' } } });
+
+    await expect(createSupabaseCoachInvitationRepository(sent.client).invite('school-a', invitation)).resolves.toEqual({ emailSent: true });
+    await expect(createSupabaseCoachInvitationRepository(old.client).invite('school-a', invitation)).resolves.toEqual({ emailSent: true });
+  });
+
+  it('reports the email as not sent for a 200 with emailSent false', async () => {
+    const { client } = clientAnswering({ data: { ok: true, value: { invitationId: 'i1', emailSent: false } } });
+
+    await expect(createSupabaseCoachInvitationRepository(client).invite('school-a', invitation)).resolves.toEqual({ emailSent: false });
+  });
+
+  it('resolves as not sent when the mail provider failed but the pending invitation exists', async () => {
+    const { client } = clientAnswering({ error: refusal({ ok: false, error: { code: 'unavailable', invitationId: 'i1' } }) });
+
+    await expect(createSupabaseCoachInvitationRepository(client).invite('school-a', invitation)).resolves.toEqual({ emailSent: false });
+  });
+
+  it('still rejects as unavailable when an old function does not say which invitation exists', async () => {
+    const { client } = clientAnswering({ error: refusal({ ok: false, error: { code: 'unavailable' } }) });
+
+    await expect(createSupabaseCoachInvitationRepository(client).invite('school-a', invitation)).rejects.toMatchObject({ name: 'CoachInvitationError', code: 'unavailable' });
+  });
+
+  it('rejects with the send-limit code', async () => {
+    const { client } = clientAnswering({ error: refusal({ ok: false, error: { code: 'caller_rate_limited' } }) });
+
+    await expect(createSupabaseCoachInvitationRepository(client).invite('school-a', invitation)).rejects.toMatchObject({ code: 'caller_rate_limited' });
+  });
+
   it('calls the function with the school and the email only', async () => {
     const { invoke, client } = clientAnswering({ data: { ok: true, value: { invitationId: 'i1' } } });
 

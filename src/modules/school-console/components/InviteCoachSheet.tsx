@@ -23,11 +23,12 @@ export type InviteCoachSheetProps = {
   groups: InviteGroups;
   // The group the invitation link came from, chosen when the sheet opens; ignored when the school has no such group.
   initialGroupId?: string;
+  // It may resolve `{ emailSent: false }` when the invitation was created but the email did not go out: the sheet then says so instead of the success text.
   // The sheet stays open until this finishes; if it throws or rejects, what was typed is kept and the error is shown.
   // When it resolves the sheet does not close: it shows the created invitation with the way to share it, and `onClose` closes it.
   // A caller that swallows its own error resolves, and the sheet takes that as sent: the promise must reject when the invitation fails.
   // The person can still close the sheet meanwhile; what this settles afterwards is the caller's to handle, the sheet is gone.
-  onSubmit: (invitation: CoachInvitation) => void | Promise<void>;
+  onSubmit: (invitation: CoachInvitation) => void | Promise<void | { emailSent?: boolean }>;
   // Reads the groups again; offered next to the error when they failed to load.
   onRetryGroups?: () => void;
   // Something the caller needs the person to see while the sheet is open, shown above the form and above the created invitation (for example an earlier invitation that failed, or an email that did not go out).
@@ -53,6 +54,8 @@ export function InviteCoachSheet({ schoolName, groups, initialGroupId, onSubmit,
   const [failure, setFailure] = useState<string | null>(null);
   // The email of the invitation once it was created; the sheet then shows how to share it instead of the form.
   const [created, setCreated] = useState<string | null>(null);
+  // False when the invitation exists but its email did not go out.
+  const [emailSent, setEmailSent] = useState(true);
   // Same as `sending`: the ref guards a second press, the state draws the button busy.
   const sharing = useRef(false);
   const [shareBusy, setShareBusy] = useState(false);
@@ -82,7 +85,8 @@ export function InviteCoachSheet({ schoolName, groups, initialGroupId, onSubmit,
     setBusy(true);
     setFailure(null);
     try {
-      await onSubmit({ name: name.trim(), email: email.trim(), groupIds: available.filter((group) => isChosen(group.id)).map((group) => group.id) });
+      const result = await onSubmit({ name: name.trim(), email: email.trim(), groupIds: available.filter((group) => isChosen(group.id)).map((group) => group.id) });
+      setEmailSent(result?.emailSent !== false);
       setCreated(email.trim());
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;
@@ -114,9 +118,15 @@ export function InviteCoachSheet({ schoolName, groups, initialGroupId, onSubmit,
     return (
       <SideSheet label={t('schoolConsole.coaches.invite_sheet.label')} titleKey="schoolConsole.coaches.invite" onClose={onClose}>
         {notice}
-        <Banner variant="success" icon="check_circle">
-          {t('schoolConsole.coaches.invite_sheet.created', { email: created })}
-        </Banner>
+        {emailSent ? (
+          <Banner variant="success" icon="check_circle">
+            {t('schoolConsole.coaches.invite_sheet.created', { email: created })}
+          </Banner>
+        ) : (
+          <Banner variant="warn" icon="error">
+            {t('schoolConsole.coaches.invite_sheet.email_not_sent')}
+          </Banner>
+        )}
         {shareFailed && (
           <Banner variant="warn" icon="error">
             {t('schoolConsole.coaches.invite_sheet.share_failed')}

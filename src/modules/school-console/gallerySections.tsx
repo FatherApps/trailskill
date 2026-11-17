@@ -211,6 +211,12 @@ export const gallerySectionEntries: GalleryEntry[] = [
         <InviteCoachSheet schoolName={schoolNameFixture} groups={inviteGroupsFixture} initialGroupId="g2" onSubmit={noop} onClose={noop} />
       </SheetStage>
     ),
+    // Fill the form and send it: the created invitation then shows that its email did not go out.
+    'email-not-sent': () => (
+      <SheetStage>
+        <InviteCoachSheet schoolName={schoolNameFixture} groups={inviteGroupsFixture} onSubmit={async () => ({ emailSent: false })} onClose={noop} />
+      </SheetStage>
+    ),
   }),
   entry(
     'coachesScreen',

@@ -1,10 +1,13 @@
 import { supabase } from '../../../core/sync';
 import type { CoachInvitation } from '../components/InviteCoachSheet';
 
+/** What came of an invitation that was created: `emailSent` is false when the invitation exists but no email left. */
+export type CoachInvitationResult = { emailSent: boolean };
+
 // The port for inviting a coach. school_invitations is the athletes' registration link; coaches are invited through the school-console-invite-coach function.
 export interface CoachInvitationRepository {
-  /** Delivers the invitation for the school; rejects when it could not be delivered, so the sheet stays open. */
-  invite(schoolId: string, invitation: CoachInvitation): Promise<void>;
+  /** Creates the invitation for the school; rejects when it was not created, so the sheet stays open. Resolves with `emailSent: false` when it was created but the email did not go out. */
+  invite(schoolId: string, invitation: CoachInvitation): Promise<CoachInvitationResult>;
 }
 
 export type SentCoachInvitation = { schoolId: string; invitation: CoachInvitation };
@@ -15,6 +18,7 @@ export function createInMemoryCoachInvitationRepository(): CoachInvitationReposi
     sent,
     async invite(schoolId, invitation) {
       sent.push({ schoolId, invitation });
+      return { emailSent: true };
     },
   };
 }
@@ -36,11 +40,14 @@ export type CoachInvitationClient = {
 export function createSupabaseCoachInvitationRepository(client: CoachInvitationClient = supabase): CoachInvitationRepository {
   return {
     async invite(schoolId, { email }) {
-      const { error } = await client.functions.invoke('school-console-invite-coach', { body: { schoolId, email } });
-      if (!error) return;
+      const { data, error } = await client.functions.invoke('school-console-invite-coach', { body: { schoolId, email } });
+      // An older function does not say whether the email went out: it is taken as sent, as before.
+      if (!error) return { emailSent: (data as { value?: { emailSent?: unknown } } | null)?.value?.emailSent !== false };
       // A refusal carries the server's `{ ok: false, error: { code } }`; no response at all is a connection that is not there.
       if (error.name === 'FunctionsHttpError' && error.context) {
-        const body = (await error.context.json().catch(() => null)) as { error?: { code?: unknown } } | null;
+        const body = (await error.context.json().catch(() => null)) as { error?: { code?: unknown; invitationId?: unknown } } | null;
+        // The mail provider failed but the pending invitation exists: created without email, not a failure. An older function sends no invitationId and still fails here.
+        if (body?.error?.code === 'unavailable' && typeof body.error.invitationId === 'string') return { emailSent: false };
         throw new CoachInvitationError(typeof body?.error?.code === 'string' ? body.error.code : 'unexpected');
       }
       throw new CoachInvitationError(error.name === 'FunctionsFetchError' ? 'offline' : 'unexpected');

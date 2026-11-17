@@ -436,6 +436,20 @@ describe('CoachesSection', () => {
     expect(screen.queryByTestId('side-sheet')).toBeNull();
   });
 
+  it('shows the email-not-sent notice when the invitations repository says the email did not go out', async () => {
+    const invite = jest.fn().mockResolvedValue({ emailSent: false });
+    await show(coachRepository(), { invitations: { invite } });
+    await rows();
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa');
+    await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+    expect(screen.getByText('La invitación quedó creada pero el correo no salió.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Compartir invitación' })).toBeOnTheScreen();
+  });
+
   it('does not call the invitations repository for an invalid email', async () => {
     const invite = jest.fn().mockResolvedValue(undefined);
     await show(coachRepository(), { invitations: { invite } });

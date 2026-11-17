@@ -20,8 +20,8 @@ export type CoachesView = SectionView<CoachesContent>;
 export type CoachesScreenProps = ConsoleSectionProps & {
   view: CoachesView;
   // Fires when the invite sheet is confirmed with a name and an email; the real invitation belongs to the caller.
-  // It must reject (or throw) when the invitation fails, and then the sheet stays open with what was typed; once it resolves the sheet shows the created invitation and closes with Listo.
-  onInvite: (invitation: CoachInvitation) => void | Promise<void>;
+  // It must reject (or throw) when the invitation fails, and then the sheet stays open with what was typed; once it resolves the sheet shows the created invitation and closes with Listo; resolving `{ emailSent: false }` makes it say the email did not go out.
+  onInvite: (invitation: CoachInvitation) => void | Promise<void | { emailSent?: boolean }>;
   // Fires only after the ConfirmSheet is confirmed; the real deactivation belongs to the caller.
   onDeactivate: (id: string) => void;
   // False while an invitation cannot be delivered (no connection): the action is shown disabled as «Sin conexión», not hidden, and opens nothing.
@@ -75,11 +75,15 @@ export function CoachesScreen({
     setPending(null);
   };
   const closeDeactivate = () => setPending(null);
-  // The invitations whose sheet was closed before they failed, by the email they went to: nothing else would tell the person.
-  const [lateFailures, setLateFailures] = useState<string[]>([]);
+  // The invitations whose sheet was closed before they failed, or before they were created without their email, by the email they went to: nothing else would tell the person.
+  const [lateFailures, setLateFailures] = useState<{ email: string; notice: 'failed_to' | 'email_not_sent_to' }[]>([]);
+  const addLate = (email: string, notice: 'failed_to' | 'email_not_sent_to') => {
+    const key = normalizeEmail(email);
+    setLateFailures((current) => (current.some((late) => normalizeEmail(late.email) === key) ? current : [...current, { email, notice }]));
+  };
   // The invitations still on their way, so the same one (same email and same groups) is not sent twice from another opening; a second send waits for the first.
   // `waiting` are the openings that sent it: one that failed is told once, by the sheet that is open or else by the screen.
-  const sends = useRef(new Map<string, { promise: Promise<void>; waiting: Set<number> }>());
+  const sends = useRef(new Map<string, { promise: Promise<void | { emailSent?: boolean }>; waiting: Set<number> }>());
   const send = (invitation: CoachInvitation, opening: number) => {
     const key = JSON.stringify([normalizeEmail(invitation.email), [...invitation.groupIds].sort()]);
     const running = sends.current.get(key);
@@ -89,7 +93,7 @@ export function CoachesScreen({
     }
     const promise = (async () => {
       try {
-        await onInvite(invitation);
+        return await onInvite(invitation);
       } catch (error) {
         // Only the kind of the error: its message can carry the invitee's email.
         if (__DEV__) console.warn('[school-console] The coach invitation could not be sent', kindOf(error));
@@ -104,9 +108,9 @@ export function CoachesScreen({
   };
   const lateNotice = lateFailures.length > 0 && (
     <>
-      {lateFailures.map((email) => (
+      {lateFailures.map(({ email, notice }) => (
         <Banner key={email} variant="warn" icon="error">
-          {t('schoolConsole.coaches.invite_sheet.failed_to', { email })}
+          {t(`schoolConsole.coaches.invite_sheet.${notice}`, { email })}
         </Banner>
       ))}
     </>
@@ -137,17 +141,18 @@ export function CoachesScreen({
           const { opening } = pending;
           const sent = send(invitation, opening);
           try {
-            await sent.promise;
+            // The result of the send, so a repeated send from another opening tells its sheet too.
+            const result = await sent.promise;
+            // Created without its email after the sheet was closed: the screen tells it, unless the sheet that is open does.
+            if (result?.emailSent === false && opening !== openings.current && !sent.waiting.has(openings.current)) addLate(invitation.email, 'email_not_sent_to');
+            return result;
           } catch (error) {
             if (opening === openings.current) throw error;
             // The sheet that is open says it already.
             if (sent.waiting.has(openings.current)) return;
-            const email = invitation.email;
-            const key = normalizeEmail(email);
-            setLateFailures((current) => (current.some((late) => normalizeEmail(late) === key) ? current : [...current, email]));
+            addLate(invitation.email, 'failed_to');
             return;
           }
-          // The sheet stays open on the created invitation; it closes with Listo.
         }}
         onClose={closeInvite}
       />
