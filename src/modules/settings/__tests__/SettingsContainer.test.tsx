@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 
 import { createInMemoryPreferencesRepository, PreferencesProvider } from '../../../core/preferences';
 import { createFakeTimingButton, unavailableTimingButton } from '../../timing';
@@ -55,5 +55,17 @@ describe('SettingsContainer timing buttons', () => {
   it('shows no timing buttons where the phone cannot use them', async () => {
     await setup(unavailableTimingButton);
     expect(screen.queryByText('Botones para cronometrar')).toBeNull();
+  });
+});
+
+describe('SettingsContainer video recording', () => {
+  it('saves each change, keeping the other video settings', async () => {
+    const { repository } = await setup();
+    await fireEvent.press(screen.getByText('Alta 1080p'));
+    await waitFor(async () => expect((await repository.load()).videoRecording.quality).toBe('high'));
+    await fireEvent.press(within(screen.getByLabelText('Parar el video después de detener el reloj')).getByText('10 s'));
+    await waitFor(async () =>
+      expect((await repository.load()).videoRecording).toEqual({ quality: 'high', audio: true, showStopwatch: true, startWithTime: false, stopAfterSeconds: 10 }),
+    );
   });
 });

@@ -12,6 +12,7 @@ export function SettingsContainer({ onBack, buttons = timingButton }: { onBack: 
   const learner = useLearnKey(buttons);
   const [learningKey, setLearningKey] = useState<ButtonKey | null>(null);
   const changeButtons = (changes: Partial<typeof timingButtons>) => update({ timingButtons: { ...timingButtons, ...changes } });
+  const videoRecording = preferences.videoRecording;
 
   return (
     <SettingsScreen
@@ -23,6 +24,7 @@ export function SettingsContainer({ onBack, buttons = timingButton }: { onBack: 
         learner.cancel();
         onBack();
       }}
+      video={{ settings: videoRecording, onChange: (changes) => update({ videoRecording: { ...videoRecording, ...changes } }) }}
       buttons={
         buttons.available
           ? {

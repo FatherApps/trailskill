@@ -38,6 +38,27 @@
       "seconds": "{{count}} s",
       "vibrate_label": "Vibrar al marcar",
       "vibrate_hint": "Una vibración corta cada vez que un botón inicia, marca un parcial o detiene."
+    },
+    "video": {
+      "title": "Grabación de video",
+      "on": "Sí",
+      "off": "No",
+      "quality_label": "Calidad del video",
+      "quality_hint": "Alta ocupa más del doble de espacio que Media: unos 130 MB por minuto frente a 60 MB.",
+      "quality": {
+        "low": "Baja 480p",
+        "medium": "Media 720p",
+        "high": "Alta 1080p"
+      },
+      "audio_label": "Grabar con audio",
+      "audio_hint": "Sin audio, la app no pide permiso para usar el micrófono.",
+      "show_stopwatch_label": "Mostrar el cronómetro en el video",
+      "show_stopwatch_hint": "El video queda grabado con el tiempo corriendo, los parciales y la prueba, para verlo como guía en la Galería o al compartirlo.",
+      "start_with_time_label": "Iniciar grabación y tiempo con el mismo botón",
+      "start_with_time_hint": "Con Sí, Iniciar arranca el video y el cronómetro a la vez; puede faltar el primer medio segundo del video, pero el tiempo no cambia. Con No, primero se graba y después se inicia el tiempo.",
+      "stop_after_label": "Parar el video después de detener el reloj",
+      "stop_after_hint": "El cronómetro se detiene al marcar la llegada; el video sigue estos segundos y se para solo, por si no lo paras tú.",
+      "seconds": "{{count}} s"
     }
   }
 }

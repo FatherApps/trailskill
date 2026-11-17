@@ -5,6 +5,7 @@ import {
   createInMemoryPreferencesRepository,
   defaultPreferences,
   defaultTimingButtons,
+  defaultVideoRecording,
   parsePreferences,
   PreferencesProvider,
   usePreferences,
@@ -17,7 +18,21 @@ describe('parsePreferences', () => {
       themeMode: 'sun',
       timePrecision: 'thousandths',
       timingButtons: defaultTimingButtons,
+      videoRecording: defaultVideoRecording,
     });
+  });
+
+  it('keeps valid video recording settings and replaces invalid ones', () => {
+    const saved = { quality: 'high', audio: false, showStopwatch: false, startWithTime: true, stopAfterSeconds: 10 };
+    expect(parsePreferences({ videoRecording: saved }).videoRecording).toEqual(saved);
+    expect(parsePreferences({ videoRecording: { quality: '4k', audio: 1, showStopwatch: 'yes', startWithTime: 'no', stopAfterSeconds: 30 } }).videoRecording).toEqual(
+      defaultVideoRecording,
+    );
+  });
+
+  it('loads preferences saved before video recording existed with its defaults', () => {
+    const saved = { themeMode: 'dark', timePrecision: 'thousandths', timingButtons: { ...defaultTimingButtons, vibrate: false } };
+    expect(parsePreferences(saved)).toEqual({ ...saved, videoRecording: defaultVideoRecording });
   });
 
   it('keeps valid timing button settings and replaces invalid ones', () => {
