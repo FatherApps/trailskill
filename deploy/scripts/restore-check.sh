@@ -51,7 +51,7 @@ sh -c "$BACKUP_FETCH_CMD" fetch "$WORK" || die "fetch command failed"
 [ "$(sha256 "$ENC")" = "$(mf encrypted_sha256)" ] || die "encrypted file checksum does not match the manifest"
 # Manifest checks, before anything is decrypted.
 MAX_AGE=${BACKUP_MAX_AGE_HOURS:-26}
-case $MAX_AGE in '' | *[!0-9]*) die "BACKUP_MAX_AGE_HOURS must be a whole number of hours" ;; esac
+case $MAX_AGE in '' | *[!0-9]* | 0[0-9]*) die "BACKUP_MAX_AGE_HOURS must be a whole number of hours" ;; esac
 CREATED=$(mf created_at)
 echo "$CREATED" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' ||
   die "manifest created_at is missing or malformed"

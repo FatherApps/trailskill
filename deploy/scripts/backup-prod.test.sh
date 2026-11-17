@@ -252,6 +252,9 @@ nonzero "freshness: malformed date fails" "$r"
 has "freshness: malformed date says why" "malformed"
 rcf x; r=$?
 nonzero "freshness: non-numeric BACKUP_MAX_AGE_HOURS fails" "$r"
+rcf 08; r=$?
+nonzero "freshness: zero-padded BACKUP_MAX_AGE_HOURS fails" "$r"
+has "freshness: zero-padded BACKUP_MAX_AGE_HOURS says why" "must be a whole number of hours"
 setmf 's/^\(count\..*\)=.*/\1=0/'
 rcf; r=$?
 nonzero "freshness: all counts 0 fails" "$r"
