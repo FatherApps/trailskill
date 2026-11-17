@@ -25,7 +25,13 @@ const config: ExpoConfig = {
     package: preview ? 'com.fatherapps.swimcro.preview' : 'com.fatherapps.swimcro',
     // The app only writes to the gallery (#1169), but the plugin and the library manifest always add these reads: blocking removes them.
     // WRITE_EXTERNAL_STORAGE stays: Android 7 to 9 (minSdk 24) need it to save a video.
-    blockedPermissions: ['android.permission.READ_MEDIA_VISUAL_USER_SELECTED', 'android.permission.READ_EXTERNAL_STORAGE'],
+    // SYSTEM_ALERT_WINDOW comes from the Expo template's main manifest and the app never draws over other apps (#1182).
+    // Release builds lose it; debug builds (the development client) keep it, because the template's src/debug manifest declares it again for the dev menu's Perf Monitor.
+    blockedPermissions: [
+      'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.SYSTEM_ALERT_WINDOW',
+    ],
   },
   plugins: [
     'expo-router',

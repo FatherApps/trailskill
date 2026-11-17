@@ -139,8 +139,13 @@ describe('gallery permissions', () => {
     expect(blocked).toEqual(
       expect.arrayContaining(['android.permission.READ_MEDIA_VISUAL_USER_SELECTED', 'android.permission.READ_EXTERNAL_STORAGE']),
     );
-    expect(blocked).toHaveLength(2);
+    expect(blocked).toHaveLength(3);
     expect(blocked).not.toContain('android.permission.WRITE_EXTERNAL_STORAGE');
+  });
+
+  // The Expo template's main manifest declares "display over other apps" (#1182); the app never uses it and Play treats it as sensitive.
+  it('removes SYSTEM_ALERT_WINDOW from the main manifest', () => {
+    expect(config.android?.blockedPermissions).toContain('android.permission.SYSTEM_ALERT_WINDOW');
   });
 });
 
