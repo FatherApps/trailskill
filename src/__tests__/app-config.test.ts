@@ -18,6 +18,11 @@ function splashOptions() {
   return (entry as [string, Record<string, any>] | undefined)?.[1];
 }
 
+function mediaLibraryOptions() {
+  const entry = (config.plugins ?? []).find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-media-library');
+  return (entry as [string, Record<string, any>] | undefined)?.[1];
+}
+
 // Expo reads app.config.ts once per process, so each variant is loaded in a fresh module registry.
 function loadConfig(variant?: string): ExpoConfig {
   const previous = process.env.APP_VARIANT;
@@ -111,5 +116,31 @@ describe('app icon and splash configuration', () => {
       const { width, height } = pngSize(image);
       expect(width).toBe(height);
     }
+  });
+});
+
+// The app only writes videos to the gallery (#1169): no read permission may reach the manifest or Info.plist.
+describe('gallery permissions', () => {
+  it('asks for no READ_MEDIA_* permission: an empty granular list, because a missing one means photo, video and audio', () => {
+    expect(mediaLibraryOptions()!.granularPermissions).toEqual([]);
+  });
+
+  it('drops the unused iOS photo library read description until the gallery check (#1089) brings it back', () => {
+    expect(mediaLibraryOptions()!.photosPermission).toBe(false);
+  });
+
+  it('keeps the description of saving videos to the gallery', () => {
+    const { savePhotosPermission } = mediaLibraryOptions()!;
+    expect(typeof savePhotosPermission).toBe('string');
+    expect(savePhotosPermission.length).toBeGreaterThan(0);
+  });
+
+  it('removes the reads the plugin and the library manifest always add, and keeps WRITE_EXTERNAL_STORAGE for Android 7 to 9', () => {
+    const blocked = config.android?.blockedPermissions;
+    expect(blocked).toEqual(
+      expect.arrayContaining(['android.permission.READ_MEDIA_VISUAL_USER_SELECTED', 'android.permission.READ_EXTERNAL_STORAGE']),
+    );
+    expect(blocked).toHaveLength(2);
+    expect(blocked).not.toContain('android.permission.WRITE_EXTERNAL_STORAGE');
   });
 });

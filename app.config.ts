@@ -23,19 +23,23 @@ const config: ExpoConfig = {
     },
     // Confirmed by the maintainer before the first Play upload (#1097). Play never lets an app change its package after that upload.
     package: preview ? 'com.fatherapps.swimcro.preview' : 'com.fatherapps.swimcro',
+    // The app only writes to the gallery (#1169), but the plugin and the library manifest always add these reads: blocking removes them.
+    // WRITE_EXTERNAL_STORAGE stays: Android 7 to 9 (minSdk 24) need it to save a video.
+    blockedPermissions: ['android.permission.READ_MEDIA_VISUAL_USER_SELECTED', 'android.permission.READ_EXTERNAL_STORAGE'],
   },
   plugins: [
     'expo-router',
     'expo-secure-store',
     // The individual stopwatch with video (#1088): saving the videos to the gallery. The camera and microphone
     // permissions come with the local module modules/video-recorder.
+    // Write only (#1169): an empty granularPermissions (omitted means photo, video and audio) and no iOS read description.
     [
       'expo-media-library',
       {
-        photosPermission: 'TrailSkill revisa si el video de un tiempo sigue en tu galería.',
+        photosPermission: false,
         savePhotosPermission: 'TrailSkill guarda en tu galería los videos que grabas con el cronómetro.',
         isAccessMediaLocationEnabled: false,
-        granularPermissions: ['video'],
+        granularPermissions: [],
       },
     ],
     [
