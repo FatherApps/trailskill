@@ -124,7 +124,7 @@ export type FamilyStopwatchView = {
   buttonsHint: string | null;
   /** «Grabar» is offered: the phone has the camera, and the stopwatch has not started. */
   canRecord?: boolean;
-  /** Why the camera closed without a time (permissions refused, or the take cancelled by leaving the app). */
+  /** Why the camera closed without a time (permissions refused, the take cancelled by leaving the app, or a camera that did not open). */
   videoNotice?: string | null;
 };
 

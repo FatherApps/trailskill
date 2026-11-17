@@ -225,9 +225,9 @@ describe('FamilyTimingContainer with the timing buttons', () => {
 });
 
 describe('FamilyTimingContainer with the video camera', () => {
-  async function open(withCamera: boolean) {
+  async function open(withCamera: boolean, cameraOptions: { failToOpen?: boolean } = {}) {
     const fake = createFakeTimingButton(ms(10_000));
-    const video = createFakeVideoCamera();
+    const video = createFakeVideoCamera(cameraOptions);
     const repository = createInMemoryFamilyMeasurementRepository();
     await render(
       <PreferencesProvider repository={createInMemoryPreferencesRepository({ ...defaultPreferences, timePrecision: 'thousandths' })}>
@@ -263,5 +263,14 @@ describe('FamilyTimingContainer with the video camera', () => {
     // The camera screen: the clock waits for the video.
     expect(await screen.findByText('Listo para iniciar')).toBeTruthy();
     expect(screen.queryByText('Abre la cámara con el cronómetro')).toBeNull();
+  });
+
+  it('shows the camera error and goes back to the normal stopwatch when the camera fails to open', async () => {
+    await open(true, { failToOpen: true });
+    await fireEvent.press(screen.getByText('Grabar'));
+    expect(await screen.findByText('No se pudo abrir la cámara. Puedes cronometrar sin video.')).toBeTruthy();
+    expect(screen.getByText('Iniciar')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Iniciar'));
+    expect(await screen.findByText('Detener')).toBeTruthy();
   });
 });

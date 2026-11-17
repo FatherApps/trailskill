@@ -6,7 +6,7 @@ import { createInMemoryPreferencesRepository, defaultPreferences, defaultVideoRe
 import { createFakeTimingButton } from '../../timing';
 import { createFakeVideoCamera } from '../data/videoCamera';
 import { finalMillis, type FamilyStopwatch } from '../domain/familyStopwatch';
-import { LOW_SPACE_BYTES, VideoStopwatchContainer, videoName, type VideoStopwatchResult } from '../screens/VideoStopwatchContainer';
+import { CAMERA_OPEN_TIMEOUT_MS, LOW_SPACE_BYTES, VideoStopwatchContainer, videoName, type VideoStopwatchResult } from '../screens/VideoStopwatchContainer';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
 
@@ -22,9 +22,9 @@ function AfterLoad({ children }: { children: ReactNode }) {
   return ready ? children : null;
 }
 
-async function setup(options: { video?: Partial<VideoRecordingPreferences>; granted?: boolean; freeBytes?: number | null; laps?: number } = {}) {
+async function setup(options: { video?: Partial<VideoRecordingPreferences>; granted?: boolean; freeBytes?: number | null; laps?: number; failToOpen?: boolean } = {}) {
   const buttons = createFakeTimingButton(ms(1000));
-  const fake = createFakeVideoCamera({ granted: options.granted, freeBytes: options.freeBytes });
+  const fake = createFakeVideoCamera({ granted: options.granted, freeBytes: options.freeBytes, failToOpen: options.failToOpen });
   const saved: FamilyStopwatch[] = [];
   const saveTime = jest.fn(async (sw: FamilyStopwatch) => {
     saved.push(sw);
@@ -166,6 +166,47 @@ describe('VideoStopwatchContainer', () => {
     const { fake, onClose } = await setup({ granted: false, video: { audio: false } });
     await waitFor(() => expect(onClose).toHaveBeenCalledWith('denied'));
     expect(fake.state.audioAsked).toEqual([false]);
+  });
+
+  it('closes with a camera error when the camera fails to open, and leaves nothing recording', async () => {
+    const { fake, onClose } = await setup({ failToOpen: true });
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith('camera_error'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(fake.state.recordings).toBe(0);
+  });
+
+  it('closes with a camera error when the failure arrives after the screen opened', async () => {
+    const { fake, onClose } = await setup();
+    await waitFor(() => expect(fake.state.ready).not.toBeNull());
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => fake.state.fail());
+    expect(onClose).toHaveBeenCalledWith('camera_error');
+  });
+
+  describe('when the camera never answers', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    async function openScreen() {
+      const ctx = await setup();
+      await act(async () => void jest.advanceTimersByTime(1));
+      return ctx;
+    }
+
+    it('gives up after the open timeout', async () => {
+      const { onClose } = await openScreen();
+      await act(async () => void jest.advanceTimersByTime(CAMERA_OPEN_TIMEOUT_MS - 1));
+      expect(onClose).not.toHaveBeenCalled();
+      await act(async () => void jest.advanceTimersByTime(1));
+      expect(onClose).toHaveBeenCalledWith('camera_error');
+    });
+
+    it('does not give up once the camera is on', async () => {
+      const { fake, onClose } = await openScreen();
+      await act(async () => fake.state.ready?.());
+      await act(async () => void jest.advanceTimersByTime(CAMERA_OPEN_TIMEOUT_MS * 2));
+      expect(onClose).not.toHaveBeenCalled();
+    });
   });
 
   it('warns when the phone has little free space', async () => {

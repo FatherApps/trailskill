@@ -1,7 +1,7 @@
 import { requireNativeViewManager, requireOptionalNativeModule } from 'expo-modules-core';
 import { File, Paths } from 'expo-file-system';
 import { Album, Asset, requestPermissionsAsync } from 'expo-media-library';
-import { forwardRef, useImperativeHandle, useRef, type ComponentType, type RefAttributes } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, type ComponentType, type RefAttributes } from 'react';
 import { PermissionsAndroid, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { VideoQuality } from '../../../core/preferences';
@@ -30,6 +30,8 @@ export type CameraPreviewProps = {
   audio: boolean;
   overlay: StopwatchOverlay;
   onReady: () => void;
+  /** The camera could not open (another app has it, the provider failed, no rear camera). */
+  onError: () => void;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -50,7 +52,7 @@ export type VideoCamera = {
 export const VIDEO_ALBUM = 'Swimcro';
 
 type NativeOverlay = { enabled: boolean; event: string; startedAt: string | null; stoppedAt: string | null; splits: string[]; thousandths: boolean };
-type NativeRecorderProps = { quality: VideoQuality; audio: boolean; overlay: NativeOverlay; onReady: () => void; style?: StyleProp<ViewStyle> };
+type NativeRecorderProps = { quality: VideoQuality; audio: boolean; overlay: NativeOverlay; onReady: () => void; onError: () => void; style?: StyleProp<ViewStyle> };
 type NativeRecorderRef = { record(): Promise<string | null>; stop(): Promise<void> };
 
 // Bigints do not cross to native code: marks go as decimal strings, like the timing buttons' clock.
@@ -65,7 +67,7 @@ const nativeOverlay = (o: StopwatchOverlay): NativeOverlay => ({
 
 function nativePreview(): VideoCamera['Preview'] {
   const NativeRecorder = requireNativeViewManager<NativeRecorderProps & RefAttributes<NativeRecorderRef>>('VideoRecorder');
-  return forwardRef<CameraPreviewHandle, CameraPreviewProps>(function VideoRecorderPreview({ quality, audio, overlay, onReady, style }, ref) {
+  return forwardRef<CameraPreviewHandle, CameraPreviewProps>(function VideoRecorderPreview({ quality, audio, overlay, onReady, onError, style }, ref) {
     const native = useRef<NativeRecorderRef>(null);
     useImperativeHandle(
       ref,
@@ -83,7 +85,7 @@ function nativePreview(): VideoCamera['Preview'] {
       }),
       [],
     );
-    return <NativeRecorder ref={native} style={style} quality={quality} audio={audio} overlay={nativeOverlay(overlay)} onReady={onReady} />;
+    return <NativeRecorder ref={native} style={style} quality={quality} audio={audio} overlay={nativeOverlay(overlay)} onReady={onReady} onError={onError} />;
   });
 }
 
@@ -134,8 +136,8 @@ function nativeVideoCamera(): VideoCamera {
 /** The phone's camera with the stopwatch drawn into the video; null where the module is missing (iOS, tests, an old build). */
 export const videoCamera: VideoCamera | null = requireOptionalNativeModule('VideoRecorder') ? nativeVideoCamera() : null;
 
-/** A camera the tests drive by hand: finish() ends the recording as the camera would. */
-export function createFakeVideoCamera(options: { granted?: boolean; freeBytes?: number | null } = {}) {
+/** A camera the tests drive by hand: finish() ends the recording as the camera would; failToOpen makes it fail to open, fail() later. */
+export function createFakeVideoCamera(options: { granted?: boolean; freeBytes?: number | null; failToOpen?: boolean } = {}) {
   const state = {
     granted: options.granted ?? true,
     free: options.freeBytes === undefined ? 10_000_000_000 : options.freeBytes,
@@ -146,6 +148,7 @@ export function createFakeVideoCamera(options: { granted?: boolean; freeBytes?: 
     discarded: [] as string[],
     audioAsked: [] as boolean[],
     ready: null as (() => void) | null,
+    fail: () => {},
     overlay: null as StopwatchOverlay | null,
     resolve: null as ((uri: string | null) => void) | null,
   };
@@ -155,9 +158,15 @@ export function createFakeVideoCamera(options: { granted?: boolean; freeBytes?: 
     state.recording = false;
     resolve?.(uri);
   };
-  const FakePreview = forwardRef<CameraPreviewHandle, CameraPreviewProps>(function FakePreview({ onReady, overlay }, ref) {
+  const FakePreview = forwardRef<CameraPreviewHandle, CameraPreviewProps>(function FakePreview({ onReady, onError, overlay }, ref) {
     state.ready = onReady;
+    state.fail = onError;
     state.overlay = overlay;
+    useEffect(() => {
+      if (options.failToOpen) onError();
+      // The camera opens (or fails) once, when the preview mounts.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     useImperativeHandle(
       ref,
       () => ({

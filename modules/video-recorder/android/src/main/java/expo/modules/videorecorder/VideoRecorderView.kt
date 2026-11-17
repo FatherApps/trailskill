@@ -42,6 +42,7 @@ class VideoRecorderView(context: Context, appContext: AppContext) : ExpoView(con
   override val shouldUseAndroidLayout = true
 
   private val onReady by EventDispatcher()
+  private val onError by EventDispatcher()
 
   private val previewView =
     PreviewView(context).apply {
@@ -106,7 +107,12 @@ class VideoRecorderView(context: Context, appContext: AppContext) : ExpoView(con
     val future = ProcessCameraProvider.getInstance(context)
     future.addListener(
       {
-        val cameraProvider = runCatching { future.get() }.getOrNull() ?: return@addListener
+        val cameraProvider =
+          runCatching { future.get() }.getOrNull()
+            ?: run {
+              onError(mapOf())
+              return@addListener
+            }
         provider = cameraProvider
         val selector =
           ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY).build()
@@ -143,6 +149,9 @@ class VideoRecorderView(context: Context, appContext: AppContext) : ExpoView(con
           preview = livePreview
           videoCapture = capture
           onReady(mapOf())
+        }.onFailure {
+          // The screen goes back to the stopwatch without video.
+          onError(mapOf())
         }
       },
       ContextCompat.getMainExecutor(context),

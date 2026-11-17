@@ -201,6 +201,7 @@
       "saving_video": "Tiempo guardado. El video termina de grabar y se guarda en la Galería.",
       "denied": "Sin permiso para usar la cámara y guardar videos no se puede grabar. Puedes darlo en los ajustes del teléfono.",
       "cancelled": "Se cancelaron el tiempo y el video porque la app dejó de estar en pantalla (por ejemplo, al contestar una llamada).",
+      "camera_error": "No se pudo abrir la cámara. Puedes cronometrar sin video.",
       "split": "Parcial",
       "split_row": "Parcial {{number}}",
       "in_progress": "En curso",

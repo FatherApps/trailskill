@@ -25,7 +25,7 @@ class VideoRecorderModule : Module() {
     Function("now") { SystemClock.elapsedRealtimeNanos().toString() }
 
     View(VideoRecorderView::class) {
-      Events("onReady")
+      Events("onReady", "onError")
 
       Prop("quality") { view: VideoRecorderView, quality: String -> view.setQuality(quality) }
 
