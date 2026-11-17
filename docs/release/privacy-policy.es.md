@@ -34,7 +34,7 @@ Esta política cubre a quienes usan Swimcro: familias (acudientes), deportistas 
 | Identificador del dispositivo generado por la app | Dispositivo | Distinguir registros hechos en dispositivos distintos y resolver conflictos |
 | Video del cronómetro individual, con su sonido si no lo apagaste, que puede mostrar a menores. **Solo queda en tu teléfono** (ver abajo). PENDIENTE de revisión legal | Acudiente o deportista adulto que pulsa «Grabar» | Que puedas ver la toma de un tiempo en la galería de tu teléfono |
 
-**Cámara y micrófono.** Solo se usan en la pantalla del cronómetro con video, a la que entras al pulsar «Grabar»: ahí la aplicación te pide el permiso, y graba únicamente mientras una grabación está en curso. El micrófono se usa solo si el sonido está activado en Ajustes (viene activado). El video se guarda en el álbum «Swimcro» de la galería de tu teléfono, que es almacenamiento compartido del teléfono, y **no está cifrado**. No lo subimos, no lo sincronizamos ni lo compartimos, y la aplicación no lee tu galería. PENDIENTE de revisión legal.
+**Cámara y micrófono.** Solo se usan en la pantalla del cronómetro con video, a la que entras al pulsar «Grabar»: ahí la aplicación te pide el permiso, y graba únicamente mientras una grabación está en curso. El micrófono se usa solo si el sonido está activado en Ajustes (viene activado). El video se guarda en el álbum «Swimcro» de la galería de tu teléfono, que es almacenamiento compartido del teléfono, y **no está cifrado**. No lo subimos, no lo sincronizamos ni lo compartimos, y la aplicación no lista ni abre tus fotos y videos: solo busca su propio álbum. PENDIENTE de revisión legal.
 
 No recogemos ubicación, contactos ni identificadores publicitarios, y no usamos publicidad ni herramientas de analítica de terceros. No recogemos fotos ni videos en nuestros servidores: el video que grabas no sale de tu teléfono. PENDIENTE de revisión legal.
 
@@ -71,7 +71,7 @@ Los datos de menores los registra y autoriza su acudiente. Tratamos los datos de
 
 - La comunicación entre la aplicación y los servidores va cifrada (HTTPS).
 - La copia local de los datos en el dispositivo está cifrada, y el número de identificación del deportista se guarda cifrado en el servidor.
-- **Los videos del cronómetro no están cifrados.** Quedan en el álbum «Swimcro» de la galería del teléfono, almacenamiento compartido: cualquier aplicación a la que le des permiso para leer fotos y videos puede leerlos, y quien use tu teléfono desbloqueado también. Mientras se graban, el archivo está en una carpeta privada de la aplicación y se borra de ahí al pasarlo a la galería. Protege tu teléfono con bloqueo de pantalla. PENDIENTE de revisión legal.
+- **Los videos del cronómetro no están cifrados.** Quedan en el álbum «Swimcro» de la galería del teléfono, almacenamiento compartido: cualquier aplicación a la que le des permiso para leer fotos y videos puede leerlos, y quien use tu teléfono desbloqueado también. Mientras se graban, el archivo está en una carpeta privada de la aplicación y se borra de ahí al pasarlo a la galería; si la galería lo rechaza, el video queda en esa carpeta hasta que el sistema la limpie y no se conserva. Protege tu teléfono con bloqueo de pantalla. PENDIENTE de revisión legal.
 - Cada persona accede solo a los datos que su rol permite.
 
 Ningún sistema es infalible; si ocurre un incidente que afecte tus datos, avisaremos según lo exige la ley. PENDIENTE: procedimiento y canal de aviso.
