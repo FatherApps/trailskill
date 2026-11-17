@@ -6,9 +6,11 @@
 #
 # Env: BACKUP_FETCH_CMD      shell command run as `sh -c "$BACKUP_FETCH_CMD" fetch <dir>`; it must write
 #                            trailskill-prod-latest.dump.age and trailskill-prod-latest.manifest into <dir>.
+#      RESTORE_CHECK_CONTAINER_NAME  optional name of the temporary container (default restore-check-<pid>-<time>)
 #      BACKUP_RESTORE_IMAGE  default public.ecr.aws/supabase/postgres:17.11.0.006 (Supabase roles exist).
 #                            Use the same image major as PROD.
 set -eu
+set -f # no globbing: manifest keys are untrusted words
 umask 077
 
 IDENTITY=${1:?usage: restore-check.sh <age-identity-file>}
@@ -24,7 +26,7 @@ bytes() { wc -c <"$1" | tr -d ' '; }
 mf() { sed -n "s/^$1=//p" "$MANIFEST" | head -n 1; }
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/restore-check.XXXXXX")
-CT=restore-check-$$-$(date +%s)
+CT=${RESTORE_CHECK_CONTAINER_NAME:-restore-check-$$-$(date +%s)}
 cleanup() {
   docker rm -f -v "$CT" >/dev/null 2>&1 || true
   rm -rf "$WORK"

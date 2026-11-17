@@ -16,13 +16,14 @@ T=$(mktemp -d)
 rand() { od -An -N12 -tx1 /dev/urandom | tr -d ' \n'; }
 PW=$(rand)
 FAILS=0
+RCNAME=$ID-rc
 DEST=$T/dest
 BKTMP=$T/bk-tmp
 mkdir -p "$DEST" "$BKTMP" "$T/rc-tmp" "$T/bin" "$T/shim"
 
 cleanup() {
   docker rm -f "$DB" >/dev/null 2>&1
-  docker ps -aq --filter "name=restore-check-" | xargs docker rm -f >/dev/null 2>&1
+  docker rm -f -v "$RCNAME" >/dev/null 2>&1
   docker network rm "$NET" >/dev/null 2>&1
   docker rmi "$TOOLS" >/dev/null 2>&1
   rm -rf "$T"
@@ -89,7 +90,7 @@ bk() {
     -e BACKUP_PUSH_CMD="$PUSH" "$@" "$TOOLS" sh /backup-prod.sh >"$T/out" 2>&1
 }
 # rc KEYFILE: restore-check.sh on the host (Docker for the temporary database, age through the wrapper).
-rc() { PATH="$T/bin:$PATH" TMPDIR="$T/rc-tmp" BACKUP_FETCH_CMD="$FETCH" sh "$HERE/restore-check.sh" "$1" >"$T/out" 2>&1; }
+rc() { PATH="$T/bin:$PATH" TMPDIR="$T/rc-tmp" BACKUP_FETCH_CMD="$FETCH" RESTORE_CHECK_CONTAINER_NAME="$RCNAME" sh "$HERE/restore-check.sh" "$1" >"$T/out" 2>&1; }
 sums() { (cd "$DEST" && for f in trailskill-prod-latest.*; do echo "$f $(shasum -a 256 <"$f")"; done); }
 leftovers() { ls -A "$BKTMP" | wc -l | tr -d ' '; }
 
@@ -98,6 +99,10 @@ bk -e PGHOST=unreachable.invalid; r=$?
 nonzero "no key: exit non-zero" "$r"
 has "no key: clear message" "refusing to back up without an encryption public key"
 eq "no key: nothing pushed" 0 "$(ls -A "$DEST" | wc -l | tr -d ' ')"
+bk -e PGHOST=unreachable.invalid -e BACKUP_ALLOW_NO_KEY_FOR_TESTS=1; r=$?
+nonzero "no key + old test bypass variable: still exits non-zero" "$r"
+has "no key + old test bypass variable: still refuses" "refusing to back up without an encryption public key"
+eq "no key + old test bypass variable: nothing pushed" 0 "$(ls -A "$DEST" | wc -l | tr -d ' ')"
 bk -e BACKUP_AGE_RECIPIENT=notakey; r=$?
 nonzero "bad key: exit non-zero" "$r"
 
@@ -126,7 +131,7 @@ has "restore: prints timing" "elapsed: [0-9]* s"
 has "restore: compares athletes (3 expected, 3 restored)" "public.athletes  *3  *3"
 cat "$T/out"
 eq "restore: decrypted files removed" 0 "$(ls -A "$T/rc-tmp" | wc -l | tr -d ' ')"
-eq "restore: temporary container removed" 0 "$(docker ps -aq --filter 'name=restore-check-' | wc -l | tr -d ' ')"
+eq "restore: temporary container removed" 0 "$(docker ps -aq --filter "name=$RCNAME" | wc -l | tr -d ' ')"
 
 # --- 4. failed verification keeps the previous copy -------------------------
 sql -c "insert into public.athletes (first_name, last_name) values ('Extra', 'Synthetic')"
@@ -151,6 +156,11 @@ rc "$T/key1.txt"; r=$?
 nonzero "tampered table name: exit non-zero" "$r"
 has "tampered table name: rejected" "invalid table name"
 sed '$d' "$T/manifest.orig" >"$DEST/trailskill-prod-latest.manifest"
+echo 'count.*=1' >>"$DEST/trailskill-prod-latest.manifest"
+rc "$T/key1.txt"; r=$?
+nonzero "glob key in manifest: exit non-zero" "$r"
+has "glob key in manifest: rejected, not expanded" "invalid table name"
+sed '$d' "$DEST/trailskill-prod-latest.manifest" >"$T/m.tmp" && cp "$T/m.tmp" "$DEST/trailskill-prod-latest.manifest"
 rc "$T/key2.txt"; r=$?
 nonzero "wrong key: exit non-zero" "$r"
 has "wrong key: says decryption failed" "decryption failed"
@@ -159,7 +169,7 @@ rc "$T/key1.txt"; r=$?
 nonzero "tampered copy: exit non-zero" "$r"
 has "tampered copy: checksum mismatch" "checksum does not match"
 eq "no volume left by the restore containers" "" "$(docker volume ls -q | sort | comm -13 "$T/vols.before" -)"
-eq "failures: temporary container removed" 0 "$(docker ps -aq --filter 'name=restore-check-' | wc -l | tr -d ' ')"
+eq "failures: temporary container removed" 0 "$(docker ps -aq --filter "name=$RCNAME" | wc -l | tr -d ' ')"
 eq "failures: decrypted files removed" 0 "$(ls -A "$T/rc-tmp" | wc -l | tr -d ' ')"
 
 echo

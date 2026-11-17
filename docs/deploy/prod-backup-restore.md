@@ -14,7 +14,12 @@
 2. **Retention is only the latest copy.** The push command replaces the previous copy only after the new one is stored in full. Any failed step exits non-zero before the push, so a failed run never leaves zero copies.
 3. `restore-check.sh` fetches the latest copy, verifies both checksums, decrypts it with the private key, restores it into a **throwaway** Postgres container (never PROD) and compares the row counts with the manifest.
 
-No plaintext dump stays on disk after either script: both work in a private temp directory removed on exit. `backup-prod.sh` **refuses to run** (before dumping) when `BACKUP_AGE_RECIPIENT` is not set.
+Both scripts write the plain dump (`backup-prod.sh`) or the decrypted dump (`restore-check.sh`) into a private temp directory that a trap removes on exit, success or failure. **That does not survive `kill -9` or a power loss**: the file stays on disk. So:
+
+- Point `TMPDIR` to a dedicated directory with mode 700, on an encrypted volume or on tmpfs (RAM), for the scheduler job and for Mario's shell.
+- After a crash or a killed run, delete the leftovers by hand. On the backup host: `rm -rf "${TMPDIR:-/tmp}"/backup-prod.*`. On Mario's machine: `rm -rf "${TMPDIR:-/tmp}"/restore-check.*`.
+
+`backup-prod.sh` has no bypass: it **refuses to run** (before dumping) when `BACKUP_AGE_RECIPIENT` is not set, whatever else is in the environment.
 
 ## Destination: pending Mario's choice
 
@@ -35,7 +40,6 @@ Credentials for `<DESTINO>` live only in the environment of the scheduler that r
 | `BACKUP_AGE_RECIPIENT` | The age **public** key (`age1...`), see below. Required. |
 | `BACKUP_PUSH_CMD` | The push command for `<DESTINO>`. Required. |
 | `BACKUP_COUNT_TABLES` | Optional. Default: `auth.users public.organizations public.schools public.athletes public.school_memberships`. |
-| `BACKUP_ALLOW_NO_KEY_FOR_TESTS` | **Never set in PROD.** It exists only so a test can skip encryption. |
 
 The script needs `pg_dump` of at least the server's major version (17), `pg_restore` and `age` (row counts are read from the dump itself, so they match its snapshot). A simple way is a container such as `postgres:17-alpine` with `age` installed (`apk add age`), started on the network of the PROD database by the scheduler. The scheduler is Mario's choice.
 
@@ -65,6 +69,11 @@ sh deploy/scripts/restore-check.sh /path/to/trailskill-backup-key.txt
 ```
 
 It starts `public.ecr.aws/supabase/postgres:17.11.0.006` (override with `BACKUP_RESTORE_IMAGE`, keep the same major as PROD) so the Supabase roles exist, restores, and prints the copy date, the size, expected against restored row counts and the elapsed time. It exits non-zero on any checksum or count mismatch. It removes the container and the decrypted files on exit.
+
+Notes:
+
+- A copy with every table at 0 passes the check; review the expected counts.
+- `DOCKER_HOST` must not point to another server: `restore-check.sh` runs the throwaway container, with the decrypted data, wherever `DOCKER_HOST` points.
 
 Copy the output into the table below.
 

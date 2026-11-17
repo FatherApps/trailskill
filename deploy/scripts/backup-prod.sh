@@ -7,9 +7,9 @@
 #      BACKUP_PUSH_CMD       shell command run last as `sh -c "$BACKUP_PUSH_CMD" push <encrypted> <manifest>`.
 #                            It must replace the single previous copy only after storing the new one in full.
 #      BACKUP_COUNT_TABLES   tables whose row counts go in the manifest (default: see below)
-#      BACKUP_ALLOW_NO_KEY_FOR_TESTS=1  test only: skip encryption. NEVER set in PROD.
 # Nothing is kept locally: the plaintext dump lives in a private temp dir that is always removed.
 set -eu
+set -f
 umask 077
 
 : "${PGHOST:?PGHOST is required}"
@@ -25,14 +25,10 @@ die() { echo "error: $*" >&2; exit 1; }
 sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 bytes() { wc -c <"$1" | tr -d ' '; }
 
-# Refuse before touching the database when there is no way to encrypt.
-if [ -z "${BACKUP_AGE_RECIPIENT:-}" ]; then
-  [ "${BACKUP_ALLOW_NO_KEY_FOR_TESTS:-}" = "1" ] ||
-    die "BACKUP_AGE_RECIPIENT is not set: refusing to back up without an encryption public key"
-  log "WARN BACKUP_ALLOW_NO_KEY_FOR_TESTS=1: NOT encrypting (tests only)"
-else
-  case $BACKUP_AGE_RECIPIENT in age1*) ;; *) die "BACKUP_AGE_RECIPIENT is not an age public key (age1...)" ;; esac
-fi
+# Refuse before touching the database when there is no way to encrypt. There is no bypass.
+[ -n "${BACKUP_AGE_RECIPIENT:-}" ] ||
+  die "BACKUP_AGE_RECIPIENT is not set: refusing to back up without an encryption public key"
+case $BACKUP_AGE_RECIPIENT in age1*) ;; *) die "BACKUP_AGE_RECIPIENT is not an age public key (age1...)" ;; esac
 for t in $BACKUP_COUNT_TABLES; do
   echo "$t" | grep -Eq '^[a-z_]+\.[a-z_]+$' || die "invalid table name '$t' in BACKUP_COUNT_TABLES"
 done
@@ -70,12 +66,8 @@ done
 log "dump verified (pg_restore --list ok, $DUMP_BYTES bytes)"
 
 # 3. encrypt with the public key (the private key is never on this host), then checksum the result
-if [ -n "${BACKUP_AGE_RECIPIENT:-}" ]; then
-  age -r "$BACKUP_AGE_RECIPIENT" -o "$ENC" "$DUMP" || die "encryption failed"
-  head -c 22 "$ENC" | grep -q '^age-encryption.org' || die "encrypted file has no age header"
-else
-  cp "$DUMP" "$ENC"
-fi
+age -r "$BACKUP_AGE_RECIPIENT" -o "$ENC" "$DUMP" || die "encryption failed"
+head -c 22 "$ENC" | grep -q '^age-encryption.org' || die "encrypted file has no age header"
 [ -s "$ENC" ] || die "encrypted file is empty"
 {
   echo "encrypted_bytes=$(bytes "$ENC")"
