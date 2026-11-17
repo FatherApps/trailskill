@@ -22,7 +22,7 @@ The plan is to bring up a new Swimcro PROD backend on Dokploy and keep the curre
 | Tunnel can route them | **Yes.** A one-level rule plus a proxied CNAME to the tunnel, inserted before the final 404 rule. |
 | TLS covers them | **Yes.** The universal certificate covers `tuls.app` and `*.tuls.app`. |
 | TLS contradiction | **Resolved.** Both documents were partly right, see [below](#tls-contradiction-resolved). |
-| Capacity for two stacks | **Fits at the ADR 0002 minimum only. Not prudent on this server. Decision of Mario (Q6).** |
+| Capacity for two stacks | **Fits at the ADR 0002 minimum, with little margin. Q6 answered by Mario: PROD goes on the same server.** |
 
 ## Authorization
 
@@ -89,9 +89,15 @@ The server is shared: 47 containers and about 16 services of other projects besi
 | 4 GB (ADR minimum) | about 5.7 GB. It fits, barely. |
 | 8 GB (ADR small production) | about 1.7 GB. Almost no margin. |
 
-**Verdict.** It technically fits at the minimum, but putting PROD on the same server as QA and the other services is not prudent: a spike in any neighbour or in QA can take PROD down.
+**Technical verdict.** It fits at the minimum, but with little margin: a spike in any neighbour or in QA can take PROD down.
 
-**Question for Mario (Q6): a bigger server, or a separate one, for PROD?** The recommendation is a separate or bigger server. The issues #1114 to #1120 stay on hold until he answers.
+**Decision (Q6, answered by Mario on 2026-11-16, relayed by the maintainer).** The question was whether PROD needs a bigger or a separate server. Mario decided that PROD goes on the **same Dokploy server**, in its own project, «Swimcro PROD». His reasoning: current use is minimal, and if space is needed the QA resources can be cut.
+
+What follows from that:
+
+- If room is needed, QA gets memory and CPU limits. That step is planned in #1116.
+- Capacity is watched with thresholds, planned in #1115.
+- The technical verdict above does not change: the measured figures stand.
 
 ## Not measured
 

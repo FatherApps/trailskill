@@ -19,7 +19,7 @@ There are two backend environments on the same Dokploy server. They run the same
 | Backups | None. | A gate before inviting real families: #1119. |
 | TLS to the origin | Cloudflare Tunnel ends TLS at the edge, then plain HTTP to the Dokploy proxy on port 80. Dokploy domains keep HTTPS off ([Public and internal](#public-and-internal)). | The same route. The hostnames are free and the tunnel can route them ([#1113 report](../docs/deploy/prod-step0-readonly-checks.md)). |
 
-The Dokploy deploy webhook hostname (`trailskill-deploy`) is shared by both. Capacity of the server for two stacks: it fits at the ADR 0002 minimum, but it is not prudent to run PROD next to QA and other projects' services on this server. Whether PROD gets a bigger or a separate server is **a decision of Mario** (see the [#1113 report](../docs/deploy/prod-step0-readonly-checks.md)).
+The Dokploy deploy webhook hostname (`trailskill-deploy`) is shared by both. Capacity of the server for two stacks: it fits at the ADR 0002 minimum, with little margin. Mario decided (Q6) that PROD goes on the same server, in its own project «Swimcro PROD»; if room is needed, QA gets memory and CPU limits (step planned in #1116), and capacity is watched with thresholds (#1115). See the [#1113 report](../docs/deploy/prod-step0-readonly-checks.md).
 
 Unless a section says otherwise, everything below describes QA, the deployment that exists. PROD differs only as this table says; the step-by-step setup of PROD is in issues #1115 to #1118 and is not written here yet. Secret values are set only by the maintainer in the Dokploy and EAS interfaces, never in this repository.
 
