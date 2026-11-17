@@ -20,7 +20,7 @@ export type CoachesView = SectionView<CoachesContent>;
 export type CoachesScreenProps = ConsoleSectionProps & {
   view: CoachesView;
   // Fires when the invite sheet is confirmed with a name and an email; the real invitation belongs to the caller.
-  // The sheet closes only once this resolves: it must reject (or throw) when the invitation fails, and then the sheet stays open with what was typed.
+  // It must reject (or throw) when the invitation fails, and then the sheet stays open with what was typed; once it resolves the sheet shows the created invitation and closes with Listo.
   onInvite: (invitation: CoachInvitation) => void | Promise<void>;
   // Fires only after the ConfirmSheet is confirmed; the real deactivation belongs to the caller.
   onDeactivate: (id: string) => void;
@@ -128,6 +128,7 @@ export function CoachesScreen({
     sheet = (
       <InviteCoachSheet
         key={pending.opening}
+        schoolName={schoolName}
         groups={groups}
         initialGroupId={contextGroupId}
         onRetryGroups={onRetryGroups}
@@ -146,7 +147,7 @@ export function CoachesScreen({
             setLateFailures((current) => (current.some((late) => normalizeEmail(late) === key) ? current : [...current, email]));
             return;
           }
-          if (opening === openings.current) closeInvite();
+          // The sheet stays open on the created invitation; it closes with Listo.
         }}
         onClose={closeInvite}
       />
