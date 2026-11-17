@@ -67,7 +67,7 @@ On the same Dokploy server as QA.
 - [ ] The only public hostnames PROD will ever have are `swimcro-api.tuls.app` (the API gateway, port 8000) and `swimcro-sync.tuls.app` (PowerSync, port 8080). Adding them as Dokploy domains and the Cloudflare route are #1116: **publish nothing in this runbook.**
 - [ ] Set the three variables that carry the public API address, all to `https://swimcro-api.tuls.app`: `SUPABASE_PUBLIC_URL`, `API_EXTERNAL_URL` (also the JWT issuer) and `SITE_URL`. They are plain addresses, not secrets. A wrong value makes every token invalid later: check them again before #1116.
 - [ ] Do **not** publish Studio. Do **not** add Mailpit (it exists only in QA).
-- [ ] Write down the application's **app name**. The Docker network of the stack is `<app name>_default` and the `deploy` compose needs it as `SUPABASE_NETWORK` (#1116). The database host on that network is `db`.
+- [ ] Write down the application's **app name**. The Docker network of the stack is `<app name>_default` and the `deploy` compose needs it as `SUPABASE_NETWORK` (#1116). The database host on that network is the database container, `<app name>-db-1`: use it as `SUPABASE_DB_HOST` in #1116, never `db` (see the [collision report](prod-deploy-compose.md#a-collision-report-two-copies-of-deploycomposeyaml-on-one-server)).
 
 ### 3. `pg_cron`
 
