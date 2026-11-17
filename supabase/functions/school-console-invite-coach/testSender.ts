@@ -14,6 +14,7 @@ export function createTestSender(): InvitationSender & { delivered: Invitation[]
     async deliver(invitation) {
       delivered.push(invitation);
       if (delivered.length > TEST_SENDER_LIMIT) delivered.shift();
+      return false;
     },
   };
 }

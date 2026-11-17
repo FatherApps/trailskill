@@ -14,7 +14,7 @@ const INVITATION = { schoolId: SCHOOL, email: EMAIL, schoolName: SCHOOL_NAME };
 describe('createTestSender', () => {
   it('sends nothing and records what it was asked to deliver', async () => {
     const sender = createTestSender();
-    await sender.deliver({ id: 'i1', ...INVITATION });
+    await expect(sender.deliver({ id: 'i1', ...INVITATION })).resolves.toBe(false);
     expect(sender.delivered).toEqual([{ id: 'i1', ...INVITATION }]);
   });
 
@@ -34,7 +34,7 @@ describe('inviteCoach', () => {
     const { store, invitations } = createMemoryStore([SCHOOL]);
     const sender = createTestSender();
     const outcome = await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: EMAIL });
-    expect(outcome).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+    expect(outcome).toEqual({ ok: true, value: { invitationId: 'invitation-1', emailSent: false } });
     expect(invitations).toHaveLength(1);
     expect(sender.delivered).toEqual([{ id: 'invitation-1', ...INVITATION }]);
   });
@@ -51,10 +51,10 @@ describe('inviteCoach', () => {
   it('answers unavailable when delivery fails, keeps the invitation, and inviting again reuses it and delivers again', async () => {
     const { store, invitations } = createMemoryStore([SCHOOL]);
     const sender = createTestSender();
-    const failing = { deliver: async () => Promise.reject(new Error('down')) };
-    expect(await createInviteCoach({ store, sender: failing })({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'unavailable' } });
+    const failing = { deliver: async (): Promise<boolean> => Promise.reject(new Error('down')) };
+    expect(await createInviteCoach({ store, sender: failing })({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'unavailable', invitationId: 'invitation-1' } });
     expect(invitations).toHaveLength(1);
-    expect(await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+    expect(await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1', emailSent: false } });
     expect(invitations).toHaveLength(1);
     expect(sender.delivered).toHaveLength(1);
   });
@@ -71,12 +71,12 @@ describe('inviteCoach', () => {
     const inviteCoach = createInviteCoach({ store, sender: createResendSender({ apiKey: KEY, from: 'Swimcro <no-reply@example.test>', fetch }) });
 
     const outcome = await inviteCoach({ schoolId: SCHOOL, email: EMAIL });
-    expect(outcome).toEqual({ ok: false, error: { code: 'unavailable' } });
+    expect(outcome).toEqual({ ok: false, error: { code: 'unavailable', invitationId: 'invitation-1' } });
     expect(JSON.stringify(outcome)).not.toMatch(/re_test|secret-body-detail/);
     expect(invitations).toHaveLength(1);
 
     status = 200;
-    expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+    expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1', emailSent: true } });
     expect(invitations).toHaveLength(1);
     expect(calls).toHaveLength(2);
   });
@@ -92,11 +92,11 @@ describe('inviteCoach', () => {
     }) as unknown as typeof globalThis.fetch;
     const inviteCoach = createInviteCoach({ store, sender: createResendSender({ apiKey: 're_test_not_a_real_key', from: 'Swimcro <no-reply@example.test>', fetch, timeoutMs: 20 }) });
 
-    expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'unavailable' } });
+    expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'unavailable', invitationId: 'invitation-1' } });
     expect(invitations).toHaveLength(1);
 
     answers = true;
-    expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+    expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1', emailSent: true } });
     expect(invitations).toHaveLength(1);
     expect(keys).toEqual(['coach-invitation/invitation-1', 'coach-invitation/invitation-1']);
   });
@@ -115,7 +115,7 @@ describe('inviteCoach', () => {
     const fail = async (sender: InvitationSender) => {
       error.mockClear();
       const { store } = createMemoryStore([SCHOOL]);
-      expect(await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'unavailable' } });
+      expect(await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'unavailable', invitationId: 'invitation-1' } });
       return error.mock.calls.map((call) => call.join(' '));
     };
     const respond = (status: number) => (async () => new Response(`${BODY} ${KEY} ${EMAIL}`, { status })) as unknown as typeof globalThis.fetch;
@@ -158,8 +158,8 @@ describe('inviteCoach', () => {
 
     it('resends under the limit', async () => {
       const { inviteCoach, sender } = limited({ callerLimit: 5, recipientLimit: 2 });
-      expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
-      expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+      expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1', emailSent: false } });
+      expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1', emailSent: false } });
       expect(sender.delivered).toHaveLength(2);
     });
 
@@ -169,7 +169,7 @@ describe('inviteCoach', () => {
       await inviteCoach({ schoolId: SCHOOL, email: EMAIL });
       expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'recipient_rate_limited' } });
       expect(sender.delivered).toHaveLength(2);
-      expect(await inviteCoach({ schoolId: SCHOOL, email: OTHER_EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-2' } });
+      expect(await inviteCoach({ schoolId: SCHOOL, email: OTHER_EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-2', emailSent: false } });
       expect(sender.delivered).toHaveLength(3);
     });
 

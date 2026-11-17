@@ -33,8 +33,10 @@ const email = (value: unknown) => {
 };
 
 /**
- * One POST endpoint, `{ schoolId, email }`, answering `{ ok, value | error }`: `{ invitationId }` once the pending invitation of
- * the school exists and was delivered. Who may invite is decided by the database, as the caller.
+ * One POST endpoint, `{ schoolId, email }`, answering `{ ok, value | error }`: 200 `{ invitationId, emailSent }` once the pending
+ * invitation of the school exists (`emailSent` is false when the sender sent nothing, as without a Resend key), or 502
+ * `{ code: 'unavailable', invitationId }` when it exists but the email failed. Both fields are additions older clients ignore.
+ * Who may invite is decided by the database, as the caller.
  */
 export function createHandler({ authenticate, service }: HandlerDeps) {
   return async function handle(request: Request): Promise<Response> {

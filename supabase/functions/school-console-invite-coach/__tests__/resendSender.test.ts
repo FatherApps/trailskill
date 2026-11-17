@@ -28,12 +28,12 @@ const fetchUntilAborted = () =>
     (init) => new Promise<Response>((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(init.signal?.reason))),
   );
 
-const reason = async (promise: Promise<void>) => promise.then(() => '', (e: Error) => e.message);
+const reason = async (promise: Promise<boolean>) => promise.then(() => '', (e: Error) => e.message);
 
 describe('createResendSender', () => {
   it('sends one POST to Resend with the key, the sender, the coach and the texts, and resolves on 2xx', async () => {
     const { fetch, calls } = fakeFetch(() => new Response('{"id":"x"}', { status: 200 }));
-    await createResendSender({ apiKey: KEY, from: FROM, fetch }).deliver(INVITATION);
+    await expect(createResendSender({ apiKey: KEY, from: FROM, fetch }).deliver(INVITATION)).resolves.toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('https://api.resend.com/emails');
     expect(calls[0].init.method).toBe('POST');

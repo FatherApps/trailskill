@@ -223,7 +223,7 @@ Without the Resend variables the function sends nothing.
 
 - [ ] In the console, open **Coaches** and invite an address you control (a test mailbox, not a real coach yet).
 - [ ] Expected: the console shows a **pending invitation** for that address, and the email arrives from the Resend sender. The invitation is not an account: the coach accepts it after signing in with that email.
-- [ ] If the console reports the invitation as unavailable, the invitation stays pending (inviting the same address again reuses it and sends the email again). Check the `functions` service logs and the two Resend variables. Sending is limited per recipient (3 emails in 24 hours) and per administrator (30 in 24 hours), so repeated tests soon stop sending.
+- [ ] If the console shows «La invitación quedó creada pero el correo no salió», the invitation exists but no email left: either Resend failed (the function answered 502 `{ ok: false, error: { code: 'unavailable', invitationId } }`) or `RESEND_API_KEY` is not set (200 with `emailSent: false`). The invitation stays pending (inviting the same address again reuses it and sends the email again). Check the `functions` service logs and the two Resend variables. Sending is limited per recipient (3 emails in 24 hours) and per administrator (30 in 24 hours), so repeated tests soon stop sending.
 
 ### 7. Post-check list
 

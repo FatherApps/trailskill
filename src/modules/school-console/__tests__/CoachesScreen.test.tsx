@@ -203,6 +203,18 @@ describe('CoachesScreen', () => {
       expect(screen.queryByTestId('side-sheet')).toBeNull();
     });
 
+    it('tells the sheet that the email did not go out when onInvite says so', async () => {
+      await open({ onInvite: jest.fn().mockResolvedValue({ emailSent: false }) });
+
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+      await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+      await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+      expect(screen.getByText('La invitación quedó creada pero el correo no salió.')).toBeOnTheScreen();
+      expect(screen.queryByText('Invitación creada para rosa@example.com.')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Compartir invitación' })).toBeOnTheScreen();
+    });
+
     it('closing the sheet calls nothing', async () => {
       const { onInvite } = await open();
 
@@ -601,6 +613,40 @@ describe('CoachesScreen', () => {
         expect(screen.queryByTestId('side-sheet')).toBeNull();
         await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
         expect(screen.queryByText(lateFailure)).toBeNull();
+      });
+
+      describe('an invitation whose sheet was closed before it settled with the email not sent', () => {
+        const lateNotSent = 'La invitación a rosa@example.com quedó creada pero el correo no salió.';
+        const closeBeforeSettling = async () => {
+          let finish!: (result: { emailSent: boolean }) => void;
+          const onInvite = jest.fn(() => new Promise<{ emailSent: boolean }>((resolve) => (finish = resolve)));
+          await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+          await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+          await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa Londoño');
+          await fireEvent.changeText(screen.getByLabelText('Correo'), 'rosa@example.com');
+          await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+          await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+          return (result: { emailSent: boolean }) => act(async () => finish(result));
+        };
+
+        it('tells on the screen, and clears it on the next opening', async () => {
+          const settle = await closeBeforeSettling();
+
+          await settle({ emailSent: false });
+
+          expect(screen.getByText(lateNotSent)).toBeOnTheScreen();
+          expect(screen.queryByTestId('side-sheet')).toBeNull();
+          await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+          expect(screen.queryByText(lateNotSent)).toBeNull();
+        });
+
+        it('says nothing when the email did go out', async () => {
+          const settle = await closeBeforeSettling();
+
+          await settle({ emailSent: true });
+
+          expect(screen.queryByText(lateNotSent)).toBeNull();
+        });
       });
 
       it('tells on the screen when the invitation of a closed sheet fails even if the school has no coaches', async () => {

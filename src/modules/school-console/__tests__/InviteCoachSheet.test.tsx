@@ -50,6 +50,27 @@ describe('InviteCoachSheet once the invitation is created', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it.each([[{ emailSent: true }], [undefined]])('shows the success text when onSubmit resolves %p', async (result) => {
+    await open({ onSubmit: jest.fn().mockResolvedValue(result) });
+
+    await create();
+
+    expect(screen.getByText('Invitación creada para rosa@example.com.')).toBeOnTheScreen();
+    expect(screen.queryByText('La invitación quedó creada pero el correo no salió.')).toBeNull();
+  });
+
+  it('says the email did not go out, instead of the success text, and still offers to share', async () => {
+    const { onClose } = await open({ onSubmit: jest.fn().mockResolvedValue({ emailSent: false }) });
+
+    await create();
+
+    expect(screen.getByText('La invitación quedó creada pero el correo no salió.')).toBeOnTheScreen();
+    expect(screen.queryByText('Invitación creada para rosa@example.com.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Compartir invitación' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Listo' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the form while the invitation is not created', async () => {
     await open({ onSubmit: jest.fn().mockRejectedValue(new Error('offline')) });
 
