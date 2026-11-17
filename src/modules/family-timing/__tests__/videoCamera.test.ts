@@ -35,17 +35,17 @@ describe('video camera gallery album', () => {
 
   it('creates the Swimcro album with the first kept video', async () => {
     mockAlbum.get.mockResolvedValue(null);
-    await videoCamera!.keep('file:///cache/recording-1.mp4', 'TrailSkill_time-1');
+    await videoCamera!.keep('file:///cache/recording-1.mp4', 'Swimcro_time-1');
     expect(mockAlbum.get).toHaveBeenCalledWith('Swimcro');
-    expect(mockAlbum.create).toHaveBeenCalledWith('Swimcro', [{ uri: 'file:///cache/TrailSkill_time-1.mp4' }], true);
+    expect(mockAlbum.create).toHaveBeenCalledWith('Swimcro', [{ uri: 'file:///cache/Swimcro_time-1.mp4' }], true);
   });
 
   it('adds later videos to the existing Swimcro album', async () => {
     const album = { add: jest.fn(async () => {}) };
     mockAlbum.get.mockResolvedValue(album);
-    await videoCamera!.keep('file:///cache/recording-2.mp4', 'TrailSkill_time-2');
+    await videoCamera!.keep('file:///cache/recording-2.mp4', 'Swimcro_time-2');
     expect(mockAlbum.get).toHaveBeenCalledWith('Swimcro');
-    expect(album.add).toHaveBeenCalledWith({ uri: 'file:///cache/TrailSkill_time-2.mp4' });
+    expect(album.add).toHaveBeenCalledWith({ uri: 'file:///cache/Swimcro_time-2.mp4' });
     expect(mockAlbum.create).not.toHaveBeenCalled();
   });
 });

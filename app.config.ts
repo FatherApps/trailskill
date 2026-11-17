@@ -37,7 +37,7 @@ const config: ExpoConfig = {
       'expo-media-library',
       {
         photosPermission: false,
-        savePhotosPermission: 'TrailSkill guarda en tu galería los videos que grabas con el cronómetro.',
+        savePhotosPermission: 'Swimcro guarda en tu galería los videos que grabas con el cronómetro.',
         isAccessMediaLocationEnabled: false,
         granularPermissions: [],
       },

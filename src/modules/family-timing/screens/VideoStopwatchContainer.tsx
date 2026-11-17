@@ -49,7 +49,7 @@ const recordingClock = (millis: number) => {
 
 /** The video's name in the gallery: the time's id, so a phone that later gets the time can find its video (decision 19). */
 export const videoName = (measurementId: string | null, at: Date = new Date()) =>
-  measurementId ? `TrailSkill_${measurementId}` : `TrailSkill_${at.toISOString().replace(/[:.]/g, '-')}`;
+  measurementId ? `Swimcro_${measurementId}` : `Swimcro_${at.toISOString().replace(/[:.]/g, '-')}`;
 
 // The individual stopwatch with the rear camera (#1088). The stopwatch works as without video, on the same clock and
 // keys; recording only starts and stops with its own button, or a few seconds after the clock stops (Ajustes).
