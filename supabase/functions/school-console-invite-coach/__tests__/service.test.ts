@@ -1,5 +1,7 @@
+import type { InvitationSender } from '../port.ts';
 import { createInviteCoach } from '../service.ts';
 import { createResendSender } from '../resendSender.ts';
+import { selectSender } from '../selectSender.ts';
 import { createTestSender, TEST_SENDER_LIMIT } from '../testSender.ts';
 import { createMemoryStore, SCHOOL_NAME } from './fakes.ts';
 
@@ -96,6 +98,52 @@ describe('inviteCoach', () => {
     expect(await inviteCoach({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
     expect(invitations).toHaveLength(1);
     expect(keys).toEqual(['coach-invitation/invitation-1', 'coach-invitation/invitation-1']);
+  });
+
+  describe('logging a failed delivery', () => {
+    const KEY = 're_test_not_a_real_key';
+    const BODY = 'secret-body-detail';
+    const FROM = 'Swimcro <no-reply@example.test>';
+    let error: jest.SpyInstance;
+    beforeEach(() => {
+      error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    });
+    afterEach(() => error.mockRestore());
+
+    // What this one failed delivery logged.
+    const fail = async (sender: InvitationSender) => {
+      error.mockClear();
+      const { store } = createMemoryStore([SCHOOL]);
+      expect(await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: EMAIL })).toEqual({ ok: false, error: { code: 'unavailable' } });
+      return error.mock.calls.map((call) => call.join(' '));
+    };
+    const respond = (status: number) => (async () => new Response(`${BODY} ${KEY} ${EMAIL}`, { status })) as unknown as typeof globalThis.fetch;
+
+    it('logs only the fixed text of a Resend HTTP failure, a missing sender address, a network failure and a timeout', async () => {
+      const abort = (async (_url: string, init: RequestInit) => new Promise<Response>((_r, reject) => init.signal?.addEventListener('abort', () => reject(init.signal?.reason)))) as unknown as typeof globalThis.fetch;
+      const down = (async () => Promise.reject(new Error(`${KEY} ${EMAIL}`))) as unknown as typeof globalThis.fetch;
+      const logged = [
+        ...(await fail(createResendSender({ apiKey: KEY, from: FROM, fetch: respond(401) }))),
+        ...(await fail(selectSender({ RESEND_API_KEY: KEY }, respond(200)))),
+        ...(await fail(createResendSender({ apiKey: KEY, from: FROM, fetch: down }))),
+        ...(await fail(createResendSender({ apiKey: KEY, from: FROM, fetch: abort, timeoutMs: 20 }))),
+      ];
+      expect(logged).toEqual([
+        'school-console-invite-coach delivery failed: Resend delivery failed (HTTP 401)',
+        'school-console-invite-coach delivery failed: Resend sender is not configured',
+        'school-console-invite-coach delivery failed: Resend delivery failed (network)',
+        'school-console-invite-coach delivery failed: Resend delivery failed (network)',
+      ]);
+      for (const secret of [KEY, 'invitation-1', EMAIL, BODY]) expect(logged.join('\n')).not.toContain(secret);
+    });
+
+    it('logs unknown for any other rejection, whatever its message carries', async () => {
+      const logged = [
+        ...(await fail({ deliver: async () => Promise.reject(new Error(`${EMAIL} invitation-1 ${KEY}`)) })),
+        ...(await fail({ deliver: async () => Promise.reject(`${EMAIL} ${KEY}`) })),
+      ];
+      expect(logged).toEqual(['school-console-invite-coach delivery failed: unknown', 'school-console-invite-coach delivery failed: unknown']);
+    });
   });
 
   it('lets a store failure through', async () => {
