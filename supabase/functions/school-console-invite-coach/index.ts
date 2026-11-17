@@ -5,6 +5,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { createInvitationStore, type Db } from './adapters.ts';
 import { createHandler } from './handler.ts';
 import { selectSender } from './selectSender.ts';
+import { withSendLimit } from './sendLimit.ts';
 import { createInviteCoach } from './service.ts';
 
 const url = Deno.env.get('SUPABASE_URL')!;
@@ -25,6 +26,8 @@ const userDb = (client: ReturnType<typeof clientOf>): Db => ({
   },
 });
 
+const rpcOf = (client: ReturnType<typeof clientOf>) => async (fn: string, args: Record<string, unknown>) => client.rpc(fn, args);
+
 const authenticate = async (request: Request) => {
   const authorization = request.headers.get('Authorization');
   if (!authorization) return null;
@@ -37,6 +40,7 @@ const sender = selectSender({ RESEND_API_KEY: Deno.env.get('RESEND_API_KEY'), RE
 Deno.serve((request) => {
   const authorization = request.headers.get('Authorization');
   // Without a token the handler answers 401 before the store is used.
-  const store = createInvitationStore(userDb(clientOf(authorization ?? '')));
+  const client = clientOf(authorization ?? '');
+  const store = withSendLimit(createInvitationStore(userDb(client)), rpcOf(client));
   return createHandler({ authenticate, service: { inviteCoach: createInviteCoach({ store, sender }) } })(request);
 });

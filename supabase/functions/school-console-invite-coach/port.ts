@@ -1,7 +1,9 @@
 /** A pending invitation of a coach to a school. The school name is there because the message must say who invites. */
 export type Invitation = { id: string; schoolId: string; email: string; schoolName: string };
 
-export type CreateOutcome = { ok: true; value: Invitation } | { ok: false; error: { code: 'not_authorized' } | { code: 'bad_request' } };
+export type CreateOutcome =
+  | { ok: true; value: Invitation }
+  | { ok: false; error: { code: 'not_authorized' } | { code: 'bad_request' } | { code: 'caller_rate_limited' } | { code: 'recipient_rate_limited' } };
 
 /** Where invitations live. Acts as the caller: the database decides whether the caller may invite to the school. */
 export interface InvitationStore {

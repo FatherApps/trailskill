@@ -16,4 +16,8 @@ describe('school-console-invite-coach entry point', () => {
     expect(source).toMatch(/Deno\.env\.get\('RESEND_FROM'\)/);
     expect(source).toMatch(/selectSender\(/);
   });
+
+  it('wraps the invitation store with the send limit, over the same caller client', () => {
+    expect(source).toMatch(/withSendLimit\(createInvitationStore\(userDb\(client\)\), rpcOf\(client\)\)/);
+  });
 });

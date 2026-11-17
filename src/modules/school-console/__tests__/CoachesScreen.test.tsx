@@ -6,6 +6,9 @@ import { coachesFixture, inviteGroupsFixture, pendingCoachFixture } from '../__f
 import { schoolNameFixture, storedOnFixture } from '../__fixtures__/athletes';
 import { CoachesScreen, type CoachesContent, type CoachesScreenProps, type CoachesView } from '../screens/CoachesScreen';
 
+// What CoachInvitationError carries: the server's code on the error (the data layer is not loaded here).
+const serverError = (code: string) => Object.assign(new Error(`The coach invitation was not sent (${code})`), { code });
+
 const content: CoachesContent = { updatedMinutesAgo: 2, coaches: coachesFixture };
 
 const show = async (view: CoachesView, extra: Partial<CoachesScreenProps> = {}) => {
@@ -362,6 +365,35 @@ describe('CoachesScreen', () => {
         expect(screen.getByLabelText('Correo')).toHaveDisplayValue('rosa@example.com');
         expect(screen.getByRole('radio', { name: 'Grupo A' })).toBeChecked();
         expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
+      });
+
+      it.each([
+        ['caller_rate_limited', 'Enviaste muchas invitaciones hoy. Inténtalo de nuevo más tarde.'],
+        ['recipient_rate_limited', 'Ya enviamos varias invitaciones a este correo hoy. Inténtalo de nuevo más tarde.'],
+      ])('says why when the server answers %s, and not the generic text', async (code, text) => {
+        const onInvite = jest.fn().mockRejectedValue(serverError(code));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fill();
+
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+
+        expect(screen.getByText(text)).toBeOnTheScreen();
+        expect(screen.queryByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeNull();
+        expect(screen.getByLabelText('Correo')).toHaveDisplayValue('rosa@example.com');
+      });
+
+      it('keeps the generic text for any other server code, and clears the error when the typing changes', async () => {
+        const onInvite = jest.fn().mockRejectedValue(serverError('unavailable'));
+        await show({ kind: 'data', content }, { groups: inviteGroupsFixture, onInvite });
+        await fireEvent.press(screen.getByRole('button', { name: 'Invitar entrenador' }));
+        await fill();
+        await fireEvent.press(screen.getByRole('button', { name: 'Enviar invitación' }));
+        expect(screen.getByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeOnTheScreen();
+
+        await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Rosa');
+
+        expect(screen.queryByText('No pudimos enviar la invitación. Inténtalo de nuevo.')).toBeNull();
       });
 
       it('closes the sheet when a retry works, and sends the same data again', async () => {
