@@ -11,7 +11,7 @@
 # timing_guardian_school_times_sharing, timing_coach_reads_assignment_school,
 # training-plans_coach_reads_fulfillments_assignment_school,
 # training-plans_admin_reads_fulfillments_assignment_school,
-# athletes_coach_reads_enrollment_school):
+# athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -49,11 +49,16 @@ streams:
       - SELECT * FROM athletes WHERE id IN managed_athlete_ids OR id IN coach_direct_athlete_ids OR id IN coach_group_athlete_ids OR id IN admin_athlete_ids
       # A coach gets an enrollment or group row of an athlete only for a school where that swimmer is assigned to them,
       # directly or through a group of that school (#1132; athlete_schools_select, athlete_groups_select): the joins bind
-      # swimmer and school as training_plans_fulfillments does. One query per source, so each stays a plain AND.
-      - SELECT * FROM athlete_schools WHERE athlete_id IN managed_athlete_ids OR athlete_id IN admin_athlete_ids
+      # swimmer and school as training_plans_fulfillments does. An admin gets them only for the schools they administer
+      # (#1150): the enrollment row is itself the (swimmer, school) pair, and a group row joins the enrollment of its
+      # school. One query per source, so each stays a plain AND. admin_athlete_ids stays school-free by design for the
+      # athletes, athlete_managers and authorization_status rows: they have no school column.
+      - SELECT * FROM athlete_schools WHERE athlete_id IN managed_athlete_ids
+      - SELECT * FROM athlete_schools WHERE school_id IN admin_school_ids
       - SELECT athlete_schools.* FROM athlete_schools JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND athlete_schools.school_id IN member_school_ids
       - SELECT athlete_schools.* FROM athlete_schools JOIN athlete_groups ON athlete_schools.athlete_id = athlete_groups.athlete_id JOIN training_groups ON athlete_groups.group_id = training_groups.id AND athlete_schools.school_id = training_groups.school_id WHERE athlete_groups.group_id IN coach_group_ids AND athlete_schools.school_id IN member_school_ids
-      - SELECT * FROM athlete_groups WHERE athlete_id IN managed_athlete_ids OR athlete_id IN admin_athlete_ids
+      - SELECT * FROM athlete_groups WHERE athlete_id IN managed_athlete_ids
+      - SELECT athlete_groups.* FROM athlete_groups JOIN training_groups ON athlete_groups.group_id = training_groups.id JOIN athlete_schools ON athlete_groups.athlete_id = athlete_schools.athlete_id AND training_groups.school_id = athlete_schools.school_id WHERE athlete_schools.school_id IN admin_school_ids
       - SELECT athlete_groups.* FROM athlete_groups JOIN training_groups ON athlete_groups.group_id = training_groups.id JOIN coach_athlete_assignments ON athlete_groups.athlete_id = coach_athlete_assignments.athlete_id AND training_groups.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND athlete_groups.group_id IN member_group_ids
       - SELECT athlete_groups.* FROM athlete_groups JOIN training_groups ON athlete_groups.group_id = training_groups.id JOIN athlete_groups AS coached ON athlete_groups.athlete_id = coached.athlete_id JOIN training_groups AS coached_groups ON coached.group_id = coached_groups.id AND training_groups.school_id = coached_groups.school_id WHERE coached.group_id IN coach_group_ids AND athlete_groups.group_id IN member_group_ids
 

@@ -3,7 +3,8 @@
 -- fulfillments). A swimmer of schools A and B assigned to coach K only in B: K reads the B enrollment row and the B
 -- group rows, not the A ones. Before this change the policies checked the swimmer (app.coach_athlete_ids()) and the
 -- school (app.staff_school_ids()) separately, so K read every row of that swimmer in any school where K is active.
--- The admin, platform admin and managed (guardian, adult athlete) branches do not change.
+-- The platform admin and managed (guardian, adult athlete) branches do not change. The admin branch binds the school
+-- the same way since #1150: supabase/tests/database/athletes/admin_enrollment_school.test.sql.
 -- The athletes_visible stream gives staff the same rows; src/modules/athletes/__tests__/coachAthletesSyncStream.test.ts
 -- pins its queries: change both together.
 -- Users: platform admin P (a1), school admins SA of A (a2) and SB of B (a3), coach K active in A and B (a4, e1 direct
@@ -146,13 +147,13 @@ select pg_temp.as_user('aa');
 select is(pg_temp.seen_schools(), '', 'X, admin of school C only, reads no enrollment row');
 select is(pg_temp.seen_groups(), '', 'X, admin of school C only, reads no group row');
 
--- 4. School admins read every row of a swimmer enrolled in a school they administer (the admin branch is unchanged).
+-- 4. School admins read the enrollment and group rows of the swimmers only in the schools they administer (#1150).
 select pg_temp.as_user('a2');
-select is(pg_temp.seen_schools(), 'e1:b1,e1:b2,e2:b1,e2:b2,e3:b1', 'SA reads every enrollment row of e1, e2 and e3');
-select is(pg_temp.seen_groups(), 'e1:c1,e1:c3,e2:c1,e2:c2,e3:c1', 'SA reads every group row of e1, e2 and e3');
+select is(pg_temp.seen_schools(), 'e1:b1,e2:b1,e3:b1', 'SA reads the A enrollment rows of e1, e2 and e3, not their B ones');
+select is(pg_temp.seen_groups(), 'e1:c1,e2:c1,e3:c1', 'SA reads the A group rows of e1, e2 and e3, not their B ones');
 select pg_temp.as_user('a3');
-select is(pg_temp.seen_schools(), 'e1:b1,e1:b2,e2:b1,e2:b2', 'SB reads every enrollment row of e1 and e2');
-select is(pg_temp.seen_groups(), 'e1:c1,e1:c3,e2:c1,e2:c2', 'SB reads every group row of e1 and e2');
+select is(pg_temp.seen_schools(), 'e1:b2,e2:b2', 'SB reads the B enrollment rows of e1 and e2, not their A ones');
+select is(pg_temp.seen_groups(), 'e1:c3,e2:c2', 'SB reads the B group rows of e1 and e2, not their A ones');
 
 -- 5. Platform admin reads everything.
 select pg_temp.as_user('a1');
