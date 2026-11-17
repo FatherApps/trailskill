@@ -64,9 +64,15 @@ union all select 'auth users with this email', count(*) from auth.users where lo
 
 Expected on an empty PROD: `schools` 0, `organizations` 0, `school_memberships` 0, `schools with this name` 0, and `auth users with this email` **1** (the person signed in in step 1). If the last one is 0, go back to step 1. If `schools with this name` is 2 or more, stop: the SQL refuses on purpose, and the maintainer decides which school is the right one.
 
+School names are not unique, so **a typo in the name creates another school** instead of reusing the right one. On an empty PROD this cannot happen. On a PROD that already has schools, list them first (`select id, name from public.schools order by name;`) and check that the name you will use is exactly the existing one (if you mean to reuse it) or is really new. Review this before running step 3.
+
 ### 3. Run the SQL
 
 Replace the markers inside the single quotes, keeping the quotes. Leave the three parent values empty (`''`) for no parent. Do not use a single quote inside a value; if the name has one, write it twice (`''`).
+
+**Use the same school name and the same email on every run.** Re-running with the same values changes nothing, but re-running with the same school name and a **different** email adds a second active `school_admin` to that school without any warning, and the check of step 4 then shows 2 instead of 1. If you want a second administrator, do it on purpose (a new, separate run with that person's email, after they signed in once), never by re-running with other values. The same applies to the school name: a different spelling creates another school (see step 2).
+
+If you reuse an existing parent organization (found by type and name), it keeps its own country: a different `v_parent_country` is ignored, not applied.
 
 Save the edited SQL only in your terminal session or a scratch file outside the repository, and run it with `ON_ERROR_STOP`:
 
@@ -74,7 +80,7 @@ Save the edited SQL only in your terminal session or a scratch file outside the 
 psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f first-admin.sql
 ```
 
-or paste it into an open `psql` session started with `psql -U postgres -d postgres -v ON_ERROR_STOP=1`. Without `ON_ERROR_STOP`, `psql` would go on after an error and its `commit` would just end the aborted transaction; keep the flag so the failure is loud.
+or paste it into an open `psql` session started with `psql -U postgres -d postgres -v ON_ERROR_STOP=1`. This runbook assumes `psql`. If you use the SQL editor of Studio instead (reached internally, never published), paste the **whole block, from `begin;` to `commit;`, and run it in a single execution**: running it in pieces would break the transaction. Without `ON_ERROR_STOP`, `psql` would go on after an error and its `commit` would just end the aborted transaction; keep the flag so the failure is loud.
 
 ```sql
 begin;
@@ -202,7 +208,7 @@ where s.name = '<ESCUELA>'
 ### 5. The administrator opens the console
 
 - [ ] Ask the person to reopen the app, or pull to refresh, so the sync brings the new membership to the device. The first sync after the SQL can take a few seconds.
-- [ ] Expected: the app lands on the **school console**. The landing (`src/app/(app)/index.tsx`, `resolveLanding` in `src/modules/accounts/data/landing.ts`) sends an account with a `school_admin` membership to `/console`, on a phone and on a tablet alike (the width only matters for guardians and adult athletes). On a **tablet** (width at or above the `bp-medium` breakpoint) the console shows its navigation beside the content; on a **phone** it uses the compact layout (`ConsoleLayout.tsx`), one screen at a time. The school name is the one set in step 3, and the Categories section is empty.
+- [ ] Expected: the app lands on the **school console**. The landing (`src/app/(app)/index.tsx`, `resolveLanding` in `src/modules/accounts/data/landing.ts`) sends an account with a `school_admin` membership to `/console`, on a phone and on a tablet alike (the width only matters for guardians and adult athletes). On a wide tablet (width at or above the `bp-expanded` breakpoint, 1024) the console shows its navigation at the side of the content; on a tablet between `bp-medium` (600) and `bp-expanded` the navigation is at the top; on a **phone** it uses the compact layout, one screen at a time, with the same top navigation (`src/modules/school-console/components/ConsoleLayout.tsx`). The school name is the one set in step 3, and the Categories section is empty.
 - [ ] If the person still sees the home screen after a sync, check the membership with the step 4 query and that the person signed in with the same email. The landing waits up to 5 seconds for the first sync and then falls back to the home screen: reopen the app once more.
 
 ### 6. Invite the first coach from the console
@@ -234,7 +240,9 @@ Without the Resend variables the function sends nothing.
 
 **After `commit`:** the undo below deletes the administrator's membership, the school, its organization row and, optionally, a parent organization that this run created. It is only valid **while nothing else references the school**. If a coach, category, athlete or any other row already points to the school, the delete fails on a foreign key, nothing is deleted, and the maintainer decides what to do. It also fails if the school already has categories, on purpose: it never deletes data an administrator typed. Do not delete by hand around the failure.
 
-Replace the markers and run with `psql -v ON_ERROR_STOP=1`. Set `v_delete_parent` to `true` only if the parent organization was created by this run and nothing else uses it.
+Replace the markers and run with `psql -v ON_ERROR_STOP=1` (or, in the Studio SQL editor, paste the whole block and run it once). Set `v_delete_parent` to `true` only if the parent organization was created by this run and nothing else uses it.
+
+**Warning: the undo deletes any school with that name that nothing references, even one this run did not create.** It looks the school up by name only. Check with the step 2 listing that the name belongs to the school you mean to remove before you run it. With `v_delete_parent` set to `true` it also deletes the parent organization, so the same check applies to the parent.
 
 ```sql
 begin;
