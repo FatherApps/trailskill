@@ -11,7 +11,7 @@ export interface InvitationStore {
   create(schoolId: string, email: string): Promise<CreateOutcome>;
 }
 
-/** How an invitation reaches the coach. Rejects when it was not delivered. */
+/** How an invitation reaches the coach. Resolves true when an email left, false when the adapter sent nothing (the test sender). Rejects when delivery failed. */
 export interface InvitationSender {
-  deliver(invitation: Invitation): Promise<void>;
+  deliver(invitation: Invitation): Promise<boolean>;
 }

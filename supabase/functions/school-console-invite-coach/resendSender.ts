@@ -5,7 +5,7 @@ import { resendBody, resendSubject } from './resendTexts.ts';
 export const RESEND_TIMEOUT_MS = 10_000;
 
 /**
- * Sends the invitation as an email through Resend. Rejects when it was not delivered. The errors say the HTTP status or
+ * Sends the invitation as an email through Resend. Resolves true once Resend accepted the email; rejects when it was not delivered. The errors say the HTTP status or
  * "network" and nothing else: the response body, the request and the error of a failed call could echo the key or the address.
  * `from` is the sender verified in Resend; without it every delivery fails before any request leaves. A timeout counts as a
  * network failure. The Idempotency-Key is per invitation: for 24 hours Resend answers a repeated delivery without sending again.
@@ -38,6 +38,7 @@ export function createResendSender({
       // An unread body keeps its resource open in Deno; releasing it must never change the outcome.
       await response.body?.cancel().catch(() => undefined);
       if (!response.ok) throw new Error(`Resend delivery failed (HTTP ${response.status})`);
+      return true;
     },
   };
 }

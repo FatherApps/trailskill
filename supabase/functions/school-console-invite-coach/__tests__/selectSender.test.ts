@@ -32,7 +32,7 @@ describe('selectSender', () => {
   ])('uses the test sender, which sends nothing, when the key is %s', async (_name, key) => {
     const { fetch, calls } = fakeFetch();
     const sender = selectSender({ RESEND_API_KEY: key, RESEND_FROM: FROM }, fetch);
-    await expect(sender.deliver(INVITATION)).resolves.toBeUndefined();
+    await expect(sender.deliver(INVITATION)).resolves.toBe(false);
     expect(calls).toEqual([]);
     expect((sender as { delivered?: Invitation[] }).delivered).toEqual([INVITATION]);
     expect(warn.mock.calls).toEqual([[WARNING]]);
@@ -40,7 +40,7 @@ describe('selectSender', () => {
 
   it('uses Resend with the key and the sender address when both are set', async () => {
     const { fetch, calls } = fakeFetch(200);
-    await expect(selectSender({ RESEND_API_KEY: KEY, RESEND_FROM: FROM }, fetch).deliver(INVITATION)).resolves.toBeUndefined();
+    await expect(selectSender({ RESEND_API_KEY: KEY, RESEND_FROM: FROM }, fetch).deliver(INVITATION)).resolves.toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('https://api.resend.com/emails');
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe(`Bearer ${KEY}`);
@@ -55,7 +55,7 @@ describe('selectSender', () => {
     expect(calls).toEqual([]);
 
     const { store } = createMemoryStore([SCHOOL]);
-    expect(await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: INVITATION.email })).toEqual({ ok: false, error: { code: 'unavailable' } });
+    expect(await createInviteCoach({ store, sender })({ schoolId: SCHOOL, email: INVITATION.email })).toEqual({ ok: false, error: { code: 'unavailable', invitationId: 'invitation-1' } });
     expect(calls).toEqual([]);
   });
 });

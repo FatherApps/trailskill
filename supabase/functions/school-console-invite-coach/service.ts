@@ -9,23 +9,25 @@ export type InviteError =
   | { code: 'bad_request' }
   | { code: 'caller_rate_limited' }
   | { code: 'recipient_rate_limited' }
-  | { code: 'unavailable' };
-export type InviteOutcome = { ok: true; value: { invitationId: string } } | { ok: false; error: InviteError };
+  | { code: 'unavailable'; invitationId: string };
+export type InviteOutcome = { ok: true; value: { invitationId: string; emailSent: boolean } } | { ok: false; error: InviteError };
 
 /**
- * Creates the pending invitation, then delivers it. When delivery fails the pending invitation stays: inviting the same email
- * again reuses it and delivers again. A store failure is not caught here.
+ * Creates the pending invitation, then delivers it. `emailSent` says whether an email left (false for the test sender). When
+ * delivery fails the pending invitation stays and its id is answered with `unavailable`: inviting the same email again reuses it
+ * and delivers again. A store failure is not caught here.
  */
 export function createInviteCoach({ store, sender }: { store: InvitationStore; sender: InvitationSender }) {
   return async function inviteCoach({ schoolId, email }: { schoolId: string; email: string }): Promise<InviteOutcome> {
     const created = await store.create(schoolId, email);
     if (!created.ok) return created;
+    let emailSent: boolean;
     try {
-      await sender.deliver(created.value);
+      emailSent = await sender.deliver(created.value);
     } catch (error) {
       console.error(`school-console-invite-coach delivery failed: ${error instanceof Error && LOGGABLE.test(error.message) ? error.message : 'unknown'}`);
-      return { ok: false, error: { code: 'unavailable' } };
+      return { ok: false, error: { code: 'unavailable', invitationId: created.value.id } };
     }
-    return { ok: true, value: { invitationId: created.value.id } };
+    return { ok: true, value: { invitationId: created.value.id, emailSent } };
   };
 }

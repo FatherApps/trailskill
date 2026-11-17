@@ -1,5 +1,7 @@
 import { createInvitationStore, type Db } from '../adapters.ts';
 import { createHandler } from '../handler.ts';
+import type { InvitationSender } from '../port.ts';
+import { createResendSender } from '../resendSender.ts';
 import { createInviteCoach } from '../service.ts';
 import { createTestSender } from '../testSender.ts';
 import { withSendLimit } from '../sendLimit.ts';
@@ -8,7 +10,7 @@ import { createMemoryLimiter, createMemoryStore, SCHOOL_NAME } from './fakes.ts'
 const SCHOOL = '11111111-1111-4111-8111-111111111111';
 const OTHER_SCHOOL = '22222222-2222-4222-8222-222222222222';
 
-function setup(options: { userId?: string | null; adminOf?: string[]; sender?: { deliver: () => Promise<void> } } = {}) {
+function setup(options: { userId?: string | null; adminOf?: string[]; sender?: InvitationSender } = {}) {
   const { store, invitations } = createMemoryStore(options.adminOf ?? [SCHOOL]);
   const testSender = createTestSender();
   const handle = createHandler({
@@ -25,7 +27,7 @@ describe('school-console-invite-coach handler', () => {
     const s = setup();
     const response = await s.post({ schoolId: SCHOOL, email: '  Coach@Example.TEST ' });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+    expect(await response.json()).toEqual({ ok: true, value: { invitationId: 'invitation-1', emailSent: false } });
     expect(s.invitations).toEqual([{ id: 'invitation-1', schoolId: SCHOOL, email: 'coach@example.test', schoolName: SCHOOL_NAME }]);
     expect(s.delivered).toEqual(s.invitations);
   });
@@ -106,15 +108,55 @@ describe('school-console-invite-coach handler', () => {
     const failing = setup({ sender: { deliver: async () => Promise.reject(new Error('down')) } });
     const response = await failing.post({ schoolId: SCHOOL, email: 'coach@example.test' });
     expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ ok: false, error: { code: 'unavailable' } });
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'unavailable', invitationId: 'invitation-1' } });
     expect(failing.invitations).toHaveLength(1);
 
     const s = setup();
     await s.post({ schoolId: SCHOOL, email: 'coach@example.test' });
     const again = await s.post({ schoolId: SCHOOL, email: 'COACH@example.test' });
-    expect(await again.json()).toEqual({ ok: true, value: { invitationId: 'invitation-1' } });
+    expect(await again.json()).toEqual({ ok: true, value: { invitationId: 'invitation-1', emailSent: false } });
     expect(s.invitations).toHaveLength(1);
     expect(s.delivered).toHaveLength(2);
+  });
+
+  describe('with the Resend sender', () => {
+    const KEY = 're_test_not_a_real_key';
+    const BODY = 'secret-body-detail';
+    const EMAIL = 'coach@example.test';
+    const resend = (fetch: typeof globalThis.fetch, timeoutMs?: number) =>
+      setup({ sender: createResendSender({ apiKey: KEY, from: 'Swimcro <no-reply@example.test>', fetch, timeoutMs }) });
+    const respondWith = (status: number) => (async () => new Response(`${BODY} ${KEY} ${EMAIL}`, { status })) as unknown as typeof globalThis.fetch;
+    const hang = (async (_url: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(init.signal?.reason)))) as unknown as typeof globalThis.fetch;
+    const down = (async () => Promise.reject(new Error(`${KEY} ${EMAIL}`))) as unknown as typeof globalThis.fetch;
+
+    it('answers 200 with emailSent true when Resend accepts the email', async () => {
+      const response = await resend(respondWith(200)).post({ schoolId: SCHOOL, email: EMAIL });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true, value: { invitationId: 'invitation-1', emailSent: true } });
+    });
+
+    it.each([
+      ['an HTTP 500', () => resend(respondWith(500))],
+      ['a network error', () => resend(down)],
+      ['a timeout', () => resend(hang, 20)],
+    ])('answers 502 with the invitation id after %s, keeps the invitation, and leaks neither the key, the Resend body nor the email', async (_name, build) => {
+      const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const s = build();
+      const response = await s.post({ schoolId: SCHOOL, email: EMAIL });
+      const text = await response.text();
+      expect(response.status).toBe(502);
+      expect(JSON.parse(text)).toEqual({ ok: false, error: { code: 'unavailable', invitationId: 'invitation-1' } });
+      expect(s.invitations).toHaveLength(1);
+      const logged = [...error.mock.calls, ...warn.mock.calls].flat().join(' ');
+      for (const secret of [KEY, BODY, EMAIL]) {
+        expect(text).not.toContain(secret);
+        expect(logged).not.toContain(secret);
+      }
+      error.mockRestore();
+      warn.mockRestore();
+    });
   });
 
   it('answers 500 without the error message when something throws', async () => {
