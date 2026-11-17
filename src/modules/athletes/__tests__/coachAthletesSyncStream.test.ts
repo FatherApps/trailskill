@@ -61,11 +61,12 @@ test("no athletes_visible query reads the enrollment or the group rows through t
   expect(schoolFree).toEqual([]);
 });
 
-test("the managed and admin queries of athlete_schools and athlete_groups do not change", () => {
+test("the managed queries of athlete_schools and athlete_groups do not change", () => {
+  // The admin queries moved to adminAthletesSyncStream.test.ts (#1150).
   expect(streamQueries).toContain(
-    "SELECT * FROM athlete_schools WHERE athlete_id IN managed_athlete_ids OR athlete_id IN admin_athlete_ids",
+    "SELECT * FROM athlete_schools WHERE athlete_id IN managed_athlete_ids",
   );
   expect(streamQueries).toContain(
-    "SELECT * FROM athlete_groups WHERE athlete_id IN managed_athlete_ids OR athlete_id IN admin_athlete_ids",
+    "SELECT * FROM athlete_groups WHERE athlete_id IN managed_athlete_ids",
   );
 });
