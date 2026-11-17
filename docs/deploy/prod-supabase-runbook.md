@@ -150,4 +150,4 @@ Nothing here changes anything. Do it when steps 1 to 7 are done:
 
 ## What comes next
 
-When every box is marked, tell the maintainer. The next steps are other issues: the `deploy` compose, the domains and the Cloudflare route (#1116), Edge Functions and the function's `pg_cron` (#1117), the first school administrator (#1118), backups with a tested restore, which gate inviting real families (#1119), and the cut to PROD (#1120).
+When every box is marked, tell the maintainer. The next steps are other issues: the `deploy` compose, the domains and the Cloudflare route (#1116), Edge Functions and the function's `pg_cron` (#1117), the first school administrator ([#1118](prod-first-admin-runbook.md)), backups with a tested restore, which gate inviting real families (#1119), and the cut to PROD (#1120).
