@@ -57,7 +57,7 @@ S3 has no rename, so `backup-r2.sh` replaces the previous copy in five steps. Th
 
 1. Check locally that `encrypted_sha256` in the manifest is well formed and equals the sha256 of the encrypted file.
 2. Upload the new copy to `dumps/<sha>.dump.age`. It never overwrites the previous copy, which has another name.
-3. Read it back from the bucket and compare its sha256. If it does not verify, delete the new object and exit non-zero: the previous copy is untouched.
+3. Read it back from the bucket and compare its sha256. If it does not verify, exit non-zero: the manifest is untouched. The object is not deleted (a re-push of the same pair has the same key as the live copy); the next successful push removes any stray object.
 4. Publish the manifest (a single object put, atomic) and read it back.
 5. Only now delete every other object under `dumps/`. A failure here is a warning with exit 0 (the new copy is already committed); the next run retries.
 
@@ -110,6 +110,8 @@ sh deploy/scripts/restore-check.sh --freshness
 ```
 
 with `BACKUP_FETCH_CMD` set (the `backup-r2.sh` line and the read-only token) and optionally `BACKUP_MAX_AGE_HOURS` (default 26). It needs no private key, no Docker and no `age`. It fails when the copy is older than the limit (the backup failed or stopped running, including a scheduler that never fired), when every key table in the manifest has 0 rows, when the manifest is unreadable, or when the stored file does not match its manifest checksum (for example a half-replaced pair). Route its failure to the same notification.
+
+Schedule the freshness job **hours apart** from the backup. `fetch` reads the manifest and then the dump it names in two requests; if a push publishes a new manifest and deletes the old dump in between, the fetch fails with "the copy named by the manifest is missing" although the stored pair is healthy. That can only happen when the two jobs overlap, and a single rerun resolves it (there is no retry code).
 
 ## Encryption key
 

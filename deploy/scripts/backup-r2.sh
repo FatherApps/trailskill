@@ -41,10 +41,9 @@ push() {
 
   # 1-2. new dump under its own key, then read it back and compare (a failed read hashes differently)
   rclone copyto "$enc" "$obj" || die "upload failed; previous copy untouched"
-  if [ "$(rclone cat "$obj" | sha256)" != "$sha" ]; then
-    rclone deletefile "$obj" >/dev/null 2>&1 || true
-    die "uploaded copy does not verify; previous copy untouched"
-  fi
+  # Never delete $obj here: the key is content-addressed, so on a re-push it may be the live copy. A stray
+  # object is removed by the next successful push.
+  [ "$(rclone cat "$obj" | sha256)" = "$sha" ] || die "uploaded copy does not verify; previous copy untouched"
 
   # 3. commit point: publish the manifest, then read it back
   rclone copyto "$mf" "$R/$MANIFEST_KEY" || die "cannot publish the manifest; the previous copy is still the latest"
