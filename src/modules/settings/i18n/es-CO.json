@@ -59,6 +59,18 @@
       "stop_after_label": "Parar el video después de detener el reloj",
       "stop_after_hint": "El cronómetro se detiene al marcar la llegada; el video sigue estos segundos y se para solo, por si no lo paras tú.",
       "seconds": "{{count}} s"
+    },
+    "versionGate": {
+      "blocked": {
+        "title": "Actualiza Swimcro",
+        "message": "Esta versión de Swimcro ya no funciona. Actualiza desde Google Play para seguir usándola.",
+        "action": "Actualizar en Play"
+      },
+      "banner": {
+        "message": "Hay una versión nueva de Swimcro.",
+        "action": "Actualizar",
+        "dismiss": "Cerrar aviso"
+      }
     }
   }
 }
