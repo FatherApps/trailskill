@@ -142,7 +142,7 @@ Every OTA on top of the store release `vX.Y.Z` is tagged `vX.Y.Z+ota.N` on the p
 
 ### Pull request classification
 
-Every pull request is classified before it opens, with the delivery checkbox of #1186: «Apto para OTA» or «Requiere build de Play». Only pull requests marked «Apto para OTA» may ship by OTA. The CI check that compares the checkbox with the diff arrives with #1186 and is still pending there.
+Every pull request is classified before it opens, with the delivery checkbox of #1186: «Apto para OTA» or «Requiere build de Play». Only pull requests marked «Apto para OTA» may ship by OTA. The CI check [`.github/scripts/check-ota.sh`](../.github/scripts/check-ota.sh) compares the checkbox with the diff and rejects «Apto para OTA» when the diff touches a build path (see [`CONTRIBUTING.md`](../CONTRIBUTING.md#required-checks)).
 
 ### The 0.1.0 build never receives OTA
 

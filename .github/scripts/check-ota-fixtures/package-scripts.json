@@ -1,0 +1,7 @@
+{
+  "name": "synthetic-app",
+  "version": "1.0.1",
+  "scripts": { "test": "jest --ci" },
+  "dependencies": { "react": "19.0.0" },
+  "devDependencies": { "jest": "29.0.0" }
+}
