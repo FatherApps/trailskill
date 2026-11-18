@@ -24,6 +24,7 @@ Created together with the project scaffold in `eas.json`:
 | --- | --- | --- | --- |
 | `development` | Development client for local work | internal | none |
 | `preview` | Builds for team testing | internal | `preview` |
+| `qa` | Same build as `preview` (extends it), for the last OTA stage before production | internal | `qa` |
 | `production` | Google Play builds (AAB) | store | `production` |
 
 ## Backend environments and release order
@@ -41,9 +42,10 @@ The app takes its three public values (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_
 | --- | --- | --- |
 | `development` (and local runs) | None (see [Local development](local-development.md)) | Local, or QA |
 | `preview`, and the [debug-signed test APK](#test-builds-debug-signed-apk) | Not `production` | QA |
+| `qa` | Not `production` | QA |
 | `production` (Google Play) | `production` | **QA until the cut to PROD**, then PROD |
 
-Today the EAS `production` environment still holds the QA values (see [State on 16 November 2026](#state-on-16-november-2026)), so the Play build talks to QA. The cut below changes that. An OTA update on the `production` channel carries the values of the environment it was published from.
+Today the EAS `production` environment still holds the QA values (see [State on 16 November 2026](#state-on-16-november-2026)), so the Play build talks to QA. The cut below changes that. An OTA update carries the values of the environment it was published from ([channels and environments](#channels-builds-and-environments)).
 
 ### Order for each version
 
@@ -70,7 +72,7 @@ The first time, the Play build changes backend from QA to PROD (#1120). Precondi
 4. **Smoke test on a phone, internal team only** ([Release checklist](#release-checklist)): sign in with Google and with the emailed code, sync, and invite a coach. QA accounts do not exist in PROD and register again; check that a QA account cannot sign in to PROD.
 5. **Record the result** in #1120 (evidence without personal data).
 
-**Proposed — to confirm in #1120 (not a confirmed rule):** bump `expo.version` for the PROD build. The runtime version follows `expo.version` ([Over-the-air updates](#over-the-air-updates-eas-update)), so builds that still point to QA would not receive an OTA update published with PROD values. This is a proposal from the author of this page; #1120 decides it.
+The earlier proposal to bump `expo.version` for the PROD build no longer applies: with the fingerprint policy, bumping `expo.version` does not change the runtime, and a build that points to QA has the same fingerprint as one that points to PROD, so the cut to PROD relies on the EAS environment used at publish time ([channels and environments](#channels-builds-and-environments)); #1120 keeps its scope.
 
 Real families are **not** invited to PROD until an off-server backup and a tested restore exist (#1119, [ADR 0002 amendment](decisions/0002-backend-hosting-on-dokploy.md#amendment-2026-11-16-qa-and-prod-environments-email-provider-and-backups)). The cut itself does not open PROD to them.
 
@@ -104,11 +106,47 @@ Real families are **not** invited to PROD until an off-server backup and a teste
 
 ## Over-the-air updates (EAS Update)
 
-- Runtime version policy: `appVersion` (Expo's default). An update reaches only builds with the same platform and runtime version. ([Expo: runtime versions](https://docs.expo.dev/eas-update/runtime-versions/))
-- OTA is allowed **only** for JavaScript and asset changes. Native code, native dependencies, permissions, or native app config always need a new store build.
-- Because the runtime follows `expo.version`, an OTA fix keeps the version unchanged and is tagged `vX.Y.Z+ota.N`.
-- Publish to `preview` first, verify on a preview build, then publish the same change to `production`. ([Expo: deploy updates](https://docs.expo.dev/eas-update/deployment/))
+### Runtime version: fingerprint
+
+- `app.config.ts` sets `runtimeVersion: { policy: 'fingerprint' }`. The runtime is a hash of the native project: native dependencies, config plugins, and native app config. An update reaches only builds with the same platform and fingerprint. ([Expo: runtime versions](https://docs.expo.dev/eas-update/runtime-versions/))
+- `expo.version` is only the user-visible version. Changing it does not change the runtime.
+- OTA is allowed **only** for JavaScript and asset changes. These always need a new Play build:
+  - native code, native dependencies, permissions, or native app config;
+  - Supabase migrations (`supabase/migrations/**`) or sync rules (`powersync/sync-config.yaml`). An OTA must not change the app's relationship with the backend.
 - A change in what personal data the app collects or shares requires updating the Data safety form first, whatever the delivery channel.
+
+### Channels, builds, and environments
+
+Each build listens to one channel. An update carries the `EXPO_PUBLIC_*` values of the EAS environment it is published from, so publish from the environment of the channel's row. ([Expo: environment variables](https://docs.expo.dev/eas/environment-variables/))
+
+| Channel | Build profile | Artifact | EAS environment | Backend |
+| --- | --- | --- | --- | --- |
+| `preview` | `preview` | Internal APK | Not `production` | QA |
+| `qa` | `qa` (extends `preview`) | Internal APK | Not `production` | QA |
+| `production` | `production` | Play AAB | `production` | QA until the cut to PROD (#1120), then PROD |
+| none | `development` | Development client | None | Local, or QA |
+
+### Staged deployment
+
+Publish the same change in this order, and move on only when the previous stage is verified on a build of that channel. ([Expo: deploy updates](https://docs.expo.dev/eas-update/deployment/))
+
+1. `preview`: publish, then verify on a preview build.
+2. `qa`: publish the same change, then verify on a `qa` build.
+3. `production`: publish with a rollout percentage, for example `eas update --channel production --rollout-percentage 10`. Raise it with `eas update:edit` only while crash and error rates stay normal. To undo it, run `eas update:rollback` or publish the previous version again. ([Expo: rollouts](https://docs.expo.dev/eas-update/rollouts/))
+
+Only the maintainer runs `eas update`; agents never do.
+
+### Tags
+
+Every OTA on top of the store release `vX.Y.Z` is tagged `vX.Y.Z+ota.N` on the published commit. The version stays unchanged.
+
+### Pull request classification
+
+Every pull request is classified before it opens, with the delivery checkbox of #1186: «Apto para OTA» or «Requiere build de Play». Only pull requests marked «Apto para OTA» may ship by OTA. The CI check that compares the checkbox with the diff arrives with #1186 and is still pending there.
+
+### The 0.1.0 build never receives OTA
+
+The 0.1.0 build on Play Internal testing predates `expo-updates`, so it has no update client. The first build that can receive an OTA update is the next Play build that includes #1188.
 
 ## Google Play
 

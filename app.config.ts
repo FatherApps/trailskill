@@ -3,16 +3,22 @@ import type { ExpoConfig } from 'expo/config';
 // APP_VARIANT=preview builds the test APK (docs/RELEASING.md, Test builds): its own package, name and scheme, so it installs next to the development client without taking over its links.
 const preview = process.env.APP_VARIANT === 'preview';
 
+// EAS project of the fatherapps account. Public; the update URL below is built from it so the two cannot drift.
+const projectId = '09e9d4f5-fe9e-4c74-a084-aaf9a9cfe9a0';
+
 const config: ExpoConfig = {
   name: preview ? 'Swimcro (prueba)' : 'Swimcro',
   slug: 'swimcro',
-  // EAS project of the fatherapps account. Both values are public. The preview variant builds from the same project, so there is no second ID.
+  // The preview variant builds from the same EAS project, so there is no second ID.
   owner: 'fatherapps',
-  extra: { eas: { projectId: '09e9d4f5-fe9e-4c74-a084-aaf9a9cfe9a0' } },
+  extra: { eas: { projectId } },
   // Opens school invitation links: swimcro://invite/<token>. The first scheme is the one the app builds links with; trailskill:// stays accepted so links sent before the rename still open.
   // The preview variant answers only to swimcro-preview://, so it does not open swimcro:// or trailskill:// links.
   scheme: preview ? 'swimcro-preview' : ['swimcro', 'trailskill'],
   version: '0.1.0',
+  // OTA updates (docs/RELEASING.md, Over-the-air updates): the runtime is a hash of the native project, so any native change needs a new Play build. 0.1.0 predates expo-updates and never receives an OTA.
+  runtimeVersion: { policy: 'fingerprint' },
+  updates: { url: `https://u.expo.dev/${projectId}` },
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',
   android: {
