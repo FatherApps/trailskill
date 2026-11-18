@@ -132,6 +132,16 @@ if [ "$rc" -eq 0 ] && [ ! -s "$T/out" ]; then pass 'classify prints nothing and 
 rc=$?
 if [ "$rc" -eq 2 ]; then pass 'classify exits 2 on a bad ref'; else fail "classify with a bad ref (exit $rc)"; fi
 
+# --- A node that cannot run must not make a dependency change look OTA-safe ---
+mkdir "$T/fakebin" && printf '#!/bin/sh\nexit 127\n' >"$T/fakebin/node" && chmod +x "$T/fakebin/node"
+change package.json "$FX/package-deps.json"
+(cd "$R" && PATH="$T/fakebin:$PATH" sh "$CHECK" classify base topic) >"$T/out" 2>"$T/err" </dev/null
+rc=$?
+if [ "$rc" -eq 2 ] && grep -Fxq 'check-ota: cannot compare package.json: node failed (exit 127)' "$T/err"; then pass 'classify exits 2 when node cannot run'; else fail "classify with a broken node (exit $rc)"; fi
+(cd "$R" && PATH="$T/fakebin:$PATH" PR_BODY=$(cat "$FX/ota.md") BASE_SHA=base HEAD_SHA=topic sh "$CHECK") >"$T/out" 2>"$T/err" </dev/null
+rc=$?
+if [ "$rc" -eq 1 ] && grep -Fq 'node failed (exit 127)' "$T/err"; then pass 'OTA with a broken node fails'; else fail "OTA with a broken node (exit $rc)"; fi
+
 # --- Injection: the description only travels through the environment ---
 P=$T/pwned
 change src/a.ts
