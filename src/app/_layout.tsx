@@ -20,6 +20,7 @@ import { SessionProvider, useSession } from '../core/session';
 import { db } from '../core/sync';
 import { ThemeProvider, useTheme } from '../core/theme';
 import { createSecureStoreRegistrationDraftRepository, discardStaleDraft } from '../modules/accounts';
+import { VersionGate } from '../modules/settings';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -94,7 +95,9 @@ export default function RootLayout() {
         <PreferredTheme>
           <PowerSyncContext.Provider value={db}>
             <SessionProvider>
-              <SessionGate />
+              <VersionGate>
+                <SessionGate />
+              </VersionGate>
             </SessionProvider>
           </PowerSyncContext.Provider>
         </PreferredTheme>
