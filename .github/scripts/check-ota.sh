@@ -18,7 +18,8 @@ trap 'exit 130' INT TERM
 # tell (node failed). This is the only place that
 # lists the build paths. Native code, app config, dependencies, migrations and sync rules
 # count because an OTA must not change the native binary or the app's contract with the backend.
-# shortcut: a path list instead of comparing @expo/fingerprint hashes, because the fingerprint needs npm ci (and autolinking) for both base and head; upgrade when expo-updates lands (#1188).
+# shortcut: a path list instead of comparing @expo/fingerprint hashes, because the fingerprint needs npm ci (and autolinking) for both base and head.
+# expo-updates landed with #1188 (runtimeVersion policy fingerprint), but this check still does not use the fingerprint; a separate issue will take it up.
 needs_build_file() {
   case "$1" in
     modules/* | plugins/* | android/* | ios/* | supabase/migrations/*) return 0 ;;
