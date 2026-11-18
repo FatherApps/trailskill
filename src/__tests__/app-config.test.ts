@@ -161,3 +161,32 @@ describe('Android manifest', () => {
     expect(remover).toBeLessThan(library);
   });
 });
+
+// OTA updates (#1188): an update reaches only builds whose native fingerprint matches, and only on the channel of their build profile.
+describe('over-the-air updates', () => {
+  const eas = JSON.parse(readFileSync(resolve(root, 'eas.json'), 'utf8'));
+
+  it.each([undefined, 'preview'])('derives the runtime version from the native fingerprint when APP_VARIANT is %p', (variant) => {
+    expect(loadConfig(variant).runtimeVersion).toEqual({ policy: 'fingerprint' });
+  });
+
+  it('downloads updates from the EAS Update URL of the linked project', () => {
+    expect(config.updates?.url).toBe(`https://u.expo.dev/${config.extra?.eas?.projectId}`);
+  });
+
+  it.each([
+    ['preview', 'preview'],
+    ['qa', 'qa'],
+    ['production', 'production'],
+  ])('builds the %s profile on the %s channel', (profile, channel) => {
+    expect(eas.build[profile].channel).toBe(channel);
+  });
+
+  it('builds the qa profile as an internal APK like preview', () => {
+    expect(eas.build.qa.extends).toBe('preview');
+  });
+
+  it('keeps the development client off every update channel', () => {
+    expect(eas.build.development.channel).toBeUndefined();
+  });
+});
