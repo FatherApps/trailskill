@@ -1,0 +1,5 @@
+{
+  "name": "ota-pr-hook",
+  "version": "0.1.0",
+  "description": "Before gh pr create, runs the check-ota.sh classifier and asks to tick the Entrega box."
+}
