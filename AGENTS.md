@@ -82,7 +82,7 @@ Product documents mark items as **confirmed**, **proposed**, or **open**. Only c
 
 ## How to work
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before your first change. In short: one assigned issue, one branch, one worktree, one small pull request into `main`. Follow its [Working sequence](CONTRIBUTING.md#working-sequence). Before opening a pull request, classify the change and tick one box in the template's `## Entrega` section, «Apto para OTA» or «Requiere build de Play» (`sh .github/scripts/check-ota.sh classify origin/main HEAD`; see [Required checks](CONTRIBUTING.md#required-checks)). For an agent, done means the pull request is open (draft first, then ready when CI is green and the Definition of Done holds), not the push.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before your first change. In short: one assigned issue, one branch, one worktree, one small pull request into `main`. Follow its [Working sequence](CONTRIBUTING.md#working-sequence). Before opening a pull request, classify the change and tick one box in the template's `## Entrega` section, «Apto para OTA» or «Requiere build de Play» (`sh .github/scripts/check-ota.sh classify origin/main HEAD`; «Apto para OTA» only when it exits 0, since exit 2 is an error and never OTA; see [Required checks](CONTRIBUTING.md#required-checks)). For an agent, done means the pull request is open (draft first, then ready when CI is green and the Definition of Done holds), not the push.
 
 ## Skill
 

@@ -20,7 +20,7 @@ Load for any TrailSkill repository-process task: setting up the repository, work
 - Implement only confirmed product rules. A proposed or open rule: label the issue `needs-decision`, ask, and stop that part.
 - Synthetic data only. Never stage or print secrets.
 - Conventional Commits in English, no AI attribution. Issues and pull request descriptions in Spanish, using the templates in `.github/` (keep `Closes #N` in English).
-- Before opening a pull request, classify the change with `sh .github/scripts/check-ota.sh classify origin/main HEAD` and tick exactly one box in the template's `## Entrega` section: «Apto para OTA» only when it prints nothing, otherwise «Requiere build de Play» (`CONTRIBUTING.md`, Required checks).
+- Before opening a pull request, classify the change with `sh .github/scripts/check-ota.sh classify origin/main HEAD` and tick exactly one box in the template's `## Entrega` section: «Apto para OTA» only when it exits 0, «Requiere build de Play» when it exits 1; exit 2 is an error to fix first, never OTA (`CONTRIBUTING.md`, Required checks).
 
 ## Decision Gates
 

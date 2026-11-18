@@ -30,7 +30,7 @@ Closes #
 
 ## Entrega
 
-<!-- Marca una sola casilla. «Apto para OTA» solo si el cambio es JavaScript o recursos: el check de CI falla si el diff toca código nativo, configuración de la app, dependencias, migraciones o reglas de sync. Clasifica con `sh .github/scripts/check-ota.sh classify`. -->
+<!-- Marca una sola casilla. «Apto para OTA» solo si el cambio es JavaScript o recursos: el check de CI falla si el diff toca código nativo, configuración de la app, dependencias, migraciones o reglas de sync. Clasifica con `sh .github/scripts/check-ota.sh classify`: «Apto para OTA» solo si sale con 0 (2 es un error, nunca OTA). -->
 
 - [ ] Apto para OTA
 - [ ] Requiere build de Play
