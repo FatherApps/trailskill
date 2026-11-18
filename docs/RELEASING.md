@@ -106,6 +106,7 @@ Real families are **not** invited to PROD until an off-server backup and a teste
 
 - Runtime version policy: `appVersion` (Expo's default). An update reaches only builds with the same platform and runtime version. ([Expo: runtime versions](https://docs.expo.dev/eas-update/runtime-versions/))
 - OTA is allowed **only** for JavaScript and asset changes. Native code, native dependencies, permissions, or native app config always need a new store build.
+- Every pull request says which one it needs in its `## Entrega` section, and the CI check [`.github/scripts/check-ota.sh`](../.github/scripts/check-ota.sh) rejects «Apto para OTA» when the diff touches a build path (see [`CONTRIBUTING.md`](../CONTRIBUTING.md#required-checks)).
 - Because the runtime follows `expo.version`, an OTA fix keeps the version unchanged and is tagged `vX.Y.Z+ota.N`.
 - Publish to `preview` first, verify on a preview build, then publish the same change to `production`. ([Expo: deploy updates](https://docs.expo.dev/eas-update/deployment/))
 - A change in what personal data the app collects or shares requires updating the Data safety form first, whatever the delivery channel.

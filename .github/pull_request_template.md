@@ -28,6 +28,15 @@ Closes #
 
 <!-- Datos, privacidad, migraciones, cambios incompatibles, uso sin conexión. Si no hay: Ninguno. -->
 
+## Entrega
+
+<!-- Marca una sola casilla. «Apto para OTA» solo si el cambio es JavaScript o recursos: el check de CI falla si el diff toca código nativo, configuración de la app, dependencias, migraciones o reglas de sync. Clasifica con `sh .github/scripts/check-ota.sh classify`. -->
+
+- [ ] Apto para OTA
+- [ ] Requiere build de Play
+
+Motivo: 
+
 ## Checklist
 
 - [ ] Cumple los criterios de aceptación del issue.

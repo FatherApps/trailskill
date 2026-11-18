@@ -25,6 +25,22 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh .github/scripts/check-pr.sh
 
+  ota-check:
+    name: OTA or Play build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check the delivery box against the diff
+        # The description and the SHAs go through env, never inline in the script, to avoid injection.
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: sh .github/scripts/check-ota.sh
+
   commit-trailers:
     name: No AI attribution in commits
     runs-on: ubuntu-latest
