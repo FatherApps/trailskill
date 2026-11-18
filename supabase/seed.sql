@@ -132,14 +132,15 @@ insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000c2', 'guardian')
 on conflict do nothing;
 
--- One provisional text per purpose, in Spanish because the screen is. They say
--- they are provisional and not legal: the real, legally reviewed texts are not
--- part of the repository (issue #106). A table already seeded keeps its old
--- rows (`on conflict do nothing`, and the rows cannot be updated): reset it.
+-- One text per purpose, in Spanish because the screen is: the version 1 bodies the
+-- maintainer approved (issue #1185), the same ones the migration
+-- 20261118100000_accounts_authorization_texts_rewrite writes. Migrations run before
+-- the seed, so these rows usually exist already (`on conflict do nothing`). The
+-- legally reviewed texts (#106) will be version 2.
 insert into public.authorization_texts (purpose, version, language, body) values
-  ('record_times', 1, 'es-CO', 'TEXTO PROVISIONAL, no es texto legal: autorización para registrar tiempos.'),
-  ('import_official_results', 1, 'es-CO', 'TEXTO PROVISIONAL, no es texto legal: autorización para importar resultados oficiales.'),
-  ('share_results_with_school', 1, 'es-CO', 'TEXTO PROVISIONAL, no es texto legal: autorización para compartir resultados con otra escuela.')
+  ('record_times', 1, 'es-CO', 'Permite guardar en Swimcro los tiempos que registran tú y la escuela en entrenamientos y competencias, para que puedas consultarlos después y ver cómo evoluciona el deportista. Si la retiras, esos tiempos dejan de mostrarse.'),
+  ('import_official_results', 1, 'es-CO', 'Permite buscar los resultados oficiales del deportista en la federación de natación y agregarlos a su historial en Swimcro. Sin esta autorización no podemos traer esos resultados.'),
+  ('share_results_with_school', 1, 'es-CO', 'Permite que otra escuela en la que también esté inscrito el deportista vea sus tiempos y resultados. Si no la activas, solo los ve tu escuela.')
 on conflict do nothing;
 
 -- Authorizations in force: the guardian accepted two purposes for both
