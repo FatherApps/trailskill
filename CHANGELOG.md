@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/FatherApps/trailskill/compare/v0.3.1...v0.4.0) (2026-11-19)
+
+
+### Features
+
+* **family-timing:** share a time's video and link it on the receiving phone ([#1215](https://github.com/FatherApps/trailskill/issues/1215)) ([26bda56](https://github.com/FatherApps/trailskill/commit/26bda56da7b7afc5113dedc4c6330ca91fa17e09)), closes [#1201](https://github.com/FatherApps/trailskill/issues/1201)
+
 ## [0.3.1](https://github.com/FatherApps/trailskill/compare/v0.3.0...v0.3.1) (2026-11-19)
 
 
