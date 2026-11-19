@@ -66,7 +66,10 @@ import {
   type FamilyTimingView,
 } from './FamilyTimingScreen';
 import type { FamilyTimingNoticeStore } from '../data/noticeSeen';
+import type { FamilyVideoRepository } from '../data/familyVideos';
 import type { VideoCamera } from '../data/videoCamera';
+import type { VideoLibrary, VideoPlayerHandle } from '../data/videoLibrary';
+import { VideoPlayerScreen } from './VideoPlayerScreen';
 import { VideoStopwatchContainer, type VideoStopwatchResult } from './VideoStopwatchContainer';
 import '../i18n';
 
@@ -97,7 +100,14 @@ export type FamilyTimingContainerProps = {
   videoIntro?: FamilyTimingNoticeStore;
   // The rear camera and the gallery for the stopwatch with video (#1088); without it «Grabar» is not offered.
   videoCamera?: VideoCamera | null;
+  // Which time each video belongs to, on this phone only (#1089); without it no video is linked nor offered.
+  videos?: FamilyVideoRepository;
+  // The videos already in the gallery and their player (#1089); without it «Ver video» is not offered.
+  videoLibrary?: VideoLibrary | null;
 };
+
+// «Ir a la salida» lands this long before the clock started, so the start itself is seen.
+export const JUMP_LEAD_MILLIS = 2_000;
 
 const targetOf = (sw: FamilyStopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
 
@@ -158,6 +168,8 @@ type Step =
   | { kind: 'deleted'; restoreError: boolean }
   // One saved time with everything known about it (#1002).
   | { kind: 'detail'; id: string }
+  // The video of a saved time (#1089); back goes to where it was opened.
+  | { kind: 'time_video'; id: string; from: 'list' | 'detail' }
   // Sending a time with the other swimmer's code: `found` is the short name once the code was looked up.
   | { kind: 'send'; id: string; code: string; found: string | null; error: FamilyTransferErrorCode | null; busy: boolean };
 
@@ -218,7 +230,9 @@ const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.
 
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
-  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice, videoIntro } = props;
+  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice, videoIntro, videos } =
+    props;
+  const videoLibrary = props.videoLibrary ?? null;
   // The video draws the stopwatch from the buttons' clock, so recording needs the native clock too.
   const videoCamera = props.videoCamera && buttons.available ? props.videoCamera : null;
   const now = props.now ?? buttons.now;
@@ -270,6 +284,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const [series, setSeries] = useState<FamilySeries>(() => newFamilySeries(MIN_SWIMMERS));
   const [tick, setTick] = useState(0);
   const saving = useRef(false);
+  // The videos of this person's times on this phone: where each one is in the gallery (null: deleted from it) and where the clock started.
+  const [videoLinks, setVideoLinks] = useState<Map<string, { uri: string | null; startOffsetMillis: number }>>(new Map());
+  const player = useRef<VideoPlayerHandle>(null);
   // The requests waiting for an answer: the ones this user sent, and the ones for the selected swimmer. Answered ones are hidden
   // at once (`settled`), before the sync brings the change.
   const [sent, setSent] = useState<FamilyTransfer[]>([]);
@@ -366,6 +383,22 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     };
   }, [running]);
 
+  useEffect(() => {
+    if (!videos || !videoLibrary) return;
+    let active = true;
+    videos
+      .listByUser(userId)
+      .then((linked) =>
+        Promise.all(linked.map(async (v) => [v.measurementId, { uri: await videoLibrary.uriOf(v.assetId), startOffsetMillis: v.startOffsetMillis }] as const)),
+      )
+      .then((entries) => active && setVideoLinks(new Map(entries)))
+      // Unreadable links only hide «Ver video»; the times still show.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [videos, videoLibrary, userId, reload, syncKey]);
+
   const sentByMeasurement = useMemo(
     () => new Map(sent.filter((t) => !settled.includes(t.id)).map((t) => [t.measurementId, t])),
     [sent, settled],
@@ -410,9 +443,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         hasManualOfficial: m.officialMillis !== null,
         unassigned: m.athleteId === null,
         sentTo: sentByMeasurement.get(m.id)?.athleteShortName ?? null,
+        video: videoLinks.has(m.id) ? (videoLinks.get(m.id)!.uri ? 'available' : 'missing') : null,
       };
     },
-    [format, sourceNames, sentByMeasurement],
+    [format, sourceNames, sentByMeasurement, videoLinks],
   );
   // Which imported official result goes with each time: worked out over all the swimmer's times, so each result goes with one.
   const matches = useMemo(
@@ -866,6 +900,24 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   }
   else view = listView();
 
+  if (step.kind === 'time_video' && videoLibrary) {
+    const m = everyTime.find((x) => x.id === step.id);
+    const link = videoLinks.get(step.id);
+    const back = () => setStep(step.from === 'detail' ? { kind: 'detail', id: step.id } : { kind: 'list' });
+    if (m && link?.uri) {
+      const day = localDay(m.capturedAt);
+      return (
+        <VideoPlayerScreen
+          event={eventLabel(m)}
+          detail={[formatDate(day, 'short') ?? day, format(m.millis)].join(' · ')}
+          player={<videoLibrary.Player ref={player} uri={link.uri} style={{ flex: 1 }} />}
+          onJumpToStart={() => player.current?.seekTo(link.startOffsetMillis - JUMP_LEAD_MILLIS)}
+          onBack={back}
+        />
+      );
+    }
+  }
+
   if (step.kind === 'video' && videoCamera && setup.pool) {
     return (
       <VideoStopwatchContainer
@@ -882,6 +934,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           await repository.add(measurement);
           return measurement.id;
         }}
+        linkVideo={videos ? (measurementId, assetId, startOffsetMillis) => videos.link(userId, { measurementId, assetId, startOffsetMillis }) : undefined}
         onClose={(result) => {
           if (result === 'saved') {
             goToList();
@@ -965,6 +1018,13 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       }}
       onClearOfficial={() => step.kind === 'official' && writeOfficial(step.id, null)}
       onOpenDetail={(id) => setStep({ kind: 'detail', id })}
+      onOpenTimeVideo={
+        videoLibrary
+          ? (id) => {
+              if (videoLinks.get(id)?.uri) setStep({ kind: 'time_video', id, from: step.kind === 'detail' ? 'detail' : 'list' });
+            }
+          : undefined
+      }
       onOpenChooseOfficial={(id) => setStep({ kind: 'choose_official', id, saveError: false })}
       onChooseOfficial={(resultKey) => {
         if (step.kind !== 'choose_official') return;

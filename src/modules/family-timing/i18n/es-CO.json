@@ -62,7 +62,9 @@
       "edit": "Editar o eliminar",
       "best": "Mejor tiempo",
       "lengths_one": "{{count}} largo",
-      "lengths_other": "{{count}} largos"
+      "lengths_other": "{{count}} largos",
+      "video": "Ver video",
+      "video_missing": "Ya no está en este teléfono"
     },
     "filters": {
       "session_type": "Tipo de tiempo",
@@ -220,6 +222,11 @@
     "list_recent": "Más recientes",
     "list_count_one": "{{count}} registro",
     "list_count_other": "{{count}} registros",
-    "list_hint": "Toca un registro para ver sus parciales"
+    "list_hint": "Toca un registro para ver sus parciales",
+    "player": {
+      "back": "Volver",
+      "video": "Video del tiempo",
+      "jump_to_start": "Ir a la salida"
+    }
   }
 }

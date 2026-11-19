@@ -24,6 +24,13 @@ export {
 } from './data/noticeSeen';
 export { VIDEO_ALBUM, videoCamera, type VideoCamera } from './data/videoCamera';
 export { createFakeDoNotDisturb, doNotDisturb, type DoNotDisturbPort } from './data/doNotDisturb';
+export {
+  createInMemoryFamilyVideoRepository,
+  createPowerSyncFamilyVideoRepository,
+  type FamilyVideo,
+  type FamilyVideoRepository,
+} from './data/familyVideos';
+export { videoLibrary, type VideoLibrary } from './data/videoLibrary';
 export { useMoveLocalFamilyTimes } from './data/useMoveLocalFamilyTimes';
 export { FamilyTimingContainer, type FamilyTimingContainerProps } from './screens/FamilyTimingContainer';
 export { setFamilyTimingAtList, useFamilyTimingAtList } from './screens/familyTimingAtList';
