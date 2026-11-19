@@ -1,5 +1,5 @@
 # Starts the store delivery when a release tag vX.Y.Z is pushed (#1209).
-# Only pre-packaged Expo jobs, Android only. See docs/RELEASING.md.
+# Only pre-packaged Expo jobs, Android only: everything that delivers is Android. The `fingerprint` job has no platform option, so it also computes the iOS hash, which nothing uses. See docs/RELEASING.md.
 name: Release
 
 on:
