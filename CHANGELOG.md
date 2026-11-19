@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/FatherApps/trailskill/compare/v0.3.0...v0.3.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **release:** move the Expo owner to the organization and document recovery and the first run ([#1212](https://github.com/FatherApps/trailskill/issues/1212)) ([b1a31aa](https://github.com/FatherApps/trailskill/commit/b1a31aa03b36e26cdd40bb0490bdca71bd052b0a)), closes [#1209](https://github.com/FatherApps/trailskill/issues/1209)
+
 ## [0.3.0](https://github.com/FatherApps/trailskill/compare/v0.2.0...v0.3.0) (2026-11-19)
 
 
