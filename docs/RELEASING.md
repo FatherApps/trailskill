@@ -105,6 +105,21 @@ Real families are **not** invited to PROD until an off-server backup and a teste
 
 **Production builds come only from this workflow.** `get-build` matches any production build with the same fingerprint. A production build that was never submitted, whether hand-made or left by a run whose submit failed, would make a later release (or a full re-run) publish an OTA update for a runtime nobody installed. Never run `eas build --profile production` by hand, and finish a failed submit with "Re-run from failed jobs".
 
+### First run: `v0.2.0` was tagged before the workflow existed
+
+The tag `v0.2.0` (merge commit `90850ff`) was pushed before `.eas/workflows/release.yml` reached `main`, so it started nothing, and it never will. Facts, checked with `git ls-tree` and `git show` on the tag and against the [Expo docs](https://docs.expo.dev/eas/cli/#eas-workflowrun-file):
+
+- The tag has no `.eas/workflows/release.yml` and no `submit.production.android` in `eas.json`, and its `app.config.ts` still says `owner: 'fatherapps'` (the project now lives in `fatherapps-teams-co`).
+- `eas workflow:run FILE` packages and uploads the **local project directory** unless `--ref` is given, and the run then has no branch or commit. `--ref` is documented only as «Git reference to run the workflow on»; the docs do not say whether the workflow file is then read from that ref. `--git-branch` and `--git-commit-hash` only label the run; the run still uses the uploaded files. Manual runs are documented for the CLI and the REST API; the docs describe no «Run workflow» button (the dashboard only re-runs an existing run).
+- `main` already has commits after the tag (`git log v0.2.0..origin/main`): #1198 (tooling) and #1200, which adds a **native** module (`modules/do-not-disturb/`, Android manifest). A manual run from `main` therefore builds code that is not `v0.2.0` and includes that module.
+- A manual run does not follow «build from the tag»: from a checkout of `v0.2.0` it fails for lack of the workflow file; from `main` it builds `main`. Only the maintainer creates or moves tags.
+
+Options for the maintainer (agents run none of them):
+
+1. **Wait for the next release-please release** (recommended). The workflow is then in the tag, the first run is the normal tag push, and every rule here holds. Nothing is lost: `v0.2.0` was never on Play, and 0.1.0 stays on the internal track.
+2. **Run it by hand against `main`**, accepting that the build is `main` and not `v0.2.0`: `eas workflow:run .eas/workflows/release.yml --git-branch main --git-commit-hash "$(git rev-parse HEAD)"` from an up-to-date checkout of `main` (the last two flags only label the run). Record the commit that was built in the release notes. A manual run has no tag, so `github.ref_name` is empty and an OTA update would lose its `vX.Y.Z` message; the first run takes the build route anyway, because no build has the new fingerprint.
+3. Move or create a tag: not an option for agents, and moving `v0.2.0` would break the rule that the tag is the merge commit of the release pull request.
+
 The release pull request is exempt from the PR description check and from the delivery box check, only when its head branch is `release-please--branches--main--components--trailskill` and its title is `chore(release): vX.Y.Z`; it always needs a Play build ([`CONTRIBUTING.md`](../CONTRIBUTING.md#required-checks)). Every other check runs on it unchanged.
 
 ## Hotfixes
@@ -179,8 +194,8 @@ The 0.1.0 build on Play Internal testing predates `expo-updates`, so it has no u
 - **EAS Submit credentials.** EAS submits with a Google service account key stored in EAS credentials, never in the repository. The first release can be created by `eas submit` on the internal track; a manual first upload is optional. ([Expo: submit to Google Play](https://docs.expo.dev/submit/android/))
 - **Release workflow (#1209).** The Expo project `swimcro` lives in the Expo organization `fatherapps-teams-co` (moved from the personal `fatherapps` account on 2026-11-19; the project ID and the upload keystore did not change). Expo's GitHub app only delivers tag pushes to an organization project, which is why. Three one-time steps, done by the maintainer; agents never touch them:
   1. **Done on 2026-11-19:** the GitHub repository is linked to the EAS project (Expo's GitHub app, base directory `/`), so that tag pushes reach EAS Workflows. Expo shows the workflow as «Unconfigured» until `.eas/workflows/release.yml` is on `main`. ([Expo: automate workflows with GitHub events](https://docs.expo.dev/eas/workflows/get-started/))
-  2. **Pending:** upload the Play service account JSON to the EAS credentials for the Android submit.
-  3. **Pending:** confirm the EAS `production` environment holds the backend values the build must use (QA until the cut to PROD, #1120).
+  2. **Done on 2026-11-19:** the key of the Play service account is uploaded to the EAS credentials (it submits only to the testing tracks).
+  3. **To check:** confirm the EAS `production` environment holds the backend values the build must use (QA until the cut to PROD, #1120).
 
   Changing `owner` in `app.config.ts` changes the fingerprint (the `balanced` preset does not skip it), so builds made before 2026-11-19 do not match the new source; the first release after #1188 takes the build route anyway.
 - **Automatic release pull request (release-please, #1202).** Two one-time steps, done by the maintainer; agents never create, read or store the token:
