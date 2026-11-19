@@ -60,6 +60,10 @@ export type FamilyCard = {
   canDiscard?: boolean;
   // Recorded with the camera (#1089): its video is in this phone's gallery, or was deleted from it. Null: no video here.
   video?: 'available' | 'missing' | null;
+  // Its video is on this phone and can be shared (#1201).
+  canShareVideo?: boolean;
+  // Received from another family without its video here: the video they sent can be linked (#1201).
+  canLinkVideo?: boolean;
 };
 
 // Everything known about one saved time, opened by touching its card (#1002).
@@ -185,7 +189,11 @@ export type FamilyTimingView =
   | { kind: 'series'; series: FamilySeriesView }
   | { kind: 'series_assign'; event: string; lanes: FamilyLaneView[]; saveError: boolean }
   | { kind: 'official'; card: FamilyCard; text: string; invalid: boolean }
-  | { kind: 'choose_official'; choose: FamilyChooseOfficialView };
+  | { kind: 'choose_official'; choose: FamilyChooseOfficialView }
+  // After sending a time with video, or accepting one: share or link its video now, or not (#1201).
+  | { kind: 'video_offer'; offer: 'share' | 'link'; id: string; name: string | null }
+  // The chosen video's name is of another time, or has no time's id.
+  | { kind: 'link_check'; id: string; result: 'other' | 'unknown' };
 
 export type FamilyTimingScreenProps = {
   view: FamilyTimingView;
@@ -247,6 +255,13 @@ export type FamilyTimingScreenProps = {
   onAskDiscard?: (id: string) => void;
   onConfirmDiscard?: () => void;
   onCancelDiscard?: () => void;
+  // Sharing a time's video and linking one received from another family (#1201).
+  onShareVideo?: (id: string) => void;
+  onLinkVideo?: (id: string) => void;
+  // Links the chosen video although its name cannot say it is this time's.
+  onLinkAnyway?: () => void;
+  // What the last video action left to say, on the view it ended on.
+  videoNotice?: { variant: 'success' | 'warn'; text: string } | null;
 };
 
 function Header({ onBack, title, action }: { onBack: () => void; title: string; action?: ReactNode }) {
@@ -325,10 +340,12 @@ function ListCard({
   onWithdraw,
   onAskDiscard,
   onOpenTimeVideo,
+  onShareVideo,
 }: {
   card: FamilyCard;
   accent: ColorToken;
   onOpenTimeVideo?: (id: string) => void;
+  onShareVideo?: (id: string) => void;
   onOpenDetail?: (id: string) => void;
   onOpenOfficial?: (id: string) => void;
   onOpenChooseOfficial?: (id: string) => void;
@@ -400,6 +417,9 @@ function ListCard({
         {card.sentTo ? (
           <>
             <Tag variant="warn" icon="schedule" label={t('family_timing.transfer.sent_tag', { name: card.sentTo })} />
+            {card.canShareVideo && onShareVideo && (
+              <Button variant="secondary" label={t('family_timing.video_share.share')} onPress={() => onShareVideo(card.id)} />
+            )}
             {onWithdraw && <Button variant="ghost" label={t('family_timing.transfer.withdraw')} onPress={() => onWithdraw(card.id)} />}
           </>
         ) : (
@@ -824,6 +844,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
                   accent={accent}
                   onOpenDetail={props.onOpenDetail}
                   onOpenTimeVideo={props.onOpenTimeVideo}
+                  onShareVideo={props.onShareVideo}
                   onOpenOfficial={props.onOpenOfficial}
                   onOpenChooseOfficial={props.onOpenChooseOfficial}
                   onWithdraw={props.onWithdraw}
@@ -864,6 +885,15 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
               disabledReason={card.video === 'missing' ? t('family_timing.card.video_missing') : undefined}
               onPress={() => props.onOpenTimeVideo?.(card.id)}
             />
+          )}
+          {card.canShareVideo && props.onShareVideo && (
+            <View style={{ gap: space[1] }}>
+              <Button variant="secondary" label={t('family_timing.video_share.share')} onPress={() => props.onShareVideo?.(card.id)} />
+              <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{t('family_timing.video_share.document_hint')}</Text>
+            </View>
+          )}
+          {card.canLinkVideo && props.onLinkVideo && (
+            <Button variant="secondary" label={t('family_timing.video_share.link')} onPress={() => props.onLinkVideo?.(card.id)} />
           )}
           {detail.laps.length > 0 && (
             <View style={{ gap: space[3], padding: space[5], borderRadius: radius.lg, backgroundColor: colors['surface-1'] }}>
@@ -1110,6 +1140,43 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       );
       break;
     }
+    case 'video_offer':
+      body =
+        view.offer === 'share' ? (
+          <View style={{ gap: space[4] }}>
+            <Banner variant="success">{t('family_timing.video_share.sent', { name: view.name ?? '' })}</Banner>
+            <Text style={[typography.body, { color: colors.ink }]}>{t('family_timing.video_share.share_question')}</Text>
+            <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{t('family_timing.video_share.document_hint')}</Text>
+            <Button label={t('family_timing.video_share.share')} onPress={() => props.onShareVideo?.(view.id)} />
+            <Button variant="ghost" label={t('family_timing.video_share.not_now')} onPress={props.onCancel} />
+          </View>
+        ) : (
+          <View style={{ gap: space[4] }}>
+            <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+              {t('family_timing.video_share.link_question')}
+            </Text>
+            <Text style={[typography.body, { color: colors.ink }]}>{t('family_timing.video_share.link_help')}</Text>
+            <Button label={t('family_timing.video_share.link')} onPress={() => props.onLinkVideo?.(view.id)} />
+            <Button variant="ghost" label={t('family_timing.video_share.not_now')} onPress={props.onCancel} />
+          </View>
+        );
+      break;
+    case 'link_check':
+      body = (
+        <View style={{ gap: space[4] }}>
+          <Banner variant="warn" icon="error">
+            {t(view.result === 'other' ? 'family_timing.video_share.other_time' : 'family_timing.video_share.unknown_time')}
+          </Banner>
+          {view.result === 'unknown' && <Button label={t('family_timing.video_share.link_anyway')} onPress={() => props.onLinkAnyway?.()} />}
+          <Button
+            variant={view.result === 'other' ? 'primary' : 'secondary'}
+            label={t('family_timing.video_share.pick_again')}
+            onPress={() => props.onLinkVideo?.(view.id)}
+          />
+          <Button variant="ghost" label={t('family_timing.edit.cancel')} onPress={props.onCancel} />
+        </View>
+      );
+      break;
     case 'official':
       body = (
         <View style={{ gap: space[4] }}>
@@ -1141,6 +1208,8 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
     send: t('family_timing.transfer.title'),
     series: t('family_timing.series.title'),
     series_assign: t('family_timing.series.assign_title'),
+    video_offer: t('family_timing.video_share.title'),
+    link_check: t('family_timing.video_share.link'),
   };
   const title = titles[view.kind] ?? t('family_timing.title');
   return (
@@ -1168,6 +1237,11 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             onChange={onSelectAthlete}
             options={athletes.map(({ id, name, dot }) => ({ value: id, label: name, dot }))}
           />
+        )}
+        {props.videoNotice && (
+          <Banner variant={props.videoNotice.variant} icon={props.videoNotice.variant === 'warn' ? 'error' : undefined}>
+            {props.videoNotice.text}
+          </Banner>
         )}
         {body}
       </ScrollView>

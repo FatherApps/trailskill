@@ -69,8 +69,9 @@ import type { FamilyTimingNoticeStore } from '../data/noticeSeen';
 import type { FamilyVideoRepository } from '../data/familyVideos';
 import type { VideoCamera } from '../data/videoCamera';
 import type { VideoLibrary, VideoPlayerHandle } from '../data/videoLibrary';
+import { videoMatchesTime, type PickedVideo, type VideoSharing } from '../data/videoSharing';
 import { VideoPlayerScreen } from './VideoPlayerScreen';
-import { VideoStopwatchContainer, type VideoStopwatchResult } from './VideoStopwatchContainer';
+import { VideoStopwatchContainer, videoName, type VideoStopwatchResult } from './VideoStopwatchContainer';
 import '../i18n';
 
 const KEEP_AWAKE_TAG = 'family-timing';
@@ -104,6 +105,17 @@ export type FamilyTimingContainerProps = {
   videos?: FamilyVideoRepository;
   // The videos already in the gallery and their player (#1089); without it «Ver video» is not offered.
   videoLibrary?: VideoLibrary | null;
+  // Sharing a time's video and linking one received from another family (#1201); without it neither is offered.
+  videoSharing?: VideoSharing | null;
+};
+
+// What the last video action left to say (#1201), shown on the view it ended on.
+type VideoNoticeKind = 'linked' | 'linked_original_kept' | 'link_failed' | 'share_failed';
+const VIDEO_NOTICE_VARIANT: Record<VideoNoticeKind, 'success' | 'warn'> = {
+  linked: 'success',
+  linked_original_kept: 'success',
+  link_failed: 'warn',
+  share_failed: 'warn',
 };
 
 // «Ir a la salida» lands this long before the clock started, so the start itself is seen.
@@ -171,7 +183,11 @@ type Step =
   // The video of a saved time (#1089); back goes to where it was opened.
   | { kind: 'time_video'; id: string; from: 'list' | 'detail' }
   // Sending a time with the other swimmer's code: `found` is the short name once the code was looked up.
-  | { kind: 'send'; id: string; code: string; found: string | null; error: FamilyTransferErrorCode | null; busy: boolean };
+  | { kind: 'send'; id: string; code: string; found: string | null; error: FamilyTransferErrorCode | null; busy: boolean }
+  // After sending a time with its video, or accepting one, the offer to share or link the video (#1201).
+  | { kind: 'video_offer'; offer: 'share' | 'link'; id: string; name: string | null }
+  // The chosen video's name does not say it is this time's: of another time (it cannot be linked), or without the time's id.
+  | { kind: 'link_check'; id: string; picked: PickedVideo; result: 'other' | 'unknown' };
 
 // A deleted time is removed from the server this long after it was deleted.
 const KEEP_DELETED_DAYS = 30;
@@ -233,6 +249,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice, videoIntro, videos } =
     props;
   const videoLibrary = props.videoLibrary ?? null;
+  const videoSharing = (videos && videoLibrary && props.videoSharing) || null;
   // The video draws the stopwatch from the buttons' clock, so recording needs the native clock too.
   const videoCamera = props.videoCamera && buttons.available ? props.videoCamera : null;
   const now = props.now ?? buttons.now;
@@ -285,7 +302,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const [tick, setTick] = useState(0);
   const saving = useRef(false);
   // The videos of this person's times on this phone: where each one is in the gallery (null: deleted from it) and where the clock started.
-  const [videoLinks, setVideoLinks] = useState<Map<string, { uri: string | null; startOffsetMillis: number }>>(new Map());
+  // A video linked to a received time has no start offset (#1201): its player has no «Ir a la salida».
+  const [videoLinks, setVideoLinks] = useState<Map<string, { assetId: string; uri: string | null; startOffsetMillis: number | null }>>(new Map());
+  const [videoNotice, setVideoNotice] = useState<{ step: Step; kind: VideoNoticeKind } | null>(null);
   const player = useRef<VideoPlayerHandle>(null);
   // The requests waiting for an answer: the ones this user sent, and the ones for the selected swimmer. Answered ones are hidden
   // at once (`settled`), before the sync brings the change.
@@ -389,7 +408,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     videos
       .listByUser(userId)
       .then((linked) =>
-        Promise.all(linked.map(async (v) => [v.measurementId, { uri: await videoLibrary.uriOf(v.assetId), startOffsetMillis: v.startOffsetMillis }] as const)),
+        Promise.all(linked.map(async (v) => [v.measurementId, { assetId: v.assetId, uri: await videoLibrary.uriOf(v.assetId), startOffsetMillis: v.startOffsetMillis }] as const)),
       )
       .then((entries) => active && setVideoLinks(new Map(entries)))
       // Unreadable links only hide «Ver video»; the times still show.
@@ -444,9 +463,12 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         unassigned: m.athleteId === null,
         sentTo: sentByMeasurement.get(m.id)?.athleteShortName ?? null,
         video: videoLinks.has(m.id) ? (videoLinks.get(m.id)!.uri ? 'available' : 'missing') : null,
+        canShareVideo: !!videoSharing && !!videoLinks.get(m.id)?.uri,
+        // A time someone else measured came from another family (#973): its video can be linked from what they sent.
+        canLinkVideo: !!videoSharing && m.createdBy !== userId && !videoLinks.get(m.id)?.uri,
       };
     },
-    [format, sourceNames, sentByMeasurement, videoLinks],
+    [format, sourceNames, sentByMeasurement, videoLinks, videoSharing, userId],
   );
   // Which imported official result goes with each time: worked out over all the swimmer's times, so each result goes with one.
   const matches = useMemo(
@@ -605,16 +627,18 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   });
 
   // Answers a request (or withdraws one); it leaves the screen at once, and the sync brings the moved time.
-  async function answer(id: string, write: (id: string) => Promise<void>) {
-    if (saving.current) return;
+  async function answer(id: string, write: (id: string) => Promise<void>): Promise<boolean> {
+    if (saving.current) return false;
     saving.current = true;
     setAnswerError(null);
     try {
       await write(id);
       setSettled((current) => [...current, id]);
       setReload((n) => n + 1);
+      return true;
     } catch (error) {
       setAnswerError(error instanceof FamilyTransferError ? error.code : 'failed');
+      return false;
     } finally {
       saving.current = false;
     }
@@ -638,11 +662,51 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     setStep({ ...step, busy: true, error: null });
     try {
       await transfers.send(step.id, step.code.trim());
-      setStep({ kind: 'list' });
+      // With its video on this phone, the time's video can go to the same family now, before the time leaves this account.
+      setStep(videoSharing && videoLinks.get(step.id)?.uri ? { kind: 'video_offer', offer: 'share', id: step.id, name: step.found } : { kind: 'list' });
       setReload((n) => n + 1);
     } catch (error) {
       const code = error instanceof FamilyTransferError ? error.code : 'failed';
       setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
+    } finally {
+      saving.current = false;
+    }
+  }
+
+  // Opens the share menu with the time's video (#1201); from the offer after sending, the list follows.
+  async function shareVideo(id: string) {
+    const link = videoLinks.get(id);
+    if (!videoSharing || !link?.uri) return;
+    const from = step;
+    const next: Step = from.kind === 'video_offer' ? { kind: 'list' } : from;
+    if (await videoSharing.share(link.assetId, t('family_timing.video_share.chooser'))) {
+      if (next !== from) setStep(next);
+    } else setVideoNotice({ step: from, kind: 'share_failed' });
+  }
+
+  // The person chooses the video they received; it is linked only when its name says it is this time's, or they confirm.
+  async function linkVideo(id: string) {
+    if (!videoSharing || saving.current) return;
+    const from = step;
+    const picked = await videoSharing.pick();
+    if (!picked) return;
+    const result = videoMatchesTime(picked.name, id);
+    if (result === 'same') await adoptVideo(id, picked, from);
+    else setStep({ kind: 'link_check', id, picked, result });
+  }
+
+  async function adoptVideo(id: string, picked: PickedVideo, from: Step) {
+    if (!videoSharing || !videos || saving.current) return;
+    saving.current = true;
+    try {
+      const { assetId, originalRemoved } = await videoSharing.adopt(picked, videoName(id));
+      await videos.link(userId, { measurementId: id, assetId, startOffsetMillis: null });
+      const next: Step = everyTime.some((m) => m.id === id) ? { kind: 'detail', id } : { kind: 'list' };
+      setStep(next);
+      setVideoNotice({ step: next, kind: originalRemoved ? 'linked' : 'linked_original_kept' });
+      setReload((n) => n + 1);
+    } catch {
+      setVideoNotice({ step: from, kind: 'link_failed' });
     } finally {
       saving.current = false;
     }
@@ -898,6 +962,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         }
       : listView();
   }
+  else if (step.kind === 'video_offer') view = { kind: 'video_offer', offer: step.offer, id: step.id, name: step.name };
+  else if (step.kind === 'link_check') view = { kind: 'link_check', id: step.id, result: step.result };
   else view = listView();
 
   if (step.kind === 'time_video' && videoLibrary) {
@@ -911,7 +977,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           event={eventLabel(m)}
           detail={[formatDate(day, 'short') ?? day, format(m.millis)].join(' · ')}
           player={<videoLibrary.Player ref={player} uri={link.uri} style={{ flex: 1 }} />}
-          onJumpToStart={() => player.current?.seekTo(link.startOffsetMillis - JUMP_LEAD_MILLIS)}
+          onJumpToStart={link.startOffsetMillis === null ? undefined : () => player.current?.seekTo((link.startOffsetMillis ?? 0) - JUMP_LEAD_MILLIS)}
           onBack={back}
         />
       );
@@ -1103,8 +1169,19 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         const transfer = sentByMeasurement.get(measurementId);
         if (transfers && transfer) answer(transfer.id, transfers.withdraw);
       }}
-      onAccept={(id) => transfers && answer(id, transfers.accept)}
+      onAccept={async (id) => {
+        if (!transfers) return;
+        const measurementId = received.find((r) => r.id === id)?.measurementId;
+        // Accepted, the family is asked whether they have the time's video, to link it (#1201). It is optional.
+        if ((await answer(id, transfers.accept)) && videoSharing && measurementId) setStep({ kind: 'video_offer', offer: 'link', id: measurementId, name: null });
+      }}
       onReject={(id) => transfers && answer(id, transfers.reject)}
+      videoNotice={
+        videoNotice?.step === step ? { variant: VIDEO_NOTICE_VARIANT[videoNotice.kind], text: t(`family_timing.video_share.${videoNotice.kind}`) } : null
+      }
+      onShareVideo={videoSharing ? (id) => void shareVideo(id) : undefined}
+      onLinkVideo={videoSharing ? (id) => void linkVideo(id) : undefined}
+      onLinkAnyway={() => step.kind === 'link_check' && step.result === 'unknown' && void adoptVideo(step.id, step.picked, step)}
       onFilter={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
       onApplyFilters={(values) => setFilters((current) => ({ ...current, ...values }))}
       onRestore={(id) =>
