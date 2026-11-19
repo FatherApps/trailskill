@@ -1,9 +1,17 @@
 #!/bin/sh
 # Checks a pull request title and description against CONTRIBUTING.md and .github/pull_request_template.md.
-# Usage: PR_TITLE="..." PR_BODY="..." sh .github/scripts/check-pr.sh
-# The title and the description come only from the environment. The description is parsed
+# Usage: PR_TITLE="..." PR_BODY="..." [PR_HEAD_REF="..."] sh .github/scripts/check-pr.sh
+# The title, the description and the head branch come only from the environment. The description is parsed
 # by one awk program that reads it from ENVIRON, so the shell never expands it.
 status=0
+
+# The pull request that release-please opens has no template, so it is exempt. Both must hold:
+# its head branch AND a title of exactly "chore(release): vX.Y.Z" (docs/RELEASING.md, Standard release).
+if [ "${PR_HEAD_REF:-}" = release-please--branches--main ] &&
+  printf '%s\n' "$PR_TITLE" | grep -Eq '^chore\(release\): v[0-9]+\.[0-9]+\.[0-9]+$'; then
+  exit 0
+fi
+
 types='feat|fix|docs|refactor|test|chore|ci|build|perf'
 
 if ! printf '%s\n' "$PR_TITLE" | grep -Eq "^($types)(\([a-z0-9-]+\))?!?: .+"; then

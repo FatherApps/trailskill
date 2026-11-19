@@ -12,6 +12,9 @@ trap 'rm -rf "$T"' EXIT
 trap 'exit 130' INT TERM
 
 GOOD='feat(timing): add a synthetic widget'
+REF=
+RELEASE_REF=release-please--branches--main
+RELEASE_TITLE='chore(release): v1.2.3'
 PASSED=0
 FAILED=0
 
@@ -20,7 +23,7 @@ fail() { FAILED=$((FAILED + 1)); printf "FAIL %s\n" "$1"; [ -s "$T/err" ] && sed
 
 # run TITLE BODYFILE: runs the script with the inputs only in the environment; sets rc and fills $T/err.
 run() {
-  PR_TITLE=$1 PR_BODY=$(cat "$2") sh "$CHECK" >"$T/out" 2>"$T/err" </dev/null
+  PR_TITLE=$1 PR_BODY=$(cat "$2") PR_HEAD_REF=$REF sh "$CHECK" >"$T/out" 2>"$T/err" </dev/null
   rc=$?
 }
 
@@ -123,6 +126,24 @@ expect_fail 'a closing keyword inside a comment fails the link check' "$GOOD" "$
 # --- Title ---
 expect_fail 'a bad title still fails' 'Add stuff' "$FX/full.md" "$TITLE_MSG"
 expect_absent 'a bad title with a valid body reports only the title' 'Add stuff' "$FX/full.md" 'PR description'
+
+# --- The release-please pull request is exempt only with its branch AND its title ---
+: >"$T/empty-body.md"
+REF=$RELEASE_REF
+expect_pass 'release PR: its branch and title pass without the template' "$RELEASE_TITLE" "$T/empty-body.md"
+expect_fail 'release PR branch with another title fails' "$GOOD" "$T/empty-body.md" 'PR description'
+expect_fail 'release PR branch with a title that is not a plain version fails' 'chore(release): v1.2' "$T/empty-body.md" 'PR description'
+expect_fail 'release PR branch with a pre-release version fails' 'chore(release): v1.2.3-rc.1' "$T/empty-body.md" 'PR description'
+expect_fail 'release PR branch with a suffixed title fails' 'chore(release): v1.2.3 and more' "$T/empty-body.md" 'PR description'
+REF=feat/1202-release-please
+expect_fail 'release title on another branch fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
+REF=
+expect_fail 'release title with no branch given fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
+REF=${RELEASE_REF}-x
+expect_fail 'release title on a look-alike branch fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
+REF=$RELEASE_REF
+expect_pass 'a normal PR on the release branch still passes its own checks' "$GOOD" "$FX/full.md"
+REF=
 
 # --- Injection: title and body only travel through the environment ---
 P=$T/pwned

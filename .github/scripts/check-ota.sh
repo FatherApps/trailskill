@@ -5,9 +5,9 @@
 #       Prints, one per line, every path changed since the merge base of BASE and HEAD
 #       (defaults: origin/main and HEAD) that needs a Play build.
 #       Exit 0: none (OTA-eligible). Exit 1: at least one. Exit 2: error (message on stderr).
-#   PR_BODY="..." BASE_SHA=... HEAD_SHA=... sh .github/scripts/check-ota.sh
+#   PR_BODY="..." BASE_SHA=... HEAD_SHA=... [PR_TITLE=... PR_HEAD_REF=...] sh .github/scripts/check-ota.sh
 #       CI check: the "## Entrega" box of the pull request description must match the diff.
-# The description comes only from the environment. It is parsed by one awk program that
+# The description, the title and the head branch come only from the environment. It is parsed by one awk program that
 # reads it from ENVIRON, so the shell never expands it.
 
 tmp=$(mktemp -d) || exit 2
@@ -97,6 +97,13 @@ fi
 if [ -z "${BASE_SHA:-}" ] || [ -z "${HEAD_SHA:-}" ]; then
   echo "check-ota: BASE_SHA and HEAD_SHA must be set" >&2
   exit 1
+fi
+
+# The pull request that release-please opens bumps expo.version in app.config.ts, so it is always
+# "Requiere build de Play" and has no box. Exempt only when its head branch AND its title match.
+if [ "${PR_HEAD_REF:-}" = release-please--branches--main ] &&
+  printf '%s\n' "${PR_TITLE:-}" | grep -Eq '^chore\(release\): v[0-9]+\.[0-9]+\.[0-9]+$'; then
+  exit 0
 fi
 
 # Prints O when "Apto para OTA" is ticked and B when "Requiere build de Play" is ticked,
