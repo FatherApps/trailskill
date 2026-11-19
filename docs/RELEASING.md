@@ -177,10 +177,12 @@ The 0.1.0 build on Play Internal testing predates `expo-updates`, so it has no u
 - **Account type and production access.** The Swimcro Play developer account is **personal**. Personal developer accounts created after 13 November 2023 must run a closed test with at least 12 testers opted in for 14 consecutive days before applying for production access. The La Academia pilot runs on the closed testing track and its testers must satisfy this requirement. ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en))
 - **Application ID.** A neutral, company-based reverse-domain ID. It cannot change after the first release; the display name can.
 - **EAS Submit credentials.** EAS submits with a Google service account key stored in EAS credentials, never in the repository. The first release can be created by `eas submit` on the internal track; a manual first upload is optional. ([Expo: submit to Google Play](https://docs.expo.dev/submit/android/))
-- **Release workflow (#1209).** Three one-time steps, done by the maintainer; agents never touch them:
-  1. Link the GitHub repository to the EAS project (Expo's GitHub app), so that tag pushes reach EAS Workflows. ([Expo: automate workflows with GitHub events](https://docs.expo.dev/eas/workflows/get-started/))
-  2. Upload the Play service account JSON to the EAS credentials for the Android submit.
-  3. Confirm the EAS `production` environment holds the backend values the build must use (QA until the cut to PROD, #1120).
+- **Release workflow (#1209).** The Expo project `swimcro` lives in the Expo organization `fatherapps-teams-co` (moved from the personal `fatherapps` account on 2026-11-19; the project ID and the upload keystore did not change). Expo's GitHub app only delivers tag pushes to an organization project, which is why. Three one-time steps, done by the maintainer; agents never touch them:
+  1. **Done on 2026-11-19:** the GitHub repository is linked to the EAS project (Expo's GitHub app, base directory `/`), so that tag pushes reach EAS Workflows. Expo shows the workflow as «Unconfigured» until `.eas/workflows/release.yml` is on `main`. ([Expo: automate workflows with GitHub events](https://docs.expo.dev/eas/workflows/get-started/))
+  2. **Pending:** upload the Play service account JSON to the EAS credentials for the Android submit.
+  3. **Pending:** confirm the EAS `production` environment holds the backend values the build must use (QA until the cut to PROD, #1120).
+
+  Changing `owner` in `app.config.ts` changes the fingerprint (the `balanced` preset does not skip it), so builds made before 2026-11-19 do not match the new source; the first release after #1188 takes the build route anyway.
 - **Automatic release pull request (release-please, #1202).** Two one-time steps, done by the maintainer; agents never create, read or store the token:
   1. Create a fine-grained personal access token limited to this repository, with **Contents** and **Pull requests** read and write (or a GitHub App with the same permissions), and save it as the repository secret `RELEASE_PLEASE_TOKEN`. Write down its expiry date and how to renew it (a new token, then replace the secret) in the maintainer's own notes; until the secret exists, the workflow cannot open the release pull request. A personal token is needed because pull requests and tags created with `GITHUB_TOKEN` do not start other workflows, so the checks of the release pull request would not run.
   2. Give the SHA of the commit of the 0.1.0 Play build (from the EAS build page). It goes into `release-please-config.json` as `"bootstrap-sha"`, so the first changelog starts after that build and not at the first commit. **Order matters:** merging the pull request that adds the workflow (#1203) is already its first run on `main`, and it fails without the secret; that failure is expected. Add `"bootstrap-sha"` in a small separate pull request **before** creating `RELEASE_PLEASE_TOKEN`: once the secret exists, the next push to `main` opens the first release pull request, and without the field its `CHANGELOG.md` would cover the whole history. The field is set to `67e729d3f962e00f2f97d0c95e914bddf084f9a9` (#1167), the commit of the 0.1.0 Play build, so the first changelog covers only the commits of `main` after it. The maintainer still has to create the `RELEASE_PLEASE_TOKEN` secret after this change is merged.
@@ -221,14 +223,14 @@ Read this before the steps. Each line is a fact checked in this repository or in
 | Secret rotation (#914) | **Open**, no comments, last updated 3 November 2026. | **Blocks today**, see step 1. |
 | Sign-in by emailed code | Auth sends the code through Resend. This is **confirmed by Mario and the maintainer (2026-11-15)**: codes for `@example.test` stopped reaching Mailpit. The repository does not show it (the SMTP host is a redacted Dokploy variable). | Second sign-in path. Test it with a real address before inviting testers, step 4. |
 | Sign-in with Google | The maintainer verified authorize, provider, callback in the auth logs (see [`data-safety.md`](release/data-safety.md)). #84 (Google and Microsoft in the self-hosted auth) is still open. | Main sign-in path. Test it on the preview APK before building, step 4. |
-| Expo project | Exists: slug `swimcro`, owner `fatherapps`. `app.config.ts` links it with `owner` and `extra.eas.projectId` (#1160). | Nothing to create. Step 2 keeps only the EAS variables. |
+| Expo project | Exists: slug `swimcro`, owner `fatherapps-teams-co`. `app.config.ts` links it with `owner` and `extra.eas.projectId` (#1160). | Nothing to create. Step 2 keeps only the EAS variables. |
 | App name and package | Swimcro, `com.fatherapps.swimcro` (#1097). Logo and wordmark are pending (#1099). | The store listing can use the current icon; the graphics are the maintainer's. |
 | `expo.version` | `0.1.0` (the pilot stays on `0.y.z`, see [Versioning](#versioning)). The Android `versionCode` is still managed by EAS. | The first upload is `0.1.0`. |
 
 ### Before you start
 
 - [ ] A Google Play developer account (personal) with access to Play Console.
-- [x] The Expo project already exists (slug `swimcro`, owner `fatherapps`) and `app.config.ts` links it (#1160). You need access to that account to run `eas`.
+- [x] The Expo project already exists (slug `swimcro`, owner `fatherapps-teams-co`) and `app.config.ts` links it (#1160). You need access to that account to run `eas`.
 - [ ] A device with the Play Store signed in with a Google account, for the smoke test.
 - [ ] The drafts in [`docs/release/`](release/) reviewed. They are drafts: the privacy policy needs the legal review of issue #106 before it is published anywhere.
 
@@ -257,7 +259,7 @@ What lifts the block:
 
 **Who:** Mario, on expo.dev and in his own terminal.
 
-**The project.** It already exists (slug `swimcro`, owner `fatherapps`) and is linked in `app.config.ts`. Do not run `eas init` again: it cannot edit a dynamic `app.config.ts`.
+**The project.** It already exists (slug `swimcro`, owner `fatherapps-teams-co`) and is linked in `app.config.ts`. Do not run `eas init` again: it cannot edit a dynamic `app.config.ts`.
 
 **The variables.** The build reads three public values from the EAS environment named `production`. They never go in the repository: `eas.json` has no `EXPO_PUBLIC_*` value. **Today they are the QA values** (temporary decision, see [State](#state-on-16-november-2026)). Create each variable without `--value`, so the CLI asks for it and the value stays out of your shell history and of this repository (if your `eas-cli` rejects the missing value, pass it with `--value` from your own terminal only):
 
@@ -274,7 +276,7 @@ eas env:create --name EXPO_PUBLIC_POWERSYNC_URL --environment production --visib
 
 ### 3. Link in `app.config.ts`
 
-**Who:** already done (#1160). `app.config.ts` declares `owner: 'fatherapps'` and `extra.eas.projectId`, for the normal and the `preview` variant (same project).
+**Who:** already done (#1160). `app.config.ts` declares `owner: 'fatherapps-teams-co'` and `extra.eas.projectId`, for the normal and the `preview` variant (same project).
 
 Build from a commit that has both (step 6).
 
