@@ -3,14 +3,14 @@ import type { ExpoConfig } from 'expo/config';
 // APP_VARIANT=preview builds the test APK (docs/RELEASING.md, Test builds): its own package, name and scheme, so it installs next to the development client without taking over its links.
 const preview = process.env.APP_VARIANT === 'preview';
 
-// EAS project of the fatherapps account. Public; the update URL below is built from it so the two cannot drift.
+// EAS project of the fatherapps-teams-co Expo organization (moved there from the personal fatherapps account on 2026-11-19; the project ID did not change). Public; the update URL below is built from it so the two cannot drift.
 const projectId = '09e9d4f5-fe9e-4c74-a084-aaf9a9cfe9a0';
 
 const config: ExpoConfig = {
   name: preview ? 'Swimcro (prueba)' : 'Swimcro',
   slug: 'swimcro',
   // The preview variant builds from the same EAS project, so there is no second ID.
-  owner: 'fatherapps',
+  owner: 'fatherapps-teams-co',
   extra: { eas: { projectId } },
   // Opens school invitation links: swimcro://invite/<token>. The first scheme is the one the app builds links with; trailskill:// stays accepted so links sent before the rename still open.
   // The preview variant answers only to swimcro-preview://, so it does not open swimcro:// or trailskill:// links.

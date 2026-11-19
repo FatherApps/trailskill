@@ -68,9 +68,9 @@ describe('preview test build variant', () => {
 
 describe('EAS project link', () => {
   // The project ID is public (not a secret). The preview variant builds from the same EAS project.
-  it.each([undefined, 'preview'])('links the EAS project of fatherapps when APP_VARIANT is %p', (variant) => {
+  it.each([undefined, 'preview'])('links the EAS project of fatherapps-teams-co when APP_VARIANT is %p', (variant) => {
     const loaded = loadConfig(variant);
-    expect(loaded.owner).toBe('fatherapps');
+    expect(loaded.owner).toBe('fatherapps-teams-co');
     expect(loaded.extra?.eas?.projectId).toBe('09e9d4f5-fe9e-4c74-a084-aaf9a9cfe9a0');
   });
 });

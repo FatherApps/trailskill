@@ -97,13 +97,32 @@ Real families are **not** invited to PROD until an off-server backup and a teste
    - Not found (native code changed, or the first release after #1188, because the 0.1.0 build has no `expo-updates`): `build` makes the production build and `submit` sends it to the Internal testing track (`submit.production.android` in `eas.json`).
    - A tag `vX.Y.Z+ota.N` never starts it. A manual hotfix tag `vX.Y.Z` on `release/X.Y` does, because it is a release.
 5. Migrate PROD from the tag, once PROD exists, before the workflow delivers ([Order for each version](#order-for-each-version)). Until the cut, the build uses QA, which already migrated when its pull requests merged.
-6. Follow the run on expo.dev. A failed build or submit reaches no user: the maintainer starts the workflow again from expo.dev.
+6. Follow the run on expo.dev, and check which route it took: `update`, or `build` then `submit`. A failed build or submit reaches no user. Recover on expo.dev with **Re-run workflow** → **Re-run from failed jobs**, which reuses the successful build and retries only the failed job ([Expo: re-run a workflow](https://docs.expo.dev/eas/workflows/manage-workflow-runs/#re-run-a-workflow)). **Never use "Re-run all jobs" (or `eas workflow:run`) after a build that succeeded but whose submit failed:** `get_build` would find that never-submitted build, the run would take the OTA route and finish green, and no phone would receive the store bundle.
 7. Run the smoke test (see [Release checklist](#release-checklist)). After a build, use an internal-track install; after an OTA update, restart the app on a phone with the previous build.
 8. After a build, promote in Play Console: internal → closed (pilot) → production with a staged rollout. See [Tracks](#tracks).
 
 **Accepted risk.** The OTA route skips the internal track and reaches every pilot user at once, at 100 % (the maintainer chose this on 2026-11-19). The only protection is the fingerprint check: JavaScript-only changes. Undo it with [Roll back an automatic OTA](#roll-back-an-automatic-ota).
 
-**Production builds come only from this workflow.** `get-build` matches any production build with the same fingerprint. A hand-made production build that was never submitted would make a later release publish an OTA update for a runtime nobody installed. Never run `eas build --profile production` by hand.
+**Production builds come only from this workflow.** `get-build` matches any production build with the same fingerprint. A production build that was never submitted, whether hand-made or left by a run whose submit failed, would make a later release (or a full re-run) publish an OTA update for a runtime nobody installed. Never run `eas build --profile production` by hand, and finish a failed submit with "Re-run from failed jobs".
+
+### First run: `v0.2.0` never ran and `v0.3.0` failed
+
+- **`v0.2.0`** (merge commit `90850ff`) was pushed before `.eas/workflows/release.yml` reached `main`, so it started nothing, and it never will. Its tree has no workflow file and no `submit.production.android` in `eas.json`.
+- **`v0.3.0`** (`42a8595`) did start the workflow (2026-11-19) and failed in the `fingerprint` job, step «Generate fingerprints», before any other job: nothing was built, submitted or published, so there is nothing to clean up. Observed log line: `Project config: Owner of project identified by "extra.eas.projectId" (fatherapps-teams-co) does not match owner specified in the "owner" field (fatherapps)`, then `Error: fingerprint:generate command failed.` The cause is the old `owner: 'fatherapps'` that the tag still carries; the project moved to the organization `fatherapps-teams-co` and the fix is the `owner` change in `app.config.ts`. `fingerprint:generate` passes locally for both platforms, because this check needs the Expo account: the failure only shows on EAS. After the fix, `owner` and `extra.eas.projectId` agree (`app.config.ts` is the only place that sets either).
+- A re-run of the `v0.3.0` run, from failed jobs or all jobs, reuses the tag's files, so it fails again for the same reason.
+
+The workflow is **Android only**: every job that delivers something (`get_build`, `update`, `build`, `submit`) is Android. The pre-packaged `fingerprint` job has no platform option (its only parameter is `unstable_skip_cng_check`; its outputs are `android_fingerprint_hash` and `ios_fingerprint_hash`), so it computes the iOS fingerprint too, and the workflow ignores it. ([Expo: fingerprint job](https://docs.expo.dev/eas/workflows/pre-packaged-jobs/#fingerprint)) Nothing is built or published for iOS.
+
+Facts about manual runs, checked with `git ls-tree` and `git show` on the tags and against the [Expo docs](https://docs.expo.dev/eas/cli/#eas-workflowrun-file):
+- `eas workflow:run FILE` packages and uploads the **local project directory** unless `--ref` is given, and the run then has no branch or commit. `--ref` is documented only as «Git reference to run the workflow on»; the docs do not say whether the workflow file is then read from that ref. `--git-branch` and `--git-commit-hash` only label the run; the run still uses the uploaded files. Manual runs are documented for the CLI and the REST API; the docs describe no «Run workflow» button (the dashboard only re-runs an existing run).
+- Until the `owner` fix is on `main`, `main` has the same code as `v0.3.0` and the same wrong `owner`, so a manual run from it fails the same way. After the fix, `main` is `v0.3.0` plus that fix (`git log v0.3.0..origin/main`), with no native change in between.
+- A manual run does not follow «build from the tag»: from a checkout of a tag it uses that tag's files (the `v0.3.0` ones fail on `owner`, the `v0.2.0` ones lack the workflow); from `main` it builds `main`. Only the maintainer creates or moves tags.
+
+Options for the maintainer once the `owner` fix is on `main` (agents run none of them):
+
+1. **Wait for the next release-please release** (recommended). The `owner` fix is a `fix(...)` commit, so release-please opens a PATCH release; its tag carries the workflow and the right `owner`, the first run is the normal tag push, and every rule here holds. Nothing is lost: neither `v0.2.0` nor `v0.3.0` reached Play, and 0.1.0 stays on the internal track.
+2. **Run it by hand against `main`**, accepting that the build is `main` and not a tag: `eas workflow:run .eas/workflows/release.yml --git-branch main --git-commit-hash "$(git rev-parse HEAD)"` from an up-to-date checkout of `main` (the last two flags only label the run). Record the commit that was built in the release notes. A manual run has no tag, so `github.ref_name` is empty and an OTA update would lose its `vX.Y.Z` message; the first run takes the build route anyway, because no build has the new fingerprint.
+3. Move or create a tag: not an option for agents, and moving a release tag would break the rule that the tag is the merge commit of the release pull request.
 
 The release pull request is exempt from the PR description check and from the delivery box check, only when its head branch is `release-please--branches--main--components--trailskill` and its title is `chore(release): vX.Y.Z`; it always needs a Play build ([`CONTRIBUTING.md`](../CONTRIBUTING.md#required-checks)). Every other check runs on it unchanged.
 
@@ -156,7 +175,7 @@ If an update that the release workflow published breaks the app, the maintainer 
 - `eas update:rollback` on the `production` channel, or
 - `eas update:republish` of the previous update group. ([Expo: `eas update:rollback` and `eas update:republish`](https://docs.expo.dev/eas/cli/))
 
-The tag and the GitHub Release of the reverted version stay. The fix goes out as the next PATCH version through the same workflow. A failed build or submit reaches no user; the maintainer starts the workflow again from expo.dev.
+The tag and the GitHub Release of the reverted version stay. The fix goes out as the next PATCH version through the same workflow. A failed build or submit reaches no user; recover it as in [Standard release](#standard-release-from-main), step 6.
 
 ### Tags
 
@@ -177,10 +196,12 @@ The 0.1.0 build on Play Internal testing predates `expo-updates`, so it has no u
 - **Account type and production access.** The Swimcro Play developer account is **personal**. Personal developer accounts created after 13 November 2023 must run a closed test with at least 12 testers opted in for 14 consecutive days before applying for production access. The La Academia pilot runs on the closed testing track and its testers must satisfy this requirement. ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en))
 - **Application ID.** A neutral, company-based reverse-domain ID. It cannot change after the first release; the display name can.
 - **EAS Submit credentials.** EAS submits with a Google service account key stored in EAS credentials, never in the repository. The first release can be created by `eas submit` on the internal track; a manual first upload is optional. ([Expo: submit to Google Play](https://docs.expo.dev/submit/android/))
-- **Release workflow (#1209).** Three one-time steps, done by the maintainer; agents never touch them:
-  1. Link the GitHub repository to the EAS project (Expo's GitHub app), so that tag pushes reach EAS Workflows. ([Expo: automate workflows with GitHub events](https://docs.expo.dev/eas/workflows/get-started/))
-  2. Upload the Play service account JSON to the EAS credentials for the Android submit.
-  3. Confirm the EAS `production` environment holds the backend values the build must use (QA until the cut to PROD, #1120).
+- **Release workflow (#1209).** The Expo project `swimcro` lives in the Expo organization `fatherapps-teams-co` (moved from the personal `fatherapps` account on 2026-11-19; the project ID and the upload keystore did not change). Expo's GitHub app only delivers tag pushes to an organization project, which is why. Three one-time steps, done by the maintainer; agents never touch them:
+  1. **Done on 2026-11-19:** the GitHub repository is linked to the EAS project (Expo's GitHub app, base directory `/`), so that tag pushes reach EAS Workflows. Expo shows the workflow as «Unconfigured» until `.eas/workflows/release.yml` is on `main`. ([Expo: automate workflows with GitHub events](https://docs.expo.dev/eas/workflows/get-started/))
+  2. **Done on 2026-11-19:** the key of the Play service account is uploaded to the EAS credentials (it submits only to the testing tracks).
+  3. **To check:** confirm the EAS `production` environment holds the backend values the build must use (QA until the cut to PROD, #1120).
+
+  Changing `owner` in `app.config.ts` changes the fingerprint (the `balanced` preset does not skip it), so builds made before 2026-11-19 do not match the new source; the first release after #1188 takes the build route anyway.
 - **Automatic release pull request (release-please, #1202).** Two one-time steps, done by the maintainer; agents never create, read or store the token:
   1. Create a fine-grained personal access token limited to this repository, with **Contents** and **Pull requests** read and write (or a GitHub App with the same permissions), and save it as the repository secret `RELEASE_PLEASE_TOKEN`. Write down its expiry date and how to renew it (a new token, then replace the secret) in the maintainer's own notes; until the secret exists, the workflow cannot open the release pull request. A personal token is needed because pull requests and tags created with `GITHUB_TOKEN` do not start other workflows, so the checks of the release pull request would not run.
   2. Give the SHA of the commit of the 0.1.0 Play build (from the EAS build page). It goes into `release-please-config.json` as `"bootstrap-sha"`, so the first changelog starts after that build and not at the first commit. **Order matters:** merging the pull request that adds the workflow (#1203) is already its first run on `main`, and it fails without the secret; that failure is expected. Add `"bootstrap-sha"` in a small separate pull request **before** creating `RELEASE_PLEASE_TOKEN`: once the secret exists, the next push to `main` opens the first release pull request, and without the field its `CHANGELOG.md` would cover the whole history. The field is set to `67e729d3f962e00f2f97d0c95e914bddf084f9a9` (#1167), the commit of the 0.1.0 Play build, so the first changelog covers only the commits of `main` after it. The maintainer still has to create the `RELEASE_PLEASE_TOKEN` secret after this change is merged.
@@ -221,14 +242,14 @@ Read this before the steps. Each line is a fact checked in this repository or in
 | Secret rotation (#914) | **Open**, no comments, last updated 3 November 2026. | **Blocks today**, see step 1. |
 | Sign-in by emailed code | Auth sends the code through Resend. This is **confirmed by Mario and the maintainer (2026-11-15)**: codes for `@example.test` stopped reaching Mailpit. The repository does not show it (the SMTP host is a redacted Dokploy variable). | Second sign-in path. Test it with a real address before inviting testers, step 4. |
 | Sign-in with Google | The maintainer verified authorize, provider, callback in the auth logs (see [`data-safety.md`](release/data-safety.md)). #84 (Google and Microsoft in the self-hosted auth) is still open. | Main sign-in path. Test it on the preview APK before building, step 4. |
-| Expo project | Exists: slug `swimcro`, owner `fatherapps`. `app.config.ts` links it with `owner` and `extra.eas.projectId` (#1160). | Nothing to create. Step 2 keeps only the EAS variables. |
+| Expo project | Exists: slug `swimcro`, owner `fatherapps-teams-co`. `app.config.ts` links it with `owner` and `extra.eas.projectId` (#1160). | Nothing to create. Step 2 keeps only the EAS variables. |
 | App name and package | Swimcro, `com.fatherapps.swimcro` (#1097). Logo and wordmark are pending (#1099). | The store listing can use the current icon; the graphics are the maintainer's. |
 | `expo.version` | `0.1.0` (the pilot stays on `0.y.z`, see [Versioning](#versioning)). The Android `versionCode` is still managed by EAS. | The first upload is `0.1.0`. |
 
 ### Before you start
 
 - [ ] A Google Play developer account (personal) with access to Play Console.
-- [x] The Expo project already exists (slug `swimcro`, owner `fatherapps`) and `app.config.ts` links it (#1160). You need access to that account to run `eas`.
+- [x] The Expo project already exists (slug `swimcro`, owner `fatherapps-teams-co`) and `app.config.ts` links it (#1160). You need access to that account to run `eas`.
 - [ ] A device with the Play Store signed in with a Google account, for the smoke test.
 - [ ] The drafts in [`docs/release/`](release/) reviewed. They are drafts: the privacy policy needs the legal review of issue #106 before it is published anywhere.
 
@@ -257,7 +278,7 @@ What lifts the block:
 
 **Who:** Mario, on expo.dev and in his own terminal.
 
-**The project.** It already exists (slug `swimcro`, owner `fatherapps`) and is linked in `app.config.ts`. Do not run `eas init` again: it cannot edit a dynamic `app.config.ts`.
+**The project.** It already exists (slug `swimcro`, owner `fatherapps-teams-co`) and is linked in `app.config.ts`. Do not run `eas init` again: it cannot edit a dynamic `app.config.ts`.
 
 **The variables.** The build reads three public values from the EAS environment named `production`. They never go in the repository: `eas.json` has no `EXPO_PUBLIC_*` value. **Today they are the QA values** (temporary decision, see [State](#state-on-16-november-2026)). Create each variable without `--value`, so the CLI asks for it and the value stays out of your shell history and of this repository (if your `eas-cli` rejects the missing value, pass it with `--value` from your own terminal only):
 
@@ -274,7 +295,7 @@ eas env:create --name EXPO_PUBLIC_POWERSYNC_URL --environment production --visib
 
 ### 3. Link in `app.config.ts`
 
-**Who:** already done (#1160). `app.config.ts` declares `owner: 'fatherapps'` and `extra.eas.projectId`, for the normal and the `preview` variant (same project).
+**Who:** already done (#1160). `app.config.ts` declares `owner: 'fatherapps-teams-co'` and `extra.eas.projectId`, for the normal and the `preview` variant (same project).
 
 Build from a commit that has both (step 6).
 
@@ -435,7 +456,7 @@ A build without the three variables still opens, but sign-in and sync report a m
 - [ ] `main` (or `release/X.Y`) is green and the tag points to the built commit.
 - [ ] Once PROD exists: PROD was migrated from the tag before the build, and the EAS `production` environment holds the values of the backend the build is meant for.
 - [ ] The release pull request of release-please is merged, so `CHANGELOG.md`, the tag and the GitHub Release (with its notes) exist.
-- [ ] The release workflow run for the tag finished green on expo.dev, and `app_versions` still holds only versions of store builds.
+- [ ] The release workflow run for the tag finished green on expo.dev **and took the expected route** (`update`, or `build` then `submit`, never `update` after a failed submit), and `app_versions` still holds only versions of store builds.
 - [ ] Smoke test on an internal-track install: sign in as a guardian, register an athlete, record a training time offline, reconnect and confirm sync.
 - [ ] Data safety form still matches what the app collects and shares.
 - [ ] Target API level meets the current Play requirement.
