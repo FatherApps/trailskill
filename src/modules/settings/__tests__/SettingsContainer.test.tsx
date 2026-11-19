@@ -1,17 +1,19 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 
 import { createInMemoryPreferencesRepository, PreferencesProvider } from '../../../core/preferences';
+import { createFakeDoNotDisturb, type DoNotDisturbPort } from '../../family-timing';
 import { createFakeTimingButton, unavailableTimingButton } from '../../timing';
 import { SettingsContainer } from '../screens/SettingsContainer';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
 
-async function setup(buttons = createFakeTimingButton().port) {
+async function setup(buttons = createFakeTimingButton().port, dnd: DoNotDisturbPort = createFakeDoNotDisturb()) {
   const repository = createInMemoryPreferencesRepository();
   const onBack = jest.fn();
   await render(
     <PreferencesProvider repository={repository}>
-      <SettingsContainer onBack={onBack} buttons={buttons} />
+      <SettingsContainer onBack={onBack} buttons={buttons} dnd={dnd} />
     </PreferencesProvider>,
   );
   return { repository, onBack };
@@ -65,7 +67,48 @@ describe('SettingsContainer video recording', () => {
     await waitFor(async () => expect((await repository.load()).videoRecording.quality).toBe('high'));
     await fireEvent.press(within(screen.getByLabelText('Parar el video después de detener el reloj')).getByText('10 s'));
     await waitFor(async () =>
-      expect((await repository.load()).videoRecording).toEqual({ quality: 'high', audio: true, showStopwatch: true, startWithTime: false, stopAfterSeconds: 10 }),
+      expect((await repository.load()).videoRecording).toEqual({ quality: 'high', audio: true, showStopwatch: true, startWithTime: false, stopAfterSeconds: 10, doNotDisturb: false }),
     );
+  });
+});
+
+// Issue #1090.
+describe('SettingsContainer No molestar while recording', () => {
+  const option = () => within(screen.getByLabelText('Activar No molestar mientras grabo'));
+
+  it('is off by default and saves Sí without asking when the access is there', async () => {
+    const dnd = createFakeDoNotDisturb(true);
+    const { repository } = await setup(undefined, dnd);
+    expect(option().getByText('No')).toBeTruthy();
+    await fireEvent.press(option().getByText('Sí'));
+    await waitFor(async () => expect((await repository.load()).videoRecording.doNotDisturb).toBe(true));
+    expect(dnd.opened).toBe(0);
+    expect(screen.queryByText('Abrir ajustes de Android')).toBeNull();
+  });
+
+  it('is not offered where the phone cannot change it', async () => {
+    await setup(undefined, { ...createFakeDoNotDisturb(), available: false });
+    expect(screen.queryByText('Activar No molestar mientras grabo')).toBeNull();
+  });
+
+  // Last: restoring the AppState spy also clears the jest-setup mock's implementation.
+  it('takes the person to Android when the access is missing, explains it, and reads it again on return', async () => {
+    let onChange: ((state: AppStateStatus) => void) | undefined;
+    const spy = jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, handler) => {
+      onChange = handler as (state: AppStateStatus) => void;
+      return { remove: jest.fn() } as unknown as ReturnType<typeof AppState.addEventListener>;
+    });
+    const dnd = createFakeDoNotDisturb(false);
+    await setup(undefined, dnd);
+    await fireEvent.press(option().getByText('Sí'));
+    expect(dnd.opened).toBe(1);
+    expect(await screen.findByText(/^Para activarlo, Android pide/)).toBeTruthy();
+    await fireEvent.press(screen.getByText('Abrir ajustes de Android'));
+    expect(dnd.opened).toBe(2);
+
+    dnd.access = true;
+    await act(async () => onChange?.('active'));
+    expect(screen.queryByText('Abrir ajustes de Android')).toBeNull();
+    spy.mockRestore();
   });
 });

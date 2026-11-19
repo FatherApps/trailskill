@@ -4,6 +4,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { createInMemoryPreferencesRepository, defaultPreferences, defaultVideoRecording, PreferencesProvider, type VideoRecordingPreferences } from '../../../core/preferences';
 import { createFakeTimingButton } from '../../timing';
+import { createFakeDoNotDisturb } from '../data/doNotDisturb';
 import { createInMemoryFamilyTimingNoticeStore } from '../data/noticeSeen';
 import { createFakeVideoCamera } from '../testing/fakeVideoCamera';
 import { finalMillis, type FamilyStopwatch } from '../domain/familyStopwatch';
@@ -23,8 +24,9 @@ function AfterLoad({ children }: { children: ReactNode }) {
   return ready ? children : null;
 }
 
-async function setup(options: { video?: Partial<VideoRecordingPreferences>; granted?: boolean; freeBytes?: number | null; laps?: number; failToOpen?: boolean; failKeep?: boolean; intro?: VideoStopwatchContainerProps['intro'] } = {}) {
+async function setup(options: { video?: Partial<VideoRecordingPreferences>; granted?: boolean; freeBytes?: number | null; laps?: number; failToOpen?: boolean; failKeep?: boolean; intro?: VideoStopwatchContainerProps['intro']; dnd?: ReturnType<typeof createFakeDoNotDisturb> } = {}) {
   const buttons = createFakeTimingButton(ms(1000));
+  const dnd = options.dnd ?? createFakeDoNotDisturb();
   const fake = createFakeVideoCamera({ granted: options.granted, freeBytes: options.freeBytes, failToOpen: options.failToOpen, failKeep: options.failKeep });
   const saved: FamilyStopwatch[] = [];
   const saveTime = jest.fn(async (sw: FamilyStopwatch) => {
@@ -42,6 +44,7 @@ async function setup(options: { video?: Partial<VideoRecordingPreferences>; gran
         buttons={buttons.port}
         camera={fake.camera}
         intro={options.intro}
+        dnd={dnd}
         saveTime={saveTime}
         buttonsHint={() => 'Subir volumen (+) inicia y detiene'}
         onClose={onClose}
@@ -53,7 +56,7 @@ async function setup(options: { video?: Partial<VideoRecordingPreferences>; gran
     await waitFor(() => expect(fake.state.ready).not.toBeNull());
     await act(async () => fake.state.ready?.());
   };
-  return { buttons, fake, saved, saveTime, onClose, cameraOn };
+  return { buttons, fake, saved, saveTime, onClose, cameraOn, dnd };
 }
 
 describe('VideoStopwatchContainer', () => {
@@ -318,6 +321,48 @@ describe('VideoStopwatchContainer', () => {
     expect(fake.state.kept).toEqual([]);
     expect(saved).toHaveLength(0);
     spy.mockRestore();
+  });
+});
+
+// Issue #1090: "No molestar" while recording, when Ajustes says so.
+describe('VideoStopwatchContainer and No molestar', () => {
+  it('turns it on when the video starts and puts the phone back when the video ends', async () => {
+    const { fake, cameraOn, dnd } = await setup({ video: { doNotDisturb: true, stopAfterSeconds: 0 } });
+    await cameraOn();
+    expect(dnd.on).toBe(false);
+    await fireEvent.press(screen.getByText('Grabar'));
+    expect(dnd.on).toBe(true);
+    await fireEvent.press(screen.getByText('Iniciar'));
+    await fireEvent.press(screen.getByText('Detener'));
+    await waitFor(() => expect(fake.state.recording).toBe(false));
+    await waitFor(() => expect(dnd.on).toBe(false));
+    expect(dnd.restored).toBe(1);
+  });
+
+  it('leaves it alone when Ajustes says No', async () => {
+    const { cameraOn, dnd } = await setup();
+    await cameraOn();
+    await fireEvent.press(screen.getByText('Grabar'));
+    expect(dnd.turnedOn).toBe(0);
+    expect(screen.getByText('Iniciar')).toBeTruthy();
+  });
+
+  it('records as before without the access', async () => {
+    const { fake, cameraOn, dnd } = await setup({ video: { doNotDisturb: true }, dnd: createFakeDoNotDisturb(false) });
+    await cameraOn();
+    await fireEvent.press(screen.getByText('Grabar'));
+    expect(fake.state.recording).toBe(true);
+    expect(dnd.on).toBe(false);
+    expect(screen.getByText('Iniciar')).toBeTruthy();
+  });
+
+  it('puts the phone back when the screen closes while recording', async () => {
+    const { cameraOn, dnd } = await setup({ video: { doNotDisturb: true } });
+    await cameraOn();
+    await fireEvent.press(screen.getByText('Grabar'));
+    expect(dnd.on).toBe(true);
+    await act(async () => screen.unmount());
+    expect(dnd.on).toBe(false);
   });
 });
 

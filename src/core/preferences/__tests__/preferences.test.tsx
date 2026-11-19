@@ -23,7 +23,7 @@ describe('parsePreferences', () => {
   });
 
   it('keeps valid video recording settings and replaces invalid ones', () => {
-    const saved = { quality: 'high', audio: false, showStopwatch: false, startWithTime: true, stopAfterSeconds: 10 };
+    const saved = { quality: 'high', audio: false, showStopwatch: false, startWithTime: true, stopAfterSeconds: 10, doNotDisturb: true };
     expect(parsePreferences({ videoRecording: saved }).videoRecording).toEqual(saved);
     expect(parsePreferences({ videoRecording: { quality: '4k', audio: 1, showStopwatch: 'yes', startWithTime: 'no', stopAfterSeconds: 30 } }).videoRecording).toEqual(
       defaultVideoRecording,
