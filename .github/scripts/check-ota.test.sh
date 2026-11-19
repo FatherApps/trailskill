@@ -102,6 +102,12 @@ expect_fail 'release title on a look-alike branch still needs a box' "$T/empty-b
 TITLE='feat(timing): synthetic' REF=$RELEASE_REF
 expect_fail 'release branch with another title still needs a box' "$T/empty-body.md" "$NONE_MSG"
 expect_fail 'release branch with another title fails OTA with a build path' "$FX/ota.md" "$OTA_MSG"
+NL='
+'
+TITLE="chore: anything${NL}$RELEASE_TITLE" REF=$RELEASE_REF
+expect_fail 'release branch with a multi-line title hiding the release line still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE="$RELEASE_TITLE${NL}more" REF=$RELEASE_REF
+expect_fail 'release branch with a release line first and more lines still needs a box' "$T/empty-body.md" "$NONE_MSG"
 TITLE='chore(release): v1.2.3-rc.1' REF=$RELEASE_REF
 expect_fail 'release branch with a pre-release title still needs a box' "$T/empty-body.md" "$NONE_MSG"
 TITLE='feat(timing): synthetic' REF=

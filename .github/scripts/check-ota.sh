@@ -101,7 +101,10 @@ fi
 
 # The pull request that release-please opens bumps expo.version in app.config.ts, so it is always
 # "Requiere build de Play" and has no box. Exempt only when its head branch AND its title match.
+nl='
+'
 if [ "${PR_HEAD_REF:-}" = release-please--branches--main ] &&
+  [ "${PR_TITLE#*"$nl"}" = "${PR_TITLE:-}" ] &&
   printf '%s\n' "${PR_TITLE:-}" | grep -Eq '^chore\(release\): v[0-9]+\.[0-9]+\.[0-9]+$'; then
   exit 0
 fi

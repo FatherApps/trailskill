@@ -135,6 +135,10 @@ expect_fail 'release PR branch with another title fails' "$GOOD" "$T/empty-body.
 expect_fail 'release PR branch with a title that is not a plain version fails' 'chore(release): v1.2' "$T/empty-body.md" 'PR description'
 expect_fail 'release PR branch with a pre-release version fails' 'chore(release): v1.2.3-rc.1' "$T/empty-body.md" 'PR description'
 expect_fail 'release PR branch with a suffixed title fails' 'chore(release): v1.2.3 and more' "$T/empty-body.md" 'PR description'
+NL='
+'
+expect_fail 'release branch with a multi-line title hiding the release line fails' "chore: anything${NL}$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
+expect_fail 'release branch with a release line first and more lines fails' "$RELEASE_TITLE${NL}more" "$T/empty-body.md" 'PR description'
 REF=feat/1202-release-please
 expect_fail 'release title on another branch fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
 REF=

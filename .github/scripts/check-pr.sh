@@ -7,7 +7,10 @@ status=0
 
 # The pull request that release-please opens has no template, so it is exempt. Both must hold:
 # its head branch AND a title of exactly "chore(release): vX.Y.Z" (docs/RELEASING.md, Standard release).
+nl='
+'
 if [ "${PR_HEAD_REF:-}" = release-please--branches--main ] &&
+  [ "${PR_TITLE#*"$nl"}" = "${PR_TITLE}" ] &&
   printf '%s\n' "$PR_TITLE" | grep -Eq '^chore\(release\): v[0-9]+\.[0-9]+\.[0-9]+$'; then
   exit 0
 fi
