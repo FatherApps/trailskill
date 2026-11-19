@@ -8,8 +8,10 @@ import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../.
 import {
   createPowerSyncFamilyMeasurementRepository,
   createPowerSyncFamilyTransferRepository,
+  createPowerSyncFamilyVideoRepository,
   createSecureStoreFamilyTimingNoticeStore,
   videoCamera,
+  videoLibrary,
   FamilyTimingContainer,
 } from '../../modules/family-timing';
 import { createPowerSyncImportedResultsRepository, createSupabaseImportSourcesRepository, useImportSources } from '../../modules/results-import';
@@ -23,6 +25,7 @@ const importedResults = createPowerSyncImportedResultsRepository();
 const importSources = createSupabaseImportSourcesRepository();
 const notice = createSecureStoreFamilyTimingNoticeStore();
 const videoIntro = createSecureStoreFamilyTimingNoticeStore('video-intro');
+const familyVideos = createPowerSyncFamilyVideoRepository();
 
 // "/family-timing": "Mis tiempos", the times a guardian or adult athlete measures on their own phone.
 export default function FamilyTimingRoute() {
@@ -46,6 +49,8 @@ export default function FamilyTimingRoute() {
       notice={notice}
       videoIntro={videoIntro}
       videoCamera={videoCamera}
+      videos={familyVideos}
+      videoLibrary={videoLibrary}
       // Requests and times moved by another family arrive by sync.
       syncKey={lastSyncedAt?.getTime()}
       onBack={goBack}

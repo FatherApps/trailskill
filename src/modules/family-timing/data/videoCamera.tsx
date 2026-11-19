@@ -40,8 +40,11 @@ export type VideoCamera = {
   requestPermissions(audio: boolean): Promise<boolean>;
   /** Free space on the phone in bytes, or null when unknown. */
   freeBytes(): number | null;
-  /** Keeps a finished recording in the Swimcro album of the gallery, under `name`; rejects when the gallery refuses it, and the file is deleted either way. */
-  keep(uri: string, name: string): Promise<void>;
+  /**
+   * Keeps a finished recording in the Swimcro album of the gallery, under `name`, and returns its id in the gallery; rejects
+   * when the gallery refuses it, and the file is deleted either way.
+   */
+  keep(uri: string, name: string): Promise<string>;
   /** Deletes a finished recording that is not kept. */
   discard(uri: string): void;
   /** The rear camera's live image, with the stopwatch strip drawn in. */
@@ -111,9 +114,11 @@ function nativeVideoCamera(): VideoCamera {
       // The file is renamed first, so the gallery shows the time's id in its name.
       const recorded = new File(uri);
       const named = new File(Paths.cache, `${name}.mp4`);
+      let assetId: string;
       try {
         await recorded.move(named);
         const asset = await Asset.create(named.uri);
+        assetId = asset.id;
         const album = await Album.get(VIDEO_ALBUM);
         if (album) await album.add(asset);
         else await Album.create(VIDEO_ALBUM, [asset], true);
@@ -127,6 +132,7 @@ function nativeVideoCamera(): VideoCamera {
           }
         }
       }
+      return assetId;
     },
     discard(uri) {
       try {

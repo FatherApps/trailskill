@@ -285,6 +285,20 @@ export const AppSchema = new Schema({
     },
     { localOnly: true, indexes: { athlete: ['athlete_id'] } },
   ),
+  // Which time each video recorded with the stopwatch belongs to (#1089), on this phone only: the video stays in the
+  // phone's gallery and never reaches the server.
+  family_timing_videos: new Table(
+    {
+      created_at: column.text,
+      created_by: column.text,
+      measurement_id: column.text,
+      // The video's id in the phone's gallery.
+      asset_id: column.text,
+      // Milliseconds from the start of the video to the start of the clock.
+      start_offset_ms: column.integer,
+    },
+    { localOnly: true, indexes: { measurement: ['measurement_id'] } },
+  ),
   pending_writes: new Table(
     { table_name: column.text, record_id: column.text },
     { localOnly: true, indexes: { record: ['table_name', 'record_id'] } },

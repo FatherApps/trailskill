@@ -58,6 +58,8 @@ export type FamilyCard = {
   notSent?: boolean;
   // Only on the phone and rejected by the server: it can be deleted for good, instead of edited.
   canDiscard?: boolean;
+  // Recorded with the camera (#1089): its video is in this phone's gallery, or was deleted from it. Null: no video here.
+  video?: 'available' | 'missing' | null;
 };
 
 // Everything known about one saved time, opened by touching its card (#1002).
@@ -205,6 +207,8 @@ export type FamilyTimingScreenProps = {
   onDiscard: () => void;
   onOpenOfficial: (id: string) => void;
   onOpenDetail?: (id: string) => void;
+  // Plays the time's video (#1089).
+  onOpenTimeVideo?: (id: string) => void;
   onOpenChooseOfficial?: (id: string) => void;
   onChooseOfficial?: (resultKey: string) => void;
   onOfficialText: (text: string) => void;
@@ -320,9 +324,11 @@ function ListCard({
   onOpenChooseOfficial,
   onWithdraw,
   onAskDiscard,
+  onOpenTimeVideo,
 }: {
   card: FamilyCard;
   accent: ColorToken;
+  onOpenTimeVideo?: (id: string) => void;
   onOpenDetail?: (id: string) => void;
   onOpenOfficial?: (id: string) => void;
   onOpenChooseOfficial?: (id: string) => void;
@@ -372,6 +378,15 @@ function ListCard({
           </View>
           {card.notSent && <SyncStatus state="not_sent" />}
         </Pressable>
+        {card.video && onOpenTimeVideo && (
+          <Button
+            variant="ghost"
+            icon={<Icon name="play_arrow" size="icon-sm" />}
+            label={t('family_timing.card.video')}
+            disabledReason={card.video === 'missing' ? t('family_timing.card.video_missing') : undefined}
+            onPress={() => onOpenTimeVideo(card.id)}
+          />
+        )}
         {card.officialChoice && onOpenChooseOfficial && (
           <Button
             variant={card.officialChoice === 'choose' ? 'primary' : 'secondary'}
@@ -808,6 +823,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
                   card={card}
                   accent={accent}
                   onOpenDetail={props.onOpenDetail}
+                  onOpenTimeVideo={props.onOpenTimeVideo}
                   onOpenOfficial={props.onOpenOfficial}
                   onOpenChooseOfficial={props.onOpenChooseOfficial}
                   onWithdraw={props.onWithdraw}
@@ -840,6 +856,15 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             ))}
           {card.notSent && <SyncStatus state="not_sent" />}
           <TimeHero card={card} color={heroColor} when={detail.when} competition={detail.rows.find((row) => row.label === t('family_timing.detail.competition'))?.value} />
+          {card.video && props.onOpenTimeVideo && (
+            <Button
+              variant="secondary"
+              icon={<Icon name="play_arrow" size="icon-sm" />}
+              label={t('family_timing.card.video')}
+              disabledReason={card.video === 'missing' ? t('family_timing.card.video_missing') : undefined}
+              onPress={() => props.onOpenTimeVideo?.(card.id)}
+            />
+          )}
           {detail.laps.length > 0 && (
             <View style={{ gap: space[3], padding: space[5], borderRadius: radius.lg, backgroundColor: colors['surface-1'] }}>
               <View>
