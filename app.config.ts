@@ -15,7 +15,7 @@ const config: ExpoConfig = {
   // Opens school invitation links: swimcro://invite/<token>. The first scheme is the one the app builds links with; trailskill:// stays accepted so links sent before the rename still open.
   // The preview variant answers only to swimcro-preview://, so it does not open swimcro:// or trailskill:// links.
   scheme: preview ? 'swimcro-preview' : ['swimcro', 'trailskill'],
-  version: '0.3.0', // x-release-please-version
+  version: '0.3.1', // x-release-please-version
   // OTA updates (docs/RELEASING.md, Over-the-air updates): the runtime is a hash of the native project, so any native change needs a new Play build. 0.1.0 predates expo-updates and never receives an OTA.
   runtimeVersion: { policy: 'fingerprint' },
   updates: { url: `https://u.expo.dev/${projectId}` },
