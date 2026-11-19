@@ -23,6 +23,7 @@ export {
   type FamilyTimingNoticeStore,
 } from './data/noticeSeen';
 export { VIDEO_ALBUM, videoCamera, type VideoCamera } from './data/videoCamera';
+export { createFakeDoNotDisturb, doNotDisturb, type DoNotDisturbPort } from './data/doNotDisturb';
 export {
   createInMemoryFamilyVideoRepository,
   createPowerSyncFamilyVideoRepository,

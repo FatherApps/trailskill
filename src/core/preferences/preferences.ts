@@ -13,9 +13,16 @@ export type VideoQuality = 'low' | 'medium' | 'high';
 
 /**
  * Recording the individual stopwatch on video: quality, sound, the stopwatch drawn into the video, one button for recording
- * and time, and how long the video keeps going after the clock stops.
+ * and time, how long the video keeps going after the clock stops, and whether "No molestar" goes on while it records (#1090).
  */
-export type VideoRecordingPreferences = { quality: VideoQuality; audio: boolean; showStopwatch: boolean; startWithTime: boolean; stopAfterSeconds: number };
+export type VideoRecordingPreferences = {
+  quality: VideoQuality;
+  audio: boolean;
+  showStopwatch: boolean;
+  startWithTime: boolean;
+  stopAfterSeconds: number;
+  doNotDisturb: boolean;
+};
 
 export type Preferences = { themeMode: ThemeMode; timePrecision: TimePrecision; timingButtons: TimingButtonPreferences; videoRecording: VideoRecordingPreferences };
 
@@ -23,7 +30,14 @@ export type Preferences = { themeMode: ThemeMode; timePrecision: TimePrecision; 
 export const defaultTimingButtons: TimingButtonPreferences = { enabled: true, startKey: 24, splitKey: 25, lockoutSeconds: 3, vibrate: true };
 
 // 720p plays well on most phones; a person picks 1080p in Ajustes when their phone can take it.
-export const defaultVideoRecording: VideoRecordingPreferences = { quality: 'medium', audio: true, showStopwatch: true, startWithTime: false, stopAfterSeconds: 5 };
+export const defaultVideoRecording: VideoRecordingPreferences = {
+  quality: 'medium',
+  audio: true,
+  showStopwatch: true,
+  startWithTime: false,
+  stopAfterSeconds: 5,
+  doNotDisturb: false,
+};
 
 export const defaultPreferences: Preferences = {
   themeMode: 'system',
@@ -78,6 +92,7 @@ function parseVideoRecording(raw: unknown): VideoRecordingPreferences {
     showStopwatch: typeof value.showStopwatch === 'boolean' ? value.showStopwatch : d.showStopwatch,
     startWithTime: typeof value.startWithTime === 'boolean' ? value.startWithTime : d.startWithTime,
     stopAfterSeconds: videoStopAfterSeconds.find((s) => s === value.stopAfterSeconds) ?? d.stopAfterSeconds,
+    doNotDisturb: typeof value.doNotDisturb === 'boolean' ? value.doNotDisturb : d.doNotDisturb,
   };
 }
 

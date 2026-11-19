@@ -7,6 +7,7 @@ import { usePreferences } from '../../../core/preferences';
 import { formatMillis, millisFromNanos } from '../../../core/time';
 import { buttonAction, nanosFromSeconds, timingButton, useTimingButtons, type TimingButtonPort } from '../../timing';
 import type { FamilyTimingNoticeStore } from '../data/noticeSeen';
+import { doNotDisturb, type DoNotDisturbPort } from '../data/doNotDisturb';
 import type { CameraPreviewHandle, VideoCamera } from '../data/videoCamera';
 import {
   elapsedMillisAt,
@@ -49,6 +50,8 @@ export type VideoStopwatchContainerProps = {
   /** The keys line under the time, given the connected headset's name. */
   buttonsHint: (keyboard: string | undefined) => string;
   onClose: (result: VideoStopwatchResult) => void;
+  /** "No molestar" while recording, when Ajustes says so (#1090). */
+  dnd?: DoNotDisturbPort;
 };
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -66,6 +69,7 @@ export const videoName = (measurementId: string | null, at: Date = new Date()) =
 export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
   const { event, laps, camera, intro, saveTime, linkVideo, onClose, buttonsHint } = props;
   const buttons = props.buttons ?? timingButton;
+  const dnd = props.dnd ?? doNotDisturb;
   const now = props.now ?? buttons.now;
   const { preferences } = usePreferences();
   const video = preferences.videoRecording;
@@ -198,6 +202,7 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
 
   async function finished(uri: string | null) {
     recording.current = false;
+    dnd.restore();
     setRecordingSince(null);
     const o = outcome.current;
     if (!uri) {
@@ -226,6 +231,8 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
     const camera = preview.current;
     if (!camera || recording.current || !cameraReady || closed.current) return false;
     recording.current = true;
+    // Without access the recording goes on as before; Ajustes explains how to give it.
+    if (video.doNotDisturb) dnd.turnOn();
     const at = now();
     recordStart.current = at;
     setRecordingSince(at);
@@ -296,7 +303,10 @@ export function VideoStopwatchContainer(props: VideoStopwatchContainerProps) {
   useEffect(
     () => () => {
       if (recording.current) preview.current?.stop();
+      dnd.restore();
     },
+    // Once, when the screen closes; the port does not change while it is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

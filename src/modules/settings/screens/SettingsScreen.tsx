@@ -34,6 +34,8 @@ export type SettingsScreenProps = {
 export type SettingsVideoView = {
   settings: VideoRecordingPreferences;
   onChange: (changes: Partial<VideoRecordingPreferences>) => void;
+  /** "No molestar" while recording (#1090); null where the phone cannot change it (iOS, or a build without the module). */
+  doNotDisturb?: { hasAccess: boolean; onOpenAccess: () => void } | null;
 };
 
 export type ButtonKey = 'start' | 'split';
@@ -189,6 +191,24 @@ function VideoSettings({ view }: { view: SettingsVideoView }) {
           options={onOff}
         />
       </Section>
+      {view.doNotDisturb && (
+        <Section label={t('settings.video.dnd_label')} hint={t('settings.video.dnd_hint')}>
+          <Segmented
+            accessibilityLabel={t('settings.video.dnd_label')}
+            value={settings.doNotDisturb ? 'on' : 'off'}
+            onChange={(value) => view.onChange({ doNotDisturb: value === 'on' })}
+            options={onOff}
+          />
+          {settings.doNotDisturb && !view.doNotDisturb.hasAccess && (
+            <>
+              <Banner variant="warn" icon="lock">
+                {t('settings.video.dnd_no_access')}
+              </Banner>
+              <Button variant="secondary" label={t('settings.video.dnd_open')} onPress={view.doNotDisturb.onOpenAccess} />
+            </>
+          )}
+        </Section>
+      )}
       <Section label={t('settings.video.stop_after_label')} hint={t('settings.video.stop_after_hint')}>
         <Segmented
           accessibilityLabel={t('settings.video.stop_after_label')}
