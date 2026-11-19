@@ -13,6 +13,10 @@ trap 'exit 130' INT TERM
 
 PASSED=0
 FAILED=0
+TITLE='feat(timing): synthetic'
+REF=
+RELEASE_REF=release-please--branches--main
+RELEASE_TITLE='chore(release): v1.2.3'
 
 pass() { PASSED=$((PASSED + 1)); printf "ok   %s\n" "$1"; }
 fail() {
@@ -46,7 +50,7 @@ change() {
 
 # run BODYFILE: runs the PR check inside the repository with base..head; sets rc.
 run() {
-  (cd "$R" && PR_BODY=$(cat "$1") BASE_SHA=base HEAD_SHA=topic sh "$CHECK") >"$T/out" 2>"$T/err" </dev/null
+  (cd "$R" && PR_BODY=$(cat "$1") PR_TITLE=$TITLE PR_HEAD_REF=$REF BASE_SHA=base HEAD_SHA=topic sh "$CHECK") >"$T/out" 2>"$T/err" </dev/null
   rc=$?
 }
 
@@ -81,6 +85,32 @@ sed 's/^- \[x\] Apto para OTA$/<!-- - [x] Apto para OTA -->/' "$FX/ota.md" >"$T/
 expect_fail 'a box ticked inside a comment does not count' "$T/commented.md" "$NONE_MSG"
 grep -v '^## Entrega$' "$FX/ota.md" >"$T/nosection.md"
 expect_fail 'boxes outside "## Entrega" do not count' "$T/nosection.md" "$NONE_MSG"
+
+# --- The release-please pull request counts as "Requiere build de Play", only with its branch AND its title ---
+change app.config.ts
+: >"$T/empty-body.md"
+TITLE=$RELEASE_TITLE REF=$RELEASE_REF
+expect_pass 'release PR: its branch and title pass without a box' "$T/empty-body.md"
+expect_pass 'release PR: passes even with the OTA box ticked' "$FX/ota.md"
+TITLE=$RELEASE_TITLE REF=feat/1202-release-please
+expect_fail 'release title on another branch still needs a box' "$T/empty-body.md" "$NONE_MSG"
+expect_fail 'release title on another branch fails OTA with a build path' "$FX/ota.md" "$OTA_MSG"
+TITLE=$RELEASE_TITLE REF=
+expect_fail 'release title with no branch given still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE=$RELEASE_TITLE REF=${RELEASE_REF}-x
+expect_fail 'release title on a look-alike branch still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE='feat(timing): synthetic' REF=$RELEASE_REF
+expect_fail 'release branch with another title still needs a box' "$T/empty-body.md" "$NONE_MSG"
+expect_fail 'release branch with another title fails OTA with a build path' "$FX/ota.md" "$OTA_MSG"
+NL='
+'
+TITLE="chore: anything${NL}$RELEASE_TITLE" REF=$RELEASE_REF
+expect_fail 'release branch with a multi-line title hiding the release line still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE="$RELEASE_TITLE${NL}more" REF=$RELEASE_REF
+expect_fail 'release branch with a release line first and more lines still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE='chore(release): v1.2.3-rc.1' REF=$RELEASE_REF
+expect_fail 'release branch with a pre-release title still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE='feat(timing): synthetic' REF=
 
 # --- Every build path family fails with OTA, names the path, and passes with Play build ---
 for path in modules/timing-button/index.ts plugins/synthetic-plugin.js android/app/build.gradle \

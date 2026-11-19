@@ -13,8 +13,8 @@ Store and tooling rules change. Each requirement below links its official source
   - The pilot stays on `0.y.z` until the maintainer declares `1.0.0`.
 - The Android `versionCode` is managed by EAS, never edited by hand: `cli.appVersionSource` is `"remote"` in `eas.json` and the production profile sets `autoIncrement: true`. ([Expo: app version management](https://docs.expo.dev/build-reference/app-versions/))
 - Every store build and every OTA update is traceable to a Git tag:
-  - store release: annotated tag `vX.Y.Z`
-  - OTA update on top of a store release: `vX.Y.Z+ota.N`
+  - store release: lightweight tag `vX.Y.Z`, created by release-please when its release pull request merges ([Standard release](#standard-release-from-main))
+  - OTA update on top of a store release: `vX.Y.Z+ota.N`, a manual annotated tag ([OTA tags](#tags))
 
 ## Build profiles
 
@@ -51,7 +51,7 @@ Today the EAS `production` environment still holds the QA values (see [State on 
 
 Once PROD exists, a release goes in this order and never in another:
 
-1. **Tag.** `vX.Y.Z` on the merge commit of the release pull request ([Standard release](#standard-release-from-main)).
+1. **Tag.** `vX.Y.Z` on the merge commit of the release pull request. release-please creates it when that pull request merges ([Standard release](#standard-release-from-main)).
 2. **Migrate PROD from the tag.** The backend always goes first. PROD deploys from the tag, through the `production` branch ([mechanism and rollback](deploy/prod-deploy-compose.md)); read the `migrate` log and confirm it exited 0. If the release changes an Edge Function, deliver it too, as in [Edge Functions](../deploy/README.md#edge-functions).
 3. **Build and submit from the same tag.** `eas build` and `eas submit` ([Standard release](#standard-release-from-main)), only after step 2 passed.
 4. **Smoke test, then promote** through the tracks.
@@ -78,21 +78,18 @@ Real families are **not** invited to PROD until an off-server backup and a teste
 
 ## Standard release from `main`
 
+[release-please](https://github.com/googleapis/release-please-action) (workflow [`release-please.yml`](../.github/workflows/release-please.yml), configured in `release-please-config.json` and `.release-please-manifest.json`) keeps one pull request `chore(release): vX.Y.Z` open on `main`. It bumps `expo.version` in `app.config.ts` (the line marked `x-release-please-version`) and `package.json`, and writes `CHANGELOG.md` from the Conventional Commits that merged since the last release. Normal pull requests never create a tag. Because the pull request titles become the squash commits on `main`, a good title is a good changelog line ([`CONTRIBUTING.md`](../CONTRIBUTING.md#pull-requests)).
+
 1. All pull requests for the release are merged and `main` is green.
-2. Open a pull request `chore(release): vX.Y.Z` that bumps `expo.version` and updates `CHANGELOG.md` (generated from Conventional Commits).
-3. After it merges, tag the merge commit and push the tag:
-
-   ```bash
-   git tag -a vX.Y.Z -m "vX.Y.Z"
-   git push origin vX.Y.Z
-   ```
-
+2. Review the release pull request that release-please keeps open: the version, and the `CHANGELOG.md` entries. Its title must stay `chore(release): vX.Y.Z`. Squash-merge it (maintainer).
+3. Merging creates the lightweight tag `vX.Y.Z` on the merge commit and the GitHub Release with the changelog notes. Nobody tags by hand.
 4. Migrate PROD from the tag first, once PROD exists ([Order for each version](#order-for-each-version)). Until the cut, the Play build uses QA, which already migrated when its pull requests merged.
 5. Build from the tag: `eas build --platform android --profile production`.
 6. Submit to the internal testing track: `eas submit --platform android --profile production`.
 7. Run the smoke test (see [Release checklist](#release-checklist)) on an internal-track install.
 8. Promote in Play Console: internal → closed (pilot) → production with a staged rollout. See [Tracks](#tracks).
-9. Publish a GitHub Release for the tag with the changelog notes.
+
+The release pull request is exempt from the PR description check and from the delivery box check, only when its head branch is `release-please--branches--main` and its title is `chore(release): vX.Y.Z`; it always needs a Play build ([`CONTRIBUTING.md`](../CONTRIBUTING.md#required-checks)). Every other check runs on it unchanged.
 
 ## Hotfixes
 
@@ -101,7 +98,7 @@ Real families are **not** invited to PROD until an off-server backup and a teste
   1. Fix on `main` first through a normal pull request.
   2. Create the release branch from the published tag, if it does not exist: `git switch -c release/X.Y vX.Y.Z`.
   3. Cherry-pick the fix into a branch based on `release/X.Y` and open a pull request into `release/X.Y`.
-  4. Tag `vX.Y.(Z+1)` on `release/X.Y` and release from that tag.
+  4. Tag `vX.Y.(Z+1)` on `release/X.Y` by hand and release from that tag. release-please runs only on `main`, so hotfix tags stay manual.
 - `release/X.Y` branches are protected like `main` and are deleted once the next MINOR version is in production.
 
 ## Over-the-air updates (EAS Update)
@@ -138,7 +135,7 @@ Only the maintainer runs `eas update`; agents never do.
 
 ### Tags
 
-Every OTA on top of the store release `vX.Y.Z` is tagged `vX.Y.Z+ota.N` on the published commit. The version stays unchanged.
+Every OTA on top of the store release `vX.Y.Z` is tagged `vX.Y.Z+ota.N` on the published commit. The version stays unchanged. These tags stay manual and annotated: release-please does not create them. They must **never** have a GitHub Release, because release-please could read one as the latest version and compute the next release from it.
 
 ### Pull request classification
 
@@ -155,6 +152,9 @@ The 0.1.0 build on Play Internal testing predates `expo-updates`, so it has no u
 - **Account type and production access.** The Swimcro Play developer account is **personal**. Personal developer accounts created after 13 November 2023 must run a closed test with at least 12 testers opted in for 14 consecutive days before applying for production access. The La Academia pilot runs on the closed testing track and its testers must satisfy this requirement. ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en))
 - **Application ID.** A neutral, company-based reverse-domain ID. It cannot change after the first release; the display name can.
 - **EAS Submit credentials.** EAS submits with a Google service account key stored in EAS credentials, never in the repository. The first release can be created by `eas submit` on the internal track; a manual first upload is optional. ([Expo: submit to Google Play](https://docs.expo.dev/submit/android/))
+- **Automatic release pull request (release-please, #1202).** Two one-time steps, done by the maintainer; agents never create, read or store the token:
+  1. Create a fine-grained personal access token limited to this repository, with **Contents** and **Pull requests** read and write (or a GitHub App with the same permissions), and save it as the repository secret `RELEASE_PLEASE_TOKEN`. Write down its expiry date and how to renew it (a new token, then replace the secret) in the maintainer's own notes; until the secret exists, the workflow cannot open the release pull request. A personal token is needed because pull requests and tags created with `GITHUB_TOKEN` do not start other workflows, so the checks of the release pull request would not run.
+  2. Give the SHA of the commit of the 0.1.0 Play build (from the EAS build page). It goes into `release-please-config.json` as `"bootstrap-sha"`, so the first changelog starts after that build and not at the first commit. **Order matters:** merging the pull request that adds the workflow (#1203) is already its first run on `main`, and it fails without the secret; that failure is expected. Add `"bootstrap-sha"` in a small separate pull request **before** creating `RELEASE_PLEASE_TOKEN`: once the secret exists, the next push to `main` opens the first release pull request, and without the field its `CHANGELOG.md` would cover the whole history. The field is still **pending**: it is not in the file yet.
 - **Target API level.** From 31 August 2026, new apps and app updates must target Android 16 (API level 36) or higher; an extension to 1 November 2026 can be requested. ([Android Developers: target API level](https://developer.android.com/google/play/requirements/target-sdk))
 
 ### Store listing and policy
@@ -405,7 +405,7 @@ A build without the three variables still opens, but sign-in and sync report a m
 
 - [ ] `main` (or `release/X.Y`) is green and the tag points to the built commit.
 - [ ] Once PROD exists: PROD was migrated from the tag before the build, and the EAS `production` environment holds the values of the backend the build is meant for.
-- [ ] `CHANGELOG.md` and the GitHub Release notes are written.
+- [ ] The release pull request of release-please is merged, so `CHANGELOG.md`, the tag and the GitHub Release (with its notes) exist.
 - [ ] Smoke test on an internal-track install: sign in as a guardian, register an athlete, record a training time offline, reconnect and confirm sync.
 - [ ] Data safety form still matches what the app collects and shares.
 - [ ] Target API level meets the current Play requirement.
