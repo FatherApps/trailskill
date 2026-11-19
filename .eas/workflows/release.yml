@@ -1,0 +1,56 @@
+# Starts the store delivery when a release tag vX.Y.Z is pushed (#1209).
+# Only pre-packaged Expo jobs, Android only. See docs/RELEASING.md.
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+      - '!v*+ota*'
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    # Second guard: a manual OTA tag vX.Y.Z+ota.N must never deliver anything.
+    if: ${{ !contains(github.ref_name, '+ota') }}
+    environment: production
+
+  get_build:
+    name: Find a production build with the same fingerprint
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: android
+      profile: production
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+
+  # Same native code as an existing production build: publish the JavaScript only.
+  update:
+    name: Publish OTA update to production
+    type: update
+    needs: [get_build]
+    if: ${{ needs.get_build.outputs.build_id }}
+    environment: production
+    params:
+      platform: android
+      channel: production
+      message: ${{ github.ref_name }}
+
+  # Native code changed: build the store bundle and send it to the internal track.
+  build:
+    name: Build Android production
+    type: build
+    needs: [get_build]
+    if: ${{ !needs.get_build.outputs.build_id }}
+    params:
+      platform: android
+      profile: production
+
+  submit:
+    name: Submit to Google Play internal testing
+    type: submit
+    needs: [build]
+    params:
+      build_id: ${{ needs.build.outputs.build_id }}
+      profile: production
