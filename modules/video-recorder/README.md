@@ -11,6 +11,11 @@ The view is `VideoRecorder` (`requireNativeViewManager('VideoRecorder')`):
 - `stop()`: ends the recording.
 - Events: `onReady` (the camera is bound) and `onError` (the camera could not open).
 - `now()`: the same clock as the timing buttons.
+- Sharing and linking a time's video (#1201), through the `VideoSharing` port (`src/modules/family-timing/data/videoSharing.ts`):
+  - `shareVideo(uri, title)`: opens Android's share menu with the gallery file itself, so it keeps its name (`Swimcro_<time id>.mp4`).
+  - `pickVideo()`: the system's file picker limited to videos (`ACTION_OPEN_DOCUMENT`); no permission to read the gallery is needed. Resolves with `{ uri, name }`, or `null` when the person goes back.
+  - `copyToCache(uri, name)`: copies the chosen video into the app's cache as `name.mp4` and returns the copy's file URI; the adapter then keeps it in the gallery like a recorded video.
+  - `deleteDocument(uri)`: deletes the chosen file once the app has its copy, where its provider allows it; `false` when it stays.
 
 The manifest of this module declares `CAMERA` and `RECORD_AUDIO`, which the build merges into the app's manifest, and `camera.any` as not required. The permissions are asked from JavaScript when the video screen opens (after a first-time explanation screen), and the microphone only when the sound setting is on. See `docs/release/data-safety.md`.
 

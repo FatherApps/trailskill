@@ -14,7 +14,8 @@ export type VideoPlayerScreenProps = {
   detail: string;
   /** The video, with the phone's own play, pause and seek controls. */
   player: ReactNode;
-  onJumpToStart: () => void;
+  // Missing for a video linked to a received time (#1201): where the clock started is not known.
+  onJumpToStart?: () => void;
   onBack: () => void;
 };
 
@@ -37,7 +38,7 @@ export function VideoPlayerScreen({ event, detail, player, onJumpToStart, onBack
       <View accessibilityLabel={t('family_timing.player.video')} style={{ flex: 1 }}>
         {player}
       </View>
-      <Button variant="secondary" label={t('family_timing.player.jump_to_start')} onPress={onJumpToStart} />
+      {onJumpToStart && <Button variant="secondary" label={t('family_timing.player.jump_to_start')} onPress={onJumpToStart} />}
     </SafeAreaView>
   );
 }

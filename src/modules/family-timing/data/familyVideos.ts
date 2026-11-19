@@ -8,8 +8,8 @@ export type FamilyVideo = {
   measurementId: string;
   /** The video's id in the phone's gallery. */
   assetId: string;
-  /** Milliseconds from the start of the video to the start of the clock. */
-  startOffsetMillis: number;
+  /** Milliseconds from the start of the video to the start of the clock; null for a video linked to a received time (#1201). */
+  startOffsetMillis: number | null;
 };
 
 export interface FamilyVideoRepository {
@@ -36,7 +36,7 @@ export function createPowerSyncFamilyVideoRepository(): FamilyVideoRepository {
     },
     async listByUser(userId) {
       const rows = await db.getAll<Row>(`SELECT measurement_id, asset_id, start_offset_ms FROM ${TABLE} WHERE created_by = ?`, [userId]);
-      return rows.map((row) => ({ measurementId: row.measurement_id, assetId: row.asset_id, startOffsetMillis: row.start_offset_ms ?? 0 }));
+      return rows.map((row) => ({ measurementId: row.measurement_id, assetId: row.asset_id, startOffsetMillis: row.start_offset_ms }));
     },
   };
 }

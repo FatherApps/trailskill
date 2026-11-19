@@ -194,7 +194,7 @@
       "asking": "Pidiendo permiso para usar la cámara…",
       "intro_title": "Antes de grabar",
       "intro_record": "Se graba el cronómetro con la cámara trasera, y el sonido si lo dejas activado en Ajustes.",
-      "intro_stays": "El video queda solo en tu teléfono, en el álbum «Swimcro» de la galería, sin cifrar. La app no lo sube ni lo comparte.",
+      "intro_stays": "El video queda solo en tu teléfono, en el álbum «Swimcro» de la galería, sin cifrar. La app no lo sube: solo sale del teléfono si tú lo compartes.",
       "intro_when": "La cámara y el micrófono se usan solo en esta pantalla y solo cuando una grabación está en curso: la empiezas tú con «Grabar».",
       "intro_next": "A continuación el teléfono puede pedirte permiso para usar la cámara y el micrófono, y para guardar el video en la galería.",
       "intro_continue": "Continuar",
@@ -227,6 +227,26 @@
       "back": "Volver",
       "video": "Video del tiempo",
       "jump_to_start": "Ir a la salida"
+    },
+    "video_share": {
+      "title": "Video del tiempo",
+      "share": "Compartir video",
+      "chooser": "Compartir el video del tiempo",
+      "document_hint": "En WhatsApp, envíalo como «Documento»: llega con su calidad y su nombre, y así el otro teléfono comprueba que es el video de este tiempo.",
+      "sent": "Tiempo enviado a {{name}}",
+      "share_question": "¿Quieres compartir también el video? La otra familia lo puede vincular a este tiempo cuando lo acepte.",
+      "not_now": "Ahora no",
+      "link": "Vincular video",
+      "link_question": "¿Tienes el video de este tiempo?",
+      "link_help": "Si la otra familia te envió el video, elige el archivo que recibiste y podrás verlo aquí. Puedes hacerlo después desde el detalle del tiempo.",
+      "other_time": "Este video es de otro tiempo: su nombre trae el código de otro tiempo. Elige el video de este tiempo.",
+      "unknown_time": "No pudimos comprobar que sea el video de este tiempo, porque su nombre no trae el código del tiempo. Pasa cuando no se envía como «Documento». Vincúlalo solo si estás seguro.",
+      "link_anyway": "Vincular de todos modos",
+      "pick_again": "Elegir otro video",
+      "linked": "Video vinculado. Lo pasamos al álbum «Swimcro» de la Galería.",
+      "linked_original_kept": "Video vinculado y guardado en el álbum «Swimcro». El archivo que recibiste quedó donde estaba: si quieres, bórralo para no tenerlo dos veces.",
+      "link_failed": "No se pudo vincular el video. Revisa que haya espacio en el teléfono y vuelve a intentarlo.",
+      "share_failed": "No se pudo abrir el menú para compartir. Vuelve a intentarlo."
     }
   }
 }

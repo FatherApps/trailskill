@@ -92,6 +92,36 @@ function nativePreview(): VideoCamera['Preview'] {
   });
 }
 
+/**
+ * Moves a video file of the app's cache into the Swimcro album of the gallery, under `name`, and returns its id in the gallery.
+ * Shared by recorded videos (#1088) and videos linked to a received time (#1201); rejects when the gallery refuses it, and the
+ * file is deleted either way.
+ */
+export async function keepInGallery(uri: string, name: string): Promise<string> {
+  // The file is renamed first, so the gallery shows the time's id in its name.
+  const recorded = new File(uri);
+  const named = new File(Paths.cache, `${name}.mp4`);
+  let assetId: string;
+  try {
+    await recorded.move(named);
+    const asset = await Asset.create(named.uri);
+    assetId = asset.id;
+    const album = await Album.get(VIDEO_ALBUM);
+    if (album) await album.add(asset);
+    else await Album.create(VIDEO_ALBUM, [asset], true);
+  } finally {
+    // Kept or refused, no copy stays in the cache: a refusal is often a full phone, and retrying is not offered (#1172).
+    for (const file of [named, recorded]) {
+      try {
+        if (file.exists) file.delete();
+      } catch {
+        // The gallery already has its copy, or the file is gone; a leftover in the cache is cleared by the system.
+      }
+    }
+  }
+  return assetId;
+}
+
 async function granted(permission: Parameters<typeof PermissionsAndroid.request>[0]) {
   return (await PermissionsAndroid.request(permission)) === PermissionsAndroid.RESULTS.GRANTED;
 }
@@ -110,30 +140,7 @@ function nativeVideoCamera(): VideoCamera {
         return null;
       }
     },
-    async keep(uri, name) {
-      // The file is renamed first, so the gallery shows the time's id in its name.
-      const recorded = new File(uri);
-      const named = new File(Paths.cache, `${name}.mp4`);
-      let assetId: string;
-      try {
-        await recorded.move(named);
-        const asset = await Asset.create(named.uri);
-        assetId = asset.id;
-        const album = await Album.get(VIDEO_ALBUM);
-        if (album) await album.add(asset);
-        else await Album.create(VIDEO_ALBUM, [asset], true);
-      } finally {
-        // Kept or refused, no copy stays in the cache: a refusal is often a full phone, and retrying is not offered (#1172).
-        for (const file of [named, recorded]) {
-          try {
-            if (file.exists) file.delete();
-          } catch {
-            // The gallery already has its copy, or the file is gone; a leftover in the cache is cleared by the system.
-          }
-        }
-      }
-      return assetId;
-    },
+    keep: keepInGallery,
     discard(uri) {
       try {
         new File(uri).delete();
