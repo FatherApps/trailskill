@@ -97,13 +97,13 @@ Real families are **not** invited to PROD until an off-server backup and a teste
    - Not found (native code changed, or the first release after #1188, because the 0.1.0 build has no `expo-updates`): `build` makes the production build and `submit` sends it to the Internal testing track (`submit.production.android` in `eas.json`).
    - A tag `vX.Y.Z+ota.N` never starts it. A manual hotfix tag `vX.Y.Z` on `release/X.Y` does, because it is a release.
 5. Migrate PROD from the tag, once PROD exists, before the workflow delivers ([Order for each version](#order-for-each-version)). Until the cut, the build uses QA, which already migrated when its pull requests merged.
-6. Follow the run on expo.dev. A failed build or submit reaches no user: the maintainer starts the workflow again from expo.dev.
+6. Follow the run on expo.dev, and check which route it took: `update`, or `build` then `submit`. A failed build or submit reaches no user. Recover on expo.dev with **Re-run workflow** → **Re-run from failed jobs**, which reuses the successful build and retries only the failed job ([Expo: re-run a workflow](https://docs.expo.dev/eas/workflows/manage-workflow-runs/#re-run-a-workflow)). **Never use "Re-run all jobs" (or `eas workflow:run`) after a build that succeeded but whose submit failed:** `get_build` would find that never-submitted build, the run would take the OTA route and finish green, and no phone would receive the store bundle.
 7. Run the smoke test (see [Release checklist](#release-checklist)). After a build, use an internal-track install; after an OTA update, restart the app on a phone with the previous build.
 8. After a build, promote in Play Console: internal → closed (pilot) → production with a staged rollout. See [Tracks](#tracks).
 
 **Accepted risk.** The OTA route skips the internal track and reaches every pilot user at once, at 100 % (the maintainer chose this on 2026-11-19). The only protection is the fingerprint check: JavaScript-only changes. Undo it with [Roll back an automatic OTA](#roll-back-an-automatic-ota).
 
-**Production builds come only from this workflow.** `get-build` matches any production build with the same fingerprint. A hand-made production build that was never submitted would make a later release publish an OTA update for a runtime nobody installed. Never run `eas build --profile production` by hand.
+**Production builds come only from this workflow.** `get-build` matches any production build with the same fingerprint. A production build that was never submitted, whether hand-made or left by a run whose submit failed, would make a later release (or a full re-run) publish an OTA update for a runtime nobody installed. Never run `eas build --profile production` by hand, and finish a failed submit with "Re-run from failed jobs".
 
 The release pull request is exempt from the PR description check and from the delivery box check, only when its head branch is `release-please--branches--main--components--trailskill` and its title is `chore(release): vX.Y.Z`; it always needs a Play build ([`CONTRIBUTING.md`](../CONTRIBUTING.md#required-checks)). Every other check runs on it unchanged.
 
@@ -156,7 +156,7 @@ If an update that the release workflow published breaks the app, the maintainer 
 - `eas update:rollback` on the `production` channel, or
 - `eas update:republish` of the previous update group. ([Expo: `eas update:rollback` and `eas update:republish`](https://docs.expo.dev/eas/cli/))
 
-The tag and the GitHub Release of the reverted version stay. The fix goes out as the next PATCH version through the same workflow. A failed build or submit reaches no user; the maintainer starts the workflow again from expo.dev.
+The tag and the GitHub Release of the reverted version stay. The fix goes out as the next PATCH version through the same workflow. A failed build or submit reaches no user; recover it as in [Standard release](#standard-release-from-main), step 6.
 
 ### Tags
 
@@ -435,7 +435,7 @@ A build without the three variables still opens, but sign-in and sync report a m
 - [ ] `main` (or `release/X.Y`) is green and the tag points to the built commit.
 - [ ] Once PROD exists: PROD was migrated from the tag before the build, and the EAS `production` environment holds the values of the backend the build is meant for.
 - [ ] The release pull request of release-please is merged, so `CHANGELOG.md`, the tag and the GitHub Release (with its notes) exist.
-- [ ] The release workflow run for the tag finished green on expo.dev, and `app_versions` still holds only versions of store builds.
+- [ ] The release workflow run for the tag finished green on expo.dev **and took the expected route** (`update`, or `build` then `submit`, never `update` after a failed submit), and `app_versions` still holds only versions of store builds.
 - [ ] Smoke test on an internal-track install: sign in as a guardian, register an athlete, record a training time offline, reconnect and confirm sync.
 - [ ] Data safety form still matches what the app collects and shares.
 - [ ] Target API level meets the current Play requirement.
