@@ -89,7 +89,7 @@ Real families are **not** invited to PROD until an off-server backup and a teste
 7. Run the smoke test (see [Release checklist](#release-checklist)) on an internal-track install.
 8. Promote in Play Console: internal → closed (pilot) → production with a staged rollout. See [Tracks](#tracks).
 
-The release pull request is exempt from the PR description check and from the delivery box check, only when its head branch is `release-please--branches--main` and its title is `chore(release): vX.Y.Z`; it always needs a Play build ([`CONTRIBUTING.md`](../CONTRIBUTING.md#required-checks)). Every other check runs on it unchanged.
+The release pull request is exempt from the PR description check and from the delivery box check, only when its head branch is `release-please--branches--main--components--trailskill` and its title is `chore(release): vX.Y.Z`; it always needs a Play build ([`CONTRIBUTING.md`](../CONTRIBUTING.md#required-checks)). Every other check runs on it unchanged.
 
 ## Hotfixes
 

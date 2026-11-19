@@ -13,7 +13,7 @@ trap 'exit 130' INT TERM
 
 GOOD='feat(timing): add a synthetic widget'
 REF=
-RELEASE_REF=release-please--branches--main
+RELEASE_REF=release-please--branches--main--components--trailskill
 RELEASE_TITLE='chore(release): v1.2.3'
 PASSED=0
 FAILED=0
@@ -145,6 +145,14 @@ REF=
 expect_fail 'release title with no branch given fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
 REF=${RELEASE_REF}-x
 expect_fail 'release title on a look-alike branch fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
+REF=release-please--branches--main
+expect_fail 'release title on the old branch without the component fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
+REF=x-$RELEASE_REF
+expect_fail 'release title on a prefixed branch fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
+REF=release-please--branches--main--components--other
+expect_fail 'release title on another component branch fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
+REF=Release-Please--Branches--Main--Components--Trailskill
+expect_fail 'release title on an upper-case branch fails' "$RELEASE_TITLE" "$T/empty-body.md" 'PR description'
 REF=$RELEASE_REF
 expect_pass 'a normal PR on the release branch still passes its own checks' "$GOOD" "$FX/full.md"
 REF=

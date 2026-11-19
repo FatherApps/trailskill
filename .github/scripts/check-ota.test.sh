@@ -15,7 +15,7 @@ PASSED=0
 FAILED=0
 TITLE='feat(timing): synthetic'
 REF=
-RELEASE_REF=release-please--branches--main
+RELEASE_REF=release-please--branches--main--components--trailskill
 RELEASE_TITLE='chore(release): v1.2.3'
 
 pass() { PASSED=$((PASSED + 1)); printf "ok   %s\n" "$1"; }
@@ -99,6 +99,14 @@ TITLE=$RELEASE_TITLE REF=
 expect_fail 'release title with no branch given still needs a box' "$T/empty-body.md" "$NONE_MSG"
 TITLE=$RELEASE_TITLE REF=${RELEASE_REF}-x
 expect_fail 'release title on a look-alike branch still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE=$RELEASE_TITLE REF=release-please--branches--main
+expect_fail 'release title on the old branch without the component still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE=$RELEASE_TITLE REF=x-$RELEASE_REF
+expect_fail 'release title on a prefixed branch still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE=$RELEASE_TITLE REF=release-please--branches--main--components--other
+expect_fail 'release title on another component branch still needs a box' "$T/empty-body.md" "$NONE_MSG"
+TITLE=$RELEASE_TITLE REF=Release-Please--Branches--Main--Components--Trailskill
+expect_fail 'release title on an upper-case branch still needs a box' "$T/empty-body.md" "$NONE_MSG"
 TITLE='feat(timing): synthetic' REF=$RELEASE_REF
 expect_fail 'release branch with another title still needs a box' "$T/empty-body.md" "$NONE_MSG"
 expect_fail 'release branch with another title fails OTA with a build path' "$FX/ota.md" "$OTA_MSG"

@@ -103,7 +103,7 @@ fi
 # "Requiere build de Play" and has no box. Exempt only when its head branch AND its title match.
 nl='
 '
-if [ "${PR_HEAD_REF:-}" = release-please--branches--main ] &&
+if [ "${PR_HEAD_REF:-}" = release-please--branches--main--components--trailskill ] &&
   [ "${PR_TITLE#*"$nl"}" = "${PR_TITLE:-}" ] &&
   printf '%s\n' "${PR_TITLE:-}" | grep -Eq '^chore\(release\): v[0-9]+\.[0-9]+\.[0-9]+$'; then
   exit 0
