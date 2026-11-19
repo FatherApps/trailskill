@@ -1,0 +1,14 @@
+#!/bin/sh
+# Reminds to open the pull request after a commit on a work branch (CONTRIBUTING.md, Working sequence, step 4).
+# Silent on main, with a detached HEAD, during a rebase, merge or cherry-pick, and for orch workers (ORCH_ROLE=worker),
+# whose pull requests are opened by orch.
+[ "${ORCH_ROLE:-}" = "worker" ] && exit 0
+branch=$(git symbolic-ref --short -q HEAD) || exit 0
+[ "$branch" = "main" ] && exit 0
+git_dir=$(git rev-parse --git-dir)
+for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD; do
+  [ -e "$git_dir/$marker" ] && exit 0
+done
+echo "Commit done on '$branch'. The work is not finished until the pull request is open:" >&2
+echo "fill .github/pull_request_template.md, run sh .github/scripts/check-pr.sh, then gh pr create --draft (CONTRIBUTING.md, Working sequence, step 4)." >&2
+exit 0
