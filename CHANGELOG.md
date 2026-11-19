@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/FatherApps/trailskill/compare/v0.2.0...v0.3.0) (2026-11-19)
+
+
+### Features
+
+* **settings:** turn on No molestar while recording video ([#1200](https://github.com/FatherApps/trailskill/issues/1200)) ([f801f36](https://github.com/FatherApps/trailskill/commit/f801f36edb736efc3bfa7a4494b06a4000eef1ed)), closes [#1090](https://github.com/FatherApps/trailskill/issues/1090)
+
 ## [0.2.0](https://github.com/FatherApps/trailskill/compare/v0.1.0...v0.2.0) (2026-11-19)
 
 
