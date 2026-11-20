@@ -1,6 +1,6 @@
-# TrailSkill design reference
+# Swimcro design reference
 
-The single source of truth for TrailSkill's visual design is the **TrailSkill design system** in Claude Design:
+The single source of truth for Swimcro's visual design is the **Swimcro design system** in Claude Design:
 
 **https://claude.ai/artifact/SoMStMt7XvkqiqkkgJoitf**
 
@@ -37,16 +37,16 @@ For orientation only. If it disagrees with the design system, the design system 
 
 | File | Use |
 | --- | --- |
-| `trailskill-lockup.svg` | Default on the light canvas, white, and lime |
-| `trailskill-lockup-reversed.svg` | On near-black and in dark theme |
-| `trailskill-lockup-stacked.svg` | Splash, store graphics, presentations |
-| `trailskill-wordmark.svg` | Where the symbol is already nearby |
-| `trailskill-symbol.svg` | App avatar and small spaces above 24 px |
-| `trailskill-symbol-reversed.svg` | Symbol on near-black or dark backgrounds |
-| `trailskill-symbol-small.svg` | 24 px and below (favicon, notifications) |
-| `trailskill-symbol-mono.svg` | Single ink, one-color print |
-| `trailskill-play-icon-512.svg` / `.png` | Google Play icon |
-| `trailskill-adaptive-foreground.svg` / `.png` | Android adaptive icon foreground on a `#141414` background layer |
-| `trailskill-construction.svg` | Construction grid (reference, not for use in the app) |
+| `swimcro-lockup.svg` | Default on the light canvas, white, and lime |
+| `swimcro-lockup-reversed.svg` | On near-black and in dark theme |
+| `swimcro-lockup-stacked.svg` | Splash, store graphics, presentations |
+| `swimcro-wordmark.svg` | Where the symbol is already nearby |
+| `swimcro-symbol.svg` | App avatar and small spaces above 24 px |
+| `swimcro-symbol-reversed.svg` | Symbol on near-black or dark backgrounds |
+| `swimcro-symbol-small.svg` | 24 px and below (favicon, notifications) |
+| `swimcro-symbol-mono.svg` | Single ink: one-color print and the Android themed (monochrome) icon |
+| `swimcro-play-icon-512.svg` / `.png` | Google Play icon |
+| `swimcro-adaptive-foreground.svg` / `.png` | Android adaptive icon foreground on a `#141414` background layer |
+| `swimcro-construction.svg` | Construction grid (reference, not for use in the app) |
 
-The files were downloaded from the design system on 2026-10-24. The PNG files are byte-identical to the source. The design system's asset service re-serializes SVG markup when it serves it, so the SVG files draw the same image but are not byte-identical to the uploads.
+The files come from `swimcro-logos.zip`, delivered locally by the maintainer on 2026-11-19 (sha256 `15a431693fe5bb93e67693c6507d61177420dbdda4892e13cbd0cda5c0c78aa0`) and copied unmodified; the zip itself is not in the repository. Every file is byte-identical to its copy in the zip (`shasum -a 256`).

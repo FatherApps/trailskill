@@ -15,17 +15,17 @@ describe('Logo', () => {
     await render(<Logo height={32} />);
 
     const logo = screen.getByRole('image', { name: 'Swimcro' });
-    expect(logo.props.width).toBe((32 * 219) / 64);
+    expect(logo.props.width).toBe((32 * 221) / 64);
     expect(logo.props.height).toBe(32);
-    expect([logo.props.vbWidth, logo.props.vbHeight]).toEqual([219, 64]);
+    expect([logo.props.vbWidth, logo.props.vbHeight]).toEqual([221, 64]);
   });
 
   it('draws the wordmark and its dot from the lockup paths', async () => {
     await render(<Logo />);
 
     const paths = fills();
-    expect(paths.some((d) => d.startsWith('M91.46000000000001 23.880000000000003V44.215H86.84'))).toBe(true);
-    expect(paths.some((d) => d.startsWith('M192.50500000000002 23.285Q191.10500000000002'))).toBe(true);
+    expect(paths.some((d) => d.startsWith('M89.465 44.635000000000005Q86.315 44.635000000000005 84.1275'))).toBe(true);
+    expect(paths.some((d) => d.startsWith('M132.83 23.285Q131.43'))).toBe(true);
   });
 
   it('has the dark badge on the light theme and none on the reversed one', async () => {
@@ -57,12 +57,20 @@ describe('Logo', () => {
       expect(screen.getByRole('image').props.width).toBe(26);
     });
 
-    it('draws the mark of trailskill-symbol.svg without the wordmark', async () => {
+    it('draws the mark of swimcro-symbol.svg without the wordmark', async () => {
       await render(<ThemeProvider name="light"><LogoSymbol /></ThemeProvider>);
 
-      // The polyline of the official file, which the SVG library turns into path data.
-      expect(fills()).toEqual(['M17.02695526217005 43.72304473782995 24.35 36.4 33.35 42.9 43.69 27.39']);
-      expect(screen.container.queryAll((node) => node.props.cx === 49.35 && node.props.cy === 18.9 && node.props.r === 7)).not.toHaveLength(0);
+      // The stem, the crown button, the water and the swimmer's stroke of the official file.
+      expect(fills()).toEqual([
+        'M32 12 V16',
+        'M47.5 21.5 L51 18',
+        'M10 44 C16 40 22 48 28 44 S40 40 46 44 S58 48 62 44 V64 H10Z',
+        'M19 43 C20 31 27 26 33.5 26 C40.5 26 45 31 46 41',
+      ]);
+      // The coral head of the swimmer.
+      expect(screen.container.queryAll((node) => node.props.cx === 36 && node.props.cy === 37.5 && node.props.r === 5.4)).not.toHaveLength(0);
+      // The water is clipped to the inside of the ring.
+      expect(screen.container.queryAll((node) => node.props.cx === 32 && node.props.cy === 37 && node.props.r === 16.8)).not.toHaveLength(0);
     });
 
     it('has the dark badge on the light theme and none on the reversed one', async () => {
