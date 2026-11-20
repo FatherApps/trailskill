@@ -63,3 +63,13 @@ export {
   type OtherSchoolResult,
   type OtherSchoolResultsRepository,
 } from './data/otherSchoolResults';
+export {
+  createFileSystemPhotoCache,
+  createInMemoryAthletePhotoRepository,
+  createInMemoryPhotoCache,
+  createSupabaseAthletePhotoRepository,
+  type AthletePhotoRepository,
+  type PhotoCache,
+  type PhotoRef,
+} from './data/athletePhotos';
+export { useAthletePhoto, type AthletePhoto } from './data/useAthletePhoto';
