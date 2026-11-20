@@ -6,7 +6,7 @@ import {
   createPowerSyncAuthorizationRepository,
   createPowerSyncManagedAthleteRepository,
 } from '../../modules/accounts';
-import { athleteDisplay, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
+import { athleteDisplay, createPowerSyncSchoolAthleteRepository, getAthletePhotoService, useManagedAthletes } from '../../modules/athletes';
 
 const authorizations = createPowerSyncAuthorizationRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
@@ -28,6 +28,8 @@ export default function Authorizations() {
       refreshKey={lastSyncedAt}
       athletes={managed.athletes.map((athlete) => ({ id: athlete.id, name: athleteDisplay(athlete).shortName }))}
       mode="manage"
+      // Withdrawing show_photo offers to delete the photo too.
+      photos={getAthletePhotoService()}
       onDone={goBack}
     />
   );
