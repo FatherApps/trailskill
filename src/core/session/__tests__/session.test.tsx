@@ -1021,6 +1021,15 @@ describe('a local database that does not answer', () => {
     expect(mockSignOut).not.toHaveBeenCalled();
   });
 
+  it('keeps refusing writes through a token refresh while the late clear runs, and says a sign-out is finishing', async () => {
+    const { session } = await signOutWithLateClear();
+
+    await act(async () => mockAuthCallback('TOKEN_REFRESHED', mockSignedIn));
+
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith(undefined);
+    expect(session.current.signingOut).toBe(true);
+  });
+
   it('reconnects the sync when the clear of a sign-out fails before the limit', async () => {
     const session = await renderSession();
     mockClearError = new Error('disk full');

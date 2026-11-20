@@ -12,15 +12,18 @@ import { getAthletePhotoService, type AthletePhotoService } from './athletePhoto
  * Nothing here logs a path, a URL or a file URI.
  */
 export function useAthletePhotoUploads(service: AthletePhotoService = getAthletePhotoService()): void {
-  const userId = useSession().session?.user.id;
+  const { session, signingOut } = useSession();
+  const userId = session?.user.id;
   const { connection, lastSyncedAt } = useGlobalSyncSummary();
   const syncedAt = lastSyncedAt?.getTime();
   const signedIn = useRef(userId != null);
 
   useEffect(() => {
+    // A sign-out whose local clear may still fail hides the session without ending it: nothing is discarded until it really ends.
+    if (signingOut) return;
     if (signedIn.current && userId == null) void service.discardAll().catch(() => {});
     signedIn.current = userId != null;
-  }, [userId, service]);
+  }, [userId, signingOut, service]);
 
   useEffect(() => {
     if (userId == null || connection !== 'connected') return;

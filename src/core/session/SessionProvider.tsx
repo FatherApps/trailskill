@@ -54,6 +54,8 @@ type SessionValue = {
   /** Trades the code of a provider link that reached the app with no sign-in waiting for it. A no-op when one is. */
   resumeProviderSignIn(code: string): Promise<void>;
   signOut(options?: { force?: boolean }): Promise<SignOutResult>;
+  /** A sign-out whose clear passed the time limit is finishing: `session` is hidden but may come back if the clear fails. */
+  signingOut: boolean;
 };
 
 /** The emailed code is wrong or expired; the server reports both the same way. */
@@ -86,6 +88,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [restoreTimedOut, setRestoreTimedOut] = useState(false);
   // A sign-out cleared the local database past the time limit, and that clear may still end: nothing is shown or written meanwhile.
   const [clearPending, setClearPending] = useState(false);
+  // Read by the auth listener, which must not give writes back to the person while the clear runs.
+  const holdWrites = useRef(false);
+  // The user now, for work that ends after a render (a late clear) and must not act on someone who signed in since.
+  const userIdRef = useRef<string>(undefined);
+  const setHold = useCallback((on: boolean) => {
+    holdWrites.current = on;
+    setClearPending(on);
+  }, []);
   // Keyed on the user, so a failure never carries over to the next person.
   const [syncFailedFor, setSyncFailedFor] = useState<string>();
   // The user whose local data may be shown, and the user blocked by another person's unsent records.
@@ -116,7 +126,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
       if (event === 'INITIAL_SESSION') restoredUserId.current = next?.user.id;
       // Right away, not after a render: a write in flight checks it as it commits.
-      setSessionUser(next?.user.id);
+      userIdRef.current = next?.user.id;
+      setSessionUser(holdWrites.current ? undefined : next?.user.id);
       setSession(next);
       setRestored(true);
     });
@@ -134,11 +145,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // Keyed on the user, not the session object: token refreshes must not reconnect.
   const userId = session?.user.id;
-  // The user now, for work that ends after a render (a late clear) and must not act on someone who signed in since.
-  const userIdRef = useRef(userId);
-  useEffect(() => {
-    userIdRef.current = userId;
-  }, [userId]);
   useEffect(() => {
     if (!userId) return;
     let current = true;
@@ -175,7 +181,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       current = false;
       // The next check starts from scratch, so an earlier result never shows a screen for this run.
       // Another person (or nobody) now: a late clear of the earlier sign-out no longer hides anything of theirs.
-      setClearPending(false);
+      setHold(false);
       setReadyFor(undefined);
       setBlockedFor(undefined);
       setCheckFailedFor(undefined);
@@ -184,7 +190,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       connector.cancelWaits();
       db.disconnect().catch(() => {});
     };
-  }, [userId, check, connector]);
+  }, [userId, check, connector, setHold]);
   const syncConnectFailed = userId !== undefined && syncFailedFor === userId;
   const ready = userId !== undefined && readyFor === userId;
   const previousUserPending = userId !== undefined && blockedFor === userId;
@@ -321,22 +327,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // The clear passed the time limit but may still end, and the person must not keep using the app while the database empties:
   // no screen and no write for them until it ends. It ending well completes the sign-out; failing gives everything back.
   const finishLateClear = useCallback((clearing: Promise<void>, startedFor: string | undefined) => {
-    setClearPending(true);
+    setHold(true);
     setSessionUser(undefined);
     const giveBack = () => {
       if (startedFor !== undefined && userIdRef.current === startedFor) {
         setSessionUser(startedFor);
         reconnectSync(startedFor);
       }
-      setClearPending(false);
+      setHold(false);
     };
     clearing.then(
       async () => {
         // Someone else signed in meanwhile: that session is not this sign-out's to end.
-        if (userIdRef.current !== startedFor) return setClearPending(false);
+        if (userIdRef.current !== startedFor) return setHold(false);
         try {
           await endSession();
-          setClearPending(false);
+          setHold(false);
         } catch (error) {
           logLocalFailure(error);
           giveBack();
@@ -347,7 +353,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         giveBack();
       },
     );
-  }, [endSession, reconnectSync]);
+  }, [endSession, reconnectSync, setHold]);
 
   const signOut = useCallback(async (options?: { force?: boolean }): Promise<SignOutResult> => {
     // Awaits the real count: the sync hook reports 0 until its first query lands.
@@ -376,8 +382,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const visibleSession = ready && !clearPending ? session : null;
   const value = useMemo(
-    () => ({ session: visibleSession, syncConnectFailed, configError: supabaseConfigError, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut }),
-    [visibleSession, syncConnectFailed, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut],
+    () => ({ session: visibleSession, syncConnectFailed, configError: supabaseConfigError, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut, signingOut: clearPending }),
+    [visibleSession, syncConnectFailed, clearPending, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut],
   );
 
   // Render nothing until the stored session and the owner of the local data are known (each for at most
