@@ -218,7 +218,7 @@ streams:
       - SELECT * FROM authorization_status WHERE athlete_id IN managed_athlete_ids OR athlete_id IN coach_direct_athlete_ids OR athlete_id IN coach_group_athlete_ids OR athlete_id IN admin_athlete_ids
 
   # The row of an athlete's photo (not the image: that is a short-lived signed URL, online) for whoever can see the athlete,
-  # only while show_photo is in force: same condition as athlete_photos_select. When it is withdrawn the row leaves every
+  # only while show_photo is in force (narrower than athlete_photos_select, which also lets the owner of the data read it to delete it, #1232). When it is withdrawn the row leaves every
   # device on its next sync. Platform admins have no stream, as everywhere else.
   athletes_photos:
     auto_subscribe: true
