@@ -1,6 +1,7 @@
-name: Publish privacy policy
+name: Publish privacy policy and account deletion page
 
-# Publishes docs/release/privacy-policy.es.md at https://fatherapps.github.io/trailskill/privacidad/
+# Publishes docs/release/privacy-policy.es.md at https://fatherapps.github.io/trailskill/privacidad/ and
+# docs/release/account-deletion.es.md at https://fatherapps.github.io/trailskill/eliminar-cuenta/,
 # and nothing else from the repository. The maintainer enables Pages once, with the source
 # "GitHub Actions" (docs/RELEASING.md).
 
@@ -9,6 +10,7 @@ on:
     branches: [main]
     paths:
       - docs/release/privacy-policy.es.md
+      - docs/release/account-deletion.es.md
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -27,9 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-      - name: Stage only the policy
+      - name: Stage only the two pages
         run: |
-          mkdir -p site/_layouts site/privacidad
+          mkdir -p site/_layouts site/privacidad site/eliminar-cuenta
           echo 'theme: null' > site/_config.yml # no theme: it would add its own stylesheet to the artifact
           cat > site/_layouts/default.html <<'HTML'
           <!doctype html>
@@ -53,15 +55,20 @@ jobs:
             printf -- '---\nlayout: default\ntitle: Política de privacidad de Swimcro\n---\n'
             cat docs/release/privacy-policy.es.md
           } > site/privacidad/index.md
+          {
+            printf -- '---\nlayout: default\ntitle: Eliminar tu cuenta y tus datos de Swimcro\n---\n'
+            cat docs/release/account-deletion.es.md
+          } > site/eliminar-cuenta/index.md
       - uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 # v1.0.13
         with:
           source: ./site
           destination: ./_site
-      - name: Check the artifact holds only the page
+      - name: Check the artifact holds only the two pages
         run: |
           find _site -type f | sort
-          test "$(find _site -type f | wc -l)" -eq 1
+          test "$(find _site -type f | wc -l)" -eq 2
           test -f _site/privacidad/index.html
+          test -f _site/eliminar-cuenta/index.html
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
 
   deploy:
