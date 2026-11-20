@@ -6,6 +6,7 @@
 ### Features
 
 * **athletes:** photo card, waiting photos in the avatar and the withdrawal sheet ([#1257](https://github.com/FatherApps/trailskill/issues/1257)) ([afa2d20](https://github.com/FatherApps/trailskill/commit/afa2d2002f3a19232a735299882d8c985fd462a4))
+* **family-timing:** show a camera badge on Mis tiempos rows with a video ([#1266](https://github.com/FatherApps/trailskill/issues/1266)) ([6e4eed6](https://github.com/FatherApps/trailskill/commit/6e4eed64e805a42a8211626624ae6bea0944f8a3)), closes [#1265](https://github.com/FatherApps/trailskill/issues/1265)
 
 ## [0.5.0](https://github.com/FatherApps/trailskill/compare/v0.4.0...v0.5.0) (2026-11-20)
 
