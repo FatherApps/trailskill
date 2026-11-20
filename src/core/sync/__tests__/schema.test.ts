@@ -29,6 +29,7 @@ describe('AppSchema', () => {
         'adult_profiles',
         'athlete_groups',
         'athlete_managers',
+        'athlete_photos',
         'athlete_schools',
         'athletes',
         'authorization_status',
@@ -85,6 +86,6 @@ describe('AppSchema', () => {
     expect(byName.get('uploaded_ops')?.localOnly).toBe(true);
     expect(byName.get('family_measurements')?.localOnly).toBe(true);
     expect(byName.get('family_timing_videos')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(34);
+    expect(AppSchema.tables).toHaveLength(35);
   });
 });

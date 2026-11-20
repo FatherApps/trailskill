@@ -21,6 +21,13 @@ jest.mock('../modules/accounts', () => ({
   useProfileGate: () => ({ status: 'ready', recheck: () => {} }),
 }));
 
+// The photo cache guard has its own suite; the root only has to keep it mounted, outside the route guards.
+const mockPhotoCacheGuard = jest.fn();
+jest.mock('../modules/athletes', () => ({
+  ...jest.requireActual('../modules/athletes'),
+  useAthletePhotoCacheGuard: () => mockPhotoCacheGuard(),
+}));
+
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ default: jest.fn() }));
 // expo-router brings its own provider, so insets are mocked to be non-zero on every side.
 jest.mock('react-native-safe-area-context', () => ({
@@ -56,7 +63,10 @@ const routes = {
 };
 
 describe('session gate', () => {
-  beforeEach(() => mockDiscardStaleDraft.mockClear());
+  beforeEach(() => {
+    mockDiscardStaleDraft.mockClear();
+    mockPhotoCacheGuard.mockClear();
+  });
 
   it('sends a visitor without session to the sign-in screen', async () => {
     setSession(null);
@@ -64,6 +74,18 @@ describe('session gate', () => {
 
     expect(await screen.findByText('sign-in')).toBeOnTheScreen();
     expect(screen.queryByText('home')).toBeNull();
+  });
+
+  it('keeps the photo cache guard mounted with and without a session', async () => {
+    setSession(null);
+    await renderRouter(routes, { initialUrl: '/' });
+    expect(await screen.findByText('sign-in')).toBeOnTheScreen();
+    expect(mockPhotoCacheGuard).toHaveBeenCalled();
+
+    mockPhotoCacheGuard.mockClear();
+    await act(async () => setSession({ user: { id: 'coach-1' } }));
+    expect(await screen.findByText('home')).toBeOnTheScreen();
+    expect(mockPhotoCacheGuard).toHaveBeenCalled();
   });
 
   it('opens the app when there is a session', async () => {

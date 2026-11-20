@@ -86,8 +86,8 @@ select set_eq(
 
 select set_eq(
   'select code from public.authorization_purposes',
-  $$ values ('record_times'), ('import_official_results'), ('share_results_with_school') $$,
-  'the purposes are the three codes'
+  $$ values ('record_times'), ('import_official_results'), ('share_results_with_school'), ('show_photo') $$,
+  'the purposes are the four codes (show_photo came with issue #1221)'
 );
 
 select ok(

@@ -30,7 +30,7 @@ export interface AuthorizationRepository {
   isInForce(athleteId: string, purpose: AuthorizationPurpose): Promise<boolean>;
 }
 
-const PURPOSE_ORDER: AuthorizationPurpose[] = ['record_times', 'import_official_results', 'share_results_with_school'];
+const PURPOSE_ORDER: AuthorizationPurpose[] = ['record_times', 'import_official_results', 'share_results_with_school', 'show_photo'];
 
 const byPurpose = (a: { purpose: AuthorizationPurpose }, b: { purpose: AuthorizationPurpose }) =>
   PURPOSE_ORDER.indexOf(a.purpose) - PURPOSE_ORDER.indexOf(b.purpose);

@@ -3,6 +3,8 @@
 -- provisional marker left. The legal review (#106) will add version 2.
 -- Reads what the seed inserted, so it needs a database where seed.sql ran
 -- (`supabase db start` and `supabase db reset` both load it). Nothing is written.
+-- The show_photo text (issue #1221) comes from its migration, not the seed: the list leaves it
+-- out, while the two checks on provisional markers and English wording cover every es-CO text.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(4);
@@ -16,7 +18,7 @@ select is(
 
 select results_eq(
   $$select purpose, body from public.authorization_texts
-    where version = 1 and language = 'es-CO' order by purpose$$,
+    where version = 1 and language = 'es-CO' and purpose <> 'show_photo' order by purpose$$,
   $$values
     ('import_official_results'::text, 'Permite buscar los resultados oficiales del deportista en la federación de natación y agregarlos a su historial en Swimcro. Sin esta autorización no podemos traer esos resultados.'::text),
     ('record_times', 'Permite guardar en Swimcro los tiempos que registran tú y la escuela en entrenamientos y competencias, para que puedas consultarlos después y ver cómo evoluciona el deportista. Si la retiras, esos tiempos dejan de mostrarse.'),

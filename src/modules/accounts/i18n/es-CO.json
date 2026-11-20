@@ -94,7 +94,8 @@
       "purpose": {
         "record_times": "Registrar tiempos y resultados",
         "import_official_results": "Importar resultados oficiales",
-        "share_results_with_school": "Compartir resultados con otra escuela"
+        "share_results_with_school": "Compartir resultados con otra escuela",
+        "show_photo": "Mostrar la foto del deportista"
       },
       "version": "Versión {{version}}",
       "accepted": "Autorizado el {{date}}",
