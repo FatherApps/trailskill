@@ -87,11 +87,11 @@ Ningún sistema es infalible. Si ocurre un incidente de seguridad que afecte tus
 
 ## 9. Cuánto tiempo los guardamos
 
-Guardamos tus datos mientras tu cuenta esté activa; esa es también la vigencia de nuestra base de datos. Cuando pidas la eliminación de la cuenta y de los datos (sección 11), los suprimimos, salvo lo que una norma nos obligue a conservar.
+Guardamos tus datos mientras tu cuenta esté activa; esa es también la vigencia de nuestra base de datos. Cuando pidas la eliminación de la cuenta y de los datos (sección 11), los suprimimos a los 30 días de la solicitud (periodo de gracia en el que puedes cancelar), salvo lo que una norma nos obligue a conservar.
 
 **Video del cronómetro:** vive en tu teléfono hasta que tú lo borras desde la galería. La aplicación no lo borra por su cuenta, y **descartar un tiempo no borra su video**: el video queda en la galería sin tiempo. Borrar un tiempo de «Mis tiempos» tampoco lo borra. Los archivos de la galería pertenecen a tu teléfono, no a la aplicación.
 
-**Foto del deportista:** se guarda mientras la cuenta esté activa. Su acudiente (o el deportista adulto) puede borrarla aunque haya retirado la autorización «Mostrar la foto del deportista»; al borrarla, o cuando se reemplaza o se elimina al deportista, el archivo se marca para borrarse del almacenamiento del servidor. Si pides la eliminación por correo (sección 11), también borramos la foto.
+**Foto del deportista:** se guarda mientras la cuenta esté activa. Su acudiente (o el deportista adulto) puede borrarla aunque haya retirado la autorización «Mostrar la foto del deportista»; al borrarla, o cuando se reemplaza o se elimina al deportista, el archivo se marca para borrarse del almacenamiento del servidor. Si pides la eliminación de la cuenta (sección 11), también borramos la foto.
 
 ## 10. Tus derechos
 
@@ -117,16 +117,24 @@ Los videos del cronómetro están solo en tu teléfono (y en donde tú los hayas
 
 ## 11. Eliminación de tu cuenta y tus datos
 
-La aplicación todavía no tiene una opción para borrar la cuenta; la eliminación se pide por correo.
+Puedes pedir la eliminación de tu cuenta y de tus datos desde la aplicación («Eliminar mis datos», distinta de «Salir») o por correo a **soporte@fatherapps.com**, desde el correo con el que ingresas a Swimcro, con el asunto «Eliminar mi cuenta y mis datos». La eliminación es irreversible una vez cumplido el periodo de gracia.
 
-**Cómo pedirla.** Escribe a **soporte@fatherapps.com**, desde el correo con el que ingresas a Swimcro, con el asunto «Eliminar mi cuenta y mis datos». Indica:
+**Cómo funciona desde la aplicación.**
 
-1. El correo de tu cuenta.
-2. Si pides borrar solo tu cuenta de adulto, o también el perfil de un deportista a tu cargo (su nombre como aparece en la aplicación). Si el deportista es menor, la solicitud la hace su acudiente.
+1. Pides la eliminación y te enviamos un código de 6 dígitos al correo de tu cuenta. El código vence a los 10 minutos, admite 5 intentos y solo lo guardamos cifrado (no en claro). Hay un límite de códigos por cuenta.
+2. Al confirmar el código, tu cuenta queda marcada «se borra en 30 días» y te enviamos un correo con la fecha y cómo cancelar. Durante esos 30 días tu cuenta queda bloqueada: no puedes registrar ni cambiar datos y la aplicación deja de sincronizarlos con tu teléfono.
+3. **Puedes cancelar** en cualquier momento de esos 30 días entrando a la aplicación con tu código: la marca se quita y todo vuelve a estar como antes. Al día 23 te enviamos un recordatorio por correo.
+4. El día 30 se borra todo. Te enviamos un correo de confirmación.
 
-**Qué se borra.** Tu cuenta y los datos de la sección 3 que están asociados a ella y a los deportistas que indiques: perfil, tiempos, entrenamientos, notas, autorizaciones, resultados importados y la foto del deportista guardada en nuestros servidores. Lo que una norma nos obligue a conservar se conserva solo por ese motivo. **Qué no podemos borrar:** los videos del cronómetro y cualquier copia que hayas compartido con otras aplicaciones o personas, porque están en tu teléfono o en poder de quien los recibió.
+**Si estás vinculado a una escuela, no puedes eliminar los datos hasta que la escuela te dé de baja.** Aplica si tú, o un deportista que administras, sigue activo en una escuela, o si tienes una membresía activa de entrenador o administrador en una. La aplicación te dice qué escuela contactar. Si una escuela vuelve a vincular al deportista durante el periodo de gracia, no borramos nada, cerramos la solicitud y te avisamos por correo. Los administradores de escuela piden la eliminación a **soporte@fatherapps.com**.
 
-**Plazo.** Lo tratamos como un reclamo de supresión: respondemos en un máximo de 15 días hábiles, prorrogables por 8 días hábiles más si te avisamos el motivo (sección 10).
+**Qué se borra el día 30.** Tu cuenta y los datos de la sección 3 asociados a ella: tu perfil, «Mis tiempos», los tiempos que enviaste o recibiste de otras familias, los códigos para compartir y las autorizaciones que diste. También se borra cada deportista del que eres el único responsable, con sus datos (perfil, documento, autorizaciones, resultados importados, entrenamientos, notas) y su foto en nuestros servidores. Si el deportista **comparte acudiente con otra persona**, ese deportista sigue existiendo con la otra persona y solo se borra tu vínculo con él; durante los 30 días esa persona conserva su acceso. Las autorizaciones que tú diste sobre ese deportista también se borran.
+
+**Tiempos registrados por una escuela: se conservan anonimizados.** Si un deportista que se borra tiene tiempos que registró una escuela, esos tiempos se conservan, pero el deportista pasa a ser un marcador sin identidad: se borran su nombre, su documento, su foto y sus vínculos. Te damos una clave aleatoria («clave del deportista anterior») solo en el correo de confirmación, para que puedas reclamar esos tiempos después; nosotros guardamos únicamente su resumen cifrado, no la clave. Los registros de un entrenador desactivado que elimina su cuenta se conservan con el autor en blanco.
+
+**Qué guardamos de la eliminación.** Un registro de auditoría con un identificador aleatorio, la hora, los roles y los conteos de lo borrado, sin correo, nombre ni identificadores tuyos. Tu correo se guarda en la solicitud solo hasta que sale el último correo y se borra con ella; no lo guardamos en ningún otro lugar. Lo que una norma nos obligue a conservar se conserva solo por ese motivo. **Qué no podemos borrar:** los videos del cronómetro y cualquier copia que hayas compartido con otras aplicaciones o personas, porque están en tu teléfono o en poder de quien los recibió.
+
+**Plazo.** Lo tratamos como un reclamo de supresión: si lo pides por correo, respondemos en un máximo de 15 días hábiles, prorrogables por 8 días hábiles más si te avisamos el motivo (sección 10). Desde la aplicación, el borrado se hace el día 30 de la marca.
 
 ## 12. Cambios en esta política
 
