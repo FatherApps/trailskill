@@ -99,7 +99,7 @@ Como titular de los datos tienes derecho a:
 
 - **Conocer** los datos que tenemos sobre ti y cómo los tratamos.
 - **Actualizar** y **rectificar** tus datos cuando estén incompletos, desactualizados o sean inexactos.
-- **Suprimir** tus datos y **revocar** la autorización que diste, cuando el tratamiento no respete la ley.
+- **Suprimir** tus datos y **revocar** la autorización que diste (sección 5 y sección 11), salvo lo que una norma nos obligue a conservar (sección 9).
 - **Solicitar prueba de la autorización** que diste.
 - Ser **informado**, si lo pides, del uso que se ha dado a tus datos.
 - Presentar **quejas ante la Superintendencia de Industria y Comercio (SIC)** por infracciones a la ley, una vez agotado el trámite de consulta o reclamo ante nosotros.

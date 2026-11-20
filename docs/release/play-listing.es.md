@@ -14,7 +14,7 @@ Límites de Play Console citados abajo: nombre 30 caracteres, descripción corta
 | Gratuita o de pago | Gratuita |
 | Categoría | Deportes |
 | ID de la aplicación | `com.fatherapps.swimcro` (no se cambia) |
-| Correo de contacto | PENDIENTE: lo define el maintainer |
+| Correo de contacto | soporte@fatherapps.com (único canal de contacto, derechos y eliminación; decisión de Mario, 2026-11-20) |
 | Sitio web | PENDIENTE: lo define el maintainer |
 | URL de la política de privacidad | `https://fatherapps.github.io/trailskill/privacidad/` (publicada con GitHub Pages desde [`privacy-policy.es.md`](privacy-policy.es.md), #1240) |
 | URL para pedir la eliminación de la cuenta y los datos (Play la pide en «Seguridad de los datos») | `https://fatherapps.github.io/trailskill/privacidad/#eliminar-datos` (solicitud por correo a soporte@fatherapps.com) |
