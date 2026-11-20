@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 
-import { Button, TextField } from '../../../core/ui';
+import { BackButton, Button, TextField } from '../../../core/ui';
 import { CodeStep, type CodeBusy } from '../components/CodeStep';
 import { OfflineBanner } from '../components/notices';
 import { ProviderOptions } from '../components/ProviderOptions';
@@ -44,7 +44,7 @@ export function SignInScreen({
       title={t('auth.email_title')}
       before={
         <View style={{ alignItems: 'flex-start' }}>
-          <Button variant="ghost" label={t('common.back')} onPress={onBack} />
+          <BackButton onPress={onBack} />
         </View>
       }
     >

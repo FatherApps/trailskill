@@ -16,7 +16,7 @@ import {
 } from '../../../core/preferences';
 import { useTheme } from '../../../core/theme';
 import { formatMillis } from '../../../core/time';
-import { Banner, Button, IconButton, Segmented } from '../../../core/ui';
+import { BackButton, Banner, Button, Segmented } from '../../../core/ui';
 import '../i18n';
 
 export type SettingsScreenProps = {
@@ -227,7 +227,7 @@ export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, on
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], paddingHorizontal: space[4], paddingTop: space[2] }}>
-        <IconButton icon="arrow_back" label={t('settings.back')} onPress={onBack} />
+        <BackButton onPress={onBack} />
         <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
           {t('settings.title')}
         </Text>

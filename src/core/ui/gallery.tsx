@@ -21,6 +21,7 @@ import { tagFixture as tg } from './__fixtures__/tag';
 import { textFieldFixture as tf } from './__fixtures__/textField';
 import { timeValueFixture as tv } from './__fixtures__/timeValue';
 import { AthleteAvatar, type AthleteAvatarProps } from './AthleteAvatar';
+import { BackButton } from './BackButton';
 import { Banner } from './Banner';
 import { Button } from './Button';
 import { Chip } from './Chip';
@@ -438,6 +439,14 @@ export const galleryEntries: GalleryEntry[] = [
       'home-active': () => <NavBarPreview items={nb.items} initialId="home" />,
       'times-active': () => <NavBarPreview items={nb.items} initialId="times" />,
       'long-labels': () => <NavBarPreview items={nb.longItems} initialId="swimmers" />,
+    },
+  },
+  {
+    id: 'backButton',
+    title: 'BackButton',
+    states: {
+      // On the canvas and on a colour band the same round button is drawn: the design system has one look for it.
+      'on-canvas': () => <BackButton onPress={noop} />,
     },
   },
   {

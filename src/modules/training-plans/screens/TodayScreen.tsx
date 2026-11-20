@@ -4,7 +4,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { namedText, t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { Banner, Button, ChipRow, ColorCard, Icon, Segmented, StateView, Tag, TextField, TimeValue, type ColorCardColor, type InitialsDotProps } from '../../../core/ui';
+import { BackButton, Banner, Button, ChipRow, ColorCard, Icon, Segmented, StateView, Tag, TextField, TimeValue, type ColorCardColor, type InitialsDotProps } from '../../../core/ui';
 import '../i18n';
 import { BlockCard } from '../components/BlockCard';
 import { statusTag } from '../components/blockStatus';
@@ -282,7 +282,7 @@ export function TodayScreen({ athleteName = '', view, athletes, selectedAthleteI
     >
       {onBack && (
         <View style={{ alignSelf: 'flex-start' }}>
-          <Button variant="ghost" label={t('common.back')} onPress={onBack} />
+          <BackButton onPress={onBack} />
         </View>
       )}
       {/* With data the colour header below carries the title; the other states keep a plain one. */}

@@ -1,9 +1,8 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Text, View, type LayoutChangeEvent } from 'react-native';
 
-import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Icon } from '../../../core/ui';
+import { BackButton } from '../../../core/ui';
 import '../i18n';
 
 export type TimingHeaderProps = {
@@ -17,7 +16,7 @@ export type TimingHeaderProps = {
 };
 
 export function TimingHeader({ title, subtitle, onBack, trailing, large = false }: TimingHeaderProps) {
-  const { colors, space, radius, size, typography } = useTheme();
+  const { colors, space, size, typography } = useTheme();
   const [widths, setWidths] = useState<{ container?: number; text?: number; trailing?: number }>({});
   const measured = (key: 'container' | 'text' | 'trailing') => (event: LayoutChangeEvent) => {
     const { width } = event.nativeEvent.layout;
@@ -57,23 +56,7 @@ export function TimingHeader({ title, subtitle, onBack, trailing, large = false 
         backgroundColor: colors['surface-0'],
       }}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('common.back')}
-        onPress={onBack}
-        style={{
-          minWidth: size['target-min'],
-          minHeight: size['target-min'],
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: radius.full,
-          backgroundColor: colors['surface-1'],
-          borderWidth: 1.5,
-          borderColor: colors.border,
-        }}
-      >
-        <Icon name="arrow_back" />
-      </Pressable>
+      <BackButton onPress={onBack} />
       {trailing != null && (
         <View
           pointerEvents="none"

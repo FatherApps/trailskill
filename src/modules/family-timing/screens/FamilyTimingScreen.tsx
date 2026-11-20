@@ -6,12 +6,12 @@ import { t } from '../../../core/i18n';
 import { isStroke } from '../../../core/sport';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import {
+  BackButton,
   Banner,
   Button,
   ChipRow,
   Icon,
   ConfirmSheet,
-  IconButton,
   Segmented,
   StateView,
   StrokeIcon,
@@ -274,7 +274,7 @@ function Header({ onBack, title, action }: { onBack: () => void; title: string; 
   const { colors, space, typography } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], paddingHorizontal: space[4], paddingTop: space[2] }}>
-      <IconButton icon="arrow_back" label={t('family_timing.back')} onPress={onBack} />
+      <BackButton onPress={onBack} />
       <Text accessibilityRole="header" style={[typography.title, { flex: 1, color: colors.ink }]}>
         {title}
       </Text>
