@@ -13,8 +13,8 @@ export type FakeDatabase = ReturnType<typeof openDatabase>;
 
 /** Creates a SQLite file with the tables the sync tests use; returns its path and a cleanup. */
 export function createStore(): { path: string; remove: () => void } {
-  const dir = mkdtempSync(join(tmpdir(), 'trailskill-sync-'));
-  const path = join(dir, 'trailskill.db');
+  const dir = mkdtempSync(join(tmpdir(), 'swimcro-sync-'));
+  const path = join(dir, 'swimcro.db');
   const store = new DatabaseSync(path);
   store.exec(`
     CREATE TABLE athletes (id TEXT PRIMARY KEY, first_name TEXT, last_name TEXT);

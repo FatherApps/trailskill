@@ -1,5 +1,5 @@
 import { contrastRatio } from '../contrast';
-import { breakpoint, colors, type ThemeName } from '../tokens';
+import { breakpoint, colors, ringGapColor, size, type ThemeName } from '../tokens';
 
 const themes: ThemeName[] = ['light', 'dark'];
 
@@ -30,6 +30,15 @@ describe('color tokens', () => {
     expect(contrastRatio(c.ink, c['surface-0'])).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(c['ink-muted'], c['surface-1'])).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(c['on-action'], c.action)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('avatar and ring tokens', () => {
+  it('match the design system values (version 1795142819-4b57)', () => {
+    expect([size['avatar-sm'], size['avatar-md'], size['avatar-lg']]).toEqual([28, 40, 64]);
+    expect(size['ring-gap']).toBe(2);
+    expect(size['ring-athlete']).toBe(1.5);
+    expect(ringGapColor).toBe('#FFFFFF');
   });
 });
 

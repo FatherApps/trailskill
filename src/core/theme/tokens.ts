@@ -174,7 +174,16 @@ export const size = {
   'icon-md': 22,
   'icon-sm': 16,
   'field-h': 52,
+  // AthleteAvatar sizes and rings, from the design system version 1795142819-4b57 (tokens.json, size).
+  'avatar-sm': 28,
+  'avatar-md': 40,
+  'avatar-lg': 64,
+  'ring-gap': 2,
+  'ring-athlete': 1.5,
 } as const;
+
+// The ring-gap token is white in both themes (design-system AthleteAvatar README and component CSS).
+export const ringGapColor = '#FFFFFF';
 
 // Layout breakpoints (minimum width in dp) from the design system.
 export const breakpoint = {

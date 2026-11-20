@@ -1,6 +1,6 @@
-# Contributing to TrailSkill
+# Contributing to Swimcro
 
-This document is the single source of truth for how people and AI agents contribute to TrailSkill. If another document disagrees with it, this one wins until it is changed through a pull request.
+This document is the single source of truth for how people and AI agents contribute to Swimcro. If another document disagrees with it, this one wins until it is changed through a pull request.
 
 - Release and Google Play publishing: [`docs/RELEASING.md`](docs/RELEASING.md)
 - Quick reference for AI agents: [`AGENTS.md`](AGENTS.md)
@@ -63,7 +63,7 @@ To choose a backend, the shared test backend or everything local in Docker, see 
 
 ## Branching model
 
-TrailSkill uses **trunk-based development**: one long-lived branch (`main`), short-lived work branches, and tags for releases. There is no `develop` branch.
+Swimcro uses **trunk-based development**: one long-lived branch (`main`), short-lived work branches, and tags for releases. There is no `develop` branch.
 
 ### `main`
 
@@ -167,7 +167,7 @@ Production code adds a `testID` only when the element has no role, label, or tex
 - Product rules live in the product documents (currently [`PROJECT-HANDOFF-2026-10-24.md`](PROJECT-HANDOFF-2026-10-24.md), moving to `docs/product/`). They distinguish **confirmed**, **proposed**, and **open** items. Only confirmed items are requirements.
 - If an issue depends on an open item, stop and ask the maintainer. Do not fill the gap with an assumption.
 - Significant technical decisions (backend, sync strategy, auth provider, and similar) are recorded as Architecture Decision Records in `docs/decisions/NNNN-short-title.md` with context, decision, and consequences.
-- Visual design (palette, typography, components, logo) comes only from the TrailSkill design system linked in [`design/README.md`](design/README.md). Design changes start there, never in code.
+- Visual design (palette, typography, components, logo) comes only from the Swimcro design system linked in [`design/README.md`](design/README.md). Design changes start there, never in code.
 
 ### Reuse before creating
 
@@ -192,7 +192,7 @@ Issues labeled `area: front-mobile` or `area: front-tablet` are checked against 
 
 ## Personal data and security
 
-TrailSkill handles personal data of minors. These rules are not optional:
+Swimcro handles personal data of minors. These rules are not optional:
 
 - Use only synthetic data in tests, fixtures, seeds, screenshots, issues, and pull requests. Never copy data from FECNA, the pilot school, or real users.
 - Never commit secrets: API keys, service-account files, keystores, `.env` files. Commit only `.env.example`. Store build and submit secrets in EAS or GitHub encrypted secrets.

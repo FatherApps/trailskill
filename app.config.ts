@@ -24,6 +24,8 @@ const config: ExpoConfig = {
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
+      // Themed icon (Android 13+): the single-ink symbol of the official files, tinted by the launcher.
+      monochromeImage: './assets/adaptive-icon-monochrome.png',
       // Background layer of the official adaptive icon (design/README.md, Logo files).
       backgroundColor: '#141414',
     },
