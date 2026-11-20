@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAdultDirectoryRepository, createInMemoryAuthorizationStatusRepository, createInMemoryInvitationRepository } from '../../accounts';
-import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository, type HistoryMeasurement } from '../../athletes';
+import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository, type AthleteSchoolEndRepository, type HistoryMeasurement } from '../../athletes';
 import { ThemeProvider } from '../../../core/theme';
 import { startOfWeek } from '../data/athletesList';
 import { createInMemoryCategoriesRepository, type CategoriesRepository } from '../data/categories';
@@ -396,6 +396,52 @@ describe('AthletesSection', () => {
       await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
 
       expect(screen.queryByTestId('detail-panel')).toBeNull();
+    });
+  });
+
+  describe('end of the link', () => {
+    const open = async (swimmerEnd?: AthleteSchoolEndRepository) => {
+      const { repository } = setup();
+      const listAthletes = jest.spyOn(repository, 'listAthletes');
+      await show(repository, { swimmerEnd });
+      await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+      return { listAthletes };
+    };
+    const end = async () => {
+      await fireEvent.press(await screen.findByRole('button', { name: 'Dar de baja a un nadador' }));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Dar de baja' }));
+    };
+
+    it('has no baja button without the repository that ends the link', async () => {
+      await open();
+
+      expect(screen.queryByRole('button', { name: 'Dar de baja a un nadador' })).toBeNull();
+    });
+
+    it('ends the link of the open swimmer in the school of the console, closes the detail and reads the list again', async () => {
+      const swimmerEnd = { endLink: jest.fn().mockResolvedValue(undefined) };
+      const { listAthletes } = await open(swimmerEnd);
+      listAthletes.mockClear();
+
+      await end();
+
+      await waitFor(() => expect(swimmerEnd.endLink).toHaveBeenCalledWith('a1', 'school-a'));
+      expect(swimmerEnd.endLink).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(listAthletes).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Dar de baja a un nadador' })).toBeNull());
+    });
+
+    it.each([
+      ['not_allowed', 'Solo un administrador de la escuela puede dar de baja a un nadador.'],
+      ['not_enrolled', 'Este nadador ya no está en tu escuela.'],
+      ['Failed to fetch', 'No pudimos dar de baja al nadador. Revisa la conexión e inténtalo de nuevo.'],
+    ])('shows the failure %s and keeps the swimmer', async (code, message) => {
+      await open({ endLink: jest.fn().mockRejectedValue(new Error(code)) });
+
+      await end();
+
+      expect(await screen.findByText(message)).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Dar de baja a un nadador' })).toBeOnTheScreen();
     });
   });
 

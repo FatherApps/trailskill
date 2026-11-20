@@ -96,7 +96,7 @@ describe('useAthleteProfileRoute', () => {
     });
 
     it('is nothing when the school lookup fails', async () => {
-      const { hook } = setup({ schoolLinks: { listByAthlete: async () => Promise.reject(new Error('db')) }, staff: staffOf('school-a') });
+      const { hook } = setup({ schoolLinks: { listByAthlete: async () => Promise.reject(new Error('db')), listActiveSchools: async () => [] }, staff: staffOf('school-a') });
       const { result } = await hook;
 
       await waitFor(() => expect(result.current.isStaff).toBe(true));

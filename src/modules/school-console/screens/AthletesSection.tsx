@@ -8,6 +8,7 @@ import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
 import { avatarOf } from '../components/athleteAvatar';
 import type { AdultDirectoryRepository, Guardian, InvitationRepository } from '../../accounts';
+import type { AthleteSchoolEndRepository } from '../../athletes';
 import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
 import { formatDate, localDate } from '../components/formatDate';
@@ -31,6 +32,8 @@ export type AthletesSectionProps = ConsoleSectionProps & {
   guardians?: Pick<AdultDirectoryRepository, 'listGuardians'>;
   // Without it the detail has no controls for what the guardian sees.
   sharing?: { repository: GuardianSharingRepository; records?: GuardianRecordsRepository };
+  // Without it the detail has no «Dar de baja a un nadador». Only the school admin console passes it; the server checks the role anyway.
+  swimmerEnd?: Pick<AthleteSchoolEndRepository, 'endLink'>;
   // Inviting a family needs both: the school's groups (an invitation belongs to one) and the invitations. Without either the button is not shown.
   structure?: Pick<SchoolStructureRepository, 'listGroups'>;
   invitations?: Pick<InvitationRepository, 'create'>;
@@ -68,6 +71,13 @@ const defaultNow = () => new Date();
 const defaultShare = (message: string) => Share.share({ message });
 
 const MINUTE_MS = 60_000;
+
+const END_ERRORS = ['not_allowed', 'not_enrolled'];
+// The message of a failed baja: the repository's own error code when it has a text, a generic one otherwise (offline included).
+const endError = (error: unknown) => {
+  const code = error instanceof Error && END_ERRORS.includes(error.message) ? error.message : 'other';
+  return t(`schoolConsole.detail.end_error.${code}`);
+};
 
 const ASSIGN_ERRORS = ['category_inactive', 'category_wrong_school', 'category_missing', 'athlete_school_missing'];
 // The message of a failed assignment: the repository's own error code when it has a text, a generic one otherwise.
@@ -117,6 +127,7 @@ export function AthletesSection({
   categories,
   guardians,
   sharing,
+  swimmerEnd,
   structure,
   invitations,
   share = defaultShare,
@@ -135,6 +146,9 @@ export function AthletesSection({
   // Bumped after each assignment so the list and the tags show the new category.
   const [version, setVersion] = useState(0);
   const [assignFailure, setAssignFailure] = useState<{ athleteId: string; message: string }>();
+  const [endFailure, setEndFailure] = useState<{ athleteId: string; message: string }>();
+  // A ref, not state: a second confirmation can arrive before a re-render shows the first is running.
+  const ending = useRef(false);
   const [bests, setBests] = useState<{ athleteId: string; bests: AthleteBest[]; failed: boolean }>();
   const [guardianList, setGuardianList] = useState<{ athleteId: string; guardians: Guardian[] }>();
 
@@ -249,6 +263,27 @@ export function AthletesSection({
                 refreshKey={refreshKey}
               />
             ),
+            endLink: swimmerEnd && {
+              error: endFailure?.athleteId === selected.id ? endFailure.message : null,
+              onConfirm: () => {
+                if (ending.current) return;
+                ending.current = true;
+                swimmerEnd
+                  .endLink(selected.id, schoolId)
+                  .then(
+                    () => {
+                      setEndFailure(undefined);
+                      // The swimmer leaves the list with the next sync: the open detail closes and the list is read again.
+                      setSelectedId(null);
+                      setVersion((n) => n + 1);
+                    },
+                    (error) => setEndFailure({ athleteId: selected.id, message: endError(error) }),
+                  )
+                  .finally(() => {
+                    ending.current = false;
+                  });
+              },
+            },
             categoryChoice: categories && {
               options: categoryOptions(categoryList, selected.categoryId),
               selectedId: selected.categoryId,

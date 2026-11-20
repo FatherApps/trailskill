@@ -39,7 +39,13 @@ export {
   createPowerSyncAthleteSchoolRepository,
   type AthleteSchoolLink,
   type AthleteSchoolRepository,
+  type AthleteSchoolRow,
 } from './data/athleteSchools';
+export {
+  createInMemoryAthleteSchoolEndRepository,
+  createSupabaseAthleteSchoolEndRepository,
+  type AthleteSchoolEndRepository,
+} from './data/athleteSchoolEnd';
 export {
   createInMemoryAthleteRepository,
   createPowerSyncAthleteRepository,

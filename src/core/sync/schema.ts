@@ -11,7 +11,8 @@ export const AppSchema = new Schema({
   coach_group_assignments: new Table({ ...audit, coach_user_id: column.text, group_id: column.text }),
   coach_athlete_assignments: new Table({ ...audit, school_id: column.text, coach_user_id: column.text, athlete_id: column.text }),
   athletes: new Table({ ...audit, first_name: column.text, last_name: column.text }),
-  athlete_schools: new Table({ ...audit, athlete_id: column.text, school_id: column.text, category_id: column.text }),
+  // ended_at: the school ended the link (#1243). Guardians keep the ended row; staff never receive it.
+  athlete_schools: new Table({ ...audit, athlete_id: column.text, school_id: column.text, category_id: column.text, ended_at: column.text }),
   athlete_groups: new Table({ ...audit, athlete_id: column.text, group_id: column.text }),
   adult_profiles: new Table({ first_name: column.text, last_name: column.text, contact_email: column.text }),
   athlete_managers: new Table({ ...audit, user_id: column.text, athlete_id: column.text, relation: column.text }),

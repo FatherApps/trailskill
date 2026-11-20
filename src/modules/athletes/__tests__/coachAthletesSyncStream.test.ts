@@ -28,10 +28,10 @@ test("the athletes query of athletes_visible reads the swimmer through every sou
 
 test("the coach athlete ids count only the schools where the coach is active", () => {
   expect(definition("coach_direct_athlete_ids")).toBe(
-    "SELECT athlete_id FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id() AND school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL)",
+    "SELECT athlete_schools.athlete_id FROM athlete_schools JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL)",
   );
   expect(definition("coach_group_athlete_ids")).toBe(
-    "SELECT athlete_id FROM athlete_groups WHERE group_id IN (SELECT group_id FROM coach_group_assignments WHERE coach_user_id = auth.user_id() AND group_id IN (SELECT id FROM training_groups WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL)))",
+    "SELECT athlete_schools.athlete_id FROM athlete_schools JOIN training_groups ON athlete_schools.school_id = training_groups.school_id JOIN athlete_groups ON athlete_schools.athlete_id = athlete_groups.athlete_id AND training_groups.id = athlete_groups.group_id JOIN coach_group_assignments ON training_groups.id = coach_group_assignments.group_id WHERE coach_group_assignments.coach_user_id = auth.user_id() AND athlete_schools.ended_at IS NULL AND athlete_schools.school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL)",
   );
 });
 
@@ -42,12 +42,12 @@ const coachQueriesOf = (table: string) =>
 
 test("the coach queries of athletes_visible bind the enrollment and the group rows to the school of the assignment", () => {
   expect(coachQueriesOf("athlete_schools")).toEqual([
-    "SELECT athlete_schools.* FROM athlete_schools JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND athlete_schools.school_id IN member_school_ids",
-    "SELECT athlete_schools.* FROM athlete_schools JOIN athlete_groups ON athlete_schools.athlete_id = athlete_groups.athlete_id JOIN training_groups ON athlete_groups.group_id = training_groups.id AND athlete_schools.school_id = training_groups.school_id WHERE athlete_groups.group_id IN coach_group_ids AND athlete_schools.school_id IN member_school_ids",
+    "SELECT athlete_schools.* FROM athlete_schools JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND athlete_schools.ended_at IS NULL AND athlete_schools.school_id IN member_school_ids",
+    "SELECT athlete_schools.* FROM athlete_schools JOIN athlete_groups ON athlete_schools.athlete_id = athlete_groups.athlete_id JOIN training_groups ON athlete_groups.group_id = training_groups.id AND athlete_schools.school_id = training_groups.school_id WHERE athlete_groups.group_id IN coach_group_ids AND athlete_schools.ended_at IS NULL AND athlete_schools.school_id IN member_school_ids",
   ]);
   expect(coachQueriesOf("athlete_groups")).toEqual([
-    "SELECT athlete_groups.* FROM athlete_groups JOIN training_groups ON athlete_groups.group_id = training_groups.id JOIN coach_athlete_assignments ON athlete_groups.athlete_id = coach_athlete_assignments.athlete_id AND training_groups.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND athlete_groups.group_id IN member_group_ids",
-    "SELECT athlete_groups.* FROM athlete_groups JOIN training_groups ON athlete_groups.group_id = training_groups.id JOIN athlete_groups AS coached ON athlete_groups.athlete_id = coached.athlete_id JOIN training_groups AS coached_groups ON coached.group_id = coached_groups.id AND training_groups.school_id = coached_groups.school_id WHERE coached.group_id IN coach_group_ids AND athlete_groups.group_id IN member_group_ids",
+    "SELECT athlete_groups.* FROM athlete_groups JOIN athlete_schools ON athlete_groups.athlete_id = athlete_schools.athlete_id JOIN training_groups ON athlete_groups.group_id = training_groups.id AND athlete_schools.school_id = training_groups.school_id JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND athlete_schools.ended_at IS NULL AND athlete_groups.group_id IN member_group_ids",
+    "SELECT athlete_groups.* FROM athlete_groups JOIN athlete_schools ON athlete_groups.athlete_id = athlete_schools.athlete_id JOIN training_groups ON athlete_groups.group_id = training_groups.id AND athlete_schools.school_id = training_groups.school_id JOIN athlete_groups AS coached ON athlete_schools.athlete_id = coached.athlete_id JOIN training_groups AS coached_groups ON athlete_schools.school_id = coached_groups.school_id AND coached.group_id = coached_groups.id JOIN coach_group_assignments ON coached_groups.id = coach_group_assignments.group_id WHERE coach_group_assignments.coach_user_id = auth.user_id() AND athlete_schools.ended_at IS NULL AND athlete_groups.group_id IN member_group_ids",
   ]);
 });
 

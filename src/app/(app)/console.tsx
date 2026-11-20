@@ -14,6 +14,7 @@ import {
   createSupabaseInvitationRepository,
   SignOutContainer,
 } from '../../modules/accounts';
+import { createSupabaseAthleteSchoolEndRepository } from '../../modules/athletes';
 import { createPowerSyncMeasurementRepository } from '../../modules/timing';
 import {
   AthletesSection,
@@ -52,6 +53,8 @@ const coachInvitations = createSupabaseCoachInvitationRepository();
 const familyInvitations = createSupabaseInvitationRepository();
 const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 const pendingInvitations = createSecureStorePendingInvitationRepository();
+// This console is the school admin's: the baja is offered here and nowhere else, and the server checks the role again.
+const athleteSchoolEnds = createSupabaseAthleteSchoolEndRepository();
 const guardianSharing = { repository: createSupabaseGuardianSharingRepository(), records: createGuardianRecordsRepository(createPowerSyncMeasurementRepository()) };
 
 export default function ConsoleRoute() {
@@ -111,7 +114,7 @@ export default function ConsoleRoute() {
           <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} invitations={coachInvitations} />
         ),
         athletes: (props) => (
-          <AthletesSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} structure={schoolStructure} invitations={familyInvitations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AthletesSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} swimmerEnd={athleteSchoolEnds} structure={schoolStructure} invitations={familyInvitations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         records: (props) => (
           <RecordsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={categoryRecords} categories={categories} structure={schoolStructure} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
