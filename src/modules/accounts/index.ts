@@ -6,6 +6,16 @@ export { SignInScreen, type SignInField, type SignInScreenProps } from './screen
 export { AccountDetailsContainer, type AccountDetailsContainerProps } from './screens/AccountDetailsContainer';
 export { SignInContainer } from './screens/SignInContainer';
 export { SignOutContainer } from './screens/SignOutContainer';
+export { AccountContainer, type AccountContainerProps } from './screens/AccountContainer';
+export { DeleteAccountContainer, type AccountExporter, type DeleteAccountContainerProps } from './screens/DeleteAccountContainer';
+export { DeletionGraceContainer, type DeletionGraceContainerProps } from './screens/DeletionGraceContainer';
+export {
+  createInMemoryAccountDeletionRepository,
+  createSupabaseAccountDeletionRepository,
+  useAccountDeletionStatus,
+  type AccountDeletionRepository,
+  type AccountDeletionStatus,
+} from './data/accountDeletion';
 export { useSignOut } from './screens/useSignOut';
 export {
   ProviderRegistrationContainer,

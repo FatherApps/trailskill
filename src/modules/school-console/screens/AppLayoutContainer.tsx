@@ -13,16 +13,19 @@ import {
   createPowerSyncOwnAuthorizationEvidence,
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
+  createSupabaseAccountDeletionRepository,
   createSupabaseAdultProfileRepository,
   createSupabaseCoachInvitationAcceptance,
   createSupabaseInvitationRepository,
   createSupabaseProfileEvidenceRepository,
+  DeletionGraceContainer,
   ExistingAccountSheet,
   ProviderRegistrationContainer,
   providerAccountOf,
   ResumeRegistration,
   useFinishRegistration,
   useAcceptCoachInvitations,
+  useAccountDeletionStatus,
   useOwnLandingEvidence,
   usePendingInvitations,
   useProfileGate,
@@ -58,6 +61,7 @@ function buildRepositories() {
     staffSchools: createPowerSyncStaffSchoolRepository(),
     managedAthletes: createPowerSyncManagedAthleteRepository(),
     schoolAthletes: createPowerSyncSchoolAthleteRepository(),
+    accountDeletion: createSupabaseAccountDeletionRepository(),
     drafts: createSecureStoreRegistrationDraftRepository(),
     profiles: createSupabaseAdultProfileRepository(),
     managedProfiles: createPowerSyncManagedAthleteProfileRepository(
@@ -179,9 +183,30 @@ async function hasLocalProfile(userId: string) {
   );
 }
 
+// An account marked for deletion (#1245) sees only its date and the way to cancel: the app, the registration and the profile checks
+// below do not run for it. Without an answer from the server in time the app opens as usual (a marked account syncs nothing).
+export function AppLayoutContainer(props: AppLayoutContainerProps) {
+  const { accountDeletion } = repositories();
+  const { session } = useSession();
+  const { connection } = useGlobalSyncSummary();
+  const { colors, space } = useTheme();
+  const deletion = useAccountDeletionStatus(accountDeletion, session?.user.id);
+  if (deletion.state === 'loading') {
+    return (
+      <View style={{ flex: 1, padding: space[4], justifyContent: 'center', backgroundColor: colors['surface-0'] }}>
+        <StateView kind="loading" />
+      </View>
+    );
+  }
+  if (deletion.state === 'marked') {
+    return <DeletionGraceContainer repository={accountDeletion} deleteAfter={deletion.deleteAfter} online={connection !== 'offline'} onCancelled={deletion.refresh} />;
+  }
+  return <ProfileGatedLayout {...props} />;
+}
+
 // A session with no profile goes to the registration steps, not to the app. The person who already uses the app is let in by what the
 // device holds, so the server is asked only the first time on a phone; with no signal then, it waits instead of guessing.
-export function AppLayoutContainer({ router, segments, stack }: AppLayoutContainerProps) {
+function ProfileGatedLayout({ router, segments, stack }: AppLayoutContainerProps) {
   const { drafts, profileEvidence, coachInvitations } = repositories();
   const { session } = useSession();
   const { lastSyncedAt } = useGlobalSyncSummary();

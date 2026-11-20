@@ -111,7 +111,8 @@
     }
   },
   "common": {
-    "back": "Volver"
+    "back": "Volver",
+    "deleted_account": "cuenta eliminada"
   },
   "step": {
     "progress": "Paso {{step}} de {{total}}"
