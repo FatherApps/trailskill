@@ -1,0 +1,56 @@
+name: Release watch
+
+# After a release tag vX.Y.Z is pushed, checks on EAS (read-only) that the delivery workflow .eas/workflows/release.yml
+# started for the tag's commit and how it ended, so a delivery that never started or failed turns this job red in GitHub (#1275).
+# It never starts, re-runs or cancels anything on EAS. Needs the repository secret EXPO_TOKEN (docs/RELEASING.md, One-time setup).
+# The logic lives in .github/scripts/check-eas-release.sh (tests: bash .github/scripts/check-eas-release.test.sh).
+# Manual run: Actions > Release watch > Run workflow, with an existing tag (for example v0.6.0).
+on:
+  push:
+    tags:
+      - v*
+      - '!v*+ota*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to check (vX.Y.Z)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-watch-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: EAS delivery started and finished
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      # Through env, never inline in a script, to avoid injection.
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Check the tag name
+        shell: bash
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::«$TAG» no es una etiqueta de release vX.Y.Z."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ env.TAG }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: npm
+      # eas-cli reads the project ID from app.config.ts, which needs the app's dependencies.
+      - run: npm ci
+      - name: Check the EAS delivery for the tag
+        shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: SHA=$(git rev-parse "HEAD^{commit}") bash .github/scripts/check-eas-release.sh
