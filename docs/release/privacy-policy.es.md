@@ -109,7 +109,7 @@ En el caso de un menor, ejerce estos derechos su representante legal (acudiente)
 **Cómo ejercerlos.** Escribe a **soporte@fatherapps.com** desde el correo con el que ingresas a la aplicación, indicando qué quieres hacer y, si se trata de un deportista, su nombre como aparece en la aplicación. Podemos pedirte datos adicionales para confirmar que eres el titular o su acudiente.
 
 - **Consultas:** las respondemos en un máximo de **10 días hábiles** desde el recibo de la solicitud. Si no podemos hacerlo en ese plazo, te avisamos el motivo y la fecha de respuesta, que no pasará de **5 días hábiles** adicionales (artículo 14 de la Ley 1581 de 2012).
-- **Reclamos** (actualización, rectificación, supresión o revocatoria): los respondemos en un máximo de **15 días hábiles**. Si el reclamo está incompleto, te pedimos corregirlo dentro de los 5 días siguientes; si no podemos resolverlo en ese plazo, te avisamos el motivo y la fecha, que no pasará de **8 días hábiles** adicionales (artículo 15 de la Ley 1581 de 2012).
+- **Reclamos** (actualización, rectificación, supresión o revocatoria): los respondemos en un máximo de **15 días hábiles**. Si el reclamo está incompleto, te pedimos corregirlo dentro de los 5 días siguientes; si pasan 2 meses desde nuestro requerimiento sin que presentes la información, se entiende que desististe del reclamo; si no podemos resolverlo en ese plazo, te avisamos el motivo y la fecha, que no pasará de **8 días hábiles** adicionales (artículo 15 de la Ley 1581 de 2012).
 
 Los videos del cronómetro están solo en tu teléfono (y en donde tú los hayas compartido): los borras tú desde la galería, y nosotros no podemos verlos ni borrarlos.
 
