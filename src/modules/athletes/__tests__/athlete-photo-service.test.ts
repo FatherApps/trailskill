@@ -238,6 +238,17 @@ describe('athlete photo service', () => {
     });
   });
 
+  it('a queue that cannot take the row leaves no image behind: it would never be sent or deleted', async () => {
+    const { objects, rows, files, photoCache } = setup();
+    const queue = { ...createInMemoryPhotoUploadQueue(), add: jest.fn().mockRejectedValue(new Error('disk full')) };
+    const service = createAthletePhotoService({ queue, objects, rows, files, cache: photoCache, newId: () => ID_1 });
+
+    await expect(service.add(A1, 'file:///picked.jpg', U1)).rejects.toThrow('disk full');
+
+    expect(files.kept()).toEqual([]);
+    expect(await queue.list()).toEqual([]);
+  });
+
   it('discardAll drops every queued photo and every kept image, even one no queue row names', async () => {
     const { log, objects, queue, files, service } = setup();
     objects.failUploads(new Error('Network request failed'));

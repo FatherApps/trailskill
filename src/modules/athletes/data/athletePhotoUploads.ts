@@ -142,7 +142,13 @@ export function createAthletePhotoService({
         await dropAthlete(athleteId);
         const id = newId();
         const localUri = files.keep(athleteId, id, pickedUri);
-        await queue.add({ id, athleteId, localUri });
+        try {
+          await queue.add({ id, athleteId, localUri });
+        } catch (error) {
+          // No queue row names this image, so nothing would ever send or delete it: it is a photo of a minor, and it must not stay on the phone.
+          files.delete(localUri);
+          throw error;
+        }
         await drainNow(userId);
       }),
     drain: (userId) => exclusive(() => drainNow(userId)),
