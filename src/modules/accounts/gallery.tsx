@@ -1,7 +1,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
-import { SyncStatus, type GalleryEntry } from '../../core/ui';
+import { AthleteAvatar, SyncStatus, type AthleteAvatarSlot, type GalleryEntry } from '../../core/ui';
 import { accountsFixture as fx } from './__fixtures__/accounts';
 import { ENABLED_PROVIDERS } from './providerAvailability';
 import { AccountDetailsScreen, type AccountDetailsScreenProps } from './screens/AccountDetailsScreen';
@@ -139,7 +139,11 @@ const authorizationTexts: AuthorizationText[] = [
   consentText,
   { id: 'gallery-text-results', purpose: 'import_official_results', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
   { id: 'gallery-text-school', purpose: 'share_results_with_school', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
+  { id: 'gallery-text-photo', purpose: 'show_photo', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
 ];
+
+// The real avatar reads the photo from the local database; the gallery has no database, so it shows the initials.
+const GalleryAvatar: AthleteAvatarSlot = ({ initials, size }) => <AthleteAvatar initials={initials} size={size} authorized={false} />;
 
 export const galleryEntries: GalleryEntry[] = [
   {
@@ -210,6 +214,7 @@ export const galleryEntries: GalleryEntry[] = [
             texts={authorizationTexts}
             inForce={{ 'gallery-athlete': { record_times: consentAccepted } }}
             failed={false}
+            Avatar={GalleryAvatar}
             onSave={async () => true}
             onWithdraw={noop}
             onBack={noop}
@@ -224,12 +229,29 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       unchecked: () => (
         <FullWidth>
-          <ConsentCard text={consentText} checked={false} onToggle={noop} onWithdraw={noop} />
+          <ConsentCard
+            athleteName="Lucía R."
+            avatar={<GalleryAvatar athleteId="gallery-athlete" initials="LR" size="sm" />}
+            texts={authorizationTexts}
+            inForce={{}}
+            selected={{}}
+            onToggle={noop}
+            onWithdraw={noop}
+          />
         </FullWidth>
       ),
+      // record_times in force and still on the phone; photo checked in this session, not saved yet.
       accepted: () => (
         <FullWidth>
-          <ConsentCard text={consentText} accepted={consentAccepted} checked={false} onToggle={noop} onWithdraw={noop} />
+          <ConsentCard
+            athleteName="Lucía R."
+            avatar={<GalleryAvatar athleteId="gallery-athlete" initials="LR" size="sm" />}
+            texts={authorizationTexts}
+            inForce={{ record_times: consentAccepted }}
+            selected={{ show_photo: true }}
+            onToggle={noop}
+            onWithdraw={noop}
+          />
         </FullWidth>
       ),
     },
