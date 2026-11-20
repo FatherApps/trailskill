@@ -9,7 +9,7 @@ import { join } from "node:path";
 // pair (swimmer, school) survives only in three query shapes. #1260 found it against a real PowerSync with an admin and a
 // coach of two schools, one of them with the swimmer ended; the text of the query is the contract:
 //   admin          school_memberships joined to the row by its school first, athlete_schools last (same school, the row's swimmer)
-//   direct coach   athlete_schools first, coach_athlete_assignments last (swimmer and school come from one row)
+//   direct coach   the admin shape, then coach_athlete_assignments last as a filter on the same pair
 //   coach by group the chain starts at training_groups.id IN coach_group_ids and ends at athlete_schools
 // A school condition of its own (IN member_school_ids, an extra join on school_memberships) beside the by-group or admin
 // joins makes swimmer and school independent again: the ended pair comes back.
@@ -77,7 +77,7 @@ test("the admin queries bind the row to a school they administer first and to th
   }
 });
 
-test("the direct coach queries take the swimmer and the school from the coach assignment row", () => {
+test("the direct coach queries take the active school from the membership and keep the assignment as the last filter", () => {
   const direct = [
     ...staffQueriesReading("measurements"),
     ...staffQueriesReading("training_plan_fulfillments"),
@@ -87,16 +87,10 @@ test("the direct coach queries take the swimmer and the school from the coach as
 
   expect(direct).toHaveLength(4);
   for (const query of direct) {
-    const tables = joinedTables(query);
-    // The group rows of a swimmer join the group first, so there the assignment comes before the link.
-    const [first, last] = query.startsWith("SELECT athlete_groups.*")
-      ? ["coach_athlete_assignments", "athlete_schools"]
-      : ["athlete_schools", "coach_athlete_assignments"];
-    expect(tables.indexOf(first)).toBeGreaterThan(-1);
-    expect(tables.indexOf(first)).toBeLessThan(tables.indexOf(last));
-    expect(tables.at(-1)).toBe(last);
-    expect(query).toContain("athlete_schools.ended_at IS NULL");
-    expect(query).toContain("coach_athlete_assignments.coach_user_id = auth.user_id()");
+    expect(joinedTables(query).slice(-3)).toEqual(["school_memberships", "athlete_schools", "coach_athlete_assignments"]);
+    expect(query).toContain("school_memberships.deactivated_at IS NULL");
+    expect(query).toContain("athlete_schools.ended_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()");
+    expect(query).not.toMatch(/\b(member_school_ids|admin_school_ids)\b/);
   }
 });
 

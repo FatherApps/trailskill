@@ -21,7 +21,7 @@ test("an admin gets the coach assignments of a swimmer only in a school where th
 // into athlete_schools.
 test("a coach gets their own assignments only for the pairs not ended", () => {
   expect(streamQueries("school_console_staff")).toContain(
-    "SELECT coach_athlete_assignments.* FROM coach_athlete_assignments JOIN athlete_schools ON coach_athlete_assignments.athlete_id = athlete_schools.athlete_id AND coach_athlete_assignments.school_id = athlete_schools.school_id JOIN coach_athlete_assignments AS mine ON athlete_schools.athlete_id = mine.athlete_id AND athlete_schools.school_id = mine.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND mine.coach_user_id = auth.user_id() AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.school_id IN member_school_ids",
+    "SELECT coach_athlete_assignments.* FROM coach_athlete_assignments JOIN school_memberships ON coach_athlete_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON coach_athlete_assignments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.deactivated_at IS NULL AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()",
   );
 });
 

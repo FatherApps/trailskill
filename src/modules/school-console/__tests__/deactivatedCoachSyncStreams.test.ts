@@ -32,7 +32,7 @@ test("school_console_staff filters the coach assignments and keeps the own membe
     "SELECT * FROM coach_group_assignments WHERE coach_user_id = auth.user_id() AND group_id IN coach_group_ids",
   );
   expect(stream).toContain(
-    "SELECT coach_athlete_assignments.* FROM coach_athlete_assignments JOIN athlete_schools ON coach_athlete_assignments.athlete_id = athlete_schools.athlete_id AND coach_athlete_assignments.school_id = athlete_schools.school_id JOIN coach_athlete_assignments AS mine ON athlete_schools.athlete_id = mine.athlete_id AND athlete_schools.school_id = mine.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND mine.coach_user_id = auth.user_id() AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.school_id IN member_school_ids",
+    "SELECT coach_athlete_assignments.* FROM coach_athlete_assignments JOIN school_memberships ON coach_athlete_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON coach_athlete_assignments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.deactivated_at IS NULL AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()",
   );
 });
 
@@ -54,7 +54,7 @@ test("a coach gets the school, group and mark rows of an athlete only in their a
   // coach_group_ids, which already leaves out the deactivated memberships. They carry no school condition of their own:
   // next to those joins it splits the swimmer from the school again in PowerSync (#1260).
   const activeOnly = (query: string) =>
-    /\bIN member_school_ids$|\b(training|coached)_groups\.id IN coach_group_ids\b/.test(query);
+    /\bIN member_school_ids$|\bschool_memberships\.deactivated_at IS NULL\b|\b(training|coached)_groups\.id IN coach_group_ids\b/.test(query);
   const coachRows = visible.filter(
     (query) =>
       /FROM athlete_(schools|groups) /.test(query) && query.includes("coach_"),
