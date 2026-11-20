@@ -13,6 +13,8 @@ import { ConsentCard } from './components/ConsentCard';
 import { ExistingAccountSheet } from './components/ExistingAccountSheet';
 import { ResumeRegistration } from './components/ResumeRegistration';
 import type { AuthorizationRecord, AuthorizationText } from './data/authorizations';
+import { DeleteAccountScreen, type DeleteAccountScreenProps } from './screens/DeleteAccountScreen';
+import { DeletionGraceScreen } from './screens/DeletionGraceScreen';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';
 
 const noop = () => {};
@@ -24,6 +26,27 @@ const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alig
 function FullScreen({ children }: { children: ReactNode }) {
   const { height } = useWindowDimensions();
   return <View style={{ alignSelf: 'stretch', minHeight: height }}>{children}</View>;
+}
+
+// Holds the code typed, so the code step can be edited in the gallery.
+function DeleteAccountPreview({ view, online = true, busy }: Pick<DeleteAccountScreenProps, 'view' | 'busy'> & { online?: boolean }) {
+  const [code, setCode] = useState(view.step === 'code' ? view.code : '');
+  return (
+    <FullScreen>
+      <DeleteAccountScreen
+        view={view.step === 'code' ? { ...view, code } : view}
+        online={online}
+        busy={busy}
+        onExport={noop}
+        onContinue={noop}
+        onRequestCode={noop}
+        onChangeCode={setCode}
+        onConfirm={noop}
+        onLeave={noop}
+        onBack={noop}
+      />
+    </FullScreen>
+  );
 }
 
 const person = { firstName: fx.person.firstName, lastName: fx.person.lastName, email: fx.person.email };
@@ -309,6 +332,36 @@ export const galleryEntries: GalleryEntry[] = [
     title: 'ExistingAccountSheet',
     states: {
       initial: () => <ExistingAccountSheet email={fx.person.email} signOut={async () => ({ status: 'signed_out' })} onClose={noop} />,
+    },
+  },
+  {
+    id: 'deleteAccount',
+    title: 'DeleteAccountScreen',
+    states: {
+      offer: () => <DeleteAccountPreview view={{ step: 'offer', canExport: true }} />,
+      notice: () => <DeleteAccountPreview view={{ step: 'notice' }} />,
+      code: () => <DeleteAccountPreview view={{ step: 'code', code: '' }} />,
+      codeMismatch: () => <DeleteAccountPreview view={{ step: 'code', code: fx.wrongCode, error: 'invalid_code' }} />,
+      marked: () => <DeleteAccountPreview view={{ step: 'done', deleteAfter: fx.deleteAfter }} />,
+      blockedBySchool: () => <DeleteAccountPreview view={{ step: 'blocked', schools: [fx.invitation.school] }} />,
+      admin: () => <DeleteAccountPreview view={{ step: 'admin' }} />,
+      offline: () => <DeleteAccountPreview view={{ step: 'notice' }} online={false} />,
+    },
+  },
+  {
+    id: 'deletionGrace',
+    title: 'DeletionGraceScreen',
+    states: {
+      initial: () => (
+        <FullScreen>
+          <DeletionGraceScreen deleteAfter={fx.deleteAfter} online onCancel={noop} />
+        </FullScreen>
+      ),
+      offline: () => (
+        <FullScreen>
+          <DeletionGraceScreen deleteAfter={fx.deleteAfter} online={false} onCancel={noop} />
+        </FullScreen>
+      ),
     },
   },
 ];

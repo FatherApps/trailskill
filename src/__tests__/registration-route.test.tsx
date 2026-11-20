@@ -16,6 +16,8 @@ jest.mock('../modules/accounts', () => ({
   createPowerSyncManagedAthleteRepository: () => ({ listManagedAthleteIds: async () => [] }),
   createSecureStorePendingInvitationRepository: () => ({}),
   createSecureStoreRegistrationDraftRepository: () => ({}),
+  createSupabaseAccountDeletionRepository: () => ({}),
+  useAccountDeletionStatus: () => ({ state: 'active', refresh: () => {} }),
   createSupabaseAdultProfileRepository: () => ({}),
   createSupabaseInvitationRepository: () => ({}),
   usePendingInvitations: () => {},

@@ -33,6 +33,8 @@ describe('accounts gallery entries', () => {
       'providerRegistration',
       'resumeRegistration',
       'existingAccountSheet',
+      'deleteAccount',
+      'deletionGrace',
     ]);
     expect(statesOf('whoSwims')).toEqual(['initial', 'child', 'adult', 'invitation', 'invalidInvitation']);
     expect(statesOf('accountDetails')).toEqual([
@@ -56,6 +58,8 @@ describe('accounts gallery entries', () => {
     expect(statesOf('providerRegistration')).toEqual(['google', 'email']);
     expect(statesOf('resumeRegistration')).toEqual(['initial']);
     expect(statesOf('existingAccountSheet')).toEqual(['initial']);
+    expect(statesOf('deleteAccount')).toEqual(['offer', 'notice', 'code', 'codeMismatch', 'marked', 'blockedBySchool', 'admin', 'offline']);
+    expect(statesOf('deletionGrace')).toEqual(['initial', 'offline']);
   });
 
   // Prefix match: the offline button name carries the reason after the provider.

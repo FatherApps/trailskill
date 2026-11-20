@@ -183,7 +183,7 @@ async function hasLocalProfile(userId: string) {
   );
 }
 
-// An account marked for deletion (#1245) sees only its date and the way to cancel: the app, the registration and the profile checks
+// An account marked for deletion (issue 1245) sees only its date and the way to cancel: the app, the registration and the profile checks
 // below do not run for it. Without an answer from the server in time the app opens as usual (a marked account syncs nothing).
 export function AppLayoutContainer(props: AppLayoutContainerProps) {
   const { accountDeletion } = repositories();
