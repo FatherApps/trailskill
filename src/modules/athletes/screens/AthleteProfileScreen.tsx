@@ -25,6 +25,8 @@ export type AthleteProfileContent = {
   importPrompt?: ImportPromptProps;
   // The official-results update (button, choices) of another module; only guardians and adults get it: the caller passes it or not.
   officialUpdate?: ReactNode;
+  // Add, change or remove the athlete's photo (the container above, with its avatar); only who manages the swimmer gets it: the caller passes it or not.
+  photo?: ReactNode;
   // The code to share times with the swimmer (accounts module); only who manages the swimmer gets it: the caller passes it or not.
   shareCode?: ReactNode;
   // The school's choice of what the guardian sees (school-console module); only staff of the swimmer's school get it: the caller passes it or not.
@@ -190,7 +192,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   );
 
   const footer =
-    empty || content.importPrompt || content.officialUpdate || content.shareCode || content.guardianSharing || content.otherSchoolOffline || content.otherSchoolError ? (
+    empty || content.importPrompt || content.officialUpdate || content.photo || content.shareCode || content.guardianSharing || content.otherSchoolOffline || content.otherSchoolError ? (
       <View style={[padded, { gap: space[4], paddingVertical: space[4] }]}>
         {empty && (
           <StateView
@@ -219,6 +221,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         )}
         {content.importPrompt && <ImportPrompt {...content.importPrompt} />}
         {content.officialUpdate}
+        {content.photo}
         {content.shareCode}
         {content.guardianSharing}
       </View>

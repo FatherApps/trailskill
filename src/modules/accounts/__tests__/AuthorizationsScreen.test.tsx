@@ -6,8 +6,10 @@ import { createInMemoryRegistrationDraftRepository } from '../data/registrationD
 import { AuthorizationsContainer } from '../screens/AuthorizationsContainer';
 import { AuthorizationsScreen } from '../screens/AuthorizationsScreen';
 
+jest.mock('expo-file-system', () => ({ Directory: class {}, File: class {}, Paths: { cache: '', document: '' } }));
 jest.mock('../../../core/sync', () => ({
   db: {},
+  supabase: {},
   RecordSyncStatus: jest.requireActual('../../../core/sync/RecordSyncStatus').RecordSyncStatus,
   useRecordSyncState: () => 'on_device',
 }));
@@ -398,5 +400,71 @@ describe('the identity number held from the registration', () => {
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     expect(identityDocuments.saved).toEqual([]);
     expect(identityNumbers.take('a1')).toBeUndefined();
+  });
+});
+
+// Issue 1222: withdrawing show_photo offers to delete the photo too. The photo service is a fake that records what it was asked.
+describe('AuthorizationsContainer: withdrawing show_photo', () => {
+  const photoText = texts.find((text) => text.purpose === 'show_photo')!;
+  const row = { id: 'row-1', storagePath: 'a1/11111111-1111-4111-8111-111111111111.jpg' };
+
+  async function withdrawPhotoAuthorization(found: typeof row | null, purpose: 'show_photo' | 'record_times' = 'show_photo') {
+    const repository = createInMemoryAuthorizationRepository(texts);
+    await repository.accept({ userId: 'guardian-1', athleteId: 'a1', text: purpose === 'show_photo' ? photoText : texts[0]! });
+    const calls: string[] = [];
+    const photos = {
+      discard: jest.fn(async () => void calls.push('discard')),
+      find: jest.fn(async () => found),
+      remove: jest.fn(async () => void calls.push('remove')),
+    };
+    await renderContainer({ repository, photos });
+    await withdraw(purpose === 'show_photo' ? PHOTO : RECORD);
+    return { photos, calls };
+  }
+
+  it('offers to delete the stored photo and deletes it, by the row it found, when the person accepts', async () => {
+    const { photos, calls } = await withdrawPhotoAuthorization(row);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Borrar la foto' }));
+
+    await waitFor(() => expect(photos.remove).toHaveBeenCalledWith('a1', row));
+    // What waited on the phone to be sent left first.
+    expect(calls).toEqual(['discard', 'remove']);
+  });
+
+  it('keeps the photo when the person chooses to keep it', async () => {
+    const { photos } = await withdrawPhotoAuthorization(row);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Conservarla' }));
+
+    expect(photos.remove).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Borrar la foto' })).toBeNull();
+  });
+
+  it('says so and keeps the offer when the photo could not be deleted', async () => {
+    const repository = createInMemoryAuthorizationRepository(texts);
+    await repository.accept({ userId: 'guardian-1', athleteId: 'a1', text: photoText });
+    const photos = { discard: jest.fn(async () => {}), find: jest.fn(async () => row), remove: jest.fn().mockRejectedValue(new Error('Network request failed')) };
+    await renderContainer({ repository, photos });
+    await withdraw(PHOTO);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Borrar la foto' }));
+
+    expect(await screen.findByText('No pudimos borrar la foto. Revisa la señal e inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Borrar la foto' })).toBeOnTheScreen();
+  });
+
+  it('offers nothing when the athlete has no stored photo, but still drops a waiting one', async () => {
+    const { photos } = await withdrawPhotoAuthorization(null);
+
+    await waitFor(() => expect(photos.discard).toHaveBeenCalledWith('a1'));
+    expect(screen.queryByRole('button', { name: 'Borrar la foto' })).toBeNull();
+  });
+
+  it('offers nothing when another purpose is withdrawn', async () => {
+    const { photos } = await withdrawPhotoAuthorization(row, 'record_times');
+
+    expect(photos.find).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Borrar la foto' })).toBeNull();
   });
 });
