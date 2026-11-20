@@ -1,3 +1,5 @@
+Written when the product was called TrailSkill; today it is called Swimcro.
+
 # Official results import: data access and identity rule
 
 Research for issue #78 (task 8.1 of delivery phase 8). It answers the open item of the pilot design, sections 6.6 and 10: how FECNA results could be obtained, and how a swimmer in TrailSkill is matched to their official history.

@@ -1,3 +1,5 @@
+Written when the product was called TrailSkill; today it is called Swimcro.
+
 # TrailSkill pilot design
 
 Date: 2026-10-24 · Status: **draft for maintainer approval** · Issue: #9

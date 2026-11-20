@@ -61,7 +61,7 @@
       "seconds": "{{count}} s",
       "dnd_label": "Activar No molestar mientras grabo",
       "dnd_hint": "Con Sí, el teléfono pasa a «No molestar» al empezar a grabar y vuelve a como estaba al terminar. Así una llamada no corta la grabación. Entran solo las llamadas que tus reglas de «No molestar» dejan pasar.",
-      "dnd_no_access": "Para activarlo, Android pide que des a TrailSkill acceso a «No molestar». Se da una sola vez en los ajustes del teléfono. Mientras no lo des, se graba sin activarlo.",
+      "dnd_no_access": "Para activarlo, Android pide que des a Swimcro acceso a «No molestar». Se da una sola vez en los ajustes del teléfono. Mientras no lo des, se graba sin activarlo.",
       "dnd_open": "Abrir ajustes de Android"
     },
     "versionGate": {
