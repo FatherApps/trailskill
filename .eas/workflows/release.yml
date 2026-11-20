@@ -20,6 +20,9 @@ jobs:
   backend_changes:
     name: Check for backend changes since the previous release
     if: ${{ !contains(github.ref_name, '+ota') }}
+    # The tag name goes through the environment, never into the shell text: a ref name can hold shell characters.
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: eas/checkout
       # eas/checkout is a shallow clone (--depth 1): get the history and the tags. If this fails, the script finds a shallow or incomplete checkout and fails closed (force_build=true).
@@ -28,7 +31,7 @@ jobs:
       - id: check
         name: Compare with the previous release
         run: |
-          RESULT=$(sh .github/scripts/check-backend-release.sh "${{ github.ref_name }}")
+          RESULT=$(sh .github/scripts/check-backend-release.sh "$RELEASE_TAG")
           echo "$RESULT"
           # Anything but an explicit force_build=false (a script that did not run, empty output) builds.
           if [ "$RESULT" = "force_build=false" ]; then set-output force_build false; else set-output force_build true; fi
