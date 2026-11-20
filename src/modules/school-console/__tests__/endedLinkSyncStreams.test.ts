@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const config = readFileSync(join(__dirname, "../../../../powersync/sync-config.yaml"), "utf8");
+// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244); this test pins the rest.
+const config = readFileSync(join(__dirname, "../../../../powersync/sync-config.yaml"), "utf8").replaceAll(
+  / AND [\w.]+ IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)/g,
+  "",
+);
 const streamQueries = (name: string) =>
   (config.split(new RegExp(`\\n {2}${name}:\\n`))[1]?.split(/\n\s*\n/)[0] ?? "")
     .split("\n")

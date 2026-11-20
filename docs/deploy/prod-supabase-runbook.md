@@ -91,6 +91,25 @@ The two daily family-timing jobs run inside the database through `pg_cron` ([Sch
 
 - [ ] In #1116, the first `migrate` log must say `scheduled jobs: 2`. `scheduled jobs: 0` or `WARN scheduled jobs failed` means this step was skipped or the role cannot use `cron.schedule`: follow the [maintainer checklist](../../deploy/README.md#scheduled-jobs-pg_cron).
 
+#### Account deletion worker (#1244)
+
+The daily account deletion worker is a third `pg_cron` job (`accounts-deletion-worker`, 04:37 UTC). It runs `app.call_accounts_deletion_worker()`, which posts to the `accounts-deletion-worker` Edge Function through `pg_net`. Accounts marked for deletion that reach day 30 stay marked and blocked until it runs. #1233 (the Storage queue worker) must use this same `pg_cron` → `pg_net` → Edge Function route so only one scheduled worker exists.
+
+- [ ] Install `pg_net` next to `pg_cron`: `create extension if not exists pg_net;`. Without it, or without `pg_cron`, the next `migrate` run schedules nothing and the deploy does not fail.
+- [ ] Choose a long random value for the worker secret (`openssl rand -hex 32`). Set it as `ACCOUNTS_WORKER_SECRET` in the environment of the functions service, and store the same value in Vault together with the function URL (the URL of `accounts-deletion-worker` as the database reaches it, for example `http://kong:8000/functions/v1/accounts-deletion-worker`):
+
+  ```sql
+  select vault.create_secret('<the function url>', 'accounts_worker_url');
+  select vault.create_secret('<the same value as ACCOUNTS_WORKER_SECRET>', 'accounts_worker_secret');
+  ```
+
+  Until both secrets exist, the call logs `accounts deletion worker is not configured` and does nothing.
+- [ ] If the functions service verifies JWTs for every function (`FUNCTIONS_VERIFY_JWT=true`), `pg_net` needs a bearer token or the call never reaches the worker (`config.toml` `verify_jwt = false` only applies locally). Store the anon key as a third secret: `select vault.create_secret('<the anon key>', 'accounts_worker_jwt');`. When it exists the call sends it as `Authorization: Bearer`. Check the first scheduled run in the functions logs.
+- [ ] Known limits: the day-30 erase holds short table locks (it disables the evidence triggers of the tables it touches until it commits), so it runs at 04:37 UTC; a request whose erase or email fails every day stays first in its queue (50 per run) and needs a look in the logs.
+- [ ] The functions service also needs `RESEND_API_KEY` and `RESEND_FROM` (the same as `school-console-invite-coach`). Without them the worker deletes on day 30 but the emails stay unsent and are retried on every run.
+- [ ] The functions bundle (`deploy/scripts/functions-bundle.sh`, `FUNCTIONS`) must list `accounts-delete-account` and `accounts-deletion-worker`, and both import the Resend sender from `school-console-invite-coach`. This PR does not touch `deploy/`; the maintainer adds them.
+- [ ] After the next `migrate` run, `select jobname, schedule from cron.job where jobname = 'accounts-deletion-worker';` returns one row.
+
 ### 4. Email: SMTP with Resend
 
 Auth sends the sign-in code through Resend over SMTP, with the sender `Swimcro <no-reply@send.tuls.app>` (ADR 0002 amendment).

@@ -14,7 +14,10 @@ const config = readFileSync(
 const definition = (name: string) =>
   config.match(new RegExp(`^ {2}${name}: (.+)$`, "m"))?.[1];
 const streamQueries = (stream: string) =>
-  (config.split(new RegExp(`\\n {2}${stream}:\\n`))[1]?.split(/\n\s*\n/)[0] ?? "")
+  (
+    config.split(new RegExp(`\\n {2}${stream}:\\n`))[1]?.split(/\n\s*\n/)[0] ??
+    ""
+  )
     .split("\n")
     .flatMap((line) => line.match(/^\s+- (SELECT .+)$/)?.[1] ?? []);
 
@@ -30,11 +33,18 @@ test("accounts_authorization_status reads the rows of a swimmer through every so
   ]);
 });
 
+// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244): this test pins the rest.
+const ungated = (text: string | undefined) =>
+  text?.replaceAll(
+    / AND [\w.]+ IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)/g,
+    "",
+  );
+
 test("the coach athlete ids count only the schools where the coach is active", () => {
-  expect(definition("coach_direct_athlete_ids")).toBe(
+  expect(ungated(definition("coach_direct_athlete_ids"))).toBe(
     "SELECT athlete_schools.athlete_id FROM athlete_schools JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id WHERE coach_athlete_assignments.coach_user_id = auth.user_id() AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL)",
   );
-  expect(definition("coach_group_athlete_ids")).toBe(
+  expect(ungated(definition("coach_group_athlete_ids"))).toBe(
     "SELECT athlete_schools.athlete_id FROM athlete_schools JOIN training_groups ON athlete_schools.school_id = training_groups.school_id JOIN athlete_groups ON athlete_schools.athlete_id = athlete_groups.athlete_id AND training_groups.id = athlete_groups.group_id JOIN coach_group_assignments ON training_groups.id = coach_group_assignments.group_id WHERE coach_group_assignments.coach_user_id = auth.user_id() AND athlete_schools.ended_at IS NULL AND athlete_schools.school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL)",
   );
 });
