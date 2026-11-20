@@ -56,6 +56,15 @@ describe('ReviewConflictsScreen', () => {
     expect(screen.getByText('Dispositivo desconocido')).toBeOnTheScreen();
   });
 
+  it('shows «cuenta eliminada» for a version written by an account that was deleted, not «Autor desconocido»', async () => {
+    const deleted: OpenConflict = { ...conflict, incoming: { ...conflict.incoming, author: null, authorDeleted: true } };
+    await renderScreen({ conflicts: [deleted] });
+    await open('Mateo C.');
+
+    expect(screen.getByText('cuenta eliminada')).toBeOnTheScreen();
+    expect(screen.queryByText('Autor desconocido')).toBeNull();
+  });
+
   it('does not send a resolution without a reason', async () => {
     const { onResolve } = await renderScreen();
     await open('Mateo C.');

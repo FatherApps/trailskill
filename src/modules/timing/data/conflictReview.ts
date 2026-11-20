@@ -2,7 +2,8 @@ import type { Hundredths } from '../../../core/time';
 import { supabase } from '../../../core/sync';
 
 // One side of a conflict: a time (`null` is a missing time, never 0) and who captured it, on which device, when (ISO 8601).
-export type ConflictVersion = { hundredths: Hundredths | null; author: string | null; device: string | null; at: string };
+// `authorDeleted`: the account that wrote this version was deleted, so there is no name to look for.
+export type ConflictVersion = { hundredths: Hundredths | null; author: string | null; authorDeleted?: boolean; device: string | null; at: string };
 
 export type OpenConflict = {
   id: string;
@@ -108,8 +109,8 @@ export function createSupabaseConflictReviewRepository(): ConflictReviewReposito
             expectedVersion: measurement.version,
             athleteName: fullName(athleteById.get(measurement.athlete_id)),
             event: { stroke: measurement.stroke, distance: measurement.distance, pool: measurement.pool },
-            current: { hundredths: hundredths(row.current_values), author: fullName(authorById.get(row.current_by)), device: row.current_device ?? null, at: row.current_at },
-            incoming: { hundredths: hundredths(row.incoming_values), author: fullName(authorById.get(row.incoming_by)), device: row.incoming_device ?? null, at: row.incoming_at },
+            current: { hundredths: hundredths(row.current_values), author: fullName(authorById.get(row.current_by)), authorDeleted: row.current_by == null, device: row.current_device ?? null, at: row.current_at },
+            incoming: { hundredths: hundredths(row.incoming_values), author: fullName(authorById.get(row.incoming_by)), authorDeleted: row.incoming_by == null, device: row.incoming_device ?? null, at: row.incoming_at },
           },
         ];
       });
