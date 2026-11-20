@@ -5,7 +5,7 @@ import { t } from '../../../core/i18n';
 import { ENABLED_PROVIDERS } from '../providerAvailability';
 
 // The accounts index reaches the PowerSync repository; the sync layer is ESM-only for Jest.
-jest.mock('../../../core/sync', () => ({ db: {}, RecordSyncStatus: () => null }));
+jest.mock('../../../core/sync', () => ({ db: {}, RecordSyncStatus: () => null, useRecordSyncState: () => 'on_device' }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 // The list is set per test, so any list is covered whatever the real constant says.
 let mockEnabledProviders: string[] = [];
@@ -129,7 +129,7 @@ describe('accounts gallery entries', () => {
       const entry = galleryEntries.find((candidate) => candidate.id === id)!;
       await render(entry.states[state]());
 
-      // The consent card has a checkbox (unchecked) or a withdraw button (accepted).
+      // The consent card has a checkbox per purpose and the "Leer el texto completo" button.
       expect(screen.queryAllByRole('button').length + screen.queryAllByRole('checkbox').length).toBeGreaterThan(0);
     },
   );
