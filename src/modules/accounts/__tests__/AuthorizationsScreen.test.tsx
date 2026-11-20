@@ -7,20 +7,37 @@ import { AuthorizationsContainer } from '../screens/AuthorizationsContainer';
 import { AuthorizationsScreen } from '../screens/AuthorizationsScreen';
 
 jest.mock('expo-file-system', () => ({ Directory: class {}, File: class {}, Paths: { cache: '', document: '' } }));
-jest.mock('../../../core/sync', () => ({ db: {}, supabase: {}, RecordSyncStatus: jest.requireActual('../../../core/sync/RecordSyncStatus').RecordSyncStatus }));
+jest.mock('../../../core/sync', () => ({
+  db: {},
+  supabase: {},
+  RecordSyncStatus: jest.requireActual('../../../core/sync/RecordSyncStatus').RecordSyncStatus,
+  useRecordSyncState: () => 'on_device',
+}));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 jest.mock('../../../core/sync/syncState', () => ({ useRecordSyncState: () => 'on_device' }));
 jest.mock('../../../core/sync/writes', () => ({ retryFailedRecord: jest.fn() }));
+// The avatar reads the photo and show_photo from the local database; here it is a plain marker.
+jest.mock('../components/AthleteAvatarWithPhoto', () => {
+  const { Text } = jest.requireActual('react-native');
+  return { AthleteAvatarWithPhoto: ({ initials }: { initials: string }) => <Text>{`avatar ${initials}`}</Text> };
+});
 
 // Synthetic data only.
 const texts: AuthorizationText[] = [
   { id: 't-record', purpose: 'record_times', version: 1, body: 'Synthetic record text' },
   { id: 't-import', purpose: 'import_official_results', version: 1, body: 'Synthetic import text' },
   { id: 't-share', purpose: 'share_results_with_school', version: 1, body: 'Synthetic share text' },
+  { id: 't-photo', purpose: 'show_photo', version: 1, body: 'Synthetic photo text' },
 ];
 const athletes = [{ id: 'a1', name: 'Ana M.' }];
 const RECORD = 'Registrar tiempos y resultados';
 const IMPORT = 'Importar resultados oficiales';
+const PHOTO = 'Mostrar la foto del deportista';
+// Withdrawing: the checkbox of the authorization in force opens the sheet, whose confirm button is the only "Retirar".
+async function withdraw(purpose: string) {
+  await fireEvent.press(await screen.findByRole('checkbox', { name: purpose }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Retirar' }));
+}
 
 async function renderContainer(props: Partial<React.ComponentProps<typeof AuthorizationsContainer>> = {}) {
   const repository = props.repository ?? createInMemoryAuthorizationRepository(texts);
@@ -32,14 +49,49 @@ async function renderContainer(props: Partial<React.ComponentProps<typeof Author
 }
 
 describe('AuthorizationsScreen', () => {
-  it('smoke: lists every purpose unchecked with the provisional notice and the skipped tag', async () => {
-    await render(<AuthorizationsScreen mode="manage" athletes={athletes} texts={texts} inForce={{}} onSave={jest.fn().mockResolvedValue(true)} onWithdraw={jest.fn()} />);
+  it('smoke: one card per athlete, each with every purpose unchecked, the provisional notice and the skipped tag', async () => {
+    const two = [...athletes, { id: 'a2', name: 'Tomás P.' }];
+    await render(<AuthorizationsScreen mode="manage" athletes={two} texts={texts} inForce={{}} onSave={jest.fn().mockResolvedValue(true)} onWithdraw={jest.fn()} />);
 
-    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(8);
     screen.getAllByRole('checkbox').forEach((box) => expect(box).not.toBeChecked());
-    expect(screen.getByText('Ana M.')).toBeOnTheScreen();
-    expect(screen.getByRole('text', { name: 'Se omitirá' })).toBeOnTheScreen();
+    expect(screen.getAllByRole('checkbox', { name: PHOTO })).toHaveLength(2);
+    expect(screen.getByRole('header', { name: 'Ana M.' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Tomás P.' })).toBeOnTheScreen();
+    expect(screen.getByText('avatar AM')).toBeOnTheScreen();
+    expect(screen.getAllByRole('text', { name: 'Se omitirá' })).toHaveLength(2);
     expect(screen.getByTestId('banner')).toHaveTextContent('Textos provisionales: no uses esta app con datos reales hasta la revisión legal.');
+    expect(screen.queryByText('Synthetic record text')).toBeNull();
+  });
+
+  it('marking boxes without pressing the footer saves nothing', async () => {
+    const onSave = jest.fn();
+    await render(<AuthorizationsScreen mode="manage" athletes={athletes} texts={texts} inForce={{}} onSave={onSave} onWithdraw={jest.fn()} />);
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: IMPORT }));
+
+    expect(screen.getByRole('checkbox', { name: IMPORT })).toBeChecked();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('withdrawing: unchecking a box in force asks first; cancelling keeps it checked and calls nothing', async () => {
+    const onWithdraw = jest.fn();
+    const record: AuthorizationRecord = {
+      id: 'r1', userId: 'guardian-1', athleteId: 'a1', purpose: 'record_times', textId: 't-record', textVersion: 1,
+      textBody: 'Synthetic record text', acceptedAt: '2026-01-01T00:00:00.000Z', withdrawnAt: null,
+    };
+    await render(<AuthorizationsScreen mode="manage" athletes={athletes} texts={texts} inForce={{ a1: { record_times: record } }} onSave={jest.fn()} onWithdraw={onWithdraw} />);
+    expect(screen.getByRole('checkbox', { name: RECORD })).toBeChecked();
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: RECORD }));
+    expect(screen.getByText('¿Retirar esta autorización?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(onWithdraw).not.toHaveBeenCalled();
+    expect(screen.getByRole('checkbox', { name: RECORD })).toBeChecked();
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: RECORD }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Retirar' }));
+    expect(onWithdraw).toHaveBeenCalledWith('r1');
   });
 
   it('saving calls onSave with exactly the checked purpose', async () => {
@@ -134,13 +186,13 @@ describe('AuthorizationsContainer', () => {
     await fireEvent.press(await screen.findByRole('checkbox', { name: IMPORT }));
     await fireEvent.press(screen.getByRole('button', { name: 'Guardar' }));
 
-    expect(await screen.findByText(/^Autorizado el /)).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: IMPORT })).toBeChecked());
     const rows = await repository.listAuthorizations('guardian-1', ['a1']);
     expect(rows.map((row) => row.purpose)).toEqual(['import_official_results']);
     expect(rows[0]).toMatchObject({ textId: 't-import', textVersion: 1, textBody: 'Synthetic import text', athleteId: 'a1' });
     // The accepted purpose shows "En el teléfono" while it waits to be sent; the others stay unchecked.
     expect(screen.getByRole('text', { name: 'En el teléfono' })).toBeOnTheScreen();
-    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(1);
   });
 
   it('managing: a successful Guardar goes back to the previous view, once', async () => {
@@ -171,16 +223,15 @@ describe('AuthorizationsContainer', () => {
     const id = await repository.accept({ userId: 'guardian-1', athleteId: 'a1', text: texts[0]! });
     const [before] = await repository.listAuthorizations('guardian-1', ['a1']);
     await renderContainer({ repository });
-    await fireEvent.press(await screen.findByRole('button', { name: 'Retirar' }));
 
     // Cancelled: nothing is withdrawn.
+    await fireEvent.press(await screen.findByRole('checkbox', { name: RECORD }));
     expect(screen.getByText('¿Retirar esta autorización?')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
     expect(await repository.isInForce('a1', 'record_times')).toBe(true);
 
+    await fireEvent.press(screen.getByRole('checkbox', { name: RECORD }));
     await fireEvent.press(screen.getByRole('button', { name: 'Retirar' }));
-    const buttons = screen.getAllByRole('button', { name: 'Retirar' });
-    await fireEvent.press(buttons[buttons.length - 1]!);
 
     await waitFor(async () => expect(await repository.isInForce('a1', 'record_times')).toBe(false));
     const [after] = await repository.listAuthorizations('guardian-1', ['a1']);
@@ -195,6 +246,7 @@ describe('AuthorizationsContainer', () => {
     await renderContainer({ repository: { ...repository, isInForce: async () => false } });
 
     expect(await screen.findByRole('checkbox', { name: RECORD })).not.toBeChecked();
+    await fireEvent.press(screen.getByRole('button', { name: 'Leer el texto completo' }));
     expect(screen.queryByText(/^Autorizado el /)).toBeNull();
   });
 
@@ -206,9 +258,10 @@ describe('AuthorizationsContainer', () => {
     };
     await renderContainer({ repository: { ...base, listAuthorizations: async () => [record], isInForce: async () => true } });
 
-    expect(await screen.findByText('Cargando el texto aceptado…')).toBeOnTheScreen();
-    expect(screen.queryByRole('checkbox', { name: RECORD })).toBeNull();
-    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    // In force (checked), so it is withdrawn rather than offered again; its text shows once the card is expanded.
+    expect(await screen.findByRole('checkbox', { name: RECORD })).toBeChecked();
+    await fireEvent.press(screen.getByRole('button', { name: 'Leer el texto completo' }));
+    expect(screen.getByText('Cargando el texto aceptado…')).toBeOnTheScreen();
     expect(screen.getByText(/^Autorizado el /)).toBeOnTheScreen();
   });
 
@@ -238,11 +291,11 @@ describe('AuthorizationsContainer', () => {
     await view.rerender(element(2));
     await fireEvent.press(screen.getByRole('checkbox', { name: IMPORT }));
     await fireEvent.press(screen.getByRole('button', { name: 'Guardar' }));
-    expect(await screen.findByText(/^Autorizado el /)).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: IMPORT })).toBeChecked());
 
     await act(async () => release());
 
-    expect(screen.getByText(/^Autorizado el /)).toBeOnTheScreen();
+    expect(screen.getByRole('checkbox', { name: IMPORT })).toBeChecked();
   });
 
   it('an adult never sees the 4-step header while the draft is still loading', async () => {
@@ -286,9 +339,7 @@ describe('AuthorizationsContainer', () => {
     const base = createInMemoryAuthorizationRepository(texts);
     await base.accept({ userId: 'guardian-1', athleteId: 'a1', text: texts[0]! });
     await renderContainer({ repository: { ...base, withdraw: () => Promise.reject(new Error('disk full')) } });
-    await fireEvent.press(await screen.findByRole('button', { name: 'Retirar' }));
-    const buttons = screen.getAllByRole('button', { name: 'Retirar' });
-    await fireEvent.press(buttons[buttons.length - 1]!);
+    await withdraw(RECORD);
 
     expect(await screen.findByText(/No pudimos guardar en el teléfono/)).toBeOnTheScreen();
   });
@@ -354,11 +405,11 @@ describe('the identity number held from the registration', () => {
 
 // Issue 1222: withdrawing show_photo offers to delete the photo too. The photo service is a fake that records what it was asked.
 describe('AuthorizationsContainer: withdrawing show_photo', () => {
-  const photoText: AuthorizationText = { id: 't-photo', purpose: 'show_photo', version: 1, body: 'Synthetic photo text' };
+  const photoText = texts.find((text) => text.purpose === 'show_photo')!;
   const row = { id: 'row-1', storagePath: 'a1/11111111-1111-4111-8111-111111111111.jpg' };
 
   async function withdrawPhotoAuthorization(found: typeof row | null, purpose: 'show_photo' | 'record_times' = 'show_photo') {
-    const repository = createInMemoryAuthorizationRepository([...texts, photoText]);
+    const repository = createInMemoryAuthorizationRepository(texts);
     await repository.accept({ userId: 'guardian-1', athleteId: 'a1', text: purpose === 'show_photo' ? photoText : texts[0]! });
     const calls: string[] = [];
     const photos = {
@@ -367,8 +418,7 @@ describe('AuthorizationsContainer: withdrawing show_photo', () => {
       remove: jest.fn(async () => void calls.push('remove')),
     };
     await renderContainer({ repository, photos });
-    await fireEvent.press(await screen.findByRole('button', { name: 'Retirar' }));
-    await fireEvent.press((await screen.findAllByRole('button', { name: 'Retirar' })).at(-1)!);
+    await withdraw(purpose === 'show_photo' ? PHOTO : RECORD);
     return { photos, calls };
   }
 
@@ -392,12 +442,11 @@ describe('AuthorizationsContainer: withdrawing show_photo', () => {
   });
 
   it('says so and keeps the offer when the photo could not be deleted', async () => {
-    const repository = createInMemoryAuthorizationRepository([...texts, photoText]);
+    const repository = createInMemoryAuthorizationRepository(texts);
     await repository.accept({ userId: 'guardian-1', athleteId: 'a1', text: photoText });
     const photos = { discard: jest.fn(async () => {}), find: jest.fn(async () => row), remove: jest.fn().mockRejectedValue(new Error('Network request failed')) };
     await renderContainer({ repository, photos });
-    await fireEvent.press(await screen.findByRole('button', { name: 'Retirar' }));
-    await fireEvent.press((await screen.findAllByRole('button', { name: 'Retirar' })).at(-1)!);
+    await withdraw(PHOTO);
 
     await fireEvent.press(await screen.findByRole('button', { name: 'Borrar la foto' }));
 
