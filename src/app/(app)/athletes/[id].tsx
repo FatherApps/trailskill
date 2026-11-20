@@ -8,13 +8,17 @@ import {
   createPowerSyncAuthorizationStatusRepository,
   createPowerSyncManagedAthleteRepository,
   createSupabaseAthleteShareCodeRepository,
+  useHasValidAuthorization,
 } from '../../../modules/accounts';
 import {
+  AthletePhotoContainer,
   AthleteProfileContainer,
+  createExpoPhotoPicker,
   createPowerSyncAthleteSchoolRepository,
   createPowerSyncHistoryRepository,
   createPowerSyncSchoolAthleteRepository,
   createSupabaseOtherSchoolResultsRepository,
+  getAthletePhotoService,
   useAthleteProfileRoute,
   useManagedAthletes,
 } from '../../../modules/athletes';
@@ -57,6 +61,8 @@ const importSources = createSupabaseImportSourcesRepository();
 const shareCodes = createSupabaseAthleteShareCodeRepository();
 const guardianSharing = createSupabaseGuardianSharingRepository();
 const guardianRecords = createGuardianRecordsRepository(createPowerSyncMeasurementRepository());
+const photoService = getAthletePhotoService();
+const photoPicker = createExpoPhotoPicker();
 
 export default function AthleteProfileRoute() {
   // `name` is the only thing besides the id the route carries: the band shows it from the first frame.
@@ -70,6 +76,8 @@ export default function AthleteProfileRoute() {
   const staff = useStaffSchool(staffSchools, session?.user.id, syncedAt);
   const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, syncedAt);
   const sources = useImportSources(importSources, summary.connection === 'connected');
+  // The athletes module cannot read the authorization (a cycle with accounts), so the route does and passes it down.
+  const showPhoto = useHasValidAuthorization(id, 'show_photo');
   const { isStaff, sharingSchoolId, sourceNames, sessionDated, managedAthlete, importPrompt } = useAthleteProfileRoute({
     athleteId: id,
     syncedAt,
@@ -142,6 +150,24 @@ export default function AthleteProfileRoute() {
             refreshKey={syncedAt}
           />
         ) : undefined
+      }
+      // Only who manages the swimmer adds, changes or removes the photo (the server refuses a coach). Without show_photo the button opens the authorization first.
+      photoCard={
+        managedAthlete
+          ? (avatar) => (
+              <AthletePhotoContainer
+                key={`photo-${id}`}
+                athleteId={id}
+                userId={session.user.id}
+                authorized={showPhoto}
+                online={summary.connection === 'connected'}
+                service={photoService}
+                picker={photoPicker}
+                avatar={avatar}
+                onAuthorize={() => router.push('/authorizations')}
+              />
+            )
+          : undefined
       }
       online={summary.connection === 'connected'}
       // Records waiting to be sent or that failed to send: with none, connected, the sync tag says "Al día".

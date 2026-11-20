@@ -20,7 +20,7 @@ import { SessionProvider, useSession } from '../core/session';
 import { db } from '../core/sync';
 import { ThemeProvider, useTheme } from '../core/theme';
 import { createSecureStoreRegistrationDraftRepository, discardStaleDraft } from '../modules/accounts';
-import { useAthletePhotoCacheGuard } from '../modules/athletes';
+import { useAthletePhotoCacheGuard, useAthletePhotoUploads } from '../modules/athletes';
 import { VersionGate } from '../modules/settings';
 
 SplashScreen.preventAutoHideAsync();
@@ -40,6 +40,8 @@ export function SessionGate() {
   const { session } = useSession();
   // Outside the route guards below: the guarded screens are gone when the session ends, this stays.
   useAthletePhotoCacheGuard();
+  // The photos chosen offline go up when the connection returns, whichever screen is open; they leave the phone with the session.
+  useAthletePhotoUploads();
   const { name, colors } = useTheme();
   const insets = useSafeAreaInsets();
 

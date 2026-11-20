@@ -2,7 +2,7 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { useTheme } from '../../core/theme';
-import { AthleteAvatar, type GalleryEntry } from '../../core/ui';
+import { AthleteAvatar, Button, SyncStatus, type GalleryEntry } from '../../core/ui';
 import { historyFixture as h, historyLongTextResults, historyResults } from './__fixtures__/history';
 import { marksFixture, marksLongPoolFixture, marksLongTextFixture } from './__fixtures__/marks';
 import {
@@ -15,11 +15,14 @@ import {
 } from './__fixtures__/progressChart';
 import { myAthletesFixture, myAthletesLongTextFixture } from './__fixtures__/myAthletes';
 import { profileContentFixture, storedOnFixture } from './__fixtures__/screen';
+import { photoCardFixture as pc, syntheticPhotoUri } from './__fixtures__/photoCard';
 import { eventFixture as ev, personalBestFixture as pb, profileFixture as pf } from './__fixtures__/profile';
 import { EventSelector, type EventValue } from './components/EventSelector';
 import { HistoryList } from './components/HistoryList';
 import { ImportPrompt } from './components/ImportPrompt';
 import { PersonalBest, type PersonalBestProps } from './components/PersonalBest';
+import { PhotoCard, type PhotoCardProps } from './components/PhotoCard';
+import { PhotoRemoveSheet, type PhotoRemoveSheetProps } from './components/PhotoRemoveSheet';
 import { ProgressChart } from './components/ProgressChart';
 import type { HistoryResult } from './components/HistoryList';
 import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHeader';
@@ -31,6 +34,29 @@ import { MyAthletesScreen, type MyAthletesView } from './screens/MyAthletesScree
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
 
 const noop = () => {};
+
+// The photo card as the profile shows it; the avatar is the one the container builds (the photo, or the initials).
+const photoCardBase: PhotoCardProps = {
+  state: 'none',
+  avatar: <AthleteAvatar initials={pc.initials} colorIndex={3} size="lg" authorized />,
+  onAuthorize: noop,
+  onTake: noop,
+  onChoose: noop,
+};
+const withPhoto = <AthleteAvatar initials={pc.initials} colorIndex={3} size="lg" photoUri={syntheticPhotoUri} authorized />;
+
+// The sheet is a modal that covers the gallery, so each state opens it on demand.
+function PhotoRemoveSheetPreview(props: Pick<PhotoRemoveSheetProps, 'reason' | 'failed'>) {
+  const [visible, setVisible] = useState(false);
+  const close = () => setVisible(false);
+
+  return (
+    <FullWidth>
+      <Button variant="secondary" label="Mostrar la hoja" onPress={() => setVisible(true)} />
+      <PhotoRemoveSheet {...props} visible={visible} onConfirm={close} onCancel={close} />
+    </FullWidth>
+  );
+}
 
 const headerBase: ProfileHeaderProps = {
   name: pf.name,
@@ -213,6 +239,21 @@ export const galleryEntries: GalleryEntry[] = [
       'no-source': () => <ImportPrompt {...prompt} imported={false} />,
     },
   },
+  entry('photoCard', 'PhotoCard', {
+    'no-photo': () => <PhotoCard {...photoCardBase} />,
+    'with-photo': () => <PhotoCard {...photoCardBase} state="ready" avatar={withPhoto} status={<SyncStatus state="synced" />} onRemove={noop} />,
+    // Chosen on this phone, not sent yet: the pill says where it is, and it can still be taken away.
+    waiting: () => <PhotoCard {...photoCardBase} state="waiting" avatar={withPhoto} status={<SyncStatus state="on_device" message="Esperando señal para enviarse" />} onRemove={noop} />,
+    unauthorized: () => <PhotoCard {...photoCardBase} state="unauthorized" />,
+    saving: () => <PhotoCard {...photoCardBase} busy />,
+    'camera-denied': () => <PhotoCard {...photoCardBase} notice="camera_denied" />,
+    'remove-offline': () => <PhotoCard {...photoCardBase} state="ready" avatar={withPhoto} status={<SyncStatus state="synced" />} notice="remove_offline" onRemove={noop} />,
+  }),
+  entry('photoRemoveSheet', 'PhotoRemoveSheet', {
+    manual: () => <PhotoRemoveSheetPreview reason="manual" />,
+    withdrawn: () => <PhotoRemoveSheetPreview reason="withdrawn" />,
+    failed: () => <PhotoRemoveSheetPreview reason="withdrawn" failed />,
+  }),
   entry('athleteProfileScreen', 'AthleteProfileScreen', {
     'with-data': screenPreview((content) => ({ kind: 'data', content })),
     loading: screenPreview(() => ({ kind: 'loading' })),
@@ -226,6 +267,7 @@ export const galleryEntries: GalleryEntry[] = [
       kind: 'data',
       content: { ...content, importPrompt: { ...prompt, sourceName: h.sourceName, imported: false } },
     })),
+    'with-photo-card': screenPreview((content) => ({ kind: 'data', content: { ...content, photo: <PhotoCard {...photoCardBase} /> } })),
   }),
   entry('myAthletesScreen', 'MyAthletesScreen', {
     'with-data': myAthletesPreview({ kind: 'data', athletes: myAthletesFixture }),

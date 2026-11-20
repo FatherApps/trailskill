@@ -110,3 +110,7 @@ export {
   type PhotoUpload,
   type PhotoUploadQueue,
 } from './data/athletePhotoUploads';
+export { PhotoCard, type PhotoCardNotice, type PhotoCardProps, type PhotoCardState } from './components/PhotoCard';
+export { PhotoRemoveSheet, type PhotoRemoveSheetProps } from './components/PhotoRemoveSheet';
+export { AthletePhotoContainer, type AthletePhotoContainerProps } from './screens/AthletePhotoContainer';
+export { useAthletePhotoUploads } from './data/useAthletePhotoUploads';

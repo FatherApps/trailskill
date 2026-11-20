@@ -26,6 +26,9 @@ const defaultCache = createFileSystemPhotoCache();
  * useAthletePhotoCacheGuard, which the root layout mounts: a screen's hook is gone by then. Nothing it does logs a path, a URL
  * or a file URI.
  *
+ * A photo chosen on this phone that is still waiting in the upload queue (athlete_photo_uploads) shows from its local file, replacing the
+ * stored one until it goes up; it needs show_photo like any other.
+ *
  * `showPhotoInForce` is useHasValidAuthorization(athleteId, 'show_photo') from accounts, read by the caller (a route or a
  * container outside this module): accounts already depends on athletes, so this module cannot import that hook without a cycle.
  */
@@ -37,6 +40,9 @@ export function useAthletePhoto(
   const authorized = showPhotoInForce;
   const row = useQuery<{ storage_path: string }>('SELECT storage_path FROM athlete_photos WHERE athlete_id = ?', [athleteId]);
   const storagePath = authorized ? (row.data[0]?.storage_path ?? null) : null;
+  // The photo chosen on this phone that has not gone up yet (issue 1222): it shows from the local file, and only while show_photo is in force.
+  const waiting = useQuery<{ local_uri: string }>('SELECT local_uri FROM athlete_photo_uploads WHERE athlete_id = ?', [athleteId]);
+  const waitingUri = authorized ? (waiting.data[0]?.local_uri ?? null) : null;
   const [fetched, setFetched] = useState<{ athleteId: string; storagePath: string; uri: string | null }>();
   const latestAuthorized = useRef(authorized);
   useEffect(() => {
@@ -74,6 +80,7 @@ export function useAthletePhoto(
     };
   }, [athleteId, storagePath, photos, cache]);
 
+  if (waitingUri) return { status: 'ready', uri: waitingUri };
   if (!storagePath) return { status: 'none', uri: null };
   if (fetched && fetched.athleteId === athleteId && fetched.storagePath === storagePath) {
     return fetched.uri ? { status: 'ready', uri: fetched.uri } : { status: 'unavailable', uri: null };
