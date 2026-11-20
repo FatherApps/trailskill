@@ -65,9 +65,8 @@ alter table public.former_athlete_keys enable row level security;
 revoke all on table public.account_deletion_requests, public.account_deletion_codes, public.account_deletion_code_sends,
   public.account_deletion_audit, public.former_athlete_keys from anon, authenticated;
 
--- PowerSync reads only who is marked: the column list keeps the email out of the replication stream. A column list must hold
--- the replica identity (id).
-alter publication powersync add table public.account_deletion_requests (id, user_id, status);
+-- Nothing here is replicated by PowerSync: the email stays out of the stream, and a marked account syncs nothing (see
+-- 20261120120400_accounts_sync_access.sql). The app reads the date through account_deletion_status().
 
 -- Is the account marked for deletion? Security definer: clients have no grant on the table.
 create function app.account_marked_for_deletion(account uuid default auth.uid())

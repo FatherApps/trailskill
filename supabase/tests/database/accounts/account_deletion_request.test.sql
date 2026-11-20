@@ -122,7 +122,7 @@ reset role;
 select pg_temp.no_user();
 
 -- 8. What the sync and the storage see.
-select is((select string_agg(a, ',' order by a) from pg_publication_tables t, unnest(t.attnames) a where t.pubname = 'powersync' and t.tablename = 'account_deletion_requests'), 'id,status,user_id', 'PowerSync replicates who is marked, not the email');
+select is((select count(*) from pg_publication_tables where pubname = 'powersync' and tablename in ('account_deletion_requests', 'account_deletion_codes')), 0::bigint, 'PowerSync replicates neither the email nor the codes');
 select is((select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'account_marked_refuses_photo_%'), 3::bigint, 'photo files are guarded in Storage');
 
 select * from finish();
