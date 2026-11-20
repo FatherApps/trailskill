@@ -1,0 +1,80 @@
+name: Publish privacy policy
+
+# Publishes docs/release/privacy-policy.es.md at https://fatherapps.github.io/trailskill/privacidad/
+# and nothing else from the repository. The maintainer enables Pages once, with the source
+# "GitHub Actions" (docs/RELEASING.md).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/release/privacy-policy.es.md
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the page
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Stage only the policy
+        run: |
+          mkdir -p site/_layouts site/privacidad
+          echo 'theme: null' > site/_config.yml # no theme: it would add its own stylesheet to the artifact
+          cat > site/_layouts/default.html <<'HTML'
+          <!doctype html>
+          <html lang="es">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>{{ page.title }}</title>
+            <style>
+              body { font: 16px/1.6 system-ui, sans-serif; max-width: 48rem; margin: 0 auto; padding: 1rem; }
+              table { border-collapse: collapse; width: 100%; }
+              th, td { border: 1px solid #8884; padding: .4rem .6rem; text-align: left; vertical-align: top; }
+            </style>
+          </head>
+          <body>
+          {{ content }}
+          </body>
+          </html>
+          HTML
+          {
+            printf -- '---\nlayout: default\ntitle: Política de privacidad de Swimcro\n---\n'
+            cat docs/release/privacy-policy.es.md
+          } > site/privacidad/index.md
+      - uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 # v1.0.13
+        with:
+          source: ./site
+          destination: ./_site
+      - name: Check the artifact holds only the page
+        run: |
+          find _site -type f | sort
+          test "$(find _site -type f | wc -l)" -eq 1
+          test -f _site/privacidad/index.html
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

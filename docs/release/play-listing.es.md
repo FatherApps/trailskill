@@ -16,7 +16,8 @@ Límites de Play Console citados abajo: nombre 30 caracteres, descripción corta
 | ID de la aplicación | `com.fatherapps.swimcro` (no se cambia) |
 | Correo de contacto | PENDIENTE: lo define el maintainer |
 | Sitio web | PENDIENTE: lo define el maintainer |
-| URL de la política de privacidad | PENDIENTE: se publica después de la revisión legal de #106 |
+| URL de la política de privacidad | `https://fatherapps.github.io/trailskill/privacidad/` (publicada con GitHub Pages desde [`privacy-policy.es.md`](privacy-policy.es.md), #1240) |
+| URL para pedir la eliminación de la cuenta y los datos (Play la pide en «Seguridad de los datos») | `https://fatherapps.github.io/trailskill/privacidad/#eliminar-datos` (solicitud por correo a soporte@fatherapps.com) |
 
 ## Descripción corta (máx. 80 caracteres)
 
@@ -79,7 +80,7 @@ Revisado el 2026-11-16 contra la app y [`docs/RELEASING.md`](../RELEASING.md#wha
 | Elemento | Prueba interna | Prueba cerrada |
 | --- | --- | --- |
 | Descripción, icono, gráficos y capturas | No | Sí |
-| URL de la política de privacidad (tras la revisión legal de #106) | No | Sí |
+| URL de la política de privacidad (versión básica publicada, #1240; la revisión legal de #106 sigue abierta) | No | Sí |
 | Data safety | No | Sí |
 | Cuestionario de clasificación y público objetivo | No | Sí |
 | Acceso a la app para revisores | No | Sí |
