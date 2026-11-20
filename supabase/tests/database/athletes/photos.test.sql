@@ -4,7 +4,7 @@
 -- athlete themselves, also only while show_photo is in force. All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(56);
 
 -- The delete trigger of storage.objects refuses direct deletes unless the Storage API says so.
 set local storage.allow_delete_query = 'true';
@@ -135,17 +135,19 @@ select throws_ok(
   'authenticated cannot call app.athlete_photo_authorized directly'
 );
 
--- Guardian G reads the photo of e1 (row and object) and nothing of e2, whose show_photo was never given.
+-- Guardian G reads the photo of e1 and e2 (row and object): the owner of the data reads it to delete it, also
+-- where show_photo was never given (issue #1232). Not e5, another family's.
 set local request.jwt.claims = '{"sub": "12210000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 select set_eq(
   'select athlete_id from public.athlete_photos',
-  $$ values ('12210000-0000-4000-8000-0000000000e1'::uuid) $$,
-  'guardian G reads the photo row only of the athlete with show_photo in force'
+  $$ values ('12210000-0000-4000-8000-0000000000e1'::uuid), ('12210000-0000-4000-8000-0000000000e2'::uuid) $$,
+  'guardian G reads the photo rows of their own athletes only'
 );
 select set_eq(
   $$ select name from storage.objects where bucket_id = 'athlete-photos' $$,
-  $$ values ('12210000-0000-4000-8000-0000000000e1/12210000-0000-4000-8000-0000000000f1.jpg'::text) $$,
-  'guardian G reads the photo object only of the athlete with show_photo in force'
+  $$ values ('12210000-0000-4000-8000-0000000000e1/12210000-0000-4000-8000-0000000000f1.jpg'::text),
+            ('12210000-0000-4000-8000-0000000000e2/12210000-0000-4000-8000-0000000000f2.jpg') $$,
+  'guardian G reads the photo objects of their own athletes only'
 );
 
 -- Coach A (the athlete's group) and school admin S read it too: the athlete is already visible to them.
@@ -204,6 +206,11 @@ select lives_ok(
   $$ insert into storage.objects (bucket_id, name, owner)
      values ('athlete-photos', '12210000-0000-4000-8000-0000000000e3/12210000-0000-4000-8000-0000000000f3.jpg', '12210000-0000-4000-8000-0000000000a2') $$,
   'guardian G uploads the photo object of an athlete with show_photo in force'
+);
+select lives_ok(
+  $$ insert into storage.objects (bucket_id, name, owner)
+     values ('athlete-photos', '12210000-0000-4000-8000-0000000000e3/12210000-0000-4000-8000-0000000000f4.jpg', '12210000-0000-4000-8000-0000000000a2') $$,
+  'guardian G uploads the replacement object'
 );
 select is(
   (select created_by from public.athlete_photos where athlete_id = '12210000-0000-4000-8000-0000000000e3'),
@@ -351,6 +358,17 @@ select set_eq(
 
 -- Guardian G deletes the photo of e3 (row and object).
 set local request.jwt.claims = '{"sub": "12210000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+-- The object goes first: once the row stops pointing at it, only the deletion queue reaches it.
+select results_eq(
+  $$ with d as (
+       delete from storage.objects
+       where bucket_id = 'athlete-photos'
+         and name = '12210000-0000-4000-8000-0000000000e3/12210000-0000-4000-8000-0000000000f4.jpg'
+       returning id
+     ) select count(*) from d $$,
+  $$ values (1::bigint) $$,
+  'guardian G deletes the photo object of an athlete with show_photo in force'
+);
 select results_eq(
   $$ with d as (
        delete from public.athlete_photos where athlete_id = '12210000-0000-4000-8000-0000000000e3' returning id
@@ -358,19 +376,9 @@ select results_eq(
   $$ values (1::bigint) $$,
   'guardian G deletes the photo row of an athlete with show_photo in force'
 );
-select results_eq(
-  $$ with d as (
-       delete from storage.objects
-       where bucket_id = 'athlete-photos'
-         and name = '12210000-0000-4000-8000-0000000000e3/12210000-0000-4000-8000-0000000000f3.jpg'
-       returning id
-     ) select count(*) from d $$,
-  $$ values (1::bigint) $$,
-  'guardian G deletes the photo object of an athlete with show_photo in force'
-);
 
 -- G withdraws show_photo for e1 (as the owner, the way the authorization trigger sees it): from then on
--- nobody, not even G, reads the row or the object, and G cannot delete them either.
+-- no reader reads the row or the object but G, who can delete them (photos_cleanup.test.sql).
 reset role;
 update public.authorizations
 set withdrawn_at = now()
@@ -383,18 +391,16 @@ select is(
 );
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "12210000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
-select is_empty('select 1 from public.athlete_photos', 'after the withdrawal the guardian reads no photo row');
-select is_empty(
-  $$ select 1 from storage.objects where bucket_id = 'athlete-photos' $$,
-  'after the withdrawal the guardian reads no photo object'
+-- Only the owner of the data still reads the row and the object, to delete them (issue #1232).
+select is(
+  (select count(*) from public.athlete_photos),
+  2::bigint,
+  'after the withdrawal the guardian reads the photo rows of their athletes only to delete them'
 );
-select is_empty(
-  $$ delete from public.athlete_photos where athlete_id = '12210000-0000-4000-8000-0000000000e1' returning id $$,
-  'after the withdrawal the guardian deletes no photo row'
-);
-select is_empty(
-  $$ delete from storage.objects where bucket_id = 'athlete-photos' returning id $$,
-  'after the withdrawal the guardian deletes no photo object'
+select is(
+  (select count(*) from storage.objects where bucket_id = 'athlete-photos'),
+  2::bigint,
+  'after the withdrawal the guardian reads the photo objects of their athletes only to delete them'
 );
 select throws_ok(
   $$ insert into public.athlete_photos (athlete_id, storage_path)
