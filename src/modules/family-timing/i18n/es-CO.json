@@ -63,6 +63,7 @@
       "lengths_one": "{{count}} largo",
       "lengths_other": "{{count}} largos",
       "video": "Ver video",
+      "has_video": "Tiene video",
       "video_missing": "Ya no está en este teléfono",
       "type_short": {
         "training": "Entreno",

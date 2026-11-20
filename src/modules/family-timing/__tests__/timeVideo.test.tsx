@@ -135,4 +135,19 @@ describe('the video of a time in Mis tiempos', () => {
     expect(screen.queryByText('Ver video')).toBeNull();
     expect(screen.queryByLabelText('Ver video')).toBeNull();
   });
+
+  it('marks the row of a time with its video on this phone with a small camera', async () => {
+    await setup({
+      measurements: [timed, { ...timed, id: 'm2', millis: 33_000 }, { ...timed, id: 'm3', millis: 35_000 }],
+      links: [
+        { userId: 'u1', measurementId: 'm1', assetId: 'asset-7', startOffsetMillis: 5_000 },
+        { userId: 'u1', measurementId: 'm2', assetId: 'asset-8', startOffsetMillis: 5_000 },
+      ],
+      gallery: { 'asset-7': 'content://media/video/7' },
+    });
+
+    expect(await screen.findByText('33,000')).toBeTruthy();
+    // Only m1: m2's video was deleted from the gallery and m3 has none.
+    expect(screen.getAllByLabelText('Tiene video')).toHaveLength(1);
+  });
 });
