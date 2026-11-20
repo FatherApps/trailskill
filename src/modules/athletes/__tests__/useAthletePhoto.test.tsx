@@ -16,12 +16,13 @@ const PATH_B = 'a1/22222222-2222-4222-8222-222222222222.jpg';
 const URL_A = 'https://signed.example.test/token-a';
 const URL_B = 'https://signed.example.test/token-b';
 
-type State = { authorized: boolean; rows: { storage_path: string }[] };
+type State = { authorized: boolean; rows: { storage_path: string }[]; waiting: { local_uri: string }[] };
 let state: State;
 
 beforeEach(() => {
-  state = { authorized: true, rows: [{ storage_path: PATH_A }] };
-  mockQuery.mockImplementation(() => ({ data: state.rows, isLoading: false, isFetching: false }));
+  state = { authorized: true, rows: [{ storage_path: PATH_A }], waiting: [] };
+  // The queue of photos waiting to go up is a second local read, answered apart from the photo row.
+  mockQuery.mockImplementation((sql: string) => ({ data: sql.includes('athlete_photo_uploads') ? state.waiting : state.rows, isLoading: false, isFetching: false }));
 });
 
 afterEach(() => jest.restoreAllMocks());
@@ -40,6 +41,32 @@ describe('useAthletePhoto', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.uri).toBe('file:///cache/athlete-photos/a1/11111111-1111-4111-8111-111111111111.jpg');
     expect(photos.requested).toEqual([PATH_A]);
+  });
+
+  it('shows the photo still waiting to go up from its local file, without asking for a URL', async () => {
+    state.waiting = [{ local_uri: 'file:///documents/athlete-photo-uploads/a1/new.jpg' }];
+    const { photos, cache } = setup();
+    const { result } = await renderHook(() => useAthletePhoto(A1, state.authorized, { photos, cache }));
+
+    expect(result.current).toEqual({ status: 'ready', uri: 'file:///documents/athlete-photo-uploads/a1/new.jpg' });
+  });
+
+  it('shows the waiting photo even when the athlete has no stored one yet', async () => {
+    state.rows = [];
+    state.waiting = [{ local_uri: 'file:///documents/athlete-photo-uploads/a1/new.jpg' }];
+    const { photos, cache } = setup();
+    const { result } = await renderHook(() => useAthletePhoto(A1, state.authorized, { photos, cache }));
+
+    expect(result.current.uri).toBe('file:///documents/athlete-photo-uploads/a1/new.jpg');
+  });
+
+  it('never shows the waiting photo without show_photo in force', async () => {
+    state.authorized = false;
+    state.waiting = [{ local_uri: 'file:///documents/athlete-photo-uploads/a1/new.jpg' }];
+    const { photos, cache } = setup();
+    const { result } = await renderHook(() => useAthletePhoto(A1, state.authorized, { photos, cache }));
+
+    expect(result.current).toEqual({ status: 'none', uri: null });
   });
 
   it('is loading while the signed URL is on its way', async () => {
