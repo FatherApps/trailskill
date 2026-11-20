@@ -1,0 +1,44 @@
+name: Flag stale pull requests
+
+# After every push to main, finds open pull requests (same repository, base main) that are behind main or conflict with it,
+# labels them `needs-main-merge` and leaves ONE comment (hidden marker) listing the conflicting files.
+# It never updates a branch: commits made with GITHUB_TOKEN (including the update-branch API) do not start app-checks or
+# pr-checks, so a branch updated here would wait forever for its required checks. The worker or the person merges main
+# and pushes normally, which runs the CI. It checks out main only and never runs code from a pull request.
+# The logic lives in .github/scripts/flag-stale-prs.sh (tests: bash .github/scripts/flag-stale-prs.test.sh); any failure prints ::error::,
+# skips that pull request and turns the job red, so it is never read as "up to date".
+# Manual run: Actions > Flag stale pull requests > Run workflow, with dry_run left on, only prints what it would do.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print what would be labeled and commented without changing anything
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: update-pr-branches
+  cancel-in-progress: false
+
+jobs:
+  flag:
+    name: Label stale pull requests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Label pull requests that are behind or conflict with main
+        shell: bash
+        run: bash .github/scripts/flag-stale-prs.sh
