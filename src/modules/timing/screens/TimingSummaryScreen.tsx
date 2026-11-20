@@ -96,6 +96,7 @@ export function TimingSummaryScreen({
                   name={record.shortName}
                   initials={record.initials}
                   color={record.color}
+                  hideAvatar
                   detail=""
                   time={record.time}
                   personalBest={record.personalBest}

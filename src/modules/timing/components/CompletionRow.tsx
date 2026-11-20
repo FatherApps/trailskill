@@ -28,7 +28,7 @@ export function CompletionRow({ athlete, checked, onToggle, status }: Completion
 
   return (
     <View>
-      <SwimmerRow name={athlete.shortName} initials={athlete.initials} color={athlete.color} detail={athlete.detail ?? ''} />
+      <SwimmerRow name={athlete.shortName} initials={athlete.initials} color={athlete.color} detail={athlete.detail ?? ''} hideAvatar />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3], padding: space[4] }}>
         {/* The Pressable is the switch; the Button only draws it (core has no switch component). */}
         <Pressable
