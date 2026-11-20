@@ -10,7 +10,7 @@
 -- All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(35);
 
 -- u('a1') is the uuid 12430000-0000-4000-8000-0000000000a1; as_user sets the signed-in user.
 create function pg_temp.u(text) returns uuid language sql as $$ select ('12430000-0000-4000-8000-0000000000' || $1)::uuid $$;
@@ -66,6 +66,16 @@ values
   (pg_temp.u('f2'), pg_temp.u('aa'), pg_temp.u('b2'), 'repetition', pg_temp.u('e1'), 3200, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-e', '2026-11-01 09:00:00+00'),
   (pg_temp.u('f3'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('e3'), 3300, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 10:00:00+00');
 
+-- B shares its marks of X with A, with the guardian's consent: the admin of A reads X's results of B until A ends the link.
+insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at)
+  select pg_temp.u('a7'), pg_temp.u('e1'), t.purpose, t.id, now() - interval '1 day'
+  from public.authorization_texts t where t.purpose = 'share_results_with_school' limit 1;
+select pg_temp.as_user('a2');
+insert into public.school_result_sharing (school_id, target_school_id, athlete_id, requested_by, requested_at)
+  values (pg_temp.u('b2'), pg_temp.u('b1'), pg_temp.u('e1'), pg_temp.u('a2'), now());
+select pg_temp.as_user('a3');
+update public.school_result_sharing set approved_by = pg_temp.u('a3'), approved_at = now() where athlete_id = pg_temp.u('e1');
+
 select has_column('public', 'athlete_schools', 'ended_at', 'athlete_schools has ended_at');
 select has_column('public', 'athlete_schools', 'ended_by', 'athlete_schools has ended_by');
 
@@ -93,6 +103,8 @@ select is((select count(*)::int from public.athlete_schools where athlete_id::te
 -- 2. The admin ends the link: the server stamps both columns, a repeat keeps the first stamp, nothing is deleted.
 set local role authenticated;
 select pg_temp.as_user('a2');
+select is((select count(*)::int from public.other_school_results(pg_temp.u('e1'))), 1, 'before the baja the admin of A reads the shared results of X in B');
+select is(app.can_assign_training_plan(pg_temp.u('b1'), 'athlete', pg_temp.u('e1'), null), true, 'before the baja the admin of A can assign a plan to X');
 select is(public.end_athlete_school(pg_temp.u('e1'), pg_temp.u('b1')), now(), 'the admin of A ends X in A and gets the stamp');
 select pg_temp.as_user('ab');
 select lives_ok($$select public.end_athlete_school(pg_temp.u('e1'), pg_temp.u('b1'))$$, 'repeating the call does not fail');
@@ -137,6 +149,13 @@ select pg_temp.as_user('a7');
 select is(pg_temp.seen(), 'athletes=e1|schools=e1:b1,e1:b2|groups=e1:c1,e1:c2|marks=', 'the guardian still reads X, the ended link included (school marks stay unshared by default)');
 select pg_temp.as_user('a8');
 select is(pg_temp.seen(), 'athletes=e2|schools=e2:b1|groups=e2:c1|marks=', 'the adult athlete still reads their own rows');
+
+-- The paths that do not go through the visibility helpers: results of other schools, requesting a sharing, plan assignment.
+select pg_temp.as_user('a2');
+select is((select count(*)::int from public.other_school_results(pg_temp.u('e1'))), 0, 'after the baja the admin of A no longer reads the results X has in B');
+select throws_ok($$select public.request_result_sharing(pg_temp.u('e1'), pg_temp.u('b1'))$$, '42501', null, 'the admin of A cannot request a sharing for the ended swimmer');
+select is(app.can_assign_training_plan(pg_temp.u('b1'), 'athlete', pg_temp.u('e1'), null), false, 'after the baja the admin of A cannot assign a plan to X');
+select is(app.can_assign_training_plan(pg_temp.u('b1'), 'athlete', pg_temp.u('e3'), null), true, 'the admin of A still assigns a plan to W, active in A');
 
 -- 5. Staff cannot write marks for the ended swimmer, and still can for an active one. Pending product decision (#1243): the
 -- write block follows from the helper functions the insert policies use and is kept on purpose, as the privacy-safe default.

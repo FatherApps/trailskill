@@ -10,7 +10,9 @@
 -- guardian and the adult athlete read through athlete_managers and keep everything, the ended row included.
 -- The helper functions below carry the cut: reads of athletes, athlete_schools, athlete_groups, athlete_managers,
 -- authorization_status, athlete_photos, adult_profiles, results and fulfillments go through them, and so do the writes
--- of marks and plan assignments of that swimmer in that school. powersync/sync-config.yaml is kept in step.
+-- of marks of that swimmer in that school. Three paths do not go through them and are closed at the end of this file: the
+-- results of other schools (result_sharing_in_force), requesting a sharing (request_result_sharing) and assigning a plan
+-- to the swimmer (can_assign_training_plan, athlete target). powersync/sync-config.yaml is kept in step.
 -- Revert: recreate the seven functions and measurements_select / athlete_schools_write from 20261116120100, 20261116040000,
 -- 20261115090000, 20261116060000, 20261116070000 and 20261024210200 (without the ended filter), drop function
 -- public.end_athlete_school, drop trigger athlete_schools_ended_guard, drop the check and the two columns, and restore
@@ -315,3 +317,99 @@ alter policy athlete_groups_write on public.athlete_groups
       join public.training_groups tg on tg.school_id = p.school_id
     )
   );
+
+-- The three paths that still treated an ended link as active (found by the independent verifier). create or replace keeps
+-- the grants each function already had.
+-- 1. other_school_results lets an admin or coach of a school read the swimmer's results of another school while the two
+--    schools share them: the reader school is target_school, and it must not have ended the link. The source school keeps
+--    its own data and its sharing as it was.
+create or replace function app.result_sharing_in_force(source_school uuid, target_school uuid, athlete uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+      select 1 from public.school_result_sharing r
+      where r.school_id = result_sharing_in_force.source_school
+        and r.target_school_id = result_sharing_in_force.target_school
+        and r.approved_at is not null
+        and r.withdrawn_at is null
+    )
+    and app.athlete_in_school(result_sharing_in_force.athlete, result_sharing_in_force.source_school)
+    and app.athlete_in_school(result_sharing_in_force.athlete, result_sharing_in_force.target_school)
+    and not exists (
+      select 1 from public.athlete_schools s
+      where s.athlete_id = result_sharing_in_force.athlete
+        and s.school_id = result_sharing_in_force.target_school
+        and s.ended_at is not null
+    )
+    and app.authorization_in_force_at(
+      result_sharing_in_force.athlete, 'share_results_with_school', 'infinity', 'infinity'
+    );
+$$;
+
+-- 2. An admin asks another school for a swimmer's results only while the swimmer is active in their school.
+create or replace function public.request_result_sharing(athlete uuid, school uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  created int;
+begin
+  if not coalesce(app.admin_has_athlete_in_school(athlete, school), false) then
+    raise exception 'only an admin of a school of this athlete can request' using errcode = '42501';
+  end if;
+
+  insert into public.school_result_sharing (school_id, target_school_id, athlete_id)
+  select s.school_id, request_result_sharing.school, request_result_sharing.athlete
+  from public.athlete_schools s
+  where s.athlete_id = request_result_sharing.athlete
+    and s.school_id <> request_result_sharing.school
+  on conflict (school_id, target_school_id) where withdrawn_at is null do nothing;
+
+  get diagnostics created = row_count;
+  return created;
+end;
+$$;
+
+-- 3. Nobody assigns a plan to a swimmer whose link with the school is ended: the coach branch already follows
+--    coach_has_athlete_in_school; the admin branch checked only the school.
+create or replace function app.can_assign_training_plan(school uuid, target text, athlete uuid, grp uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select (select app.is_platform_admin())
+    or (
+      school in (select app.admin_school_ids())
+      and (
+        target <> 'athlete'
+        or not exists (
+          select 1 from public.athlete_schools s
+          where s.athlete_id = can_assign_training_plan.athlete
+            and s.school_id = can_assign_training_plan.school
+            and s.ended_at is not null
+        )
+      )
+    )
+    or (
+      school in (
+        select m.school_id from public.school_memberships m
+        where m.user_id = (select auth.uid()) and m.role = 'coach'
+          and m.deactivated_at is null
+      )
+      and (
+        (target = 'athlete' and app.coach_has_athlete_in_school(athlete, school))
+        or (target = 'group' and grp in (
+          select g.group_id from public.coach_group_assignments g
+          where g.coach_user_id = (select auth.uid())
+        ))
+      )
+    );
+$$;
