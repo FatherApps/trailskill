@@ -6,6 +6,7 @@ import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime } from '../../../core/time';
 import { SwimmerRow, Tag, TimeValue, useFocusRing } from '../../../core/ui';
 import '../i18n';
+import { initialsAvatar } from './athleteAvatar';
 import type { AthleteAuthorization, AthleteRow } from './athleteTypes';
 import { useTextScale } from './textScale';
 
@@ -179,6 +180,7 @@ export function AthleteTableRow({
           name={athlete.name}
           initials={athlete.initials}
           color={athlete.color}
+          avatar={athlete.avatar?.('md')}
           detail={[athlete.category, athlete.group, coach].join(' · ')}
           bestTime={athlete.bestTime}
           bestTimeLabel={bestLabel}
@@ -221,7 +223,10 @@ export function AthleteTableRow({
       ]}
     >
       <View {...hidden} style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={[typography['body-strong'], cell, text, { flex: textFlex[0] }]}>{athlete.name}</Text>
+        <View style={[cell, { flex: textFlex[0], flexDirection: 'row', alignItems: 'center', gap: space[2] }]}>
+          {athlete.avatar?.('sm') ?? initialsAvatar(athlete, 'sm')}
+          <Text style={[typography['body-strong'], text, { flexShrink: 1 }]}>{athlete.name}</Text>
+        </View>
         <Text style={[typography.body, cell, text, { flex: textFlex[1] }]}>{athlete.category}</Text>
         <Text style={[typography.body, cell, text, { flex: textFlex[2] }]}>{`${athlete.group} · ${coach}`}</Text>
         <View style={[cell, tagColumn]}>

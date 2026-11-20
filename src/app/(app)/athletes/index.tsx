@@ -12,6 +12,7 @@ import {
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
   SignOutContainer,
+  AthleteAvatarWithPhoto,
 } from '../../../modules/accounts';
 import {
   athleteProfileHref,
@@ -41,6 +42,7 @@ export default function MyAthletesRoute() {
   return (
     <View style={{ flex: 1 }}>
       <MyAthletesContainer
+        Avatar={AthleteAvatarWithPhoto}
         userId={session?.user.id}
         managed={managedAthletes}
         athletes={schoolAthletes}

@@ -4,7 +4,9 @@ import { Share } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
+import { avatarOf } from '../components/athleteAvatar';
 import type { AdultDirectoryRepository, Guardian, InvitationRepository } from '../../accounts';
 import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
@@ -19,6 +21,8 @@ import type { ConsoleSectionProps } from './ConsoleScreen';
 import { SwimmerSharingSection } from './GuardianSharingSection';
 
 export type AthletesSectionProps = ConsoleSectionProps & {
+  // Injected by the route (this module cannot read show_photo or the photo): the athletes' avatar with their photo. Absent: the initials.
+  Avatar?: AthleteAvatarSlot;
   schoolId: string;
   repository: ConsoleAthletesRepository;
   // Without it the detail shows the category but cannot change it.
@@ -85,7 +89,7 @@ function categoryOptions(list: Category[], current: string | null): CategoryChoi
   ];
 }
 
-function toRow(athlete: ConsoleAthlete): AthleteRow {
+function toRow(athlete: ConsoleAthlete, Avatar: AthleteAvatarSlot | undefined): AthleteRow {
   const noData = t('schoolConsole.common.no_data');
   return {
     id: athlete.id,
@@ -98,11 +102,13 @@ function toRow(athlete: ConsoleAthlete): AthleteRow {
     coach: null,
     authorization: athlete.authorization,
     bestTime: athlete.bestTime,
+    avatar: avatarOf(Avatar, athlete),
   };
 }
 
 // The athletes of the school, read from the local database. Owns the search, the filters and the open athlete.
 export function AthletesSection({
+  Avatar,
   width,
   schoolName,
   onNavigate,
@@ -217,13 +223,14 @@ export function AthletesSection({
           options?.[id as AthleteFilterId].find((o) => o.id === value)?.label ?? t('schoolConsole.common.no_data'),
         ]),
       ),
-      athletes: filterAthletes(loaded.athletes, query, filters).map(toRow),
+      athletes: filterAthletes(loaded.athletes, query, filters).map((athlete) => toRow(athlete, Avatar)),
       bestLabel,
       selectedId,
       detail: selected
         ? {
             id: selected.id,
             name: selected.name,
+            avatar: avatarOf(Avatar, selected),
             category: selected.category ?? t('schoolConsole.common.no_data'),
             authorization: selected.authorization,
             guardian: guardianDetail(guardianNow, t('schoolConsole.common.no_data')),

@@ -295,6 +295,16 @@ describe('SwimmerRow', () => {
     expect(screen.queryByTestId('athlete-avatar-photo', { includeHiddenElements: true })).toBeNull();
   });
 
+  it('shows the avatar it is given (the one with the photo) instead of the initials, and drops it with hideAvatar', async () => {
+    const { rerender } = await render(<SwimmerRow {...base} avatar={<Text>con foto</Text>} />);
+
+    expect(screen.getByText('con foto', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByText('LR', { includeHiddenElements: true })).toBeNull();
+
+    await rerender(<SwimmerRow {...base} avatar={<Text>con foto</Text>} hideAvatar />);
+    expect(screen.queryByText('con foto', { includeHiddenElements: true })).toBeNull();
+  });
+
   describe('hideAvatar', () => {
     it('drops the avatar and keeps the row label and the name', async () => {
       await render(<SwimmerRow {...base} hideAvatar />);

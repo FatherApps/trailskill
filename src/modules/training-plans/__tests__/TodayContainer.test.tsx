@@ -11,6 +11,7 @@ import {
   type PlanBlock,
 } from '..';
 import { athletes, plan } from '../__fixtures__/assignments';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 
 // The barrels pull in the native PowerSync database; these tests use the in-memory repositories only.
 jest.mock('../../../core/sync', () => ({ db: {} }));
@@ -38,10 +39,11 @@ type SetupOptions = {
   offline?: boolean;
   actionPending?: boolean;
   onRetryAction?: () => void;
+  Avatar?: AthleteAvatarSlot;
 };
 
 async function setup(options: SetupOptions = {}) {
-  const { ids = ['a1'], initialAthleteId, changePlan = false, noDistanceBlockId, onOpenAthletes, synced, offline, actionPending, onRetryAction } = options;
+  const { ids = ['a1'], initialAthleteId, changePlan = false, noDistanceBlockId, onOpenAthletes, synced, offline, actionPending, onRetryAction, Avatar } = options;
   const plans = createInMemoryTrainingPlanRepository();
   // Plan p1 (an untimed and a timed block) goes to group g1, which has a1; plan p2 goes to group g2, which has a3.
   await plans.save({ ...plan('p1'), blocks: p1Blocks });
@@ -70,6 +72,7 @@ async function setup(options: SetupOptions = {}) {
   };
   const container = async (shown: string[], isSynced = synced, initial = initialAthleteId) => (
     <TodayContainer
+      Avatar={Avatar}
       plans={readPlans}
       assignments={assignments}
       schoolLinks={schoolLinks}
@@ -93,6 +96,16 @@ async function setup(options: SetupOptions = {}) {
   const update = async (shown: string[], isSynced = synced, initial = initialAthleteId) => view.rerender(await container(shown, isSynced, initial));
   return { one, notices, update, holdReads };
 }
+
+describe('TodayContainer avatars', () => {
+  it('gives each athlete chip the sm avatar the route injected, and the initials without one', async () => {
+    const Avatar: AthleteAvatarSlot = ({ athleteId, size }) => <Text>{`avatar ${athleteId} ${size}`}</Text>;
+    await setup({ ids: ['a1', 'a2'], Avatar });
+
+    expect(await screen.findByText('avatar a1 sm', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('avatar a2 sm', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+});
 
 describe('TodayContainer', () => {
   it('shows the plan of the day of the athlete with its equipment, block status and times, and "—" for a missing time', async () => {

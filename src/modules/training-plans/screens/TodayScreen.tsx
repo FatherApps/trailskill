@@ -37,7 +37,7 @@ export type TodayContent = {
 };
 
 // `initials` and `color` are the athlete's dot in the picker and the colour of the header (the athletes module derives both).
-export type TodayAthlete = { id: string; name: string; initials: string; color: InitialsDotProps['color'] };
+export type TodayAthlete = { id: string; name: string; initials: string; color: InitialsDotProps['color']; avatar?: ReactNode };
 
 export type TodayView =
   | { kind: 'data'; content: TodayContent }
@@ -300,7 +300,7 @@ export function TodayScreen({ athleteName = '', view, athletes, selectedAthleteI
           accessibilityLabel={t('training_plans.today.athlete_picker')}
           value={selectedAthleteId}
           onChange={onSelectAthlete}
-          options={athletes.map(({ id, name, initials, color }) => ({ value: id, label: name, dot: { initials, color } }))}
+          options={athletes.map(({ id, name, initials, color, avatar }) => ({ value: id, label: name, dot: { initials, color, avatar } }))}
         />
       )}
       {view.kind === 'loading' && <StateView kind="loading" />}

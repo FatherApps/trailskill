@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { Hundredths } from '../../../core/time';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import { athleteDisplay, type AthleteSchoolRepository, type SchoolAthlete } from '../../athletes';
 import type { SeriesRepository } from '../../timing';
 import { todayText } from '../components/day';
@@ -12,6 +13,8 @@ import { planVocabulary } from '../vocabulary';
 import { TodayScreen, type TodayContent, type TodayView } from './TodayScreen';
 
 export type TodayContainerProps = {
+  // Injected by the route (this module cannot read show_photo or the photo): the athletes' avatar with their photo. Absent: the initials.
+  Avatar?: AthleteAvatarSlot;
   plans: TrainingPlanRepository;
   assignments: AssignmentRepository;
   schoolLinks: AthleteSchoolRepository;
@@ -84,7 +87,7 @@ function viewOf(athletes: SchoolAthlete[], synced: boolean, offline: boolean, lo
 
 // Container: reads the plan of the day of one athlete from the local database and saves the user's notes to the coach on the device at once.
 export function TodayContainer(props: TodayContainerProps) {
-  const { plans, assignments, schoolLinks, fulfillment, notices, series, userId, athletes, initialAthleteId, renderNoticeStatus } = props;
+  const { plans, assignments, schoolLinks, fulfillment, notices, series, userId, athletes, initialAthleteId, renderNoticeStatus, Avatar } = props;
   const day = props.day ?? todayText();
   const synced = props.synced ?? true;
   // Only the first sync reads again: a connection that comes and goes afterwards must not restart the read each time.
@@ -126,7 +129,13 @@ export function TodayContainer(props: TodayContainerProps) {
   // The short name only, never the document or the birth date.
   const names = athletes.map((athlete) => {
     const { shortName, initials, color } = athleteDisplay(athlete);
-    return { id: athlete.id, name: shortName, initials, color };
+    return {
+      id: athlete.id,
+      name: shortName,
+      initials,
+      color,
+      avatar: Avatar && <Avatar athleteId={athlete.id} initials={initials} color={color} size="sm" />,
+    };
   });
   const athleteName = names.find((n) => n.id === selectedId)?.name ?? '';
 

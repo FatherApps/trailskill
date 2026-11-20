@@ -133,3 +133,13 @@ describe('ColorHeader', () => {
     });
   });
 });
+
+describe('ColorHeader avatar', () => {
+  it('draws the avatar before the title and the subtitle, which keep their own column', async () => {
+    await renderHeader({ subtitle: 'Infantil B', avatar: <Text>avatar lg</Text> });
+
+    expect(screen.getByText('avatar lg')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
+    expect(screen.getByText('Infantil B')).toBeOnTheScreen();
+  });
+});

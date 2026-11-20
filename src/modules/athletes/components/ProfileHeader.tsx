@@ -23,6 +23,8 @@ export type ProfileHeaderProps = {
   upToDate?: boolean;
   // The athlete's colour (same on every screen); a neutral brand colour when the caller has none.
   color?: ColorCardColor;
+  // The athlete's `lg` AthleteAvatar with their photo (the route injects it); absent: no avatar.
+  avatar?: ReactNode;
   // Where the back button goes. Left out on the root screen of a role (nowhere to go back to): no button is drawn.
   onBack?: () => void;
   // Below the school and authorization rows, inside the band: the event chips.
@@ -54,6 +56,7 @@ export function ProfileHeader({
   upToDate = false,
   color = profileBandColor,
   onBack,
+  avatar,
   children,
 }: ProfileHeaderProps) {
   const { colors, space, size, radius } = useTheme();
@@ -66,6 +69,7 @@ export function ProfileHeader({
       title={name}
       subtitle={profileLine(category, school?.name)}
       onBack={onBack}
+      avatar={avatar}
       // Decorative and out of the layout: the slot draws it behind the title and hides it from screen readers.
       background={
         <View

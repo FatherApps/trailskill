@@ -41,6 +41,8 @@ export type SwimmerRowProps = {
   chevron?: boolean;
   // Poolside lists show the short name only: no avatar.
   hideAvatar?: boolean;
+  // The athlete's `md` AthleteAvatar with their photo, built by a container that can read it; absent: the initials. Ignored with `hideAvatar`.
+  avatar?: ReactNode;
   selected?: boolean;
   onPress?: () => void;
 };
@@ -83,6 +85,7 @@ export function SwimmerRow({
   stroke,
   chevron = false,
   hideAvatar = false,
+  avatar: avatarOverride,
   selected = false,
   onPress,
 }: SwimmerRowProps) {
@@ -165,9 +168,11 @@ export function SwimmerRow({
     backgroundColor: colors[selected ? swimmerRowColors.selectedBackground : swimmerRowColors.background],
   } as const;
 
-  const avatar = hideAvatar ? null : (
-    <AthleteAvatar initials={initials} colorIndex={color && (Number(color.slice(-1)) as 1 | 2 | 3 | 4)} size="md" authorized={false} />
-  );
+  const avatar = hideAvatar
+    ? null
+    : (avatarOverride ?? (
+        <AthleteAvatar initials={initials} colorIndex={color && (Number(color.slice(-1)) as 1 | 2 | 3 | 4)} size="md" authorized={false} />
+      ));
 
   const nameBlock = (style: { flex?: number; flexShrink?: number; minWidth: number }) => (
     <View {...hidden} style={style}>

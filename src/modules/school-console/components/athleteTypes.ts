@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 import type { Hundredths } from '../../../core/time';
-import type { SwimmerRowProps } from '../../../core/ui';
+import type { AthleteAvatarRenderer, SwimmerRowProps } from '../../../core/ui';
 
 export type AthleteAuthorization = 'valid' | 'pending';
 
@@ -19,6 +19,8 @@ export type AthleteRow = {
   authorization: AthleteAuthorization;
   // The personal best of the event the list shows, `null` when there is none (never zero).
   bestTime: Hundredths | null;
+  // The athlete's avatar with their photo, at the size the row asks for; absent: the initials.
+  avatar?: AthleteAvatarRenderer;
 };
 
 export type AthleteBest = {
@@ -43,6 +45,8 @@ export type CategoryChoice = {
 export type AthleteDetailData = {
   id: string;
   name: string;
+  // The athlete's avatar with their photo, at the size the panel asks for (`md`); absent: none.
+  avatar?: AthleteAvatarRenderer;
   category: string;
   authorization: AthleteAuthorization;
   // `null` for each part that is not known: the console shows "Sin dato".

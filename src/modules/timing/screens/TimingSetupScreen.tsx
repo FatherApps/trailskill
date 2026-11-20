@@ -109,6 +109,7 @@ export function TimingSetupScreen({
                 initials={athlete.initials}
                 stroke={athlete.authorized ? rowStroke : undefined}
                 color={athlete.color}
+                hideAvatar
                 detail={
                   athlete.authorized
                     ? t('timing.stopwatch.personal_best', { time: formatTime(athlete.bestTime) })

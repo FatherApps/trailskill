@@ -16,6 +16,8 @@ export type ColorHeaderProps = {
   onBack?: () => void;
   // Below the title, for example a ChipRow.
   children?: ReactNode;
+  // The athlete's `lg` AthleteAvatar, before the title and the subtitle. Absent: they take the full width.
+  avatar?: ReactNode;
   // Decoration behind the whole band (back button and title included); it takes no layout and screen readers skip it.
   background?: ReactNode;
 };
@@ -26,10 +28,20 @@ export const colorHeaderColors: { text: ColorToken; backButton: ColorToken; back
   backIcon: 'ink',
 };
 
-export function ColorHeader({ color, title, subtitle, onBack, children, background }: ColorHeaderProps) {
+export function ColorHeader({ color, title, subtitle, onBack, children, avatar, background }: ColorHeaderProps) {
   const { colors, space, radius, size, typography } = useTheme();
   const { focusProps, ring } = useFocusRing();
   const text = { color: colors[colorHeaderColors.text] };
+
+  const titleBlock = (
+    <>
+      {/* An empty title keeps its Text so the band layout does not move; only the header role goes, so TalkBack announces no empty heading. */}
+      <Text accessibilityRole={title ? 'header' : undefined} style={[typography['title-lg'], text]}>
+        {title}
+      </Text>
+      {subtitle ? <Text style={[typography.body, text]}>{subtitle}</Text> : null}
+    </>
+  );
 
   return (
     <View
@@ -86,11 +98,15 @@ export function ColorHeader({ color, title, subtitle, onBack, children, backgrou
           <Icon name="arrow_back" color={colorHeaderColors.backIcon} />
         </Pressable>
       )}
-      {/* An empty title keeps its Text so the band layout does not move; only the header role goes, so TalkBack announces no empty heading. */}
-      <Text accessibilityRole={title ? 'header' : undefined} style={[typography['title-lg'], text]}>
-        {title}
-      </Text>
-      {subtitle ? <Text style={[typography.body, text]}>{subtitle}</Text> : null}
+      {avatar ? (
+        // The avatar sits beside the text block so the title and the subtitle keep wrapping in their own column.
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[4] }}>
+          {avatar}
+          <View style={{ flex: 1, gap: space[3] }}>{titleBlock}</View>
+        </View>
+      ) : (
+        titleBlock
+      )}
       {children}
     </View>
   );

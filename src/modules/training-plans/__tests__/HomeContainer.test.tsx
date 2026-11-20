@@ -1,4 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Text } from 'react-native';
+
+import type { AthleteAvatarSlot } from '../../../core/ui';
 
 import { createInMemoryAthleteSchoolRepository, createInMemoryHistoryRepository, type HistoryMeasurement } from '../../athletes';
 import { createInMemorySchoolNameRepository } from '../../school-console';
@@ -81,6 +84,27 @@ async function show(options?: SetupOptions) {
   await act(async () => {});
   return props;
 }
+
+describe('HomeContainer avatars', () => {
+  // The route injects the avatar that reads the photo; here a fake one says what it was asked for.
+  const Avatar: AthleteAvatarSlot = ({ athleteId, size }) => <Text>{`avatar ${athleteId} ${size}`}</Text>;
+
+  it('gives the sm avatar to the next plan card and to every athlete chip', async () => {
+    const props = await setup({ ids: ['a1', 'a2'] });
+    await render(<HomeContainer {...props} Avatar={Avatar} />);
+    await act(async () => {});
+
+    expect(screen.getAllByText(/^avatar a1 sm$/, { includeHiddenElements: true }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('avatar a2 sm', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('shows the initials when no avatar is injected', async () => {
+    await show({ ids: ['a1', 'a2'] });
+
+    expect(screen.queryByText(/^avatar /, { includeHiddenElements: true })).toBeNull();
+    expect(screen.getAllByTestId('athlete-avatar', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+  });
+});
 
 describe('HomeContainer', () => {
   it('greets by name, names the school and marks today in the week', async () => {

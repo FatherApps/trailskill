@@ -3,7 +3,9 @@ import { Share } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
+import { avatarOf } from '../components/athleteAvatar';
 import type { SharingRequest, SharingRequestsState } from '../components/AuthorizationList';
 import { formatDate, localDate } from '../components/formatDate';
 import type { AuthorizationsRepository, ConsoleAuthorizationRow } from '../data/authorizations';
@@ -11,6 +13,8 @@ import type { ConsoleSectionProps } from './ConsoleScreen';
 import { AuthorizationsScreen, type AuthorizationsContent, type AuthorizationsView } from './AuthorizationsScreen';
 
 export type AuthorizationsSectionProps = ConsoleSectionProps & {
+  // Injected by the route (this module cannot read show_photo or the photo): the athletes' avatar with their photo. Absent: the initials.
+  Avatar?: AthleteAvatarSlot;
   schoolId: string;
   repository: AuthorizationsRepository;
   // The list is read again when this changes (a sync completed).
@@ -40,6 +44,7 @@ const MINUTE_MS = 60_000;
 
 // The authorizations of the school's athletes, read from the local database, and the sharing requests, read online. Re-sending creates a new invitation and shares it.
 export function AuthorizationsSection({
+  Avatar,
   width,
   schoolName,
   onNavigate,
@@ -107,6 +112,7 @@ export function AuthorizationsSection({
       // Guardians are not readable by school admins yet (issue 220): never a guess.
       athletes: rows.map(({ groupId, ...row }) => ({
         ...row,
+        avatar: avatarOf(Avatar, { id: row.id, initials: row.initials, color: row.color }),
         guardian: null,
         canResend: groupId !== null,
       })),

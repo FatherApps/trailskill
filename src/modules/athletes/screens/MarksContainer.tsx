@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { PoolCode } from '../../../core/sport';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import type { ManagedAthleteRepository } from '../../accounts';
 import { importedAchievement, latestAchievement, type ImportedHistoryResult } from '../achievements';
 import { groupImportedResults } from '../groupImported';
@@ -27,6 +28,8 @@ export type MarksContainerProps = {
   // Changing it looks the athletes and their history up again (the route passes the last sync).
   refreshKey?: unknown;
   scrollEnabled?: boolean;
+  // Injected by the route (athletes cannot read show_photo without a cycle with accounts): the athlete's avatar with their photo. Absent: no avatar.
+  Avatar?: AthleteAvatarSlot;
   // The device's day (yyyy-mm-dd), to tell whether the featured mark is still new; defaults to today.
   today?: string;
 };
@@ -34,7 +37,7 @@ export type MarksContainerProps = {
 type Read = { athleteId: string; attempt: number; result: { measured: HistoryMeasurement[]; imported: ImportedHistoryResult[] } | 'error' };
 
 // Connects the screen to the athletes the user manages and the local history of the one chosen, measured and imported. The pool filter is applied here, on what the device holds.
-export function MarksContainer({ userId, managed, athletes, history, importedResults, sourceNames, sessionDated, refreshKey, scrollEnabled, today }: MarksContainerProps) {
+export function MarksContainer({ userId, managed, athletes, history, importedResults, sourceNames, sessionDated, refreshKey, scrollEnabled, today, Avatar }: MarksContainerProps) {
   const result = useManagedAthletes(managed, athletes, userId, refreshKey);
   const selfId = useSelfAthleteId(managed, userId, refreshKey);
   const [chosenId, setChosenId] = useState<string>();
@@ -75,7 +78,7 @@ export function MarksContainer({ userId, managed, athletes, history, importedRes
       kind: 'data',
       athletes: list.map((a) => {
         const { shortName, initials, color } = athleteDisplay(a);
-        return { id: a.id, name: shortName, initials, color };
+        return { id: a.id, name: shortName, initials, color, avatar: Avatar && <Avatar athleteId={a.id} initials={initials} color={color} size="sm" /> };
       }),
       selectedId: selected.id,
       firstName: selected.firstName,

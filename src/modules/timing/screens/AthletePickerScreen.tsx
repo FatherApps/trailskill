@@ -47,6 +47,7 @@ export function AthletePickerScreen({ subtitle, athletes, selectedIds, groupCoun
                   name={order > 0 ? t('timing.setup.athlete_name', { order, name: athlete.shortName }) : athlete.shortName}
                   initials={athlete.initials}
                   color={athlete.color}
+                  hideAvatar
                   detail=""
                   selected={order > 0}
                   onPress={() => onToggle(athlete.id)}

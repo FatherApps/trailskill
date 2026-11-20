@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useGoBack } from '../../core/navigation';
-import { createPowerSyncManagedAthleteRepository, createSupabaseAthleteShareCodeRepository } from '../../modules/accounts';
+import { AthleteAvatarWithPhoto, createPowerSyncManagedAthleteRepository, createSupabaseAthleteShareCodeRepository } from '../../modules/accounts';
 import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import {
   createPowerSyncFamilyMeasurementRepository,
@@ -40,6 +40,7 @@ export default function FamilyTimingRoute() {
   if (!session || managed.status !== 'ready') return null;
   return (
     <FamilyTimingContainer
+      Avatar={AthleteAvatarWithPhoto}
       userId={session.user.id}
       athletes={managed.athletes}
       repository={familyMeasurements}

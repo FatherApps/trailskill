@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { namedText, t } from '../../../core/i18n';
@@ -8,11 +9,26 @@ import { Button, ChipRow, ColorCard, Icon, IconButton, InitialsDot, LogoSymbol, 
 import { useLargeText } from '../components/useLargeText';
 import '../i18n';
 
-export type HomeAthlete = { id: string; name: string; initials: string; color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4' };
+// `avatar`: the athlete's `sm` AthleteAvatar with their photo (the container reads it); absent: the initials.
+export type HomeAthlete = {
+  id: string;
+  name: string;
+  initials: string;
+  color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
+  avatar?: ReactNode;
+};
 
 export type HomeWeekDay = { day: string; weekday: string; date: number; today: boolean };
 
-export type HomeNext = { athleteId: string; athleteName: string; initials: string; title: string; whenLabel: string; color: HomeAthlete['color'] };
+export type HomeNext = {
+  athleteId: string;
+  athleteName: string;
+  initials: string;
+  title: string;
+  whenLabel: string;
+  color: HomeAthlete['color'];
+  avatar?: ReactNode;
+};
 
 export type HomeMark = { id: string; athleteName: string; event: string; detail: string; hundredths: Hundredths; color: HomeAthlete['color'] };
 
@@ -106,7 +122,7 @@ function NextCard({ next, onOpen }: { next: HomeNext; onOpen: () => void }) {
                 backgroundColor: colors['surface-1'],
               }}
             >
-              <InitialsDot initials={next.initials} color={next.color} />
+              <InitialsDot initials={next.initials} color={next.color} avatar={next.avatar} />
               <Text numberOfLines={large ? undefined : 1} style={[typography.label, { flexShrink: 1, color: colors.ink }]}>
                 {next.athleteName}
               </Text>
@@ -166,7 +182,7 @@ export function HomeScreen({ view, greetingName = '', athletes, selectedId, onSe
           onChange={onSelect}
           options={[
             { value: ALL_ATHLETES, label: t('training_plans.home.all') },
-            ...athletes.map(({ id, name, initials, color }) => ({ value: id, label: name, dot: { initials, color } })),
+            ...athletes.map(({ id, name, initials, color, avatar }) => ({ value: id, label: name, dot: { initials, color, avatar } })),
           ]}
         />
       )}

@@ -121,17 +121,23 @@ export function FulfillmentGrid({
               paddingRight: space[2],
             }}
           >
-            <View {...content("left", index + 1)}>
-              <Text style={[typography["body-strong"], { color: colors.ink }]}>
-                {athlete.shortName}
-              </Text>
-              {athlete.skipped && (
-                <Text
-                  style={[typography.caption, { color: colors["ink-muted"] }]}
-                >
-                  {t("training_plans.fulfillment.skipped")}
+            <View
+              {...content("left", index + 1)}
+              style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}
+            >
+              {athlete.avatar}
+              <View style={{ flexShrink: 1 }}>
+                <Text style={[typography["body-strong"], { color: colors.ink }]}>
+                  {athlete.shortName}
                 </Text>
-              )}
+                {athlete.skipped && (
+                  <Text
+                    style={[typography.caption, { color: colors["ink-muted"] }]}
+                  >
+                    {t("training_plans.fulfillment.skipped")}
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
         ))}

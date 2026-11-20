@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { FlatList, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -54,7 +54,7 @@ export type MarksView =
   | { kind: 'error'; onRetry: () => void }
   | {
       kind: 'data';
-      athletes: { id: string; name: string; initials: string; color: AthleteColor }[];
+      athletes: { id: string; name: string; initials: string; color: AthleteColor; avatar?: ReactNode }[];
       selectedId: string;
       firstName: string;
       pool: PoolCode;
@@ -250,7 +250,7 @@ export function MarksScreen({ view, onSelectAthlete, onPoolChange, scrollEnabled
     <View style={{ gap: space[3] }}>
       <ChipRow
         accessibilityLabel={t('athletes.marks.athlete')}
-        options={view.athletes.map(({ id, name, initials, color }) => ({ value: id, label: name, dot: { initials, color } }))}
+        options={view.athletes.map(({ id, name, initials, color, avatar }) => ({ value: id, label: name, dot: { initials, color, avatar } }))}
         value={view.selectedId}
         onChange={onSelectAthlete}
       />

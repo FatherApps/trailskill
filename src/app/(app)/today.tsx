@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useGoBack } from '../../core/navigation';
 import { useSession } from '../../core/session';
 import { RecordSyncStatus, useGlobalSyncSummary } from '../../core/sync';
-import { createPowerSyncManagedAthleteRepository } from '../../modules/accounts';
+import { AthleteAvatarWithPhoto, createPowerSyncManagedAthleteRepository } from '../../modules/accounts';
 import { createPowerSyncAthleteSchoolRepository, createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useStaffSchool } from '../../modules/school-console';
 import { createPowerSyncSeriesRepository } from '../../modules/timing';
@@ -43,6 +43,7 @@ export default function TodayRoute() {
   if (!session || managed.status !== 'ready') return null;
   return (
     <TodayContainer
+      Avatar={AthleteAvatarWithPhoto}
       plans={plans}
       assignments={assignments}
       schoolLinks={schoolLinks}

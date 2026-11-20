@@ -35,9 +35,12 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
 
   return (
     <View style={{ gap: space[4] }}>
-      <Text accessibilityRole="header" style={[typography.title, { color: colors[athleteDetailColors.title] }]}>
-        {athlete.name}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+        {athlete.avatar?.('md')}
+        <Text accessibilityRole="header" style={[typography.title, { flexShrink: 1, color: colors[athleteDetailColors.title] }]}>
+          {athlete.name}
+        </Text>
+      </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
         <Tag label={athlete.category} />
         <Tag

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { colors, contrastRatio, radius, size, ThemeProvider, type ThemeName } from '../../theme';
 import { unavailableColors } from '../Button';
@@ -165,19 +165,30 @@ describe('Chip', () => {
 });
 
 describe('InitialsDot', () => {
-  it('is a circle in the athlete colour with the initials in on-color', async () => {
+  it('is an sm AthleteAvatar: the initials in on-color on the athlete colour', async () => {
     await render(
       <ThemeProvider>
         <InitialsDot initials="TR" color="athlete-2" />
       </ThemeProvider>,
     );
 
-    const initials = screen.getByText('TR');
+    const initials = screen.getByText('TR', { includeHiddenElements: true });
     expect(StyleSheet.flatten(initials.props.style).color).toBe(colors.light[chipColors.dotText]);
     expect(StyleSheet.flatten(initials.parent!.props.style)).toMatchObject({
       backgroundColor: colors.light['athlete-2'],
       borderRadius: radius.full,
     });
+  });
+
+  it('shows the avatar it is given (the one with the photo) instead of the initials', async () => {
+    await render(
+      <ThemeProvider>
+        <InitialsDot initials="TR" color="athlete-2" avatar={<Text>con foto</Text>} />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByText('con foto')).toBeOnTheScreen();
+    expect(screen.queryByText('TR', { includeHiddenElements: true })).toBeNull();
   });
 
   it.each(themes.flatMap((theme) => (['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4'] as const).map((color) => [theme, color] as const)))(

@@ -2,12 +2,16 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
+import { avatarOf } from '../components/athleteAvatar';
 import { personalBestLabel } from '../components/eventLabel';
 import { CONSOLE_BEST_EVENT, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import { MySwimmersScreen, type MySwimmerRow, type MySwimmersView } from './MySwimmersScreen';
 
 export type MySwimmersSectionProps = {
+  // Injected by the route (this module cannot read show_photo or the photo): the athletes' avatar with their photo. Absent: the initials.
+  Avatar?: AthleteAvatarSlot;
   width: number;
   schoolName: string;
   schoolId: string;
@@ -30,18 +34,20 @@ export type MySwimmersSectionProps = {
 // The answer is stored with what it answers, so another coach or a retry never inherits it while its own read runs.
 type Answer = { schoolId: string; coachUserId: string; attempt: number; result: ConsoleAthlete[] | 'error' };
 
-const toRow = (athlete: ConsoleAthlete): MySwimmerRow => ({
+const toRow = (athlete: ConsoleAthlete, Avatar: AthleteAvatarSlot | undefined): MySwimmerRow => ({
   id: athlete.id,
   name: athlete.name,
   initials: athlete.initials,
   color: athlete.color,
   detail: [athlete.category, ...(athlete.groups.length > 0 ? [athlete.groups.join(', ')] : [])].join(' · ') || t('schoolConsole.common.no_data'),
   bestTime: athlete.bestTime,
+  avatar: avatarOf(Avatar, athlete),
 });
 
 // The swimmers of one coach, read from the local database. The device only holds what the sync gave it, but a coach can also be a guardian
 // of athletes of the same school, so the list is cut to the assignments: nobody else's athlete is shown, whatever is on the device.
 export function MySwimmersSection({
+  Avatar,
   width,
   schoolName,
   schoolId,
@@ -77,7 +83,7 @@ export function MySwimmersSection({
   else if (loaded.length > 0) {
     view = {
       kind: 'data',
-      swimmers: loaded.map(toRow),
+      swimmers: loaded.map((athlete) => toRow(athlete, Avatar)),
       bestLabel: personalBestLabel(CONSOLE_BEST_EVENT.stroke, CONSOLE_BEST_EVENT.distance, CONSOLE_BEST_EVENT.pool),
     };
   } else {
