@@ -119,6 +119,17 @@ docker compose -f deploy/compose.yaml -f deploy/compose.local.yaml --env-file de
 
 Run one full local stack per machine. The Edge Functions are not covered here; see [Edge Functions](../deploy/README.md#edge-functions).
 
+## Check the staff sync streams
+
+The tests of the sync streams read the text of `powersync/sync-config.yaml`; only a real PowerSync shows which rows each user receives (swimmers ended in one school, coaches and admins of two schools). With the **Everything local** stack running and holding no real data, load a synthetic fixture and compare what nine users receive; the command and the variables are in the header of the script:
+
+```bash
+node powersync/scripts/verify-ended-link-streams.mjs setup
+node powersync/scripts/verify-ended-link-streams.mjs run
+```
+
+Run it after any change to a school-linked query of `powersync/sync-config.yaml`. CI does not run it.
+
 ## When something fails
 
 The sign-in screen shows one message ("No pudimos enviar el código") for every failure. In the cloud mode, check the `api-gw` logs of the `supabase` compose in Dokploy; in the local mode, run `docker logs supabase_kong_swimcro`.
