@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, ConfirmSheet, StepHeader, Tag } from '../../../core/ui';
+import { Banner, Button, ConfirmSheet, StepHeader, type AthleteAvatarSlot } from '../../../core/ui';
+import { athleteColor } from '../../athletes';
+import { AthleteAvatarWithPhoto } from '../components/AthleteAvatarWithPhoto';
 import { ConsentCard } from '../components/ConsentCard';
 import { ScreenFrame } from '../components/ScreenFrame';
 import type { AuthorizationPurpose } from '../data/authorizationStatus';
@@ -27,11 +29,16 @@ export type AuthorizationsScreenProps = {
   // 'load': the texts or authorizations could not be read; true: the last save or withdrawal failed.
   failed?: boolean | 'load';
   onBack?: () => void;
+  // The athlete's avatar; by default the one that finds the photo and show_photo in the local database. The gallery passes a plain one.
+  Avatar?: AthleteAvatarSlot;
 };
 
+// "Ana M." -> "AM": the first letter of the first two words.
+const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word.charAt(0).toUpperCase()).join('');
+
 // Nothing is ever pre-checked: the selection is local and starts empty every time the screen opens.
-export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onSave, onWithdraw, failed, onBack }: AuthorizationsScreenProps) {
-  const { colors, space, typography } = useTheme();
+export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onSave, onWithdraw, failed, onBack, Avatar = AthleteAvatarWithPhoto }: AuthorizationsScreenProps) {
+  const { colors, typography } = useTheme();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -91,22 +98,16 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
       <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.authorizations.intro')}</Text>
       {athletes.length === 0 && <Text style={[typography.body, { color: colors.ink }]}>{t('accounts.authorizations.empty')}</Text>}
       {athletes.map((athlete) => (
-        <View key={athlete.id} style={{ gap: space[3] }}>
-          <Text accessibilityRole="header" style={[typography.subtitle, { color: colors.ink }]}>
-            {athlete.name}
-          </Text>
-          {!inForce[athlete.id]?.record_times && <Tag variant="warn" label={t('accounts.authorizations.skipped')} />}
-          {texts.map((text) => (
-            <ConsentCard
-              key={text.purpose}
-              text={text}
-              accepted={inForce[athlete.id]?.[text.purpose]}
-              checked={selected[keyOf(athlete.id, text.purpose)] === true}
-              onToggle={() => setSelected((current) => ({ ...current, [keyOf(athlete.id, text.purpose)]: !current[keyOf(athlete.id, text.purpose)] }))}
-              onWithdraw={setWithdrawing}
-            />
-          ))}
-        </View>
+        <ConsentCard
+          key={athlete.id}
+          athleteName={athlete.name}
+          avatar={<Avatar athleteId={athlete.id} initials={initialsOf(athlete.name)} color={athleteColor(athlete.id)} size="sm" />}
+          texts={texts}
+          inForce={inForce[athlete.id] ?? {}}
+          selected={Object.fromEntries(texts.map(({ purpose }) => [purpose, selected[keyOf(athlete.id, purpose)] === true]))}
+          onToggle={(purpose) => setSelected((current) => ({ ...current, [keyOf(athlete.id, purpose)]: !current[keyOf(athlete.id, purpose)] }))}
+          onWithdraw={setWithdrawing}
+        />
       ))}
       <ConfirmSheet
         visible={withdrawing !== null}

@@ -100,7 +100,7 @@
       "version": "Versión {{version}}",
       "accepted": "Autorizado el {{date}}",
       "text_loading": "Cargando el texto aceptado…",
-      "withdraw": "Retirar"
+      "read_full": "Leer el texto completo"
     },
     "athletes": {
       "title": "Agregar deportista",
