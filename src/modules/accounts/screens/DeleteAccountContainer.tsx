@@ -54,7 +54,7 @@ export function DeleteAccountContainer({ repository, online, exporter, drafts, p
   function refused(error: AccountDeletionFailure, stay: (error: DeleteAccountError) => DeleteAccountView) {
     if (error.code === 'blocked_by_school') setView({ step: 'blocked', schools: error.schools.map((school) => school.name) });
     else if (error.code === 'platform_admin') setView({ step: 'admin' });
-    else setView(stay(error.code === 'offline' ? 'unavailable' : error.code));
+    else setView(stay(error.code));
   }
 
   const onExport = () =>

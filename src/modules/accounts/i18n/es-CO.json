@@ -193,6 +193,7 @@
       "resend": "Reenviar código",
       "email_not_sent": "No pudimos enviar el correo con el código. Pídelo de nuevo.",
       "error": {
+        "offline": "La solicitud no llegó: revisa tu conexión e inténtalo de nuevo.",
         "invalid_code": "El código no coincide.",
         "code_expired": "El código venció. Pide uno nuevo.",
         "too_many_attempts": "Demasiados intentos con este código. Pide uno nuevo.",

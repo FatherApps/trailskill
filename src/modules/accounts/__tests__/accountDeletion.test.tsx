@@ -54,6 +54,14 @@ describe('createSupabaseAccountDeletionRepository', () => {
     expect(await repository.request()).toEqual({ ok: false, error: { code: 'unavailable' } });
   });
 
+  it('turns a success with no value, or a call that throws, into a failure the screens can show', async () => {
+    const invoke = jest.fn().mockResolvedValueOnce({ data: null, error: null }).mockRejectedValueOnce(new Error('boom'));
+    const repository = createSupabaseAccountDeletionRepository(client(invoke));
+
+    expect(await repository.request()).toEqual({ ok: false, error: { code: 'unavailable' } });
+    expect(await repository.request()).toEqual({ ok: false, error: { code: 'offline' } });
+  });
+
   it('says offline when the request never arrived', async () => {
     const invoke = jest.fn().mockResolvedValue({ data: null, error: { name: 'FunctionsFetchError' } });
 
@@ -112,6 +120,31 @@ describe('useAccountDeletionStatus', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('keeps a real answer: the time limit never takes back a marked account once the server said so', async () => {
+    jest.useFakeTimers();
+    try {
+      const repository = createInMemoryAccountDeletionRepository({ deleteAfter: '2026-12-20T15:00:00.000Z' });
+      const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1'));
+      await waitFor(() => expect(result.current.state).toBe('marked'));
+
+      await act(async () => {
+        jest.advanceTimersByTime(DELETION_STATUS_TIMEOUT_MS * 2);
+      });
+
+      expect(result.current).toMatchObject({ state: 'marked', deleteAfter: '2026-12-20T15:00:00.000Z' });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not wait for anyone when nobody is signed in', async () => {
+    const repository = createInMemoryAccountDeletionRepository();
+    const { result } = await renderHook(() => useAccountDeletionStatus(repository, undefined));
+
+    expect(result.current.state).toBe('unknown');
+    expect(repository.calls).toEqual([]);
   });
 
   it('asks again after a cancellation', async () => {

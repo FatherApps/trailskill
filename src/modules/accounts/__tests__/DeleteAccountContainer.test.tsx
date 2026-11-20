@@ -91,6 +91,15 @@ describe('DeleteAccountContainer', () => {
     expect(repository.calls).toEqual(['request']);
   });
 
+  it('tells the person when the request did not reach the server, not just that it failed', async () => {
+    await setup({ repository: createInMemoryAccountDeletionRepository({ offline: true }) });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviarme el código' }));
+
+    expect(await screen.findByText('La solicitud no llegó: revisa tu conexión e inténtalo de nuevo.')).toBeOnTheScreen();
+  });
+
   it('sends an administrator to support', async () => {
     await setup({ repository: createInMemoryAccountDeletionRepository({ platformAdmin: true }) });
 

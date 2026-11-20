@@ -52,8 +52,18 @@ function failureOf(body: { error?: { code?: unknown; schools?: unknown } } | nul
 
 export function createSupabaseAccountDeletionRepository(client: AccountDeletionClient = supabase as unknown as AccountDeletionClient): AccountDeletionRepository {
   async function call<T>(body: Record<string, unknown>): Promise<AccountDeletionOutcome<T>> {
-    const { data, error } = await client.functions.invoke('accounts-delete-account', { body });
-    if (!error) return { ok: true, value: (data as { value: T }).value };
+    let answer;
+    try {
+      answer = await client.functions.invoke('accounts-delete-account', { body });
+    } catch {
+      return { ok: false, error: { code: 'offline' } };
+    }
+    const { data, error } = answer;
+    if (!error) {
+      // A success with no value is not a success the screens could read: it is shown like any other failure.
+      const value = (data as { value?: T } | null)?.value;
+      return value === undefined ? { ok: false, error: { code: 'unavailable' } } : { ok: true, value };
+    }
     // A refusal carries `{ ok: false, error: { code } }`; no response at all is a connection that is not there.
     if (error.name === 'FunctionsHttpError' && error.context) {
       return { ok: false, error: failureOf((await error.context.json().catch(() => null)) as Parameters<typeof failureOf>[0]) };
@@ -127,11 +137,12 @@ export function createInMemoryAccountDeletionRepository(
 export type AccountDeletionStatus = { state: 'loading' | 'unknown' | 'active' } | { state: 'marked'; deleteAfter: string };
 
 /** Longest the app waits for the server before it opens as usual. */
-export const DELETION_STATUS_TIMEOUT_MS = 6000;
+export const DELETION_STATUS_TIMEOUT_MS = 4000;
 
 /**
  * Asks, each time the app opens for a signed-in person, whether their account is marked for deletion. `refresh` asks again, for
- * after a cancellation. Without an answer in time the app opens as usual: a marked account syncs nothing, so nothing of it shows.
+ * after a cancellation. Without an answer in time (or without a person) the app opens as usual: a marked account syncs nothing, so
+ * nothing of it shows. The first answer is final for its question: a late timeout never takes back a real answer.
  */
 export function useAccountDeletionStatus(repository: AccountDeletionRepository, userId: string | undefined): AccountDeletionStatus & { refresh: () => void } {
   const [attempt, setAttempt] = useState(0);
@@ -141,8 +152,12 @@ export function useAccountDeletionStatus(repository: AccountDeletionRepository, 
   useEffect(() => {
     if (!userId) return;
     let active = true;
+    let settled = false;
     const settle = (status: AccountDeletionStatus) => {
-      if (active) setAnswer({ key, status });
+      if (!active || settled) return;
+      settled = true;
+      clearTimeout(timer);
+      setAnswer({ key, status });
     };
     const timer = setTimeout(() => settle({ state: 'unknown' }), DELETION_STATUS_TIMEOUT_MS);
     repository.status().then(
@@ -155,6 +170,7 @@ export function useAccountDeletionStatus(repository: AccountDeletionRepository, 
     };
   }, [repository, userId, key]);
 
-  const status: AccountDeletionStatus = answer?.key === key ? answer.status : { state: 'loading' };
+  // Nobody is signed in: there is no account to ask about, so the layout goes on as it always did.
+  const status: AccountDeletionStatus = !userId ? { state: 'unknown' } : answer?.key === key ? answer.status : { state: 'loading' };
   return { ...status, refresh: () => setAttempt((value) => value + 1) };
 }

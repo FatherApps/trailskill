@@ -7,7 +7,7 @@ import { OfflineNotice } from '../components/OfflineNotice';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { t } from '../i18n';
 
-export type DeleteAccountError = 'invalid_code' | 'code_expired' | 'too_many_attempts' | 'rate_limited' | 'unavailable';
+export type DeleteAccountError = 'offline' | 'invalid_code' | 'code_expired' | 'too_many_attempts' | 'rate_limited' | 'unavailable';
 
 // One step at a time: the offer to export, the notice, the code, the date that was set, and the two ways the server can refuse.
 export type DeleteAccountView =
