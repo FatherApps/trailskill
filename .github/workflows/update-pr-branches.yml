@@ -5,6 +5,8 @@ name: Flag stale pull requests
 # It never updates a branch: commits made with GITHUB_TOKEN (including the update-branch API) do not start app-checks or
 # pr-checks, so a branch updated here would wait forever for its required checks. The worker or the person merges main
 # and pushes normally, which runs the CI. It checks out main only and never runs code from a pull request.
+# The logic lives in .github/scripts/flag-stale-prs.sh (tests: bash .github/scripts/flag-stale-prs.test.sh); any failure prints ::error::,
+# skips that pull request and turns the job red, so it is never read as "up to date".
 # Manual run: Actions > Flag stale pull requests > Run workflow, with dry_run left on, only prints what it would do.
 on:
   push:
@@ -39,58 +41,4 @@ jobs:
           fetch-depth: 0
       - name: Label pull requests that are behind or conflict with main
         shell: bash
-        run: |
-          set -uo pipefail
-          LABEL=needs-main-merge
-          MARKER='<!-- needs-main-merge -->'
-          bt=$(printf '\140') # a backtick, for the markdown below
-
-          # Same-repository pull requests only: forks are skipped (a deleted fork has no head.repo).
-          numbers=$(gh api "repos/$REPO/pulls?state=open&base=main&per_page=100" --paginate \
-            --jq ".[] | select(.head.repo != null and .head.repo.full_name == \"$REPO\") | .number")
-
-          for n in $numbers; do
-            # GitHub computes mergeable_state lazily: retry while it is unknown.
-            state=unknown
-            sha=
-            for _ in 1 2 3 4 5; do
-              read -r state sha < <(gh api "repos/$REPO/pulls/$n" --jq '[.mergeable_state, .head.sha] | @tsv')
-              [ "$state" != unknown ] && break
-              sleep 5
-            done
-            # mergeable_state is only "behind" when a rule requires up-to-date branches, so compare as well.
-            behind_by=$(gh api "repos/$REPO/compare/main...$sha" --jq '.behind_by')
-
-            if [ "$state" != dirty ] && [ "$state" != behind ] && [ "${behind_by:-0}" = 0 ]; then
-              echo "#$n: up to date ($state), nothing to do"
-              continue
-            fi
-
-            # Test merge in memory: lists the conflicting files without touching any branch.
-            git fetch -q origin "refs/pull/$n/head"
-            out=$(git merge-tree --write-tree --name-only origin/main FETCH_HEAD)
-            rc=$?
-            if [ "$rc" -eq 1 ]; then
-              files=$(printf '%s\n' "$out" | sed -n '2,/^$/p' | while read -r f; do [ -n "$f" ] && printf -- '- %s%s%s\n' "$bt" "$f" "$bt"; done)
-            elif [ "$rc" -eq 0 ]; then
-              files="(ninguno: la fusión con ${bt}main${bt} es limpia)"
-            else
-              files='(no se pudo calcular la lista de archivos)'
-            fi
-
-            echo "#$n: stale (mergeable_state=$state, behind_by=${behind_by:-?}); label and comment"
-            if [ "$DRY_RUN" = true ]; then
-              printf 'dry run: would add label %s and, if the marker is missing, comment:\n%s\n' "$LABEL" "$files"
-              continue
-            fi
-            gh api -X POST "repos/$REPO/issues/$n/labels" --raw-field "labels[]=$LABEL" >/dev/null
-
-            existing=$(gh api "repos/$REPO/issues/$n/comments" --paginate --jq ".[] | select(.body | contains(\"$MARKER\")) | .id")
-            if [ -n "$existing" ]; then
-              echo "#$n: comment already present, not duplicated"
-              continue
-            fi
-            body=$(printf '%s\nEsta rama está atrasada respecto de %smain%s o tiene conflictos con ella (estado: %s%s%s).\n\nArchivos en conflicto:\n%s\n\nActualízala con un merge normal (%sgit merge origin/main%s, sin reescribir el historial), corre los checks y haz push normal para que corra el CI. Este comentario no se repite.\n' \
-              "$MARKER" "$bt" "$bt" "$bt" "$state" "$bt" "$files" "$bt" "$bt")
-            gh api -X POST "repos/$REPO/issues/$n/comments" --raw-field "body=$body" >/dev/null
-          done
+        run: bash .github/scripts/flag-stale-prs.sh
