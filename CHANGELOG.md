@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.0](https://github.com/FatherApps/trailskill/compare/v0.6.0...v0.7.0) (2026-11-20)
+
+
+### Features
+
+* **accounts:** delete an account after a 30-day grace period, server code ([#1273](https://github.com/FatherApps/trailskill/issues/1273)) ([a8084b0](https://github.com/FatherApps/trailskill/commit/a8084b00f298484ab9dab0b2a14e1822edfa75cb)), closes [#1244](https://github.com/FatherApps/trailskill/issues/1244)
+
+
+### Bug Fixes
+
+* **ci:** skip bot-managed branches in flag-stale-prs ([#1277](https://github.com/FatherApps/trailskill/issues/1277)) ([501474e](https://github.com/FatherApps/trailskill/commit/501474e3e2505fa51277ad37b4c49b8e769dbabe)), closes [#1271](https://github.com/FatherApps/trailskill/issues/1271)
+* **session:** hold writes only for the person whose sign-out is finishing ([#1284](https://github.com/FatherApps/trailskill/issues/1284)) ([90fc820](https://github.com/FatherApps/trailskill/commit/90fc8200114b91d2347a4851b7e7348346f37162)), closes [#1270](https://github.com/FatherApps/trailskill/issues/1270)
+* **session:** never leave the app blank when the local database does not answer ([#1278](https://github.com/FatherApps/trailskill/issues/1278)) ([f917daa](https://github.com/FatherApps/trailskill/commit/f917daad35c8bfee1fb35551b81131b00b930293)), closes [#1270](https://github.com/FatherApps/trailskill/issues/1270)
+* **sync:** apply the athlete photo PUT as an upsert by athlete_id ([#1274](https://github.com/FatherApps/trailskill/issues/1274)) ([43383e4](https://github.com/FatherApps/trailskill/commit/43383e477b342f9467daff5708775a2b000b4f9d)), closes [#1253](https://github.com/FatherApps/trailskill/issues/1253)
+* **sync:** el admin o entrenador de dos escuelas no recibe el par dado de baja ([#1272](https://github.com/FatherApps/trailskill/issues/1272)) ([74bf617](https://github.com/FatherApps/trailskill/commit/74bf61701eba6eb3924196b61bc99bbc918b78d5))
+
 ## [0.6.0](https://github.com/FatherApps/trailskill/compare/v0.5.0...v0.6.0) (2026-11-20)
 
 
