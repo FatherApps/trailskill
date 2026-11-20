@@ -301,6 +301,9 @@ export const AppSchema = new Schema({
     },
     { localOnly: true, indexes: { measurement: ['measurement_id'] } },
   ),
+  // The photos of athletes waiting to go up (#1222), on this phone only: the image stays in documentDirectory until its object is in Storage
+  // and its athlete_photos row is written; neither the queue nor the image ever syncs.
+  athlete_photo_uploads: new Table({ athlete_id: column.text, local_uri: column.text }, { localOnly: true, indexes: { athlete: ['athlete_id'] } }),
   pending_writes: new Table(
     { table_name: column.text, record_id: column.text },
     { localOnly: true, indexes: { record: ['table_name', 'record_id'] } },

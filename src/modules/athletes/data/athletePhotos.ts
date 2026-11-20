@@ -48,6 +48,8 @@ export type PhotoCache = {
   get(photo: PhotoRef): string | null;
   /** Downloads the image from the signed URL into the cache, replacing any other photo of the athlete, and returns its local file. */
   put(photo: PhotoRef, signedUrl: string): Promise<string>;
+  /** Takes a local image (the photo just uploaded from this phone) into the cache as this exact photo, so it shows without asking for a signed URL the server may not give yet. */
+  adopt(photo: PhotoRef, localUri: string): void;
   clearAthlete(athleteId: string): void;
   clearAll(): void;
   /** Deletes everything not in `keep`: the cache never outlives the rows (sign-out, withdrawal) that justified it. */
@@ -93,6 +95,13 @@ export function createFileSystemPhotoCache(): PhotoCache {
         clearAthlete(folder);
         throw error;
       }
+    },
+    adopt(photo, localUri) {
+      const { folder, file } = locate(photo);
+      clearAthlete(folder);
+      const directory = folderOf(folder);
+      directory.create({ intermediates: true, idempotent: true });
+      new File(localUri).moveSync(new File(directory, file));
     },
     clearAthlete,
     clearAll() {
@@ -146,6 +155,11 @@ export function createInMemoryPhotoCache(download: (signedUrl: string) => Promis
       await download(signedUrl);
       files.set(name, `file:///cache/athlete-photos/${name}`);
       return files.get(name) as string;
+    },
+    adopt(photo, localUri) {
+      const name = key(photo);
+      clearAthlete(photo.athleteId);
+      files.set(name, localUri);
     },
     clearAthlete,
     clearAll: () => files.clear(),
