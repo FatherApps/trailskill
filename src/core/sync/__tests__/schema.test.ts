@@ -5,8 +5,10 @@ jest.mock('@powersync/react-native', () => {
   class Table {
     localOnly: boolean;
     columns: Record<string, unknown>;
-    constructor(columns: Record<string, unknown>, options: { localOnly?: boolean } = {}) {
+    trackPrevious?: unknown;
+    constructor(columns: Record<string, unknown>, options: { localOnly?: boolean; trackPrevious?: unknown } = {}) {
       this.columns = columns;
+      this.trackPrevious = options.trackPrevious;
       this.localOnly = options.localOnly === true;
     }
   }
@@ -68,6 +70,12 @@ describe('AppSchema', () => {
     );
     expect(columnsOf('measurements')).not.toContain('hidden');
     expect(columnsOf('record_conflicts')).toEqual(['table_name', 'record_id', 'status']);
+  });
+
+  it('tracks the athlete of athlete_photos before a change, so a PATCH or DELETE finds the row by athlete_id (#1253), and no other table', () => {
+    const tracked = (AppSchema.tables as unknown as { name: string; trackPrevious?: unknown }[]).filter((table) => table.trackPrevious);
+    expect(tracked.map((table) => table.name)).toEqual(['athlete_photos']);
+    expect(tracked[0].trackPrevious).toEqual({ columns: ['athlete_id'] });
   });
 
   it('syncs the deactivation stamp of school memberships', () => {
