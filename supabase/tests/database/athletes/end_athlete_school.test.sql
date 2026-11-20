@@ -10,7 +10,7 @@
 -- All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(29);
 
 -- u('a1') is the uuid 12430000-0000-4000-8000-0000000000a1; as_user sets the signed-in user.
 create function pg_temp.u(text) returns uuid language sql as $$ select ('12430000-0000-4000-8000-0000000000' || $1)::uuid $$;
@@ -87,7 +87,7 @@ reset role;
 set local role anon;
 select throws_ok($$select public.end_athlete_school(pg_temp.u('e1'), pg_temp.u('b1'))$$, '42501', null, 'an anonymous user cannot end the link');
 reset role;
-select is((select count(*)::int from public.athlete_schools where ended_at is not null or ended_by is not null), 0,
+select is((select count(*)::int from public.athlete_schools where athlete_id::text like '12430000%' and (ended_at is not null or ended_by is not null)), 0,
   'no row changed after the rejected calls');
 
 -- 2. The admin ends the link: the server stamps both columns, a repeat keeps the first stamp, nothing is deleted.
@@ -138,12 +138,21 @@ select is(pg_temp.seen(), 'athletes=e1|schools=e1:b1,e1:b2|groups=e1:c1,e1:c2|ma
 select pg_temp.as_user('a8');
 select is(pg_temp.seen(), 'athletes=e2|schools=e2:b1|groups=e2:c1|marks=', 'the adult athlete still reads their own rows');
 
--- 5. Staff cannot write marks for the ended swimmer, and still can for an active one.
+-- 5. Staff cannot write marks for the ended swimmer, and still can for an active one. Pending product decision (#1243): the
+-- write block follows from the helper functions the insert policies use and is kept on purpose, as the privacy-safe default.
+-- The code is 42501, the one the device connector treats as a permanent rejection: a mark timed offline and uploaded after the
+-- baja lands in upload_failures and shows as «No enviado», it is never lost silently and never retried forever.
 select pg_temp.as_user('a4');
 select throws_ok(
   $$insert into public.measurements (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
     values (pg_temp.u('f4'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('e1'), 3400, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-02 08:00:00+00')$$,
   '42501', null, 'a coach cannot record a mark for the ended swimmer');
+select pg_temp.as_user('a2');
+select throws_ok(
+  $$insert into public.measurements (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+    values (pg_temp.u('f6'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e1'), 3450, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-sa', '2026-11-02 08:02:00+00')$$,
+  '42501', null, 'an admin of the school cannot record a mark for the ended swimmer either');
+select pg_temp.as_user('a4');
 select lives_ok(
   $$insert into public.measurements (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
     values (pg_temp.u('f5'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('e3'), 3500, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-02 08:01:00+00')$$,
