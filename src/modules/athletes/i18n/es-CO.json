@@ -208,5 +208,38 @@
       "origin_own": "Registro propio",
       "summary": "{{date}} · {{kind}} · {{origin}}"
     }
+  },
+  "photo": {
+    "title": "Foto del deportista",
+    "help_unauthorized": "Para guardar y mostrar la foto necesitamos tu autorización. La verán su acudiente, sus entrenadores y su escuela.",
+    "help_none": "Todavía no tiene foto. Se verá junto a su nombre en la app.",
+    "help_ready": "Esta es la foto que se muestra junto a su nombre.",
+    "help_waiting": "La foto quedó guardada en este teléfono y se enviará cuando haya señal.",
+    "authorize": "Autorizar y agregar foto",
+    "take": "Tomar foto",
+    "take_other": "Tomar otra foto",
+    "choose": "Elegir de la galería",
+    "choose_other": "Elegir otra de la galería",
+    "remove": "Quitar foto",
+    "saving": "Guardando…",
+    "preview": "Foto del deportista",
+    "waiting_status": "Esperando señal para enviarse",
+    "notice_camera_denied": "No tenemos permiso para usar la cámara. Puedes elegir una foto de la galería o dar el permiso en los ajustes del teléfono.",
+    "notice_failed": "No pudimos guardar la foto. Inténtalo de nuevo.",
+    "notice_remove_offline": "Para quitar la foto necesitas señal. Inténtalo cuando la tengas.",
+    "notice_remove_failed": "No pudimos quitar la foto. Revisa la señal e inténtalo de nuevo.",
+    "remove_sheet": {
+      "title": "¿Quitar la foto?",
+      "message": "La foto se borra de Swimcro y deja de verse en todos los dispositivos. No se puede deshacer.",
+      "confirm": "Quitar foto",
+      "keep": "Conservarla"
+    },
+    "withdrawn_sheet": {
+      "title": "¿Borrar también la foto?",
+      "message": "Al retirar la autorización la foto deja de mostrarse. Si la borras, también se elimina de Swimcro y tendrás que subir otra si vuelves a autorizar.",
+      "confirm": "Borrar la foto",
+      "keep": "Conservarla"
+    },
+    "sheet_error": "No pudimos borrar la foto. Revisa la señal e inténtalo de nuevo."
   }
 }
