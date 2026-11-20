@@ -26,7 +26,15 @@ case "$args" in
     case " $FAKE_FAIL " in *" post:$n "*) exit 1 ;; esac
     echo "$args" >>"$FAKE_WRITES"
     exit 0 ;;
-  *"pulls?state=open"*) printf '%s\n' $FAKE_PRS; exit 0 ;;
+  *"pulls?state=open"*)
+    # Builds the JSON GitHub would return and applies the script's own --jq filter to it.
+    filter=; prev=; for a in "$@"; do [ "$prev" = --jq ] && filter=$a; prev=$a; done
+    json=; for p in $FAKE_PRS; do
+      eval "h=\${FAKE_HEAD_$p:-fix/branch-$p}; b=\${FAKE_BOT_$p:-}"
+      t=User; [ -n "$b" ] && t=Bot
+      json="$json${json:+,}{\"number\":$p,\"head\":{\"ref\":\"$h\",\"repo\":{\"full_name\":\"owner/repo\"}},\"user\":{\"type\":\"$t\"}}"
+    done
+    printf '[%s]' "$json" | jq -r "$filter"; exit 0 ;;
   *"/compare/"*)
     case " $FAKE_FAIL " in *" compare:$sha_n "*) exit 1 ;; esac
     eval "echo \"\${FAKE_BEHIND_$sha_n:-0}\""; exit 0 ;;
@@ -123,6 +131,19 @@ if ! has "$WRITES" "file-9.txt" || ! has "$WRITES" "issues/10/"; then pass "fetc
 failing_setup 11 "post:11"; export FAKE_STATE_11=dirty FAKE_CONFLICT_11=1
 run_case
 if [ "$RC" -eq 1 ] && has "$OUT" "::error::#11: could not add the label"; then pass "label failure: error and exit 1"; else fail "label failure: error and exit 1 (rc $RC)"; fi
+
+# 11. Bot-managed branches are skipped (no label, no comment, a log line) while a normal stale PR in the same run is flagged.
+reset
+export FAKE_PRS="12 13 14" FAKE_STATE_12=dirty FAKE_CONFLICT_12=1 FAKE_HEAD_12=release-please--branches--main--components--x \
+  FAKE_STATE_13=dirty FAKE_CONFLICT_13=1 FAKE_BOT_13=1 FAKE_STATE_14=dirty FAKE_CONFLICT_14=1
+run_case
+if [ "$RC" -eq 0 ] && ! has "$WRITES" "issues/12/" && ! has "$WRITES" "issues/13/" \
+  && has "$OUT" "#12: skipped (bot-managed branch)" && has "$OUT" "#13: skipped (bot-managed branch)"; then
+  pass "release-please branch and bot author: skipped, no label, no comment"
+else fail "release-please branch and bot author: skipped (rc $RC: $OUT)"; fi
+if [ "$(printf '%s\n' "$WRITES" | grep -c 'issues/14/labels')" -eq 1 ] && [ "$(printf '%s\n' "$WRITES" | grep -c 'issues/14/comments')" -eq 1 ]; then
+  pass "normal stale PR in the same run: one label and one comment"
+else fail "normal stale PR in the same run: one label and one comment"; fi
 
 printf "\n%s passed, %s failed\n" "$PASSED" "$FAILED"
 [ "$FAILED" -eq 0 ]
