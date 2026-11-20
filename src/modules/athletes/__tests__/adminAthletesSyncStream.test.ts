@@ -6,11 +6,11 @@ import { join } from "node:path";
 // admins. The pgTAP test supabase/tests/database/athletes/admin_enrollment_school.test.sql
 // (pg_temp.stream_schools_admin, pg_temp.stream_groups_admin) holds a copy of those two queries: change both together.
 // The athletes, athlete_managers and authorization_status rows have no school column, so they stay school-free.
-// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244); this test pins the rest.
+// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244); this test pins the rest (the gate ends the top-level WHERE).
 const config = readFileSync(
   join(__dirname, "../../../../powersync/sync-config.yaml"),
   "utf8",
-).replaceAll(/ AND [\w.]+ IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)/g, "");
+).replaceAll(/ WHERE \((.*)\) AND auth\.user_id\(\) IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)$/gm, " WHERE $1");
 const streamQueries = (
   config.split(/\n {2}athletes_visible:\n/)[1]?.split(/\n\s*\n/)[0] ?? ""
 )
