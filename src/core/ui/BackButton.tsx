@@ -28,9 +28,10 @@ export function BackButton({ onPress }: BackButtonProps) {
       {...focusProps}
       style={[
         {
-          // Keeps the circle in a column that stretches its children (a screen's top bar); in a row it sits at the start of the cross axis.
-          alignSelf: 'flex-start',
+          // minWidth equal to maxWidth acts as a fixed width without `width`, which the rules tests forbid on controls: a column with stretched children
+          // cannot widen the circle, and a row still centres it through the parent's alignItems (no alignSelf).
           minWidth: size['target-min'],
+          maxWidth: size['target-min'],
           minHeight: size['target-min'],
           alignItems: 'center',
           justifyContent: 'center',

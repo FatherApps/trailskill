@@ -25,17 +25,20 @@ describe('BackButton', () => {
     await renderButton();
 
     const style = StyleSheet.flatten(screen.getByRole('button', { name: 'Volver' }).props.style);
-    expect(style.minWidth).toBeGreaterThanOrEqual(size['target-min']);
-    expect(style.minHeight).toBeGreaterThanOrEqual(size['target-min']);
+    expect(style.minWidth).toBe(size['target-min']);
+    expect(style.minHeight).toBe(size['target-min']);
     expect(style.borderRadius).toBe(radius.full);
     expect(style.backgroundColor).toBe(colors.light[backButtonColors.background]);
     expect(style.borderWidth).toBeUndefined();
   });
 
-  it('keeps its own width in a column that stretches its children', async () => {
+  it('is capped at its own width and has no alignSelf, so a column does not stretch it and a row keeps centring it', async () => {
     await renderButton();
 
-    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Volver' }).props.style).alignSelf).toBe('flex-start');
+    const style = StyleSheet.flatten(screen.getByRole('button', { name: 'Volver' }).props.style);
+    expect(style.maxWidth).toBe(size['target-min']);
+    expect(style.width).toBeUndefined();
+    expect(style.alignSelf).toBeUndefined();
   });
 
   it('calls onPress when pressed', async () => {
