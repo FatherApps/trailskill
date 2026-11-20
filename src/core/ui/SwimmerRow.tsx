@@ -5,6 +5,7 @@ import { t } from '../i18n';
 import type { StrokeCode } from '../sport';
 import { typography as baseTypography, useTheme, type ColorToken } from '../theme';
 import { formatTime, personalBestDifference, spokenDifference, type Hundredths } from '../time';
+import { AthleteAvatar, useAthleteAvatarSize } from './AthleteAvatar';
 import { useFocusRing } from './focusRing';
 import { Icon } from './Icon';
 import { StrokeIcon } from './StrokeIcon';
@@ -38,6 +39,8 @@ export type SwimmerRowProps = {
   // Callers with a wider type filter with `isStroke` first.
   stroke?: StrokeCode;
   chevron?: boolean;
+  // Poolside lists show the short name only: no avatar.
+  hideAvatar?: boolean;
   selected?: boolean;
   onPress?: () => void;
 };
@@ -47,13 +50,11 @@ export const swimmerRowColors: {
   selectedBackground: ColorToken;
   name: ColorToken;
   detail: ColorToken;
-  initials: ColorToken;
 } = {
   background: 'surface-1',
   selectedBackground: 'primary-tint',
   name: 'ink',
   detail: 'ink-muted',
-  initials: 'on-color',
 };
 
 // From this text scale up the name and the trailing element no longer fit side by side (as in HistoryList).
@@ -81,15 +82,16 @@ export function SwimmerRow({
   tag,
   stroke,
   chevron = false,
+  hideAvatar = false,
   selected = false,
   onPress,
 }: SwimmerRowProps) {
-  const { colors, space, radius, typography } = useTheme();
-  // The OS text scale grows Text but is not in the theme tokens; the avatar grows with it so the initials stay inside.
+  const { colors, space, typography } = useTheme();
   const { fontScale } = useWindowDimensions();
   const { focusProps, ring } = useFocusRing();
-  // 40 is the design-system avatar size at 100 % (not a token).
-  const avatarSize = Math.max(40, Math.ceil(typography.label.lineHeight * fontScale) + 2 * space[2]);
+  // Without an avatar the row has no avatar column: its width and the gap after it count as zero.
+  const avatarSize = useAthleteAvatarSize('md');
+  const avatarColumn = hideAvatar ? 0 : avatarSize + space[3];
   // The gallery preview scale (theme) and the system scale both apply.
   const largeText = (typography.caption.fontSize / baseTypography.caption.fontSize) * fontScale >= largeTextScale;
 
@@ -103,7 +105,7 @@ export function SwimmerRow({
   // Side by side needs: row padding both sides, avatar, the gaps either side of the name, a name column of at least
   // `minNameEms`, and the trailing element at its natural width. Less than that and the trailing element goes below.
   const sideBySideWidth =
-    2 * space[4] + avatarSize + 2 * space[3] + minNameEms * typography['body-strong'].fontSize * fontScale + trailingWidth;
+    2 * space[4] + avatarColumn + space[3] + minNameEms * typography['body-strong'].fontSize * fontScale + trailingWidth;
   // Unknown width (before the first layout): side by side, as before.
   const large = largeText || (rowWidth !== null && rowWidth < sideBySideWidth);
 
@@ -163,20 +165,8 @@ export function SwimmerRow({
     backgroundColor: colors[selected ? swimmerRowColors.selectedBackground : swimmerRowColors.background],
   } as const;
 
-  const avatar = (
-    <View
-      {...hidden}
-      style={{
-        width: avatarSize,
-        height: avatarSize,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radius.full,
-        backgroundColor: colors[color ?? 'surface-2'],
-      }}
-    >
-      <Text style={[typography.label, { color: colors[color ? swimmerRowColors.initials : 'ink'] }]}>{initials}</Text>
-    </View>
+  const avatar = hideAvatar ? null : (
+    <AthleteAvatar initials={initials} colorIndex={color && (Number(color.slice(-1)) as 1 | 2 | 3 | 4)} size="md" authorized={false} />
   );
 
   const nameBlock = (style: { flex?: number; flexShrink?: number; minWidth: number }) => (
@@ -298,7 +288,7 @@ export function SwimmerRow({
         )}
         {large ? (
           // Aligned with the name: avatar width plus the gap.
-          <View style={{ ...trailingGroupStyle, paddingLeft: avatarSize + space[3] }}>{trailing}</View>
+          <View style={{ ...trailingGroupStyle, paddingLeft: avatarColumn }}>{trailing}</View>
         ) : (
           sideTrailing
         )}

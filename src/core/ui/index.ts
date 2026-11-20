@@ -17,6 +17,7 @@ export { Logo, LogoSymbol, type LogoProps, type LogoSymbolProps } from './Logo';
 export { iconPaths, type IconName } from './icons';
 export { Segmented, segmentedColors, type SegmentedOption, type SegmentedProps } from './Segmented';
 export { TimeValue, type TimeValueProps } from './TimeValue';
+export { AthleteAvatar, athleteAvatarColors, type AthleteAvatarProps, type AthleteAvatarSize } from './AthleteAvatar';
 export { SwimmerRow, swimmerRowColors, type SwimmerRowProps } from './SwimmerRow';
 export { NavBar, navBarColors, type NavBarItem, type NavBarProps } from './NavBar';
 export { ColorCard, colorCardColors, type ColorCardColor, type ColorCardDecoration, type ColorCardProps } from './ColorCard';

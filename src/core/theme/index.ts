@@ -7,6 +7,7 @@ export {
   elevation,
   fontFamily,
   radius,
+  ringGapColor,
   size,
   space,
   typography,

@@ -4,6 +4,7 @@ import { Text, View } from 'react-native';
 import { t } from '../i18n';
 import type { RecordSyncState } from '../sync';
 import { space, typography, useTheme } from '../theme';
+import { athleteAvatarFixture as av } from './__fixtures__/athleteAvatar';
 import { bannerFixture as bn } from './__fixtures__/banner';
 import { buttonFixture as b } from './__fixtures__/button';
 import { chipFixture as ch } from './__fixtures__/chip';
@@ -19,6 +20,7 @@ import { swimmerRowFixture as sr } from './__fixtures__/swimmerRow';
 import { tagFixture as tg } from './__fixtures__/tag';
 import { textFieldFixture as tf } from './__fixtures__/textField';
 import { timeValueFixture as tv } from './__fixtures__/timeValue';
+import { AthleteAvatar, type AthleteAvatarProps } from './AthleteAvatar';
 import { Banner } from './Banner';
 import { Button } from './Button';
 import { Chip } from './Chip';
@@ -155,6 +157,19 @@ function RingBackground() {
         borderColor: colors['surface-1'],
       }}
     />
+  );
+}
+
+// The three sizes side by side; the ring is drawn outside the avatar, so the row leaves it room.
+function AthleteAvatarRow(props: Omit<AthleteAvatarProps, 'size'>) {
+  const { space: gap } = useTheme();
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: gap[6], padding: gap[2] }}>
+      <AthleteAvatar {...props} size="sm" />
+      <AthleteAvatar {...props} size="md" />
+      <AthleteAvatar {...props} size="lg" />
+    </View>
   );
 }
 
@@ -402,6 +417,18 @@ export const galleryEntries: GalleryEntry[] = [
       'long-text': () => <SwimmerRowPreview {...sr.longText} chevron />,
       'time-and-tag': () => <SwimmerRowPreview {...sr.timeAndTag} />,
       'with-stroke': () => <SwimmerRowPreview {...sr.withStroke} />,
+    },
+  },
+  {
+    id: 'athleteAvatar',
+    title: 'AthleteAvatar',
+    states: {
+      initials: () => <AthleteAvatarRow initials={av.initials} colorIndex={1} authorized={false} />,
+      photo: () => <AthleteAvatarRow initials={av.initials} colorIndex={1} photoUri={av.photoUri} authorized />,
+      'photo-not-authorized': () => <AthleteAvatarRow initials={av.initials} colorIndex={2} photoUri={av.photoUri} authorized={false} />,
+      neutral: () => <AthleteAvatarRow initials="?" authorized={false} />,
+      'athlete-3': () => <AthleteAvatarRow initials={av.secondInitials} colorIndex={3} photoUri={av.photoUri} authorized />,
+      'athlete-4': () => <AthleteAvatarRow initials={av.secondInitials} colorIndex={4} authorized={false} />,
     },
   },
   {
