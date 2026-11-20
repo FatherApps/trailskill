@@ -405,6 +405,14 @@ verify_jwt = true
 [functions.school-console-invite-coach]
 verify_jwt = true
 
+# Account deletion (#1244): only a signed-in user may call it; the handler also checks who the token belongs to.
+[functions.accounts-delete-account]
+verify_jwt = true
+
+# Account deletion worker (#1244): called by pg_cron through pg_net, which has no user token; authenticated by the shared secret ACCOUNTS_WORKER_SECRET in the handler.
+[functions.accounts-deletion-worker]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
