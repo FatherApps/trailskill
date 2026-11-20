@@ -89,11 +89,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // A sign-out cleared the local database past the time limit, and that clear may still end: nothing is shown or written meanwhile.
   const [clearPending, setClearPending] = useState(false);
   // Read by the auth listener, which must not give writes back to the person while the clear runs.
-  const holdWrites = useRef(false);
+  const holdWrites = useRef<string>(undefined);
   // The user now, for work that ends after a render (a late clear) and must not act on someone who signed in since.
   const userIdRef = useRef<string>(undefined);
-  const setHold = useCallback((on: boolean) => {
-    holdWrites.current = on;
+  const setHold = useCallback((on: boolean, forUser?: string) => {
+    holdWrites.current = on ? forUser : undefined;
     setClearPending(on);
   }, []);
   // Keyed on the user, so a failure never carries over to the next person.
@@ -127,7 +127,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (event === 'INITIAL_SESSION') restoredUserId.current = next?.user.id;
       // Right away, not after a render: a write in flight checks it as it commits.
       userIdRef.current = next?.user.id;
-      setSessionUser(holdWrites.current ? undefined : next?.user.id);
+      // Only the person whose sign-out is finishing is held: someone who signs in meanwhile writes as usual.
+      setSessionUser(next?.user.id !== undefined && next.user.id === holdWrites.current ? undefined : next?.user.id);
       setSession(next);
       setRestored(true);
     });
@@ -327,7 +328,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // The clear passed the time limit but may still end, and the person must not keep using the app while the database empties:
   // no screen and no write for them until it ends. It ending well completes the sign-out; failing gives everything back.
   const finishLateClear = useCallback((clearing: Promise<void>, startedFor: string | undefined) => {
-    setHold(true);
+    setHold(true, startedFor);
     setSessionUser(undefined);
     const giveBack = () => {
       if (startedFor !== undefined && userIdRef.current === startedFor) {

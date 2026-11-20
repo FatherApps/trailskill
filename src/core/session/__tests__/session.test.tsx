@@ -1049,9 +1049,12 @@ describe('a local database that does not answer', () => {
     const { settle } = await signOutWithLateClear();
 
     await act(async () => mockAuthCallback('SIGNED_IN', other));
+    // The hold was for the earlier person: the new one's writes are accepted.
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith('coach-2');
     await act(async () => settle.resolve());
 
     expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith('coach-2');
   });
 });
 
