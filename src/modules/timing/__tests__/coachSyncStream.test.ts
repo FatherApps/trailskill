@@ -16,7 +16,7 @@ const streamQueries =
     .split("\n")
     .flatMap((line) => line.match(/^\s+- (SELECT .+)$/)?.[1] ?? []);
 
-const coachSource = /\bcoach_(athlete_assignments|group_ids|direct_athlete_ids|group_athlete_ids)\b/;
+const coachSource = /\bcoach_(athlete_assignments|group_assignments|group_ids|direct_athlete_ids|group_athlete_ids)\b/;
 const schoolFreeCoachIds = /\bcoach_(direct|group)_athlete_ids\b/;
 
 test("every coach query of timing_measurements binds the swimmer and the school of the mark", () => {
@@ -27,8 +27,13 @@ test("every coach query of timing_measurements binds the swimmer and the school 
   const group = coach.filter((query) => /JOIN training_groups\b/.test(query));
   expect(direct).toHaveLength(1);
   expect(group).toHaveLength(1);
-  expect(direct[0]).toContain("ON measurements.athlete_id = coach_athlete_assignments.athlete_id AND measurements.school_id = coach_athlete_assignments.school_id");
-  expect(group[0]).toContain("measurements.school_id = training_groups.school_id");
+  // An ended link (#1243) cuts the pair: athlete_schools is the first joined table, the user-bound one the last.
+  expect(direct[0]).toContain("JOIN athlete_schools ON measurements.athlete_id = athlete_schools.athlete_id AND measurements.school_id = athlete_schools.school_id JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id");
+  expect(direct[0]).toContain("athlete_schools.ended_at IS NULL");
+  expect(group[0]).toContain("JOIN athlete_schools ON measurements.athlete_id = athlete_schools.athlete_id AND measurements.school_id = athlete_schools.school_id");
+  expect(group[0]).toContain("athlete_schools.school_id = training_groups.school_id");
+  expect(group[0]).toContain("JOIN coach_group_assignments ON training_groups.id = coach_group_assignments.group_id");
+  expect(group[0]).toContain("athlete_schools.ended_at IS NULL");
 });
 
 test("no query of timing_measurements uses the coach ids that carry no school", () => {
@@ -42,10 +47,10 @@ test("no line of the file, quoted or elsewhere, reads measurements by the coach 
 });
 
 test("the admin query binds the school to the admin schools, not to the member ones", () => {
-  const admin = streamQueries.filter((query) => /\badmin_athlete_ids\b/.test(query));
+  const admin = streamQueries.filter((query) => /\bJOIN school_memberships\b/.test(query));
 
   expect(admin).toEqual([
-    "SELECT * FROM measurements WHERE athlete_id IN admin_athlete_ids AND hidden = false AND school_id IN admin_school_ids",
+    "SELECT measurements.* FROM measurements JOIN athlete_schools ON measurements.athlete_id = athlete_schools.athlete_id AND measurements.school_id = athlete_schools.school_id JOIN school_memberships ON athlete_schools.school_id = school_memberships.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.ended_at IS NULL AND measurements.hidden = false",
   ]);
   expect(admin[0]).not.toMatch(/member_school_ids/);
 });

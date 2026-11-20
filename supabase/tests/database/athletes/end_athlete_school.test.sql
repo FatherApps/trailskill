@@ -6,7 +6,7 @@
 -- A through group gA (a5), DA an admin of A whose membership is deactivated (a6), guardian G of X (a7), adult athlete AA
 -- of Y (a8), N with no role (a9), coach E of B with X direct in B (aa), admin AB of A and B (ab).
 -- Athletes: X in A and B (guardian G), Y in A (adult athlete AA), W in A only (control, never ended).
--- Groups: gA (c1) in A holds X, Y and W; gB (c2) in B holds X. Marks: m1 of X in A, m2 of X in B, m3 of W in A.
+-- Groups: gA (c1) in A holds X, Y and W; gB (c2) in B holds X. Marks (never shared with the guardian: the school shares them on request): m1 of X in A, m2 of X in B, m3 of W in A.
 -- All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -60,11 +60,11 @@ insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_
   (pg_temp.u('a4'), pg_temp.u('e1'), pg_temp.u('b1')), (pg_temp.u('a4'), pg_temp.u('e3'), pg_temp.u('b1')),
   (pg_temp.u('aa'), pg_temp.u('e1'), pg_temp.u('b2'));
 insert into public.measurements
-  (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, guardian_visible)
+  (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
 values
-  (pg_temp.u('f1'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('e1'), 3100, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 08:00:00+00', true),
-  (pg_temp.u('f2'), pg_temp.u('aa'), pg_temp.u('b2'), 'repetition', pg_temp.u('e1'), 3200, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-e', '2026-11-01 09:00:00+00', true),
-  (pg_temp.u('f3'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('e3'), 3300, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 10:00:00+00', true);
+  (pg_temp.u('f1'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('e1'), 3100, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 08:00:00+00'),
+  (pg_temp.u('f2'), pg_temp.u('aa'), pg_temp.u('b2'), 'repetition', pg_temp.u('e1'), 3200, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-e', '2026-11-01 09:00:00+00'),
+  (pg_temp.u('f3'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('e3'), 3300, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 10:00:00+00');
 
 select has_column('public', 'athlete_schools', 'ended_at', 'athlete_schools has ended_at');
 select has_column('public', 'athlete_schools', 'ended_by', 'athlete_schools has ended_by');
@@ -134,7 +134,7 @@ select is(pg_temp.seen(), 'athletes=e1,e3|schools=e1:b2,e3:b1|groups=e1:c2,e3:c1
 select pg_temp.as_user('aa');
 select is(pg_temp.seen(), 'athletes=e1|schools=e1:b2|groups=e1:c2|marks=f2', 'coach E of B still reads X through B');
 select pg_temp.as_user('a7');
-select is(pg_temp.seen(), 'athletes=e1|schools=e1:b1,e1:b2|groups=e1:c1,e1:c2|marks=f1,f2', 'the guardian still reads X, the ended link included');
+select is(pg_temp.seen(), 'athletes=e1|schools=e1:b1,e1:b2|groups=e1:c1,e1:c2|marks=', 'the guardian still reads X, the ended link included (school marks stay unshared by default)');
 select pg_temp.as_user('a8');
 select is(pg_temp.seen(), 'athletes=e2|schools=e2:b1|groups=e2:c1|marks=', 'the adult athlete still reads their own rows');
 
