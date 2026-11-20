@@ -67,7 +67,7 @@ describe('useAthleteDetails', () => {
 
   it('reads again when the category of an athlete changes and the groups stay the same', async () => {
     let categoryId = 'c1';
-    const links: AthleteSchoolRepository = { listByAthlete: async () => [{ schoolId: 's1', categoryId }] };
+    const links: AthleteSchoolRepository = { listByAthlete: async () => [{ schoolId: 's1', categoryId }], listActiveSchools: async () => ['s1'] };
     const withTwoCategories: AthleteStructure = {
       ...structure,
       listCategories: async () => [
@@ -112,6 +112,7 @@ describe('useAthleteDetails', () => {
         if (failing) throw error;
         return working.listByAthlete(athleteId);
       },
+      listActiveSchools: working.listActiveSchools,
     };
     const { result, rerender } = await renderAthleteDetails(links);
     await waitFor(() => expect(result.current).toEqual({ a1: { school: 'Dolphins', category: 'Under 12', group: 'Group A' } }));

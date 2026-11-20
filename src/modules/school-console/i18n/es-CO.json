@@ -78,6 +78,18 @@
       "category_missing": "Esa categoría ya no existe.",
       "athlete_school_missing": "El deportista no está en esta escuela.",
       "other": "No pudimos guardar la categoría. Inténtalo de nuevo."
+    },
+    "end_link": "Dar de baja a un nadador",
+    "end_confirm": {
+      "title": "¿Dar de baja a {{name}}?",
+      "message": "Tu escuela dejará de ver a {{name}} y sus datos. No se borra nada: la familia conserva los suyos. Esta acción no se puede deshacer desde la app.",
+      "confirm": "Dar de baja",
+      "cancel": "Cancelar"
+    },
+    "end_error": {
+      "not_allowed": "Solo un administrador de la escuela puede dar de baja a un nadador.",
+      "not_enrolled": "Este nadador ya no está en tu escuela.",
+      "other": "No pudimos dar de baja al nadador. Revisa la conexión e inténtalo de nuevo."
     }
   },
   "screen": {

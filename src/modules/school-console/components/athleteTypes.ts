@@ -42,6 +42,14 @@ export type CategoryChoice = {
   onChoose: (categoryId: string | null) => void;
 };
 
+// Ending the swimmer's link with the school (the «baja»): the confirmation is part of the detail, the call belongs to the caller.
+export type EndLink = {
+  // Already translated; `null` when there is nothing to say (never tried, or the last try worked).
+  error: string | null;
+  // Fires only after the admin confirmed.
+  onConfirm: () => void;
+};
+
 export type AthleteDetailData = {
   id: string;
   name: string;
@@ -58,6 +66,8 @@ export type AthleteDetailData = {
   categoryChoice?: CategoryChoice;
   // The guardian sharing controls (a container that reads and changes the choice); absent when the caller has no repository for them.
   guardianSharing?: ReactNode;
+  // Absent unless the caller can end the link (the school admin): the detail has no baja button.
+  endLink?: EndLink;
 };
 
 export type AthleteFilterId = 'category' | 'group' | 'coach';

@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime } from '../../../core/time';
-import { Banner, Button, Tag, TimeValue } from '../../../core/ui';
+import { Banner, Button, ConfirmSheet, Tag, TimeValue } from '../../../core/ui';
 import '../i18n';
 import { OptionRow } from './AthleteFilterOptions';
 import { LARGE_TEXT_SCALE, useTextScale } from './textScale';
@@ -32,6 +33,8 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
   const large = useTextScale() >= LARGE_TEXT_SCALE;
   const noData = t('schoolConsole.common.no_data');
   const choice = athlete.categoryChoice;
+  const endLink = athlete.endLink;
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
 
   return (
     <View style={{ gap: space[4] }}>
@@ -121,6 +124,25 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
         )}
       </View>
       {onViewProfile && <Button variant="secondary" label={t('schoolConsole.detail.view_profile')} onPress={onViewProfile} />}
+      {endLink && (
+        <View style={{ gap: space[2] }}>
+          {endLink.error && <Banner variant="warn" icon="error">{endLink.error}</Banner>}
+          <Button variant="stop" label={t('schoolConsole.detail.end_link')} onPress={() => setConfirmingEnd(true)} />
+          <ConfirmSheet
+            visible={confirmingEnd}
+            title={t('schoolConsole.detail.end_confirm.title', { name: athlete.name })}
+            message={t('schoolConsole.detail.end_confirm.message', { name: athlete.name })}
+            confirmLabel={t('schoolConsole.detail.end_confirm.confirm')}
+            cancelLabel={t('schoolConsole.detail.end_confirm.cancel')}
+            destructive
+            onConfirm={() => {
+              setConfirmingEnd(false);
+              endLink.onConfirm();
+            }}
+            onCancel={() => setConfirmingEnd(false)}
+          />
+        </View>
+      )}
     </View>
   );
 }
