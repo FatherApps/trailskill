@@ -18,6 +18,7 @@
 // - Icon used by the lima Today board (LPlanHoy, "Avisar algo al entrenador" button) (issue 480): chat_bubble.
 // - Icons used by the phone navigation bar (LPlanHoy, issue 777): timeline, fitness_center.
 // - Icon used by the round "+" button of VibDeportistas (issue 791): add.
+// - Icon of the Mis tiempos rows of a time with a video on this phone (issue TBD): videocam.
 // Every path uses the viewBox "0 -960 960 960".
 export const iconPaths = {
   timer:
@@ -97,6 +98,8 @@ export const iconPaths = {
   fitness_center:
     'm536-84-56-56 142-142-340-340-142 142-56-56 56-58-56-56 84-84-56-58 56-56 58 56 84-84 56 56 58-56 56 56-142 142 340 340 142-142 56 56-56 58 56 56-84 84 56 58-56 56-58-56-84 84-56-56-58 56Z',
   add: 'M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z',
+  videocam:
+    'M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h480q33 0 56.5 23.5T720-720v180l160-160v440L720-420v180q0 33-23.5 56.5T640-160H160Zm0-80h480v-480H160v480Zm0 0v-480 480Z',
 } as const;
 
 export type IconName = keyof typeof iconPaths;

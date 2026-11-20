@@ -335,10 +335,10 @@ function FilterButton({ active, onPress }: { active: number; onPress: () => void
   );
 }
 
-// A compact list row of two lines: the stroke badge, the event with its time of day or date, type, pool and lengths, and at the right the time
+// A compact list row of two lines: the camera badge of a time with its video on this phone, the stroke badge, the event with its time of day or date, type, pool and lengths, and at the right the time
 // with the best-time trophy or the «Oficial» tag. Touching the row opens the detail, where laps, edit, the official time, sharing and withdrawing live.
 function ListRow({ card, first, onOpenDetail }: { card: FamilyCard; first: boolean; onOpenDetail?: (id: string) => void }) {
-  const { colors, space, size, typography } = useTheme();
+  const { colors, radius, space, size, typography } = useTheme();
   const stroke = card.stroke && isStroke(card.stroke) ? card.stroke : null;
   // A row has one status line: a time the server rejected, or one sent to another family, takes the place of the usual one.
   const status = card.notSent
@@ -363,6 +363,14 @@ function ListRow({ card, first, onOpenDetail }: { card: FamilyCard; first: boole
         borderTopColor: colors.border,
       }}
     >
+      {card.video === 'available' && (
+        // A time with its video on this phone: a small camera in a circle the size of the stroke badge, before it.
+        <View
+          style={{ width: space[8], height: space[8], borderRadius: radius.full, backgroundColor: colors['surface-2'], alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Icon name="videocam" accessibilityLabel={t('family_timing.card.has_video')} />
+        </View>
+      )}
       {stroke && <StrokeIcon stroke={stroke} size="sm" decorative />}
       <View style={{ flex: 1 }}>
         <Text style={[typography.label, { color: colors.ink }]}>{card.title ?? card.event}</Text>
