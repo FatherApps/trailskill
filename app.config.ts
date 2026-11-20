@@ -50,6 +50,8 @@ const config: ExpoConfig = {
     'expo-secure-store',
     // Removes android:requestLegacyExternalStorage, which expo-media-library adds (#1173); keep it before that plugin.
     './plugins/without-legacy-external-storage',
+    // Camera, autofocus and microphone are optional hardware (#1291): without it Play would infer them as required from the permissions.
+    './plugins/optional-camera-microphone',
     // The individual stopwatch with video (#1088): saving the videos to the gallery. The camera and microphone
     // permissions come with the local module modules/video-recorder.
     // Write only (#1169): an empty granularPermissions (omitted means photo, video and audio) and no iOS read description.
