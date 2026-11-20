@@ -243,7 +243,7 @@ Read this before the steps. Each line is a fact checked in this repository or in
 | Sign-in by emailed code | Auth sends the code through Resend. This is **confirmed by Mario and the maintainer (2026-11-15)**: codes for `@example.test` stopped reaching Mailpit. The repository does not show it (the SMTP host is a redacted Dokploy variable). | Second sign-in path. Test it with a real address before inviting testers, step 4. |
 | Sign-in with Google | The maintainer verified authorize, provider, callback in the auth logs (see [`data-safety.md`](release/data-safety.md)). #84 (Google and Microsoft in the self-hosted auth) is still open. | Main sign-in path. Test it on the preview APK before building, step 4. |
 | Expo project | Exists: slug `swimcro`, owner `fatherapps-teams-co`. `app.config.ts` links it with `owner` and `extra.eas.projectId` (#1160). | Nothing to create. Step 2 keeps only the EAS variables. |
-| App name and package | Swimcro, `com.fatherapps.swimcro` (#1097). Logo and wordmark are pending (#1099). | The store listing can use the current icon; the graphics are the maintainer's. |
+| App name and package | Swimcro, `com.fatherapps.swimcro` (#1097). The official logo and wordmark landed in #1099, see [`design/README.md`](../design/README.md). | The store listing uses the official icon; the feature graphic and screenshots are the maintainer's. |
 | `expo.version` | `0.1.0` (the pilot stays on `0.y.z`, see [Versioning](#versioning)). The Android `versionCode` is still managed by EAS. | The first upload is `0.1.0`. |
 
 ### Before you start

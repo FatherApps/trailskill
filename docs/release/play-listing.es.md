@@ -67,7 +67,7 @@ Primera versión de prueba. Ingresa con tu cuenta de Google o con tu correo (rec
 
 | Recurso | Estado |
 | --- | --- |
-| Icono de la app (512 × 512) | PENDIENTE: exportar del icono oficial (`assets/icon.png`, ver `design/README.md`) |
+| Icono de la app (512 × 512) | LISTO: `design/assets/logos/swimcro-play-icon-512.png` (ver `design/README.md`) |
 | Gráfico de funciones (1024 × 500) | PENDIENTE: lo prepara el maintainer con el logo oficial |
 | Capturas de teléfono | PENDIENTE: usar datos sintéticos, nunca personas ni escuelas reales |
 | Capturas de tableta (consola de escuela) | PENDIENTE: ídem |
