@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 
 import { colors, radius, size, ThemeProvider } from '../../theme';
-import { ColorHeader, colorHeaderColors } from '../ColorHeader';
+import { backButtonColors } from '../BackButton';
+import { ColorHeader } from '../ColorHeader';
 
 // The test renderer drops '' before it reaches the tree; React Native's renderer throws on it. Record what each View is given instead.
 const mockStrayStrings: string[] = [];
@@ -72,7 +73,7 @@ describe('ColorHeader', () => {
     expect(style.minWidth).toBeGreaterThanOrEqual(size['target-min']);
     expect(style.minHeight).toBeGreaterThanOrEqual(size['target-min']);
     expect(style.borderRadius).toBe(radius.full);
-    expect(style.backgroundColor).toBe(colors.light[colorHeaderColors.backButton]);
+    expect(style.backgroundColor).toBe(colors.light[backButtonColors.background]);
 
     await fireEvent.press(back);
     expect(onBack).toHaveBeenCalledTimes(1);

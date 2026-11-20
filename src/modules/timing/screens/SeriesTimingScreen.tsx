@@ -1,10 +1,10 @@
-import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { breakpoint, useTheme } from '../../../core/theme';
 import { formatTime, type Hundredths } from '../../../core/time';
-import { Banner, Button, Icon, SyncStatus, Tag } from '../../../core/ui';
+import { BackButton, Banner, Button, Icon, SyncStatus, Tag } from '../../../core/ui';
 import { useLargeText } from '../components/ActionRow';
 import { ArrivalButton } from '../components/ArrivalButton';
 import { ArrivalList, type ArrivalListProps } from '../components/ArrivalList';
@@ -217,7 +217,7 @@ function PhoneSeries({
   onBack,
   ...rest
 }: SeriesTimingScreenProps) {
-  const { colors, space, radius, size, typography } = useTheme();
+  const { colors, space, radius, typography } = useTheme();
   const hasArrivals = arrivals.length > 0;
   const arrive = withTap(onArrival);
   const nextPosition = nextPositionOf(rest.running, arrivals.length);
@@ -226,21 +226,7 @@ function PhoneSeries({
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.header }}>
       <View style={{ flex: 1, gap: space[3], paddingHorizontal: space[4], paddingTop: space[2], paddingBottom: space[6] }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back')}
-            onPress={onBack}
-            style={{
-              minWidth: size['target-min'],
-              minHeight: size['target-min'],
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: radius.full,
-              backgroundColor: colors['surface-1'],
-            }}
-          >
-            <Icon name="arrow_back" />
-          </Pressable>
+          <BackButton onPress={onBack} />
           <View accessible accessibilityRole="header" accessibilityLabel={headingOf(rest)} style={{ flexShrink: 1 }}>
             <Tag label={headingOf(rest)} />
           </View>
