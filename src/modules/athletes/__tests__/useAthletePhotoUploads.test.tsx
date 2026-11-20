@@ -85,4 +85,18 @@ describe('useAthletePhotoUploads', () => {
     expect(photos.discardAll).not.toHaveBeenCalled();
     expect(photos.drain).not.toHaveBeenCalled();
   });
+
+  it('keeps the queue while a sign-out may still fail, and discards it once the session really ends', async () => {
+    const photos = service();
+    const { rerender } = await renderHook(() => useAthletePhotoUploads(photos));
+
+    // The session is hidden while the local database may still be emptying: it can come back.
+    mockSession.mockReturnValue({ session: null, signingOut: true });
+    await rerender({});
+    expect(photos.discardAll).not.toHaveBeenCalled();
+
+    mockSession.mockReturnValue({ session: null, signingOut: false });
+    await rerender({});
+    expect(photos.discardAll).toHaveBeenCalledTimes(1);
+  });
 });

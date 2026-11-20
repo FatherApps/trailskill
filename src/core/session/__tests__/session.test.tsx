@@ -2,7 +2,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-li
 import { Text } from 'react-native';
 
 import { db, SupabaseConnector } from '../../sync';
-import { CodeMismatchError, SessionProvider, signOutDecision, useSession } from '../SessionProvider';
+import { CodeMismatchError, LOCAL_STEP_TIMEOUT_MS, SessionProvider, signOutDecision, useSession } from '../SessionProvider';
 
 const mockCalls: string[] = [];
 let mockUnsent: Promise<number>;
@@ -16,6 +16,12 @@ let mockAuthCallback: (event: string, session: unknown) => void = () => {};
 let mockOwner: string | null;
 let mockOwnerError: Error | undefined;
 let mockClearError: Error | undefined;
+// The local database never answers: clearing it neither succeeds nor fails.
+let mockClearHangs = false;
+// The next clear waits on this promise (once): it can end late, successfully or not.
+let mockClearGate: Promise<void> | undefined;
+// The stored session is never read: supabase-js never delivers INITIAL_SESSION.
+let mockRestoreHangs = false;
 const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
 const mockSetSessionUser = jest.fn();
 const mockSignInWithOtp = jest.fn();
@@ -60,6 +66,13 @@ jest.mock('../../sync', () => ({
     connect: jest.fn(() => mockConnect()),
     disconnect: jest.fn(async () => mockCalls.push('db.disconnect')),
     disconnectAndClear: jest.fn(async () => {
+      if (mockClearHangs) return new Promise<void>(() => {});
+      if (mockClearGate) {
+        const gate = mockClearGate;
+        mockClearGate = undefined;
+        mockCalls.push('db.disconnectAndClear:started');
+        return gate;
+      }
       if (mockClearError) throw mockClearError;
       mockCalls.push('db.disconnectAndClear');
       mockUnsent = Promise.resolve(0);
@@ -69,7 +82,7 @@ jest.mock('../../sync', () => ({
     auth: {
       onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
         mockAuthCallback = callback;
-        callback('INITIAL_SESSION', mockInitialSession);
+        if (!mockRestoreHangs) callback('INITIAL_SESSION', mockInitialSession);
         return { data: { subscription: { unsubscribe: jest.fn() } } };
       },
       signInWithOtp: (...args: unknown[]) => mockSignInWithOtp(...args),
@@ -90,6 +103,9 @@ beforeEach(() => {
   mockOwner = 'coach-1';
   mockOwnerError = undefined;
   mockClearError = undefined;
+  mockClearHangs = false;
+  mockClearGate = undefined;
+  mockRestoreHangs = false;
   mockUnsent = Promise.resolve(0);
   mockRejected = 0;
   mockOwnerWriteError = undefined;
@@ -820,6 +836,222 @@ describe('local data on a shared phone', () => {
 
     expect(await screen.findByText('signed-in')).toBeOnTheScreen();
     expect(mockOwner).toBe('coach-1');
+  });
+});
+
+describe('a local database that does not answer', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  const giveUp = () => act(async () => void jest.advanceTimersByTime(LOCAL_STEP_TIMEOUT_MS + 1));
+
+  it('lets another account in after a sign-out whose clear never ended: it fails visibly, then the other account works', async () => {
+    const other = { access_token: 'token-2', user: { id: 'coach-2' } };
+    const session = await renderSession();
+    mockClearHangs = true;
+
+    // The sign-out ends as an error the person sees, and the signed-in screens are gone while the database may still be emptying.
+    let failed: unknown;
+    await act(async () => {
+      failed = session.current.signOut().then(() => 'resolved', (error: Error) => error.message);
+    });
+    await giveUp();
+    expect(await failed).toMatch(/timed out/);
+    expect(session.current.session).toBeNull();
+
+    // Another account signs in on the same phone: it reaches its own session and owns the local data.
+    mockClearHangs = false;
+    mockCalls.length = 0;
+    await act(async () => mockAuthCallback('SIGNED_IN', other));
+
+    await waitFor(() => expect(session.current.session).toBe(other));
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnect', 'connector.cancelWaits', 'db.disconnectAndClear', 'owner=coach-2', 'db.connect']);
+    expect(mockOwner).toBe('coach-2');
+  });
+
+  it('rejects a sign-out whose unsent count never ends, keeping the session', async () => {
+    const session = await renderSession();
+    mockUnsent = new Promise(() => {});
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = session.current.signOut().then(() => 'resolved', (error: Error) => error.message);
+    });
+    await giveUp();
+
+    expect(await outcome).toMatch(/timed out/);
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('shows the sign-in when the stored session is never read, and the session if it arrives late', async () => {
+    mockRestoreHangs = true;
+    await renderProbe();
+    expect(screen.queryByText('signed-out')).toBeNull();
+
+    await giveUp();
+
+    expect(await screen.findByText('signed-out')).toBeOnTheScreen();
+    expect(JSON.stringify(jest.mocked(console.warn).mock.calls)).toContain('[session]');
+
+    await act(async () => mockAuthCallback('INITIAL_SESSION', mockSignedIn));
+    expect(await screen.findByText('signed-in')).toBeOnTheScreen();
+  });
+
+  it('shows the session error, not a blank screen, when clearing another owner\'s data never ends', async () => {
+    mockOwner = 'coach-0';
+    mockClearHangs = true;
+    await renderProbe();
+
+    await giveUp();
+
+    expect(await screen.findByText('No pudimos abrir los datos del teléfono')).toBeOnTheScreen();
+    expect(screen.queryByText('signed-in')).toBeNull();
+    expect(mockOwner).toBe('coach-0');
+  });
+
+  it('shows the session error when counting the unsent records never ends', async () => {
+    mockOwner = 'coach-0';
+    mockUnsent = new Promise(() => {});
+    await renderProbe();
+
+    await giveUp();
+
+    expect(await screen.findByText('No pudimos abrir los datos del teléfono')).toBeOnTheScreen();
+  });
+
+  it('lets the person retry, or sign out, from that error', async () => {
+    mockOwner = 'coach-0';
+    mockClearHangs = true;
+    await renderProbe();
+    await giveUp();
+    await screen.findByText('No pudimos abrir los datos del teléfono');
+
+    mockClearHangs = false;
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(await screen.findByText('signed-in')).toBeOnTheScreen();
+    expect(mockOwner).toBe('coach-1');
+  });
+
+  it('logs the failed step without anything about the person', async () => {
+    mockOwner = 'coach-0';
+    mockClearHangs = true;
+    await renderProbe();
+
+    await giveUp();
+    await screen.findByText('No pudimos abrir los datos del teléfono');
+
+    const logged = JSON.stringify(jest.mocked(console.warn).mock.calls);
+    expect(logged).toContain('[session]');
+    expect(logged).not.toContain('coach');
+  });
+
+  it('rejects a sign-out whose clearing never ends and keeps the app from writing meanwhile', async () => {
+    const session = await renderSession();
+    mockClearHangs = true;
+    mockCalls.length = 0;
+    mockSetSessionUser.mockClear();
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = session.current.signOut().then(() => 'resolved', (error: Error) => error.message);
+    });
+    await giveUp();
+
+    expect(await outcome).toMatch(/timed out/);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    // The database may still be emptying: no screen of the signed-in person is shown, and no write is accepted for them.
+    expect(session.current.session).toBeNull();
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith(undefined);
+  });
+
+  // A sign-out whose clear passed the limit; `settle` ends that clear late.
+  async function signOutWithLateClear() {
+    let settle: { resolve: () => void; reject: (error: Error) => void } = { resolve: () => {}, reject: () => {} };
+    const session = await renderSession();
+    mockClearGate = new Promise<void>((resolve, reject) => (settle = { resolve, reject }));
+    mockCalls.length = 0;
+    mockSetSessionUser.mockClear();
+    let outcome: unknown;
+    await act(async () => {
+      outcome = session.current.signOut().then(() => 'resolved', (error: Error) => error.message);
+    });
+    await giveUp();
+    expect(await outcome).toMatch(/timed out/);
+    return { session, settle };
+  }
+
+  it('finishes the sign-out when a clear that passed the limit ends well, with no write in between', async () => {
+    mockSignOut.mockImplementation(async () => {
+      mockCalls.push('auth.signOut');
+      mockAuthCallback('SIGNED_OUT', null);
+      return { error: null };
+    });
+    const { session, settle } = await signOutWithLateClear();
+
+    // While the clear runs: nobody is signed in for the screens, writes are refused, nothing else touches the database.
+    expect(session.current.session).toBeNull();
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith(undefined);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear:started']);
+
+    await act(async () => settle.resolve());
+
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' }));
+    expect(session.current.session).toBeNull();
+    expect(mockCalls).not.toContain('db.connect');
+    expect(mockSetSessionUser).not.toHaveBeenCalledWith('coach-1');
+  });
+
+  it('gives the session and the sync back when a clear that passed the limit then fails', async () => {
+    const { session, settle } = await signOutWithLateClear();
+    expect(session.current.session).toBeNull();
+
+    await act(async () => settle.reject(new Error('disk full')));
+
+    await waitFor(() => expect(session.current.session).toBe(mockSignedIn));
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith('coach-1');
+    expect(mockCalls).toContain('db.connect');
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('keeps refusing writes through a token refresh while the late clear runs, and says a sign-out is finishing', async () => {
+    const { session } = await signOutWithLateClear();
+
+    await act(async () => mockAuthCallback('TOKEN_REFRESHED', mockSignedIn));
+
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith(undefined);
+    expect(session.current.signingOut).toBe(true);
+  });
+
+  it('reconnects the sync when the clear of a sign-out fails before the limit', async () => {
+    const session = await renderSession();
+    mockClearError = new Error('disk full');
+    mockCalls.length = 0;
+
+    await act(async () => {
+      await expect(session.current.signOut()).rejects.toThrow('disk full');
+    });
+
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.connect']);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(session.current.session).toBe(mockSignedIn);
+  });
+
+  it('leaves a new sign-in alone when the late clear of the earlier sign-out ends', async () => {
+    const other = { access_token: 'token-2', user: { id: 'coach-2' } };
+    const { settle } = await signOutWithLateClear();
+
+    await act(async () => mockAuthCallback('SIGNED_IN', other));
+    await act(async () => settle.resolve());
+
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 });
 

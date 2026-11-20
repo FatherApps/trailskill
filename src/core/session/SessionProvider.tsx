@@ -14,6 +14,24 @@ import { Button, ConfirmSheet, StateView } from '../ui';
 // The id of the user whose data the local database holds. SecureStore keys allow only letters, digits, ".", "-" and "_".
 const LOCAL_OWNER_KEY = 'trailskill-local-owner';
 
+// Longest a local step (reading the owner, counting unsent records, clearing the database) may take before the person is told.
+export const LOCAL_STEP_TIMEOUT_MS = 20_000;
+
+class LocalStepTimeoutError extends Error {
+  constructor(readonly step: string) {
+    super(`The local step "${step}" timed out`);
+    this.name = 'LocalStepTimeoutError';
+  }
+}
+
+// A local step that never answers must end as a failure the person can see, not as a screen that never draws.
+function withTimeout<T>(step: string, work: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new LocalStepTimeoutError(step)), LOCAL_STEP_TIMEOUT_MS);
+    work.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+}
+
 /** `azure` is how Supabase names Microsoft. */
 export type AuthProvider = 'google' | 'azure';
 
@@ -36,6 +54,8 @@ type SessionValue = {
   /** Trades the code of a provider link that reached the app with no sign-in waiting for it. A no-op when one is. */
   resumeProviderSignIn(code: string): Promise<void>;
   signOut(options?: { force?: boolean }): Promise<SignOutResult>;
+  /** A sign-out whose clear passed the time limit is finishing: `session` is hidden but may come back if the clear fails. */
+  signingOut: boolean;
 };
 
 /** The emailed code is wrong or expired; the server reports both the same way. */
@@ -50,6 +70,11 @@ function logFailure(error: unknown) {
   if (__DEV__) console.error('[session] Could not finish the provider sign-in', authFailureSummary(error));
 }
 
+// Which step failed, never why: an error message can carry the email or a path.
+function logLocalFailure(error: unknown) {
+  console.warn('[session] A local data step failed', error instanceof LocalStepTimeoutError ? { step: error.step } : authFailureSummary(error));
+}
+
 export function signOutDecision(pendingCount: number, force: boolean): 'proceed' | 'blocked_pending' {
   return pendingCount > 0 && !force ? 'blocked_pending' : 'proceed';
 }
@@ -59,6 +84,18 @@ const SessionContext = createContext<SessionValue | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [restored, setRestored] = useState(false);
+  // The stored session was not delivered in time: the sign-in shows, and the session still takes over if it arrives later.
+  const [restoreTimedOut, setRestoreTimedOut] = useState(false);
+  // A sign-out cleared the local database past the time limit, and that clear may still end: nothing is shown or written meanwhile.
+  const [clearPending, setClearPending] = useState(false);
+  // Read by the auth listener, which must not give writes back to the person while the clear runs.
+  const holdWrites = useRef(false);
+  // The user now, for work that ends after a render (a late clear) and must not act on someone who signed in since.
+  const userIdRef = useRef<string>(undefined);
+  const setHold = useCallback((on: boolean) => {
+    holdWrites.current = on;
+    setClearPending(on);
+  }, []);
   // Keyed on the user, so a failure never carries over to the next person.
   const [syncFailedFor, setSyncFailedFor] = useState<string>();
   // The user whose local data may be shown, and the user blocked by another person's unsent records.
@@ -89,12 +126,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
       if (event === 'INITIAL_SESSION') restoredUserId.current = next?.user.id;
       // Right away, not after a render: a write in flight checks it as it commits.
-      setSessionUser(next?.user.id);
+      userIdRef.current = next?.user.id;
+      setSessionUser(holdWrites.current ? undefined : next?.user.id);
       setSession(next);
       setRestored(true);
     });
     return () => data.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (restored) return;
+    const timer = setTimeout(() => {
+      logLocalFailure(new LocalStepTimeoutError('restore session'));
+      setRestoreTimedOut(true);
+    }, LOCAL_STEP_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [restored]);
 
   // Keyed on the user, not the session object: token refreshes must not reconnect.
   const userId = session?.user.id;
@@ -103,19 +150,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let current = true;
     (async () => {
       // PowerSync never connects for a user other than the owner of the local data: another owner's data is cleared first.
-      const owner = await SecureStore.getItemAsync(LOCAL_OWNER_KEY);
+      const owner = await withTimeout('read owner', SecureStore.getItemAsync(LOCAL_OWNER_KEY));
       if (owner === null && userId === restoredUserId.current) {
         // Data stored before owners were recorded belongs to the session that was already signed in.
-        await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
+        await withTimeout('save owner', SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId));
       } else if (owner !== userId) {
         // Any other unknown owner (first run, or a new sign-in over old data) counts as another person.
-        if ((await countUnsentRecords()).unsent > 0) {
+        if ((await withTimeout('count unsent records', countUnsentRecords())).unsent > 0) {
           if (current) setBlockedFor(userId);
           return;
         }
         connector.cancelWaits();
-        await db.disconnectAndClear();
-        await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
+        await withTimeout('clear local database', db.disconnectAndClear());
+        await withTimeout('save owner', SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId));
       }
       // Ignore a result that arrives after the user changed.
       if (!current) return;
@@ -125,13 +172,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (__DEV__) console.warn('[sync] Could not connect to the sync service', error);
         if (current) setSyncFailedFor(userId);
       });
-    })().catch(() => {
-      // SecureStore or the local database failed before the data could be shown: nothing is shown or connected until a retry.
+    })().catch((error: unknown) => {
+      // SecureStore or the local database failed or never answered before the data could be shown: nothing is shown or connected until a retry.
+      logLocalFailure(error);
       if (current) setCheckFailedFor(userId);
     });
     return () => {
       current = false;
       // The next check starts from scratch, so an earlier result never shows a screen for this run.
+      // Another person (or nobody) now: a late clear of the earlier sign-out no longer hides anything of theirs.
+      setHold(false);
       setReadyFor(undefined);
       setBlockedFor(undefined);
       setCheckFailedFor(undefined);
@@ -140,7 +190,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       connector.cancelWaits();
       db.disconnect().catch(() => {});
     };
-  }, [userId, check, connector]);
+  }, [userId, check, connector, setHold]);
   const syncConnectFailed = userId !== undefined && syncFailedFor === userId;
   const ready = userId !== undefined && readyFor === userId;
   const previousUserPending = userId !== undefined && blockedFor === userId;
@@ -158,10 +208,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let cleared = false;
     try {
       connector.cancelWaits();
-      await db.disconnectAndClear();
+      await withTimeout('clear local database', db.disconnectAndClear());
       cleared = true;
-      await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
-    } catch {
+      await withTimeout('save owner', SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId));
+    } catch (error) {
+      logLocalFailure(error);
       // The sheet stays open with the failure, so the person can try again or go back to the previous person.
       // An earlier attempt may have cleared already: a later failure before clearing does not bring the records back.
       const alreadyCleared = discardFailure?.userId === userId && discardFailure.cleared;
@@ -257,31 +308,87 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await tradeCode(code);
   }, [tradeCode]);
 
+  // 'local' ends only this device's session. Offline, supabase-js still drops the stored session and returns an error:
+  // only a session that is still stored means the sign-out failed.
+  const endSession = useCallback(async () => {
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error && (await supabase.auth.getSession()).data.session) throw error;
+  }, []);
+
+  // A failed clear leaves the sync disconnected (clearing disconnects first): the person stays signed in, so it connects again.
+  const reconnectSync = useCallback((forUser: string) => {
+    if (supabaseConfigError) return;
+    db.connect(connector, connectOptions).catch((error: unknown) => {
+      if (__DEV__) console.warn('[sync] Could not connect to the sync service', error);
+      setSyncFailedFor(forUser);
+    });
+  }, [connector]);
+
+  // The clear passed the time limit but may still end, and the person must not keep using the app while the database empties:
+  // no screen and no write for them until it ends. It ending well completes the sign-out; failing gives everything back.
+  const finishLateClear = useCallback((clearing: Promise<void>, startedFor: string | undefined) => {
+    setHold(true);
+    setSessionUser(undefined);
+    const giveBack = () => {
+      if (startedFor !== undefined && userIdRef.current === startedFor) {
+        setSessionUser(startedFor);
+        reconnectSync(startedFor);
+      }
+      setHold(false);
+    };
+    clearing.then(
+      async () => {
+        // Someone else signed in meanwhile: that session is not this sign-out's to end.
+        if (userIdRef.current !== startedFor) return setHold(false);
+        try {
+          await endSession();
+          setHold(false);
+        } catch (error) {
+          logLocalFailure(error);
+          giveBack();
+        }
+      },
+      (error: unknown) => {
+        logLocalFailure(error);
+        giveBack();
+      },
+    );
+  }, [endSession, reconnectSync, setHold]);
+
   const signOut = useCallback(async (options?: { force?: boolean }): Promise<SignOutResult> => {
     // Awaits the real count: the sync hook reports 0 until its first query lands.
-    const { unsent, rejected } = await countUnsentRecords();
+    const { unsent, rejected } = await withTimeout('count unsent records', countUnsentRecords()).catch((error: unknown) => {
+      logLocalFailure(error);
+      throw error;
+    });
     if (signOutDecision(unsent, options?.force ?? false) === 'blocked_pending') {
       return { status: 'blocked_pending', unsent, rejected };
     }
     // Clear first, so the next person on a shared phone starts with an empty local database.
     connector.cancelWaits();
-    await db.disconnectAndClear();
-    // 'local' ends only this device's session. Offline, supabase-js still drops the stored session and returns an error:
-    // only a session that is still stored means the sign-out failed.
-    const { error } = await supabase.auth.signOut({ scope: 'local' });
-    if (error && (await supabase.auth.getSession()).data.session) throw error;
+    const startedFor = userIdRef.current;
+    const clearing = db.disconnectAndClear();
+    try {
+      await withTimeout('clear local database', clearing);
+    } catch (error) {
+      logLocalFailure(error);
+      if (error instanceof LocalStepTimeoutError) finishLateClear(clearing, startedFor);
+      else if (startedFor !== undefined) reconnectSync(startedFor);
+      throw error;
+    }
+    await endSession();
     return { status: 'signed_out' };
-  }, [connector]);
+  }, [connector, endSession, finishLateClear, reconnectSync]);
 
-  const visibleSession = ready ? session : null;
+  const visibleSession = ready && !clearPending ? session : null;
   const value = useMemo(
-    () => ({ session: visibleSession, syncConnectFailed, configError: supabaseConfigError, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut }),
-    [visibleSession, syncConnectFailed, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut],
+    () => ({ session: visibleSession, syncConnectFailed, configError: supabaseConfigError, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut, signingOut: clearPending }),
+    [visibleSession, syncConnectFailed, clearPending, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut],
   );
 
-  // Render nothing until the stored session and the owner of the local data are known,
-  // so a signed-in person never sees the sign-in screen flash.
-  if (!restored || checking) return null;
+  // Render nothing until the stored session and the owner of the local data are known (each for at most
+  // LOCAL_STEP_TIMEOUT_MS), so a signed-in person never sees the sign-in screen flash.
+  if ((!restored && !restoreTimedOut) || checking) return null;
   if (checkFailed) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', padding: space[4], gap: space[3], backgroundColor: colors['surface-0'] }}>
