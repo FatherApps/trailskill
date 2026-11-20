@@ -42,7 +42,7 @@ const stopped = () => ({
   text: [
     'Hola,',
     '',
-    'Detuvimos la eliminación de tu cuenta porque una escuela vinculó de nuevo a un nadador a tu cuenta.',
+    'Detuvimos la eliminación de tu cuenta porque una escuela volvió a vincularte a ti o a un nadador que administras.',
     'No se eliminó nada y tu cuenta sigue activa.',
     '',
     'Equipo Swimcro',

@@ -7,7 +7,7 @@
 -- co-guardians M1 (marks) and M2 (does not) of swimmer Y, who is in no school. All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(46);
+select plan(48);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('12440000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -95,6 +95,8 @@ select throws_ok($$select public.confirm_account_deletion(pg_temp.u('f4'), '0000
 select throws_ok($$select public.cancel_account_deletion(pg_temp.u('f4'))$$, '42501', null, 'a signed-in user cannot call cancel');
 select throws_ok($$select public.erase_account(gen_random_uuid())$$, '42501', null, 'a signed-in user cannot call erase_account');
 select is(public.account_deletion_status(), null::timestamptz, 'account_deletion_status is null for an account that is not marked');
+select throws_ok($$select app.account_marked_for_deletion(pg_temp.u('f1'))$$, '42501', null, 'a signed-in user cannot ask whether another account is marked');
+select is(app.own_account_marked_for_deletion(), false, 'but the policies of Storage ask for their own account');
 select pg_temp.as_user('f1');
 select isnt(public.account_deletion_status(), null::timestamptz, 'account_deletion_status answers the date of the marked account');
 reset role;

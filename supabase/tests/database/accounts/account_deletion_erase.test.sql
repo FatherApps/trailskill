@@ -7,7 +7,7 @@
 -- S5 (R only), S6 (FL only).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(54);
+select plan(55);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('12450000-0000-4000-8000-0000000000' || $1)::uuid $$;
 -- Marks a user: the code goes through the real functions, then the day is moved to the past (or where asked).
@@ -29,6 +29,8 @@ insert into public.schools (id, name) values (pg_temp.u('c1'), 'Erase School');
 insert into public.school_memberships (school_id, user_id, role) values
   (pg_temp.u('c1'), pg_temp.u('e3'), 'coach'), (pg_temp.u('c1'), pg_temp.u('e8'), 'school_admin');
 update public.school_memberships set deactivated_at = now() where user_id = pg_temp.u('e3');
+insert into public.coach_invitations (created_by, school_id, email, status, expires_at, accepted_at, accepted_by)
+values (pg_temp.u('e8'), pg_temp.u('c1'), 'coach-dc@example.test', 'accepted', now() + interval '1 day', now(), pg_temp.u('e3'));
 insert into public.adult_profiles (user_id, first_name, last_name) values (pg_temp.u('e1'), 'Erase', 'Guardian');
 insert into public.athletes (id, first_name, last_name, created_by) values
   (pg_temp.u('d1'), 'Solo', 'One', pg_temp.u('e1')), (pg_temp.u('d2'), 'Marker', 'Two', pg_temp.u('e1')),
@@ -123,6 +125,7 @@ select is((select counts ->> 'athletes_anonymized' from public.account_deletion_
 select is((public.erase_account(pg_temp.id_of('dc')) ->> 'status'), 'deleted', 'a deactivated coach is deleted');
 select is((select created_by from public.measurements where id = pg_temp.u('f2')), null::uuid, 'the school''s time stays with a null author');
 select is((select count(*) from auth.users where id = pg_temp.u('e3')), 0::bigint, 'the coach is gone');
+select is((select count(*) from public.coach_invitations where email = 'coach-dc@example.test' or accepted_by = pg_temp.u('e3')), 0::bigint, 'and the invitation they accepted: no address is kept');
 
 -- 7. Idempotence: a second run does nothing and does not write a second audit row.
 select is((public.erase_account(pg_temp.id_of('e')) ->> 'status'), 'skipped', 'running it again is skipped');

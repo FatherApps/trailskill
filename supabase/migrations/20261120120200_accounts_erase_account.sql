@@ -170,6 +170,11 @@ begin
   end if;
   u := r.user_id;
 
+  -- Lock the swimmers and memberships the rule reads, so a school cannot link one between the check below and the deletes
+  -- (the foreign key of that insert waits for this lock, then fails once the swimmer is gone).
+  perform a.id from public.athletes a where a.id in (select m.athlete_id from public.athlete_managers m where m.user_id = u) order by a.id for update;
+  perform 1 from public.school_memberships sm where sm.user_id = u for update;
+
   -- The rule again, on the day: a school may have linked the swimmer (or the user) again during the grace period.
   blockers := app.account_deletion_blockers(u);
   if blockers is not null then
@@ -280,7 +285,8 @@ begin
   delete from public.coach_group_assignments c where c.coach_user_id = u;
   delete from public.coach_athlete_assignments c where c.coach_user_id = u;
   delete from public.school_invitations i where i.created_by = u;
-  delete from public.coach_invitations i where i.created_by = u;
+  -- A coach invitation keeps the address it was sent to: the ones the user created or accepted (or sent to their address) go.
+  delete from public.coach_invitations i where i.created_by = u or i.accepted_by = u or lower(i.email) = lower(r.email);
   perform app.erasure_guard_off('public.school_result_sharing'::regclass);
   delete from public.school_result_sharing s where s.requested_by = u or s.approved_by = u or s.withdrawn_by = u;
   delete from public.athlete_managers m where m.user_id = u;
@@ -293,7 +299,7 @@ begin
     'training_plan_assignments.created_by', 'training_plan_fulfillments.created_by', 'training_plan_notices.created_by',
     'timing_guardian_shared_measurements.shared_by', 'timing_guardian_sharing.updated_by',
     'timing_guardian_sharing_defaults.updated_by', 'athlete_groups.created_by', 'athlete_schools.created_by',
-    'athletes.created_by', 'coach_group_assignments.created_by', 'coach_athlete_assignments.created_by',
+    'athletes.created_by', 'athlete_photos.created_by', 'coach_group_assignments.created_by', 'coach_athlete_assignments.created_by',
     'school_memberships.created_by'
   ] loop
     authored_emptied := authored_emptied + app.erasure_null_author(

@@ -3,7 +3,7 @@
 -- one scheduled worker exists). Nothing here fails a deploy: without pg_cron, without pg_net or without the two secrets it does
 -- nothing, and accounts that are due stay marked and blocked until it runs.
 --
--- The maintainer creates two Vault secrets by hand (docs/deploy/prod-supabase-runbook.md): accounts_worker_url (the function URL)
+-- The maintainer creates two Vault secrets by hand (and a third, accounts_worker_jwt, when the functions service verifies JWTs) (docs/deploy/prod-supabase-runbook.md): accounts_worker_url (the function URL)
 -- and accounts_worker_secret (the same value as ACCOUNTS_WORKER_SECRET in the functions service). pg_net sends the secret in
 -- x-worker-secret; the function compares it before doing anything.
 
@@ -16,16 +16,24 @@ as $$
 declare
   worker_url text;
   worker_secret text;
+  worker_jwt text;
+  request_headers jsonb;
 begin
   select s.decrypted_secret into worker_url from vault.decrypted_secrets s where s.name = 'accounts_worker_url';
   select s.decrypted_secret into worker_secret from vault.decrypted_secrets s where s.name = 'accounts_worker_secret';
+  -- Optional: a stack that verifies JWTs for every function (FUNCTIONS_VERIFY_JWT=true) needs a bearer token for the call to arrive.
+  select s.decrypted_secret into worker_jwt from vault.decrypted_secrets s where s.name = 'accounts_worker_jwt';
   if coalesce(worker_url, '') = '' or coalesce(worker_secret, '') = '' then
     raise warning 'accounts deletion worker is not configured (vault secrets missing)';
     return;
   end if;
+  request_headers := jsonb_build_object('Content-Type', 'application/json', 'x-worker-secret', worker_secret);
+  if coalesce(worker_jwt, '') <> '' then
+    request_headers := request_headers || jsonb_build_object('Authorization', 'Bearer ' || worker_jwt);
+  end if;
   perform net.http_post(
     url := worker_url,
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-worker-secret', worker_secret),
+    headers := request_headers,
     body := '{}'::jsonb,
     timeout_milliseconds := 60000
   );

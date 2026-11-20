@@ -35,20 +35,22 @@ revoke execute on function app.grant_account_sync_access() from public, anon, au
 create trigger account_sync_access_for_new_user after insert on auth.users
   for each row execute function app.grant_account_sync_access();
 
--- A pending request blocks the sync; any other state of the request (or no request) gives it back to an existing user.
+-- The state of the user decides, never the row that was touched: an old stopped or deleted request that a worker updates or deletes
+-- must not give the sync back to a user who has another request pending. A user that exists and has no pending request may sync.
 create function app.sync_access_follows_deletion_request()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  account uuid := case when tg_op = 'DELETE' then old.user_id else new.user_id end;
 begin
-  if tg_op <> 'DELETE' and new.status = 'pending' then
-    delete from public.account_sync_access a where a.user_id = new.user_id;
-  end if;
-  if tg_op = 'DELETE' or new.status <> 'pending' then
+  if exists (select 1 from public.account_deletion_requests r where r.user_id = account and r.status = 'pending') then
+    delete from public.account_sync_access a where a.user_id = account;
+  else
     insert into public.account_sync_access (user_id)
-    select u.id from auth.users u where u.id = case when tg_op = 'DELETE' then old.user_id else new.user_id end
+    select u.id from auth.users u where u.id = account
     on conflict do nothing;
   end if;
   return null;

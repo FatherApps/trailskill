@@ -3,7 +3,7 @@
 -- Clients have no access to the table. All users are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(15);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('12460000-0000-4000-8000-0000000000' || $1)::uuid $$;
 
@@ -30,6 +30,17 @@ update public.account_deletion_requests set status = 'stopped' where user_id = p
 select is((select count(*) from public.account_sync_access where user_id = pg_temp.u('a1')), 1::bigint, 'a stopped request gives it back');
 delete from public.account_deletion_requests where user_id = pg_temp.u('a1');
 select is((select count(*) from public.account_sync_access where user_id = pg_temp.u('a1')), 1::bigint, 'closing the request keeps it');
+
+-- An old stopped request that a worker touches (the final email) must not give the sync back to a user marked again.
+insert into auth.users (id, email) values (pg_temp.u('a3'), 'sync-3@example.test');
+select pg_temp.mark('a3');
+update public.account_deletion_requests set status = 'stopped' where user_id = pg_temp.u('a3');
+select pg_temp.mark('a3');
+select is((select count(*) from public.account_sync_access where user_id = pg_temp.u('a3')), 0::bigint, 'marked again after a stopped request: no row');
+select public.claim_account_deletion_mail();
+select public.finish_account_deletion_mail((select id from public.account_deletion_requests where user_id = pg_temp.u('a3') and status = 'stopped'), 'stopped');
+select is((select count(*) from public.account_sync_access where user_id = pg_temp.u('a3')), 0::bigint, 'the final email of the old request does not give it back');
+select public.cancel_account_deletion(pg_temp.u('a3'));
 
 -- The day-30 erase removes the user and the row with it, and the closing of the request does not bring a row back.
 select pg_temp.mark('a2');

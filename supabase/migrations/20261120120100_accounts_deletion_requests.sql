@@ -79,8 +79,23 @@ as $$
   select exists (select 1 from public.account_deletion_requests r where r.user_id = account and r.status = 'pending');
 $$;
 
-revoke execute on function app.account_marked_for_deletion(uuid) from public, anon;
-grant execute on function app.account_marked_for_deletion(uuid) to authenticated, service_role;
+-- Any user id: only the definer functions (the write guard) and service_role ask it, never a client (it would tell anybody whether
+-- another account is marked). The policies of Storage use the variant below, which only answers for the caller.
+revoke execute on function app.account_marked_for_deletion(uuid) from public, anon, authenticated;
+grant execute on function app.account_marked_for_deletion(uuid) to service_role;
+
+create function app.own_account_marked_for_deletion()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select app.account_marked_for_deletion((select auth.uid()));
+$$;
+
+revoke execute on function app.own_account_marked_for_deletion() from public, anon;
+grant execute on function app.own_account_marked_for_deletion() to authenticated, service_role;
 
 -- The write guard of a marked account. A trigger, not only row level security, because the security definer functions the app
 -- calls (create_managed_athlete, accept_invitation, the share codes, ...) skip policies and a trigger still sees the caller.
@@ -135,12 +150,12 @@ $$;
 
 -- Photo files go through the Storage API, not through a table: the same refusal as a restrictive policy.
 create policy account_marked_refuses_photo_insert on storage.objects as restrictive for insert to authenticated
-  with check (bucket_id <> 'athlete-photos' or not app.account_marked_for_deletion());
+  with check (bucket_id <> 'athlete-photos' or not app.own_account_marked_for_deletion());
 create policy account_marked_refuses_photo_update on storage.objects as restrictive for update to authenticated
-  using (bucket_id <> 'athlete-photos' or not app.account_marked_for_deletion())
-  with check (bucket_id <> 'athlete-photos' or not app.account_marked_for_deletion());
+  using (bucket_id <> 'athlete-photos' or not app.own_account_marked_for_deletion())
+  with check (bucket_id <> 'athlete-photos' or not app.own_account_marked_for_deletion());
 create policy account_marked_refuses_photo_delete on storage.objects as restrictive for delete to authenticated
-  using (bucket_id <> 'athlete-photos' or not app.account_marked_for_deletion());
+  using (bucket_id <> 'athlete-photos' or not app.own_account_marked_for_deletion());
 
 -- Why a user may not delete: a platform admin (support does it), an active school_admin or coach membership, or a swimmer they
 -- manage that is still active in a school. null when nothing blocks. The schools are named so the screen says whom to contact.

@@ -104,6 +104,8 @@ The daily account deletion worker is a third `pg_cron` job (`accounts-deletion-w
   ```
 
   Until both secrets exist, the call logs `accounts deletion worker is not configured` and does nothing.
+- [ ] If the functions service verifies JWTs for every function (`FUNCTIONS_VERIFY_JWT=true`), `pg_net` needs a bearer token or the call never reaches the worker (`config.toml` `verify_jwt = false` only applies locally). Store the anon key as a third secret: `select vault.create_secret('<the anon key>', 'accounts_worker_jwt');`. When it exists the call sends it as `Authorization: Bearer`. Check the first scheduled run in the functions logs.
+- [ ] Known limits: the day-30 erase holds short table locks (it disables the evidence triggers of the tables it touches until it commits), so it runs at 04:37 UTC; a request whose erase or email fails every day stays first in its queue (50 per run) and needs a look in the logs.
 - [ ] The functions service also needs `RESEND_API_KEY` and `RESEND_FROM` (the same as `school-console-invite-coach`). Without them the worker deletes on day 30 but the emails stay unsent and are retried on every run.
 - [ ] The functions bundle (`deploy/scripts/functions-bundle.sh`, `FUNCTIONS`) must list `accounts-delete-account` and `accounts-deletion-worker`, and both import the Resend sender from `school-console-invite-coach`. This PR does not touch `deploy/`; the maintainer adds them.
 - [ ] After the next `migrate` run, `select jobname, schedule from cron.job where jobname = 'accounts-deletion-worker';` returns one row.

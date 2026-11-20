@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// A user marked for deletion (#1244) syncs nothing. Sync Streams cannot say NOT IN (subquery), so every place where a query is
+// A user marked for deletion (issue 1244) syncs nothing. Sync Streams cannot say NOT IN (subquery), so every place where a query is
 // bound to the user also requires the user's row in account_sync_access. A new query that forgets it fails here.
 const config = readFileSync(
   join(__dirname, "../../../../powersync/sync-config.yaml"),
@@ -38,7 +38,10 @@ describe("a marked account syncs nothing", () => {
           "IN (SELECT user_id FROM account_sync_access WHERE",
           end,
         );
-        if (start >= 0 && line.slice(start, end).includes("account_sync_access"))
+        if (
+          start >= 0 &&
+          line.slice(start, end).includes("account_sync_access")
+        )
           return;
       }
       expect(line.slice(end).startsWith(GATE(column))).toBe(true);
