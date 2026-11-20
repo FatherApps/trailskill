@@ -32,7 +32,7 @@ let cwd: jest.SpyInstance;
 
 beforeAll(() => {
   // Real path: import resolution returns real paths, so a symlinked tmpdir would make the rule skip silently.
-  root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'trailskill-boundaries-')));
+  root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'swimcro-boundaries-')));
   for (const file of files) {
     fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     fs.writeFileSync(path.join(root, file), 'export const x = 1;\n');
