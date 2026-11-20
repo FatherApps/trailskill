@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0](https://github.com/FatherApps/trailskill/compare/v0.4.0...v0.5.0) (2026-11-20)
+
+
+### Features
+
+* **accounts:** one ConsentCard per athlete with a checkbox per purpose and the legal text folded ([#1252](https://github.com/FatherApps/trailskill/issues/1252)) ([b4ed90f](https://github.com/FatherApps/trailskill/commit/b4ed90fe4f63130ff458b35ad2511e19a9f4e0f3)), closes [#1236](https://github.com/FatherApps/trailskill/issues/1236)
+* **athletes:** athlete photos data model, private bucket, show_photo purpose and useAthletePhoto ([#1231](https://github.com/FatherApps/trailskill/issues/1231)) ([83715a3](https://github.com/FatherApps/trailskill/commit/83715a3b4416f14fd08ef0967dcfc7693ea4ee61)), closes [#1221](https://github.com/FatherApps/trailskill/issues/1221)
+* **athletes:** end an athlete's link with a school (ended_at, ended_by) ([#1247](https://github.com/FatherApps/trailskill/issues/1247)) ([7a91b2f](https://github.com/FatherApps/trailskill/commit/7a91b2f5a16712833bdaccd2cc47862eee914254)), closes [#1243](https://github.com/FatherApps/trailskill/issues/1243)
+* **athletes:** open the athlete history from the card in front, not only the Historial button ([#1262](https://github.com/FatherApps/trailskill/issues/1262)) ([659cca8](https://github.com/FatherApps/trailskill/commit/659cca86a4ae36411b59832f9ce538b4a69385bc)), closes [#1238](https://github.com/FatherApps/trailskill/issues/1238)
+* **athletes:** show the athlete avatar where the name appears ([#1235](https://github.com/FatherApps/trailskill/issues/1235)) ([e4c8810](https://github.com/FatherApps/trailskill/commit/e4c881027d57875127805d128c5f53fd68cfb5b4)), closes [#1223](https://github.com/FatherApps/trailskill/issues/1223)
+* **core-ui:** add AthleteAvatar with initials, optional photo and its tokens ([#1227](https://github.com/FatherApps/trailskill/issues/1227)) ([410cc9a](https://github.com/FatherApps/trailskill/commit/410cc9ae7be25274a1348ad0922d6d3a761fbecd))
+* **family-timing:** compact Mis tiempos list with the swimmer card ([#1218](https://github.com/FatherApps/trailskill/issues/1218)) ([d973872](https://github.com/FatherApps/trailskill/commit/d973872b631f8f69f02ff5c3791a9dd9eac9763a))
+
+
+### Bug Fixes
+
+* **athletes:** delete photos without show_photo, serve only the current object, queue deleted paths ([#1234](https://github.com/FatherApps/trailskill/issues/1234)) ([80fec6b](https://github.com/FatherApps/trailskill/commit/80fec6b5c7ee4c9d5b37df1baf1cb1199d9d5bf1)), closes [#1232](https://github.com/FatherApps/trailskill/issues/1232)
+* **ui:** one round back button on every screen ([#1261](https://github.com/FatherApps/trailskill/issues/1261)) ([6100eac](https://github.com/FatherApps/trailskill/commit/6100eac7f630ccd487b9ba1a45f072c1cbb16f5b)), closes [#1237](https://github.com/FatherApps/trailskill/issues/1237)
+
 ## [0.4.0](https://github.com/FatherApps/trailskill/compare/v0.3.1...v0.4.0) (2026-11-19)
 
 
