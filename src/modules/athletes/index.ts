@@ -84,3 +84,23 @@ export {
   type PhotoPickResult,
   type PhotoSource,
 } from './data/athletePhotoPicker';
+export {
+  createAthletePhotoService,
+  createFileSystemLocalPhotoFiles,
+  createInMemoryLocalPhotoFiles,
+  createInMemoryPhotoObjects,
+  createInMemoryPhotoRows,
+  createInMemoryPhotoUploadQueue,
+  createPowerSyncPhotoRows,
+  createPowerSyncPhotoUploadQueue,
+  getAthletePhotoService,
+  createSupabasePhotoObjects,
+  PhotoRejectedError,
+  type AthletePhotoService,
+  type LocalPhotoFiles,
+  type PhotoObjects,
+  type PhotoRow,
+  type PhotoRows,
+  type PhotoUpload,
+  type PhotoUploadQueue,
+} from './data/athletePhotoUploads';
