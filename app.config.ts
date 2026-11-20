@@ -32,11 +32,15 @@ const config: ExpoConfig = {
     // Confirmed by the maintainer before the first Play upload (#1097). Play never lets an app change its package after that upload.
     package: preview ? 'com.fatherapps.swimcro.preview' : 'com.fatherapps.swimcro',
     // The app only writes to the gallery (#1169), but the plugin and the library manifest always add these reads: blocking removes them.
+    // The athlete photo (#1222) comes from the camera or the system Photo Picker, which hands over only the chosen image and needs no read permission: the three granular reads are blocked too, whatever a library or plugin adds.
     // WRITE_EXTERNAL_STORAGE stays: Android 7 to 9 (minSdk 24) need it to save a video.
     // SYSTEM_ALERT_WINDOW comes from the Expo template's main manifest and the app never draws over other apps (#1182).
     // Release builds lose it; debug builds (the development client) keep it, because the template's src/debug manifest declares it again for the dev menu's Perf Monitor.
     blockedPermissions: [
       'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_MEDIA_AUDIO',
       'android.permission.READ_EXTERNAL_STORAGE',
       'android.permission.SYSTEM_ALERT_WINDOW',
     ],
@@ -58,6 +62,9 @@ const config: ExpoConfig = {
         granularPermissions: [],
       },
     ],
+    // The athlete photo (#1222): the camera, and the system Photo Picker for the gallery, which needs no permission, so no read description is declared (the app reads no library).
+    // The microphone stays at its default: the individual stopwatch's local module records audio and declares RECORD_AUDIO itself, and blocking it here would remove it.
+    ['expo-image-picker', { photosPermission: false, cameraPermission: 'Swimcro usa la cámara para tomar la foto del deportista.' }],
     [
       'expo-splash-screen',
       {

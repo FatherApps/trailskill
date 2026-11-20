@@ -74,3 +74,13 @@ export {
 } from './data/athletePhotos';
 export { useAthletePhoto, type AthletePhoto } from './data/useAthletePhoto';
 export { useAthletePhotoCacheGuard } from './data/useAthletePhotoCacheGuard';
+export {
+  createExpoPhotoPicker,
+  createInMemoryPhotoPicker,
+  PHOTO_QUALITY,
+  PHOTO_SIZE,
+  squareCrop,
+  type PhotoPicker,
+  type PhotoPickResult,
+  type PhotoSource,
+} from './data/athletePhotoPicker';
