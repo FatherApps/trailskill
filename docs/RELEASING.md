@@ -211,11 +211,17 @@ The 0.1.0 build on Play Internal testing predates `expo-updates`, so it has no u
 
 Complete before the first closed-track release and keep up to date:
 
-- [ ] Privacy policy URL.
+- [ ] Privacy policy URL: `https://fatherapps.github.io/trailskill/privacidad/` (see [Privacy policy page](#privacy-policy-page)).
 - [ ] Data safety form, accurate and updated whenever collected or shared data changes. ([Play Console Help: Data safety](https://support.google.com/googleplay/android-developer/answer/10787469?hl=en))
 - [ ] Target audience and content. If the declared audience includes children, the Families Policy applies: restricted device identifiers, child-directed SDK requirements, and disclosure of data collected from children. ([Play Console Help: Families Policy](https://support.google.com/googleplay/android-developer/answer/9893335?hl=en))
 - [ ] Content rating questionnaire.
 - [ ] Tester list for the closed track.
+
+### Privacy policy page
+
+The policy lives in one file, [`release/privacy-policy.es.md`](release/privacy-policy.es.md), and `.github/workflows/pages.yml` publishes it at `https://fatherapps.github.io/trailskill/privacidad/` (deletion request: `#eliminar-datos`) on every push to `main` that changes it, or by hand with `workflow_dispatch`. Nothing else from `docs/` is published.
+
+One-time step (maintainer): in the repository settings, **Pages**, set the source to **GitHub Actions**; without it the deploy job fails.
 
 ### Tracks
 
@@ -251,7 +257,7 @@ Read this before the steps. Each line is a fact checked in this repository or in
 - [ ] A Google Play developer account (personal) with access to Play Console.
 - [x] The Expo project already exists (slug `swimcro`, owner `fatherapps-teams-co`) and `app.config.ts` links it (#1160). You need access to that account to run `eas`.
 - [ ] A device with the Play Store signed in with a Google account, for the smoke test.
-- [ ] The drafts in [`docs/release/`](release/) reviewed. They are drafts: the privacy policy needs the legal review of issue #106 before it is published anywhere.
+- [ ] The drafts in [`docs/release/`](release/) reviewed. They are drafts, except the privacy policy: its basic version is published (#1240), and the legal review of issue #106 is still open.
 
 `LEGAL_REVIEW_PENDING` stays `true` for this release. The [Release checklist](#release-checklist) forbids only **production** while it is `true`; Internal and Closed testing are not production.
 
@@ -316,7 +322,7 @@ The app signs in through the system browser: `supabase.auth.signInWithOAuth` wit
 1. **Create app**. Name: Swimcro. Default language: Spanish. Type: App, Free.
 2. Package name: `com.fatherapps.swimcro`. It cannot change after the first upload (see [One-time setup](#one-time-setup-maintainer)).
 3. Accept **Play App Signing** (the default for new apps). Google keeps the app signing key; EAS generates and keeps the upload key in its credentials.
-4. You do **not** need to finish the store listing, Data safety, privacy policy, content rating, or target audience to release on Internal testing. Fill them before the closed test, using the drafts as the starting point: [`play-listing.es.md`](release/play-listing.es.md), [`data-safety.md`](release/data-safety.md), and, once published at a public URL after the legal review of #106, [`privacy-policy.es.md`](release/privacy-policy.es.md).
+4. You do **not** need to finish the store listing, Data safety, privacy policy, content rating, or target audience to release on Internal testing. Fill them before the closed test, using the drafts as the starting point: [`play-listing.es.md`](release/play-listing.es.md), [`data-safety.md`](release/data-safety.md), and the published privacy policy, [`privacy-policy.es.md`](release/privacy-policy.es.md) (see [Privacy policy page](#privacy-policy-page)).
 
 ### 6. Build the AAB
 
@@ -369,7 +375,7 @@ Run the smoke test of the [Release checklist](#release-checklist). Then confirm 
 | App created, bundle uploaded, tester list | Yes | Yes |
 | Target API level 36 or higher | Yes, the upload is rejected otherwise | Yes |
 | Store listing, icon, graphics, screenshots | No | Yes |
-| Privacy policy URL (needs the legal review of #106) | No | Yes |
+| Privacy policy URL ([published](#privacy-policy-page); the legal review of #106 is still open) | No | Yes |
 | Data safety form ([`data-safety.md`](release/data-safety.md)) | No: apps only on internal tracks are exempt | Yes, accurate to the build |
 | Content rating questionnaire | No | Yes |
 | Target audience and Families Policy answer | No | Yes: decide with #107 |
@@ -396,7 +402,7 @@ Closed testing is the track that counts for production access. Before moving the
 - **At least 12 testers opted in for 14 consecutive days** ([Play Console Help](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en)). Keep the 14 days unbroken: a tester who opts out lowers the count.
 - Everything marked "Closed testing" in the table above.
 - Open decisions settled and closed, because each one changes what the forms must say:
-  - **Data deletion.** The app has no way to delete an account or its data. Decide between a request by email (stated in the privacy policy) and building it.
+  - **Data deletion.** The app has no way to delete an account or its data. The answer today is a request by email, stated in section 11 of the privacy policy (anchor `#eliminar-datos`); building it in the app stays a later decision.
   - **Target audience** and Families Policy applicability (the app stores minors' data while its users are adults; see [Open decisions](#open-decisions)).
   - **Legal review** of the authorization texts and the privacy policy (issue #106).
   - **Backend.** The closed test must not run against QA data by accident: decide with the planner whether the pilot build points to PROD, and rebuild if so.
@@ -471,5 +477,5 @@ To be settled by the maintainer before the first Play release:
 
 - Final application ID.
 - Target audience declaration and Families Policy applicability (needs legal advice: the app stores minors' data while its users are adults).
-- Owner and hosting of the privacy policy.
+- Owner of the privacy policy: it names «Swimcro» and soporte@fatherapps.com until the company exists (Decreto 1377 de 2013, art. 13, asks for the controller's name and address).
 - Staged-rollout percentages and the metrics that gate each step.
