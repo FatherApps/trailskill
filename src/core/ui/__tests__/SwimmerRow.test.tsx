@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react-native
 import { Dimensions, Pressable, processColor, StyleSheet, Text } from 'react-native';
 
 import { colors, contrastRatio, ThemeProvider, type ThemeName } from '../../theme';
+import { athleteAvatarColors } from '../AthleteAvatar';
 import { iconPaths } from '../icons';
 import { SwimmerRow, swimmerRowColors, type SwimmerRowProps } from '../SwimmerRow';
 import { box, group, pathData, signature, slot, svgs } from '../testing/strokeIconQueries';
@@ -286,6 +287,34 @@ describe('SwimmerRow', () => {
     }
   });
 
+  it('draws the avatar through AthleteAvatar, md size, with the athlete ring', async () => {
+    await render(<SwimmerRow {...base} />);
+
+    expect(screen.getByTestId('athlete-avatar', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByTestId('athlete-avatar-ring', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByTestId('athlete-avatar-photo', { includeHiddenElements: true })).toBeNull();
+  });
+
+  describe('hideAvatar', () => {
+    it('drops the avatar and keeps the row label and the name', async () => {
+      await render(<SwimmerRow {...base} hideAvatar />);
+
+      expect(screen.queryByTestId('athlete-avatar', { includeHiddenElements: true })).toBeNull();
+      expect(screen.queryByText('LR', { includeHiddenElements: true })).toBeNull();
+      expect(screen.getByLabelText('Lucía R., Infantil B, marca personal 34,82, MP 50 L')).toBeOnTheScreen();
+      expect(screen.getByText('Lucía R.',{ includeHiddenElements: true })).toBeOnTheScreen();
+    });
+
+    it('drops the avatar of a row with a status too, and the large-text indent with it', async () => {
+      setOsFontScale(2);
+      await render(<SwimmerRow {...base} hideAvatar status={<Text>Enviado</Text>} />);
+
+      expect(screen.queryByTestId('athlete-avatar', { includeHiddenElements: true })).toBeNull();
+      const indented = screen.container.queryAll((node) => rowStyle(node)?.paddingLeft > 0 && rowStyle(node)?.flexWrap === 'wrap');
+      expect(indented).toEqual([]);
+    });
+  });
+
   it('draws a 40 x 40 circle at the default text scale', async () => {
     await render(<SwimmerRow {...base} />);
 
@@ -323,7 +352,7 @@ describe('SwimmerRow', () => {
     });
 
     it.each(athleteColors)('on-color on %s is at least 4.5:1', (color) => {
-      expect(contrastRatio(c[swimmerRowColors.initials], c[color])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(c[athleteAvatarColors.initials], c[color])).toBeGreaterThanOrEqual(4.5);
     });
   });
 });

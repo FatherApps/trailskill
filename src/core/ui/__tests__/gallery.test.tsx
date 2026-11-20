@@ -54,6 +54,7 @@ describe('core/ui gallery entries', () => {
       'time-and-tag',
       'with-stroke',
     ]);
+    expect(stateKeys('athleteAvatar')).toEqual(['initials', 'photo', 'photo-not-authorized', 'neutral', 'athlete-3', 'athlete-4']);
     expect(stateKeys('navBar')).toEqual(['home-active', 'times-active', 'long-labels']);
     expect(stateKeys('colorCard')).toEqual(['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4', 'long-text', 'decoration-lime', 'decoration-lilac']);
     expect(stateKeys('colorHeader')).toEqual(['default', 'with-chips', 'with-background', 'no-back', 'long-text']);
