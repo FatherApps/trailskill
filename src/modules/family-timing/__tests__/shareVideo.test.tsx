@@ -110,7 +110,7 @@ describe('sharing a time’s video', () => {
     expect(await screen.findByText('No se pudo abrir el menú para compartir. Vuelve a intentarlo.')).toBeTruthy();
   });
 
-  it('offers it right after sending the time, and again on the card while the answer waits', async () => {
+  it('offers it right after sending the time, and again from the detail while the answer waits', async () => {
     const transfers = createInMemoryFamilyTransferRepository({
       codes: { 'TS-BBBBBB': { athleteId: 'b2', shortName: 'Ana M.' } },
       measurements: (id) => (id === MINE ? time() : undefined),
@@ -128,8 +128,9 @@ describe('sharing a time’s video', () => {
     await fireEvent.press(screen.getByText('Ahora no'));
 
     // Waiting for the answer, the time is under "Sin asignar" with its video still offered.
-    expect(await screen.findByLabelText('Enviado a Ana M. · espera respuesta')).toBeTruthy();
-    await fireEvent.press(screen.getByText('Compartir video'));
+    expect(await screen.findByText('Enviado a Ana M. · pendiente')).toBeTruthy();
+    await openDetail();
+    await fireEvent.press(await screen.findByText('Compartir video'));
     expect(sharing.state.shared).toEqual(['content://media/video/7']);
   });
 
@@ -147,7 +148,7 @@ describe('sharing a time’s video', () => {
     await fireEvent.press(screen.getByText('Buscar nadador'));
     await fireEvent.press(await screen.findByText('Enviar a Ana M.'));
 
-    expect(await screen.findByLabelText('Enviado a Ana M. · espera respuesta')).toBeTruthy();
+    expect(await screen.findByText('Enviado a Ana M. · pendiente')).toBeTruthy();
     expect(screen.queryByText('Tiempo enviado a Ana M.')).toBeNull();
   });
 
@@ -294,7 +295,8 @@ describe('linking the video of a received time', () => {
       links: [{ userId: 'u1', measurementId: RECEIVED, assetId: 'content://media/video/9', startOffsetMillis: null }],
       gallery: { 'content://media/video/9': 'content://media/video/9' },
     });
-    await fireEvent.press(await screen.findByLabelText('Ver video'));
+    await openDetail();
+    await fireEvent.press(await screen.findByText('Ver video'));
 
     expect(await screen.findByLabelText('Volver')).toBeTruthy();
     expect(screen.queryByText('Ir a la salida')).toBeNull();

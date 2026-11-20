@@ -70,14 +70,16 @@ describe('sending a time to another family', () => {
     await fireEvent.press(screen.getByText('Buscar nadador'));
     await fireEvent.press(await screen.findByText('Enviar a Ana M.'));
 
+    // The row says it waits; withdrawing is done from the time's detail.
+    expect(await screen.findByText('Enviado a Ana M. · pendiente')).toBeTruthy();
+    expect([...transfers.rows.values()][0]).toMatchObject({ measurementId: 'm1', athleteId: 'b2', status: 'pending' });
+    await openDetail();
     expect(await screen.findByLabelText('Enviado a Ana M. · espera respuesta')).toBeTruthy();
     expect(screen.queryByText('Editar registro')).toBeNull();
-    expect([...transfers.rows.values()][0]).toMatchObject({ measurementId: 'm1', athleteId: 'b2', status: 'pending' });
 
     await fireEvent.press(screen.getByText('Retirar envío'));
     await waitFor(() => expect(screen.queryByLabelText('Enviado a Ana M. · espera respuesta')).toBeNull());
     expect([...transfers.rows.values()][0].status).toBe('withdrawn');
-    await openDetail();
     expect(await screen.findByText('Editar registro')).toBeTruthy();
   });
 

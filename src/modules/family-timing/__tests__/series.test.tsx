@@ -132,7 +132,7 @@ describe('Tiempo por serie', () => {
 
     // The time without a swimmer has its own chip, and can be given to one later.
     await fireEvent.press(await screen.findByLabelText('Sin asignar'));
-    expect(await screen.findByText('32,00')).toBeTruthy();
+    expect((await screen.findAllByText('32,00')).length).toBeGreaterThan(0);
     await openEdit();
     await fireEvent.press(screen.getAllByLabelText('Lucía R.').at(-1)!);
     await fireEvent.press(screen.getByText('Guardar cambios'));
