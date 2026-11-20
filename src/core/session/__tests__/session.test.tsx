@@ -18,6 +18,8 @@ let mockOwnerError: Error | undefined;
 let mockClearError: Error | undefined;
 // The local database never answers: clearing it neither succeeds nor fails.
 let mockClearHangs = false;
+// The stored session is never read: supabase-js never delivers INITIAL_SESSION.
+let mockRestoreHangs = false;
 const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
 const mockSetSessionUser = jest.fn();
 const mockSignInWithOtp = jest.fn();
@@ -72,7 +74,7 @@ jest.mock('../../sync', () => ({
     auth: {
       onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
         mockAuthCallback = callback;
-        callback('INITIAL_SESSION', mockInitialSession);
+        if (!mockRestoreHangs) callback('INITIAL_SESSION', mockInitialSession);
         return { data: { subscription: { unsubscribe: jest.fn() } } };
       },
       signInWithOtp: (...args: unknown[]) => mockSignInWithOtp(...args),
@@ -94,6 +96,7 @@ beforeEach(() => {
   mockOwnerError = undefined;
   mockClearError = undefined;
   mockClearHangs = false;
+  mockRestoreHangs = false;
   mockUnsent = Promise.resolve(0);
   mockRejected = 0;
   mockOwnerWriteError = undefined;
@@ -839,19 +842,59 @@ describe('a local database that does not answer', () => {
 
   const giveUp = () => act(async () => void jest.advanceTimersByTime(LOCAL_STEP_TIMEOUT_MS + 1));
 
-  it('lets the next person in after a sign-out: another account reaches its own session', async () => {
+  it('lets another account in after a sign-out that could not clear: it fails visibly, then works', async () => {
     const other = { access_token: 'token-2', user: { id: 'coach-2' } };
     const session = await renderSession();
+    mockClearHangs = true;
+
+    // The sign-out ends as an error the person sees, with the session kept, instead of waiting forever.
+    let failed: unknown;
+    await act(async () => {
+      failed = session.current.signOut().then(() => 'resolved', (error: Error) => error.message);
+    });
+    await giveUp();
+    expect(await failed).toMatch(/timed out/);
+    expect(session.current.session).toBe(mockSignedIn);
+
+    // Trying again once the database answers signs out, and another account reaches its own session.
+    mockClearHangs = false;
     await act(async () => void (await session.current.signOut()));
     await act(async () => mockAuthCallback('SIGNED_OUT', null));
     expect(session.current.session).toBeNull();
     mockCalls.length = 0;
-
     await act(async () => mockAuthCallback('SIGNED_IN', other));
 
     await waitFor(() => expect(session.current.session).toBe(other));
     expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear', 'owner=coach-2', 'db.connect']);
     expect(mockOwner).toBe('coach-2');
+  });
+
+  it('rejects a sign-out whose unsent count never ends, keeping the session', async () => {
+    const session = await renderSession();
+    mockUnsent = new Promise(() => {});
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = session.current.signOut().then(() => 'resolved', (error: Error) => error.message);
+    });
+    await giveUp();
+
+    expect(await outcome).toMatch(/timed out/);
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('shows the sign-in when the stored session is never read, and the session if it arrives late', async () => {
+    mockRestoreHangs = true;
+    await renderProbe();
+    expect(screen.queryByText('signed-out')).toBeNull();
+
+    await giveUp();
+
+    expect(await screen.findByText('signed-out')).toBeOnTheScreen();
+    expect(JSON.stringify(jest.mocked(console.warn).mock.calls)).toContain('[session]');
+
+    await act(async () => mockAuthCallback('INITIAL_SESSION', mockSignedIn));
+    expect(await screen.findByText('signed-in')).toBeOnTheScreen();
   });
 
   it('shows the session error, not a blank screen, when clearing another owner\'s data never ends', async () => {

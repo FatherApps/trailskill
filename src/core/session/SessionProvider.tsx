@@ -82,6 +82,8 @@ const SessionContext = createContext<SessionValue | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [restored, setRestored] = useState(false);
+  // The stored session was not delivered in time: the sign-in shows, and the session still takes over if it arrives later.
+  const [restoreTimedOut, setRestoreTimedOut] = useState(false);
   // Keyed on the user, so a failure never carries over to the next person.
   const [syncFailedFor, setSyncFailedFor] = useState<string>();
   // The user whose local data may be shown, and the user blocked by another person's unsent records.
@@ -118,6 +120,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
     return () => data.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (restored) return;
+    const timer = setTimeout(() => {
+      logLocalFailure(new LocalStepTimeoutError('restore session'));
+      setRestoreTimedOut(true);
+    }, LOCAL_STEP_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [restored]);
 
   // Keyed on the user, not the session object: token refreshes must not reconnect.
   const userId = session?.user.id;
@@ -311,9 +322,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [visibleSession, syncConnectFailed, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut],
   );
 
-  // Render nothing until the stored session and the owner of the local data are known,
-  // so a signed-in person never sees the sign-in screen flash.
-  if (!restored || checking) return null;
+  // Render nothing until the stored session and the owner of the local data are known (each for at most
+  // LOCAL_STEP_TIMEOUT_MS), so a signed-in person never sees the sign-in screen flash.
+  if ((!restored && !restoreTimedOut) || checking) return null;
   if (checkFailed) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', padding: space[4], gap: space[3], backgroundColor: colors['surface-0'] }}>
