@@ -3,8 +3,12 @@ import { useMemo } from 'react';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useGoBack } from '../../core/navigation';
-import { createPowerSyncManagedAthleteRepository, createSupabaseAthleteShareCodeRepository } from '../../modules/accounts';
-import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
+import {
+  createPowerSyncAuthorizationStatusRepository,
+  createPowerSyncManagedAthleteRepository,
+  createSupabaseAthleteShareCodeRepository,
+} from '../../modules/accounts';
+import { createPowerSyncSchoolAthleteRepository, useAuthorizedAthletes, useManagedAthletes } from '../../modules/athletes';
 import {
   createPowerSyncFamilyMeasurementRepository,
   createPowerSyncFamilyTransferRepository,
@@ -19,6 +23,7 @@ import { createPowerSyncImportedResultsRepository, createSupabaseImportSourcesRe
 
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const schoolAthletes = createPowerSyncSchoolAthleteRepository();
+const authorizations = createPowerSyncAuthorizationStatusRepository();
 const familyMeasurements = createPowerSyncFamilyMeasurementRepository();
 const familyTransfers = createPowerSyncFamilyTransferRepository();
 const shareCodes = createSupabaseAthleteShareCodeRepository();
@@ -37,11 +42,14 @@ export default function FamilyTimingRoute() {
   const sources = useImportSources(importSources, connection === 'connected');
   const sourceNames = useMemo(() => Object.fromEntries(sources.map((source) => [source.provider, source.name])), [sources]);
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, session?.user.id, lastSyncedAt?.getTime());
+  // The same answer the athlete cards and the profile show: the «Autorizado» tag on the swimmer's card.
+  const authorized = useAuthorizedAthletes(authorizations, lastSyncedAt?.getTime());
   if (!session || managed.status !== 'ready') return null;
   return (
     <FamilyTimingContainer
       userId={session.user.id}
       athletes={managed.athletes}
+      authorizedAthleteIds={authorized}
       repository={familyMeasurements}
       imports={importedResults}
       sourceNames={sourceNames}

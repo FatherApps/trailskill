@@ -4,6 +4,8 @@
     "open": "Mis tiempos",
     "back": "Volver",
     "athlete": "Nadador",
+    "athlete_authorized": "Autorizado",
+    "athlete_pending": "Autorización pendiente",
     "on_device": "Estos tiempos son tuyos: no son registros de la escuela. Se guardan en tu cuenta, así que siguen aquí aunque cierres sesión.",
     "new": "Medir un tiempo",
     "empty_title": "Aún no hay tiempos",

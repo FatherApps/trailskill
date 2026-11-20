@@ -294,7 +294,7 @@ describe('linking the video of a received time', () => {
       links: [{ userId: 'u1', measurementId: RECEIVED, assetId: 'content://media/video/9', startOffsetMillis: null }],
       gallery: { 'content://media/video/9': 'content://media/video/9' },
     });
-    await fireEvent.press(await screen.findByText('Ver video'));
+    await fireEvent.press(await screen.findByLabelText('Ver video'));
 
     expect(await screen.findByLabelText('Volver')).toBeTruthy();
     expect(screen.queryByText('Ir a la salida')).toBeNull();

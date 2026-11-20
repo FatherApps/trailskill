@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
+import { isStroke } from '../../../core/sport';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import {
   Banner,
@@ -13,18 +14,21 @@ import {
   IconButton,
   Segmented,
   StateView,
+  StrokeIcon,
   SyncStatus,
   Tag,
   TextField,
   type ChipRowOption,
   type InitialsDotProps,
   type SegmentedOption,
+  useFocusRing,
 } from '../../../core/ui';
 import { FilterSheet } from '../components/FilterSheet';
 import '../i18n';
 
 // A chip of the list: a swimmer (with their dot), or "Sin asignar" (no dot).
-export type FamilyAthlete = { id: string; name: string; dot?: InitialsDotProps };
+// fullName and authorized feed the swimmer's card above the list; authorized is undefined while unknown, which shows no tag.
+export type FamilyAthlete = { id: string; name: string; dot?: InitialsDotProps; fullName?: string; authorized?: boolean };
 
 export type FamilyCard = {
   id: string;
@@ -36,6 +40,8 @@ export type FamilyCard = {
   athleteId?: string | null;
   date?: string;
   measuredLabel?: string;
+  // The stroke code ("FR"), for the stroke badge of the list row.
+  stroke?: string;
   event: string; // "Libre 50 m · Piscina de 25 m"
   detail: string; // "8 nov 2026 · Competencia · Festival"
   captured: string; // formatted, "—" when missing
@@ -329,11 +335,11 @@ function FilterButton({ active, onPress }: { active: number; onPress: () => void
   );
 }
 
-// The list card: accent bar in the swimmer's colour, title, pool and type, the time large with "Mejor tiempo",
-// and the date with "Medido · N largos". Touching the card opens the detail; edit lives in the detail.
-function ListCard({
+// A compact list row: the video and stroke badges, the event with its pool, type and date, and at the right the time with "Mejor tiempo"
+// and "Medido · N largos". Touching the row opens the detail (laps, edit); the video badge plays the time's video.
+// Actions that need an answer (official time, a time sent to another family, a time not sent) go below, inside the same card.
+function ListRow({
   card,
-  accent,
   onOpenDetail,
   onOpenOfficial,
   onOpenChooseOfficial,
@@ -343,7 +349,6 @@ function ListCard({
   onShareVideo,
 }: {
   card: FamilyCard;
-  accent: ColorToken;
   onOpenTimeVideo?: (id: string) => void;
   onShareVideo?: (id: string) => void;
   onOpenDetail?: (id: string) => void;
@@ -354,76 +359,175 @@ function ListCard({
 }) {
   const { colors, space, radius, typography } = useTheme();
   const shown = card.official ? card.official.time : card.captured;
+  const muted = { color: colors['ink-muted'] };
+  const stroke = card.stroke && isStroke(card.stroke) ? card.stroke : null;
+  const actions =
+    !!card.official ||
+    !!card.notSent ||
+    !!(card.officialChoice && onOpenChooseOfficial) ||
+    !!(card.canSetOfficial && !card.hasManualOfficial && onOpenOfficial) ||
+    !!card.sentTo ||
+    !!(card.canDiscard && onAskDiscard);
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        overflow: 'hidden',
-        borderRadius: radius.lg,
-        backgroundColor: colors['surface-1'],
-        borderWidth: 1,
-        borderColor: colors.border,
-      }}
-    >
-      <View style={{ width: space[1], backgroundColor: colors[accent] }} />
-      <View style={{ flex: 1, gap: space[3], padding: space[4] }}>
+    <View style={{ gap: space[3], padding: space[3], borderRadius: radius.md, backgroundColor: colors['surface-1'] }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+        {card.video && onOpenTimeVideo && <VideoBadge missing={card.video === 'missing'} onPress={() => onOpenTimeVideo(card.id)} />}
         <Pressable
           disabled={!onOpenDetail}
           accessibilityRole={onOpenDetail ? 'button' : undefined}
           accessibilityHint={onOpenDetail ? t('family_timing.detail.open') : undefined}
           onPress={() => onOpenDetail?.(card.id)}
-          style={{ gap: space[1] }}
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space[3], minHeight: space[12] }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
-            <Text style={[typography.title, { flex: 1, color: colors.ink }]}>{card.title ?? card.event}</Text>
-            {onOpenDetail && <Icon name="chevron_right" />}
+          {stroke && <StrokeIcon stroke={stroke} size="sm" decorative />}
+          <View style={{ flex: 1 }}>
+            <Text style={[typography.subtitle, { color: colors.ink }]}>{card.title ?? card.event}</Text>
+            <Text style={[typography.caption, muted]}>{card.subtitle ?? card.detail}</Text>
+            {card.date ? <Text style={[typography.caption, muted]}>{card.date}</Text> : null}
           </View>
-          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{card.subtitle ?? card.detail}</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2], marginTop: space[2] }}>
-            <Text style={[typography['time-lg'], { color: colors.ink }]}>{shown}</Text>
-            {card.isBest && <Tag variant="ok" icon="emoji_events" label={t('family_timing.card.best')} />}
+          <View style={{ alignItems: 'flex-end', gap: space[1] }}>
+            {card.isBest && <Tag variant="ok" label={t('family_timing.card.best')} />}
+            <Text style={[typography['time-md'], { color: colors.ink }]}>{shown}</Text>
+            <Text style={[typography.caption, muted]}>{card.measuredLabel ?? card.splitsLabel}</Text>
           </View>
+        </Pressable>
+      </View>
+      {actions && (
+        <View style={{ gap: space[2] }}>
           {card.official && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[2] }}>
               <Tag variant="ok" icon="verified_user" label={card.official.label} />
-              <Text style={[typography['time-sm'], { color: colors['ink-muted'] }]}>{card.captured}</Text>
+              <Text style={[typography['time-sm'], muted]}>{card.captured}</Text>
             </View>
           )}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: space[2], marginTop: space[1] }}>
-            <Text style={[typography.body, { color: colors['ink-muted'] }]}>{card.date}</Text>
-            <Text style={[typography.body, { color: colors['ink-muted'] }]}>{card.measuredLabel ?? card.splitsLabel}</Text>
-          </View>
           {card.notSent && <SyncStatus state="not_sent" />}
-        </Pressable>
-        {card.video && onOpenTimeVideo && (
-          <Button
-            variant="ghost"
-            icon={<Icon name="play_arrow" size="icon-sm" />}
-            label={t('family_timing.card.video')}
-            disabledReason={card.video === 'missing' ? t('family_timing.card.video_missing') : undefined}
-            onPress={() => onOpenTimeVideo(card.id)}
-          />
-        )}
-        {card.officialChoice && onOpenChooseOfficial && (
-          <Button
-            variant={card.officialChoice === 'choose' ? 'primary' : 'secondary'}
-            label={t(card.officialChoice === 'choose' ? 'family_timing.choose_official.open' : 'family_timing.choose_official.change')}
-            onPress={() => onOpenChooseOfficial(card.id)}
-          />
-        )}
-        {card.canSetOfficial && !card.hasManualOfficial && onOpenOfficial && (
-          <Button variant="secondary" label={t('family_timing.card.set_official')} onPress={() => onOpenOfficial(card.id)} />
-        )}
-        {card.sentTo ? (
-          <>
-            <Tag variant="warn" icon="schedule" label={t('family_timing.transfer.sent_tag', { name: card.sentTo })} />
-            {card.canShareVideo && onShareVideo && (
-              <Button variant="secondary" label={t('family_timing.video_share.share')} onPress={() => onShareVideo(card.id)} />
-            )}
-            {onWithdraw && <Button variant="ghost" label={t('family_timing.transfer.withdraw')} onPress={() => onWithdraw(card.id)} />}
-          </>
+          {card.officialChoice && onOpenChooseOfficial && (
+            <Button
+              variant={card.officialChoice === 'choose' ? 'primary' : 'secondary'}
+              label={t(card.officialChoice === 'choose' ? 'family_timing.choose_official.open' : 'family_timing.choose_official.change')}
+              onPress={() => onOpenChooseOfficial(card.id)}
+            />
+          )}
+          {card.canSetOfficial && !card.hasManualOfficial && onOpenOfficial && (
+            <Button variant="secondary" label={t('family_timing.card.set_official')} onPress={() => onOpenOfficial(card.id)} />
+          )}
+          {card.sentTo ? (
+            <>
+              <Tag variant="warn" icon="schedule" label={t('family_timing.transfer.sent_tag', { name: card.sentTo })} />
+              {card.canShareVideo && onShareVideo && (
+                <Button variant="secondary" label={t('family_timing.video_share.share')} onPress={() => onShareVideo(card.id)} />
+              )}
+              {onWithdraw && <Button variant="ghost" label={t('family_timing.transfer.withdraw')} onPress={() => onWithdraw(card.id)} />}
+            </>
+          ) : (
+            card.canDiscard && onAskDiscard && <Button variant="secondary" label={t('family_timing.edit.delete')} onPress={() => onAskDiscard(card.id)} />
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// The round video badge of a row: it plays the time's video. Once the video left the gallery it stays, dotted and muted, and says why it does not play.
+// The design system has no camera icon yet, so it uses play_arrow, the icon of «Ver video».
+function VideoBadge({ missing, onPress }: { missing: boolean; onPress: () => void }) {
+  const { colors, space, radius, size } = useTheme();
+  const { focusProps, ring } = useFocusRing();
+  const box = space[8];
+  // The badge is 32 like the stroke badge; the touch area reaches the 48 minimum around it.
+  const slop = (size['target-min'] - box) / 2;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={missing ? `${t('family_timing.card.video')} · ${t('family_timing.card.video_missing')}` : t('family_timing.card.video')}
+      accessibilityState={{ disabled: missing }}
+      disabled={missing}
+      hitSlop={slop}
+      onPress={onPress}
+      {...focusProps}
+      style={[
+        {
+          width: box,
+          height: box,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: radius.full,
+          backgroundColor: missing ? 'transparent' : colors['surface-2'],
+          borderWidth: missing ? 1.5 : 0,
+          borderStyle: 'dashed',
+          borderColor: colors['border-strong'],
+        },
+        ring,
+      ]}
+    >
+      <Icon name="play_arrow" size="icon-sm" color={missing ? 'ink-muted' : 'ink'} />
+    </Pressable>
+  );
+}
+
+// The swimmer's card above the list: their colour with the hero decoration, the initials, the full name and the authorization.
+function AthleteHeader({ athlete }: { athlete: FamilyAthlete & { dot: InitialsDotProps } }) {
+  const { colors, space, radius, typography } = useTheme();
+  const on = { color: colors['on-color'] };
+  const avatar = space[12];
+  return (
+    <View
+      style={{
+        overflow: 'hidden',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[3],
+        padding: space[5],
+        borderRadius: radius.lg,
+        backgroundColor: colors[athlete.dot.color],
+      }}
+    >
+      <View
+        accessible={false}
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        pointerEvents="none"
+        style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
+      >
+        <View
+          style={{
+            position: 'absolute',
+            width: space[12] * 3,
+            height: space[12] * 3,
+            top: -space[8],
+            right: -space[8],
+            borderRadius: radius.full,
+            borderWidth: space[4],
+            borderColor: colors['card-ring'],
+          }}
+        />
+        <View
+          style={{
+            position: 'absolute',
+            width: space[8],
+            height: space[8],
+            top: space[4],
+            right: space[6],
+            borderRadius: radius.full,
+            backgroundColor: colors[athlete.dot.color === 'athlete-4' ? 'coral' : 'lime'],
+          }}
+        />
+      </View>
+      <View
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        style={{ width: avatar, height: avatar, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, backgroundColor: colors.header }}
+      >
+        <Text style={[typography['body-strong'], { color: colors['on-header'] }]}>{athlete.dot.initials}</Text>
+      </View>
+      <View style={{ flex: 1, gap: space[1], paddingRight: space[12] }}>
+        <Text accessibilityRole="header" style={[typography.title, on]}>
+          {athlete.fullName ?? athlete.name}
+        </Text>
+        {athlete.authorized === undefined ? null : athlete.authorized ? (
+          <Tag variant="ok" icon="verified_user" label={t('family_timing.athlete_authorized')} />
         ) : (
-          card.canDiscard && onAskDiscard && <Button variant="secondary" label={t('family_timing.edit.delete')} onPress={() => onAskDiscard(card.id)} />
+          <Tag variant="warn" label={t('family_timing.athlete_pending')} />
         )}
       </View>
     </View>
@@ -749,9 +853,12 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
         })
       : [];
   const activeInSheet = sheetSections.filter((s) => s.value !== '').length;
-  const showsAthletes = athletes.length > 0 && selectedId !== null && (view.kind === 'list' || view.kind === 'loading' || view.kind === 'error');
-  // The swimmer's colour: the accent of the list cards.
-  const accent: ColorToken = athletes.find((a) => a.id === selectedId)?.dot?.color ?? 'lilac';
+  const onList = view.kind === 'list' || view.kind === 'loading' || view.kind === 'error';
+  // The chips only switch swimmers: with one swimmer (and nothing unassigned) the card below says who it is.
+  const showsAthletes = athletes.length > 1 && selectedId !== null && onList;
+  const selected = athletes.find((a) => a.id === selectedId);
+  // "Sin asignar" has no colour, so it has no card.
+  const headerAthlete = onList && selected?.dot ? { ...selected, dot: selected.dot } : null;
 
   const discardSheet = (
     <ConfirmSheet
@@ -838,10 +945,9 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
                 <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('family_timing.list_count', { count: view.cards.length })}</Text>
               </View>
               {view.cards.map((card) => (
-                <ListCard
+                <ListRow
                   key={card.id}
                   card={card}
-                  accent={accent}
                   onOpenDetail={props.onOpenDetail}
                   onOpenTimeVideo={props.onOpenTimeVideo}
                   onShareVideo={props.onShareVideo}
@@ -852,12 +958,14 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
                 />
               ))}
               {props.onOpenDetail && (
-                <Text style={[typography.body, { textAlign: 'center', color: colors['ink-muted'] }]}>{t('family_timing.list_hint')}</Text>
+                <Text style={[typography.caption, { textAlign: 'center', color: colors['ink-muted'] }]}>{t('family_timing.list_hint')}</Text>
               )}
             </>
           )}
           {view.deletedCount > 0 && (
-            <Button variant="ghost" label={t('family_timing.deleted.open', { count: view.deletedCount })} onPress={props.onOpenDeleted} />
+            <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: space[2] }}>
+              <Button variant="ghost" label={t('family_timing.deleted.open', { count: view.deletedCount })} onPress={props.onOpenDeleted} />
+            </View>
           )}
           {discardSheet}
         </View>
@@ -1238,6 +1346,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             options={athletes.map(({ id, name, dot }) => ({ value: id, label: name, dot }))}
           />
         )}
+        {headerAthlete && <AthleteHeader athlete={headerAthlete} />}
         {props.videoNotice && (
           <Banner variant={props.videoNotice.variant} icon={props.videoNotice.variant === 'warn' ? 'error' : undefined}>
             {props.videoNotice.text}

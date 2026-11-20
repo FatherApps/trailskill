@@ -79,6 +79,8 @@ const KEEP_AWAKE_TAG = 'family-timing';
 export type FamilyTimingContainerProps = {
   userId: string;
   athletes: SchoolAthlete[];
+  // The swimmers whose authorization to record times is in force, for the tag on their card; undefined while unknown (no tag).
+  authorizedAthleteIds?: ReadonlySet<string>;
   repository: FamilyMeasurementRepository;
   onBack: () => void;
   // The athlete's imported official results (results-import); a matching one becomes the official value of a competition time.
@@ -442,6 +444,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       return {
         id: m.id,
         title: shortEventLabel(m),
+        stroke: m.stroke,
         poolLabel: t(`sport.pool.${m.pool}`),
         sessionLabel: type,
         athleteId: m.athleteId,
@@ -1020,7 +1023,16 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   return (
     <FamilyTimingScreen
       view={view}
-      athletes={chips.map(({ value, label, dot }) => ({ id: value, name: label, dot }))}
+      athletes={chips.map(({ value, label, dot }) => {
+        const athlete = athletes.find((a) => a.id === value);
+        return {
+          id: value,
+          name: label,
+          dot,
+          fullName: athlete ? [athlete.firstName, athlete.lastName].filter(Boolean).join(' ') : undefined,
+          authorized: athlete && props.authorizedAthleteIds ? props.authorizedAthleteIds.has(athlete.id) : undefined,
+        };
+      })}
       selectedId={selectedId}
       onSelectAthlete={setChosenId}
       onBack={onBack}

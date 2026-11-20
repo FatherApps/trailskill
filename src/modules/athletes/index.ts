@@ -49,6 +49,7 @@ export {
 export { athleteProfileHref } from './athleteProfileHref';
 export { athleteColor, athleteDisplay, type AthleteColor } from './athleteDisplay';
 export { useManagedAthletes, type ManagedAthletesResult } from './data/useManagedAthletes';
+export { useAuthorizedAthletes } from './data/useAuthorizedAthletes';
 export { useAthleteProfileRoute, type AthleteProfileRouteInput, type AthleteProfileRouteState } from './data/useAthleteProfileRoute';
 export { AthleteProfileContainer, type AthleteProfileContainerProps } from './screens/AthleteProfileContainer';
 export type { ImportedHistoryResult } from './achievements';
