@@ -11,7 +11,8 @@
 # timing_guardian_school_times_sharing, timing_coach_reads_assignment_school,
 # training-plans_coach_reads_fulfillments_assignment_school,
 # training-plans_admin_reads_fulfillments_assignment_school,
-# athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school):
+# athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school,
+# athletes_photos):
 # a row syncs only if the signed-in user could read it through RLS.
 # Platform admins have no stream on purpose: their access is online support.
 config:
@@ -37,6 +38,13 @@ with:
   coach_direct_group_ids: SELECT group_id FROM athlete_groups WHERE group_id IN (SELECT id FROM training_groups WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL)) AND athlete_id IN (SELECT athlete_id FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id() AND school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL))
   managed_assignment_ids: SELECT id FROM training_plan_assignments WHERE withdrawn_at IS NULL AND (athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()) OR group_id IN (SELECT group_id FROM athlete_groups WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR category_id IN (SELECT category_id FROM athlete_schools WHERE category_id IS NOT NULL AND athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())) OR (target = 'school' AND school_id IN (SELECT school_id FROM athlete_schools WHERE athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id()))))
   import_authorized_athlete_ids: SELECT athlete_id FROM authorization_status WHERE purpose = 'import_official_results' AND is_granted = true AND athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())
+  # Athlete photos (#1221): the athletes the user can already see (the four sources of athletes_visible) whose show_photo is in
+  # force. One set per source, because a bucket parameter must come from a single subquery bound to the user: the join with
+  # authorization_status lives inside each one, so the photo row leaves the device when show_photo is withdrawn.
+  photo_managed_athlete_ids: SELECT athlete_id FROM authorization_status WHERE purpose = 'show_photo' AND is_granted = true AND athlete_id IN (SELECT athlete_id FROM athlete_managers WHERE user_id = auth.user_id())
+  photo_coach_direct_athlete_ids: SELECT athlete_id FROM authorization_status WHERE purpose = 'show_photo' AND is_granted = true AND athlete_id IN (SELECT athlete_id FROM coach_athlete_assignments WHERE coach_user_id = auth.user_id() AND school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL))
+  photo_coach_group_athlete_ids: SELECT athlete_id FROM authorization_status WHERE purpose = 'show_photo' AND is_granted = true AND athlete_id IN (SELECT athlete_id FROM athlete_groups WHERE group_id IN (SELECT group_id FROM coach_group_assignments WHERE coach_user_id = auth.user_id() AND group_id IN (SELECT id FROM training_groups WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND deactivated_at IS NULL))))
+  photo_admin_athlete_ids: SELECT athlete_id FROM authorization_status WHERE purpose = 'show_photo' AND is_granted = true AND athlete_id IN (SELECT athlete_id FROM athlete_schools WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin'))
   admin_guardian_user_ids: SELECT user_id FROM athlete_managers WHERE relation = 'guardian' AND athlete_id IN (SELECT athlete_id FROM athlete_schools WHERE school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin'))
   admin_coach_user_ids: SELECT user_id FROM school_memberships WHERE role = 'coach' AND school_id IN (SELECT school_id FROM school_memberships WHERE user_id = auth.user_id() AND role = 'school_admin')
 
@@ -208,6 +216,17 @@ streams:
     auto_subscribe: true
     queries:
       - SELECT * FROM authorization_status WHERE athlete_id IN managed_athlete_ids OR athlete_id IN coach_direct_athlete_ids OR athlete_id IN coach_group_athlete_ids OR athlete_id IN admin_athlete_ids
+
+  # The row of an athlete's photo (not the image: that is a short-lived signed URL, online) for whoever can see the athlete,
+  # only while show_photo is in force: same condition as athlete_photos_select. When it is withdrawn the row leaves every
+  # device on its next sync. Platform admins have no stream, as everywhere else.
+  athletes_photos:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM athlete_photos WHERE athlete_id IN photo_managed_athlete_ids
+      - SELECT * FROM athlete_photos WHERE athlete_id IN photo_coach_direct_athlete_ids
+      - SELECT * FROM athlete_photos WHERE athlete_id IN photo_coach_group_athlete_ids
+      - SELECT * FROM athlete_photos WHERE athlete_id IN photo_admin_athlete_ids
 
   accounts_school_invitations:
     auto_subscribe: true

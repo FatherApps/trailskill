@@ -15,6 +15,8 @@ export const AppSchema = new Schema({
   athlete_groups: new Table({ ...audit, athlete_id: column.text, group_id: column.text }),
   adult_profiles: new Table({ first_name: column.text, last_name: column.text, contact_email: column.text }),
   athlete_managers: new Table({ ...audit, user_id: column.text, athlete_id: column.text, relation: column.text }),
+  // The row that points to an athlete's current photo (issue #1221); the object itself is not synced, see athletes/useAthletePhoto.
+  athlete_photos: new Table({ created_by: column.text, athlete_id: column.text, storage_path: column.text, updated_at: column.text }, { indexes: { athlete: ['athlete_id'] } }),
   timing_series: new Table({
     ...audit,
     school_id: column.text,

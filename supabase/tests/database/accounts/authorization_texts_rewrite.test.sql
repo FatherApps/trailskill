@@ -1,13 +1,15 @@
 -- The one-time rewrite of the es-CO version 1 authorization texts (issue #1185): after
 -- the migrations the three rows hold the approved bodies, and the immutability trigger
 -- the migration turned off for its update is on again, so the texts still cannot change.
+-- The show_photo text (issue #1221) came later with its own migration and is tested in
+-- athletes/photos.test.sql, so the list below leaves it out.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(5);
 
 select results_eq(
   $$select purpose, body from public.authorization_texts
-    where version = 1 and language = 'es-CO' order by purpose$$,
+    where version = 1 and language = 'es-CO' and purpose <> 'show_photo' order by purpose$$,
   $$values
     ('import_official_results'::text, 'Permite buscar los resultados oficiales del deportista en la federación de natación y agregarlos a su historial en Swimcro. Sin esta autorización no podemos traer esos resultados.'::text),
     ('record_times', 'Permite guardar en Swimcro los tiempos que registran tú y la escuela en entrenamientos y competencias, para que puedas consultarlos después y ver cómo evoluciona el deportista. Si la retiras, esos tiempos dejan de mostrarse.'),
