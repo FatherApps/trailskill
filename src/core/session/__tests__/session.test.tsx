@@ -2,7 +2,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-li
 import { Text } from 'react-native';
 
 import { db, SupabaseConnector } from '../../sync';
-import { CodeMismatchError, SessionProvider, signOutDecision, useSession } from '../SessionProvider';
+import { CodeMismatchError, LOCAL_STEP_TIMEOUT_MS, SessionProvider, signOutDecision, useSession } from '../SessionProvider';
 
 const mockCalls: string[] = [];
 let mockUnsent: Promise<number>;
@@ -16,6 +16,8 @@ let mockAuthCallback: (event: string, session: unknown) => void = () => {};
 let mockOwner: string | null;
 let mockOwnerError: Error | undefined;
 let mockClearError: Error | undefined;
+// The local database never answers: clearing it neither succeeds nor fails.
+let mockClearHangs = false;
 const mockSignedIn = { access_token: 'token', user: { id: 'coach-1' } };
 const mockSetSessionUser = jest.fn();
 const mockSignInWithOtp = jest.fn();
@@ -60,6 +62,7 @@ jest.mock('../../sync', () => ({
     connect: jest.fn(() => mockConnect()),
     disconnect: jest.fn(async () => mockCalls.push('db.disconnect')),
     disconnectAndClear: jest.fn(async () => {
+      if (mockClearHangs) return new Promise<void>(() => {});
       if (mockClearError) throw mockClearError;
       mockCalls.push('db.disconnectAndClear');
       mockUnsent = Promise.resolve(0);
@@ -90,6 +93,7 @@ beforeEach(() => {
   mockOwner = 'coach-1';
   mockOwnerError = undefined;
   mockClearError = undefined;
+  mockClearHangs = false;
   mockUnsent = Promise.resolve(0);
   mockRejected = 0;
   mockOwnerWriteError = undefined;
@@ -820,6 +824,99 @@ describe('local data on a shared phone', () => {
 
     expect(await screen.findByText('signed-in')).toBeOnTheScreen();
     expect(mockOwner).toBe('coach-1');
+  });
+});
+
+describe('a local database that does not answer', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  const giveUp = () => act(async () => void jest.advanceTimersByTime(LOCAL_STEP_TIMEOUT_MS + 1));
+
+  it('lets the next person in after a sign-out: another account reaches its own session', async () => {
+    const other = { access_token: 'token-2', user: { id: 'coach-2' } };
+    const session = await renderSession();
+    await act(async () => void (await session.current.signOut()));
+    await act(async () => mockAuthCallback('SIGNED_OUT', null));
+    expect(session.current.session).toBeNull();
+    mockCalls.length = 0;
+
+    await act(async () => mockAuthCallback('SIGNED_IN', other));
+
+    await waitFor(() => expect(session.current.session).toBe(other));
+    expect(mockCalls).toEqual(['connector.cancelWaits', 'db.disconnectAndClear', 'owner=coach-2', 'db.connect']);
+    expect(mockOwner).toBe('coach-2');
+  });
+
+  it('shows the session error, not a blank screen, when clearing another owner\'s data never ends', async () => {
+    mockOwner = 'coach-0';
+    mockClearHangs = true;
+    await renderProbe();
+
+    await giveUp();
+
+    expect(await screen.findByText('No pudimos abrir los datos del teléfono')).toBeOnTheScreen();
+    expect(screen.queryByText('signed-in')).toBeNull();
+    expect(mockOwner).toBe('coach-0');
+  });
+
+  it('shows the session error when counting the unsent records never ends', async () => {
+    mockOwner = 'coach-0';
+    mockUnsent = new Promise(() => {});
+    await renderProbe();
+
+    await giveUp();
+
+    expect(await screen.findByText('No pudimos abrir los datos del teléfono')).toBeOnTheScreen();
+  });
+
+  it('lets the person retry, or sign out, from that error', async () => {
+    mockOwner = 'coach-0';
+    mockClearHangs = true;
+    await renderProbe();
+    await giveUp();
+    await screen.findByText('No pudimos abrir los datos del teléfono');
+
+    mockClearHangs = false;
+    await fireEvent.press(screen.getByRole('button', { name: 'Intentar de nuevo' }));
+
+    expect(await screen.findByText('signed-in')).toBeOnTheScreen();
+    expect(mockOwner).toBe('coach-1');
+  });
+
+  it('logs the failed step without anything about the person', async () => {
+    mockOwner = 'coach-0';
+    mockClearHangs = true;
+    await renderProbe();
+
+    await giveUp();
+    await screen.findByText('No pudimos abrir los datos del teléfono');
+
+    const logged = JSON.stringify(jest.mocked(console.warn).mock.calls);
+    expect(logged).toContain('[session]');
+    expect(logged).not.toContain('coach');
+  });
+
+  it('rejects a sign-out whose clearing never ends, keeping the session', async () => {
+    const session = await renderSession();
+    mockClearHangs = true;
+    mockCalls.length = 0;
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = session.current.signOut().then(() => 'resolved', (error: Error) => error.message);
+    });
+    await giveUp();
+
+    expect(await outcome).toMatch(/timed out/);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(session.current.session).toBe(mockSignedIn);
   });
 });
 

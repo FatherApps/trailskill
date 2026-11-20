@@ -14,6 +14,24 @@ import { Button, ConfirmSheet, StateView } from '../ui';
 // The id of the user whose data the local database holds. SecureStore keys allow only letters, digits, ".", "-" and "_".
 const LOCAL_OWNER_KEY = 'trailskill-local-owner';
 
+// Longest a local step (reading the owner, counting unsent records, clearing the database) may take before the person is told.
+export const LOCAL_STEP_TIMEOUT_MS = 20_000;
+
+class LocalStepTimeoutError extends Error {
+  constructor(readonly step: string) {
+    super(`The local step "${step}" timed out`);
+    this.name = 'LocalStepTimeoutError';
+  }
+}
+
+// A local step that never answers must end as a failure the person can see, not as a screen that never draws.
+function withTimeout<T>(step: string, work: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new LocalStepTimeoutError(step)), LOCAL_STEP_TIMEOUT_MS);
+    work.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+}
+
 /** `azure` is how Supabase names Microsoft. */
 export type AuthProvider = 'google' | 'azure';
 
@@ -48,6 +66,11 @@ export class CodeMismatchError extends Error {
 
 function logFailure(error: unknown) {
   if (__DEV__) console.error('[session] Could not finish the provider sign-in', authFailureSummary(error));
+}
+
+// Which step failed, never why: an error message can carry the email or a path.
+function logLocalFailure(error: unknown) {
+  console.warn('[session] A local data step failed', error instanceof LocalStepTimeoutError ? { step: error.step } : authFailureSummary(error));
 }
 
 export function signOutDecision(pendingCount: number, force: boolean): 'proceed' | 'blocked_pending' {
@@ -103,19 +126,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let current = true;
     (async () => {
       // PowerSync never connects for a user other than the owner of the local data: another owner's data is cleared first.
-      const owner = await SecureStore.getItemAsync(LOCAL_OWNER_KEY);
+      const owner = await withTimeout('read owner', SecureStore.getItemAsync(LOCAL_OWNER_KEY));
       if (owner === null && userId === restoredUserId.current) {
         // Data stored before owners were recorded belongs to the session that was already signed in.
-        await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
+        await withTimeout('save owner', SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId));
       } else if (owner !== userId) {
         // Any other unknown owner (first run, or a new sign-in over old data) counts as another person.
-        if ((await countUnsentRecords()).unsent > 0) {
+        if ((await withTimeout('count unsent records', countUnsentRecords())).unsent > 0) {
           if (current) setBlockedFor(userId);
           return;
         }
         connector.cancelWaits();
-        await db.disconnectAndClear();
-        await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
+        await withTimeout('clear local database', db.disconnectAndClear());
+        await withTimeout('save owner', SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId));
       }
       // Ignore a result that arrives after the user changed.
       if (!current) return;
@@ -125,8 +148,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (__DEV__) console.warn('[sync] Could not connect to the sync service', error);
         if (current) setSyncFailedFor(userId);
       });
-    })().catch(() => {
-      // SecureStore or the local database failed before the data could be shown: nothing is shown or connected until a retry.
+    })().catch((error: unknown) => {
+      // SecureStore or the local database failed or never answered before the data could be shown: nothing is shown or connected until a retry.
+      logLocalFailure(error);
       if (current) setCheckFailedFor(userId);
     });
     return () => {
@@ -158,10 +182,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let cleared = false;
     try {
       connector.cancelWaits();
-      await db.disconnectAndClear();
+      await withTimeout('clear local database', db.disconnectAndClear());
       cleared = true;
-      await SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId);
-    } catch {
+      await withTimeout('save owner', SecureStore.setItemAsync(LOCAL_OWNER_KEY, userId));
+    } catch (error) {
+      logLocalFailure(error);
       // The sheet stays open with the failure, so the person can try again or go back to the previous person.
       // An earlier attempt may have cleared already: a later failure before clearing does not bring the records back.
       const alreadyCleared = discardFailure?.userId === userId && discardFailure.cleared;
@@ -259,13 +284,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async (options?: { force?: boolean }): Promise<SignOutResult> => {
     // Awaits the real count: the sync hook reports 0 until its first query lands.
-    const { unsent, rejected } = await countUnsentRecords();
+    const { unsent, rejected } = await withTimeout('count unsent records', countUnsentRecords()).catch((error: unknown) => {
+      logLocalFailure(error);
+      throw error;
+    });
     if (signOutDecision(unsent, options?.force ?? false) === 'blocked_pending') {
       return { status: 'blocked_pending', unsent, rejected };
     }
     // Clear first, so the next person on a shared phone starts with an empty local database.
     connector.cancelWaits();
-    await db.disconnectAndClear();
+    // A database that never answers fails the sign-out, so the person sees it and can try again instead of waiting forever.
+    await withTimeout('clear local database', db.disconnectAndClear()).catch((error: unknown) => {
+      logLocalFailure(error);
+      throw error;
+    });
     // 'local' ends only this device's session. Offline, supabase-js still drops the stored session and returns an error:
     // only a session that is still stored means the sign-out failed.
     const { error } = await supabase.auth.signOut({ scope: 'local' });
