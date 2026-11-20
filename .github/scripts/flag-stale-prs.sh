@@ -1,0 +1,89 @@
+#!/bin/bash
+# Labels open same-repository pull requests (base main) that are behind main or conflict with it, and leaves ONE comment
+# with the conflicting files. Used by .github/workflows/update-pr-branches.yml; tests: bash .github/scripts/flag-stale-prs.test.sh
+# Needs GH_TOKEN, REPO (owner/name) and a checkout of main with full history. DRY_RUN=true only prints what it would do.
+# A failure is never read as "up to date": the pull request is skipped with an ::error:: line, the rest are still processed,
+# and the script exits 1 so the job goes red.
+set -uo pipefail
+LABEL=needs-main-merge
+MARKER='<!-- needs-main-merge -->'
+bt=$(printf '\140') # a backtick, for the markdown below
+failed=0
+fail() { echo "::error::#$1: $2"; failed=1; }
+
+# Same-repository pull requests only: forks are skipped (a deleted fork has no head.repo).
+if ! numbers=$(gh api "repos/$REPO/pulls?state=open&base=main&per_page=100" --paginate \
+  --jq ".[] | select(.head.repo != null and .head.repo.full_name == \"$REPO\") | .number"); then
+  echo "::error::could not list the open pull requests"
+  exit 1
+fi
+
+for n in $numbers; do
+  # GitHub computes mergeable_state lazily: retry while it is unknown.
+  state=unknown
+  sha=
+  for _ in 1 2 3 4 5; do
+    if ! info=$(gh api "repos/$REPO/pulls/$n" --jq '[.mergeable_state, .head.sha] | @tsv'); then
+      state=failed
+      break
+    fi
+    read -r state sha <<<"$info"
+    [ "$state" != unknown ] && break
+    sleep "${RETRY_SLEEP:-5}"
+  done
+  if [ "$state" = failed ]; then fail "$n" "could not read the pull request"; continue; fi
+  if [ "$state" = unknown ]; then fail "$n" "mergeable_state still unknown after 5 tries"; continue; fi
+
+  # mergeable_state is only "behind" when a rule requires up-to-date branches, so compare as well.
+  if ! behind_by=$(gh api "repos/$REPO/compare/main...$sha" --jq '.behind_by'); then
+    fail "$n" "could not compare with main"
+    continue
+  fi
+  case "$behind_by" in '' | *[!0-9]*) fail "$n" "unexpected behind_by value '$behind_by'"; continue ;; esac
+
+  if [ "$state" != dirty ] && [ "$state" != behind ] && [ "$behind_by" = 0 ]; then
+    echo "#$n: up to date ($state), nothing to do"
+    continue
+  fi
+
+  # Test merge in memory: lists the conflicting files without touching any branch.
+  if ! git fetch -q origin "refs/pull/$n/head"; then
+    fail "$n" "could not fetch the pull request head"
+    continue
+  fi
+  out=$(git merge-tree --write-tree --name-only origin/main FETCH_HEAD)
+  rc=$?
+  if [ "$rc" -eq 1 ]; then
+    files=$(printf '%s\n' "$out" | sed -n '2,/^$/p' | while read -r f; do [ -n "$f" ] && printf -- '- %s%s%s\n' "$bt" "$f" "$bt"; done)
+  elif [ "$rc" -eq 0 ]; then
+    files="(ninguno: la fusión con ${bt}main${bt} es limpia)"
+  else
+    fail "$n" "git merge-tree failed (exit $rc)"
+    continue
+  fi
+
+  echo "#$n: stale (mergeable_state=$state, behind_by=$behind_by); label and comment"
+  if [ "${DRY_RUN:-false}" = true ]; then
+    printf 'dry run: would add label %s and, if the marker is missing, comment:\n%s\n' "$LABEL" "$files"
+    continue
+  fi
+  if ! gh api -X POST "repos/$REPO/issues/$n/labels" --raw-field "labels[]=$LABEL" >/dev/null; then
+    fail "$n" "could not add the label"
+    continue
+  fi
+
+  if ! existing=$(gh api "repos/$REPO/issues/$n/comments" --paginate --jq ".[] | select(.body | contains(\"$MARKER\")) | .id"); then
+    fail "$n" "could not read the comments"
+    continue
+  fi
+  if [ -n "$existing" ]; then
+    echo "#$n: comment already present, not duplicated"
+    continue
+  fi
+  body=$(printf '%s\nEsta rama está atrasada respecto de %smain%s o tiene conflictos con ella (estado: %s%s%s).\n\nArchivos en conflicto:\n%s\n\nActualízala con un merge normal (%sgit merge origin/main%s, sin reescribir el historial), corre los checks y haz push normal para que corra el CI. Este comentario no se repite.\n' \
+    "$MARKER" "$bt" "$bt" "$bt" "$state" "$bt" "$files" "$bt" "$bt")
+  if ! gh api -X POST "repos/$REPO/issues/$n/comments" --raw-field "body=$body" >/dev/null; then
+    fail "$n" "could not post the comment"
+  fi
+done
+exit "$failed"
