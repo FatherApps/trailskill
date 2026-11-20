@@ -1,6 +1,8 @@
-import { Pressable, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
+import type { ReactNode } from 'react';
+import { Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
 
-import { fontFamily, useTheme, type ColorToken } from '../theme';
+import { useTheme, type ColorToken } from '../theme';
+import { AthleteAvatar } from './AthleteAvatar';
 import { unavailableColors } from './Button';
 import { useFocusRing } from './focusRing';
 
@@ -8,6 +10,8 @@ export type InitialsDotProps = {
   initials: string;
   // The athlete's colour in the design system.
   color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
+  // The athlete's `sm` AthleteAvatar with their photo; absent: the initials.
+  avatar?: ReactNode;
 };
 
 export type ChipProps = {
@@ -37,29 +41,10 @@ export const chipColors: {
   dotText: 'on-color',
 };
 
-export function InitialsDot({ initials, color }: InitialsDotProps) {
-  const { colors, space, radius, typography } = useTheme();
-  // The OS text scale grows Text but is not in the theme tokens; the dot grows with it so the initials stay inside.
-  const { fontScale } = useWindowDimensions();
-  // 28 is the design-system dot size at 100 % (not a token).
-  const dotSize = Math.max(28, Math.ceil(typography.caption.lineHeight * fontScale) + 2 * space[1]);
-
-  return (
-    <View
-      style={{
-        minWidth: dotSize,
-        minHeight: dotSize,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radius.full,
-        backgroundColor: colors[color],
-      }}
-    >
-      <Text style={[typography.caption, { fontFamily: fontFamily.sansSemiBold, fontWeight: '600', color: colors[chipColors.dotText] }]}>
-        {initials}
-      </Text>
-    </View>
-  );
+// The swimmer's circle in a chip, a table cell or a card: an AthleteAvatar `sm`. `avatar` is that same avatar with the athlete's photo
+// (built by a container that can read the photo, see AthleteAvatarSlot); without it the initials show.
+export function InitialsDot({ initials, color, avatar }: InitialsDotProps) {
+  return avatar ?? <AthleteAvatar initials={initials} colorIndex={Number(color.slice(-1)) as 1 | 2 | 3 | 4} size="sm" authorized={false} />;
 }
 
 // A chip is one option of a ChipRow, so it is a radio: the selected one is black (primary / on-primary).

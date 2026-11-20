@@ -50,6 +50,7 @@ export {
   type AuthorizationRepository,
   type AuthorizationText,
 } from './data/authorizations';
+export { AthleteAvatarWithPhoto } from './components/AthleteAvatarWithPhoto';
 export {
   createInMemoryManagedAthleteRepository,
   createPowerSyncManagedAthleteRepository,

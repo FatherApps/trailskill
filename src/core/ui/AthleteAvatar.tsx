@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ComponentType, type ReactNode } from 'react';
 import { Image, Text, useWindowDimensions, View } from 'react-native';
 
 import { ringGapColor, size as sizeTokens, useTheme, type ColorToken, type TextStyleToken } from '../theme';
@@ -15,6 +15,20 @@ export type AthleteAvatarProps = {
   // The "Mostrar la foto" authorization. Without it the photo is never loaded, whatever `photoUri` says.
   authorized: boolean;
 };
+
+// An AthleteAvatar that finds the athlete's photo and its "Mostrar la foto" authorization by itself. The modules that cannot read them
+// (athletes, which accounts depends on) receive it from their route; the others import it from accounts. Presentational components
+// take its element ready made (`avatar`), so they never fetch.
+// `color` is the athlete's colour token that screens already carry (athleteDisplay), not the 1 to 4 index.
+export type AthleteAvatarSlotProps = {
+  athleteId: string;
+  initials: string;
+  color?: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
+  size: AthleteAvatarSize;
+};
+export type AthleteAvatarSlot = ComponentType<AthleteAvatarSlotProps>;
+// The same avatar of one athlete, ready made, for a row that decides its size itself (a list row `md`, a table cell `sm`).
+export type AthleteAvatarRenderer = (size: AthleteAvatarSize) => ReactNode;
 
 export const athleteAvatarColors: { initials: ColorToken; neutralBackground: ColorToken; neutralInitials: ColorToken } = {
   initials: 'on-color',
