@@ -30,7 +30,7 @@ QUÉ PROBAR
 IMPORTANTE
 • Es una versión de prueba: usa nombres y datos inventados, no registres datos reales de ninguna persona, y menos de menores.
 • Lo que registres ahora no pasará a la versión final: se borrará cuando salga.
-• No hay logo definitivo todavía; no lo reportes como error.
+• El logo definitivo llega con el próximo build de Play; no lo reportes como error.
 
 CÓMO CONTARNOS QUÉ FALLÓ
 Escríbenos a <CANAL DE CONTACTO> con: qué estabas haciendo, qué esperabas y qué pasó. Una captura de pantalla ayuda mucho. Dinos también tu modelo de celular.
