@@ -49,6 +49,15 @@ async function renderContainer(props: Partial<React.ComponentProps<typeof Author
 }
 
 describe('AuthorizationsScreen', () => {
+  it('leaves through the shared round Back button when it is managed outside the registration', async () => {
+    const onBack = jest.fn();
+    await render(<AuthorizationsScreen mode="manage" athletes={athletes} texts={texts} inForce={{}} onSave={jest.fn().mockResolvedValue(true)} onWithdraw={jest.fn()} onBack={onBack} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
   it('smoke: one card per athlete, each with every purpose unchecked, the provisional notice and the skipped tag', async () => {
     const two = [...athletes, { id: 'a2', name: 'Tomás P.' }];
     await render(<AuthorizationsScreen mode="manage" athletes={two} texts={texts} inForce={{}} onSave={jest.fn().mockResolvedValue(true)} onWithdraw={jest.fn()} />);

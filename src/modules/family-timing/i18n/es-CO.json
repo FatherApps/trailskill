@@ -2,7 +2,6 @@
   "family_timing": {
     "title": "Mis tiempos",
     "open": "Mis tiempos",
-    "back": "Volver",
     "athlete": "Nadador",
     "on_device": "Estos tiempos son tuyos: no son registros de la escuela. Se guardan en tu cuenta, así que siguen aquí aunque cierres sesión.",
     "new": "Medir un tiempo",
@@ -196,7 +195,6 @@
     },
     "video": {
       "camera": "Cámara",
-      "back": "Volver",
       "asking": "Pidiendo permiso para usar la cámara…",
       "intro_title": "Antes de grabar",
       "intro_record": "Se graba el cronómetro con la cámara trasera, y el sonido si lo dejas activado en Ajustes.",
@@ -226,7 +224,6 @@
       "time_ready": "Listo para iniciar"
     },
     "player": {
-      "back": "Volver",
       "video": "Video del tiempo",
       "jump_to_start": "Ir a la salida"
     },

@@ -3,7 +3,7 @@ import { ScrollView, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type Theme } from '../../../core/theme';
-import { IconButton, useHardwareBack } from '../../../core/ui';
+import { BackButton, IconButton, useHardwareBack } from '../../../core/ui';
 import '../i18n';
 import { ConsoleNav, type ConsoleDestinationId } from './ConsoleNav';
 import { DETAIL_WIDTH, SideSheet } from './SideSheet';
@@ -120,7 +120,7 @@ export function ConsoleLayout({
     return (
       <View testID={testID} style={[root, { padding, gap: space[4], backgroundColor: colors['surface-1'] }]}>
         <View style={{ alignItems: 'flex-start' }}>
-          <IconButton icon="arrow_back" label={t('common.back')} onPress={detail.onClose} />
+          <BackButton onPress={detail.onClose} />
         </View>
         {scrollDetail(detail.content)}
       </View>

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Text } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, ConfirmSheet, StepHeader, type AthleteAvatarSlot } from '../../../core/ui';
+import { BackButton, Banner, Button, ConfirmSheet, StepHeader, type AthleteAvatarSlot } from '../../../core/ui';
 import { athleteColor } from '../../athletes';
 import { AthleteAvatarWithPhoto } from '../components/AthleteAvatarWithPhoto';
 import { ConsentCard } from '../components/ConsentCard';
@@ -79,7 +79,7 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
   return (
     <ScreenFrame
       title={registration ? t('accounts.create_title') : t('accounts.authorizations.title')}
-      before={!registration && onBack ? <Button variant="ghost" label={t('common.back')} onPress={onBack} /> : undefined}
+      before={!registration && onBack ? <BackButton onPress={onBack} /> : undefined}
       footer={<Button label={t(registration ? 'accounts.authorizations.continue' : 'accounts.authorizations.save')} onPress={save} loading={saving} />}
     >
       {registration && step && onBack && (

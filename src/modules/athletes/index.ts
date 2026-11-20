@@ -39,7 +39,13 @@ export {
   createPowerSyncAthleteSchoolRepository,
   type AthleteSchoolLink,
   type AthleteSchoolRepository,
+  type AthleteSchoolRow,
 } from './data/athleteSchools';
+export {
+  createInMemoryAthleteSchoolEndRepository,
+  createSupabaseAthleteSchoolEndRepository,
+  type AthleteSchoolEndRepository,
+} from './data/athleteSchoolEnd';
 export {
   createInMemoryAthleteRepository,
   createPowerSyncAthleteRepository,
@@ -75,6 +81,16 @@ export {
 export { useAthletePhoto, type AthletePhoto } from './data/useAthletePhoto';
 export { useAthletePhotoCacheGuard } from './data/useAthletePhotoCacheGuard';
 export {
+  createExpoPhotoPicker,
+  createInMemoryPhotoPicker,
+  PHOTO_QUALITY,
+  PHOTO_SIZE,
+  squareCrop,
+  type PhotoPicker,
+  type PhotoPickResult,
+  type PhotoSource,
+} from './data/athletePhotoPicker';
+export {
   createAthletePhotoService,
   createFileSystemLocalPhotoFiles,
   createInMemoryLocalPhotoFiles,
@@ -94,16 +110,6 @@ export {
   type PhotoUpload,
   type PhotoUploadQueue,
 } from './data/athletePhotoUploads';
-export {
-  createExpoPhotoPicker,
-  createInMemoryPhotoPicker,
-  PHOTO_QUALITY,
-  PHOTO_SIZE,
-  squareCrop,
-  type PhotoPicker,
-  type PhotoPickResult,
-  type PhotoSource,
-} from './data/athletePhotoPicker';
 export { PhotoCard, type PhotoCardNotice, type PhotoCardProps, type PhotoCardState } from './components/PhotoCard';
 export { PhotoRemoveSheet, type PhotoRemoveSheetProps } from './components/PhotoRemoveSheet';
 export { AthletePhotoContainer, type AthletePhotoContainerProps } from './screens/AthletePhotoContainer';

@@ -158,3 +158,52 @@ describe('AthleteDetail with missing data', () => {
     expect(onViewProfile).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('AthleteDetail end of the link', () => {
+  const button = () => screen.queryByRole('button', { name: 'Dar de baja a un nadador' });
+
+  it('has no baja button unless the caller can end the link', async () => {
+    await render(<AthleteDetail athlete={detailFixture} />);
+
+    expect(button()).toBeNull();
+  });
+
+  it('asks for confirmation before ending the link, naming the swimmer and what stays', async () => {
+    const onConfirm = jest.fn();
+    await render(<AthleteDetail athlete={{ ...detailFixture, endLink: { error: null, onConfirm } }} />);
+
+    await fireEvent.press(button()!);
+
+    expect(await screen.findByText('¿Dar de baja a Lucía Ramírez?')).toBeOnTheScreen();
+    expect(screen.getByText(/No se borra nada: la familia conserva los suyos/)).toBeOnTheScreen();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when the confirmation is cancelled', async () => {
+    const onConfirm = jest.fn();
+    await render(<AthleteDetail athlete={{ ...detailFixture, endLink: { error: null, onConfirm } }} />);
+    await fireEvent.press(button()!);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Cancelar' }));
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.queryByText('¿Dar de baja a Lucía Ramírez?')).toBeNull();
+  });
+
+  it('ends the link once, only when the confirmation is accepted', async () => {
+    const onConfirm = jest.fn();
+    await render(<AthleteDetail athlete={{ ...detailFixture, endLink: { error: null, onConfirm } }} />);
+    await fireEvent.press(button()!);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Dar de baja' }));
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('¿Dar de baja a Lucía Ramírez?')).toBeNull();
+  });
+
+  it('shows why the last attempt failed', async () => {
+    await render(<AthleteDetail athlete={{ ...detailFixture, endLink: { error: 'No pudimos dar de baja al nadador.', onConfirm: jest.fn() } }} />);
+
+    expect(screen.getByText('No pudimos dar de baja al nadador.')).toBeOnTheScreen();
+  });
+});

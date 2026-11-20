@@ -1,11 +1,9 @@
 import type { ReactNode } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { t } from '../i18n';
 import { useTheme, type ColorToken } from '../theme';
+import { BackButton } from './BackButton';
 import type { ColorCardColor } from './ColorCard';
-import { useFocusRing } from './focusRing';
-import { Icon } from './Icon';
 
 export type ColorHeaderProps = {
   color: ColorCardColor;
@@ -22,15 +20,12 @@ export type ColorHeaderProps = {
   background?: ReactNode;
 };
 
-export const colorHeaderColors: { text: ColorToken; backButton: ColorToken; backIcon: ColorToken } = {
+export const colorHeaderColors: { text: ColorToken } = {
   text: 'on-color',
-  backButton: 'surface-1',
-  backIcon: 'ink',
 };
 
 export function ColorHeader({ color, title, subtitle, onBack, children, avatar, background }: ColorHeaderProps) {
-  const { colors, space, radius, size, typography } = useTheme();
-  const { focusProps, ring } = useFocusRing();
+  const { colors, space, radius, typography } = useTheme();
   const text = { color: colors[colorHeaderColors.text] };
 
   const titleBlock = (
@@ -77,26 +72,9 @@ export function ColorHeader({ color, title, subtitle, onBack, children, avatar, 
         </View>
       ) : null}
       {onBack && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          onPress={onBack}
-          {...focusProps}
-          style={[
-            {
-              alignSelf: 'flex-start',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: size['target-min'],
-              minHeight: size['target-min'],
-              borderRadius: radius.full,
-              backgroundColor: colors[colorHeaderColors.backButton],
-            },
-            ring,
-          ]}
-        >
-          <Icon name="arrow_back" color={colorHeaderColors.backIcon} />
-        </Pressable>
+        <View style={{ alignSelf: 'flex-start' }}>
+          <BackButton onPress={onBack} />
+        </View>
       )}
       {avatar ? (
         // The avatar sits beside the text block so the title and the subtitle keep wrapping in their own column.

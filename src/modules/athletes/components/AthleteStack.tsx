@@ -81,7 +81,8 @@ function CollapsedCard({ card, hidden, first, onPress }: { card: MyAthleteCard; 
 }
 
 function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidden: number; covers: boolean; onOpen: () => void }) {
-  const { colors, space, typography } = useTheme();
+  const { colors, space, radius, typography } = useTheme();
+  const { focusProps, ring } = useFocusRing();
   const largeText = useLargeText();
   const text = { color: colors[athleteStackColors.text] };
   const place = [card.school, card.group].filter(Boolean).join(' · ');
@@ -89,7 +90,14 @@ function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidd
   const dot = card.color === 'athlete-4' ? 'coral' : 'lime';
 
   return (
-    <View style={{ marginTop: covers ? -hidden : 0 }}>
+    // The whole card opens the same profile as the "Historial" button; the button is its own target, so pressing it navigates once.
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t('athletes.my.history_hint', { name: `${card.firstName} ${card.lastName}`.trim() })}
+      onPress={onOpen}
+      {...focusProps}
+      style={[{ marginTop: covers ? -hidden : 0, borderRadius: radius.md }, ring]}
+    >
       {/* The name is bigger than a card title, so the lines go in this order below an empty title. */}
       <ColorCard color={card.color} title="" decoration={{ dot }}>
         {card.avatar ? <View style={{ alignSelf: 'flex-start' }}>{card.avatar}</View> : null}
@@ -114,7 +122,7 @@ function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidd
           />
         </View>
       </ColorCard>
-    </View>
+    </Pressable>
   );
 }
 

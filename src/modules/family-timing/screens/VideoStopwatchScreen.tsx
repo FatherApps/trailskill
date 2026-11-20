@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, Icon, IconButton } from '../../../core/ui';
+import { BackButton, Banner, Button, Icon } from '../../../core/ui';
 import '../i18n';
 
 export type VideoStopwatchView = {
@@ -135,7 +135,7 @@ export function VideoStopwatchScreen(props: VideoStopwatchScreenProps) {
       <View style={{ flex: 1, backgroundColor: colors.header }}>
         <SafeAreaView style={{ flex: 1, padding: space[4], gap: space[4] }}>
           <View style={{ flexDirection: 'row' }}>
-            <IconButton icon="arrow_back" label={t('family_timing.video.back')} onPress={props.onBack} />
+            <BackButton onPress={props.onBack} />
           </View>
           <ScrollView contentContainerStyle={{ gap: space[3], flexGrow: 1 }}>
             <Text accessibilityRole="header" style={[typography.title, { color: onImage }]}>
@@ -245,7 +245,7 @@ export function VideoStopwatchScreen(props: VideoStopwatchScreenProps) {
 
   const topBar = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
-      <IconButton icon="arrow_back" label={t('family_timing.video.back')} onPress={props.onBack} />
+      <BackButton onPress={props.onBack} />
       {landscape ? (
         <Text style={[typography['body-strong'], panel, { color: onImage, flexShrink: 1 }]} numberOfLines={1}>
           {view.event}

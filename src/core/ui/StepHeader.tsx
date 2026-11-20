@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import { useTheme, type ColorToken } from '../theme';
-import { Button } from './Button';
+import { BackButton } from './BackButton';
 
 export type StepHeaderProps = {
   // 1-based current step; the design system allows four steps at most.
@@ -36,7 +36,7 @@ export function StepHeader({ step, total, title, onBack }: StepHeaderProps) {
     <View style={{ gap: space[2], backgroundColor: colors[stepHeaderColors.background] }}>
       {onBack && (
         <View style={styles.topBar}>
-          <Button variant="ghost" label={t('common.back')} onPress={onBack} />
+          <BackButton onPress={onBack} />
         </View>
       )}
       <Text accessibilityRole="text" style={[typography.caption, { color: colors[stepHeaderColors.step] }]}>

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Button, IconButton } from '../../../core/ui';
+import { BackButton, Button } from '../../../core/ui';
 import '../i18n';
 
 export type VideoPlayerScreenProps = {
@@ -25,7 +25,7 @@ export function VideoPlayerScreen({ event, detail, player, onJumpToStart, onBack
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.header, padding: space[4], gap: space[3] }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
-        <IconButton icon="arrow_back" label={t('family_timing.player.back')} onPress={onBack} />
+        <BackButton onPress={onBack} />
         <View style={{ flex: 1 }}>
           <Text accessibilityRole="header" style={[typography['body-strong'], { color: colors['on-header'] }]} numberOfLines={1}>
             {event}

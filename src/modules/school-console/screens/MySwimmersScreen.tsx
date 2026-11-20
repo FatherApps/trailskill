@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { IconButton, StateView, SwimmerRow, type AthleteAvatarRenderer, type SwimmerRowProps } from '../../../core/ui';
+import { BackButton, StateView, SwimmerRow, type AthleteAvatarRenderer, type SwimmerRowProps } from '../../../core/ui';
 import '../i18n';
 import { consoleLayoutFor, ConsoleLayout } from '../components/ConsoleLayout';
 
@@ -108,7 +108,7 @@ export function MySwimmersScreen({ width, schoolName, view, onOpen, onBack, scro
   return (
     <ConsoleLayout width={width} schoolName={schoolName} activeId="athletes" onSelect={() => {}} hideNav scrollEnabled={scrollEnabled}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
-        {onBack && <IconButton icon="arrow_back" label={t('common.back')} onPress={onBack} />}
+        {onBack && <BackButton onPress={onBack} />}
         <View style={{ flexShrink: 1 }}>
           {/* Last resort, as in the other console screens: a word that cannot fit at large text shrinks, never below 70 %. */}
           <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[typography['title-lg'], { color: colors[mySwimmersScreenColors.title] }]}>

@@ -13,6 +13,7 @@ export { Banner, bannerColors, type BannerProps, type BannerVariant } from './Ba
 export { Icon, type IconProps } from './Icon';
 export { StrokeIcon, type StrokeIconProps } from './StrokeIcon';
 export { IconButton, iconButtonColors, type IconButtonProps } from './IconButton';
+export { BackButton, backButtonColors, type BackButtonProps } from './BackButton';
 export { Logo, LogoSymbol, type LogoProps, type LogoSymbolProps } from './Logo';
 export { iconPaths, type IconName } from './icons';
 export { Segmented, segmentedColors, type SegmentedOption, type SegmentedProps } from './Segmented';
