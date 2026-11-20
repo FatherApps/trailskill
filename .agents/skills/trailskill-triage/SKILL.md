@@ -1,6 +1,6 @@
 ---
 name: trailskill-triage
-description: "Trigger: before creating an issue or starting work in TrailSkill. Read-only triage: finds an existing issue or pull request, checks architecture and product status, returns one verdict."
+description: "Trigger: before creating an issue or starting work in Swimcro. Read-only triage: finds an existing issue or pull request, checks architecture and product status, returns one verdict."
 license: "TBD"
 metadata:
   author: "trailskill"

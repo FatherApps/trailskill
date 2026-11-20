@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Entry point for AI agents working on TrailSkill. It is a map, not the rulebook: rules live in the linked documents and are not repeated here.
+Entry point for AI agents working on Swimcro. It is a map, not the rulebook: rules live in the linked documents and are not repeated here.
 
 ## Project
 
@@ -116,7 +116,7 @@ Agents never:
 These are mandatory for any build, configuration, or plan that targets Google Play. Details and official sources: [`docs/RELEASING.md`](docs/RELEASING.md#one-time-setup-maintainer).
 
 - Every Play build must target Android 16 (API level 36) or higher. Google Play requires it for new apps and app updates since 31 August 2026. Never set `targetSdkVersion` below 36. Google raises this level every year: re-check the source before each release.
-- The TrailSkill Play developer account is personal, so production access requires a closed test with at least 12 testers opted in for 14 consecutive days. The La Academia pilot runs on the closed testing track and its testers must satisfy this requirement before any production release is planned.
+- The Swimcro Play developer account is personal, so production access requires a closed test with at least 12 testers opted in for 14 consecutive days. The La Academia pilot runs on the closed testing track and its testers must satisfy this requirement before any production release is planned.
 
 ## When unsure
 

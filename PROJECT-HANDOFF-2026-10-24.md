@@ -1,3 +1,5 @@
+Written when the product was called TrailSkill; today it is called Swimcro.
+
 # TrailSkill — product and collaboration handoff
 
 Date: 2026-10-24 (America/Bogota)  

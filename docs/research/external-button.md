@@ -1,3 +1,5 @@
+Written when the product was called TrailSkill; today it is called Swimcro.
+
 # External timing button: protocol, precision and feasibility
 
 Research for issue #76 (task 7.1 of delivery phase 7). It answers the open item of the pilot design, sections 6.2 and 10: what hardware, protocol and precision the external timing button has, so the maintainer can decide whether and how task 7.2 (#77) is built.

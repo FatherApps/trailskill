@@ -1,6 +1,6 @@
 ---
 name: trailskill-repo-flow
-description: "Trigger: issue, branch, worktree, commit, PR, merge, release, tag, hotfix, OTA, Google Play in TrailSkill. Runs the repository, branching, release, and publishing flow."
+description: "Trigger: issue, branch, worktree, commit, PR, merge, release, tag, hotfix, OTA, Google Play in Swimcro. Runs the repository, branching, release, and publishing flow."
 license: "TBD"
 metadata:
   author: "trailskill"
@@ -9,7 +9,7 @@ metadata:
 
 ## Activation Contract
 
-Load for any TrailSkill repository-process task: setting up the repository, working an issue from branch to merged pull request, cutting a release or hotfix, publishing an OTA update, or moving a build through Google Play. The same skill serves Claude Code, Codex, OpenCode, and Pi.
+Load for any Swimcro repository-process task: setting up the repository, working an issue from branch to merged pull request, cutting a release or hotfix, publishing an OTA update, or moving a build through Google Play. The same skill serves Claude Code, Codex, OpenCode, and Pi.
 
 ## Hard Rules
 
