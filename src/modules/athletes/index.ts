@@ -73,3 +73,4 @@ export {
   type PhotoRef,
 } from './data/athletePhotos';
 export { useAthletePhoto, type AthletePhoto } from './data/useAthletePhoto';
+export { useAthletePhotoCacheGuard } from './data/useAthletePhotoCacheGuard';

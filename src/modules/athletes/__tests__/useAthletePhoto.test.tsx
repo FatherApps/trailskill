@@ -4,12 +4,10 @@ import { join } from 'node:path';
 
 import { createInMemoryAthletePhotoRepository, createInMemoryPhotoCache, useAthletePhoto } from '..';
 
-// Synthetic data only. The hook reads two local answers (the photo row, the session), both faked; show_photo comes in as an argument.
+// Synthetic data only. The hook reads one local answer (the photo row), faked; show_photo comes in as an argument. Sign-out is the guard's job.
 const mockQuery = jest.fn();
-const mockSession = jest.fn();
 
 jest.mock('../../../core/sync', () => ({ useQuery: (...args: unknown[]) => mockQuery(...args), supabase: {} }));
-jest.mock('../../../core/session', () => ({ useSession: () => mockSession() }));
 jest.mock('expo-file-system', () => ({ Directory: class {}, File: class {}, Paths: { cache: '' } }));
 
 const A1 = 'a1';
@@ -17,15 +15,13 @@ const PATH_A = 'a1/11111111-1111-4111-8111-111111111111.jpg';
 const PATH_B = 'a1/22222222-2222-4222-8222-222222222222.jpg';
 const URL_A = 'https://signed.example.test/token-a';
 const URL_B = 'https://signed.example.test/token-b';
-const USER = { user: { id: 'guardian-1' } };
 
-type State = { authorized: boolean; rows: { storage_path: string }[]; session: typeof USER | null };
+type State = { authorized: boolean; rows: { storage_path: string }[] };
 let state: State;
 
 beforeEach(() => {
-  state = { authorized: true, rows: [{ storage_path: PATH_A }], session: USER };
+  state = { authorized: true, rows: [{ storage_path: PATH_A }] };
   mockQuery.mockImplementation(() => ({ data: state.rows, isLoading: false, isFetching: false }));
-  mockSession.mockImplementation(() => ({ session: state.session }));
 });
 
 afterEach(() => jest.restoreAllMocks());
@@ -98,32 +94,6 @@ describe('useAthletePhoto', () => {
     expect(result.current).toEqual({ status: 'none', uri: null });
   });
 
-  it('empties the whole cache when the person signs out', async () => {
-    const { photos, cache } = setup();
-    await cache.put({ athleteId: 'a2', storagePath: 'a2/33333333-3333-4333-8333-333333333333.jpg' }, URL_A);
-    const { result, rerender } = await renderHook(() => useAthletePhoto(A1, state.authorized, { photos, cache }));
-    await waitFor(() => expect(result.current.status).toBe('ready'));
-    expect(cache.files()).toHaveLength(2);
-
-    state.session = null;
-    state.rows = [];
-    await rerender({});
-
-    await waitFor(() => expect(cache.files()).toEqual([]));
-  });
-
-  it('does not empty the cache on a cold start that begins without a session', async () => {
-    const { photos, cache } = setup();
-    await cache.put({ athleteId: A1, storagePath: PATH_A }, URL_A);
-    state.session = null;
-    const { rerender } = await renderHook(() => useAthletePhoto(A1, state.authorized, { photos, cache }));
-
-    state.session = USER;
-    await rerender({});
-
-    expect(cache.files()).toEqual([PATH_A]);
-  });
-
   it('removes the image when the row leaves the device (a withdrawal synced)', async () => {
     const { photos, cache } = setup();
     const { result, rerender } = await renderHook(() => useAthletePhoto(A1, state.authorized, { photos, cache }));
@@ -143,6 +113,33 @@ describe('useAthletePhoto', () => {
     await renderHook(() => useAthletePhoto(A1, state.authorized, { photos, cache }));
 
     expect(cache.files()).toEqual([PATH_A]);
+  });
+
+  it('does not show the failure of one photo as the state of the next one', async () => {
+    const logs = [jest.spyOn(console, 'warn')];
+    logs.forEach((spy) => spy.mockImplementation(() => {}));
+    const cache = createInMemoryPhotoCache();
+    const photos = createInMemoryAthletePhotoRepository({ [PATH_B]: URL_B });
+    const { result, rerender } = await renderHook(() => useAthletePhoto(A1, state.authorized, { photos, cache }));
+    await waitFor(() => expect(result.current.status).toBe('unavailable'));
+
+    state.rows = [{ storage_path: PATH_B }];
+    await rerender({});
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+  });
+
+  it('removes the image that arrives after show_photo was withdrawn while it was downloading', async () => {
+    let finish: () => void = () => {};
+    const cache = createInMemoryPhotoCache(() => new Promise<void>((resolve) => (finish = resolve)));
+    const photos = createInMemoryAthletePhotoRepository({ [PATH_A]: URL_A });
+    const { rerender } = await renderHook(() => useAthletePhoto(A1, state.authorized, { photos, cache }));
+
+    state.authorized = false;
+    await rerender({});
+    await act(async () => finish());
+
+    await waitFor(() => expect(cache.files()).toEqual([]));
   });
 
   it('is unavailable, with no path, URL or URI in any log, when the signed URL cannot be had', async () => {
@@ -170,7 +167,7 @@ describe('useAthletePhoto', () => {
 });
 
 describe('the code of the photo feature', () => {
-  it.each(['athletePhotos.ts', 'useAthletePhoto.ts'])('%s has no console call that could carry a path, a URL or a URI', (file) => {
+  it.each(['athletePhotos.ts', 'useAthletePhoto.ts', 'useAthletePhotoCacheGuard.ts'])('%s has no console call that could carry a path, a URL or a URI', (file) => {
     const source = readFileSync(join(__dirname, '../data', file), 'utf8');
     const calls = source.match(/console\.\w+\([^)]*\)/g) ?? [];
     for (const call of calls) expect(call).not.toMatch(/\b(path|url|uri|storagePath|signedUrl)\b/i);

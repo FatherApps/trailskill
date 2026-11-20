@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { useSession } from '../../../core/session';
 import { useQuery } from '../../../core/sync';
 import {
   createFileSystemPhotoCache,
@@ -13,7 +12,7 @@ export type AthletePhoto =
   /** The athlete has no photo on this device, or show_photo is not in force: nothing to show. */
   | { status: 'none'; uri: null }
   | { status: 'loading'; uri: null }
-  /** The image could not be fetched (offline, or the server refused): show the avatar, try again on the next render. */
+  /** The image could not be fetched (offline, or the server refused): show the avatar. It is tried again when the athlete, the photo or show_photo changes. */
   | { status: 'unavailable'; uri: null }
   | { status: 'ready'; uri: string };
 
@@ -22,9 +21,10 @@ const defaultCache = createFileSystemPhotoCache();
 
 /**
  * The local image of an athlete's photo. It returns the cached file when it has this exact photo; otherwise it asks for a
- * signed URL of about 5 minutes and copies the image into cacheDirectory/athlete-photos/. The cache is emptied when show_photo
- * stops being in force for the athlete and when the person signs out, and anything the local rows no longer justify is pruned.
- * Nothing it does logs a path, a URL or a file URI.
+ * signed URL of about 5 minutes and copies the image into cacheDirectory/athlete-photos/. This athlete's cache is emptied when
+ * show_photo stops being in force or the row leaves the device. Signing out and a change of person are handled by
+ * useAthletePhotoCacheGuard, which the root layout mounts: a screen's hook is gone by then. Nothing it does logs a path, a URL
+ * or a file URI.
  *
  * `showPhotoInForce` is useHasValidAuthorization(athleteId, 'show_photo') from accounts, read by the caller (a route or a
  * container outside this module): accounts already depends on athletes, so this module cannot import that hook without a cycle.
@@ -36,9 +36,12 @@ export function useAthletePhoto(
 ): AthletePhoto {
   const authorized = showPhotoInForce;
   const row = useQuery<{ storage_path: string }>('SELECT storage_path FROM athlete_photos WHERE athlete_id = ?', [athleteId]);
-  const { session } = useSession();
   const storagePath = authorized ? (row.data[0]?.storage_path ?? null) : null;
-  const [fetched, setFetched] = useState<{ athleteId: string; storagePath: string; uri: string } | 'failed'>();
+  const [fetched, setFetched] = useState<{ athleteId: string; storagePath: string; uri: string | null }>();
+  const latestAuthorized = useRef(authorized);
+  useEffect(() => {
+    latestAuthorized.current = authorized;
+  }, [authorized]);
 
   // show_photo withdrawn (or never given): nothing of this athlete stays on the phone, even before the row leaves by sync.
   useEffect(() => {
@@ -50,13 +53,6 @@ export function useAthletePhoto(
     if (authorized && !row.isLoading && !row.isFetching && row.data.length === 0) cache.clearAthlete(athleteId);
   }, [authorized, row.isLoading, row.isFetching, row.data.length, athleteId, cache]);
 
-  // Signing out empties the whole cache, not just this athlete's: the next person on a shared phone starts empty.
-  const signedIn = useRef(session != null);
-  useEffect(() => {
-    if (signedIn.current && session == null) cache.clearAll();
-    signedIn.current = session != null;
-  }, [session, cache]);
-
   useEffect(() => {
     if (!storagePath) return;
     const photo = { athleteId, storagePath };
@@ -65,10 +61,12 @@ export function useAthletePhoto(
       try {
         const local = cache.get(photo) ?? (await cache.put(photo, await photos.createSignedUrl(storagePath)));
         if (active) setFetched({ ...photo, uri: local });
+        // show_photo was withdrawn while the image was coming: the clear already ran, so this late copy must not stay.
+        else if (!latestAuthorized.current) cache.clearAthlete(athleteId);
       } catch {
         // No path, URL or URI in the log: only that it failed.
         if (__DEV__) console.warn('[athletes] An athlete photo could not be loaded');
-        if (active) setFetched('failed');
+        if (active) setFetched({ ...photo, uri: null });
       }
     })();
     return () => {
@@ -77,7 +75,8 @@ export function useAthletePhoto(
   }, [athleteId, storagePath, photos, cache]);
 
   if (!storagePath) return { status: 'none', uri: null };
-  if (fetched === 'failed') return { status: 'unavailable', uri: null };
-  if (fetched && fetched.athleteId === athleteId && fetched.storagePath === storagePath) return { status: 'ready', uri: fetched.uri };
+  if (fetched && fetched.athleteId === athleteId && fetched.storagePath === storagePath) {
+    return fetched.uri ? { status: 'ready', uri: fetched.uri } : { status: 'unavailable', uri: null };
+  }
   return { status: 'loading', uri: null };
 }

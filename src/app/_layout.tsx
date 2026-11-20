@@ -20,6 +20,7 @@ import { SessionProvider, useSession } from '../core/session';
 import { db } from '../core/sync';
 import { ThemeProvider, useTheme } from '../core/theme';
 import { createSecureStoreRegistrationDraftRepository, discardStaleDraft } from '../modules/accounts';
+import { useAthletePhotoCacheGuard } from '../modules/athletes';
 import { VersionGate } from '../modules/settings';
 
 SplashScreen.preventAutoHideAsync();
@@ -37,6 +38,8 @@ function PreferredTheme({ children }: { children: ReactNode }) {
 // redirectTo is needed for a cold start: without it the guarded "/" is an unmatched route.
 export function SessionGate() {
   const { session } = useSession();
+  // Outside the route guards below: the guarded screens are gone when the session ends, this stays.
+  useAthletePhotoCacheGuard();
   const { name, colors } = useTheme();
   const insets = useSafeAreaInsets();
 
