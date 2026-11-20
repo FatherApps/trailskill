@@ -33,11 +33,12 @@ test("the school-free coach category ids no longer exist", () => {
 
 test("the other staff queries do not change", () => {
   expect(staff.filter((query) => !query.includes("category_id"))).toEqual([
-    "SELECT * FROM training_plan_assignments WHERE school_id IN admin_school_ids AND withdrawn_at IS NULL",
+    "SELECT * FROM training_plan_assignments WHERE school_id IN admin_school_ids AND target <> 'athlete' AND withdrawn_at IS NULL",
+    "SELECT training_plan_assignments.* FROM training_plan_assignments JOIN school_memberships ON training_plan_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON training_plan_assignments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.ended_at IS NULL AND training_plan_assignments.withdrawn_at IS NULL",
     "SELECT * FROM training_plan_assignments WHERE group_id IN coach_group_ids AND school_id IN member_school_ids AND withdrawn_at IS NULL",
     "SELECT * FROM training_plan_assignments WHERE group_id IN coach_direct_group_ids AND school_id IN member_school_ids AND withdrawn_at IS NULL",
-    "SELECT * FROM training_plan_assignments WHERE athlete_id IN coach_direct_athlete_ids AND school_id IN member_school_ids AND withdrawn_at IS NULL",
-    "SELECT * FROM training_plan_assignments WHERE athlete_id IN coach_group_athlete_ids AND school_id IN member_school_ids AND withdrawn_at IS NULL",
+    "SELECT training_plan_assignments.* FROM training_plan_assignments JOIN school_memberships ON training_plan_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON training_plan_assignments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.deactivated_at IS NULL AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id() AND training_plan_assignments.withdrawn_at IS NULL",
+    "SELECT training_plan_assignments.* FROM training_plan_assignments JOIN training_groups ON training_plan_assignments.school_id = training_groups.school_id JOIN athlete_groups ON training_plan_assignments.athlete_id = athlete_groups.athlete_id AND training_groups.id = athlete_groups.group_id JOIN athlete_schools ON athlete_groups.athlete_id = athlete_schools.athlete_id AND training_groups.school_id = athlete_schools.school_id WHERE training_groups.id IN coach_group_ids AND athlete_schools.ended_at IS NULL AND training_plan_assignments.withdrawn_at IS NULL",
     "SELECT * FROM training_plan_assignments WHERE target = 'school' AND school_id IN member_school_ids AND withdrawn_at IS NULL",
   ]);
 });

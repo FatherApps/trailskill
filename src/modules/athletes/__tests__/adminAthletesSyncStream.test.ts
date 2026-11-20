@@ -27,7 +27,7 @@ test("the admin queries of athletes_visible bind the enrollment and the group ro
     "SELECT * FROM athlete_schools WHERE school_id IN admin_school_ids AND ended_at IS NULL",
   ]);
   expect(adminQueriesOf("athlete_groups")).toEqual([
-    "SELECT athlete_groups.* FROM athlete_groups JOIN athlete_schools ON athlete_groups.athlete_id = athlete_schools.athlete_id JOIN training_groups ON athlete_groups.group_id = training_groups.id AND athlete_schools.school_id = training_groups.school_id JOIN school_memberships ON athlete_schools.school_id = school_memberships.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.ended_at IS NULL",
+    "SELECT athlete_groups.* FROM athlete_groups JOIN training_groups ON athlete_groups.group_id = training_groups.id JOIN school_memberships ON training_groups.school_id = school_memberships.school_id JOIN athlete_schools ON athlete_groups.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.ended_at IS NULL",
   ]);
 });
 
