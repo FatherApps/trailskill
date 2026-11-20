@@ -2,6 +2,7 @@ package expo.modules.videorecorder
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.DocumentsContract
@@ -33,6 +34,11 @@ class VideoRecorderModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("VideoRecorder")
+
+    // Hardware the phone may lack (tablets, Chromebooks): the manifest declares both as not required (#1291), so the app asks.
+    Function("hasCamera") { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA) }
+
+    Function("hasMicrophone") { context.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE) }
 
     // Sharing a time's video (#1201): Android's share menu with the gallery file itself, so it keeps its name (the time's id).
     AsyncFunction("shareVideo") { uri: String, title: String ->

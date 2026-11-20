@@ -49,3 +49,38 @@ describe('video camera gallery album', () => {
     expect(mockAlbum.create).not.toHaveBeenCalled();
   });
 });
+
+// A phone or tablet without a rear camera or a microphone still installs the app (#1291).
+describe('video camera hardware', () => {
+  const { PermissionsAndroid } = require('react-native'); // eslint-disable-line @typescript-eslint/no-require-imports -- same RN instance as the adapter
+  const { videoCameraFor } = adapter;
+  const asked = () => (PermissionsAndroid.request as jest.Mock).mock.calls.map(([permission]) => permission);
+
+  beforeEach(() => {
+    jest.spyOn(PermissionsAndroid, 'request').mockReset().mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
+    require('expo-media-library').requestPermissionsAsync.mockResolvedValue({ granted: true }); // eslint-disable-line @typescript-eslint/no-require-imports -- the mocked module
+  });
+
+  it('offers no camera without the module', () => {
+    expect(videoCameraFor(null)).toBeNull();
+  });
+
+  it('offers no camera when the phone has no rear camera', () => {
+    expect(videoCameraFor({ hasCamera: () => false, hasMicrophone: () => true })).toBeNull();
+  });
+
+  it('offers the camera when the phone has one, or when a build cannot tell', () => {
+    expect(videoCameraFor({ hasCamera: () => true, hasMicrophone: () => true })).not.toBeNull();
+    expect(videoCameraFor({})).not.toBeNull();
+  });
+
+  it('asks for the microphone only when the phone has one and the video has sound', async () => {
+    await expect(videoCameraFor({ hasCamera: () => true, hasMicrophone: () => true })!.requestPermissions(true)).resolves.toBe(true);
+    expect(asked()).toEqual([PermissionsAndroid.PERMISSIONS.CAMERA, PermissionsAndroid.PERMISSIONS.RECORD_AUDIO]);
+  });
+
+  it('records without sound and never asks for the microphone on a phone without one', async () => {
+    await expect(videoCameraFor({ hasCamera: () => true, hasMicrophone: () => false })!.requestPermissions(true)).resolves.toBe(true);
+    expect(asked()).toEqual([PermissionsAndroid.PERMISSIONS.CAMERA]);
+  });
+});
