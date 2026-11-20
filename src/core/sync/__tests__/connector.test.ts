@@ -1206,6 +1206,89 @@ describe('SupabaseConnector.fetchCredentials', () => {
   });
 });
 
+describe('SupabaseConnector athlete photo upsert (#1253)', () => {
+  const photo = { athlete_id: 'athlete-1', storage_path: 'athlete-1/photo-1.jpg', created_by: 'user-1', updated_at: '2026-11-20T10:00:00.000Z' };
+
+  it('applies a PUT of athlete_photos as an upsert by athlete_id, so another device row for the athlete is replaced, not rejected with 23505', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([entry('PUT', 'device-id', photo, 'athlete_photos')]));
+
+    expect(t.from).toHaveBeenCalledWith('athlete_photos');
+    expect(t.upsert).toHaveBeenCalledTimes(1);
+    // The id the device holds is sent, so the row the server keeps has the id a later DELETE from this device uses.
+    expect(t.upsert.mock.calls[0][0]).toMatchObject({ id: 'device-id', athlete_id: 'athlete-1', storage_path: 'athlete-1/photo-1.jpg', updated_at: photo.updated_at });
+    expect(t.upsert.mock.calls[0][1]).toEqual({ onConflict: 'athlete_id' });
+    expect(failureInserts(t.committed)).toHaveLength(0);
+    expect(t.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('never sends created_by: the upsert would rewrite the author of a row another guardian created and the freeze trigger refuses it', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([entry('PUT', 'device-id', photo, 'athlete_photos')]));
+
+    expect(t.upsert.mock.calls[0][0]).not.toHaveProperty('created_by');
+  });
+
+  it('does not look the row up or call a function: the same upsert is the whole write, and a retry sends it again', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([entry('PUT', 'device-id', photo, 'athlete_photos')]));
+
+    expect(t.readBack).not.toHaveBeenCalled();
+    expect(t.rpc).not.toHaveBeenCalled();
+    expect(t.upsertSelect).not.toHaveBeenCalled();
+  });
+
+  it('still records a permanent rejection (no show_photo, not a guardian) in upload_failures, as before', async () => {
+    const t = setup({ upsert: { data: null, error: { code: '42501', message: 'denied' } } });
+    await t.connector.uploadData(t.database([entry('PUT', 'device-id', photo, 'athlete_photos')]));
+
+    const inserts = failureInserts(t.committed);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0][1].slice(0, 3)).toEqual(['athlete_photos', 'device-id', 'PUT']);
+    expect(inserts[0][1][4]).toBe('42501');
+    expect(t.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a network error without recording a failure', async () => {
+    const error = { message: 'Network request failed' };
+    const t = setup({ upsert: { data: null, error } }, { sleep: jest.fn().mockResolvedValue(undefined) });
+
+    await expect(t.connector.uploadData(t.database([entry('PUT', 'device-id', photo, 'athlete_photos')]))).rejects.toBe(error);
+    expect(failureInserts(t.committed)).toHaveLength(0);
+    expect(t.complete).not.toHaveBeenCalled();
+  });
+
+  it('deletes by the id the device holds, which is the id the upsert left on the server row', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([entry('DELETE', 'device-id', undefined, 'athlete_photos')]));
+
+    expect(t.deleteEq).toHaveBeenCalledWith('id', 'device-id');
+  });
+
+  it('keeps sending a PATCH of athlete_photos by id', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([entry('PATCH', 'device-id', { storage_path: 'athlete-1/photo-2.jpg' }, 'athlete_photos')]));
+
+    expect(t.update).toHaveBeenCalledWith({ storage_path: 'athlete-1/photo-2.jpg' });
+    expect(t.updateEq).toHaveBeenCalledWith('id', 'device-id');
+  });
+
+  it('does not change the PUT of any other table: same payload, created_by kept, no conflict option', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([entry('PUT', 'a', { athlete_id: 'athlete-1', created_by: 'user-1', note: 'n' }, 'athlete_notes')]));
+
+    expect(t.upsert).toHaveBeenCalledTimes(1);
+    expect(t.upsert.mock.calls[0]).toEqual([{ id: 'a', athlete_id: 'athlete-1', created_by: 'user-1', note: 'n' }]);
+  });
+
+  it('does not change the insert-only PUT of other tables: conflict on id, duplicates ignored', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([entry('PUT', 'a', { athlete_id: 'athlete-1', created_by: 'user-1' }, 'measurements')]));
+
+    expect(t.upsert.mock.calls[0]).toEqual([{ id: 'a', athlete_id: 'athlete-1', created_by: 'user-1' }, { onConflict: 'id', ignoreDuplicates: true }]);
+  });
+});
+
 describe('isPermanentUploadError', () => {
   it.each(['22001', '22P02', '23505', '23503', '42501'])('is true for %s', (code) => {
     expect(isPermanentUploadError({ code })).toBe(true);

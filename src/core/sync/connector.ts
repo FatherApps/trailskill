@@ -41,6 +41,13 @@ const CONFIRM_INSERT_FUNCTIONS: Record<string, string> = {
   training_plan_fulfillments: 'confirm_training_plan_fulfillment_insert',
 };
 
+// Tables whose row is unique per another column (one photo per athlete, #1253): a PUT replaces the stored row of that key instead of inserting by id,
+// so a device that did not know the row existed never hits a unique violation. The row takes the device's id, so a later DELETE by id finds it.
+// `omit` columns are never sent: created_by is set by the server on insert, and an update that rewrote it would be refused by the freeze trigger.
+const UPSERT_BY_KEY: Record<string, { onConflict: string; omit: string[] }> = {
+  athlete_photos: { onConflict: 'athlete_id', omit: ['created_by'] },
+};
+
 // Columns that are JSON text on the device (PowerSync syncs a Postgres array as JSON text) but arrays on the server: they are parsed before upload.
 const JSON_ARRAY_COLUMNS: Record<string, string[]> = { training_plan_blocks: ['equipment'] };
 
@@ -258,6 +265,12 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
           result = await table.upsert({ id: op.id, ...toServerValues(op.table, op.opData) }, { onConflict: 'id', ignoreDuplicates: true }).select('id');
           const rejection = failureCode(result);
           return rejection === null && result.data?.length ? null : this.confirmInsert(op, rejection);
+        }
+        if (op.table in UPSERT_BY_KEY) {
+          const { onConflict, omit } = UPSERT_BY_KEY[op.table];
+          const values = Object.fromEntries(Object.entries(toServerValues(op.table, op.opData)).filter(([column]) => !omit.includes(column)));
+          result = await table.upsert({ id: op.id, ...values }, { onConflict });
+          return failureCode(result);
         }
         result = await table.upsert({ id: op.id, ...toServerValues(op.table, op.opData) });
         return failureCode(result);
