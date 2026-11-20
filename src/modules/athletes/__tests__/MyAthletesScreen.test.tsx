@@ -105,6 +105,31 @@ describe('MyAthletesScreen', () => {
     expect(onOpen).toHaveBeenCalledWith('a1', 'Tomás Rojas');
   });
 
+  it('opens the same profile when the card in front is pressed, once', async () => {
+    const onOpen = jest.fn();
+    await show(stack(paula, tomas), { onOpen });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Abre el perfil de Paula Gómez' }));
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith('a0', 'Paula Gómez');
+  });
+
+  it('exposes the card in front as one button named after the athlete', async () => {
+    await show(stack(paula, tomas));
+
+    expect(screen.getAllByRole('button', { name: /Paula Gómez/ })).toHaveLength(1);
+  });
+
+  it('does not navigate when a collapsed card is pressed', async () => {
+    const onOpen = jest.fn();
+    await show(stack(paula, tomas), { onOpen });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Tomás R., Infantil A' }));
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   it('tags the front athlete as authorized, as pending, or with no tag while the state is unknown', async () => {
     await show(stack(lucia, tomas, mateo));
 
@@ -120,7 +145,8 @@ describe('MyAthletesScreen', () => {
     await show(stack(mateo));
 
     expect(screen.getByText('Mateo\nCastro')).toBeOnTheScreen();
-    expect(screen.getAllByRole('button')).toHaveLength(2);
+    // The card in front, its Historial button and the add button.
+    expect(screen.getAllByRole('button')).toHaveLength(3);
   });
 
   it('shows the school alone, or the group alone, when only one of them is known', async () => {
