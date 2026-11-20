@@ -32,6 +32,12 @@ describe('BackButton', () => {
     expect(style.borderWidth).toBeUndefined();
   });
 
+  it('keeps its own width in a column that stretches its children', async () => {
+    await renderButton();
+
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Volver' }).props.style).alignSelf).toBe('flex-start');
+  });
+
   it('calls onPress when pressed', async () => {
     const onPress = await renderButton();
 

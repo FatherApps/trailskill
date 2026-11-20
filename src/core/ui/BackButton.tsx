@@ -28,6 +28,8 @@ export function BackButton({ onPress }: BackButtonProps) {
       {...focusProps}
       style={[
         {
+          // Keeps the circle in a column that stretches its children (a screen's top bar); in a row it sits at the start of the cross axis.
+          alignSelf: 'flex-start',
           minWidth: size['target-min'],
           minHeight: size['target-min'],
           alignItems: 'center',

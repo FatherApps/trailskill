@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
 import { BackButton, Banner, Button, ConfirmSheet, StepHeader, type AthleteAvatarSlot } from '../../../core/ui';
@@ -79,13 +79,7 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
   return (
     <ScreenFrame
       title={registration ? t('accounts.create_title') : t('accounts.authorizations.title')}
-      before={
-        !registration && onBack ? (
-          <View style={{ alignSelf: 'flex-start' }}>
-            <BackButton onPress={onBack} />
-          </View>
-        ) : undefined
-      }
+      before={!registration && onBack ? <BackButton onPress={onBack} /> : undefined}
       footer={<Button label={t(registration ? 'accounts.authorizations.continue' : 'accounts.authorizations.save')} onPress={save} loading={saving} />}
     >
       {registration && step && onBack && (

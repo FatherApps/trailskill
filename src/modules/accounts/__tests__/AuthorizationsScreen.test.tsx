@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
 
 import { createInMemoryAuthorizationRepository, type AuthorizationRecord, type AuthorizationRepository, type AuthorizationText } from '../data/authorizations';
 import { createIdentityNumberHold, createInMemoryIdentityDocumentRepository } from '../data/identityDocuments';
@@ -51,9 +50,6 @@ describe('AuthorizationsScreen', () => {
   it('leaves through the shared round Back button when it is managed outside the registration', async () => {
     const onBack = jest.fn();
     await render(<AuthorizationsScreen mode="manage" athletes={athletes} texts={texts} inForce={{}} onSave={jest.fn().mockResolvedValue(true)} onWithdraw={jest.fn()} onBack={onBack} />);
-
-    // Inside the screen's column the round button keeps its own width instead of stretching across it.
-    expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Volver' }).parent?.props.style)).toMatchObject({ alignSelf: 'flex-start' });
 
     await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
 
