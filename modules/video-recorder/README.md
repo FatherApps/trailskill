@@ -9,6 +9,7 @@ The view is `VideoRecorder` (`requireNativeViewManager('VideoRecorder')`):
 - Props: `quality` (`'low'` = SD, `'medium'` = HD, `'high'` = FHD, with a fallback to a lower quality), `audio` (boolean), `overlay` (`{ enabled, event, startedAt, stoppedAt, splits, thousandths }`; marks are decimal strings of the `SystemClock.elapsedRealtimeNanos()` clock, because bigints do not cross to native code).
 - `record()`: starts recording and resolves with the file URI once the recording ends (stop, the 30 minute safety limit, the camera closing, low space), or `null` when nothing was recorded. The file is in the app's private cache (`context.cacheDir`); the adapter moves it to the gallery or deletes it.
 - `stop()`: ends the recording.
+- Functions: `hasCamera()` (a rear camera exists) and `hasMicrophone()`, from `PackageManager.hasSystemFeature`. The manifest declares both as not required (#1291), so the adapter hides «Grabar» without a camera and records without sound, never asking `RECORD_AUDIO`, without a microphone.
 - Events: `onReady` (the camera is bound) and `onError` (the camera could not open).
 - `now()`: the same clock as the timing buttons.
 - Sharing and linking a time's video (#1201), through the `VideoSharing` port (`src/modules/family-timing/data/videoSharing.ts`):

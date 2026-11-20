@@ -68,7 +68,10 @@ const nativeOverlay = (o: StopwatchOverlay): NativeOverlay => ({
   thousandths: o.thousandths,
 });
 
-function nativePreview(): VideoCamera['Preview'] {
+/** What the local module says about the phone's hardware; a build without these functions assumes both are there. */
+export type VideoRecorderModule = { hasCamera?: () => boolean; hasMicrophone?: () => boolean };
+
+function nativePreview(hearing: boolean): VideoCamera['Preview'] {
   const NativeRecorder = requireNativeViewManager<NativeRecorderProps & RefAttributes<NativeRecorderRef>>('VideoRecorder');
   return forwardRef<CameraPreviewHandle, CameraPreviewProps>(function VideoRecorderPreview({ quality, audio, overlay, onReady, onError, style }, ref) {
     const native = useRef<NativeRecorderRef>(null);
@@ -88,7 +91,7 @@ function nativePreview(): VideoCamera['Preview'] {
       }),
       [],
     );
-    return <NativeRecorder ref={native} style={style} quality={quality} audio={audio} overlay={nativeOverlay(overlay)} onReady={onReady} onError={onError} />;
+    return <NativeRecorder ref={native} style={style} quality={quality} audio={audio && hearing} overlay={nativeOverlay(overlay)} onReady={onReady} onError={onError} />;
   });
 }
 
@@ -126,11 +129,11 @@ async function granted(permission: Parameters<typeof PermissionsAndroid.request>
   return (await PermissionsAndroid.request(permission)) === PermissionsAndroid.RESULTS.GRANTED;
 }
 
-function nativeVideoCamera(): VideoCamera {
+function nativeVideoCamera(hearing: boolean): VideoCamera {
   return {
     async requestPermissions(audio) {
       if (!(await granted(PermissionsAndroid.PERMISSIONS.CAMERA))) return false;
-      if (audio && !(await granted(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO))) return false;
+      if (audio && hearing && !(await granted(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO))) return false;
       return (await requestPermissionsAsync(true, ['video'])).granted;
     },
     freeBytes() {
@@ -148,9 +151,18 @@ function nativeVideoCamera(): VideoCamera {
         // Already gone.
       }
     },
-    Preview: nativePreview(),
+    Preview: nativePreview(hearing),
   };
 }
 
-/** The phone's camera with the stopwatch drawn into the video; null where the module is missing (iOS, tests, an old build). */
-export const videoCamera: VideoCamera | null = requireOptionalNativeModule('VideoRecorder') ? nativeVideoCamera() : null;
+/**
+ * The phone's camera with the stopwatch drawn into the video; null where the module is missing (iOS, tests, an old build) or the
+ * phone has no rear camera, so «Grabar» is not offered (#1291). Without a microphone the video is recorded without sound and
+ * RECORD_AUDIO is never asked.
+ */
+export function videoCameraFor(module: VideoRecorderModule | null): VideoCamera | null {
+  if (!module || module.hasCamera?.() === false) return null;
+  return nativeVideoCamera(module.hasMicrophone?.() !== false);
+}
+
+export const videoCamera: VideoCamera | null = videoCameraFor(requireOptionalNativeModule<VideoRecorderModule>('VideoRecorder'));
