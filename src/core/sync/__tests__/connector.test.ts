@@ -1258,19 +1258,71 @@ describe('SupabaseConnector athlete photo upsert (#1253)', () => {
     expect(t.complete).not.toHaveBeenCalled();
   });
 
-  it('deletes by the id the device holds, which is the id the upsert left on the server row', async () => {
-    const t = setup();
-    await t.connector.uploadData(t.database([entry('DELETE', 'device-id', undefined, 'athlete_photos')]));
+  // Device B still holds the id S of the photo row; device A already replaced it, so the server row has A's id. B's PATCH and DELETE carry S,
+  // and the previous values of the row (trackPrevious in the schema) say which athlete it belongs to: the server row is found by athlete_id.
+  const staleOp = (op: 'PATCH' | 'DELETE', opData?: Record<string, unknown>, previousValues: Record<string, unknown> | undefined = { athlete_id: 'athlete-1' }) =>
+    ({ ...entry(op, 'old-id', opData, 'athlete_photos'), previousValues }) as unknown as CrudEntry;
 
-    expect(t.deleteEq).toHaveBeenCalledWith('id', 'device-id');
-  });
-
-  it('keeps sending a PATCH of athlete_photos by id', async () => {
+  it('PATCH from a device with the old id updates the row of the athlete, not the row with the local id', async () => {
     const t = setup();
-    await t.connector.uploadData(t.database([entry('PATCH', 'device-id', { storage_path: 'athlete-1/photo-2.jpg' }, 'athlete_photos')]));
+    await t.connector.uploadData(t.database([staleOp('PATCH', { storage_path: 'athlete-1/photo-2.jpg' })]));
 
     expect(t.update).toHaveBeenCalledWith({ storage_path: 'athlete-1/photo-2.jpg' });
-    expect(t.updateEq).toHaveBeenCalledWith('id', 'device-id');
+    expect(t.updateEq).toHaveBeenCalledTimes(1);
+    expect(t.updateEq).toHaveBeenCalledWith('athlete_id', 'athlete-1');
+    expect(failureInserts(t.committed)).toHaveLength(0);
+  });
+
+  it('records a PATCH that changed no row (RLS filtered it) as no_rows_affected, as before', async () => {
+    const t = setup({ update: empty });
+    await t.connector.uploadData(t.database([staleOp('PATCH', { storage_path: 'athlete-1/photo-2.jpg' })]));
+
+    expect(failureInserts(t.committed)[0][1][4]).toBe('no_rows_affected');
+  });
+
+  it('DELETE from a device with the old id deletes the row of the athlete, so the photo does not stay on the server', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([staleOp('DELETE')]));
+
+    expect(t.deleteEq).toHaveBeenCalledTimes(1);
+    expect(t.deleteEq).toHaveBeenCalledWith('athlete_id', 'athlete-1');
+    expect(t.readBack).not.toHaveBeenCalled();
+    expect(failureInserts(t.committed)).toHaveLength(0);
+  });
+
+  it('a DELETE that finds no row is confirmed only when the athlete has no photo row left (looked up by athlete_id)', async () => {
+    const t = setup({ delete: empty, readBack: empty });
+    await t.connector.uploadData(t.database([staleOp('DELETE')]));
+
+    expect(t.readBackEq).toHaveBeenCalledWith('athlete_id', 'athlete-1');
+    expect(t.readBackEq).not.toHaveBeenCalledWith('id', 'old-id');
+    expect(failureInserts(t.committed)).toHaveLength(0);
+  });
+
+  it('a DELETE that removed nothing while a photo row of the athlete is still there is not confirmed gone', async () => {
+    const t = setup({ delete: empty, readBack: ok });
+    await t.connector.uploadData(t.database([staleOp('DELETE')]));
+
+    expect(failureInserts(t.committed)).toHaveLength(1);
+    expect(failureInserts(t.committed)[0][1][4]).toBe('no_rows_affected');
+  });
+
+  it('an op queued before the previous values were tracked has no athlete and keeps going by id', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([staleOp('DELETE', undefined, {}), staleOp('PATCH', { storage_path: 'athlete-1/photo-2.jpg' }, {})].map((op, i) => ({ ...op, clientId: i + 1 }) as CrudEntry)));
+
+    expect(t.deleteEq).toHaveBeenCalledWith('id', 'old-id');
+    expect(t.updateEq).toHaveBeenCalledWith('id', 'old-id');
+  });
+
+  it('a DELETE or PATCH of another table never looks at previous values: still by id', async () => {
+    const t = setup();
+    const op = (kind: 'PATCH' | 'DELETE', clientId: number) =>
+      ({ ...entry(kind, 'a', kind === 'PATCH' ? { first_name: 'Bea' } : undefined, 'athletes', clientId), previousValues: { athlete_id: 'athlete-1' } }) as unknown as CrudEntry;
+    await t.connector.uploadData(t.database([op('PATCH', 1), op('DELETE', 2)]));
+
+    expect(t.updateEq).toHaveBeenCalledWith('id', 'a');
+    expect(t.deleteEq).toHaveBeenCalledWith('id', 'a');
   });
 
   it('does not change the PUT of any other table: same payload, created_by kept, no conflict option', async () => {

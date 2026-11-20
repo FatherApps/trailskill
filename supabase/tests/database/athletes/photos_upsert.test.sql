@@ -5,7 +5,7 @@
 -- the later delete by the id the device sent. All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(29);
 
 -- The delete trigger of storage.objects refuses direct deletes unless the Storage API says so.
 set local storage.allow_delete_query = 'true';
@@ -254,6 +254,63 @@ select results_eq(
   $$ values ('12530000-0000-4000-8000-0000000000e3'::uuid, '12530000-0000-4000-8000-0000000000e3/12530000-0000-4000-8000-0000000000f3.jpg'::text),
             ('12530000-0000-4000-8000-0000000000e4'::uuid, '12530000-0000-4000-8000-0000000000e4/12530000-0000-4000-8000-0000000000f4.jpg'::text) $$,
   'every refused upsert left the photo rows as they were'
+);
+
+-- Two devices (#1253, review): guardian G's device replaced the row of e5 (another id), and guardian H's device
+-- still holds the old id. Its PATCH and its DELETE find the row by athlete_id, under RLS.
+reset role;
+insert into public.athletes (id, first_name, last_name) values ('12530000-0000-4000-8000-0000000000e5', 'Athlete', 'U5');
+insert into public.athlete_managers (user_id, athlete_id, relation) values
+  ('12530000-0000-4000-8000-0000000000a1', '12530000-0000-4000-8000-0000000000e5', 'guardian'),
+  ('12530000-0000-4000-8000-0000000000a2', '12530000-0000-4000-8000-0000000000e5', 'guardian');
+insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at)
+select '12530000-0000-4000-8000-0000000000a1', '12530000-0000-4000-8000-0000000000e5', 'show_photo', t.id, now() - interval '1 hour'
+from public.authorization_texts t where t.purpose = 'show_photo' and t.version = 1 and t.language = 'es-CO';
+insert into public.athlete_photos (id, athlete_id, storage_path, created_by) values
+  ('12530000-0000-4000-8000-0000000000c5', '12530000-0000-4000-8000-0000000000e5', '12530000-0000-4000-8000-0000000000e5/12530000-0000-4000-8000-0000000000fd.jpg', '12530000-0000-4000-8000-0000000000a2');
+delete from public.storage_deletion_queue;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "12530000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select lives_ok(
+  $$ insert into public.athlete_photos (id, athlete_id, storage_path, updated_at)
+     values ('12530000-0000-4000-8000-0000000000da', '12530000-0000-4000-8000-0000000000e5',
+             '12530000-0000-4000-8000-0000000000e5/12530000-0000-4000-8000-0000000000fe.jpg', now())
+     on conflict (athlete_id) do update
+       set id = excluded.id, athlete_id = excluded.athlete_id, storage_path = excluded.storage_path, updated_at = excluded.updated_at $$,
+  'device of G replaces the photo row of e5 (the old id c5 no longer exists on the server)'
+);
+
+set local request.jwt.claims = '{"sub": "12530000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select results_eq(
+  $$ select count(*) from public.athlete_photos where id = '12530000-0000-4000-8000-0000000000c5' $$,
+  $$ values (0::bigint) $$,
+  'by the old id, the device of H finds nothing'
+);
+select results_eq(
+  $$ with u as (
+       update public.athlete_photos set storage_path = '12530000-0000-4000-8000-0000000000e5/12530000-0000-4000-8000-0000000000ff.jpg'
+       where athlete_id = '12530000-0000-4000-8000-0000000000e5' returning id
+     ) select count(*) from u $$,
+  $$ values (1::bigint) $$,
+  'the PATCH of the device of H updates the row by athlete_id'
+);
+select results_eq(
+  $$ with d as (delete from public.athlete_photos where athlete_id = '12530000-0000-4000-8000-0000000000e5' returning id) select count(*) from d $$,
+  $$ values (1::bigint) $$,
+  'the DELETE of the device of H deletes the row by athlete_id'
+);
+reset role;
+select is_empty(
+  $$ select 1 from public.athlete_photos where athlete_id = '12530000-0000-4000-8000-0000000000e5' $$,
+  'no photo row of e5 stays on the server'
+);
+select set_eq(
+  $$ select storage_path from public.storage_deletion_queue $$,
+  $$ values ('12530000-0000-4000-8000-0000000000e5/12530000-0000-4000-8000-0000000000fd.jpg'::text),
+            ('12530000-0000-4000-8000-0000000000e5/12530000-0000-4000-8000-0000000000fe.jpg'::text),
+            ('12530000-0000-4000-8000-0000000000e5/12530000-0000-4000-8000-0000000000ff.jpg'::text) $$,
+  'the replaced, the patched and the deleted objects all went through the deletion queue: none stays referenced'
 );
 
 select * from finish();

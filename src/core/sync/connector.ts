@@ -43,6 +43,8 @@ const CONFIRM_INSERT_FUNCTIONS: Record<string, string> = {
 
 // Tables whose row is unique per another column (one photo per athlete, #1253): a PUT replaces the stored row of that key instead of inserting by id,
 // so a device that did not know the row existed never hits a unique violation. The row takes the device's id, so a later DELETE by id finds it.
+// A PATCH or DELETE of such a row finds it by that key too (the device may hold an id the upsert of another device replaced, which would miss the row
+// and, for a DELETE, leave a minor's photo on the server): the key comes from the values of the row before the change (trackPrevious in the schema).
 // `omit` columns are never sent: created_by is set by the server on insert, and an update that rewrote it would be refused by the freeze trigger.
 const UPSERT_BY_KEY: Record<string, { onConflict: string; omit: string[] }> = {
   athlete_photos: { onConflict: 'athlete_id', omit: ['created_by'] },
@@ -65,6 +67,13 @@ function toServerValues(table: string, values: Record<string, unknown> | undefin
     }
   }
   return sent;
+}
+
+/** The column and value that find the server row of a PATCH or DELETE: the key of UPSERT_BY_KEY when the row's previous values carry it, otherwise the id. */
+function rowFilter(op: CrudEntry): [string, string] {
+  const key = UPSERT_BY_KEY[op.table]?.onConflict;
+  const value = key ? (op.previousValues?.[key] ?? op.opData?.[key]) : undefined;
+  return key && typeof value === 'string' ? [key, value] : ['id', op.id];
 }
 
 /** Pairs, by index in both directions, each athletes PUT with the athlete_managers PUT that links it. */
@@ -275,18 +284,18 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         result = await table.upsert({ id: op.id, ...toServerValues(op.table, op.opData) });
         return failureCode(result);
       case 'PATCH':
-        result = await table.update(toServerValues(op.table, op.opData)).eq('id', op.id).select('id');
+        result = await table.update(toServerValues(op.table, op.opData)).eq(...rowFilter(op)).select('id');
         // RLS filters rows silently: an empty result means the write changed nothing.
         return failureCode(result) ?? (result.data?.length ? null : 'no_rows_affected');
       default:
-        result = await table.delete().eq('id', op.id).select('id');
+        result = await table.delete().eq(...rowFilter(op)).select('id');
         return failureCode(result) ?? (result.data?.length ? null : this.confirmGone(op));
     }
   }
 
   /** A delete that changed no row is fine only if the row is already gone. */
   private async confirmGone(op: CrudEntry): Promise<string | null> {
-    const result: Result = await this.client.from(op.table).select('id').eq('id', op.id);
+    const result: Result = await this.client.from(op.table).select('id').eq(...rowFilter(op));
     const failure = failureCode(result);
     if (failure !== null) return failure;
     return result.data?.length ? 'no_rows_affected' : null;
