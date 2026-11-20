@@ -1,5 +1,6 @@
 #!/bin/sh
-# Builds the results-import and school-console-invite-coach bundles and loads it in the same edge-runtime image the Supabase stack runs.
+# Builds the four function bundles (results-import, school-console-invite-coach, accounts-delete-account, accounts-deletion-worker)
+# and loads them in the same edge-runtime image the Supabase stack runs.
 # Usage: sh deploy/scripts/functions.test.sh   (needs Docker, curl, openssl and git; the first run downloads images and npm packages)
 # It publishes one port on 127.0.0.1 (random) and touches no other container, network or volume than the ones it creates
 # (the runtime container, a throwaway network and a throwaway server on it), all removed on exit.
@@ -51,8 +52,12 @@ sh "$HERE/functions-bundle.sh" "$V" || exit 1
 [ ! -e "$V/results-import/__tests__" ] || fail "the bundle carries tests"
 [ -f "$V/school-console-invite-coach/index.ts" ] || fail "the bundle does not carry school-console-invite-coach"
 [ ! -e "$V/school-console-invite-coach/__tests__" ] && [ ! -e "$V/school-console-invite-coach/_vendor" ] || fail "school-console-invite-coach carries tests or a _vendor it does not need"
+for f in accounts-delete-account accounts-deletion-worker; do
+  [ -f "$V/$f/index.ts" ] || fail "the bundle does not carry $f"
+  [ ! -e "$V/$f/__tests__" ] && [ ! -e "$V/$f/_vendor" ] || fail "$f carries tests or a _vendor it does not need"
+done
 sh "$HERE/functions-bundle.sh" "$V" >/dev/null || fail "running the bundle twice failed"
-[ "$(ls -A "$V" | tr '\n' ' ')" = "deno.jsonc main other results-import school-console-invite-coach " ] || fail "unexpected files in the volume: $(ls -A "$V")"
+[ "$(ls -A "$V" | tr '\n' ' ')" = "accounts-delete-account accounts-deletion-worker deno.jsonc main other results-import school-console-invite-coach " ] || fail "unexpected files in the volume: $(ls -A "$V")"
 # Each module imports catalogs.ts through the relative path from its own folder to _vendor/catalogs.ts, at every depth, and the
 # repository and the volume's shared import map are left as they were.
 shallow=0; deep=0
@@ -68,7 +73,7 @@ done
 ! grep -rqE "src/core/sport" "$V/results-import" --include='*.ts' --exclude-dir=_vendor || fail "an import into src/ remains in the bundle"
 cmp -s "$V/deno.jsonc" "$T/deno.jsonc.before" || fail "the bundle changed the volume's root deno.jsonc"
 [ "$(git -C "$ROOT" status --porcelain -- supabase src 2>/dev/null)" = "$repo_before" ] || fail "the bundle changed the repository"
-echo "PASS: bundle built twice (results-import and school-console-invite-coach); other functions and deno.jsonc untouched; catalogs.ts inside, imports rewritten at $shallow + $deep modules"
+echo "PASS: bundle built twice (the four functions); other functions and deno.jsonc untouched; catalogs.ts inside, imports rewritten at $shallow + $deep modules"
 
 # 2. The function loads and answers with the bundle in the runtime.
 docker run -d --name "$NAME" -p 127.0.0.1::9000 \
@@ -104,7 +109,7 @@ echo "PASS: without _vendor/catalogs.ts the function does not load"
 C=$T/clone
 mkdir -p "$C/deploy/scripts" "$C/supabase/functions" "$C/src/core/sport"
 cp "$HERE/functions-bundle.sh" "$C/deploy/scripts/"
-cp -R "$ROOT/supabase/functions/results-import" "$ROOT/supabase/functions/school-console-invite-coach" "$C/supabase/functions/"
+cp -R "$ROOT"/supabase/functions/results-import "$ROOT"/supabase/functions/school-console-invite-coach "$ROOT"/supabase/functions/accounts-delete-account "$ROOT"/supabase/functions/accounts-deletion-worker "$C/supabase/functions/"
 before=$(find "$V" -type f | sort | xargs cksum)
 # expect_refused <message> <what was given>: the clone's bundle must fail with <message> and leave the volume untouched.
 expect_refused() {
@@ -185,7 +190,7 @@ C2=$T/clone-recover
 mkdir -p "$C2/deploy/scripts" "$C2/supabase/functions" "$C2/src/core/sport" "$T/vol-r/main"
 cp "$HERE/functions-bundle.sh" "$C2/deploy/scripts/"
 cp "$ROOT/src/core/sport/catalogs.ts" "$C2/src/core/sport/"
-cp -R "$ROOT/supabase/functions/results-import" "$ROOT/supabase/functions/school-console-invite-coach" "$C2/supabase/functions/"
+cp -R "$ROOT"/supabase/functions/results-import "$ROOT"/supabase/functions/school-console-invite-coach "$ROOT"/supabase/functions/accounts-delete-account "$ROOT"/supabase/functions/accounts-deletion-worker "$C2/supabase/functions/"
 echo "export const broken: number = 'x';" >>"$C2/supabase/functions/results-import/service.ts"
 cp -R "$V/results-import" "$T/vol-r/.results-import.old"
 live=$(cd "$T/vol-r/.results-import.old" && find . -type f | sort | xargs cksum)
@@ -223,11 +228,47 @@ C3=$T/clone-either
 mkdir -p "$C3/deploy/scripts" "$C3/supabase/functions" "$C3/src/core/sport"
 cp "$HERE/functions-bundle.sh" "$C3/deploy/scripts/"
 cp "$ROOT/src/core/sport/catalogs.ts" "$C3/src/core/sport/"
-cp -R "$ROOT/supabase/functions/results-import" "$ROOT/supabase/functions/school-console-invite-coach" "$C3/supabase/functions/"
+cp -R "$ROOT"/supabase/functions/results-import "$ROOT"/supabase/functions/school-console-invite-coach "$ROOT"/supabase/functions/accounts-delete-account "$ROOT"/supabase/functions/accounts-deletion-worker "$C3/supabase/functions/"
 echo "export const broken: number = 'x';" >>"$C3/supabase/functions/school-console-invite-coach/service.ts"
 before=$(find "$V" -type f | sort | xargs cksum)
 if out=$(sh "$C3/deploy/scripts/functions-bundle.sh" "$V" 2>&1); then fail "the bundle passed with a module that fails deno check"; fi
 echo "$out" | grep -q "deno check failed" || fail "the run did not fail at deno check: $(echo "$out" | tail -1)"
 [ "$(find "$V" -type f | sort | xargs cksum)" = "$before" ] || fail "a failed deno check changed the volume"
-[ -z "$(find "$V" -maxdepth 1 -name '.*.staging')" ] || fail "a staging folder was left in the volume"
+[ ! -e "$V/.staging" ] || fail "the staging folder was left in the volume"
 echo "PASS: a deno check failure in school-console-invite-coach leaves the whole volume as it was (results-import not replaced, no staging folder left)"
+
+# 10. First delivery, and siblings resolved against the new copies: a volume with only main receives the four functions and each
+# one passes deno check, also accounts-delete-account (imports school-console-invite-coach/resendSender.ts) and
+# accounts-deletion-worker (imports accounts-delete-account/*). Then a volume that already holds an old, broken
+# school-console-invite-coach and accounts-delete-account: the result depends only on the repository, and both are replaced.
+mkdir -p "$T/vol-first/main" "$T/vol-stale/main" "$T/vol-stale/school-console-invite-coach" "$T/vol-stale/accounts-delete-account"
+out=$(sh "$HERE/functions-bundle.sh" "$T/vol-first" 2>&1) || fail "the first delivery failed: $out"
+for f in results-import school-console-invite-coach accounts-delete-account accounts-deletion-worker; do
+  echo "$out" | grep -q "^PASS: deno check $f " || fail "no PASS: deno check for $f in the first delivery: $out"
+  echo "$out" | grep -q "^DONE: .*/$f updated" || fail "no DONE for $f in the first delivery: $out"
+done
+for f in accounts-delete-account accounts-deletion-worker; do
+  [ -f "$T/vol-first/$f/index.ts" ] && [ ! -e "$T/vol-first/$f/__tests__" ] && [ ! -e "$T/vol-first/$f/_vendor" ] || fail "$f in the first delivery is missing index.ts or carries tests or _vendor"
+done
+cmp -s "$T/vol-first/school-console-invite-coach/resendSender.ts" "$ROOT/supabase/functions/school-console-invite-coach/resendSender.ts" || fail "the first delivery does not carry resendSender.ts"
+echo "export const sendResendEmail: number = 'old';" >"$T/vol-stale/school-console-invite-coach/resendSender.ts"
+echo "export const formatDate = 1 +;" >"$T/vol-stale/accounts-delete-account/emailTexts.ts"
+out=$(sh "$HERE/functions-bundle.sh" "$T/vol-stale" 2>&1) || fail "a stale or broken published sibling changed the result of the check: $out"
+cmp -s "$T/vol-stale/school-console-invite-coach/resendSender.ts" "$ROOT/supabase/functions/school-console-invite-coach/resendSender.ts" || fail "the stale sibling was not replaced"
+cmp -s "$T/vol-stale/accounts-delete-account/emailTexts.ts" "$ROOT/supabase/functions/accounts-delete-account/emailTexts.ts" || fail "the stale accounts-delete-account was not replaced"
+[ ! -e "$T/vol-stale/.staging" ] || fail "the staging folder was left in the volume"
+echo "PASS: a volume with only main receives the four functions and they pass deno check; old or broken published siblings do not change the result"
+
+# 11. A function that imports from a sibling that the bundle does not deliver is refused before anything changes in the volume.
+C4=$T/clone-sibling
+mkdir -p "$C4/deploy/scripts" "$C4/supabase/functions" "$C4/src/core/sport" "$T/vol-sib/main" "$T/vol-sib/results-import"
+sed 's/^FUNCTIONS=.*/FUNCTIONS="results-import accounts-delete-account"/' "$HERE/functions-bundle.sh" >"$C4/deploy/scripts/functions-bundle.sh"
+cp "$ROOT/src/core/sport/catalogs.ts" "$C4/src/core/sport/"
+cp -R "$ROOT/supabase/functions/results-import" "$ROOT/supabase/functions/accounts-delete-account" "$ROOT/supabase/functions/school-console-invite-coach" "$C4/supabase/functions/"
+echo keep >"$T/vol-sib/results-import/index.ts"
+before=$(find "$T/vol-sib" -type f | sort | xargs cksum)
+if out=$(sh "$C4/deploy/scripts/functions-bundle.sh" "$T/vol-sib" 2>&1); then fail "the bundle accepted an import from a sibling it does not deliver: $out"; fi
+echo "$out" | grep -q "^FAIL: accounts-delete-account imports from the sibling function school-console-invite-coach" || fail "the failure does not name the function and the sibling: $out"
+[ "$(find "$T/vol-sib" -type f | sort | xargs cksum)" = "$before" ] || fail "a refused bundle changed the volume"
+[ ! -e "$T/vol-sib/.staging" ] || fail "the staging folder was left in the volume"
+echo "PASS: a function importing from a sibling outside FUNCTIONS is refused and the volume is untouched"
