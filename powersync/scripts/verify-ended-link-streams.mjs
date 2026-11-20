@@ -14,7 +14,8 @@
 //        POWERSYNC_URL=http://127.0.0.1:8080 DB_CONTAINER=supabase_db_<project_id>
 //   3. node powersync/scripts/verify-ended-link-streams.mjs setup     (once per database)
 //      node powersync/scripts/verify-ended-link-streams.mjs run [user ...]   (exit 1 if a user gets a wrong set)
-// DUMP=1 prints only what each user receives. After a change to a query, rebuild the PowerSync image and run again.
+// setup is not atomic (a failure half way leaves part of the fixture): on a stack where it failed, recreate the database
+// (`supabase db reset` on the THROWAWAY stack) before running it again. DUMP=1 prints only what each user receives. After a change to a query, rebuild the PowerSync image and run again.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 
@@ -29,6 +30,7 @@ const ANON = need("SUPABASE_ANON_KEY");
 const SERVICE = need("SUPABASE_SERVICE_ROLE_KEY");
 const DB_CONTAINER = need("DB_CONTAINER");
 const PASSWORD = "synthetic-pass-1260";
+const TIMEOUT_MS = 30_000;
 
 const uid = (name) => {
   const h = createHash("md5").update(`1260:${name}`).digest("hex");
@@ -57,6 +59,7 @@ async function setup() {
   for (const u of users) {
     const res = await fetch(`${API}/auth/v1/admin/users`, {
       method: "POST",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "content-type": "application/json" },
       body: JSON.stringify({ id: uid(u), email: email(u), password: PASSWORD, email_confirm: true }),
     });
@@ -123,6 +126,7 @@ update public.athlete_schools set ended_at = now(), ended_by = '${u("adm2")}' wh
 async function token(user) {
   const res = await fetch(`${API}/auth/v1/token?grant_type=password`, {
     method: "POST",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: { apikey: ANON, "content-type": "application/json" },
     body: JSON.stringify({ email: email(user), password: PASSWORD }),
   });
@@ -154,6 +158,8 @@ const SHOW = [
 async function sync(user) {
   const jwt = await token(user);
   const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+  let complete = false;
   const res = await fetch(`${PS}/sync/stream`, {
     method: "POST",
     signal: ctl.signal,
@@ -187,6 +193,7 @@ async function sync(user) {
         }
       }
       if (msg.checkpoint_complete) {
+        complete = true;
         ctl.abort();
         break outer;
       }
@@ -194,7 +201,11 @@ async function sync(user) {
   }
   } catch (e) {
     if (e.name !== "AbortError") throw e;
+  } finally {
+    clearTimeout(timer);
   }
+  // A stream cut by the timeout has no complete checkpoint: comparing it would pass an empty set by accident.
+  if (!complete) throw new Error(`sync of ${user} did not reach a complete checkpoint in ${TIMEOUT_MS / 1000}s`);
   for (const [key, l] of seen) {
     const type = key.split(":")[0];
     if (!rows.has(type)) rows.set(type, new Set());
@@ -229,14 +240,10 @@ const WHO = {
 };
 
 async function run(list) {
+  const unknown = list.filter((user) => !EXPECT[user]);
+  if (unknown.length) throw new Error(`Unknown user ${unknown.join(", ")}; choose from: ${users.join(", ")}`);
   for (const user of list) {
-    let rows;
-    try {
-      rows = await sync(user);
-    } catch (e) {
-      if (e.name !== "AbortError") throw e;
-    }
-    rows ??= new Map();
+    const rows = await sync(user);
     console.log(`== ${user}: ${WHO[user]}`);
     for (const t of SHOW) {
       const got = [...(rows.get(t) ?? [])].sort().join(" ");
