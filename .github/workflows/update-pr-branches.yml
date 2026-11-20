@@ -2,6 +2,7 @@ name: Flag stale pull requests
 
 # After every push to main, finds open pull requests (same repository, base main) that are behind main or conflict with it,
 # labels them `needs-main-merge` and leaves ONE comment (hidden marker) listing the conflicting files.
+# Bot-managed branches (`release-please--*` branches and bot authors such as Dependabot) are skipped: the bot regenerates them.
 # It never updates a branch: commits made with GITHUB_TOKEN (including the update-branch API) do not start app-checks or
 # pr-checks, so a branch updated here would wait forever for its required checks. The worker or the person merges main
 # and pushes normally, which runs the CI. It checks out main only and never runs code from a pull request.
