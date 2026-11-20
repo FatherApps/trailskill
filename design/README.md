@@ -49,4 +49,4 @@ For orientation only. If it disagrees with the design system, the design system 
 | `swimcro-adaptive-foreground.svg` / `.png` | Android adaptive icon foreground on a `#141414` background layer |
 | `swimcro-construction.svg` | Construction grid (reference, not for use in the app) |
 
-The files come from `swimcro-logos.zip`, delivered locally by the maintainer on 2026-11-19 (sha256 `15a431693fe5bb93e67693c6507d61177420dbdda4892e13cbd0cda5c0c78aa0`) and copied unmodified; the zip itself is not in the repository. Every file is byte-identical to its copy in the zip (`shasum -a 256`).
+The files come from the Logos group of the Swimcro design system (the «Superficie con tu logo» version the maintainer chose), downloaded on 2026-11-19 and copied unmodified. They are byte-identical to the downloaded files (`shasum -a 256`); the provisional set from an earlier `swimcro-logos.zip` is not used.

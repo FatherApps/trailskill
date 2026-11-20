@@ -60,17 +60,13 @@ describe('Logo', () => {
     it('draws the mark of swimcro-symbol.svg without the wordmark', async () => {
       await render(<ThemeProvider name="light"><LogoSymbol /></ThemeProvider>);
 
-      // The stem, the crown button, the water and the swimmer's stroke of the official file.
-      expect(fills()).toEqual([
-        'M32 12 V16',
-        'M47.5 21.5 L51 18',
-        'M10 44 C16 40 22 48 28 44 S40 40 46 44 S58 48 62 44 V64 H10Z',
-        'M19 43 C20 31 27 26 33.5 26 C40.5 26 45 31 46 41',
-      ]);
+      // The water and the two paths of the swimmer of the official file, by their first segments.
+      expect(fills().map((d) => d.slice(0, 29))).toEqual(['M20.6 68.77 L21.04 68.77 L21.', 'M123.25 361.49 C130.37 360.99', 'M150.62 291.48 C158.64 290.79']);
       // The coral head of the swimmer.
-      expect(screen.container.queryAll((node) => node.props.cx === 36 && node.props.cy === 37.5 && node.props.r === 5.4)).not.toHaveLength(0);
-      // The water is clipped to the inside of the ring.
-      expect(screen.container.queryAll((node) => node.props.cx === 32 && node.props.cy === 37 && node.props.r === 16.8)).not.toHaveLength(0);
+      expect(screen.container.queryAll((node) => node.props.cx === 68.71 && node.props.cy === 56.39 && node.props.r === 4.82)).not.toHaveLength(0);
+      // The water is clipped to the inside of the ring, and the file scales the whole mark by 0.64.
+      expect(screen.container.queryAll((node) => node.props.cx === 50 && node.props.cy === 56.5 && node.props.r === 25.9)).not.toHaveLength(0);
+      expect(screen.container.queryAll((node) => node.props.matrix?.[0] === 0.64 && node.props.matrix?.[3] === 0.64)).not.toHaveLength(0);
     });
 
     it('has the dark badge on the light theme and none on the reversed one', async () => {
