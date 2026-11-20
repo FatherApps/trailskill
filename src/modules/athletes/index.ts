@@ -80,3 +80,33 @@ export {
 } from './data/athletePhotos';
 export { useAthletePhoto, type AthletePhoto } from './data/useAthletePhoto';
 export { useAthletePhotoCacheGuard } from './data/useAthletePhotoCacheGuard';
+export {
+  createExpoPhotoPicker,
+  createInMemoryPhotoPicker,
+  PHOTO_QUALITY,
+  PHOTO_SIZE,
+  squareCrop,
+  type PhotoPicker,
+  type PhotoPickResult,
+  type PhotoSource,
+} from './data/athletePhotoPicker';
+export {
+  createAthletePhotoService,
+  createFileSystemLocalPhotoFiles,
+  createInMemoryLocalPhotoFiles,
+  createInMemoryPhotoObjects,
+  createInMemoryPhotoRows,
+  createInMemoryPhotoUploadQueue,
+  createPowerSyncPhotoRows,
+  createPowerSyncPhotoUploadQueue,
+  getAthletePhotoService,
+  createSupabasePhotoObjects,
+  PhotoRejectedError,
+  type AthletePhotoService,
+  type LocalPhotoFiles,
+  type PhotoObjects,
+  type PhotoRow,
+  type PhotoRows,
+  type PhotoUpload,
+  type PhotoUploadQueue,
+} from './data/athletePhotoUploads';

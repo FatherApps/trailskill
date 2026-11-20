@@ -18,6 +18,11 @@ function splashOptions() {
   return (entry as [string, Record<string, any>] | undefined)?.[1];
 }
 
+function imagePickerOptions() {
+  const entry = (config.plugins ?? []).find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-image-picker');
+  return (entry as [string, Record<string, any>] | undefined)?.[1];
+}
+
 function mediaLibraryOptions() {
   const entry = (config.plugins ?? []).find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-media-library');
   return (entry as [string, Record<string, any>] | undefined)?.[1];
@@ -139,8 +144,26 @@ describe('gallery permissions', () => {
     expect(blocked).toEqual(
       expect.arrayContaining(['android.permission.READ_MEDIA_VISUAL_USER_SELECTED', 'android.permission.READ_EXTERNAL_STORAGE']),
     );
-    expect(blocked).toHaveLength(3);
+    expect(blocked).toHaveLength(6);
     expect(blocked).not.toContain('android.permission.WRITE_EXTERNAL_STORAGE');
+  });
+
+  // The athlete photo (#1222) uses the camera and the system Photo Picker: no READ_MEDIA_* may reach the combined manifest, whatever the picker's plugin or library adds.
+  it('blocks every READ_MEDIA_* permission', () => {
+    expect(config.android?.blockedPermissions).toEqual(
+      expect.arrayContaining([
+        'android.permission.READ_MEDIA_IMAGES',
+        'android.permission.READ_MEDIA_VIDEO',
+        'android.permission.READ_MEDIA_AUDIO',
+        'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+      ]),
+    );
+  });
+
+  it('the image picker declares no photo library read description and keeps the microphone the stopwatch video needs', () => {
+    expect(imagePickerOptions()!.photosPermission).toBe(false);
+    expect(imagePickerOptions()!.cameraPermission).toEqual(expect.any(String));
+    expect(imagePickerOptions()!.microphonePermission).not.toBe(false);
   });
 
   // The Expo template's main manifest declares "display over other apps" (#1182); the app never uses it and Play treats it as sensitive.
