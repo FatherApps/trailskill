@@ -75,6 +75,7 @@ import { VideoStopwatchContainer, videoName, type VideoStopwatchResult } from '.
 import '../i18n';
 
 const KEEP_AWAKE_TAG = 'family-timing';
+const WEEK_MS = 7 * 86_400_000;
 
 export type FamilyTimingContainerProps = {
   userId: string;
@@ -427,6 +428,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       const day = localDay(m.capturedAt);
       const date = formatDate(day, 'short') ?? day;
       const type = t(`family_timing.session_type.${m.sessionType}`);
+      const at = new Date(m.capturedAt);
+      const clock = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+      const nowMs = Date.now();
+      const age = day === localDay(new Date(nowMs).toISOString()) ? 'today' : nowMs - at.getTime() < WEEK_MS ? 'week' : 'earlier';
       const value = match?.value ?? null;
       const organization = value?.kind === 'imported' ? sourceNames[value.provider] : undefined;
       // An imported time was published in hundredths: it is shown as published, never padded to thousandths.
@@ -442,15 +447,21 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       return {
         id: m.id,
         title: shortEventLabel(m),
+        stroke: m.stroke,
         poolLabel: t(`sport.pool.${m.pool}`),
         sessionLabel: type,
-        athleteId: m.athleteId,
-        subtitle: [t(`sport.pool.${m.pool}`), type, m.competition].filter(Boolean).join(' · '),
         date,
-        measuredLabel: [
-          t(official !== null ? 'family_timing.card.captured_history' : 'family_timing.card.captured'),
-          m.splits.length > 0 ? t('family_timing.card.lengths', { count: m.splits.length + 1 }) : t('family_timing.card.lengths', { count: 1 }),
-        ].join(' · '),
+        athleteId: m.athleteId,
+        // The row's second line: the time of day for today's times, the date for older ones, then the short type, the pool and the lengths.
+        subtitle: [
+          age === 'today' ? clock : date,
+          t(`family_timing.card.type_short.${m.sessionType}`),
+          `${pools.find((pool) => pool.code === m.pool)?.lengthMeters ?? ''} m`,
+          m.splits.length > 0 ? t('family_timing.card.lengths', { count: m.splits.length + 1 }) : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        age,
         event: eventLabel(m),
         detail: [date, type, m.competition].filter(Boolean).join(' · '),
         captured: format(m.millis),

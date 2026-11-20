@@ -64,7 +64,12 @@
       "lengths_one": "{{count}} largo",
       "lengths_other": "{{count}} largos",
       "video": "Ver video",
-      "video_missing": "Ya no está en este teléfono"
+      "video_missing": "Ya no está en este teléfono",
+      "type_short": {
+        "training": "Entreno",
+        "competition": "Comp."
+      },
+      "official_short": "Oficial"
     },
     "filters": {
       "session_type": "Tipo de tiempo",
@@ -158,7 +163,8 @@
         "request_closed": "Esta solicitud ya no está abierta.",
         "deleted_time": "Este tiempo está eliminado.",
         "failed": "No pudimos hacerlo. Revisa la señal e inténtalo de nuevo."
-      }
+      },
+      "sent_row": "Enviado a {{name}} · pendiente"
     },
     "detail": {
       "title": "Detalle del tiempo",
@@ -219,10 +225,6 @@
       "time_final": "Tiempo final",
       "time_ready": "Listo para iniciar"
     },
-    "list_recent": "Más recientes",
-    "list_count_one": "{{count}} registro",
-    "list_count_other": "{{count}} registros",
-    "list_hint": "Toca un registro para ver sus parciales",
     "player": {
       "back": "Volver",
       "video": "Video del tiempo",
@@ -247,6 +249,17 @@
       "linked_original_kept": "Video vinculado y guardado en el álbum «Swimcro». El archivo que recibiste quedó donde estaba: si quieres, bórralo para no tenerlo dos veces.",
       "link_failed": "No se pudo vincular el video. Revisa que haya espacio en el teléfono y vuelve a intentarlo.",
       "share_failed": "No se pudo abrir el menú para compartir. Vuelve a intentarlo."
+    },
+    "groups": {
+      "today": "Hoy",
+      "week": "Esta semana",
+      "earlier": "Antes"
+    },
+    "best_today": {
+      "title": "Mejor de hoy · {{event}}",
+      "this_week": "esta semana",
+      "week_count_one": "{{count}} tiempo",
+      "week_count_other": "{{count}} tiempos"
     }
   }
 }

@@ -58,7 +58,8 @@ describe('FamilyTimingContainer', () => {
 
     await waitFor(async () => expect(await repository.listByAthlete('a1')).toHaveLength(1));
     expect((await repository.listByAthlete('a1'))[0]).toMatchObject({ millis: 65_372, sessionType: 'training', officialMillis: null });
-    expect(await screen.findByText('1:05,372')).toBeTruthy();
+    // The row, and the aqua card of the best time of today.
+    expect(await screen.findAllByText('1:05,372')).toHaveLength(2);
   });
 
   it('shows hundredths, truncated, when Ajustes says so', async () => {
@@ -68,18 +69,23 @@ describe('FamilyTimingContainer', () => {
 
   it('types the official time of a competition and keeps the captured one as history', async () => {
     const { repository } = await setup([competition]);
+    await fireEvent.press(await screen.findByText('50 m mariposa'));
     await fireEvent.press(await screen.findByText('Poner tiempo oficial'));
     await fireEvent.changeText(screen.getByLabelText('Tiempo oficial'), '42,71');
     await fireEvent.press(screen.getByText('Guardar oficial'));
 
     await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]?.officialMillis).toBe(42_710));
     expect((await repository.listByAthlete('a1'))[0]?.millis).toBe(47_210);
-    expect(await screen.findByText(/^Medido \(histórico, no oficial\)/)).toBeTruthy();
+    expect(await screen.findByLabelText('Oficial')).toBeTruthy();
     expect(screen.getByText('42,710')).toBeTruthy();
+    // The captured time stays in the detail, as history.
+    await fireEvent.press(screen.getByText('50 m mariposa'));
+    expect(await screen.findByText(/47,210/)).toBeTruthy();
   });
 
   it('refuses an unreadable official time', async () => {
     await setup([competition]);
+    await fireEvent.press(await screen.findByText('50 m mariposa'));
     await fireEvent.press(await screen.findByText('Poner tiempo oficial'));
     await fireEvent.changeText(screen.getByLabelText('Tiempo oficial'), 'abc');
     await fireEvent.press(screen.getByText('Guardar oficial'));
@@ -88,7 +94,8 @@ describe('FamilyTimingContainer', () => {
 
   it('offers no official time on training', async () => {
     await setup([{ ...competition, sessionType: 'training', competition: null }]);
-    await screen.findByText(/^Medido ·/);
+    await fireEvent.press(await screen.findByText('50 m mariposa'));
+    await screen.findByText('Editar registro');
     expect(screen.queryByText('Poner tiempo oficial')).toBeNull();
   });
 });
@@ -104,10 +111,12 @@ describe('FamilyTimingContainer with imported results', () => {
         <FamilyTimingContainer userId="u1" athletes={athletes} repository={repository} imports={imports} sourceNames={{ 'co-fecna': 'Federación de prueba' }} onBack={jest.fn()} />
       </PreferencesProvider>,
     );
-    expect(await screen.findByLabelText('Oficial · Federación de prueba')).toBeTruthy();
+    expect(await screen.findByLabelText('Oficial')).toBeTruthy();
     expect(screen.getByText('42,71')).toBeTruthy();
-    expect(screen.getByText(/^Medido \(histórico, no oficial\)/)).toBeTruthy();
-    expect(screen.getByText('47,210')).toBeTruthy();
+    // The detail says whose result it is, and keeps the captured time as history.
+    await fireEvent.press(screen.getByText('50 m mariposa'));
+    expect(await screen.findByText('Oficial · Federación de prueba')).toBeTruthy();
+    expect(screen.getByText(/47,210/)).toBeTruthy();
     expect(screen.queryByText('Cambiar tiempo oficial')).toBeNull();
     // The hand-typed value stays stored, untouched.
     expect((await repository.listByAthlete('a1'))[0]?.officialMillis).toBe(42_800);
@@ -133,21 +142,23 @@ describe('FamilyTimingContainer with imported results', () => {
         />
       </PreferencesProvider>,
     );
-    // Newest first: the afternoon time is the first card.
-    const ask = await screen.findAllByText('Elegir resultado oficial');
-    expect(ask).toHaveLength(2);
-    expect(screen.queryByLabelText('Oficial · Federación de prueba')).toBeNull();
+    // Newest first: the afternoon time is the first row. The choice is made from its detail.
+    const rows = await screen.findAllByText('50 m mariposa');
+    expect(rows).toHaveLength(2);
+    expect(screen.queryByLabelText('Oficial')).toBeNull();
 
-    await fireEvent.press(ask[0]!);
+    await fireEvent.press(rows[0]!);
+    await fireEvent.press(await screen.findByText('Elegir resultado oficial'));
     expect(screen.getByText('42,80 · Federación de prueba · Final')).toBeTruthy();
     await fireEvent.press(screen.getByText('42,80 · Federación de prueba · Final'));
 
     // The other time takes the last result on its own, and both now show their official result.
-    expect(await screen.findAllByLabelText('Oficial · Federación de prueba')).toHaveLength(2);
+    expect(await screen.findAllByLabelText('Oficial')).toHaveLength(2);
     expect(screen.getByText('42,80')).toBeTruthy();
     expect(screen.getByText('44,00')).toBeTruthy();
+    await fireEvent.press(screen.getAllByText('50 m mariposa')[0]!);
+    expect(await screen.findByText('Cambiar resultado oficial')).toBeTruthy();
     expect(screen.queryByText('Elegir resultado oficial')).toBeNull();
-    expect(screen.getAllByText('Cambiar resultado oficial')).toHaveLength(2);
     expect((await repository.listByAthlete('a1')).find((m) => m.id === 'm-pm')?.officialResultKey).toBe('co-fecna:final');
   });
 
@@ -159,6 +170,7 @@ describe('FamilyTimingContainer with imported results', () => {
         <FamilyTimingContainer userId="u1" athletes={athletes} repository={repository} imports={imports} onBack={jest.fn()} />
       </PreferencesProvider>,
     );
+    await fireEvent.press(await screen.findByText('50 m mariposa'));
     expect(await screen.findByText('Poner tiempo oficial')).toBeTruthy();
   });
 });

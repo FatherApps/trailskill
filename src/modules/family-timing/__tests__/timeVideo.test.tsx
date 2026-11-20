@@ -80,13 +80,15 @@ describe('the video of a time in Mis tiempos', () => {
     expect(videos.rows[0]).toEqual({ userId: 'u1', measurementId: camera.state.kept[0]!.name.replace('Swimcro_', ''), assetId: 'asset-1', startOffsetMillis: 4_000 });
   });
 
-  it('shows «Ver video» on a time with a video and plays it, with a jump to the start', async () => {
+  it('plays the video of a time from its detail, with a jump to the start', async () => {
     const { gallery } = await setup({
       measurements: [timed],
       links: [{ userId: 'u1', measurementId: 'm1', assetId: 'asset-7', startOffsetMillis: 5_000 }],
       gallery: { 'asset-7': 'content://media/video/7' },
     });
 
+    expect(screen.queryByLabelText('Ver video')).toBeNull();
+    await fireEvent.press(await screen.findByHintText('Abre el detalle del tiempo'));
     await fireEvent.press(await screen.findByText('Ver video'));
 
     expect(await screen.findByText('Ir a la salida')).toBeTruthy();
@@ -95,7 +97,7 @@ describe('the video of a time in Mis tiempos', () => {
     expect(gallery.state.seeks).toEqual([5_000 - JUMP_LEAD_MILLIS]);
 
     await fireEvent.press(screen.getByLabelText('Volver'));
-    expect(await screen.findByText('Ver video')).toBeTruthy();
+    expect(await screen.findByText('Volver a la lista')).toBeTruthy();
   });
 
   it('opens the video from the detail too, and goes back to the detail', async () => {
@@ -119,8 +121,8 @@ describe('the video of a time in Mis tiempos', () => {
       links: [{ userId: 'u1', measurementId: 'm1', assetId: 'asset-7', startOffsetMillis: 5_000 }],
     });
 
-    const button = await screen.findByLabelText('Ver video · Ya no está en este teléfono');
-    await fireEvent.press(button);
+    await fireEvent.press(await screen.findByHintText('Abre el detalle del tiempo'));
+    await fireEvent.press(await screen.findByLabelText('Ver video · Ya no está en este teléfono'));
 
     expect(screen.queryByText('Ir a la salida')).toBeNull();
     expect(gallery.state.opened).toEqual([]);
@@ -131,5 +133,6 @@ describe('the video of a time in Mis tiempos', () => {
 
     expect(await screen.findByText('31,450')).toBeTruthy();
     expect(screen.queryByText('Ver video')).toBeNull();
+    expect(screen.queryByLabelText('Ver video')).toBeNull();
   });
 });

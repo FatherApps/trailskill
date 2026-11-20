@@ -55,10 +55,10 @@ async function openDetail(index = 0) {
 }
 
 describe('a time the server did not accept', () => {
-  it('says "No enviado" on its card in the list and in its detail', async () => {
+  it('says "No enviado" on its row in the list and in its detail', async () => {
     await setup([], [rejected]);
     expect(await screen.findByText('100 m libre')).toBeTruthy();
-    expect(screen.getAllByLabelText('No enviado')).toHaveLength(1);
+    expect(screen.getAllByText('No enviado')).toHaveLength(1);
 
     await fireEvent.press(screen.getByText('100 m libre'));
     expect(await screen.findByText('Detalle del tiempo')).toBeTruthy();
@@ -70,15 +70,14 @@ describe('a time the server did not accept', () => {
     await setup([accepted, pendingTime], []);
     expect(await screen.findByText('50 m libre')).toBeTruthy();
     expect(screen.getByText('25 m libre')).toBeTruthy();
-    expect(screen.queryByLabelText('No enviado')).toBeNull();
+    expect(screen.queryByText('No enviado')).toBeNull();
     expect(screen.queryByText('Eliminar tiempo')).toBeNull();
   });
 
   it('marks a synced time the outbox says was rejected, but keeps editing and gives it no direct delete', async () => {
     mockStates = { 'ok-1': 'not_sent' };
     await setup([accepted], []);
-    expect(await screen.findByLabelText('No enviado')).toBeTruthy();
-    expect(screen.queryByText('Eliminar tiempo')).toBeNull();
+    expect(await screen.findByText('No enviado')).toBeTruthy();
     await openDetail();
     expect(await screen.findByText('Editar registro')).toBeTruthy();
     expect(screen.queryByText('Eliminar tiempo')).toBeNull();
@@ -86,7 +85,7 @@ describe('a time the server did not accept', () => {
 
   it('is never the best time nor offers to edit', async () => {
     await setup([], [rejected]);
-    await screen.findByLabelText('No enviado');
+    await screen.findByText('No enviado');
     expect(screen.queryByLabelText('Mejor tiempo')).toBeNull();
     await openDetail();
     expect(await screen.findByText('Detalle del tiempo')).toBeTruthy();
@@ -95,6 +94,7 @@ describe('a time the server did not accept', () => {
 
   it('keeps the time when the confirmation is cancelled', async () => {
     const repository = await setup([], [rejected]);
+    await openDetail();
     await fireEvent.press(await screen.findByText('Eliminar tiempo'));
     expect(await screen.findByText('¿Eliminar este tiempo?')).toBeTruthy();
     await fireEvent.press(screen.getByText('Conservar'));
@@ -102,9 +102,10 @@ describe('a time the server did not accept', () => {
     expect(screen.getByText('100 m libre')).toBeTruthy();
   });
 
-  it('deletes only after confirming, from the list, and leaves another user\'s rejected time alone', async () => {
+  it('deletes only after confirming, and leaves another user\'s rejected time alone', async () => {
     const repository = await setup([], [rejected, otherUsers]);
     expect(screen.queryByText('200 m libre')).toBeNull();
+    await openDetail();
     await fireEvent.press(await screen.findByText('Eliminar tiempo'));
     await fireEvent.press(screen.getAllByText('Eliminar tiempo').at(-1)!);
     await waitFor(async () => expect(await repository.listRejected('u1', 'a1')).toEqual([]));
@@ -123,6 +124,7 @@ describe('a time the server did not accept', () => {
 
   it('keeps the time and says so when the confirmation is dismissed without choosing, as with Android back or a tap outside', async () => {
     const repository = await setup([], [rejected]);
+    await openDetail();
     await fireEvent.press(await screen.findByText('Eliminar tiempo'));
     await fireEvent.press(await screen.findByTestId('confirm-sheet-scrim'));
     await waitFor(() => expect(screen.queryByText('¿Eliminar este tiempo?')).toBeNull());
@@ -133,8 +135,9 @@ describe('a time the server did not accept', () => {
   describe('when the deletion fails', () => {
     const error = 'No pudimos eliminar el tiempo. Inténtalo de nuevo.';
 
-    it('says so in the list, keeps the time, and forgets the warning when asking again', async () => {
+    it('says so, keeps the time, and forgets the warning when asking again', async () => {
       const repository = await setup([], [rejected], true);
+      await openDetail();
       await fireEvent.press(await screen.findByText('Eliminar tiempo'));
       await fireEvent.press(screen.getAllByText('Eliminar tiempo').at(-1)!);
       expect(await screen.findByText(error)).toBeTruthy();
