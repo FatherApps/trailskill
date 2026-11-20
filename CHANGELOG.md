@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/FatherApps/trailskill/compare/v0.5.0...v0.6.0) (2026-11-20)
+
+
+### Features
+
+* **athletes:** photo card, waiting photos in the avatar and the withdrawal sheet ([#1257](https://github.com/FatherApps/trailskill/issues/1257)) ([afa2d20](https://github.com/FatherApps/trailskill/commit/afa2d2002f3a19232a735299882d8c985fd462a4))
+
 ## [0.5.0](https://github.com/FatherApps/trailskill/compare/v0.4.0...v0.5.0) (2026-11-20)
 
 
