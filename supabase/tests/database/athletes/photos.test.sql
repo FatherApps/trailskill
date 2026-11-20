@@ -4,7 +4,7 @@
 -- athlete themselves, also only while show_photo is in force. All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(54);
+select plan(57);
 
 -- The delete trigger of storage.objects refuses direct deletes unless the Storage API says so.
 set local storage.allow_delete_query = 'true';
@@ -128,6 +128,13 @@ select is(
 
 set local role authenticated;
 
+-- Nobody can ask whether show_photo is in force for an athlete they cannot see.
+select throws_ok(
+  $$ select app.athlete_photo_authorized('12210000-0000-4000-8000-0000000000e5') $$,
+  '42501', null,
+  'authenticated cannot call app.athlete_photo_authorized directly'
+);
+
 -- Guardian G reads the photo of e1 (row and object) and nothing of e2, whose show_photo was never given.
 set local request.jwt.claims = '{"sub": "12210000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
 select set_eq(
@@ -208,6 +215,19 @@ select lives_ok(
      set storage_path = '12210000-0000-4000-8000-0000000000e3/12210000-0000-4000-8000-0000000000f4.jpg'
      where athlete_id = '12210000-0000-4000-8000-0000000000e3' $$,
   'guardian G points the row at a new object (a new path on each change)'
+);
+select throws_ok(
+  $$ update public.athlete_photos set athlete_id = '12210000-0000-4000-8000-0000000000e1',
+       storage_path = '12210000-0000-4000-8000-0000000000e1/12210000-0000-4000-8000-0000000000f7.jpg'
+     where athlete_id = '12210000-0000-4000-8000-0000000000e3' $$,
+  '42501', null,
+  'a row cannot be moved to another athlete, even one the guardian manages'
+);
+select throws_ok(
+  $$ update public.athlete_photos set created_by = '12210000-0000-4000-8000-0000000000a5'
+     where athlete_id = '12210000-0000-4000-8000-0000000000e3' $$,
+  '42501', null,
+  'the author of a row cannot be changed'
 );
 select throws_ok(
   $$ insert into public.athlete_photos (athlete_id, storage_path)

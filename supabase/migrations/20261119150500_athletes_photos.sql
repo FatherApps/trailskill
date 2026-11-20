@@ -107,10 +107,30 @@ revoke execute on function
   app.athlete_photo_authorized(uuid), app.athlete_photo_readable(uuid),
   app.athlete_photo_writable(uuid), app.athlete_photo_object_athlete(text)
   from public, anon;
+-- The policies call the three below; app.athlete_photo_authorized is only called from inside them (they run as their
+-- owner), so authenticated cannot ask whether show_photo is in force for an athlete it cannot see.
+revoke execute on function app.athlete_photo_authorized(uuid) from authenticated;
 grant execute on function
-  app.athlete_photo_authorized(uuid), app.athlete_photo_readable(uuid),
-  app.athlete_photo_writable(uuid), app.athlete_photo_object_athlete(text)
+  app.athlete_photo_readable(uuid), app.athlete_photo_writable(uuid), app.athlete_photo_object_athlete(text)
   to authenticated;
+
+-- A change points the row at a new object; the row keeps its athlete and its author, for every role.
+create function public.athlete_photos_freeze_identity()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.athlete_id is distinct from old.athlete_id or new.created_by is distinct from old.created_by then
+    raise exception 'athlete photo row keeps its athlete and its author' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger athlete_photos_freeze_identity
+  before update on public.athlete_photos
+  for each row execute function public.athlete_photos_freeze_identity();
 
 create policy athlete_photos_select on public.athlete_photos for select to authenticated
   using ((select app.athlete_photo_readable(athlete_id)));
@@ -121,7 +141,6 @@ create policy athlete_photos_insert on public.athlete_photos for insert to authe
     and created_by = (select auth.uid())
   );
 
--- A change points the row at a new object; the row keeps its athlete.
 create policy athlete_photos_update on public.athlete_photos for update to authenticated
   using ((select app.athlete_photo_writable(athlete_id)))
   with check ((select app.athlete_photo_writable(athlete_id)));
