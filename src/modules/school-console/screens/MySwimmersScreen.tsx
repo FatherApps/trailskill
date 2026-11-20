@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
-import { IconButton, StateView, SwimmerRow, type SwimmerRowProps } from '../../../core/ui';
+import { IconButton, StateView, SwimmerRow, type AthleteAvatarRenderer, type SwimmerRowProps } from '../../../core/ui';
 import '../i18n';
 import { consoleLayoutFor, ConsoleLayout } from '../components/ConsoleLayout';
 
@@ -13,6 +13,8 @@ export type MySwimmerRow = {
   name: string;
   initials: string;
   color: NonNullable<SwimmerRowProps['color']>;
+  // The athlete's avatar with their photo (the section builds it); absent: the initials.
+  avatar?: AthleteAvatarRenderer;
   // Category and groups, already joined.
   detail: string;
   // Never 0: null when the swimmer has no eligible time in the event of `bestLabel`.
@@ -90,6 +92,7 @@ export function MySwimmersScreen({ width, schoolName, view, onOpen, onBack, scro
                 name={swimmer.name}
                 initials={swimmer.initials}
                 color={swimmer.color}
+                avatar={swimmer.avatar?.('md')}
                 detail={swimmer.detail}
                 bestTime={swimmer.bestTime}
                 bestTimeLabel={view.bestLabel}

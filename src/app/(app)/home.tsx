@@ -4,7 +4,7 @@ import { useWindowDimensions } from 'react-native';
 import { useSession } from '../../core/session';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
-import { createPowerSyncManagedAthleteRepository, createPowerSyncOwnAuthorizationEvidence, providerAccountOf, useOwnLandingEvidence } from '../../modules/accounts';
+import { AthleteAvatarWithPhoto, createPowerSyncManagedAthleteRepository, createPowerSyncOwnAuthorizationEvidence, providerAccountOf, useOwnLandingEvidence } from '../../modules/accounts';
 import {
   createPowerSyncAthleteSchoolRepository,
   createPowerSyncHistoryRepository,
@@ -42,6 +42,7 @@ export default function HomeRoute() {
   const self = own !== 'loading' && own.selfAthleteId ? managed.athletes.find((a) => a.id === own.selfAthleteId)?.firstName : undefined;
   return (
     <HomeContainer
+      Avatar={AthleteAvatarWithPhoto}
       plans={plans}
       assignments={assignments}
       schoolLinks={schoolLinks}

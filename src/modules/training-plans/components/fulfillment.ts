@@ -1,7 +1,10 @@
+import type { ReactNode } from 'react';
+
 import type { BlockStatus, PlanBlock, PlanVocabulary } from '../types';
 
 // `skipped`: no current record_times authorization, so the athlete is not timed and their cells cannot be marked.
-export type FulfillmentAthlete = { id: string; shortName: string; skipped?: boolean };
+// `avatar`: the athlete's `sm` AthleteAvatar with their photo, built by the container; absent: none.
+export type FulfillmentAthlete = { id: string; shortName: string; skipped?: boolean; avatar?: ReactNode };
 
 export type FulfillmentChange = {
   kind: 'marked' | 'corrected';

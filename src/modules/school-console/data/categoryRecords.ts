@@ -25,6 +25,8 @@ export type CategoryRecord = {
   time: Hundredths | null;
   // "First Last" of the athlete who holds the mark.
   athlete: string | null;
+  // Who holds it, for their avatar; null when there is no mark.
+  athleteId: string | null;
   // Local date (YYYY-MM-DD) of the mark.
   date: string | null;
 };
@@ -73,6 +75,7 @@ export function selectCategoryRecords(
         time: best?.hundredths ?? null,
         athlete:
           (holder?.athleteId && athleteNames.get(holder.athleteId)) || null,
+        athleteId: (holder?.athleteId && athleteNames.has(holder.athleteId) ? holder.athleteId : null) || null,
         date: best ? localDate(new Date(best.date)) : null,
       };
     })

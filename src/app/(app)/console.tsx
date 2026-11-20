@@ -7,6 +7,7 @@ import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, StateView } from '../../core/ui';
 import {
+  AthleteAvatarWithPhoto,
   createPowerSyncAdultDirectoryRepository,
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
@@ -110,16 +111,16 @@ export default function ConsoleRoute() {
           <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} invitations={coachInvitations} />
         ),
         athletes: (props) => (
-          <AthletesSection {...props} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} structure={schoolStructure} invitations={familyInvitations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AthletesSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} structure={schoolStructure} invitations={familyInvitations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         records: (props) => (
-          <RecordsSection {...props} schoolId={schoolId} repository={categoryRecords} categories={categories} structure={schoolStructure} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <RecordsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={categoryRecords} categories={categories} structure={schoolStructure} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         measurements: (props) => (
-          <MeasurementsSection {...props} schoolId={schoolId} repository={measurementLog} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <MeasurementsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={measurementLog} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         authorizations: (props) => (
-          <AuthorizationsSection {...props} schoolId={schoolId} repository={authorizations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AuthorizationsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={authorizations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         settings: (props) => (
           <CategoriesSection

@@ -7,7 +7,7 @@ import { usePreferences } from '../../../core/preferences';
 import { distances, pools, strokes, type DistanceCode, type PoolCode, type StrokeCode } from '../../../core/sport';
 import { useRecordSyncStates } from '../../../core/sync';
 import { formatMillis, formatTime } from '../../../core/time';
-import type { ChipRowOption } from '../../../core/ui';
+import type { AthleteAvatarSlot, ChipRowOption } from '../../../core/ui';
 import { athleteDisplay, formatDate, type SchoolAthlete } from '../../athletes';
 import {
   buttonAction,
@@ -78,6 +78,8 @@ const KEEP_AWAKE_TAG = 'family-timing';
 const WEEK_MS = 7 * 86_400_000;
 
 export type FamilyTimingContainerProps = {
+  // Injected by the route (this module cannot read show_photo or the photo): the athletes' avatar with their photo. Absent: the initials.
+  Avatar?: AthleteAvatarSlot;
   userId: string;
   athletes: SchoolAthlete[];
   repository: FamilyMeasurementRepository;
@@ -247,7 +249,7 @@ const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.
 
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
-  const { userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice, videoIntro, videos } =
+  const { Avatar, userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice, videoIntro, videos } =
     props;
   const videoLibrary = props.videoLibrary ?? null;
   const videoSharing = (videos && videoLibrary && props.videoSharing) || null;
@@ -825,7 +827,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
 
   const athleteOptions: ChipRowOption<string>[] = athletes.map((a) => {
     const { shortName, initials, color } = athleteDisplay(a);
-    return { value: a.id, label: shortName, dot: { initials, color } };
+    return { value: a.id, label: shortName, dot: { initials, color, avatar: Avatar && <Avatar athleteId={a.id} initials={initials} color={color} size="sm" /> } };
   });
   const unassignedOption: ChipRowOption<string> = { value: UNASSIGNED, label: t('family_timing.unassigned') };
   const chips = unassignedCount > 0 ? [...athleteOptions, unassignedOption] : athleteOptions;

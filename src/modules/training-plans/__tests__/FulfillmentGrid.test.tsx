@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { FulfillmentGrid } from '../components/FulfillmentGrid';
 import { cellKey, type FulfillmentContent } from '../components/fulfillment';
@@ -186,5 +186,15 @@ describe('FulfillmentGrid', () => {
       expect(style.width).toBeUndefined();
       expect(style.height).toBeUndefined();
     }
+  });
+});
+
+describe('FulfillmentGrid avatar', () => {
+  it('draws the avatar the container gave before the name of each athlete, and none otherwise', async () => {
+    const withAvatar = { ...content, athletes: content.athletes.map((athlete) => ({ ...athlete, avatar: <Text>{`avatar ${athlete.id}`}</Text> })) };
+    await render(setup(withAvatar).ui);
+
+    expect(screen.getByText(`avatar ${content.athletes[0]!.id}`, hidden)).toBeOnTheScreen();
+    expect(screen.getByText(content.athletes[0]!.shortName, hidden)).toBeOnTheScreen();
   });
 });

@@ -2,7 +2,7 @@ import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme, type ColorToken } from '../../../core/theme';
-import { Button, SwimmerRow, Tag, type SwimmerRowProps, type TagProps } from '../../../core/ui';
+import { Button, SwimmerRow, Tag, type AthleteAvatarRenderer, type SwimmerRowProps, type TagProps } from '../../../core/ui';
 import '../i18n';
 import { formatDate } from './formatDate';
 
@@ -19,6 +19,8 @@ export type AthleteAuthorizations = {
   athlete: string;
   initials: string;
   color: SwimmerRowProps['color'];
+  // The athlete's avatar with their photo; absent: the initials.
+  avatar?: AthleteAvatarRenderer;
   // Full name of the guardian the requests go to; null when the console cannot read it.
   guardian: string | null;
   purposes: Record<AuthorizationPurpose, AuthorizationStatus>;
@@ -81,6 +83,7 @@ export function AuthorizationList({ athletes, onResend }: AuthorizationListProps
             name={athlete.athlete}
             initials={athlete.initials}
             color={athlete.color}
+            avatar={athlete.avatar?.('md')}
             detail={t('schoolConsole.authorizations.guardian', { name: athlete.guardian ?? noData })}
           />
           <View style={{ gap: space[1], paddingLeft: space[4], paddingRight: space[3] }}>

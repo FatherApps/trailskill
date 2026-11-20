@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSession } from '../../../core/session';
 import { useGlobalSyncSummary } from '../../../core/sync';
 import {
+  AthleteAvatarWithPhoto,
   AthleteShareCodeContainer,
   createPowerSyncAuthorizationStatusRepository,
   createPowerSyncManagedAthleteRepository,
@@ -86,6 +87,7 @@ export default function AthleteProfileRoute() {
   // The container shows "private" for an athlete that is not on this device; the backend decides what reaches it.
   return (
     <AthleteProfileContainer
+      Avatar={AthleteAvatarWithPhoto}
       athleteId={id}
       name={name}
       athlete={managedAthlete}

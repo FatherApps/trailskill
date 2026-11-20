@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { t } from '../../../core/i18n';
 import { useRecordSyncStates, type RecordSyncState, type SyncConnection } from '../../../core/sync';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
+import { avatarOf } from '../components/athleteAvatar';
 import type { MeasurementFilterId } from '../components/athleteTypes';
 import { eventLabel } from '../components/eventLabel';
 import { localDate, localDateTime } from '../components/formatDate';
@@ -20,6 +22,8 @@ import type { ConsoleSectionProps } from './ConsoleScreen';
 import { MeasurementsScreen, type MeasurementsView } from './MeasurementsScreen';
 
 export type MeasurementsSectionProps = ConsoleSectionProps & {
+  // Injected by the route (this module cannot read show_photo or the photo): the athletes' avatar with their photo. Absent: the initials.
+  Avatar?: AthleteAvatarSlot;
   schoolId: string;
   repository: MeasurementLogRepository;
   categories: CategoriesRepository;
@@ -44,12 +48,13 @@ const MINUTE_MS = 60_000;
 const defaultNow = () => new Date();
 
 // Author and device are short ids until their names are readable (issue 220); a missing time stays null, never 0.
-export function toEntry(m: LogMeasurement, sync?: RecordSyncState): MeasurementEntry {
+export function toEntry(m: LogMeasurement, sync?: RecordSyncState, Avatar?: AthleteAvatarSlot): MeasurementEntry {
   return {
     id: m.id,
     athlete: m.athlete,
     initials: m.initials,
     color: m.color,
+    avatar: avatarOf(Avatar, { id: m.athleteId, initials: m.initials, color: m.color }),
     event: eventLabel(m.stroke, m.distance),
     kind: t(`schoolConsole.measurements.kind.${m.kind}`),
     versions: [{ time: m.time, author: shortId(m.authorId), device: shortId(m.deviceId), at: localDateTime(new Date(m.capturedAt)) }],
@@ -59,6 +64,7 @@ export function toEntry(m: LogMeasurement, sync?: RecordSyncState): MeasurementE
 
 // The chronological log of the school's measurements, read from the local database. Owns the search, the filters and the page.
 export function MeasurementsSection({
+  Avatar,
   width,
   schoolName,
   onNavigate,
@@ -124,7 +130,7 @@ export function MeasurementsSection({
       filters: Object.fromEntries(
         Object.entries(filters).map(([id, value]) => [id, options?.[id as MeasurementFilterId].find((o) => o.id === value)?.label ?? t('schoolConsole.common.no_data')]),
       ),
-      entries: shown.map((m) => toEntry(m, states.get(m.id))),
+      entries: shown.map((m) => toEntry(m, states.get(m.id), Avatar)),
       total: matching.length,
       conflicts: matching.filter((m) => states.get(m.id) === 'needs_review').length,
       onShowMore: shown.length < matching.length ? () => setPages((n) => n + 1) : undefined,

@@ -1,3 +1,4 @@
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import type { AuthorizationStatusRepository, ManagedAthleteRepository } from '../../accounts';
 import { athleteDisplay } from '../athleteDisplay';
 import type { AthleteSchoolRepository } from '../data/athleteSchools';
@@ -21,6 +22,8 @@ export type MyAthletesContainerProps = {
   onOpen: (athleteId: string, name: string) => void;
   onAdd: () => void;
   scrollEnabled?: boolean;
+  // Injected by the route (athletes cannot read show_photo without a cycle with accounts): the athlete's avatar with their photo. Absent: no avatar.
+  Avatar?: AthleteAvatarSlot;
 };
 
 // Connects the screen to the athletes the user manages, the names of their school, category and group, and their authorization on this device.
@@ -36,6 +39,7 @@ export function MyAthletesContainer({
   onOpen,
   onAdd,
   scrollEnabled,
+  Avatar,
 }: MyAthletesContainerProps) {
   const result = useManagedAthletes(managed, athletes, userId, refreshKey);
   const details = useAthleteDetails(result.status === 'ready' ? result.athletes : undefined, schoolLinks, schoolNames, structure);
@@ -47,7 +51,7 @@ export function MyAthletesContainer({
   else if (result.athletes.length === 0) view = { kind: 'empty' };
   else {
     const cards = result.athletes.map((athlete) => {
-      const { shortName, color } = athleteDisplay(athlete);
+      const { shortName, initials, color } = athleteDisplay(athlete);
       return {
         id: athlete.id,
         name: shortName,
@@ -57,6 +61,7 @@ export function MyAthletesContainer({
         ...details[athlete.id],
         authorized: authorized?.has(athlete.id),
         isSelf: athlete.id === selfId,
+        avatar: Avatar && <Avatar athleteId={athlete.id} initials={initials} color={color} size="lg" />,
       };
     });
     // The user's own card goes first, so it is the one in front when the screen opens.

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import { athleteDisplay, type AthleteSchoolRepository, type HistoryRepository, type SchoolAthlete } from '../../athletes';
 import type { SchoolNameRepository } from '../../school-console';
 import { shiftDay, todayText, weekOf } from '../components/day';
@@ -16,6 +17,8 @@ const NEXT_HORIZON_DAYS = 14;
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 
 export type HomeContainerProps = {
+  // Injected by the route (this module cannot read show_photo or the photo): the athletes' avatar with their photo. Absent: the initials.
+  Avatar?: AthleteAvatarSlot;
   plans: Pick<TrainingPlanRepository, 'get'>;
   assignments: Pick<AssignmentRepository, 'list'>;
   schoolLinks: AthleteSchoolRepository;
@@ -99,7 +102,7 @@ async function read(props: HomeContainerProps, today: string): Promise<Loaded> {
   return { schoolName: names[0]?.name ?? null, reads };
 }
 
-function contentOf(loaded: Loaded, selectedId: string, today: string): HomeContent {
+function contentOf(loaded: Loaded, selectedId: string, today: string, Avatar?: AthleteAvatarSlot): HomeContent {
   const shown = loaded.reads.filter(({ athlete }) => selectedId === ALL_ATHLETES || athlete.id === selectedId);
   // The earliest assignment among the athletes shown; on a tie, the first athlete.
   const soonest = shown.reduce<Read | null>((best, r) => (r.next && (!best?.next || r.next.day < best.next.day) ? r : best), null);
@@ -113,7 +116,15 @@ function contentOf(loaded: Loaded, selectedId: string, today: string): HomeConte
       today: day === today,
     })),
     next: soonest?.next
-      ? { athleteId: soonest.athlete.id, athleteName: shortName, initials, title: soonest.next.title, whenLabel: whenLabel(soonest.next.day, today), color }
+      ? {
+          athleteId: soonest.athlete.id,
+          athleteName: shortName,
+          initials,
+          title: soonest.next.title,
+          whenLabel: whenLabel(soonest.next.day, today),
+          color,
+          avatar: Avatar && <Avatar athleteId={soonest.athlete.id} initials={initials} color={color} size="sm" />,
+        }
       : null,
     marks: shown
       .flatMap((r) => r.marks)
@@ -124,7 +135,7 @@ function contentOf(loaded: Loaded, selectedId: string, today: string): HomeConte
 
 // Container: reads the next plan and the marks of the week of the athletes the user manages from the local database.
 export function HomeContainer(props: HomeContainerProps) {
-  const { athletes, greetingName, syncState, onOpenToday, onOpenSettings, onOpenStopwatch } = props;
+  const { athletes, greetingName, syncState, onOpenToday, onOpenSettings, onOpenStopwatch, Avatar } = props;
   const today = props.day ?? todayText();
   const synced = props.synced ?? true;
   const [chosenId, setChosenId] = useState(ALL_ATHLETES);
@@ -153,12 +164,12 @@ export function HomeContainer(props: HomeContainerProps) {
   const view: HomeView =
     athletes.length === 0
       ? synced
-        ? { kind: 'data', content: contentOf({ schoolName: null, reads: [] }, ALL_ATHLETES, today) }
+        ? { kind: 'data', content: contentOf({ schoolName: null, reads: [] }, ALL_ATHLETES, today, Avatar) }
         : { kind: 'loading' }
       : answered === 'error'
         ? { kind: 'error', onRetry: () => setAttempt((n) => n + 1) }
         : answered
-          ? { kind: 'data', content: contentOf(answered, selectedId, today) }
+          ? { kind: 'data', content: contentOf(answered, selectedId, today, Avatar) }
           : { kind: 'loading' };
 
   return (
@@ -167,7 +178,13 @@ export function HomeContainer(props: HomeContainerProps) {
       greetingName={greetingName}
       athletes={athletes.map((athlete) => {
         const { shortName, initials, color } = athleteDisplay(athlete);
-        return { id: athlete.id, name: shortName, initials, color };
+        return {
+          id: athlete.id,
+          name: shortName,
+          initials,
+          color,
+          avatar: Avatar && <Avatar athleteId={athlete.id} initials={initials} color={color} size="sm" />,
+        };
       })}
       selectedId={selectedId}
       onSelect={setChosenId}

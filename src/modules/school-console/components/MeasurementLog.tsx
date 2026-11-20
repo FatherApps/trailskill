@@ -4,7 +4,7 @@ import { t } from '../../../core/i18n';
 import type { RecordSyncState } from '../../../core/sync';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime, type Hundredths } from '../../../core/time';
-import { StateView, SwimmerRow, SyncStatus, TimeValue, type SwimmerRowProps } from '../../../core/ui';
+import { StateView, SwimmerRow, SyncStatus, TimeValue, type AthleteAvatarRenderer, type SwimmerRowProps } from '../../../core/ui';
 import '../i18n';
 import { formatDateTime } from './formatDate';
 
@@ -24,6 +24,8 @@ export type MeasurementEntry = {
   athlete: string;
   initials: string;
   color: SwimmerRowProps['color'];
+  // The athlete's avatar with their photo; absent: the initials.
+  avatar?: AthleteAvatarRenderer;
   // Already built, for example "Libre 50" (see eventLabel).
   event: string;
   // Already translated, for example "Carrera"; absent when it is not known.
@@ -101,6 +103,7 @@ export function MeasurementLog({ entries }: MeasurementLogProps) {
                 name={entry.athlete}
                 initials={entry.initials}
                 color={entry.color}
+                avatar={entry.avatar?.('md')}
                 detail={[entry.event, entry.kind, ...dateAndHour(first.at).slice(0, 1)].filter(Boolean).join(' · ')}
                 tag={{ label: t('schoolConsole.measurements.conflict'), variant: 'warn', icon: 'rule' }}
               />
@@ -109,6 +112,7 @@ export function MeasurementLog({ entries }: MeasurementLogProps) {
                 name={entry.athlete}
                 initials={entry.initials}
                 color={entry.color}
+                avatar={entry.avatar?.('md')}
                 detail={detail}
                 time={first.time}
                 timeLabel={t('schoolConsole.measurements.time')}

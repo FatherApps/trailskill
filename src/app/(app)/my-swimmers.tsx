@@ -7,6 +7,7 @@ import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, StateView } from '../../core/ui';
 import {
+  AthleteAvatarWithPhoto,
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
   SignOutContainer,
@@ -63,6 +64,7 @@ export default function MySwimmersRoute() {
   }
   return (
     <MySwimmersSection
+      Avatar={AthleteAvatarWithPhoto}
       width={width}
       schoolName={access.school.name}
       schoolId={access.school.id}

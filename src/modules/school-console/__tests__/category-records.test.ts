@@ -49,7 +49,7 @@ describe('selectCategoryRecords', () => {
       names,
     );
 
-    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: 3391, athlete: 'Mateo Castro', date: '2026-02-12' }]);
+    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: 3391, athlete: 'Mateo Castro', athleteId: 'a2', date: '2026-02-12' }]);
   });
 
   it('gives a tie to the first achievement', () => {
@@ -63,7 +63,7 @@ describe('selectCategoryRecords', () => {
     );
 
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ time: 3391, athlete: 'Lucía Ramírez', date: '2026-02-01' });
+    expect(records[0]).toMatchObject({ time: 3391, athlete: 'Lucía Ramírez', athleteId: 'a1', date: '2026-02-01' });
   });
 
   it('never counts a null time, a completed value, or a kind that is not a mark', () => {
@@ -78,13 +78,13 @@ describe('selectCategoryRecords', () => {
       names,
     );
 
-    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: 3700, athlete: 'Lucía Ramírez', date: '2026-01-01' }]);
+    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: 3700, athlete: 'Lucía Ramírez', athleteId: 'a1', date: '2026-01-01' }]);
   });
 
   it('shows an event without a valid time with no time, athlete or date, never 0', () => {
     const records = selectCategoryRecords([measurement('m1', 'a1', { hundredths: null }), measurement('m2', 'a2', { kind: 'completed', hundredths: null })], 'SCM', names);
 
-    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: null, athlete: null, date: null }]);
+    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: null, athlete: null, athleteId: null, date: null }]);
   });
 
   it('keeps the pools apart and orders the events as the sport catalogs do', () => {
@@ -144,13 +144,13 @@ describe('createCategoryRecordsRepository', () => {
   it('lists the best marks of the category in the pool, counting only the athletes of the school', async () => {
     const records = await repository().list({ schoolId: 's1', categoryId: 'c1', pool: 'SCM' });
 
-    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: 3391, athlete: 'Mateo Castro', date: '2026-01-01' }]);
+    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: 3391, athlete: 'Mateo Castro', athleteId: 'a2', date: '2026-01-01' }]);
   });
 
   it('changes the rows with the pool', async () => {
     const records = await repository().list({ schoolId: 's1', categoryId: 'c1', pool: 'LCM' });
 
-    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: 3100, athlete: 'Lucía Ramírez', date: '2026-01-01' }]);
+    expect(records).toEqual([{ stroke: 'FR', distance: '50m', time: 3100, athlete: 'Lucía Ramírez', athleteId: 'a1', date: '2026-01-01' }]);
   });
 
   it('filters by training group independently of the category', async () => {
@@ -163,9 +163,9 @@ describe('createCategoryRecordsRepository', () => {
     expect(await repository().list({ schoolId: 's2', categoryId: 'c2', pool: 'SCM' })).toEqual([]);
   });
 
-  it('exposes only the event, time, athlete name and date', async () => {
+  it('exposes only the event, time, athlete name and id, and date', async () => {
     const [record] = await repository().list({ schoolId: 's1', categoryId: 'c1', pool: 'SCM' });
 
-    expect(Object.keys(record).sort()).toEqual(['athlete', 'date', 'distance', 'stroke', 'time']);
+    expect(Object.keys(record).sort()).toEqual(['athlete', 'athleteId', 'date', 'distance', 'stroke', 'time']);
   });
 });

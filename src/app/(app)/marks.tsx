@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
-import { createPowerSyncManagedAthleteRepository } from '../../modules/accounts';
+import { AthleteAvatarWithPhoto, createPowerSyncManagedAthleteRepository } from '../../modules/accounts';
 import { createPowerSyncHistoryRepository, createPowerSyncSchoolAthleteRepository, MarksContainer } from '../../modules/athletes';
 import { createPowerSyncImportedResultsRepository, createSupabaseImportSourcesRepository, useImportSources } from '../../modules/results-import';
 
@@ -25,6 +25,7 @@ export default function MarksRoute() {
   // Managed athletes arrive with a sync, so the lookup runs again when one completes.
   return (
     <MarksContainer
+      Avatar={AthleteAvatarWithPhoto}
       userId={session?.user.id}
       managed={managedAthletes}
       athletes={schoolAthletes}

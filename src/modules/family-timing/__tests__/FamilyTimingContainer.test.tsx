@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
+
 
 import { createInMemoryPreferencesRepository, defaultPreferences, PreferencesProvider } from '../../../core/preferences';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import { createFakeTimingButton } from '../../timing';
 import { createInMemoryFamilyMeasurementRepository, type FamilyMeasurement } from '../data/familyMeasurements';
 import { createFakeVideoCamera } from '../testing/fakeVideoCamera';
@@ -43,6 +46,19 @@ async function setup(initial: FamilyMeasurement[] = [], precision: 'hundredths' 
   );
   return { repository, clock };
 }
+
+describe('FamilyTimingContainer avatars', () => {
+  it('gives the swimmer chip the sm avatar the route injected', async () => {
+    const Avatar: AthleteAvatarSlot = ({ athleteId, size }) => <Text>{`avatar ${athleteId} ${size}`}</Text>;
+    await render(
+      <PreferencesProvider repository={createInMemoryPreferencesRepository(defaultPreferences)}>
+        <FamilyTimingContainer userId="u1" athletes={athletes} repository={createInMemoryFamilyMeasurementRepository([])} onBack={jest.fn()} Avatar={Avatar} />
+      </PreferencesProvider>,
+    );
+
+    expect(await screen.findByText('avatar a1 sm', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+});
 
 describe('FamilyTimingContainer', () => {
   it('measures a training time and keeps it on the phone with thousandths', async () => {

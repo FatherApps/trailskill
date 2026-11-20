@@ -2,7 +2,7 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { useTheme } from '../../core/theme';
-import type { GalleryEntry } from '../../core/ui';
+import { AthleteAvatar, type GalleryEntry } from '../../core/ui';
 import { historyFixture as h, historyLongTextResults, historyResults } from './__fixtures__/history';
 import { marksFixture, marksLongPoolFixture, marksLongTextFixture } from './__fixtures__/marks';
 import {
@@ -138,6 +138,9 @@ const entry = (id: string, title: string, states: Record<string, () => ReactElem
 export const galleryEntries: GalleryEntry[] = [
   entry('profileHeader', 'ProfileHeader', {
     'one-school': () => <ProfileHeaderPreview {...headerBase} />,
+    'with-avatar': () => (
+      <ProfileHeaderPreview {...headerBase} avatar={<AthleteAvatar initials="TR" colorIndex={3} size="lg" authorized={false} />} />
+    ),
     'several-schools': () => <ProfileHeaderPreview {...headerBase} schools={pf.schools} />,
     'pending-authorization': () => <ProfileHeaderPreview {...headerBase} authorization="pending" />,
     'with-event-chips': () => (
@@ -226,6 +229,13 @@ export const galleryEntries: GalleryEntry[] = [
   }),
   entry('myAthletesScreen', 'MyAthletesScreen', {
     'with-data': myAthletesPreview({ kind: 'data', athletes: myAthletesFixture }),
+    'with-avatar': myAthletesPreview({
+      kind: 'data',
+      athletes: myAthletesFixture.map((card) => ({
+        ...card,
+        avatar: <AthleteAvatar initials={`${card.firstName.charAt(0)}${card.lastName.charAt(0)}`} colorIndex={Number(card.color.slice(-1)) as 1 | 2 | 3 | 4} size="lg" authorized={false} />,
+      })),
+    }),
     'long-text': myAthletesPreview({ kind: 'data', athletes: myAthletesLongTextFixture }),
     empty: myAthletesPreview({ kind: 'empty' }),
     loading: myAthletesPreview({ kind: 'loading' }),

@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react';
 import { t } from '../../../core/i18n';
 import { pools, type PoolCode } from '../../../core/sport';
 import type { SyncConnection } from '../../../core/sync';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
-import type { RecordRow } from '../components/RecordTable';
+import { avatarOf } from '../components/athleteAvatar';
+import { dotOf, type RecordRow } from '../components/RecordTable';
 import { eventLabel } from '../components/eventLabel';
 import { localDate } from '../components/formatDate';
 import type { CategoriesRepository, Category } from '../data/categories';
@@ -14,6 +16,8 @@ import type { ConsoleSectionProps } from './ConsoleScreen';
 import { RecordsScreen, type RecordsSheet, type RecordsView } from './RecordsScreen';
 
 export type RecordsSectionProps = ConsoleSectionProps & {
+  // Injected by the route (this module cannot read show_photo or the photo): the athletes' avatar with their photo. Absent: the initials.
+  Avatar?: AthleteAvatarSlot;
   schoolId: string;
   repository: CategoryRecordsRepository;
   categories: CategoriesRepository;
@@ -41,6 +45,7 @@ const defaultNow = () => new Date();
 // The records of one category in one pool, filtered by training group, read from the local database.
 // Owns the three filters and the open selector. The category defaults to the first active one, the pool to the first of the catalog.
 export function RecordsSection({
+  Avatar,
   width,
   schoolName,
   onNavigate,
@@ -118,6 +123,7 @@ export function RecordsSection({
       stroke: record.stroke,
       time: record.time,
       athlete: record.athlete,
+      avatar: record.athlete && record.athleteId ? avatarOf(Avatar, { id: record.athleteId, ...dotOf(record.athlete) }) : undefined,
       date: record.date,
     }));
     const content = {

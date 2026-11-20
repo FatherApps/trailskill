@@ -5,7 +5,7 @@ import { t } from '../../../core/i18n';
 import type { PoolCode, StrokeCode } from '../../../core/sport';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import { spokenTime, type Hundredths } from '../../../core/time';
-import { InitialsDot, StateView, StrokeIcon, Tag, TimeValue, type InitialsDotProps } from '../../../core/ui';
+import { InitialsDot, StateView, StrokeIcon, Tag, TimeValue, type AthleteAvatarRenderer, type InitialsDotProps } from '../../../core/ui';
 import '../i18n';
 import { formatDate } from './formatDate';
 import { useTextScale } from './textScale';
@@ -21,6 +21,8 @@ export type RecordRow = {
   time: Hundredths | null;
   // Full name of the athlete who holds the mark.
   athlete: string | null;
+  // Their avatar with their photo, at the size the cell asks for; absent: the initials.
+  avatar?: AthleteAvatarRenderer;
   // ISO date (YYYY-MM-DD) of the mark.
   date: string | null;
   // Name of the source when the record was imported: an imported record always shows it.
@@ -58,7 +60,7 @@ const TIME_WIDTH = 104;
 // name (the same name, the same colour). shortcut: two athletes with the same name share a colour; give the row the
 // athlete's own colour (as SwimmerRow gets it) if the table must tell them apart.
 const dotColors: InitialsDotProps['color'][] = ['athlete-1', 'athlete-2', 'athlete-3', 'athlete-4'];
-const dotOf = (name: string): InitialsDotProps => {
+export const dotOf = (name: string): InitialsDotProps => {
   const words = name.trim().split(/\s+/);
   const initials = `${words[0]!.charAt(0)}${words.length > 1 ? words[words.length - 1]!.charAt(0) : ''}`.toUpperCase();
   return { initials, color: dotColors[[...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % dotColors.length]! };
@@ -193,7 +195,7 @@ export function RecordTable({ rows, pool, compact = false }: RecordTableProps) {
               <View style={[cell, columns[2], { flexDirection: 'row', alignItems: 'center', gap: space[2] }]}>
                 {marked && row.athlete ? (
                   <>
-                    <InitialsDot {...dotOf(row.athlete)} />
+                    <InitialsDot {...dotOf(row.athlete)} avatar={row.avatar?.('sm')} />
                     <Text style={[typography.body, text, { flexShrink: 1 }]}>{row.athlete}</Text>
                   </>
                 ) : marked ? (

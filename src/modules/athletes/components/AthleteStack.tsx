@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -24,6 +24,8 @@ export type MyAthleteCard = {
   authorized?: boolean;
   // The athlete is the user themselves (an adult who swims): their collapsed card says "tú".
   isSelf?: boolean;
+  // The athlete's `lg` AthleteAvatar with their photo, on the card in front (the container injects it); absent: none.
+  avatar?: ReactNode;
 };
 
 export type AthleteStackProps = {
@@ -90,6 +92,7 @@ function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidd
     <View style={{ marginTop: covers ? -hidden : 0 }}>
       {/* The name is bigger than a card title, so the lines go in this order below an empty title. */}
       <ColorCard color={card.color} title="" decoration={{ dot }}>
+        {card.avatar ? <View style={{ alignSelf: 'flex-start' }}>{card.avatar}</View> : null}
         {place ? <Text style={[typography.caption, text]}>{place}</Text> : null}
         {card.category ? <Text style={[typography.label, text]}>{card.category.toUpperCase()}</Text> : null}
         <Text style={[typography[largeText ? 'title-lg' : 'display-xl'], text]}>{`${card.firstName}\n${card.lastName}`}</Text>

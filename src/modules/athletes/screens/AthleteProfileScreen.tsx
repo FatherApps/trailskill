@@ -42,7 +42,7 @@ export type AthleteProfileView =
   | { kind: 'empty'; content: AthleteProfileContent }
   // `header` gives the athlete's colour from the first frame; the title comes from `name`, the one source of the name. Only the content below loads.
   // `subtitle` is the category and school line when the caller already knows it ('' = it knows there is none); left out, the band keeps the height of one line so the line can arrive without moving what is below.
-  | { kind: 'loading'; header?: { color: ColorCardColor; subtitle?: string } }
+  | { kind: 'loading'; header?: { color: ColorCardColor; subtitle?: string; avatar?: ReactNode } }
   | { kind: 'error'; onRetry: () => void }
   // Offline with stored data: the content under a dated banner. `storedOn` is the ISO date (YYYY-MM-DD) it was saved.
   | { kind: 'offline'; storedOn: string; content: AthleteProfileContent }
@@ -82,7 +82,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   const margin = space[4];
   const padded = { paddingHorizontal: margin };
   // The states without content keep the band and its back button, so the screen never depends on the system back.
-  const withBand = (state: ReactNode, band?: { color: ColorCardColor; subtitle?: string }) => (
+  const withBand = (state: ReactNode, band?: { color: ColorCardColor; subtitle?: string; avatar?: ReactNode }) => (
     <View style={frame}>
       {/* A blank name leaves the title empty on purpose (maintainer, issue 644): any placeholder would be new copy. */}
       <ColorHeader
@@ -91,6 +91,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         // A no-break space keeps the line's height without any copy (an empty subtitle draws no line at all).
         subtitle={band ? (band.subtitle ?? NO_BREAK_SPACE) : undefined}
         onBack={onBack}
+        avatar={band?.avatar}
       />
       {/* testID: this wrapper has no role, label or text; tests read its margin from it. */}
       <View testID="profile-content" style={[frame, padded, { paddingVertical: space[4] }]}>

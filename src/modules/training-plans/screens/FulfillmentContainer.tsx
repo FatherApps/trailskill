@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import type { AuthorizationStatusRepository } from '../../accounts';
 import type { SchoolAthleteRepository } from '../../athletes';
 import { athleteDisplay } from '../../athletes';
@@ -17,6 +18,8 @@ import type { BlockStatus, PlanBlock } from '../types';
 import { FulfillmentScreen, type FulfillmentView } from './FulfillmentScreen';
 
 export type FulfillmentContainerProps = {
+  // Injected by the route (this module cannot read show_photo or the photo): the athletes' avatar with their photo. Absent: the initials.
+  Avatar?: AthleteAvatarSlot;
   plans: TrainingPlanRepository;
   assignments: AssignmentRepository;
   athletes: SchoolAthleteRepository;
@@ -41,7 +44,7 @@ type Loaded = {
   planName: string;
   versionId: string;
   blocks: PlanBlock[];
-  athletes: { id: string; shortName: string; skipped: boolean }[];
+  athletes: { id: string; shortName: string; skipped: boolean; avatar?: ReactNode }[];
   marks: FulfillmentMark[];
   times: Map<string, number>;
 };
@@ -72,7 +75,7 @@ function contentOf({ blocks, athletes, marks, times }: Loaded): FulfillmentConte
 
 // Container: finds the assignment, its blocks and the athletes in charge of the user, and saves each mark on the device at once.
 export function FulfillmentContainer(props: FulfillmentContainerProps) {
-  const { plans, assignments, athletes, structure, schools, fulfillment, authorizations, series, userId, deviceId, assignmentId, day, onOpenTiming, refreshKey } = props;
+  const { plans, assignments, athletes, structure, schools, fulfillment, authorizations, series, userId, deviceId, assignmentId, day, onOpenTiming, refreshKey, Avatar } = props;
   const [loaded, setLoaded] = useState<Loaded | 'loading' | 'error' | 'denied'>('loading');
   const [attempt, setAttempt] = useState(0);
   const [partial, setPartial] = useState<{ athleteId: string; blockId: string } | null>(null);
@@ -98,7 +101,15 @@ export function FulfillmentContainer(props: FulfillmentContainerProps) {
           blocks: plan.blocks,
           athletes: scope.athletes
             .filter((athlete) => reached.has(athlete.id))
-            .map((athlete) => ({ id: athlete.id, shortName: athleteDisplay(athlete).shortName, skipped: !granted.includes(athlete.id) })),
+            .map((athlete) => {
+              const { shortName, initials, color } = athleteDisplay(athlete);
+              return {
+                id: athlete.id,
+                shortName,
+                skipped: !granted.includes(athlete.id),
+                avatar: Avatar && <Avatar athleteId={athlete.id} initials={initials} color={color} size="sm" />,
+              };
+            }),
           marks,
           times: await timesOf(series, marks),
         };

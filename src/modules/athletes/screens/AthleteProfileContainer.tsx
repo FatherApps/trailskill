@@ -5,6 +5,7 @@ import { trimName } from '../../../core/i18n';
 import { useSession } from '../../../core/session';
 import { distances, pools, strokes } from '../../../core/sport';
 import { useRecordSyncStates, type RecordSyncState } from '../../../core/sync';
+import type { AthleteAvatarSlot } from '../../../core/ui';
 import { importedAchievement, latestAchievement, type EventAchievement, type ImportedHistoryResult } from '../achievements';
 import { groupImportedResults } from '../groupImported';
 import { repeatedRecordIds } from '../repeatedRecordIds';
@@ -59,6 +60,8 @@ export type AthleteProfileContainerProps = {
   importPrompt?: ImportPromptProps;
   // Where the band's back button goes; the route decides (the module has no router). Left out when there is nowhere to go back to: no button.
   onBack?: () => void;
+  // Injected by the route (athletes cannot read show_photo without a cycle with accounts): the athlete's avatar with their photo. Absent: no avatar.
+  Avatar?: AthleteAvatarSlot;
 };
 
 type ProfileSchool = { id: string; name: string; category: string };
@@ -168,6 +171,7 @@ export function AthleteProfileContainer({
   schoolLinks,
   schoolNames,
   categories,
+  Avatar,
   lastSyncedAt,
   otherSchoolResults,
   online = false,
@@ -310,13 +314,19 @@ export function AthleteProfileContainer({
     if (userId && readyLine !== undefined) rememberProfileLine(userId, athleteId, readyLine);
   }, [userId, athleteId, readyLine]);
   const person = loaded.kind === 'ready' ? loaded.athlete : athlete?.id === athleteId ? athlete : undefined;
+  // The `lg` avatar of the band, once the container knows who the athlete is (the route's preview or the one just read).
+  const avatarOf = (who: Pick<SchoolAthlete, 'id' | 'firstName' | 'lastName'> | undefined) => {
+    if (!Avatar || !who) return undefined;
+    const { initials, color } = athleteDisplay(who);
+    return <Avatar athleteId={athleteId} initials={initials} color={color} size="lg" />;
+  };
   const personName = person ? `${person.firstName} ${person.lastName}` : '';
   const loadingScreen = (
     <AthleteProfileScreen
       name={trimName(loaded.kind === 'ready' ? personName : (name ?? personName))}
       view={{
         kind: 'loading',
-        header: { color: athleteColor(athleteId), ...(loaded.kind === 'ready' ? { subtitle: readyLine } : subtitleOf(userId ? rememberedProfileLine(userId, athleteId) : undefined)) },
+        header: { color: athleteColor(athleteId), avatar: avatarOf(person), ...(loaded.kind === 'ready' ? { subtitle: readyLine } : subtitleOf(userId ? rememberedProfileLine(userId, athleteId) : undefined)) },
       }}
       onBack={onBack}
     />
@@ -335,6 +345,7 @@ export function AthleteProfileContainer({
     header: {
       name: `${loadedAthlete.firstName} ${loadedAthlete.lastName}`.trim(),
       color: athleteDisplay(loadedAthlete).color,
+      avatar: avatarOf(loadedAthlete),
       onBack,
       category: school?.category ?? '',
       schools: schools.map(({ id, name }) => ({ id, name })),
