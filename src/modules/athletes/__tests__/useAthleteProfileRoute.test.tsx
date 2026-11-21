@@ -130,6 +130,15 @@ describe('useAthleteProfileRoute', () => {
     });
   });
 
+  describe('federation', () => {
+    it('lists only the federation providers, from the kind of the source', async () => {
+      const { hook } = setup({ sources: [federation, platform] });
+      const { result } = await hook;
+
+      expect(result.current.federation).toEqual(['xx-demo']);
+    });
+  });
+
   describe('managedAthlete', () => {
     it('is the swimmer in the address when the user manages them', async () => {
       const { hook } = setup();

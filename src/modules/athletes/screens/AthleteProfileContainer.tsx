@@ -50,6 +50,8 @@ export type AthleteProfileContainerProps = {
   sourceNames?: Readonly<Record<string, string>>;
   // The import providers that date a result by its session (a results platform), from data: the date shown when two sources agree on a swim.
   sessionDated?: readonly string[];
+  // The providers of a federation, from data: its result is shown whole (date, tournament, time) when it is one of the sources of a swim.
+  federation?: readonly string[];
   // The official-results update of the results-import module. Pass it only to viewers that may import.
   officialUpdate?: ReactNode;
   // Pinned to the bottom of the screen, outside the scrolling list; the route passes it with the official-results update.
@@ -183,6 +185,7 @@ export function AthleteProfileContainer({
   importedResults,
   sourceNames,
   sessionDated,
+  federation,
   officialUpdate,
   bottomBar,
   shareCode,
@@ -237,7 +240,7 @@ export function AthleteProfileContainer({
 
   // Every result of the athlete as an achievement: the personal best, the marks and the events on offer read the same list.
   // The same swim in two sources is one result with both sources, joined here at read time (issue 897).
-  const importedGroups = useMemo(() => (loaded.kind === 'ready' ? groupImportedResults(loaded.imported, sourceNames, sessionDated) : []), [loaded, sourceNames, sessionDated]);
+  const importedGroups = useMemo(() => (loaded.kind === 'ready' ? groupImportedResults(loaded.imported, sourceNames, sessionDated, federation) : []), [loaded, sourceNames, sessionDated, federation]);
   const achievements = useMemo<EventAchievement[]>(
     () => (loaded.kind === 'ready' ? [...loaded.measurements, ...importedGroups.map((g) => importedAchievement(g.result, g.sourceName))] : []),
     [loaded, importedGroups],
