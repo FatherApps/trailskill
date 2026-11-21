@@ -89,12 +89,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // A sign-out cleared the local database past the time limit, and that clear may still end: nothing is shown or written meanwhile.
   const [clearPending, setClearPending] = useState(false);
   // Read by the auth listener, which must not give writes back to the person while the clear runs.
-  const holdWrites = useRef<string>(undefined);
+  const holdWrites = useRef(false);
+  // The late clear, as a promise that never rejects: whoever signs in meanwhile waits for it before anything of theirs is checked.
+  const lateClear = useRef<Promise<void>>(undefined);
+  // A sign-in arrived while the late clear ran: it is not the sign-out finishing, so that session must not be ended.
+  const signedInDuringHold = useRef(false);
   // The user now, for work that ends after a render (a late clear) and must not act on someone who signed in since.
   const userIdRef = useRef<string>(undefined);
-  const setHold = useCallback((on: boolean, forUser?: string) => {
-    holdWrites.current = on ? forUser : undefined;
+  // The late clear never ended in time: the person is asked to reopen the app.
+  const [holdStuck, setHoldStuck] = useState(false);
+  const setHold = useCallback((on: boolean) => {
+    holdWrites.current = on;
     setClearPending(on);
+    if (!on) setHoldStuck(false);
   }, []);
   // Keyed on the user, so a failure never carries over to the next person.
   const [syncFailedFor, setSyncFailedFor] = useState<string>();
@@ -127,8 +134,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (event === 'INITIAL_SESSION') restoredUserId.current = next?.user.id;
       // Right away, not after a render: a write in flight checks it as it commits.
       userIdRef.current = next?.user.id;
-      // Only the person whose sign-out is finishing is held: someone who signs in meanwhile writes as usual.
-      setSessionUser(next?.user.id !== undefined && next.user.id === holdWrites.current ? undefined : next?.user.id);
+      // While a late clear may still empty the database nobody writes, whoever signs in: it ending opens the writes (see finishLateClear).
+      if (event === 'SIGNED_IN' && holdWrites.current) signedInDuringHold.current = true;
+      setSessionUser(holdWrites.current ? undefined : next?.user.id);
       setSession(next);
       setRestored(true);
     });
@@ -144,12 +152,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [restored]);
 
+  useEffect(() => {
+    if (!clearPending) return;
+    const timer = setTimeout(() => {
+      logLocalFailure(new LocalStepTimeoutError('finish sign-out'));
+      setHoldStuck(true);
+    }, LOCAL_STEP_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [clearPending]);
+
   // Keyed on the user, not the session object: token refreshes must not reconnect.
   const userId = session?.user.id;
   useEffect(() => {
     if (!userId) return;
     let current = true;
     (async () => {
+      // A sign-out whose clear is still running comes first: its end must not empty data of this session.
+      if (lateClear.current) await withTimeout('finish previous sign-out', lateClear.current);
       // PowerSync never connects for a user other than the owner of the local data: another owner's data is cleared first.
       const owner = await withTimeout('read owner', SecureStore.getItemAsync(LOCAL_OWNER_KEY));
       if (owner === null && userId === restoredUserId.current) {
@@ -181,8 +200,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => {
       current = false;
       // The next check starts from scratch, so an earlier result never shows a screen for this run.
-      // Another person (or nobody) now: a late clear of the earlier sign-out no longer hides anything of theirs.
-      setHold(false);
       setReadyFor(undefined);
       setBlockedFor(undefined);
       setCheckFailedFor(undefined);
@@ -191,7 +208,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       connector.cancelWaits();
       db.disconnect().catch(() => {});
     };
-  }, [userId, check, connector, setHold]);
+  }, [userId, check, connector]);
   const syncConnectFailed = userId !== undefined && syncFailedFor === userId;
   const ready = userId !== undefined && readyFor === userId;
   const previousUserPending = userId !== undefined && blockedFor === userId;
@@ -325,36 +342,43 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
   }, [connector]);
 
-  // The clear passed the time limit but may still end, and the person must not keep using the app while the database empties:
-  // no screen and no write for them until it ends. It ending well completes the sign-out; failing gives everything back.
+  // The clear passed the time limit but may still end, and nothing of anyone may be written meanwhile (it could empty it):
+  // the screen says the sign-out is finishing, and whoever signs in waits. It ending well completes the sign-out, unless a sign-in
+  // arrived meanwhile; failing gives the session and the sync back.
   const finishLateClear = useCallback((clearing: Promise<void>, startedFor: string | undefined) => {
-    setHold(true, startedFor);
+    setHold(true);
+    signedInDuringHold.current = false;
     setSessionUser(undefined);
-    const giveBack = () => {
-      if (startedFor !== undefined && userIdRef.current === startedFor) {
-        setSessionUser(startedFor);
-        reconnectSync(startedFor);
-      }
+    lateClear.current = clearing.then(() => {}, () => {});
+    const release = () => {
+      lateClear.current = undefined;
+      // Writes open for whoever is signed in now, nobody after a finished sign-out.
+      setSessionUser(userIdRef.current);
       setHold(false);
     };
     clearing.then(
       async () => {
-        // Someone else signed in meanwhile: that session is not this sign-out's to end.
-        if (userIdRef.current !== startedFor) return setHold(false);
-        try {
-          await endSession();
-          setHold(false);
-        } catch (error) {
-          logLocalFailure(error);
-          giveBack();
+        const now = userIdRef.current;
+        if (now === startedFor && !signedInDuringHold.current) {
+          try {
+            await endSession();
+          } catch (error) {
+            logLocalFailure(error);
+            if (startedFor !== undefined) reconnectSync(startedFor);
+          }
+        } else if (now !== undefined && now === startedFor) {
+          // The same person signed in again meanwhile: their check runs now that the clear is over.
+          retryCheck();
         }
+        release();
       },
       (error: unknown) => {
         logLocalFailure(error);
-        giveBack();
+        if (userIdRef.current === startedFor && startedFor !== undefined) reconnectSync(startedFor);
+        release();
       },
     );
-  }, [endSession, reconnectSync, setHold]);
+  }, [endSession, reconnectSync, retryCheck, setHold]);
 
   const signOut = useCallback(async (options?: { force?: boolean }): Promise<SignOutResult> => {
     // Awaits the real count: the sync hook reports 0 until its first query lands.
@@ -387,6 +411,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [visibleSession, syncConnectFailed, clearPending, requestCode, verifyCode, signInWithProvider, resumeProviderSignIn, signOut],
   );
 
+  if (clearPending) {
+    return (
+      <SessionContext.Provider value={value}>
+        {children}
+        {/* Over the screens, which stay mounted: they hide nothing from the session hooks and take no touch meanwhile. */}
+        <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, justifyContent: 'center', padding: space[4], backgroundColor: colors['surface-0'] }}>
+          {holdStuck ? (
+            <StateView kind="error" title={t('session.sign_out_stuck_title')} message={t('session.sign_out_stuck_message')} />
+          ) : (
+            <StateView kind="empty" title={t('session.sign_out_finishing_title')} message={t('session.sign_out_finishing_message')} />
+          )}
+        </View>
+      </SessionContext.Provider>
+    );
+  }
   // Render nothing until the stored session and the owner of the local data are known (each for at most
   // LOCAL_STEP_TIMEOUT_MS), so a signed-in person never sees the sign-in screen flash.
   if ((!restored && !restoreTimedOut) || checking) return null;
