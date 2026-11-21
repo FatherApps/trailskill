@@ -3,6 +3,7 @@ import {
   cleanNote,
   FAMILY_MEASUREMENTS_TABLE,
   NotCompetitionError,
+  NotTrainingError,
   UnknownMeasurementError,
   type FamilyMeasurement,
   type FamilyMeasurementRepository,
@@ -144,9 +145,11 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
       await writeRecord(TABLE, { id, official_result_key: officialResultKey });
     },
     async edit(id, changes) {
-      await existing(id);
+      const row = await existing(id);
+      if (changes.distance !== undefined && row.session_type !== 'training') throw new NotTrainingError(id);
       const values: Record<string, unknown> = { id };
       if (changes.stroke !== undefined) values.stroke = changes.stroke;
+      if (changes.distance !== undefined) values.distance = changes.distance;
       if (changes.athleteId !== undefined) values.athlete_id = changes.athleteId;
       if (Object.keys(values).length > 1) await writeRecord(TABLE, values);
       // Given to a swimmer, the time keeps no note.
