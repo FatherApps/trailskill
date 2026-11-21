@@ -22,4 +22,11 @@ describe('accounts-deletion-worker entry point', () => {
     expect(source).toMatch(/Deno\.env\.get\('RESEND_FROM'\)/);
     expect(source).toMatch(/selectMailer\(/);
   });
+
+  it('drains the Storage deletion queue through the Storage API, with the grace period from STORAGE_ORPHAN_GRACE_HOURS', () => {
+    expect(source).toMatch(/createStorageDrain\(/);
+    expect(source).toMatch(/admin\.storage\.from\(bucket\)\.remove\(paths\)/);
+    expect(source).toMatch(/Deno\.env\.get\('STORAGE_ORPHAN_GRACE_HOURS'\)/);
+    expect(source).not.toMatch(/storage\.objects/);
+  });
 });

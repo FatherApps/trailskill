@@ -1,5 +1,6 @@
 import { mailEmail } from './emailTexts.ts';
 import type { Clock, Mailer, WorkerStore } from './port.ts';
+import type { StorageSummary } from './storageDrain.ts';
 
 /** How many requests and emails one run takes; the rest waits for the next run. */
 export const BATCH = 50;
@@ -8,14 +9,15 @@ export const BATCH = 50;
 const LOGGABLE = /^(Calling [a-z_]+ failed \(\w+\)|Resend (delivery failed \((network|HTTP \d{3})\)|sender is not configured))$/;
 const loggable = (error: unknown) => (error instanceof Error && LOGGABLE.test(error.message) ? error.message : 'unknown');
 
-export type RunSummary = { erased: number; stopped: number; skipped: number; sent: { reminder: number; deleted: number; stopped: number }; failed: number };
+export type RunSummary = { erased: number; stopped: number; skipped: number; sent: { reminder: number; deleted: number; stopped: number }; failed: number; storage?: StorageSummary };
 
 /**
- * One daily run: erases the accounts whose grace period is over, then sends the emails that are due. The same instant of the clock
+ * One daily run: erases the accounts whose grace period is over, sends the emails that are due, then drains the Storage deletion queue
+ * (`drain`, when given; a failure of it is counted and logged and does not undo the rest). The same instant of the clock
  * goes to every database call. A failure on one request or email is counted and logged by kind, and does not stop the others. An
  * email is finished only after it left: an unsent one stays leased in the database and comes back later. Addresses, ids and keys are never logged.
  */
-export function createRunWorker({ store, mailer, clock }: { store: WorkerStore; mailer: Mailer; clock: Clock }) {
+export function createRunWorker({ store, mailer, clock, drain }: { store: WorkerStore; mailer: Mailer; clock: Clock; drain?: () => Promise<StorageSummary> }) {
   return async function runWorker(): Promise<RunSummary> {
     const now = clock.now();
     const summary: RunSummary = { erased: 0, stopped: 0, skipped: 0, sent: { reminder: 0, deleted: 0, stopped: 0 }, failed: 0 };
@@ -43,6 +45,15 @@ export function createRunWorker({ store, mailer, clock }: { store: WorkerStore; 
       } catch (error) {
         summary.failed++;
         console.error(`accounts-deletion-worker ${mail.kind} email failed: ${loggable(error)}`);
+      }
+    }
+
+    if (drain) {
+      try {
+        summary.storage = await drain();
+      } catch (error) {
+        summary.failed++;
+        console.error(`accounts-deletion-worker storage drain failed: ${loggable(error)}`);
       }
     }
     return summary;
