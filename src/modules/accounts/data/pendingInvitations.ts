@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
 
-import type { InvitationRepository } from './invitations';
+import type { InvitationConsent, InvitationRepository } from './invitations';
 import { DRAFT_TTL_MS } from './draftTtl';
 
 // An invitation waiting to be accepted for one athlete. It keeps its own token: the registration draft is cleared by the authorizations step.
@@ -10,6 +10,8 @@ export type PendingInvitation = {
   token: string;
   athleteId: string;
   categoryId?: string;
+  // What the person accepted when they joined the school; set when they press "Aceptar". An entry without it is never sent: it waits, and expires with the draft.
+  consent?: InvitationConsent;
   // Stamped by the repository when the entry is queued; never set by callers.
   queuedAt?: number;
 };
@@ -18,6 +20,8 @@ export interface PendingInvitationRepository {
   list(): Promise<PendingInvitation[]>;
   /** One entry per athlete: adding again replaces nothing. */
   add(item: PendingInvitation): Promise<void>;
+  /** Stores the consent on the athlete's entry, if it is queued. */
+  setConsent(athleteId: string, consent: InvitationConsent): Promise<void>;
   remove(athleteId: string): Promise<void>;
   /** Forgets every entry of the account, on sign-out. */
   clear(userId: string): Promise<void>;
@@ -36,6 +40,9 @@ export function createInMemoryPendingInvitationRepository(): PendingInvitationRe
     },
     async remove(athleteId) {
       items = items.filter((item) => item.athleteId !== athleteId);
+    },
+    async setConsent(athleteId, consent) {
+      items = items.map((item) => (item.athleteId === athleteId ? { ...item, consent } : item));
     },
     async clear(userId) {
       items = items.filter((item) => item.userId !== userId);
@@ -71,6 +78,7 @@ export function createSecureStorePendingInvitationRepository(): PendingInvitatio
         if (!items.some((own) => own.athleteId === item.athleteId)) await write([...items, { ...item, queuedAt: Date.now() }]);
       }),
     remove: (athleteId) => serialized(async () => write((await read()).filter((item) => item.athleteId !== athleteId))),
+    setConsent: (athleteId, consent) => serialized(async () => write((await read()).map((item) => (item.athleteId === athleteId ? { ...item, consent } : item)))),
     clear: (userId) => serialized(async () => write((await read()).filter((item) => item.userId !== userId))),
   };
 }
@@ -85,17 +93,19 @@ const INACTIVE_CATEGORY = '23514';
  * network throws: both stay queued for the next run. Accepting is idempotent on the server, so overlapping runs are harmless.
  * An entry queued more than DRAFT_TTL_MS ago is dropped without calling the server: for an athlete that never arrives the server only says 42501,
  * so it would never reveal an expired or revoked token. An entry with no stamp predates the expiry and is dropped too, like an unstamped draft.
+ * An entry without consent (the person has not accepted yet, or it was queued by an older version of the app) is never sent: it only expires.
  */
 export async function acceptPendingInvitations(userId: string, pending: PendingInvitationRepository, invitations: InvitationRepository, now = Date.now()): Promise<void> {
-  for (const { token, athleteId, categoryId, queuedAt } of (await pending.list()).filter((item) => item.userId === userId)) {
+  for (const { token, athleteId, categoryId, consent, queuedAt } of (await pending.list()).filter((item) => item.userId === userId)) {
     if (queuedAt === undefined || now - queuedAt > DRAFT_TTL_MS) {
       await pending.remove(athleteId);
       continue;
     }
+    if (!consent) continue;
     try {
-      await invitations.accept({ token, athleteId, ...(categoryId && { categoryId }) }).catch((error) => {
+      await invitations.accept({ token, athleteId, consent, ...(categoryId && { categoryId }) }).catch((error) => {
         if (!categoryId || (error as { code?: string }).code !== INACTIVE_CATEGORY) throw error;
-        return invitations.accept({ token, athleteId });
+        return invitations.accept({ token, athleteId, consent });
       });
     } catch (error) {
       if (!PERMANENT.has((error as { code?: string }).code ?? '')) continue;

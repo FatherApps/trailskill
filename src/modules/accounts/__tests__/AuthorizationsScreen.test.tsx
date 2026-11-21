@@ -1,11 +1,15 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryAuthorizationRepository, type AuthorizationRecord, type AuthorizationRepository, type AuthorizationText } from '../data/authorizations';
+import { createInMemoryInvitationRepository } from '../data/invitations';
 import { createIdentityNumberHold, createInMemoryIdentityDocumentRepository } from '../data/identityDocuments';
+import { createInMemoryPendingInvitationRepository } from '../data/pendingInvitations';
 import { createInMemoryRegistrationDraftRepository } from '../data/registrationDraft';
 import { AuthorizationsContainer } from '../screens/AuthorizationsContainer';
 import { AuthorizationsScreen } from '../screens/AuthorizationsScreen';
 
+// The pending queue has a SecureStore-backed twin next to the in-memory one.
+jest.mock('expo-secure-store', () => ({}));
 jest.mock('expo-file-system', () => ({ Directory: class {}, File: class {}, Paths: { cache: '', document: '' } }));
 jest.mock('../../../core/sync', () => ({
   db: {},
@@ -496,5 +500,222 @@ describe('AuthorizationsContainer: withdrawing show_photo', () => {
 
     expect(photos.find).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Borrar la foto' })).toBeNull();
+  });
+});
+
+// Issue 1328: joining a school accepts record_times, import_official_results and share_results_with_school together.
+describe('AuthorizationsScreen: joining a school', () => {
+  const two = [...athletes, { id: 'a2', name: 'Tomás P.' }];
+  const props = (extra: Partial<React.ComponentProps<typeof AuthorizationsScreen>> = {}) => ({
+    mode: 'registration' as const,
+    athletes: two,
+    texts,
+    inForce: {},
+    onSave: jest.fn().mockResolvedValue(true),
+    onWithdraw: jest.fn(),
+    join: { athletes: ['Ana M.', 'Tomás P.'], onAccept: jest.fn().mockResolvedValue(true), onDecline: jest.fn().mockResolvedValue(true) },
+    ...extra,
+  });
+
+  it('shows the three purposes with their full text and version, without checkboxes, the swimmers who join, and the optional photo box', async () => {
+    await render(<AuthorizationsScreen {...props()} />);
+
+    for (const body of ['Synthetic record text', 'Synthetic import text', 'Synthetic share text']) expect(screen.getByText(body)).toBeOnTheScreen();
+    expect(screen.getAllByText('Versión 1')).toHaveLength(3);
+    for (const name of [RECORD, IMPORT, 'Compartir resultados con otra escuela']) expect(screen.queryByRole('checkbox', { name })).toBeNull();
+    // Only the photo is optional and separate: one box for each swimmer, unchecked.
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    screen.getAllByRole('checkbox', { name: PHOTO }).forEach((box) => expect(box).not.toBeChecked());
+    expect(screen.getByText('Ana M., Tomás P.', { exact: false })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Aceptar' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Continuar sin unirme' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Continuar' })).toBeNull();
+  });
+
+  it('«Aceptar» joins and passes no photo when its box is not checked', async () => {
+    const onAccept = jest.fn().mockResolvedValue(true);
+    await render(<AuthorizationsScreen {...props({ join: { athletes: ['Ana M.'], onAccept, onDecline: jest.fn() } })} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Aceptar' }));
+
+    await waitFor(() => expect(onAccept).toHaveBeenCalledWith([]));
+  });
+
+  it('«Aceptar» passes the photo of the swimmer whose box was checked, as the only optional authorization', async () => {
+    const onAccept = jest.fn().mockResolvedValue(true);
+    await render(<AuthorizationsScreen {...props({ athletes, join: { athletes: ['Ana M.'], onAccept, onDecline: jest.fn() } })} />);
+
+    await fireEvent.press(screen.getByRole('checkbox', { name: PHOTO }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Aceptar' }));
+
+    await waitFor(() => expect(onAccept).toHaveBeenCalledWith([{ athleteId: 'a1', text: texts.find((text) => text.purpose === 'show_photo') }]));
+  });
+
+  it('«Continuar sin unirme» declines and never accepts', async () => {
+    const onAccept = jest.fn();
+    const onDecline = jest.fn().mockResolvedValue(true);
+    await render(<AuthorizationsScreen {...props({ join: { athletes: ['Ana M.'], onAccept, onDecline } })} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar sin unirme' }));
+
+    await waitFor(() => expect(onDecline).toHaveBeenCalledWith([]));
+    expect(onAccept).not.toHaveBeenCalled();
+  });
+
+  it('a second press while the first is working does nothing', async () => {
+    let release!: (done: boolean) => void;
+    const onAccept = jest.fn(() => new Promise<boolean>((resolve) => (release = resolve)));
+    await render(<AuthorizationsScreen {...props({ join: { athletes: ['Ana M.'], onAccept, onDecline: jest.fn() } })} />);
+
+    // The first press waits for the answer, so neither press is awaited until it is released.
+    await act(async () => {
+      void fireEvent.press(screen.getByRole('button', { name: 'Aceptar' }));
+      void fireEvent.press(screen.getByRole('button', { name: 'Aceptar' }));
+    });
+    await act(async () => release(true));
+
+    expect(onAccept).toHaveBeenCalledTimes(1);
+  });
+
+  it('without an invitation it is the ordinary screen: one box per purpose and «Continuar»', async () => {
+    await render(<AuthorizationsScreen {...props({ join: undefined })} />);
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(8);
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Aceptar' })).toBeNull();
+  });
+});
+
+describe('AuthorizationsContainer: joining a school', () => {
+  const token = 'f'.repeat(32);
+  const two = [...athletes, { id: 'a2', name: 'Tomás P.' }];
+
+  async function renderJoin({ draftToken = token as string | null, queued = ['a1', 'a2'], offline = false } = {}) {
+    const drafts = createInMemoryRegistrationDraftRepository({ swimmer: 'child', firstName: '', lastName: '', email: '', ...(draftToken && { invitationToken: draftToken }) });
+    const pending = createInMemoryPendingInvitationRepository();
+    for (const athleteId of queued) await pending.add({ userId: 'guardian-1', token, athleteId });
+    // Another account's entry and one of another token must stay as they are.
+    await pending.add({ userId: 'guardian-2', token, athleteId: 'x1' });
+    await pending.add({ userId: 'guardian-1', token: 'e'.repeat(32), athleteId: 'x2' });
+    const invitations = createInMemoryInvitationRepository({ offline });
+    const identityNumbers = createIdentityNumberHold();
+    identityNumbers.put('a1', '987654321');
+    const identityDocuments = createInMemoryIdentityDocumentRepository();
+    let n = 0;
+    const rendered = await renderContainer({
+      mode: 'registration',
+      athletes: two,
+      drafts,
+      pending,
+      invitations,
+      identityNumbers,
+      identityDocuments,
+      newId: () => `id-${++n}`,
+    });
+    return { ...rendered, drafts, pending, invitations, identityNumbers, identityDocuments };
+  }
+
+  it('names the swimmers who join and offers «Aceptar» and «Continuar sin unirme»', async () => {
+    await renderJoin();
+
+    expect(await screen.findByRole('button', { name: 'Aceptar' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Continuar sin unirme' })).toBeOnTheScreen();
+    expect(screen.getByText('Ana M., Tomás P.', { exact: false })).toBeOnTheScreen();
+    expect(screen.getByText('Synthetic import text')).toBeOnTheScreen();
+  });
+
+  it('«Aceptar» stores the consent on each entry of the token, sends them, clears the draft and continues', async () => {
+    const { pending, invitations, drafts, onDone } = await renderJoin();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Aceptar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(invitations.accepted.map((item) => item.athleteId)).toEqual(['a1', 'a2']);
+    for (const item of invitations.accepted) {
+      expect(item.token).toBe(token);
+      expect(item.consent.acceptedAt).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/);
+      expect(item.consent.authorizations.map(({ purpose, textId }) => [purpose, textId])).toEqual([
+        ['record_times', 't-record'],
+        ['import_official_results', 't-import'],
+        ['share_results_with_school', 't-share'],
+      ]);
+    }
+    // Every authorization has its own id, so one swimmer's evidence never collides with another's.
+    expect(new Set(invitations.accepted.flatMap((item) => item.consent.authorizations.map(({ id }) => id))).size).toBe(6);
+    // What was sent leaves the queue; another account's entry and another token's stay.
+    expect((await pending.list()).map((item) => item.athleteId)).toEqual(['x1', 'x2']);
+    expect(await drafts.load()).toBeNull();
+  });
+
+  it('«Aceptar» writes no local authorization: the server rows arrive by sync, so nothing is counted twice', async () => {
+    const { repository } = await renderJoin();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Aceptar' }));
+
+    await waitFor(async () => expect(await repository.listAuthorizations('guardian-1', ['a1', 'a2'])).toEqual([]));
+  });
+
+  it('«Aceptar» sends the identity number, because the invitation accepts import_official_results', async () => {
+    const { identityDocuments, identityNumbers, onDone } = await renderJoin();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Aceptar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(identityDocuments.saved).toEqual([{ athleteId: 'a1', identityNumber: '987654321' }]);
+    expect(identityNumbers.take('a1')).toBeUndefined();
+  });
+
+  it('«Aceptar» with the photo box checked also saves show_photo on the device, for that swimmer only', async () => {
+    const { repository, onDone } = await renderJoin();
+
+    await fireEvent.press((await screen.findAllByRole('checkbox', { name: PHOTO }))[0]!);
+    await fireEvent.press(screen.getByRole('button', { name: 'Aceptar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    const rows = await repository.listAuthorizations('guardian-1', ['a1', 'a2']);
+    expect(rows.map((row) => [row.athleteId, row.purpose])).toEqual([['a1', 'show_photo']]);
+  });
+
+  it('without a network the entries keep their consent for the next run, and the registration still continues', async () => {
+    const { pending, invitations, onDone } = await renderJoin({ offline: true });
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Aceptar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(invitations.accepted).toEqual([]);
+    const waiting = (await pending.list()).filter((item) => item.token === token && item.userId === 'guardian-1');
+    expect(waiting.map((item) => [item.athleteId, item.consent?.authorizations.length])).toEqual([
+      ['a1', 3],
+      ['a2', 3],
+    ]);
+  });
+
+  it('«Continuar sin unirme» drops the entries of the token without calling the server, and drops the held numbers', async () => {
+    const { pending, invitations, identityDocuments, identityNumbers, drafts, onDone } = await renderJoin();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Continuar sin unirme' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(invitations.accepted).toEqual([]);
+    expect((await pending.list()).map((item) => item.athleteId)).toEqual(['x1', 'x2']);
+    expect(identityDocuments.saved).toEqual([]);
+    expect(identityNumbers.take('a1')).toBeUndefined();
+    expect(await drafts.load()).toBeNull();
+  });
+
+  it('without an invitation token in the draft it is the ordinary registration screen, and the queue is untouched', async () => {
+    const { pending } = await renderJoin({ draftToken: null });
+
+    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Aceptar' })).toBeNull();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(8);
+    expect(await pending.list()).toHaveLength(4);
+  });
+
+  it('with a token but nothing queued for it, it is the ordinary registration screen', async () => {
+    await renderJoin({ queued: [] });
+
+    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Aceptar' })).toBeNull();
   });
 });

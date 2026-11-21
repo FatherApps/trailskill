@@ -1,4 +1,5 @@
 import { supabase } from '../../../core/sync';
+import type { AuthorizationPurpose } from './authorizationStatus';
 
 export type InvitationInput = { schoolId: string; groupId: string };
 // The token and the expiry (ISO 8601) the server generated.
@@ -6,14 +7,20 @@ export type CreatedInvitation = { token: string; expiresAt: string };
 
 // What a token stands for, for the registration screens: the school, the group and the categories to pick from.
 export type ResolvedInvitation = { school: string; group: string; categories: { id: string; name: string }[] };
-export type AcceptInvitationInput = { token: string; athleteId: string; categoryId?: string };
+// The three purposes that joining a school accepts together (maintainer decision, 2026-11-21), in screen order. The server fixes the same three.
+export const JOIN_PURPOSES: AuthorizationPurpose[] = ['record_times', 'import_official_results', 'share_results_with_school'];
+
+// What the person accepted by joining the school: the device time and, for each purpose, the text shown. The ids are made on the
+// device, so sending the same consent again (a retry) never writes a second set of authorizations.
+export type InvitationConsent = { acceptedAt: string; authorizations: { id: string; purpose: AuthorizationPurpose; textId: string }[] };
+export type AcceptInvitationInput = { token: string; athleteId: string; categoryId?: string; consent: InvitationConsent };
 
 export interface InvitationRepository {
   /** Creates a new school invitation for the group. Online: only the server generates the token, so it cannot wait for a sync. */
   create(input: InvitationInput): Promise<CreatedInvitation>;
   /** Online, no session needed. Null when the token is unknown, expired or revoked; throws when the request fails. */
   resolve(token: string): Promise<ResolvedInvitation | null>;
-  /** Online, signed in: links the athlete to the invitation's school and group. Throws on failure. */
+  /** Online, signed in: links the athlete to the invitation's school and group and records the three authorizations of joining, in one step. Throws on failure. */
   accept(input: AcceptInvitationInput): Promise<void>;
 }
 
@@ -35,8 +42,14 @@ export function createSupabaseInvitationRepository(): InvitationRepository {
         categories: (data.categories ?? []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })),
       };
     },
-    async accept({ token, athleteId, categoryId }) {
-      const { error } = await supabase.rpc('accept_invitation', { token, athlete_id: athleteId, category_id: categoryId ?? null });
+    async accept({ token, athleteId, categoryId, consent }) {
+      const { error } = await supabase.rpc('accept_invitation', {
+        token,
+        athlete_id: athleteId,
+        category_id: categoryId ?? null,
+        accepted_at: consent.acceptedAt,
+        authorizations: consent.authorizations.map(({ id, purpose, textId }) => ({ id, purpose, text_id: textId })),
+      });
       if (error) throw error;
     },
   };

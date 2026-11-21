@@ -95,19 +95,46 @@ describe('Supabase invitation repository: resolve and accept', () => {
     await expect(createSupabaseInvitationRepository().resolve('tok')).rejects.toBe(error);
   });
 
-  it('accepts with a category, or with null when there is none', async () => {
+  // What the person accepted: the device time and the text shown for each of the three purposes, with ids made on the device.
+  const consent = {
+    acceptedAt: '2026-11-01T10:00:00.000Z',
+    authorizations: [
+      { id: 'id-record', purpose: 'record_times' as const, textId: 't-record' },
+      { id: 'id-import', purpose: 'import_official_results' as const, textId: 't-import' },
+      { id: 'id-share', purpose: 'share_results_with_school' as const, textId: 't-share' },
+    ],
+  };
+  const sentAuthorizations = [
+    { id: 'id-record', purpose: 'record_times', text_id: 't-record' },
+    { id: 'id-import', purpose: 'import_official_results', text_id: 't-import' },
+    { id: 'id-share', purpose: 'share_results_with_school', text_id: 't-share' },
+  ];
+
+  it('accepts with the device time and the three authorizations, with a category or with null when there is none', async () => {
     mockRpc.mockResolvedValue({ data: null, error: null });
     const repository = createSupabaseInvitationRepository();
-    await repository.accept({ token: 'tok', athleteId: 'a1', categoryId: 'c1' });
-    await repository.accept({ token: 'tok', athleteId: 'a1' });
-    expect(mockRpc).toHaveBeenNthCalledWith(1, 'accept_invitation', { token: 'tok', athlete_id: 'a1', category_id: 'c1' });
-    expect(mockRpc).toHaveBeenNthCalledWith(2, 'accept_invitation', { token: 'tok', athlete_id: 'a1', category_id: null });
+    await repository.accept({ token: 'tok', athleteId: 'a1', categoryId: 'c1', consent });
+    await repository.accept({ token: 'tok', athleteId: 'a1', consent });
+    expect(mockRpc).toHaveBeenNthCalledWith(1, 'accept_invitation', {
+      token: 'tok',
+      athlete_id: 'a1',
+      category_id: 'c1',
+      accepted_at: '2026-11-01T10:00:00.000Z',
+      authorizations: sentAuthorizations,
+    });
+    expect(mockRpc).toHaveBeenNthCalledWith(2, 'accept_invitation', {
+      token: 'tok',
+      athlete_id: 'a1',
+      category_id: null,
+      accepted_at: '2026-11-01T10:00:00.000Z',
+      authorizations: sentAuthorizations,
+    });
   });
 
   it('throws when accepting fails', async () => {
     const error = { code: '42501', message: 'denied' };
     mockRpc.mockResolvedValue({ data: null, error });
-    await expect(createSupabaseInvitationRepository().accept({ token: 'tok', athleteId: 'a1' })).rejects.toBe(error);
+    await expect(createSupabaseInvitationRepository().accept({ token: 'tok', athleteId: 'a1', consent })).rejects.toBe(error);
   });
 });
 

@@ -1,14 +1,15 @@
 import { useRef, useState } from 'react';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
 import { BackButton, Banner, Button, ConfirmSheet, StepHeader, type AthleteAvatarSlot } from '../../../core/ui';
 import { athleteColor } from '../../athletes';
 import { AthleteAvatarWithPhoto } from '../components/AthleteAvatarWithPhoto';
-import { ConsentCard } from '../components/ConsentCard';
+import { ConsentCard, consentCardColors } from '../components/ConsentCard';
 import { ScreenFrame } from '../components/ScreenFrame';
 import type { AuthorizationPurpose } from '../data/authorizationStatus';
 import type { AuthorizationRecord, AuthorizationText } from '../data/authorizations';
+import { JOIN_PURPOSES } from '../data/invitations';
 import { t } from '../i18n';
 import { LEGAL_REVIEW_PENDING } from '../legalReview';
 
@@ -26,6 +27,9 @@ export type AuthorizationsScreenProps = {
   // Resolves true when everything was saved; a false keeps the checked boxes so the person can try again.
   onSave: (selected: { athleteId: string; text: AuthorizationText }[]) => Promise<boolean>;
   onWithdraw: (authorizationId: string) => void;
+  // Registration with an invitation: joining the school accepts the three purposes together, so they show with their full text and
+  // no boxes; only the optional photo is chosen, and it goes along with either button. «Continuar sin unirme» joins nothing.
+  join?: { athletes: string[]; onAccept: AuthorizationsScreenProps['onSave']; onDecline: AuthorizationsScreenProps['onSave'] };
   // The last save or withdrawal did not work on this device.
   // 'load': the texts or authorizations could not be read; true: the last save or withdrawal failed.
   failed?: boolean | 'load';
@@ -38,8 +42,8 @@ export type AuthorizationsScreenProps = {
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word.charAt(0).toUpperCase()).join('');
 
 // Nothing is ever pre-checked: the selection is local and starts empty every time the screen opens.
-export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onSave, onWithdraw, failed, onBack, Avatar = AthleteAvatarWithPhoto }: AuthorizationsScreenProps) {
-  const { colors, typography } = useTheme();
+export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onSave, onWithdraw, join, failed, onBack, Avatar = AthleteAvatarWithPhoto }: AuthorizationsScreenProps) {
+  const { colors, radius, space, typography } = useTheme();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -56,7 +60,7 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
   });
   if (stale.length > 0) setSelected(Object.fromEntries(Object.entries(selected).filter(([key]) => !stale.includes(key))));
 
-  async function save() {
+  async function submit(send: AuthorizationsScreenProps['onSave']) {
     const chosen = athletes.flatMap((athlete) =>
       texts.filter((text) => selected[keyOf(athlete.id, text.purpose)] && !inForce[athlete.id]?.[text.purpose]).map((text) => ({ athleteId: athlete.id, text })),
     );
@@ -66,12 +70,14 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
     saveInFlight.current = true;
     setSaving(true);
     try {
-      if (await onSave(chosen)) setSelected({});
+      if (await send(chosen)) setSelected({});
     } finally {
       saveInFlight.current = false;
       setSaving(false);
     }
   }
+
+  const save = () => submit(onSave);
 
   function confirmWithdrawal() {
     if (withdrawing) onWithdraw(withdrawing);
@@ -82,7 +88,16 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
     <ScreenFrame
       title={mode === 'registration' ? t('accounts.create_title') : t('accounts.authorizations.title')}
       before={!registration && onBack ? <BackButton onPress={onBack} /> : undefined}
-      footer={<Button label={t(registration ? 'accounts.authorizations.continue' : 'accounts.authorizations.save')} onPress={save} loading={saving} />}
+      footer={
+        join ? (
+          <>
+            <Button label={t('accounts.authorizations.join_accept')} onPress={() => submit(join.onAccept)} loading={saving} />
+            <Button variant="secondary" label={t('accounts.authorizations.join_decline')} onPress={() => submit(join.onDecline)} />
+          </>
+        ) : (
+          <Button label={t(registration ? 'accounts.authorizations.continue' : 'accounts.authorizations.save')} onPress={save} loading={saving} />
+        )
+      }
     >
       {mode === 'registration' && step && onBack && (
         <StepHeader step={step.current} total={step.total} title={t('accounts.authorizations.title')} onBack={onBack} />
@@ -97,14 +112,31 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
           {t(failed === 'load' ? 'accounts.authorizations.load_failed' : 'accounts.authorizations.save_failed')}
         </Banner>
       )}
-      <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.authorizations.intro')}</Text>
-      {athletes.length === 0 && <Text style={[typography.body, { color: colors.ink }]}>{t('accounts.authorizations.empty')}</Text>}
+      {join ? (
+        <>
+          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.authorizations.join_intro')}</Text>
+          <Text style={[typography.subtitle, { color: colors.ink }]}>{t('accounts.authorizations.join_athletes', { names: join.athletes.join(', ') })}</Text>
+          {JOIN_PURPOSES.flatMap((purpose) => texts.filter((text) => text.purpose === purpose)).map((text) => (
+            <View key={text.purpose} style={{ gap: space[1], padding: space[4], borderRadius: radius.md, backgroundColor: colors[consentCardColors.background] }}>
+              <Text style={[typography.subtitle, { color: colors[consentCardColors.title] }]}>{t(`accounts.consent.purpose.${text.purpose}`)}</Text>
+              <Text style={[typography.body, { color: colors[consentCardColors.text] }]}>{text.body}</Text>
+              <Text style={[typography.caption, { color: colors[consentCardColors.text] }]}>{t('accounts.consent.version', { version: text.version })}</Text>
+            </View>
+          ))}
+          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.authorizations.join_photo')}</Text>
+        </>
+      ) : (
+        <>
+          <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.authorizations.intro')}</Text>
+          {athletes.length === 0 && <Text style={[typography.body, { color: colors.ink }]}>{t('accounts.authorizations.empty')}</Text>}
+        </>
+      )}
       {athletes.map((athlete) => (
         <ConsentCard
           key={athlete.id}
           athleteName={athlete.name}
           avatar={<Avatar athleteId={athlete.id} initials={initialsOf(athlete.name)} color={athleteColor(athlete.id)} size="sm" />}
-          texts={texts}
+          texts={join ? texts.filter(({ purpose }) => purpose === 'show_photo') : texts}
           inForce={inForce[athlete.id] ?? {}}
           selected={Object.fromEntries(texts.map(({ purpose }) => [purpose, selected[keyOf(athlete.id, purpose)] === true]))}
           onToggle={(purpose) => setSelected((current) => ({ ...current, [keyOf(athlete.id, purpose)]: !current[keyOf(athlete.id, purpose)] }))}
