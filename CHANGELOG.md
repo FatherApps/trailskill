@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/FatherApps/trailskill/compare/v0.9.0...v0.10.0) (2026-11-21)
+
+
+### Features
+
+* **accounts:** expire saved share codes instead of deleting them when the family changes the code ([#1333](https://github.com/FatherApps/trailskill/issues/1333)) ([fe18756](https://github.com/FatherApps/trailskill/commit/fe18756b340c97d3613f151563f836ded4e6ad2c)), closes [#1320](https://github.com/FatherApps/trailskill/issues/1320)
+* **accounts:** joining a school accepts the three authorizations in one step ([#1332](https://github.com/FatherApps/trailskill/issues/1332)) ([04fc80d](https://github.com/FatherApps/trailskill/commit/04fc80d87359896f913c6ca739a16b0abfe45477)), closes [#1328](https://github.com/FatherApps/trailskill/issues/1328)
+
 ## [0.9.0](https://github.com/FatherApps/trailskill/compare/v0.8.0...v0.9.0) (2026-11-21)
 
 

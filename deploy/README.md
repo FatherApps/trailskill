@@ -14,14 +14,14 @@ There are two backend environments on the same Dokploy server. They run the same
 | App hostnames | `trailskill-api`, `trailskill-sync` | `swimcro-api`, `swimcro-sync` |
 | Mailpit (`trailskill-mail`) and Studio | Mailpit stays in the stack, behind basic authentication; Studio is internal only. | Neither is deployed or published. |
 | Email | Resend over SMTP, sender `Swimcro <no-reply@send.tuls.app>` | The same provider and sender; the maintainer first confirms which sending domain is verified in Resend (ADR 0002). |
-| Demo seed (`APPLY_SEED`) | May be applied by the maintainer, see [Demo data](#demo-data). | Never: `APPLY_SEED` stays `false`. |
+| Demo seed (`APPLY_SEED`) | May be applied by the maintainer, see [Demo data](#demo-data). The data is not only demo: testers of the pilot may have registered real accounts. | Never: `APPLY_SEED` stays `false`. |
 | Secrets | Its own | Its own, never the same value as QA's. |
-| Backups | None. | A gate before inviting real families: #1119 ([runbook](../docs/deploy/prod-backup-restore.md)). |
+| Backups | Must be backed up: it may hold real data from pilot testers (ADR 0002, amendment 2026-11-21, #1335). `backup-r2.sh` keeps 14 days of copies in R2; the automatic job is #1336 and until it runs a copy is taken by hand, see the [runbook](../docs/deploy/prod-backup-restore.md). | The same rule, and also a gate before inviting real families: #1119. |
 | TLS to the origin | Cloudflare Tunnel ends TLS at the edge, then plain HTTP to the Dokploy proxy on port 80. Dokploy domains keep HTTPS off ([Public and internal](#public-and-internal)). | The same route. The hostnames are free and the tunnel can route them ([#1113 report](../docs/deploy/prod-step0-readonly-checks.md)). |
 
 The Dokploy deploy webhook hostname (`trailskill-deploy`) is shared by both. Capacity of the server for two stacks: it fits at the ADR 0002 minimum, with little margin. Mario decided (Q6) that PROD goes on the same server, in its own project «Swimcro PROD»; if room is needed, QA gets memory and CPU limits (step planned in #1116), and capacity is watched with thresholds (#1115). See the [#1113 report](../docs/deploy/prod-step0-readonly-checks.md).
 
-Unless a section says otherwise, everything below describes QA, the deployment that exists. PROD differs only as this table says; the Supabase stack of PROD is set up by hand following the [PROD Supabase stack runbook](../docs/deploy/prod-supabase-runbook.md) (#1115); the compose, domains and deploy by tag are #1116 to #1118 and are not written here yet. Secret values are set only by the maintainer in the Dokploy and EAS interfaces, never in this repository.
+Unless a section says otherwise, everything below describes QA, the deployment that exists. A push to `main` runs on it, and it may hold real data of pilot testers, so every change that touches the data is backed up first. PROD differs only as this table says; the Supabase stack of PROD is set up by hand following the [PROD Supabase stack runbook](../docs/deploy/prod-supabase-runbook.md) (#1115); the compose, domains and deploy by tag are #1116 to #1118 and are not written here yet. Secret values are set only by the maintainer in the Dokploy and EAS interfaces, never in this repository.
 
 ## What is here and what is not
 
@@ -79,7 +79,7 @@ To turn it off: switch off Auto Deploy on the `deploy` compose in Dokploy, or bl
 - **Code or config regression:** revert the merge on `main` (a PR with `git revert`). Continuous deployment deploys the reverted state.
 - **Migrations are forward-only.** Never edit or delete an applied migration; fix it with a new migration. Reverting a commit does not undo an applied migration.
 - **Failed `migrate`:** PowerSync stays stopped. Read the `migrate` logs in Dokploy, merge a fix (or a revert), and it redeploys.
-- **Data loss or corruption:** restore from a database backup. There is no automated backup yet. For PROD, an off-server backup and a tested restore are a gate before real families are invited (#1119, ADR 0002 amendment); QA is not backed up.
+- **Data loss or corruption:** restore from a database backup. Every deployment that holds real data is backed up, QA included (ADR 0002, amendment 2026-11-21): copies are kept for 14 days and an earlier copy is restored by its `sha` (see the [runbook](../docs/deploy/prod-backup-restore.md)). The automatic backup is built by #1336; until it is running, take one by hand before any change to the data. For PROD, an off-server backup and a tested restore are a gate before real families are invited (#1119).
 - **PROD:** go back to the previous release tag (procedure in #1116). Migrations already applied stay: fix forward.
 
 ## Environment variables of `compose.yaml`
