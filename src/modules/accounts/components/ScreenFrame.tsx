@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, Text, View } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
 
@@ -18,29 +18,33 @@ export type ScreenFrameProps = {
 };
 
 // Scrolls, so large text never clips; no text container has a fixed height.
+// The app draws edge to edge, so on Android the open keyboard no longer shrinks the window: the frame makes room for it itself, or the last fields stay under the keyboard and the scroll cannot reach them.
+// 'padding' on both platforms: the padding is only the part of the keyboard that overlaps the frame, so a window the system did shrink gets none.
 export function ScreenFrame({ title, large = false, subtitle, before, children, footer }: ScreenFrameProps) {
   const { colors, space, typography } = useTheme();
 
   return (
-    <ScrollView
-      keyboardShouldPersistTaps="handled"
-      style={{ backgroundColor: colors['surface-0'] }}
-      contentContainerStyle={{ flexGrow: 1, padding: space[4], gap: space[4] }}
-    >
-      {before}
-      {title ? (
-        <Text accessibilityRole="header" style={[typography[large ? 'title-lg' : 'title'], { color: colors.ink }]}>
-          {title}
-        </Text>
-      ) : null}
-      {subtitle ? <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{subtitle}</Text> : null}
-      {children}
-      {footer ? (
-        <>
-          <View style={{ flex: 1 }} />
-          {footer}
-        </>
-      ) : null}
-    </ScrollView>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        style={{ backgroundColor: colors['surface-0'] }}
+        contentContainerStyle={{ flexGrow: 1, padding: space[4], gap: space[4] }}
+      >
+        {before}
+        {title ? (
+          <Text accessibilityRole="header" style={[typography[large ? 'title-lg' : 'title'], { color: colors.ink }]}>
+            {title}
+          </Text>
+        ) : null}
+        {subtitle ? <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{subtitle}</Text> : null}
+        {children}
+        {footer ? (
+          <>
+            <View style={{ flex: 1 }} />
+            {footer}
+          </>
+        ) : null}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

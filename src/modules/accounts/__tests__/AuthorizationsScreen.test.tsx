@@ -398,6 +398,27 @@ describe('the identity number held from the registration', () => {
     expect(identityDocuments.saved).toEqual([]);
   });
 
+  it('after adding from «+» (added): titled Autorizaciones with no registration step, it continues without authorizing and still sends the number', async () => {
+    const { identityNumbers, identityDocuments } = held();
+    const { onDone } = await renderContainer({ mode: 'added', identityNumbers, identityDocuments });
+
+    await fireEvent.press(await screen.findByRole('checkbox', { name: IMPORT }));
+    expect(screen.queryByText('Crear cuenta')).toBeNull();
+    expect(screen.queryByText(/Paso/)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(identityDocuments.saved).toEqual([{ athleteId: 'a1', identityNumber: '987654321' }]);
+  });
+
+  it('after adding from «+» (added): «Continuar» with nothing checked goes on', async () => {
+    const { onDone } = await renderContainer({ mode: 'added' });
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+  });
+
   it('a failed send does not stop the registration, and the number is dropped', async () => {
     const { identityNumbers, identityDocuments } = held();
     identityDocuments.failing = true;

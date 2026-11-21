@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
+
+import { useTheme } from '../../../core/theme';
 
 import { Banner, Button, ColorCard, Segmented, StepHeader, TextField } from '../../../core/ui';
-import { AddAthleteCard } from '../components/AddAthleteCard';
 import { ScreenFrame } from '../components/ScreenFrame';
 import { t } from '../i18n';
 
@@ -17,6 +18,13 @@ export type AddedAthlete = {
 };
 
 export type AddAthletesScreenProps = {
+  // 'registration': step 3 of creating the account. 'add': opened from "+" in Deportistas, where the account exists already.
+  // In both the highlighted action is adding the athlete typed; the container asks after each add whether to add another, and "no" continues.
+  // So there is no "Continuar" to press by mistake with the form filled and the typed athlete lost.
+  mode?: 'registration' | 'add';
+  // A secondary "Continuar", for when there is somebody to continue with and nobody more to add: a registration resumed with athletes added,
+  // or a person who answered "add another" and changed their mind. Pressed with something typed, it adds it first (and the question follows) rather than leaving it behind.
+  showContinue?: boolean;
   // 1-based position in the flow: a guardian goes through four steps.
   step: number;
   total: number;
@@ -53,6 +61,8 @@ const NAME_MAX_LENGTH = 100;
 
 // Step 3 of registration for a guardian: only first and last name. Category and group are assigned by the school.
 export function AddAthletesScreen({
+  mode = 'registration',
+  showContinue = false,
   step,
   total,
   values,
@@ -73,6 +83,7 @@ export function AddAthletesScreen({
   onContinue,
   onExit,
 }: AddAthletesScreenProps) {
+  const { colors, space, typography } = useTheme();
   const [submitted, setSubmitted] = useState(false);
   const missing = (field: AddAthleteField) => submitted && values[field].trim() === '';
 
@@ -84,10 +95,13 @@ export function AddAthletesScreen({
     setSubmitted(false);
     onAdd();
   }
+  const adding = mode === 'add';
+  const typedSomething = values.firstName.trim() !== '' || values.lastName.trim() !== '' || identityNumber !== '';
 
   return (
     <ScreenFrame
-      title={t('accounts.create_title')}
+      // From "+" the account exists already: the screen is not a step of creating it.
+      title={adding ? t('accounts.athletes.title') : t('accounts.create_title')}
       // "Salir" sits where "Volver" does in the other steps. StepHeader's own back button is always "Volver", and there is no step to go back to here.
       before={
         onExit && (
@@ -97,17 +111,32 @@ export function AddAthletesScreen({
         )
       }
       footer={
-        <Button
-          label={t('accounts.athletes.continue')}
-          // Busy also while another profile saves: the tap is not ignored in silence. With nobody added the button is not allowed rather than waiting, so it shows its reason, not a spinner.
-          loading={continuing || (busy && canContinue)}
-          disabledReason={canContinue ? undefined : t('accounts.athletes.add_first')}
-          onPress={onContinue}
-        />
+        <View style={{ gap: space[3] }}>
+          <Button
+            label={t('accounts.athletes.add')}
+            // Busy also while "Continuar" keeps the step: an add then would land after the step was kept.
+            loading={busy || continuing}
+            onPress={add}
+          />
+          {showContinue && (
+            <Button
+              variant="secondary"
+              label={t('accounts.athletes.continue')}
+              // Busy also while a profile saves: the tap is not ignored in silence.
+              loading={continuing || busy}
+              disabledReason={canContinue ? undefined : t('accounts.athletes.add_first')}
+              onPress={typedSomething ? add : onContinue}
+            />
+          )}
+        </View>
       }
     >
       {/* No "Volver": the account already exists, so there is no previous step to return to. The way out is "Salir" above, which leaves the registration for the role landing. */}
-      <StepHeader step={step} total={total} title={t('accounts.athletes.title')} />
+      {!adding && <StepHeader step={step} total={total} title={t('accounts.athletes.title')} />}
+      {/* The athletes already there are shown for reference only, so the person sees who exists. */}
+      {athletes.length > 0 && (
+        <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.athletes.existing')}</Text>
+      )}
       {athletes.map((athlete) => (
         <ColorCard key={athlete.id} color={athlete.color} title={athlete.name} detail={t('accounts.athletes.relation_guardian')}>
           {renderStatus?.(athlete.id)}
@@ -159,11 +188,6 @@ export function AddAthletesScreen({
           onChange={(next) => onCategoryChange?.(next)}
         />
       )}
-      <AddAthleteCard
-        label={t(athletes.length === 0 ? 'accounts.athletes.add' : 'accounts.athletes.add_another')}
-        busy={busy || continuing}
-        onPress={add}
-      />
     </ScreenFrame>
   );
 }

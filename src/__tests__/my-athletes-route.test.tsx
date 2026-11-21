@@ -66,7 +66,7 @@ describe.each([
 
     mockContainerProps!.onAdd();
 
-    expect(mockPush).toHaveBeenCalledWith('/athletes/add');
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/athletes/add', params: { mode: 'add' } });
   });
 
   it('opens the authorizations', async () => {

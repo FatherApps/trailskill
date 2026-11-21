@@ -52,7 +52,7 @@ export default function MyAthletesRoute() {
         authorizations={authorizations}
         refreshKey={lastSyncedAt?.getTime()}
         onOpen={(id, name) => router.push(athleteProfileHref(id, name))}
-        onAdd={() => router.push('/athletes/add')}
+        onAdd={() => router.push({ pathname: '/athletes/add', params: { mode: 'add' } })}
       />
       {/* Bridge: a guardian and an adult athlete land here and have no other way to sign out or manage authorizations; the account screen (#778) takes these two out. */}
       {/* The floating phone bar rests on the bottom edge: the two buttons stay above it, as the last rows of the other screens do. */}

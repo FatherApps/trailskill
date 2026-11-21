@@ -44,27 +44,24 @@ describe('AddAthletesScreen coloured cards', () => {
     await renderScreen();
 
     expect(screen.queryByText('Hijo o hija')).toBeNull();
-    expect(screen.getByRole('button', { name: /^Continuar/ })).toBeOnTheScreen();
+    expect(screen.queryByText('Deportistas que ya tienes:')).toBeNull();
+  });
+
+  it('introduces the cards as the athletes already there', async () => {
+    await renderScreen({ athletes: [...fx.addedAthletes] });
+
+    expect(screen.getByText('Deportistas que ya tienes:')).toBeOnTheScreen();
   });
 });
 
-describe('AddAthletesScreen dashed add card', () => {
-  it('is a dashed outlined button named for the first profile', async () => {
-    await renderScreen();
-
-    const add = screen.getByRole('button', { name: 'Agregar deportista' });
-    expect(StyleSheet.flatten(add.props.style)).toMatchObject({
-      borderStyle: 'dashed',
-      borderWidth: 2,
-      borderColor: colors.light['border-strong'],
-      borderRadius: radius.md,
-    });
-  });
-
-  it('is named "Agregar otro deportista" once there is a profile', async () => {
+describe('AddAthletesScreen add button', () => {
+  it('is the one primary action, «Agregar deportista», with or without athletes added', async () => {
     await renderScreen({ athletes: [...fx.addedAthletes] });
 
-    expect(screen.getByRole('button', { name: 'Agregar otro deportista' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Agregar deportista' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Agregar otro deportista' })).toBeNull();
+    // «Continuar» only when the caller offers it.
+    expect(screen.queryByRole('button', { name: /^Continuar/ })).toBeNull();
   });
 
   it('asks for both names before adding, and adds when both are typed', async () => {
@@ -93,7 +90,7 @@ describe('AddAthletesScreen dashed add card', () => {
   });
 
   it('shows Continuar busy and ignores presses while a profile is being saved, instead of dropping the tap silently', async () => {
-    const { onContinue } = await renderScreen({ athletes: [...fx.addedAthletes], busy: true });
+    const { onContinue } = await renderScreen({ athletes: [...fx.addedAthletes], busy: true, showContinue: true });
 
     const next = screen.getByRole('button', { name: 'Continuar' });
     expect(next).toBeBusy();
@@ -101,8 +98,8 @@ describe('AddAthletesScreen dashed add card', () => {
     expect(onContinue).not.toHaveBeenCalled();
   });
 
-  it('with nobody added, Continuar shows its reason and no spinner while the first profile saves: waiting is not the same as not allowed', async () => {
-    const { onContinue } = await renderScreen({ athletes: [], busy: true });
+  it('with nobody to continue with, an offered Continuar shows its reason and no spinner', async () => {
+    const { onContinue } = await renderScreen({ athletes: [], busy: false, showContinue: true });
 
     // The reason is part of the button label.
     const next = screen.getByRole('button', { name: 'Continuar · Agrega al menos un deportista' });
@@ -112,7 +109,25 @@ describe('AddAthletesScreen dashed add card', () => {
     expect(onContinue).not.toHaveBeenCalled();
   });
 
-  it('shows the add card busy and ignores presses while Continuar keeps the step', async () => {
+  it('shows Continuar with names typed adding them first, not continuing without them', async () => {
+    const { onAdd, onContinue } = await renderScreen({ athletes: [...fx.addedAthletes], showContinue: true, values: { firstName: 'Ana', lastName: 'Rojas' } });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(onContinue).not.toHaveBeenCalled();
+  });
+
+  it('continues with an empty form', async () => {
+    const { onAdd, onContinue } = await renderScreen({ athletes: [...fx.addedAthletes], showContinue: true });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(onContinue).toHaveBeenCalledTimes(1);
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('shows the add button busy and ignores presses while Continuar keeps the step', async () => {
     const { onAdd } = await renderScreen({ values: { firstName: 'Lucía', lastName: 'Rojas' }, continuing: true });
 
     const add = screen.getByRole('button', { name: 'Agregar deportista' });
@@ -142,7 +157,7 @@ describe('AddAthletesScreen states', () => {
     expect(screen.getByLabelText('Nombre').props.value).toBe('Lucía');
   });
 
-  it('large text: still shows the cards, the fields and the add card', async () => {
+  it('large text: still shows the cards, the fields and the add button', async () => {
     await render(
       <ThemeProvider fontScale={2}>
         <AddAthletesScreen
@@ -158,26 +173,18 @@ describe('AddAthletesScreen states', () => {
     );
 
     expect(screen.getByText('Lucía R.')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Agregar otro deportista' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Agregar deportista' })).toBeOnTheScreen();
   });
+});
 
-  it('dark theme: paints the add card border with the dark token', async () => {
-    await render(
-      <ThemeProvider name="dark">
-        <AddAthletesScreen
-          step={3}
-          total={4}
-          values={empty}
-          athletes={[]}
-          onChange={jest.fn()}
-          onAdd={jest.fn()}
-          onContinue={jest.fn()}
-        />
-      </ThemeProvider>,
-    );
+describe('AddAthletesScreen from «+» in Deportistas', () => {
+  it('is titled «Agregar deportista», with no «Crear cuenta» nor registration step', async () => {
+    await renderScreen({ mode: 'add', athletes: [...fx.addedAthletes] });
 
-    const add = screen.getByRole('button', { name: 'Agregar deportista' });
-    expect(StyleSheet.flatten(add.props.style).borderColor).toBe(colors.dark['border-strong']);
+    expect(screen.queryByText('Crear cuenta')).toBeNull();
+    expect(screen.queryByText(/Paso 3/)).toBeNull();
+    expect(screen.getByRole('header', { name: 'Agregar deportista' })).toBeOnTheScreen();
+    expect(screen.getByText('Lucía R.')).toBeOnTheScreen();
   });
 });
 

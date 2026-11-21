@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useGoBack } from '../../../core/navigation';
 import { useSession } from '../../../core/session';
@@ -27,20 +27,24 @@ export default function RegistrationAuthorizations() {
   const userId = session?.user.id;
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, userId, lastSyncedAt);
+  // Set when the athletes were just added from "+" in Deportistas: only they are shown, outside the registration.
+  const added = useLocalSearchParams<{ added?: string }>().added?.split(',').filter(Boolean);
 
   if (!userId || managed.status !== 'ready') return null;
+  const shown = added ? managed.athletes.filter((athlete) => added.includes(athlete.id)) : managed.athletes;
   return (
     <AuthorizationsContainer
       repository={authorizations}
       userId={userId}
       refreshKey={lastSyncedAt}
-      athletes={managed.athletes.map((athlete) => ({ id: athlete.id, name: athleteDisplay(athlete).shortName }))}
-      mode="registration"
-      drafts={drafts}
+      athletes={shown.map((athlete) => ({ id: athlete.id, name: athleteDisplay(athlete).shortName }))}
+      mode={added ? 'added' : 'registration'}
+      drafts={added ? undefined : drafts}
       identityNumbers={identityNumbers}
       identityDocuments={identityDocuments}
       onBack={goBack}
-      onDone={() => router.replace('/')}
+      // From "+" it returns to Deportistas, where it was opened.
+      onDone={() => (added ? goBack() : router.replace('/'))}
     />
   );
 }

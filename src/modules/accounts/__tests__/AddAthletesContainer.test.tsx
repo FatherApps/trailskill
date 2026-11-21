@@ -21,7 +21,7 @@ const invitation = { school: 'Escuela Delfines', group: 'Infantil B', categories
   ],
 };
 
-function setup(invitationToken?: string) {
+function setup(invitationToken?: string, mode?: 'registration' | 'add') {
   const rows: ManagedAthleteRow[] = [];
   const athletes = createInMemoryAthleteRepository(createInMemoryManagedAthleteRepository(rows));
   const profiles = createInMemoryManagedAthleteProfileRepository(athletes, rows);
@@ -34,6 +34,7 @@ function setup(invitationToken?: string) {
     render(
       <AddAthletesContainer
         userId="guardian-1"
+        mode={mode}
         profiles={profiles}
         athletes={athletes}
         drafts={drafts}
@@ -172,7 +173,7 @@ describe('AddAthletesContainer', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
 
     expect(await screen.findByText('Lucía R.')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Agregar otro deportista' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Agregar deportista' })).toBeOnTheScreen();
     expect(screen.queryByText(/documento|nacimiento/i)).toBeNull();
   });
 
@@ -215,7 +216,7 @@ describe('AddAthletesContainer', () => {
 
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
     await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-    await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
 
     await waitFor(() => expect(invitations.accepted).toHaveLength(2));
     expect(invitations.accepted[1]).toStrictEqual({ token: 'tok-1', athleteId: rows[1].athleteId });
@@ -236,7 +237,7 @@ describe('AddAthletesContainer', () => {
     expect(checked('Sin categoría')).toBe(true);
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
     await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-    await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
 
     await waitFor(() => expect(invitations.accepted).toHaveLength(2));
     expect(invitations.accepted).toStrictEqual([
@@ -321,6 +322,7 @@ describe('AddAthletesContainer', () => {
     await drafts.clear();
     await mount();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
+    await fireEvent.changeText(screen.getByLabelText('Nombre'), '');
     await screen.findByText('Lucía R.');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
@@ -598,15 +600,12 @@ describe('AddAthletesContainer', () => {
       await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
     });
 
-    it('stays disabled when the list reads fine and nobody is added', async () => {
-      const { mount, onContinue } = setup();
+    it('is not offered when the list reads fine and nobody is added: the only action is adding', async () => {
+      const { mount } = setup();
       await mount();
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' })).toBeOnTheScreen());
 
-      const button = await screen.findByRole('button', { name: /^Continuar/ });
-      await waitFor(() => expect(button.props.accessibilityState.disabled).toBe(true));
-      await fireEvent.press(button);
-
-      expect(onContinue).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: /^Continuar/ })).toBeNull();
     });
   });
 
@@ -628,15 +627,15 @@ describe('AddAthletesContainer', () => {
       const save = jest.spyOn(drafts, 'save');
       save.mockClear();
 
-      fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(true));
+      fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true));
       // Continuar shows it is waiting instead of swallowing the tap.
       expect(screen.getByRole('button', { name: 'Continuar' }).props.accessibilityState.busy).toBe(true);
       await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
       release();
       await screen.findByText('Lucía R.');
 
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(false));
 
       expect(onContinue).not.toHaveBeenCalled();
       expect(save).not.toHaveBeenCalledWith(expect.objectContaining({ step: 'authorizations' }));
@@ -648,8 +647,6 @@ describe('AddAthletesContainer', () => {
       const create = jest.spyOn(profiles, 'createManagedAthlete');
       await mount();
       await screen.findByText('Mateo G.');
-      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
-      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
       let release!: () => void;
       const gate = new Promise<void>((resolve) => (release = resolve));
       const real = drafts.save.bind(drafts);
@@ -660,9 +657,11 @@ describe('AddAthletesContainer', () => {
 
       fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
       await waitFor(() => expect(screen.getByRole('button', { name: 'Continuar' }).props.accessibilityState.busy).toBe(true));
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
       // The add card shows it is waiting instead of swallowing the tap.
-      expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(true);
-      await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+      expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(true);
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
       release();
 
       await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
@@ -691,7 +690,7 @@ describe('AddAthletesContainer', () => {
       release();
       await screen.findByText('Lucía R.');
 
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(false));
 
       expect(spy).toHaveBeenCalledTimes(1);
     });
@@ -739,7 +738,7 @@ describe('AddAthletesContainer', () => {
       if (next.lastName !== undefined) await fireEvent.changeText(screen.getByLabelText('Apellido'), next.lastName);
       release();
       await screen.findByText('Lucía R.');
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(false));
       return { drafts };
     }
 
@@ -785,7 +784,7 @@ describe('AddAthletesContainer', () => {
       await fireEvent.press(screen.getByRole('radio', { name: '11-12' }));
       release();
       await screen.findByText('Lucía R.');
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(false));
 
       expect(screen.getByRole('radio', { name: '11-12' }).props.accessibilityState.checked).toBe(true);
       await waitFor(() => expect(invitations.accepted).toStrictEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
@@ -816,14 +815,14 @@ describe('AddAthletesContainer', () => {
         for (const name of choices) await fireEvent.press(screen.getByRole('radio', { name }));
         release();
         await screen.findByText('Lucía R.');
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar otro deportista' }).props.accessibilityState.busy).toBe(false));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(false));
         for (const { name } of invitation.categories) {
           expect(screen.getByRole('radio', { name }).props.accessibilityState.checked).toBe(name === kept);
         }
 
         await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Mateo');
         await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-        await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+        await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
         await screen.findByText('Mateo R.');
       } finally {
         unmount?.();
@@ -882,7 +881,7 @@ describe('AddAthletesContainer', () => {
     failing.mockRestore();
     await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Lucía');
     await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
-    await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
     expect(await screen.findByText('Lucía R.')).toBeOnTheScreen();
   });
 
@@ -925,8 +924,8 @@ describe('AddAthletesContainer', () => {
     expect(onContinue).toHaveBeenCalledTimes(1);
   });
 
-  it('Continuar keeps the names typed for the next athlete in the draft', async () => {
-    const { mount, onContinue, drafts, profiles } = setup();
+  it('Continuar with names typed adds that athlete first and asks, instead of leaving it behind', async () => {
+    const { mount, onContinue, profiles } = setup();
     await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Lucía', lastName: 'Rojas', relation: 'guardian' });
     await mount();
     await screen.findByText('Lucía R.');
@@ -935,8 +934,67 @@ describe('AddAthletesContainer', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
 
-    await waitFor(() => expect(onContinue).toHaveBeenCalled());
-    expect(await drafts.load()).toEqual({ swimmer: 'child', firstName: '', lastName: '', email: '', step: 'authorizations', athlete: { firstName: 'Mateo', lastName: 'Rojas' } });
+    await screen.findByText('Mateo R.');
+    expect(screen.getByText('¿Quieres agregar otro deportista?')).toBeOnTheScreen();
+    expect(onContinue).not.toHaveBeenCalled();
+  });
+
+  describe('after each add it asks whether to add another', () => {
+    const type = async (first: string, last: string) => {
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), first);
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), last);
+    };
+
+    it('registration: «No, continuar» keeps the reached step and continues', async () => {
+      const { mount, onContinue, drafts } = setup();
+      await mount();
+      await type('Lucía', 'Rojas');
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await screen.findByText('Ya agregamos a Lucía Rojas. Puedes agregar otro ahora o seguir con las autorizaciones.');
+
+      await fireEvent.press(screen.getByRole('button', { name: 'No, continuar' }));
+
+      await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
+      expect(await drafts.load()).toMatchObject({ step: 'authorizations' });
+    });
+
+    it('«Agregar otro deportista» closes the question and leaves the form empty for the next one', async () => {
+      const { mount, onContinue } = setup();
+      await mount();
+      await type('Lucía', 'Rojas');
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await screen.findByText('¿Quieres agregar otro deportista?');
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+
+      await waitFor(() => expect(screen.queryByText('¿Quieres agregar otro deportista?')).toBeNull());
+      expect(screen.getByLabelText('Nombre').props.value).toBe('');
+      expect(onContinue).not.toHaveBeenCalled();
+      // Changed their mind: «Continuar» is there now that somebody was added.
+      expect(screen.getByRole('button', { name: 'Continuar' })).toBeOnTheScreen();
+    });
+
+    it('from «+»: continues with only the athletes added in this visit, and writes no step to the draft', async () => {
+      const { mount, onContinue, drafts, profiles, rows } = setup(undefined, 'add');
+      await profiles.createManagedAthlete({ userId: 'guardian-1', firstName: 'Mateo', lastName: 'Gil', relation: 'guardian' });
+      await mount();
+      await screen.findByText('Mateo G.');
+      expect(screen.queryByRole('button', { name: 'Continuar' })).toBeNull();
+      await type('Lucía', 'Rojas');
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await screen.findByText('¿Quieres agregar otro deportista?');
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar otro deportista' }));
+      await type('Ana', 'Rojas');
+      await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
+      await screen.findByText('Ya agregamos a Ana Rojas. Puedes agregar otro ahora o seguir con las autorizaciones.');
+
+      await fireEvent.press(screen.getByRole('button', { name: 'No, continuar' }));
+
+      expect(onContinue).toHaveBeenCalledTimes(1);
+      // rows[0] is Mateo, who was there before.
+      expect(onContinue).toHaveBeenCalledWith([rows[1].athleteId, rows[2].athleteId]);
+      expect((await drafts.load())?.step).toBeUndefined();
+    });
   });
 
   it('a draft that loads late never overwrites what the person already typed', async () => {
