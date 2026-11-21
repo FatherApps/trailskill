@@ -661,6 +661,20 @@ describe('athlete profile container', () => {
       expect(await screen.findAllByLabelText(/Federación Demo · Torneo Demo/)).toHaveLength(1);
     });
 
+    it('shows the federation date on the grouped row, the personal best and the history (issue 1354)', async () => {
+      await show({
+        importedResults: repo([imported({ id: 'f1', provider: 'xx-demo', hundredths: 2910, swumOn: '2026-09-03' }), imported({ id: 't1', provider: 'xx-torneo', hundredths: 2910, swumOn: '2026-09-05' })]),
+        sourceNames: { 'xx-demo': 'Federación Demo', 'xx-torneo': 'Torneo Demo' },
+        sessionDated: ['xx-torneo'],
+        federation: ['xx-demo'],
+      });
+
+      const row = await screen.findByLabelText(/Federación Demo · Torneo Demo/);
+      expect(row.props.accessibilityLabel).toMatch(/3 de septiembre/);
+      expect(row.props.accessibilityLabel).not.toMatch(/5 de septiembre/);
+      expect(screen.getByLabelText(/^Marca personal.*3 de septiembre de 2026/)).toBeOnTheScreen();
+    });
+
     it('keeps both rows, each with its source, when the sources disagree on the time', async () => {
       await show({
         importedResults: repo([imported({ id: 'f1', provider: 'xx-demo', hundredths: 2910 }), imported({ id: 't1', provider: 'xx-torneo', hundredths: 2950 })]),

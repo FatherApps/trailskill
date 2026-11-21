@@ -84,7 +84,7 @@ export default function AthleteProfileRoute() {
   const showPhoto = useHasValidAuthorization(id, 'show_photo');
   // The import button of the official-results update is pinned to the bottom of the screen, outside the list.
   const importFooter = useImportFooterStore();
-  const { isStaff, sharingSchoolId, sourceNames, sessionDated, managedAthlete, importPrompt } = useAthleteProfileRoute({
+  const { isStaff, sharingSchoolId, sourceNames, sessionDated, federation, managedAthlete, importPrompt } = useAthleteProfileRoute({
     athleteId: id,
     syncedAt,
     importedResults,
@@ -116,6 +116,7 @@ export default function AthleteProfileRoute() {
       importedResults={importedResults}
       sourceNames={sourceNames}
       sessionDated={sessionDated}
+      federation={federation}
       // The server decides who may update: without a confirmed identity and a manager with the authorization in force, nothing shows.
       officialUpdate={
         <OfficialUpdateContainer
