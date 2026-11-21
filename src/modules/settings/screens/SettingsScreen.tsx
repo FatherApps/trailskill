@@ -27,6 +27,10 @@ export type SettingsScreenProps = {
   onBack: () => void;
   /** Opens "Mi cuenta" (sign out, delete the account); the entry is not shown without it. */
   onOpenAccount?: () => void;
+  /** Opens "Autorizaciones"; only a person who manages athletes gets it, and the entry is not shown without it. */
+  onOpenAuthorizations?: () => void;
+  /** The sign-out button with its warning sheet, built by the accounts module; it is laid out last. */
+  signOut?: ReactNode;
   /** The headset or volume keys; null where the phone cannot use them (iOS, or a build without the module). */
   buttons: SettingsButtonsView | null;
   /** Recording the individual stopwatch on video. */
@@ -224,7 +228,18 @@ function VideoSettings({ view }: { view: SettingsVideoView }) {
 }
 
 // Presentational: the caller reads and saves the preferences.
-export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, onTimePrecisionChange, onBack, onOpenAccount, buttons, video }: SettingsScreenProps) {
+export function SettingsScreen({
+  themeMode,
+  timePrecision,
+  onThemeModeChange,
+  onTimePrecisionChange,
+  onBack,
+  onOpenAccount,
+  onOpenAuthorizations,
+  signOut,
+  buttons,
+  video,
+}: SettingsScreenProps) {
   const { colors, space, typography } = useTheme();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
@@ -259,7 +274,17 @@ export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, on
           {t('settings.video.title')}
         </Text>
         <VideoSettings view={video} />
-        {onOpenAccount && <Button variant="secondary" label={t('settings.account')} onPress={onOpenAccount} />}
+        {(onOpenAuthorizations || onOpenAccount || signOut) && (
+          // The account entries close the screen: they left the foot of "Mis deportistas" for here (#778).
+          <View style={{ gap: space[3] }}>
+            <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+              {t('settings.account_section')}
+            </Text>
+            {onOpenAuthorizations && <Button variant="secondary" label={t('settings.authorizations')} onPress={onOpenAuthorizations} />}
+            {onOpenAccount && <Button variant="secondary" label={t('settings.account')} onPress={onOpenAccount} />}
+            {signOut}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

@@ -14,7 +14,7 @@ const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 
 // Management: accept more purposes or withdraw one, for each athlete the person manages.
 export default function Authorizations() {
-  const goBack = useGoBack('/athletes');
+  const goBack = useGoBack('/settings');
   const { session } = useSession();
   const userId = session?.user.id;
   const lastSyncedAt = useGlobalSyncSummary().lastSyncedAt?.getTime();

@@ -42,6 +42,34 @@ describe('SettingsScreen', () => {
     await fireEvent.press(screen.getByLabelText('Volver'));
     expect(props.onBack).toHaveBeenCalled();
   });
+
+  describe('the account section at the end (#778)', () => {
+    it('shows "Autorizaciones", "Mi cuenta" and the sign-out it receives, in that order', async () => {
+      const { Text } = jest.requireActual('react-native');
+      const props = await setup({ onOpenAuthorizations: jest.fn(), onOpenAccount: jest.fn(), signOut: <Text>sign-out</Text> });
+
+      expect(screen.getByRole('header', { name: 'Cuenta' })).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Autorizaciones' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Mi cuenta' }));
+      expect(props.onOpenAuthorizations).toHaveBeenCalledTimes(1);
+      expect(props.onOpenAccount).toHaveBeenCalledTimes(1);
+      const order = screen.getAllByText(/^(Autorizaciones|Mi cuenta|sign-out)$/).map((node) => node.props.children);
+      expect(order).toEqual(['Autorizaciones', 'Mi cuenta', 'sign-out']);
+    });
+
+    it('leaves "Autorizaciones" out without its handler', async () => {
+      await setup({ onOpenAccount: jest.fn() });
+
+      expect(screen.queryByRole('button', { name: 'Autorizaciones' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Mi cuenta' })).toBeOnTheScreen();
+    });
+
+    it('shows no account section when it gets no entry', async () => {
+      await setup();
+
+      expect(screen.queryByRole('header', { name: 'Cuenta' })).toBeNull();
+    });
+  });
 });
 
 function buttonsView(overrides: Partial<SettingsButtonsView> = {}): SettingsButtonsView {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 
 import { usePreferences } from '../../../core/preferences';
@@ -10,11 +10,15 @@ import { SettingsScreen, type ButtonKey } from './SettingsScreen';
 export function SettingsContainer({
   onBack,
   onOpenAccount,
+  onOpenAuthorizations,
+  signOut,
   buttons = timingButton,
   dnd = doNotDisturb,
 }: {
   onBack: () => void;
   onOpenAccount?: () => void;
+  onOpenAuthorizations?: () => void;
+  signOut?: ReactNode;
   buttons?: TimingButtonPort;
   dnd?: DoNotDisturbPort;
 }) {
@@ -46,6 +50,8 @@ export function SettingsContainer({
       onThemeModeChange={(themeMode) => update({ themeMode })}
       onTimePrecisionChange={(timePrecision) => update({ timePrecision })}
       onOpenAccount={onOpenAccount}
+      onOpenAuthorizations={onOpenAuthorizations}
+      signOut={signOut}
       onBack={() => {
         learner.cancel();
         onBack();
