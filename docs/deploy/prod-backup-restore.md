@@ -138,6 +138,32 @@ with `BACKUP_FETCH_CMD` set (the `backup-r2.sh` line and the read-only token) an
 
 Schedule the freshness job **hours apart** from the backup. `fetch` reads the manifest and then the dump it names in two requests; if a push publishes a new manifest and deletes the old dump in between, the fetch fails with "the copy named by the manifest is missing" although the stored pair is healthy. That can only happen when the two jobs overlap, and a single rerun resolves it (there is no retry code).
 
+### Freshness workflow in GitHub Actions (#1337)
+
+[`.github/workflows/backup-freshness.yml`](../../.github/workflows/backup-freshness.yml) is that second daily job. It runs every day at **14:00 UTC** (5.5 h after the 08:30 UTC backup, so the two never overlap) and on demand from Actions > Backup freshness > Run workflow. It installs rclone, then runs [`deploy/scripts/backup-freshness.sh`](../../deploy/scripts/backup-freshness.sh), which runs `restore-check.sh --freshness` with the default limit of 26 h. It only reads R2; it never writes, deletes or decrypts anything, and has no private key.
+
+What it checks (all from the manifest, the dump is never opened): the newest copy is not older than 26 h, the manifest exists and is readable, at least one key table has rows, and the stored file matches its checksum.
+
+**GitHub secrets it needs** (Settings > Secrets and variables > Actions; the maintainer sets the values, they are never in the repository):
+
+| Secret | Value |
+| --- | --- |
+| `BACKUP_R2_ENDPOINT` | `https://<account id>.r2.cloudflarestorage.com` |
+| `BACKUP_R2_BUCKET` | the bucket name (`<BUCKET>`) |
+| `BACKUP_R2_READONLY_ACCESS_KEY_ID` | Access Key ID of the **Object Read only** token, limited to that bucket |
+| `BACKUP_R2_READONLY_SECRET_ACCESS_KEY` | its Secret Access Key |
+
+Use the read-only token from [What Mario creates](#what-mario-creates), never the Read & Write one. Without these secrets the run fails and opens the issue below, which is the expected behavior until they are set.
+
+The workflow has `contents: read` and `issues: write` only. When the check fails the run turns red and the script opens an issue labeled `backup-failed` assigned to the maintainer (it creates the label on first use), or adds a comment to the one already open, with the reason and the link to the run. When the check passes it opens and comments nothing.
+
+#### When a `backup-failed` issue arrives
+
+1. Open the run linked in the issue and read the reason (the last `error:` line). Then follow [When the backup fails](#when-the-backup-fails): the previous copy is still the latest good one, do not delete it.
+2. `older than 26 h`: the daily backup stopped (check the `backup` service of the `deploy` compose and its log). `manifest ... not found` or `fetch command failed`: the bucket or the read-only token changed (check the secrets above and the token in Cloudflare). `checksum does not match`: the stored pair is half-replaced, run the backup again. `0 rows`: check the database before anything else.
+3. If the cause was only a push overlapping the check (the fetch said the copy named by the manifest is missing), run the workflow again by hand; it should pass.
+4. Close the issue once a manual run of the workflow passes. While the problem lasts, each daily run adds one comment to the same issue instead of opening another.
+
 ### One backup at a time
 
 **Only one backup may run at a time.** `backup-r2.sh` has no lock of its own: it re-reads the manifest just before each delete, but a second push that publishes in that gap can still lose its dump. In the `deploy` compose the lock is taken by its callers (`migrate` and the daily job, on the `backup-lock` volume, see above), so these two never overlap. For any other way of running a backup, run **one** backup job: exactly one scheduled job, and if the host can run two (a manual run while the schedule fires), wrap the command in `flock` (for example `flock -n /var/lock/trailskill-backup.lock <backup command>`) so a second one exits instead of overlapping. The manual first-run check in the checklist must not overlap a scheduled run either. A push against another push is the one case the replace cannot make safe by itself: the guards in `backup-r2.sh` only turn it into a loud failure. They are:
