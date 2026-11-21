@@ -2,13 +2,17 @@
 # Restore test for the PROD backup (#1119). Run by the maintainer, who holds the private key.
 # Fetches the latest copy, verifies it, decrypts it and restores it into a THROWAWAY Postgres container
 # (never PROD), then compares row counts with the manifest. Exit 0 only if every check passes.
-# Needs docker and age on this machine. Usage: sh deploy/scripts/restore-check.sh <age-identity-file>
+# Needs docker and age on this machine. Usage: sh deploy/scripts/restore-check.sh <age-identity-file> [sha]
 #
-# Freshness mode: `sh deploy/scripts/restore-check.sh --freshness` fetches the copy and runs only the
+# Earlier copy: the optional last argument `sha` (64 lowercase hex, the copy's encrypted_sha256) checks that
+# copy instead of the latest one. It is passed to the fetch command as `fetch <dir> <sha>`; without it the
+# fetch command is run as `fetch <dir>` exactly as before.
+#
+# Freshness mode: `sh deploy/scripts/restore-check.sh --freshness [sha]` fetches the copy and runs only the
 # manifest checks (age of the copy, not empty, encrypted checksum). It needs no key, docker or age, so it
 # can run on a scheduler with read-only access to the destination.
 #
-# Env: BACKUP_FETCH_CMD      shell command run as `sh -c "$BACKUP_FETCH_CMD" fetch <dir>`; it must write
+# Env: BACKUP_FETCH_CMD      shell command run as `sh -c "$BACKUP_FETCH_CMD" fetch <dir> [sha]`; it must write
 #                            trailskill-prod-latest.dump.age and trailskill-prod-latest.manifest into <dir>.
 #      BACKUP_MAX_AGE_HOURS  oldest accepted copy, in hours (digits only, at most 8760, default 26)
 #      RESTORE_CHECK_CONTAINER_NAME  optional name of the temporary container (default restore-check-<pid>-<time>)
@@ -19,8 +23,11 @@ set -f # no globbing: manifest keys are untrusted words
 umask 077
 
 FRESHNESS=0
-IDENTITY=${1:?usage: restore-check.sh <age-identity-file> | --freshness}
+IDENTITY=${1:?usage: restore-check.sh <age-identity-file> | --freshness [sha]}
 if [ "$IDENTITY" = "--freshness" ]; then FRESHNESS=1; fi
+SHA=${2:-}
+[ $# -le 2 ] || { echo "usage: restore-check.sh <age-identity-file> | --freshness [sha]" >&2; exit 1; }
+{ [ $# -lt 2 ] || echo "$SHA" | grep -Eq '^[0-9a-f]{64}$'; } || { echo "error: sha must be 64 lowercase hex characters" >&2; exit 1; }
 : "${BACKUP_FETCH_CMD:?BACKUP_FETCH_CMD is required}"
 IMAGE=${BACKUP_RESTORE_IMAGE:-public.ecr.aws/supabase/postgres:17.11.0.006}
 [ "$FRESHNESS" -eq 1 ] || [ -r "$IDENTITY" ] || { echo "error: cannot read identity file $IDENTITY" >&2; exit 1; }
@@ -46,8 +53,9 @@ ENC=$WORK/trailskill-prod-latest.dump.age
 MANIFEST=$WORK/trailskill-prod-latest.manifest
 PLAIN=$WORK/dump.plain
 
-sh -c "$BACKUP_FETCH_CMD" fetch "$WORK" || die "fetch command failed"
+sh -c "$BACKUP_FETCH_CMD" fetch "$WORK" ${SHA:+"$SHA"} || die "fetch command failed"
 [ -s "$ENC" ] && [ -s "$MANIFEST" ] || die "fetch did not produce the encrypted copy and the manifest"
+[ -z "$SHA" ] || [ "$(mf encrypted_sha256)" = "$SHA" ] || die "the fetched copy is not the requested copy ($SHA)"
 [ "$(sha256 "$ENC")" = "$(mf encrypted_sha256)" ] || die "encrypted file checksum does not match the manifest"
 # Manifest checks, before anything is decrypted.
 MAX_AGE=${BACKUP_MAX_AGE_HOURS:-26}
