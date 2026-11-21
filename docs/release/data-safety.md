@@ -8,7 +8,7 @@ Evidence is the repository at the time of writing: `supabase/migrations/` (table
 
 ## What the app collects
 
-Everything is entered by the user or captured by the timing screens. There is no advertising, analytics, or crash-reporting SDK in `package.json`, no location or contacts permission, and no code that reads the device advertising ID. The individual stopwatch can record video with the camera and the microphone and saves it to the phone's gallery (#1088, merged in #1138): see [Video from the individual stopwatch](#video-from-the-individual-stopwatch). **PENDIENTE de revisión legal:** every text about video, camera, microphone and gallery storage in this document.
+Everything is entered by the user or captured by the timing screens. There is no advertising, analytics, or crash-reporting SDK in `package.json`, no location or contacts permission, and no code that reads the device advertising ID. The individual stopwatch can record video with the camera and the microphone and saves it to the phone's gallery (#1088, merged in #1138): see [Video from the individual stopwatch](#video-from-the-individual-stopwatch). The camera is also used to scan the QR of a swimmer's share code (#1322): see [Scanning the swimmer's code QR](#scanning-the-swimmers-code-qr). **PENDIENTE de revisión legal:** every text about video, camera, microphone and gallery storage in this document.
 
 | Data | Whose | Where it is stored | Module / source |
 | --- | --- | --- | --- |
@@ -113,7 +113,7 @@ The individual stopwatch of a guardian or adult athlete ("Mis tiempos") can reco
 
 | Android permission | Declared by | Used for |
 | --- | --- | --- |
-| `android.permission.CAMERA` | `modules/video-recorder` (its `AndroidManifest.xml`) and `expo-image-picker` (its library manifest; the same permission) | The live image and the recording of the individual stopwatch with video, and, since #1222, taking the photo of an athlete. Asked when the video screen opens, or when the person presses «Tomar foto» in the athlete profile (never at startup). |
+| `android.permission.CAMERA` | `modules/video-recorder` (its `AndroidManifest.xml`), `expo-image-picker` and, since #1322, `expo-camera` (its library manifest and the plugin in `app.config.ts`; the same permission) | The live image and the recording of the individual stopwatch with video, and, since #1222, taking the photo of an athlete. Asked when the video screen opens, or when the person presses «Tomar foto» in the athlete profile (never at startup). |
 | Photo Picker (Android system picker) | `expo-image-picker` (`launchImageLibraryAsync`); **no permission** | Choosing the photo of an athlete from the gallery (#1222). The system hands the app only the image the person chooses, so the app never reads the library and declares no `READ_MEDIA_*`. |
 | `android.permission.RECORD_AUDIO` | `modules/video-recorder` (same file) | The sound of the video, only if the "audio" setting is on. Asked together with the camera, and only if that setting is on. |
 | `android.permission.WRITE_EXTERNAL_STORAGE` | `expo-media-library` plugin through `app.config.ts` | Saving the video to the gallery on Android 7 to 9 (`minSdk` 24, the React Native default in `node_modules/react-native/gradle/libs.versions.toml`; the reason is the comment in `app.config.ts`). The plugin declares it without a cap, but both library manifests (`expo-media-library`, `expo-file-system`) declare `android:maxSdkVersion="32"` and the Android Gradle Plugin manifest merger adds a library's value to the app's element when the app does not declare the attribute (analysis of the merger sources by the #1169 worker). So the Play bundle should declare it only up to Android 12 (API 32). **To confirm with `aapt2` on the built bundle**; until then this row is not final. |
@@ -140,6 +140,15 @@ The camera and microphone permissions are not data types in the form; what matte
 
 - **Permissions in Play Console.** Compare the permissions the uploaded bundle shows with the list above, and answer whatever declaration Play asks for them. A storage permission for photos and videos is the one Play reviews most closely; the list above is meant to have none for reading them.
 - **Target audience.** The video can show minors, so it adds weight to the pending decision about the target audience and Families ([`docs/RELEASING.md`](../RELEASING.md#open-decisions), #107). This document does not decide it.
+
+### Scanning the swimmer's code QR
+
+Since #1322 the send step of "Mis tiempos" can read the share code of another swimmer from a QR (**PENDIENTE de revisión legal** for every sentence of this section).
+
+1. **What is shown.** On the swimmer's profile, «Mostrar QR» draws the code that the card already shows (`TS-XXXXXX`) as a QR (`ShareCodeQr.tsx`). The QR carries only that code: no link, no name, nothing else.
+2. **When the camera is used.** Only on the scan screen, which opens when the person presses «Escanear QR» in the send step (`FamilyTimingContainer.tsx`, `startScan`; adapter `data/qrScanner.tsx`, `expo-camera`). The first time the app shows an explanation of what the camera is for (`transfer.scan_intro_*` in `src/modules/family-timing/i18n/es-CO.json`) and then the system asks for the permission. The camera is optional hardware (#1292): a phone without it, or a person who refuses the permission, keeps typing the code.
+3. **What is kept.** Nothing. The camera only hands over the text of the QR, which is used to fill the code field when it has the shape of a share code (`domain/scannedCode.ts`); the image is not saved, not uploaded and not written to the gallery, and no photo or video is requested. A QR with any other content (a link, a name) fills nothing and is never opened. The code goes through the same server lookup as a typed one.
+4. **No new data type.** No new table, sync stream or server call; `expo-camera` adds no permission beyond `CAMERA` (`app.config.ts` passes `recordAudioAndroid: false` and no microphone text). To confirm with `aapt2 dump permissions` on the next Play bundle.
 
 ### Sharing to review with the maintainer and the legal review
 
