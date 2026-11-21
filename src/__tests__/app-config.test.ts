@@ -213,3 +213,41 @@ describe('over-the-air updates', () => {
     expect(eas.build.development.channel).toBeUndefined();
   });
 });
+
+// Play infers required hardware from permissions; the camera and microphone only serve optional features (#1291).
+describe('optional camera and microphone', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- a CommonJS config plugin
+  const { markOptional } = require('../../plugins/optional-camera-microphone');
+  const features = (manifest: { manifest: { 'uses-feature'?: { $: Record<string, string> }[] } }) =>
+    Object.fromEntries((manifest.manifest['uses-feature'] ?? []).map((f) => [f.$['android:name'], f.$['android:required']]));
+
+  it('is registered in app.config.ts', () => {
+    expect(config.plugins).toContain('./plugins/optional-camera-microphone');
+    expect(existsSync(resolve(root, 'plugins/optional-camera-microphone.js'))).toBe(true);
+  });
+
+  it('marks camera, autofocus, any camera and microphone as not required', () => {
+    const result = features(markOptional({ manifest: {} }));
+    expect(result).toEqual({
+      'android.hardware.camera': 'false',
+      'android.hardware.camera.any': 'false',
+      'android.hardware.camera.autofocus': 'false',
+      'android.hardware.microphone': 'false',
+    });
+  });
+
+  it('overrides a required declaration and keeps unrelated features', () => {
+    const result = features(
+      markOptional({
+        manifest: {
+          'uses-feature': [
+            { $: { 'android:name': 'android.hardware.camera', 'android:required': 'true' } },
+            { $: { 'android:name': 'android.hardware.bluetooth', 'android:required': 'true' } },
+          ],
+        },
+      }),
+    );
+    expect(result['android.hardware.camera']).toBe('false');
+    expect(result['android.hardware.bluetooth']).toBe('true');
+  });
+});
