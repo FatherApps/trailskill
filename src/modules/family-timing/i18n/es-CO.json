@@ -167,6 +167,9 @@
       "sent_row": "Enviado a {{name}} · pendiente",
       "saved_label": "Códigos guardados",
       "saved_forget": "Quitar código guardado",
+      "saved_expired_option": "{{name}} · {{code}} · caducó",
+      "saved_expired": "El código de {{name}} caducó: su familia lo cambió. Pídeles el código nuevo",
+      "saved_expired_action": "Ingresar código nuevo",
       "code_label_new": "O escribe un código nuevo"
     },
     "detail": {
