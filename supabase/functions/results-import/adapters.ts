@@ -241,6 +241,14 @@ export function createTournamentCatalog(db: Db): TournamentCatalog {
       if (error || typeof data !== 'number') throw failure('Saving the tournaments', error);
       return data;
     },
+    async savedKeys(organizationId, year) {
+      const { data, error } = await db.select('results_import_tournaments', 'date_key', { organization_id: organizationId, year: String(year) });
+      if (error || !data) throw failure('Reading the tournaments', error);
+      return data.map(({ date_key: dateKey }) => {
+        if (typeof dateKey !== 'string') throw failure('Reading the tournaments', null);
+        return dateKey;
+      });
+    },
     async find(dateKey) {
       const { data, error } = await db.select('results_import_tournaments', 'organization_id,year', { date_key: dateKey });
       if (error || !data) throw failure('Reading the tournaments', error);

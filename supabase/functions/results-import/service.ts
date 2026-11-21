@@ -25,6 +25,8 @@ export interface TournamentCatalog {
   release(request: { organizationId: string; claimedAt: string; intervalMs: number; retryAfterMs: number }): Promise<boolean>;
   /** Saves by (platform, day), all or none, and never removes a tournament the list no longer has. Answers how many rows it saved. */
   save(organizationId: string, entries: TournamentEntry[]): Promise<number>;
+  /** The days (`YYYYMMDD`) the platform already holds for a year. */
+  savedKeys(organizationId: string, year: number): Promise<string[]>;
   /** The platforms whose catalog has a tournament of this day (`YYYYMMDD`), with its year. */
   find(dateKey: string): Promise<{ organizationId: string; year: number }[]>;
 }
@@ -309,6 +311,18 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
     return value === null ? UNAVAILABLE : { ok: true, value };
   }
 
+  // The earlier tournaments a platform brings with it, saved only for the days its catalog does not hold yet: what is there (a corrected row,
+  // a refresh of an earlier year) is never overwritten, and once they are all there a load changes nothing. A seed that is not valid is not
+  // used at all (like a list): it is the maintainer's reviewed file, so a bad row is a defect to fix, not a reason to fail the refresh.
+  async function seedEarlier(organizationId: string, seed: readonly TournamentEntry[] | undefined): Promise<void> {
+    const rows = seed?.length ? cleanList([...seed], (raw) => (isRecord(raw) && Number.isInteger(raw.year) ? cleanTournament(raw, raw.year as number) : null)) : null;
+    if (!rows) return;
+    const present = new Set<string>();
+    for (const rowYear of new Set(rows.map((row) => row.year))) for (const dateKey of await tournaments.savedKeys(organizationId, rowYear)) present.add(dateKey);
+    const missing = rows.filter((row) => !present.has(row.dateKey));
+    if (missing.length > 0) await tournaments.save(organizationId, missing);
+  }
+
   return {
     // Asks every registered platform for the tournaments of the current year, at most once per day each (the claim is per platform, never per
     // person: the refresh needs no athlete). What a platform lists is saved by day; a platform that fails, or whose list is not valid, leaves
@@ -330,6 +344,12 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
             // The claim simply stays spent.
           }
         };
+        try {
+          await seedEarlier(organizationId, provider.seedTournaments);
+        } catch (error) {
+          await giveBack();
+          throw error;
+        }
         let listed: TournamentEntry[] | null;
         try {
           listed = cleanList(await provider.listTournaments(year), (raw) => cleanTournament(raw, year));

@@ -1324,6 +1324,58 @@ describe('refreshTournaments', () => {
     expect(s.catalog.releases).toHaveLength(1);
   });
 
+  describe('the earlier tournaments the platform brings with it', () => {
+    const [a, b] = [tournamentEntry('20240316'), tournamentEntry('20250315')];
+    const T0 = Date.parse('2026-10-28T10:00:00Z');
+
+    it('loads them next to the current year with the organization the refresh resolved, and a second load changes nothing', async () => {
+      const s = setup({ platformOptions: { ...listing, seed: [b, a] } });
+      expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+      expect(s.catalog.rows().map((row) => [row.organizationId, row.dateKey, row.refreshedAt]).sort()).toEqual([
+        [PLATFORM_ORG, '20240316', T0],
+        [PLATFORM_ORG, '20250315', T0],
+        [PLATFORM_ORG, '20260314', T0],
+        [PLATFORM_ORG, '20261010', T0],
+      ]);
+      s.advanceClock(TOURNAMENT_REFRESH_INTERVAL_MS);
+      expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+      expect(s.catalog.rows().filter((row) => row.year < 2026).map((row) => [row.dateKey, row.refreshedAt]).sort()).toEqual([
+        ['20240316', T0],
+        ['20250315', T0],
+      ]);
+    });
+
+    it('never overwrites a row the catalog already has, and adds only the missing ones', async () => {
+      const s = setup({ platformOptions: { tournaments: [], seed: [a, b] } });
+      s.catalog.seed(PLATFORM_ORG, { ...b, name: 'Corrected by hand' }, 1);
+      await s.service.refreshTournaments();
+      expect(s.catalog.rows().map((row) => [row.dateKey, row.name, row.refreshedAt]).sort()).toEqual([
+        ['20240316', a.name, T0],
+        ['20250315', 'Corrected by hand', 1],
+      ]);
+    });
+
+    it('loads them even when the platform does not answer the list of the year', async () => {
+      const s = setup({ platformOptions: { tournaments: [], seed: [a] } });
+      s.platform.setFailure(new SourceUnreachableError());
+      expect(await s.service.refreshTournaments()).toEqual(unavailable);
+      expect(s.catalog.rows().map((row) => row.dateKey)).toEqual(['20240316']);
+    });
+
+    it('loads none of them when one is not valid, and still refreshes the year', async () => {
+      const s = setup({ platformOptions: { ...listing, seed: [a, { ...b, city: '' }] } });
+      expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+      expect(s.catalog.rows().map((row) => row.dateKey).sort()).toEqual(['20260314', '20261010']);
+    });
+
+    it('gives the claim back and fails when they cannot be saved', async () => {
+      const s = setup({ platformOptions: { ...listing, seed: [a] } });
+      s.catalog.failSave(new Error('db down'));
+      await expect(s.service.refreshTournaments()).rejects.toThrow('db down');
+      expect(s.catalog.releases).toHaveLength(1);
+    });
+  });
+
   it('spends no athlete window and reads no identity number', async () => {
     const s = setup({ platformOptions: listing });
     await s.service.refreshTournaments();

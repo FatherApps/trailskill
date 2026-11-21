@@ -47,6 +47,8 @@ type PlatformOptions = {
   // Typed loosely so a test can make the "platform" return something invalid.
   search?: unknown;
   tournaments?: TournamentEntry[];
+  // The earlier tournaments the platform brings with it, typed loosely like `tournaments`.
+  seed?: TournamentEntry[];
   failWith?: Error;
 };
 
@@ -60,6 +62,7 @@ export function createFakePlatform(options: PlatformOptions = {}): TournamentPro
     listCalls,
     setFailure: (error) => void (failWith = error),
     accepts: options.accepts ?? ((url) => url.startsWith('https://games.example.test/')),
+    seedTournaments: options.seed,
     async listTournaments(year) {
       listCalls.push(year);
       if (failWith) throw failWith;
@@ -106,6 +109,9 @@ export function createFakeCatalog(now: () => number = Date.now) {
         rows.set(`${organizationId}|${entry.dateKey}`, { ...entry, organizationId, refreshedAt: now() });
       }
       return days.size;
+    },
+    async savedKeys(organizationId, year) {
+      return [...rows.values()].filter((row) => row.organizationId === organizationId && row.year === year).map((row) => row.dateKey);
     },
     async find(dateKey) {
       return [...rows.values()].filter((row) => row.dateKey === dateKey).map(({ organizationId, year }) => ({ organizationId, year }));

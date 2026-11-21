@@ -418,6 +418,27 @@ describe('createTournamentCatalog', () => {
     expect(fake.selects).toEqual([{ table: 'results_import_tournaments', columns: 'organization_id,year', equals: { date_key: '20261010' } }]);
   });
 
+  it('lists the days a platform already holds for a year by asking the table for exactly that platform and year', async () => {
+    const fake = createFakeDb();
+    fake.tables.results_import_tournaments = [
+      { organization_id: ORGANIZATION, year: '2025', date_key: '20250315' },
+      { organization_id: ORGANIZATION, year: '2025', date_key: '20250412' },
+      { organization_id: 'platform-2', year: '2025', date_key: '20250316' },
+      { organization_id: ORGANIZATION, year: '2024', date_key: '20240316' },
+    ];
+    expect(await createTournamentCatalog(fake.db).savedKeys(ORGANIZATION, 2025)).toEqual(['20250315', '20250412']);
+    expect(fake.selects).toEqual([{ table: 'results_import_tournaments', columns: 'date_key', equals: { organization_id: ORGANIZATION, year: '2025' } }]);
+  });
+
+  it('throws when the days of a year cannot be read or a row is not a key', async () => {
+    const failing = createFakeDb();
+    failing.failSelect({ code: 'XX000', message: 'leaked' });
+    await expect(createTournamentCatalog(failing.db).savedKeys(ORGANIZATION, 2025)).rejects.toThrow('Reading the tournaments failed (XX000)');
+    const odd = createFakeDb();
+    odd.tables.results_import_tournaments = [{ organization_id: ORGANIZATION, year: '2025', date_key: 5 }];
+    await expect(createTournamentCatalog(odd.db).savedKeys(ORGANIZATION, 2025)).rejects.toThrow('Reading the tournaments failed');
+  });
+
   it('throws when the table cannot be read or a row is not what it should be', async () => {
     const failing = createFakeDb();
     failing.failSelect({ code: 'XX000', message: 'leaked' });

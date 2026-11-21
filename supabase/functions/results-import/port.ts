@@ -71,6 +71,8 @@ export interface TournamentProvider {
   accepts(url: string): boolean;
   /** The tournaments of one year the platform lists. A source that answers in a shape this does not know throws `ProviderUnavailableError`, never an empty list. */
   listTournaments(year: number): Promise<TournamentEntry[]>;
+  /** Earlier tournaments the adapter brings with it, reviewed once by a person, because the platform's own list covers only the current year. Loaded by the refresh. */
+  readonly seedTournaments?: readonly TournamentEntry[];
   lookup(url: string, identityNumber: string): Promise<TournamentSearch>;
   /** The same lookup for a tournament of the list, by its year and key. */
   lookup(year: number, dateKey: string, identityNumber: string): Promise<TournamentSearch>;
