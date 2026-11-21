@@ -57,6 +57,23 @@ describe('editing and deleting a family time', () => {
     expect(await screen.findByText('Medir un tiempo')).toBeTruthy();
   });
 
+  it('corrects the distance of a training time and keeps the captured time', async () => {
+    const repository = await setup([training]);
+    await openEdit();
+    expect(screen.getByLabelText('Distancia')).toBeTruthy();
+    await fireEvent.press(screen.getByText('100 m'));
+    await fireEvent.press(screen.getByText('Guardar cambios'));
+    await waitFor(async () => expect((await repository.listByAthlete('a1'))[0]).toMatchObject({ distance: '100m', stroke: 'FL', millis: 47_210 }));
+    expect(await screen.findByText('100 m mariposa')).toBeTruthy();
+  });
+
+  it('does not offer the distance on a competition time', async () => {
+    await setup([{ ...training, sessionType: 'competition', competition: 'Festival' }]);
+    await openEdit();
+    expect(screen.getByText('Guardar cambios')).toBeTruthy();
+    expect(screen.queryByLabelText('Distancia')).toBeNull();
+  });
+
   it('moves a time to another of my swimmers and shows that swimmer', async () => {
     const repository = await setup([training]);
     await openEdit();
