@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryIdentityDocumentRepository } from '../../accounts';
 import { createInMemoryOfficialSearchRepository, type ImportSource, type ImportSourcesRepository } from '../data/officialSearch';
@@ -60,11 +60,12 @@ function setup(
   );
   const identityDocuments = createInMemoryIdentityDocumentRepository();
   if (options.hint) identityDocuments.hints[athlete.id] = options.hint;
-  const catalog = createInMemoryTournamentCatalogRepository(options.entries ?? catalogEntries);
+  // The repository reads this array each time, so a test can add rows after the screen opened, as a sync would.
+  const rows = [...(options.entries ?? catalogEntries)];
+  const catalog = createInMemoryTournamentCatalogRepository(rows);
   const refreshCatalog = jest.fn(options.refresh ?? (async () => undefined));
   const props = { onGoToAuthorizations: jest.fn(), onDone: jest.fn(), onBack: jest.fn() };
-  const mount = () =>
-    render(
+  const element = (syncedAt?: number) => (
       <TournamentImportContainer
         athlete={athlete}
         authorized={options.authorized ?? true}
@@ -72,13 +73,15 @@ function setup(
         sources={sources}
         catalog={catalog}
         refreshCatalog={refreshCatalog}
+        syncedAt={syncedAt}
         search={search}
         results={{ importChosen }}
         identityDocuments={identityDocuments}
         {...props}
-      />,
-    );
-  return { mount, search, importChosen, refreshCatalog, ...props };
+      />
+  );
+  const mount = () => render(element());
+  return { mount, element, rows, search, importChosen, refreshCatalog, ...props };
 }
 
 const press = async (label: string) => fireEvent.press(await screen.findByRole('button', { name: label }));
@@ -268,6 +271,33 @@ describe('TournamentImportContainer: the list', () => {
     const s = setup({ refresh: () => new Promise<void>(() => {}) });
     await s.mount();
     expect(await screen.findByText('Torneo Beta')).toBeOnTheScreen();
+    expect(s.refreshCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the rows that arrive after the screen opened once the refresh finishes', async () => {
+    let finishRefresh = () => {};
+    const s = setup({ refresh: () => new Promise<void>((resolve) => (finishRefresh = resolve)) });
+    await s.mount();
+    await screen.findByText('Torneo Beta');
+    expect(screen.queryByText('Torneo Delta')).toBeNull();
+
+    s.rows.push(tournament('t6', '20270110', 'Torneo Delta', 'Ciudad Delta'));
+    await act(async () => finishRefresh());
+
+    expect(await screen.findByText('Torneo Delta')).toBeOnTheScreen();
+    expect(screen.getByRole('radio', { name: '2027' })).toBeOnTheScreen();
+  });
+
+  it('shows the rows a sync brings without reopening the screen', async () => {
+    const s = setup();
+    const view = await s.mount();
+    await screen.findByText('Torneo Beta');
+
+    s.rows.push(tournament('t6', '20270110', 'Torneo Delta', 'Ciudad Delta'));
+    await view.rerender(s.element(1));
+
+    expect(await screen.findByText('Torneo Delta')).toBeOnTheScreen();
+    // The filters the person typed are kept.
     expect(s.refreshCatalog).toHaveBeenCalledTimes(1);
   });
 

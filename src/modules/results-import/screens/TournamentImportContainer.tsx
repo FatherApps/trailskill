@@ -21,6 +21,8 @@ export type TournamentImportContainerProps = {
   catalog: TournamentCatalogRepository;
   // Asks the server to refresh the catalog; never awaited by the screen and never rejects its result into the UI.
   refreshCatalog: () => Promise<void>;
+  // Changes when a sync finishes (the last synced time): the list is read again, so rows a sync brings show without reopening.
+  syncedAt?: number;
   search: OfficialSearchRepository;
   results: Pick<OfficialResultsService, 'importChosen'>;
   identityDocuments: Pick<IdentityDocumentRepository, 'hint'>;
@@ -56,6 +58,7 @@ export function TournamentImportContainer({
   sources,
   catalog,
   refreshCatalog,
+  syncedAt,
   search,
   results,
   identityDocuments,
@@ -72,6 +75,8 @@ export function TournamentImportContainer({
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [entries, setEntries] = useState<TournamentCatalogEntry[] | null>(null);
+  // Counts the refreshes that finished: each one reads the list again.
+  const [refreshes, setRefreshes] = useState(0);
   const [text, setText] = useState('');
   const [year, setYear] = useState<number | null>(null);
   const [dateKey, setDateKey] = useState<string | null>(null);
@@ -107,11 +112,19 @@ export function TournamentImportContainer({
     return () => {
       current = false;
     };
-  }, [catalog]);
+  }, [catalog, syncedAt, refreshes]);
 
   // Fire and forget: the list is whatever the device already has, and a slow or failed refresh never blocks it.
   useEffect(() => {
-    if (authorized && online) refreshCatalog().catch(() => undefined);
+    if (!authorized || !online) return;
+    let current = true;
+    refreshCatalog().then(
+      () => current && setRefreshes((count) => count + 1),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
   }, [authorized, online, refreshCatalog]);
 
   const fail = useCallback((error: SearchFailure, onUnexpected: Step) => {

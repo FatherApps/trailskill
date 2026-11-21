@@ -48,6 +48,7 @@ export default function ImportTournament() {
       sources={sources}
       catalog={catalog}
       refreshCatalog={refreshTournaments}
+      syncedAt={summary.lastSyncedAt?.getTime()}
       search={search}
       results={results}
       identityDocuments={identityDocuments}
