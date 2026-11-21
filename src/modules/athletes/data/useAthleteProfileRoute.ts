@@ -28,6 +28,7 @@ export type AthleteProfileRouteState = {
   sharingSchoolId: string | undefined;
   sourceNames: Record<string, string>;
   sessionDated: string[];
+  federation: string[];
   managedAthlete: SchoolAthlete | undefined;
   importPrompt: ImportPromptProps | undefined;
 };
@@ -80,6 +81,9 @@ export function useAthleteProfileRoute({
   // A results platform dates each result by its session: that date wins when two sources hold the same swim.
   const sessionDated = useMemo(() => sources.filter((source) => source.kind === 'platform').map((source) => source.provider), [sources]);
 
+  // A federation's result is shown whole when it is one of the sources of a swim (issue 1354); it wins over the session date.
+  const federationProviders = useMemo(() => sources.filter((source) => source.kind === 'federation').map((source) => source.provider), [sources]);
+
   // Only a guardian or an adult athlete is offered the import; the source's name comes from data.
   const managedAthlete = managed.status === 'ready' ? managed.athletes.find((candidate) => candidate.id === athleteId) : undefined;
   // The federation is searched by person; a results platform is reached by the address of one tournament.
@@ -99,5 +103,5 @@ export function useAthleteProfileRoute({
         }
       : undefined;
 
-  return { started, isStaff, sharingSchoolId, sourceNames, sessionDated, managedAthlete, importPrompt };
+  return { started, isStaff, sharingSchoolId, sourceNames, sessionDated, federation: federationProviders, managedAthlete, importPrompt };
 }

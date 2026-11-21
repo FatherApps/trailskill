@@ -18,13 +18,16 @@ const sameMoment = (a: ImportedHistoryResult, b: ImportedHistoryResult) =>
 
 /**
  * Joins, at read time, the current revisions that are the same swim in different sources. Nothing is merged in storage: each source
- * keeps its own rows. A missing time never joins. The shown result is the one of a source that dates by session (`sessionDated`
- * lists those providers, from data), else the first; its date is the one shown. `sourceNames` maps a provider to its organization.
+ * keeps its own rows. A missing time never joins. The shown result is, whole (date, tournament and time), the one of a federation
+ * source (`federation` lists those providers, from data; maintainer's rule, issue 1354, which replaces the session-date rule of
+ * issue 897 when a federation is among the sources), else the one of a source that dates by session (`sessionDated`), else the
+ * first. `sourceNames` maps a provider to its organization; every source stays listed.
  */
 export function groupImportedResults(
   results: readonly ImportedHistoryResult[],
   sourceNames: Readonly<Record<string, string>> = {},
   sessionDated: readonly string[] = [],
+  federation: readonly string[] = [],
 ): ImportedGroup[] {
   const ordered = [...results].sort((a, b) => a.swumOn.localeCompare(b.swumOn) || a.id.localeCompare(b.id));
   const groups: ImportedHistoryResult[][] = [];
@@ -37,7 +40,7 @@ export function groupImportedResults(
     const providers = [...new Set(members.map((m) => m.provider))].sort((a, b) => Number(sessionDated.includes(a)) - Number(sessionDated.includes(b)) || a.localeCompare(b));
     const names = providers.flatMap((provider) => (sourceNames[provider] ? [sourceNames[provider]] : []));
     return {
-      result: members.find((m) => sessionDated.includes(m.provider)) ?? members[0],
+      result: members.find((m) => federation.includes(m.provider)) ?? members.find((m) => sessionDated.includes(m.provider)) ?? members[0],
       ...(names.length > 0 ? { sourceName: names.join(' · ') } : {}),
     };
   });

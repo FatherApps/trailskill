@@ -200,6 +200,15 @@ describe('MarksContainer', () => {
       expect(screen.getAllByLabelText(/Federación Demo · Torneo Demo · /).length).toBeGreaterThan(0);
     });
 
+    it('shows the federation result whole, with its date, when the sources hold the same swim across a new year (issue 1354)', async () => {
+      const both = [official('i1', 3300, '2025-12-31'), official('i2', 3300, '2026-01-02', { provider: 'xx-torneo' })];
+      await show({ history: noHistory, importedResults: importedRepo(both), sourceNames: { ...sourceNames, 'xx-torneo': 'Torneo Demo' }, sessionDated: ['xx-torneo'], federation: ['xx-demo'] });
+
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
+      expect(screen.getAllByLabelText(/Federación Demo · Torneo Demo · 2025/).length).toBeGreaterThan(0);
+      expect(screen.queryAllByLabelText(/Torneo Demo · 2026/)).toHaveLength(0);
+    });
+
     it('says only "Oficial" when the organization is not known', async () => {
       await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]) });
 
