@@ -1,21 +1,14 @@
-import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
-import { randomUUID } from "expo-crypto";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { randomUUID } from 'expo-crypto';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { t } from "../../../core/i18n";
-import { usePreferences } from "../../../core/preferences";
-import {
-  distances,
-  pools,
-  strokes,
-  type DistanceCode,
-  type PoolCode,
-  type StrokeCode,
-} from "../../../core/sport";
-import { useRecordSyncStates } from "../../../core/sync";
-import { formatMillis, formatTime } from "../../../core/time";
-import type { AthleteAvatarSlot, ChipRowOption } from "../../../core/ui";
-import { athleteDisplay, formatDate, type SchoolAthlete } from "../../athletes";
+import { t } from '../../../core/i18n';
+import { usePreferences } from '../../../core/preferences';
+import { distances, pools, strokes, type DistanceCode, type PoolCode, type StrokeCode } from '../../../core/sport';
+import { useRecordSyncStates } from '../../../core/sync';
+import { formatMillis, formatTime } from '../../../core/time';
+import type { AthleteAvatarSlot, ChipRowOption } from '../../../core/ui';
+import { athleteDisplay, formatDate, type SchoolAthlete } from '../../athletes';
 import {
   buttonAction,
   keyName,
@@ -27,20 +20,15 @@ import {
   type ButtonPress,
   type ButtonTarget,
   type TimingButtonPort,
-} from "../../timing";
+} from '../../timing';
 import {
   cleanNote,
   FAMILY_MEASUREMENTS_TABLE,
   type FamilyMeasurement,
   type FamilyMeasurementRepository,
   type FamilySessionType,
-} from "../data/familyMeasurements";
-import {
-  FamilyTransferError,
-  type FamilyTransfer,
-  type FamilyTransferErrorCode,
-  type FamilyTransferRepository,
-} from "../data/familyTransfers";
+} from '../data/familyMeasurements';
+import { FamilyTransferError, type FamilyTransfer, type FamilyTransferErrorCode, type FamilyTransferRepository } from '../data/familyTransfers';
 import {
   elapsedMillisAt,
   finalMillis,
@@ -50,8 +38,8 @@ import {
   startAt,
   stopAt,
   type FamilyStopwatch,
-} from "../domain/familyStopwatch";
-import { bestTimeIds } from "../domain/bestTimes";
+} from '../domain/familyStopwatch';
+import { bestTimeIds } from '../domain/bestTimes';
 import {
   arrivalMillis,
   MAX_SWIMMERS,
@@ -63,17 +51,12 @@ import {
   startedAtOf,
   undoLast,
   type FamilySeries,
-} from "../domain/familySeries";
-import { lapMeters, lapsFor } from "../domain/laps";
-import { localDay } from "../domain/localDay";
-import {
-  officialMatches,
-  officialResultKeyOf,
-  type OfficialImport,
-  type OfficialMatch,
-} from "../domain/officialValue";
-import { parseTimeEntry } from "../domain/timeEntry";
-import { setFamilyTimingAtList } from "./familyTimingAtList";
+} from '../domain/familySeries';
+import { lapMeters, lapsFor } from '../domain/laps';
+import { localDay } from '../domain/localDay';
+import { officialMatches, officialResultKeyOf, type OfficialImport, type OfficialMatch } from '../domain/officialValue';
+import { parseTimeEntry } from '../domain/timeEntry';
+import { setFamilyTimingAtList } from './familyTimingAtList';
 import {
   FamilyTimingScreen,
   type FamilyCard,
@@ -82,25 +65,17 @@ import {
   type FamilyFilterKey,
   type FamilyFiltersView,
   type FamilyTimingView,
-} from "./FamilyTimingScreen";
-import type { FamilyTimingNoticeStore } from "../data/noticeSeen";
-import type { FamilyVideoRepository } from "../data/familyVideos";
-import type { VideoCamera } from "../data/videoCamera";
-import type { VideoLibrary, VideoPlayerHandle } from "../data/videoLibrary";
-import {
-  videoMatchesTime,
-  type PickedVideo,
-  type VideoSharing,
-} from "../data/videoSharing";
-import { VideoPlayerScreen } from "./VideoPlayerScreen";
-import {
-  VideoStopwatchContainer,
-  videoName,
-  type VideoStopwatchResult,
-} from "./VideoStopwatchContainer";
-import "../i18n";
+} from './FamilyTimingScreen';
+import type { FamilyTimingNoticeStore } from '../data/noticeSeen';
+import type { FamilyVideoRepository } from '../data/familyVideos';
+import type { VideoCamera } from '../data/videoCamera';
+import type { VideoLibrary, VideoPlayerHandle } from '../data/videoLibrary';
+import { videoMatchesTime, type PickedVideo, type VideoSharing } from '../data/videoSharing';
+import { VideoPlayerScreen } from './VideoPlayerScreen';
+import { VideoStopwatchContainer, videoName, type VideoStopwatchResult } from './VideoStopwatchContainer';
+import '../i18n';
 
-const KEEP_AWAKE_TAG = "family-timing";
+const KEEP_AWAKE_TAG = 'family-timing';
 const WEEK_MS = 7 * 86_400_000;
 
 export type FamilyTimingContainerProps = {
@@ -122,6 +97,11 @@ export type FamilyTimingContainerProps = {
   transfers?: FamilyTransferRepository;
   // The share-code lookup of the accounts module: the short name of the swimmer with a code, or null.
   shareCodes?: { find(code: string): Promise<string | null> };
+  // The codes other families gave this person, kept after an accepted send (accounts module): picked instead of typed again.
+  savedCodes?: {
+    list(userId: string): Promise<{ id: string; code: string; athleteShortName: string }[]>;
+    forget(id: string): Promise<void>;
+  };
   // Changes when the device synced: requests and moved times arrive by sync, so the lists read again.
   syncKey?: number;
   // Remembers that the notice was seen, so it shows on the first visit only. Without it the notice always shows.
@@ -139,46 +119,34 @@ export type FamilyTimingContainerProps = {
 };
 
 // What the last video action left to say (#1201), shown on the view it ended on.
-type VideoNoticeKind =
-  | "linked"
-  | "linked_original_kept"
-  | "link_failed"
-  | "share_failed";
-const VIDEO_NOTICE_VARIANT: Record<VideoNoticeKind, "success" | "warn"> = {
-  linked: "success",
-  linked_original_kept: "success",
-  link_failed: "warn",
-  share_failed: "warn",
+type VideoNoticeKind = 'linked' | 'linked_original_kept' | 'link_failed' | 'share_failed';
+const VIDEO_NOTICE_VARIANT: Record<VideoNoticeKind, 'success' | 'warn'> = {
+  linked: 'success',
+  linked_original_kept: 'success',
+  link_failed: 'warn',
+  share_failed: 'warn',
 };
 
 // «Ir a la salida» lands this long before the clock started, so the start itself is seen.
 export const JUMP_LEAD_MILLIS = 2_000;
 
-const targetOf = (sw: FamilyStopwatch): ButtonTarget =>
-  sw.status === "running"
-    ? { status: "running", startedAt: sw.startedAt }
-    : { status: sw.status };
+const targetOf = (sw: FamilyStopwatch): ButtonTarget => (sw.status === 'running' ? { status: 'running', startedAt: sw.startedAt } : { status: sw.status });
 
 const seriesTargetOf = (fs: FamilySeries): ButtonTarget => {
   const status = seriesStatus(fs);
   const startedAt = startedAtOf(fs);
-  if (status === "running" && startedAt !== null)
-    return { status: "running", startedAt };
-  return { status: status === "idle" ? "idle" : "stopped" };
+  if (status === 'running' && startedAt !== null) return { status: 'running', startedAt };
+  return { status: status === 'idle' ? 'idle' : 'stopped' };
 };
 
 // In a series only the start/stop key acts: it gives the start, then closes the next swimmer. The lap key does nothing (decision 8).
-const seriesDecide = (
-  press: ButtonPress,
-  config: ButtonConfig,
-  target: ButtonTarget,
-): ButtonAction | null => {
+const seriesDecide = (press: ButtonPress, config: ButtonConfig, target: ButtonTarget): ButtonAction | null => {
   if (press.keyCode !== config.startKey) return null;
   const action = buttonAction(press, config, target);
-  return action === "start" ? "start" : action === "stop" ? "arrival" : null;
+  return action === 'start' ? 'start' : action === 'stop' ? 'arrival' : null;
 };
 
-export type FamilyTimingMode = "individual" | "series";
+export type FamilyTimingMode = 'individual' | 'series';
 
 // The pool starts unchosen: the laps depend on it, so the stopwatch waits until the person picks one.
 type Setup = {
@@ -194,118 +162,72 @@ type Setup = {
   note: string;
 };
 const initialSetup: Setup = {
-  mode: "individual",
+  mode: 'individual',
   swimmers: MIN_SWIMMERS,
   stroke: strokes[0].code,
   distance: distances[1].code,
   pool: null,
-  sessionType: "training",
-  competition: "",
+  sessionType: 'training',
+  competition: '',
   athleteId: null,
-  note: "",
+  note: '',
 };
 
 // A lane of a series once timed: who swam it (null: not given to a swimmer yet) and the stroke.
 type Lane = { athleteId: string | null; stroke: StrokeCode };
 
 // The chip of the times not given to a swimmer yet. Ids are UUIDs, so it never matches an athlete.
-const UNASSIGNED = "unassigned";
-const swimmerCounts = Array.from(
-  { length: MAX_SWIMMERS - MIN_SWIMMERS + 1 },
-  (_, i) => String(MIN_SWIMMERS + i),
-);
+const UNASSIGNED = 'unassigned';
+const swimmerCounts = Array.from({ length: MAX_SWIMMERS - MIN_SWIMMERS + 1 }, (_, i) => String(MIN_SWIMMERS + i));
 
 type Step =
-  | { kind: "list" }
-  | { kind: "setup" }
-  | {
-      kind: "stopwatch";
-      saveError: boolean;
-      videoNotice?: Exclude<VideoStopwatchResult, "saved" | "discarded">;
-    }
-  | { kind: "video" }
-  | { kind: "series" }
-  | { kind: "series_assign"; lanes: Lane[]; saveError: boolean }
-  | { kind: "official"; id: string; text: string; invalid: boolean }
+  | { kind: 'list' }
+  | { kind: 'setup' }
+  | { kind: 'stopwatch'; saveError: boolean; videoNotice?: Exclude<VideoStopwatchResult, 'saved' | 'discarded'> }
+  | { kind: 'video' }
+  | { kind: 'series' }
+  | { kind: 'series_assign'; lanes: Lane[]; saveError: boolean }
+  | { kind: 'official'; id: string; text: string; invalid: boolean }
   // Picking which imported official result goes with a competition time (#974).
-  | { kind: "choose_official"; id: string; saveError: boolean }
-  | {
-      kind: "edit";
-      id: string;
-      stroke: StrokeCode;
-      athleteId: string | null;
-      distance: DistanceCode;
-      note: string;
-      confirmingDelete: boolean;
-      saveError: boolean;
-    }
-  | { kind: "deleted"; restoreError: boolean }
+  | { kind: 'choose_official'; id: string; saveError: boolean }
+  | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string | null; distance: DistanceCode; note: string; confirmingDelete: boolean; saveError: boolean }
+  | { kind: 'deleted'; restoreError: boolean }
   // One saved time with everything known about it (#1002).
-  | { kind: "detail"; id: string }
+  | { kind: 'detail'; id: string }
   // The video of a saved time (#1089); back goes to where it was opened.
-  | { kind: "time_video"; id: string; from: "list" | "detail" }
+  | { kind: 'time_video'; id: string; from: 'list' | 'detail' }
   // Sending a time with the other swimmer's code: `found` is the short name once the code was looked up.
-  | {
-      kind: "send";
-      id: string;
-      code: string;
-      found: string | null;
-      error: FamilyTransferErrorCode | null;
-      busy: boolean;
-    }
+  | { kind: 'send'; id: string; code: string; found: string | null; error: FamilyTransferErrorCode | null; busy: boolean; savedId?: string | null }
   // After sending a time with its video, or accepting one, the offer to share or link the video (#1201).
-  | {
-      kind: "video_offer";
-      offer: "share" | "link";
-      id: string;
-      name: string | null;
-    }
+  | { kind: 'video_offer'; offer: 'share' | 'link'; id: string; name: string | null }
   // The chosen video's name does not say it is this time's: of another time (it cannot be linked), or without the time's id.
-  | {
-      kind: "link_check";
-      id: string;
-      picked: PickedVideo;
-      result: "other" | "unknown";
-    };
+  | { kind: 'link_check'; id: string; picked: PickedVideo; result: 'other' | 'unknown' };
 
 // A deleted time is removed from the server this long after it was deleted.
 const KEEP_DELETED_DAYS = 30;
 
 type Filters = Record<FamilyFilterKey, string>;
-const noFilters: Filters = {
-  sessionType: "",
-  stroke: "",
-  distance: "",
-  pool: "",
-};
+const noFilters: Filters = { sessionType: '', stroke: '', distance: '', pool: '' };
 
 /**
  * The lap rows: each finished lap's own time and the total at its end. The last lap ends at the stop, so once stopped it is
  * a row too (null times stay null, never 0).
  */
-function lapRows(
-  splits: number[],
-  final: number | null,
-  hasLaps: boolean,
-): { lap: number | null; total: number | null }[] {
+function lapRows(splits: number[], final: number | null, hasLaps: boolean): { lap: number | null; total: number | null }[] {
   if (!hasLaps) return [];
-  const ends: (number | null)[] =
-    splits.length > 0 && final !== null ? [...splits, final] : [...splits];
+  const ends: (number | null)[] = splits.length > 0 && final !== null ? [...splits, final] : [...splits];
   return ends.map((total, index) => {
     const previous = index === 0 ? 0 : ends[index - 1];
-    return {
-      lap: total !== null && previous !== null ? total - previous : null,
-      total,
-    };
+    return { lap: total !== null && previous !== null ? total - previous : null, total };
   });
 }
 
 // `key` is the athlete and reload count it was read for: a read for another key is still loading.
 type Loaded =
-  | { status: "loading" }
-  | { status: "error"; key: string }
+  | { status: 'loading' }
+  | { status: 'error'; key: string }
   | {
-      status: "ready";
+      status: 'ready';
       key: string;
       measurements: FamilyMeasurement[];
       // Phone-only times the server rejected (#1025): not in `measurements`, they show beside them marked "No enviado".
@@ -315,105 +237,56 @@ type Loaded =
     };
 
 function seriesButtonsHint(startKey: number, keyboard: string | undefined) {
-  const keysLine = t("family_timing.series.buttons", {
-    start: keyName(startKey),
-  });
-  return keyboard
-    ? `${t("family_timing.stopwatch.buttons_device", { device: keyboard })} · ${keysLine}`
-    : keysLine;
+  const keysLine = t('family_timing.series.buttons', { start: keyName(startKey) });
+  return keyboard ? `${t('family_timing.stopwatch.buttons_device', { device: keyboard })} · ${keysLine}` : keysLine;
 }
 
-function buttonsHint(
-  startKey: number,
-  splitKey: number,
-  keyboard: string | undefined,
-) {
+function buttonsHint(startKey: number, splitKey: number, keyboard: string | undefined) {
   const keysLine =
     startKey === splitKey
-      ? t("family_timing.stopwatch.buttons_start_only", {
-          start: keyName(startKey),
-        })
-      : t("family_timing.stopwatch.buttons", {
-          start: keyName(startKey),
-          split: keyName(splitKey),
-        });
-  return keyboard
-    ? `${t("family_timing.stopwatch.buttons_device", { device: keyboard })} · ${keysLine}`
-    : keysLine;
+      ? t('family_timing.stopwatch.buttons_start_only', { start: keyName(startKey) })
+      : t('family_timing.stopwatch.buttons', { start: keyName(startKey), split: keyName(splitKey) });
+  return keyboard ? `${t('family_timing.stopwatch.buttons_device', { device: keyboard })} · ${keysLine}` : keysLine;
 }
 
 // "50 m libre": the title of a card.
-const shortEventLabel = (m: { stroke: string; distance: string }) =>
-  `${t(`sport.distance.${m.distance}`)} ${t(`sport.stroke.${m.stroke}`).toLowerCase()}`;
+const shortEventLabel = (m: { stroke: string; distance: string }) => `${t(`sport.distance.${m.distance}`)} ${t(`sport.stroke.${m.stroke}`).toLowerCase()}`;
 
 const eventLabel = (m: { stroke: string; distance: string; pool: string }) =>
   `${t(`sport.stroke.${m.stroke}`)} ${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
 
 // A series has one distance and pool; each swimmer's stroke is chosen after the arrivals.
-const seriesEventLabel = (m: { distance: string; pool: string }) =>
-  `${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
+const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.distance.${m.distance}`)} · ${t(`sport.pool.${m.pool}`)}`;
 
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
-  const {
-    Avatar,
-    userId,
-    athletes,
-    repository,
-    onBack,
-    imports,
-    sourceNames = {},
-    buttons = timingButton,
-    transfers,
-    shareCodes,
-    syncKey,
-    notice,
-    videoIntro,
-    videos,
-  } = props;
+  const { Avatar, userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, savedCodes, syncKey, notice, videoIntro, videos } =
+    props;
   const videoLibrary = props.videoLibrary ?? null;
   const videoSharing = (videos && videoLibrary && props.videoSharing) || null;
   // The video draws the stopwatch from the buttons' clock, so recording needs the native clock too.
-  const videoCamera =
-    props.videoCamera && buttons.available ? props.videoCamera : null;
+  const videoCamera = props.videoCamera && buttons.available ? props.videoCamera : null;
   const now = props.now ?? buttons.now;
   const { preferences } = usePreferences();
   const buttonPrefs = preferences.timingButtons;
   const precision = preferences.timePrecision;
-  const format = useCallback(
-    (millis: number | null) => formatMillis(millis, { precision }),
-    [precision],
-  );
+  const format = useCallback((millis: number | null) => formatMillis(millis, { precision }), [precision]);
   // The lap lines always show minutes ("0:18,40"), as decision 6 of the plan writes them.
-  const formatLap = useCallback(
-    (millis: number | null) =>
-      formatMillis(millis, { precision, alwaysShowMinutes: true }),
-    [precision],
-  );
+  const formatLap = useCallback((millis: number | null) => formatMillis(millis, { precision, alwaysShowMinutes: true }), [precision]);
 
   const [chosenId, setChosenId] = useState<string | null>(null);
-  const [read, setRead] = useState<Loaded>({ status: "loading" });
+  const [read, setRead] = useState<Loaded>({ status: 'loading' });
   const [reload, setReload] = useState(0);
   // How many times wait for a swimmer ("Sin asignar"); its chip shows only while there are some.
   const [unassignedCount, setUnassignedCount] = useState(0);
   const selectedId =
-    chosenId === UNASSIGNED && unassignedCount > 0
-      ? UNASSIGNED
-      : athletes.some((a) => a.id === chosenId)
-        ? chosenId
-        : (athletes[0]?.id ?? null);
+    chosenId === UNASSIGNED && unassignedCount > 0 ? UNASSIGNED : athletes.some((a) => a.id === chosenId) ? chosenId : (athletes[0]?.id ?? null);
   const key = `${selectedId}:${reload}`;
-  const loaded = useMemo<Loaded>(
-    () =>
-      read.status !== "loading" && read.key === key
-        ? read
-        : { status: "loading" },
-    [read, key],
-  );
-  const [step, setStep] = useState<Step>({ kind: "list" });
+  const loaded = useMemo<Loaded>(() => (read.status !== 'loading' && read.key === key ? read : { status: 'loading' }), [read, key]);
+  const [step, setStep] = useState<Step>({ kind: 'list' });
   // The phone bar shows only on the list: leaving a measurement, an edit or a send from it would lose it.
   useEffect(() => {
-    setFamilyTimingAtList(step.kind === "list");
+    setFamilyTimingAtList(step.kind === 'list');
   }, [step.kind]);
   useEffect(() => () => setFamilyTimingAtList(true), []);
   const [filters, setFilters] = useState<Filters>(noFilters);
@@ -436,63 +309,56 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     };
   }, [notice, userId]);
   const [setup, setSetup] = useState<Setup>(initialSetup);
-  const [stopwatch, setStopwatch] =
-    useState<FamilyStopwatch>(idleFamilyStopwatch);
-  const [series, setSeries] = useState<FamilySeries>(() =>
-    newFamilySeries(MIN_SWIMMERS),
-  );
+  const [stopwatch, setStopwatch] = useState<FamilyStopwatch>(idleFamilyStopwatch);
+  const [series, setSeries] = useState<FamilySeries>(() => newFamilySeries(MIN_SWIMMERS));
   const [tick, setTick] = useState(0);
   const saving = useRef(false);
   // The videos of this person's times on this phone: where each one is in the gallery (null: deleted from it) and where the clock started.
   // A video linked to a received time has no start offset (#1201): its player has no «Ir a la salida».
-  const [videoLinks, setVideoLinks] = useState<
-    Map<
-      string,
-      { assetId: string; uri: string | null; startOffsetMillis: number | null }
-    >
-  >(new Map());
-  const [videoNotice, setVideoNotice] = useState<{
-    step: Step;
-    kind: VideoNoticeKind;
-  } | null>(null);
+  const [videoLinks, setVideoLinks] = useState<Map<string, { assetId: string; uri: string | null; startOffsetMillis: number | null }>>(new Map());
+  const [videoNotice, setVideoNotice] = useState<{ step: Step; kind: VideoNoticeKind } | null>(null);
   const player = useRef<VideoPlayerHandle>(null);
   // The requests waiting for an answer: the ones this user sent, and the ones for the selected swimmer. Answered ones are hidden
   // at once (`settled`), before the sync brings the change.
   const [sent, setSent] = useState<FamilyTransfer[]>([]);
   const [received, setReceived] = useState<FamilyTransfer[]>([]);
   const [settled, setSettled] = useState<string[]>([]);
-  const [answerError, setAnswerError] =
-    useState<FamilyTransferErrorCode | null>(null);
+  const [answerError, setAnswerError] = useState<FamilyTransferErrorCode | null>(null);
   // The rejected time the person is asked to delete (#1025), and whether the last deletion failed.
   const [discarding, setDiscarding] = useState<string | null>(null);
   // The warning belongs to the view it appeared in: any other step (a new `step` object) or swimmer hides it.
-  const [discardFailed, setDiscardFailed] = useState<{
-    step: Step;
-    selectedId: string | null;
-  } | null>(null);
-  const discardError =
-    discardFailed?.step === step && discardFailed.selectedId === selectedId;
+  const [discardFailed, setDiscardFailed] = useState<{ step: Step; selectedId: string | null } | null>(null);
+  const discardError = discardFailed?.step === step && discardFailed.selectedId === selectedId;
+  // The codes kept from other families, read when sending; a removed one hides at once, before the sync takes it away.
+  const [kept, setKept] = useState<{ id: string; code: string; athleteShortName: string }[]>([]);
+  const [forgotten, setForgotten] = useState<string[]>([]);
+  const sending = step.kind === 'send';
+  useEffect(() => {
+    if (!sending || !savedCodes) return;
+    let current = true;
+    savedCodes
+      .list(userId)
+      .then((rows) => current && setKept(rows))
+      .catch(() => current && setKept([]));
+    return () => {
+      current = false;
+    };
+  }, [sending, savedCodes, userId, syncKey]);
+  const keptCodes = kept.filter((k) => !forgotten.includes(k.id));
 
   // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
   const laps = setup.pool ? lapsFor(setup.distance, setup.pool) : 1;
   const latestStopwatch = useRef(stopwatch);
   const latestSeries = useRef(series);
-  const timingSeries = step.kind === "series";
+  const timingSeries = step.kind === 'series';
   useEffect(() => {
     latestStopwatch.current = stopwatch;
     latestSeries.current = series;
   });
   const keys = useTimingButtons({
-    enabled: buttonPrefs.enabled && (step.kind === "stopwatch" || timingSeries),
-    config: {
-      startKey: buttonPrefs.startKey,
-      splitKey: buttonPrefs.splitKey,
-      lockoutNanos: nanosFromSeconds(buttonPrefs.lockoutSeconds),
-    },
-    target: () =>
-      timingSeries
-        ? seriesTargetOf(latestSeries.current)
-        : targetOf(latestStopwatch.current),
+    enabled: buttonPrefs.enabled && (step.kind === 'stopwatch' || timingSeries),
+    config: { startKey: buttonPrefs.startKey, splitKey: buttonPrefs.splitKey, lockoutNanos: nanosFromSeconds(buttonPrefs.lockoutSeconds) },
+    target: () => (timingSeries ? seriesTargetOf(latestSeries.current) : targetOf(latestStopwatch.current)),
     decide: timingSeries ? seriesDecide : undefined,
     vibrate: buttonPrefs.vibrate,
     port: buttons,
@@ -503,12 +369,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         return;
       }
       const sw = latestStopwatch.current;
-      latestStopwatch.current =
-        action === "start"
-          ? startAt(sw, at)
-          : action === "split"
-            ? splitAt(sw, at, laps)
-            : stopAt(sw, at);
+      latestStopwatch.current = action === 'start' ? startAt(sw, at) : action === 'split' ? splitAt(sw, at, laps) : stopAt(sw, at);
       setStopwatch(latestStopwatch.current);
     },
   });
@@ -519,29 +380,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     const readKey = `${selectedId}:${reload}`;
     const athleteId = selectedId === UNASSIGNED ? null : selectedId;
     // An unreadable import list only hides the imported official values; the guardian's own times still show.
-    const officialRead =
-      imports && athleteId
-        ? imports.listByAthlete(athleteId).catch(() => [])
-        : Promise.resolve([]);
-    Promise.all([
-      repository.listByAthlete(athleteId),
-      repository.listRejected(userId, athleteId),
-      repository.listDeleted(athleteId),
-      officialRead,
-    ])
-      .then(
-        ([measurements, rejected, deleted, imported]) =>
-          active &&
-          setRead({
-            status: "ready",
-            key: readKey,
-            measurements,
-            rejected,
-            deleted,
-            imported,
-          }),
-      )
-      .catch(() => active && setRead({ status: "error", key: readKey }));
+    const officialRead = imports && athleteId ? imports.listByAthlete(athleteId).catch(() => []) : Promise.resolve([]);
+    Promise.all([repository.listByAthlete(athleteId), repository.listRejected(userId, athleteId), repository.listDeleted(athleteId), officialRead])
+      .then(([measurements, rejected, deleted, imported]) => active && setRead({ status: 'ready', key: readKey, measurements, rejected, deleted, imported }))
+      .catch(() => active && setRead({ status: 'error', key: readKey }));
     return () => {
       active = false;
     };
@@ -551,13 +393,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     if (!transfers) return;
     let active = true;
     const at = new Date().toISOString();
-    const athleteId =
-      selectedId && selectedId !== UNASSIGNED ? selectedId : null;
+    const athleteId = selectedId && selectedId !== UNASSIGNED ? selectedId : null;
     // Unreadable requests only hide them; the times still show.
-    Promise.all([
-      transfers.listSent(userId, at),
-      athleteId ? transfers.listReceived(athleteId, at) : Promise.resolve([]),
-    ])
+    Promise.all([transfers.listSent(userId, at), athleteId ? transfers.listReceived(athleteId, at) : Promise.resolve([])])
       .then(([mine, theirs]) => {
         if (!active) return;
         setSent(mine);
@@ -572,14 +410,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   useEffect(() => {
     let active = true;
     // An unreadable count only hides the chip; the swimmers' own times still show.
-    Promise.all([
-      repository.listByAthlete(null),
-      repository.listRejected(userId, null),
-    ])
-      .then(
-        ([times, rejected]) =>
-          active && setUnassignedCount(times.length + rejected.length),
-      )
+    Promise.all([repository.listByAthlete(null), repository.listRejected(userId, null)])
+      .then(([times, rejected]) => active && setUnassignedCount(times.length + rejected.length))
       .catch(() => {});
     return () => {
       active = false;
@@ -587,9 +419,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   }, [repository, userId, reload, syncKey]);
 
   // The screen stays awake and the time refreshes while the stopwatch runs.
-  const running =
-    stopwatch.status === "running" ||
-    (step.kind === "series" && seriesStatus(series) === "running");
+  const running = stopwatch.status === 'running' || (step.kind === 'series' && seriesStatus(series) === 'running');
   useEffect(() => {
     if (!running) return;
     activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
@@ -606,19 +436,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     videos
       .listByUser(userId)
       .then((linked) =>
-        Promise.all(
-          linked.map(
-            async (v) =>
-              [
-                v.measurementId,
-                {
-                  assetId: v.assetId,
-                  uri: await videoLibrary.uriOf(v.assetId),
-                  startOffsetMillis: v.startOffsetMillis,
-                },
-              ] as const,
-          ),
-        ),
+        Promise.all(linked.map(async (v) => [v.measurementId, { assetId: v.assetId, uri: await videoLibrary.uriOf(v.assetId), startOffsetMillis: v.startOffsetMillis }] as const)),
       )
       .then((entries) => active && setVideoLinks(new Map(entries)))
       // Unreadable links only hide «Ver video»; the times still show.
@@ -629,45 +447,29 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   }, [videos, videoLibrary, userId, reload, syncKey]);
 
   const sentByMeasurement = useMemo(
-    () =>
-      new Map(
-        sent
-          .filter((t) => !settled.includes(t.id))
-          .map((t) => [t.measurementId, t]),
-      ),
+    () => new Map(sent.filter((t) => !settled.includes(t.id)).map((t) => [t.measurementId, t])),
     [sent, settled],
   );
   const cardOf = useCallback(
     (m: FamilyMeasurement, match: OfficialMatch | undefined): FamilyCard => {
       const day = localDay(m.capturedAt);
-      const date = formatDate(day, "short") ?? day;
+      const date = formatDate(day, 'short') ?? day;
       const type = t(`family_timing.session_type.${m.sessionType}`);
       const at = new Date(m.capturedAt);
-      const clock = `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+      const clock = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
       const nowMs = Date.now();
-      const age =
-        day === localDay(new Date(nowMs).toISOString())
-          ? "today"
-          : nowMs - at.getTime() < WEEK_MS
-            ? "week"
-            : "earlier";
+      const age = day === localDay(new Date(nowMs).toISOString()) ? 'today' : nowMs - at.getTime() < WEEK_MS ? 'week' : 'earlier';
       const value = match?.value ?? null;
-      const organization =
-        value?.kind === "imported" ? sourceNames[value.provider] : undefined;
+      const organization = value?.kind === 'imported' ? sourceNames[value.provider] : undefined;
       // An imported time was published in hundredths: it is shown as published, never padded to thousandths.
       const official =
-        value?.kind === "imported"
+        value?.kind === 'imported'
           ? {
-              label: organization
-                ? t("family_timing.card.official_imported", { organization })
-                : t("family_timing.card.official_imported_generic"),
+              label: organization ? t('family_timing.card.official_imported', { organization }) : t('family_timing.card.official_imported_generic'),
               time: formatTime(value.hundredths),
             }
-          : value?.kind === "manual"
-            ? {
-                label: t("family_timing.card.official_manual"),
-                time: format(value.millis),
-              }
+          : value?.kind === 'manual'
+            ? { label: t('family_timing.card.official_manual'), time: format(value.millis) }
             : null;
       return {
         id: m.id,
@@ -681,89 +483,53 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         subtitle: [
           // A time without a swimmer leads with its note: whose time it is.
           m.athleteId === null ? m.note : null,
-          age === "today" ? clock : date,
+          age === 'today' ? clock : date,
           t(`family_timing.card.type_short.${m.sessionType}`),
-          `${pools.find((pool) => pool.code === m.pool)?.lengthMeters ?? ""} m`,
-          m.splits.length > 0
-            ? t("family_timing.card.lengths", { count: m.splits.length + 1 })
-            : null,
+          `${pools.find((pool) => pool.code === m.pool)?.lengthMeters ?? ''} m`,
+          m.splits.length > 0 ? t('family_timing.card.lengths', { count: m.splits.length + 1 }) : null,
         ]
           .filter(Boolean)
-          .join(" · "),
+          .join(' · '),
         age,
         event: eventLabel(m),
-        detail: [date, type, m.competition].filter(Boolean).join(" · "),
+        detail: [date, type, m.competition].filter(Boolean).join(' · '),
         captured: format(m.millis),
         capturedIsHistory: official !== null,
         official,
-        splitsLabel:
-          m.splits.length > 0
-            ? t("family_timing.card.splits", { count: m.splits.length + 1 })
-            : null,
-        canSetOfficial:
-          m.sessionType === "competition" && value?.kind !== "imported",
-        officialChoice:
-          match && match.choices.length > 0
-            ? match.chosen
-              ? "change"
-              : "choose"
-            : null,
+        splitsLabel: m.splits.length > 0 ? t('family_timing.card.splits', { count: m.splits.length + 1 }) : null,
+        canSetOfficial: m.sessionType === 'competition' && value?.kind !== 'imported',
+        officialChoice: match && match.choices.length > 0 ? (match.chosen ? 'change' : 'choose') : null,
         hasManualOfficial: m.officialMillis !== null,
         unassigned: m.athleteId === null,
         note: m.athleteId === null ? (m.note ?? null) : null,
         sentTo: sentByMeasurement.get(m.id)?.athleteShortName ?? null,
-        video: videoLinks.has(m.id)
-          ? videoLinks.get(m.id)!.uri
-            ? "available"
-            : "missing"
-          : null,
+        video: videoLinks.has(m.id) ? (videoLinks.get(m.id)!.uri ? 'available' : 'missing') : null,
         canShareVideo: !!videoSharing && !!videoLinks.get(m.id)?.uri,
         // A time someone else measured came from another family (#973): its video can be linked from what they sent.
-        canLinkVideo:
-          !!videoSharing &&
-          m.createdBy !== userId &&
-          !videoLinks.get(m.id)?.uri,
+        canLinkVideo: !!videoSharing && m.createdBy !== userId && !videoLinks.get(m.id)?.uri,
       };
     },
     [format, sourceNames, sentByMeasurement, videoLinks, videoSharing, userId],
   );
   // Which imported official result goes with each time: worked out over all the swimmer's times, so each result goes with one.
   const matches = useMemo(
-    () =>
-      loaded.status === "ready"
-        ? officialMatches(loaded.measurements, loaded.imported)
-        : new Map<string, OfficialMatch>(),
+    () => (loaded.status === 'ready' ? officialMatches(loaded.measurements, loaded.imported) : new Map<string, OfficialMatch>()),
     [loaded],
   );
   // The synced times and the rejected phone-only ones, newest first. A rejected time takes no part in the best time nor in the official one.
   const everyTime = useMemo(
     () =>
-      loaded.status === "ready"
-        ? [...loaded.measurements, ...loaded.rejected].sort(
-            (a, b) =>
-              b.capturedAt.localeCompare(a.capturedAt) ||
-              b.id.localeCompare(a.id),
-          )
+      loaded.status === 'ready'
+        ? [...loaded.measurements, ...loaded.rejected].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.id.localeCompare(a.id))
         : [],
     [loaded],
   );
-  const rejectedIds = useMemo(
-    () =>
-      new Set(
-        loaded.status === "ready" ? loaded.rejected.map((m) => m.id) : [],
-      ),
-    [loaded],
-  );
+  const rejectedIds = useMemo(() => new Set(loaded.status === 'ready' ? loaded.rejected.map((m) => m.id) : []), [loaded]);
   const cards = useMemo<FamilyCard[]>(
     () =>
       everyTime.map((m) =>
         rejectedIds.has(m.id)
-          ? {
-              ...cardOf(m, undefined),
-              canSetOfficial: false,
-              notSent: true,
-              canDiscard: true,
-            }
+          ? { ...cardOf(m, undefined), canSetOfficial: false, notSent: true, canDiscard: true }
           : cardOf(m, matches.get(m.id)),
       ),
     [everyTime, rejectedIds, cardOf, matches],
@@ -773,109 +539,62 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     FAMILY_MEASUREMENTS_TABLE,
     useMemo(() => everyTime.map((m) => m.id), [everyTime]),
   );
-  const withSync = (card: FamilyCard): FamilyCard =>
-    syncStates.get(card.id) === "not_sent" ? { ...card, notSent: true } : card;
+  const withSync = (card: FamilyCard): FamilyCard => (syncStates.get(card.id) === 'not_sent' ? { ...card, notSent: true } : card);
   // The list: the times that pass the filters, with the best of each event marked. The official time, when there is one, is the record.
   const listed = useMemo(() => {
-    if (loaded.status !== "ready")
-      return { cards: [], filters: null, filtered: false };
+    if (loaded.status !== 'ready') return { cards: [], filters: null, filtered: false };
     const all = everyTime;
     // A chosen stroke, distance or pool that none of this swimmer's times has (another swimmer, a deleted time) counts as
     // "all": its chip is not offered, so the person could not clear it and would be left on an empty list.
     const active = Object.fromEntries(
-      (Object.keys(filters) as FamilyFilterKey[]).map((key) => [
-        key,
-        key === "sessionType" || all.some((m) => m[key] === filters[key])
-          ? filters[key]
-          : "",
-      ]),
+      (Object.keys(filters) as FamilyFilterKey[]).map((key) => [key, key === 'sessionType' || all.some((m) => m[key] === filters[key]) ? filters[key] : '']),
     ) as Filters;
-    const shown = all.filter((m) =>
-      (Object.keys(active) as FamilyFilterKey[]).every(
-        (key) => !active[key] || m[key] === active[key],
-      ),
-    );
+    const shown = all.filter((m) => (Object.keys(active) as FamilyFilterKey[]).every((key) => !active[key] || m[key] === active[key]));
     const best = bestTimeIds(
-      shown
-        .filter((m) => !rejectedIds.has(m.id))
-        .map((m) => {
-          const value = matches.get(m.id)?.value ?? null;
-          const time =
-            value?.kind === "imported"
-              ? value.hundredths * 10
-              : value?.kind === "manual"
-                ? value.millis
-                : m.millis;
-          return {
-            id: m.id,
-            stroke: m.stroke,
-            distance: m.distance,
-            pool: m.pool,
-            capturedAt: m.capturedAt,
-            time,
-          };
-        }),
+      shown.filter((m) => !rejectedIds.has(m.id)).map((m) => {
+        const value = matches.get(m.id)?.value ?? null;
+        const time = value?.kind === 'imported' ? value.hundredths * 10 : value?.kind === 'manual' ? value.millis : m.millis;
+        return { id: m.id, stroke: m.stroke, distance: m.distance, pool: m.pool, capturedAt: m.capturedAt, time };
+      }),
     );
     const byId = new Map(cards.map((c) => [c.id, c]));
-    const present = (
-      key: "stroke" | "distance" | "pool",
-      catalog: readonly { code: string; nameKey: string }[],
-    ) => ({
+    const present = (key: 'stroke' | 'distance' | 'pool', catalog: readonly { code: string; nameKey: string }[]) => ({
       options: [
-        { value: "", label: t("family_timing.filters.all") },
-        ...catalog
-          .filter((entry) => all.some((m) => m[key] === entry.code))
-          .map((entry) => ({ value: entry.code, label: t(entry.nameKey) })),
+        { value: '', label: t('family_timing.filters.all') },
+        ...catalog.filter((entry) => all.some((m) => m[key] === entry.code)).map((entry) => ({ value: entry.code, label: t(entry.nameKey) })),
       ],
       value: active[key],
     });
     const view: FamilyFiltersView = {
       sessionType: {
         options: [
-          { value: "", label: t("family_timing.filters.all_types") },
-          { value: "training", label: t("family_timing.filters.training") },
-          {
-            value: "competition",
-            label: t("family_timing.filters.competition"),
-          },
+          { value: '', label: t('family_timing.filters.all_types') },
+          { value: 'training', label: t('family_timing.filters.training') },
+          { value: 'competition', label: t('family_timing.filters.competition') },
         ],
         value: active.sessionType,
       },
-      stroke: present("stroke", strokes),
-      distance: present("distance", distances),
-      pool: present("pool", pools),
+      stroke: present('stroke', strokes),
+      distance: present('distance', distances),
+      pool: present('pool', pools),
     };
     return {
       cards: shown.flatMap((m) => {
         const card = byId.get(m.id);
-        return card
-          ? [
-              {
-                ...card,
-                notSent: card.notSent || syncStates.get(card.id) === "not_sent",
-                isBest: best.has(m.id),
-              },
-            ]
-          : [];
+        return card ? [{ ...card, notSent: card.notSent || syncStates.get(card.id) === 'not_sent', isBest: best.has(m.id) }] : [];
       }),
       filters: all.length > 0 ? view : null,
       filtered: Object.values(active).some(Boolean),
     };
   }, [loaded, everyTime, rejectedIds, cards, filters, matches, syncStates]);
   const deletedCards = useMemo<FamilyDeletedCard[]>(() => {
-    if (loaded.status !== "ready") return [];
+    if (loaded.status !== 'ready') return [];
     return loaded.deleted.map((m) => {
-      const removed = new Date(
-        Date.parse(m.deletedAt ?? m.capturedAt) +
-          KEEP_DELETED_DAYS * 86_400_000,
-      ).toISOString();
+      const removed = new Date(Date.parse(m.deletedAt ?? m.capturedAt) + KEEP_DELETED_DAYS * 86_400_000).toISOString();
       const day = localDay(removed);
       // A deleted time takes no part in the choice: it shows its official value and offers nothing to pick.
       const match = officialMatches([m], loaded.imported).get(m.id);
-      return {
-        ...cardOf(m, match && { ...match, choices: [] }),
-        removedOn: formatDate(day, "short") ?? day,
-      };
+      return { ...cardOf(m, match && { ...match, choices: [] }), removedOn: formatDate(day, 'short') ?? day };
     });
   }, [loaded, cardOf]);
   // A request for the selected swimmer: the time as the other family sent it.
@@ -886,56 +605,24 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       return {
         id: r.id,
         event: eventLabel(r),
-        detail: [
-          formatDate(day, "short") ?? day,
-          t(`family_timing.session_type.${r.sessionType}`),
-          r.competition,
-        ]
-          .filter(Boolean)
-          .join(" · "),
+        detail: [formatDate(day, 'short') ?? day, t(`family_timing.session_type.${r.sessionType}`), r.competition].filter(Boolean).join(' · '),
         captured: format(r.millis),
-        splitsLabel:
-          r.splits.length > 0
-            ? t("family_timing.card.splits", { count: r.splits.length + 1 })
-            : null,
+        splitsLabel: r.splits.length > 0 ? t('family_timing.card.splits', { count: r.splits.length + 1 }) : null,
       };
     });
   // Everything known about one time: who swam it, when, the session, and each lap from the stored cumulative splits.
-  const detailOf = (
-    card: FamilyCard,
-    m: FamilyMeasurement,
-  ): FamilyDetailView => {
+  const detailOf = (card: FamilyCard, m: FamilyMeasurement): FamilyDetailView => {
     const day = localDay(m.capturedAt);
     const at = new Date(m.capturedAt);
-    const clock = `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+    const clock = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
     const athlete = athletes.find((a) => a.id === m.athleteId);
     const rows = [
-      {
-        label: t("family_timing.detail.athlete"),
-        value: athlete
-          ? [athlete.firstName, athlete.lastName].filter(Boolean).join(" ")
-          : t("family_timing.unassigned"),
-      },
-      ...(!athlete && m.note
-        ? [{ label: t("family_timing.detail.note"), value: m.note }]
-        : []),
-      {
-        label: t("family_timing.detail.when"),
-        value: `${formatDate(day, "long") ?? day} · ${clock}`,
-      },
-      {
-        label: t("family_timing.detail.session"),
-        value: t(`family_timing.session_type.${m.sessionType}`),
-      },
-      ...(m.competition
-        ? [
-            {
-              label: t("family_timing.detail.competition"),
-              value: m.competition,
-            },
-          ]
-        : []),
-      { label: t("family_timing.detail.event"), value: eventLabel(m) },
+      { label: t('family_timing.detail.athlete'), value: athlete ? [athlete.firstName, athlete.lastName].filter(Boolean).join(' ') : t('family_timing.unassigned') },
+      ...(!athlete && m.note ? [{ label: t('family_timing.detail.note'), value: m.note }] : []),
+      { label: t('family_timing.detail.when'), value: `${formatDate(day, 'long') ?? day} · ${clock}` },
+      { label: t('family_timing.detail.session'), value: t(`family_timing.session_type.${m.sessionType}`) },
+      ...(m.competition ? [{ label: t('family_timing.detail.competition'), value: m.competition }] : []),
+      { label: t('family_timing.detail.event'), value: eventLabel(m) },
     ];
     const raw = lapRows(m.splits, m.millis, m.splits.length > 0);
     const meters = lapMeters(m.distance, m.pool, raw.length);
@@ -952,50 +639,36 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       const max = Math.max(...values);
       const min = Math.min(...values);
       const index = values.indexOf(max);
-      const digits = precision === "thousandths" ? 3 : 2;
+      const digits = precision === 'thousandths' ? 3 : 2;
       slowest =
         max > min
-          ? t("family_timing.detail.slowest", {
-              number: index + 1,
-              diff: ((max - min) / 1000).toFixed(digits).replace(".", ","),
-            })
+          ? t('family_timing.detail.slowest', { number: index + 1, diff: ((max - min) / 1000).toFixed(digits).replace('.', ',') })
           : null;
     }
     return {
       card,
       rows,
       laps,
-      when: `${formatDate(day, "short") ?? day} · ${clock}`,
+      when: `${formatDate(day, 'short') ?? day} · ${clock}`,
       session: t(`family_timing.session_type.${m.sessionType}`),
-      lapsSummary:
-        raw.length > 0
-          ? t("family_timing.detail.laps_summary", {
-              count: raw.length,
-              distance: t(`sport.distance.${m.distance}`),
-            })
-          : null,
+      lapsSummary: raw.length > 0 ? t('family_timing.detail.laps_summary', { count: raw.length, distance: t(`sport.distance.${m.distance}`) }) : null,
       slowest,
       athleteId: m.athleteId,
     };
   };
   const listView = (): FamilyTimingView => ({
-    kind: "list",
+    kind: 'list',
     cards: listed.cards,
     deletedCount: deletedCards.length,
     filters: listed.filters,
     filtered: listed.filtered,
     showNotice,
     received: receivedCards,
-    transferError: answerError
-      ? t(`family_timing.transfer.error.${answerError}`)
-      : null,
+    transferError: answerError ? t(`family_timing.transfer.error.${answerError}`) : null,
   });
 
   // Answers a request (or withdraws one); it leaves the screen at once, and the sync brings the moved time.
-  async function answer(
-    id: string,
-    write: (id: string) => Promise<void>,
-  ): Promise<boolean> {
+  async function answer(id: string, write: (id: string) => Promise<void>): Promise<boolean> {
     if (saving.current) return false;
     saving.current = true;
     setAnswerError(null);
@@ -1005,9 +678,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       setReload((n) => n + 1);
       return true;
     } catch (error) {
-      setAnswerError(
-        error instanceof FamilyTransferError ? error.code : "failed",
-      );
+      setAnswerError(error instanceof FamilyTransferError ? error.code : 'failed');
       return false;
     } finally {
       saving.current = false;
@@ -1015,55 +686,29 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   }
 
   async function lookUpCode() {
-    if (step.kind !== "send" || !shareCodes || !step.code.trim()) return;
+    if (step.kind !== 'send' || !shareCodes || !step.code.trim()) return;
     setStep({ ...step, busy: true, error: null, found: null });
     try {
       const name = await shareCodes.find(step.code.trim());
-      setStep((s) =>
-        s.kind === "send"
-          ? {
-              ...s,
-              busy: false,
-              found: name,
-              error: name ? null : "unknown_code",
-            }
-          : s,
-      );
+      setStep((s) => (s.kind === 'send' ? { ...s, busy: false, found: name, error: name ? null : 'unknown_code' } : s));
     } catch (error) {
-      const code: FamilyTransferErrorCode =
-        error instanceof Error && error.name === "TooManyShareCodeLookupsError"
-          ? "too_many_attempts"
-          : "failed";
-      setStep((s) =>
-        s.kind === "send" ? { ...s, busy: false, error: code } : s,
-      );
+      const code: FamilyTransferErrorCode = error instanceof Error && error.name === 'TooManyShareCodeLookupsError' ? 'too_many_attempts' : 'failed';
+      setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
     }
   }
 
   async function sendTime() {
-    if (step.kind !== "send" || !transfers || !step.found || saving.current)
-      return;
+    if (step.kind !== 'send' || !transfers || !step.found || saving.current) return;
     saving.current = true;
     setStep({ ...step, busy: true, error: null });
     try {
       await transfers.send(step.id, step.code.trim());
       // With its video on this phone, the time's video can go to the same family now, before the time leaves this account.
-      setStep(
-        videoSharing && videoLinks.get(step.id)?.uri
-          ? {
-              kind: "video_offer",
-              offer: "share",
-              id: step.id,
-              name: step.found,
-            }
-          : { kind: "list" },
-      );
+      setStep(videoSharing && videoLinks.get(step.id)?.uri ? { kind: 'video_offer', offer: 'share', id: step.id, name: step.found } : { kind: 'list' });
       setReload((n) => n + 1);
     } catch (error) {
-      const code = error instanceof FamilyTransferError ? error.code : "failed";
-      setStep((s) =>
-        s.kind === "send" ? { ...s, busy: false, error: code } : s,
-      );
+      const code = error instanceof FamilyTransferError ? error.code : 'failed';
+      setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
     } finally {
       saving.current = false;
     }
@@ -1074,15 +719,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     const link = videoLinks.get(id);
     if (!videoSharing || !link?.uri) return;
     const from = step;
-    const next: Step = from.kind === "video_offer" ? { kind: "list" } : from;
-    if (
-      await videoSharing.share(
-        link.assetId,
-        t("family_timing.video_share.chooser"),
-      )
-    ) {
+    const next: Step = from.kind === 'video_offer' ? { kind: 'list' } : from;
+    if (await videoSharing.share(link.assetId, t('family_timing.video_share.chooser'))) {
       if (next !== from) setStep(next);
-    } else setVideoNotice({ step: from, kind: "share_failed" });
+    } else setVideoNotice({ step: from, kind: 'share_failed' });
   }
 
   // The person chooses the video they received; it is linked only when its name says it is this time's, or they confirm.
@@ -1092,55 +732,40 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     const picked = await videoSharing.pick();
     if (!picked) return;
     const result = videoMatchesTime(picked.name, id);
-    if (result === "same") await adoptVideo(id, picked, from);
-    else setStep({ kind: "link_check", id, picked, result });
+    if (result === 'same') await adoptVideo(id, picked, from);
+    else setStep({ kind: 'link_check', id, picked, result });
   }
 
   async function adoptVideo(id: string, picked: PickedVideo, from: Step) {
     if (!videoSharing || !videos || saving.current) return;
     saving.current = true;
     try {
-      const { assetId, originalRemoved } = await videoSharing.adopt(
-        picked,
-        videoName(id),
-      );
-      await videos.link(userId, {
-        measurementId: id,
-        assetId,
-        startOffsetMillis: null,
-      });
-      const next: Step = everyTime.some((m) => m.id === id)
-        ? { kind: "detail", id }
-        : { kind: "list" };
+      const { assetId, originalRemoved } = await videoSharing.adopt(picked, videoName(id));
+      await videos.link(userId, { measurementId: id, assetId, startOffsetMillis: null });
+      const next: Step = everyTime.some((m) => m.id === id) ? { kind: 'detail', id } : { kind: 'list' };
       setStep(next);
-      setVideoNotice({
-        step: next,
-        kind: originalRemoved ? "linked" : "linked_original_kept",
-      });
+      setVideoNotice({ step: next, kind: originalRemoved ? 'linked' : 'linked_original_kept' });
       setReload((n) => n + 1);
     } catch {
-      setVideoNotice({ step: from, kind: "link_failed" });
+      setVideoNotice({ step: from, kind: 'link_failed' });
     } finally {
       saving.current = false;
     }
   }
 
   const goToList = () => {
-    setStep({ kind: "list" });
+    setStep({ kind: 'list' });
     setStopwatch(idleFamilyStopwatch);
     setSeries(newFamilySeries(setup.swimmers));
   };
 
   async function saveSeries() {
-    if (saving.current || step.kind !== "series_assign" || !setup.pool) return;
+    if (saving.current || step.kind !== 'series_assign' || !setup.pool) return;
     saving.current = true;
     const pool = setup.pool;
     const times = arrivalMillis(series);
     const capturedAt = new Date().toISOString();
-    const competition =
-      setup.sessionType === "competition" && setup.competition.trim()
-        ? setup.competition.trim()
-        : null;
+    const competition = setup.sessionType === 'competition' && setup.competition.trim() ? setup.competition.trim() : null;
     const measurements: FamilyMeasurement[] = step.lanes.map((lane, index) => ({
       id: randomUUID(),
       athleteId: lane.athleteId,
@@ -1169,7 +794,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
 
   // The time as the stopwatch measured it, ready for Mis tiempos; the same with or without video.
   const measurementOf = (sw: FamilyStopwatch): FamilyMeasurement | null =>
-    sw.status !== "stopped" || !setup.pool
+    sw.status !== 'stopped' || !setup.pool
       ? null
       : {
           id: randomUUID(),
@@ -1179,10 +804,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           distance: setup.distance,
           pool: setup.pool,
           sessionType: setup.sessionType,
-          competition:
-            setup.sessionType === "competition" && setup.competition.trim()
-              ? setup.competition.trim()
-              : null,
+          competition: setup.sessionType === 'competition' && setup.competition.trim() ? setup.competition.trim() : null,
           capturedAt: new Date().toISOString(),
           millis: finalMillis(sw),
           splits: splitMillis(sw),
@@ -1192,17 +814,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         };
 
   // After saving, the list shows where the time went: its swimmer, or "Sin asignar".
-  const showSaved = (measurement: FamilyMeasurement) =>
-    setChosenId(measurement.athleteId ?? UNASSIGNED);
+  const showSaved = (measurement: FamilyMeasurement) => setChosenId(measurement.athleteId ?? UNASSIGNED);
 
   async function save() {
-    if (
-      saving.current ||
-      stopwatch.status !== "stopped" ||
-      !selectedId ||
-      !setup.pool
-    )
-      return;
+    if (saving.current || stopwatch.status !== 'stopped' || !selectedId || !setup.pool) return;
     const measurement = measurementOf(stopwatch);
     if (!measurement) return;
     saving.current = true;
@@ -1212,7 +827,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       goToList();
       setReload((n) => n + 1);
     } catch {
-      setStep({ kind: "stopwatch", saveError: true });
+      setStep({ kind: 'stopwatch', saveError: true });
     } finally {
       saving.current = false;
     }
@@ -1221,19 +836,15 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   async function writeOfficial(id: string, millis: number | null) {
     try {
       await repository.setOfficial(id, millis, new Date().toISOString());
-      setStep({ kind: "list" });
+      setStep({ kind: 'list' });
       setReload((n) => n + 1);
     } catch {
-      setRead({ status: "error", key });
-      setStep({ kind: "list" });
+      setRead({ status: 'error', key });
+      setStep({ kind: 'list' });
     }
   }
 
-  async function change(
-    write: () => Promise<void>,
-    onError: () => void,
-    next: Step = { kind: "list" },
-  ) {
+  async function change(write: () => Promise<void>, onError: () => void, next: Step = { kind: 'list' }) {
     if (saving.current) return;
     saving.current = true;
     try {
@@ -1249,182 +860,97 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
 
   const athleteOptions: ChipRowOption<string>[] = athletes.map((a) => {
     const { shortName, initials, color } = athleteDisplay(a);
-    return {
-      value: a.id,
-      label: shortName,
-      dot: {
-        initials,
-        color,
-        avatar: Avatar && (
-          <Avatar
-            athleteId={a.id}
-            initials={initials}
-            color={color}
-            size="sm"
-          />
-        ),
-      },
-    };
+    return { value: a.id, label: shortName, dot: { initials, color, avatar: Avatar && <Avatar athleteId={a.id} initials={initials} color={color} size="sm" /> } };
   });
-  const unassignedOption: ChipRowOption<string> = {
-    value: UNASSIGNED,
-    label: t("family_timing.unassigned"),
-  };
-  const chips =
-    unassignedCount > 0
-      ? [...athleteOptions, unassignedOption]
-      : athleteOptions;
+  const unassignedOption: ChipRowOption<string> = { value: UNASSIGNED, label: t('family_timing.unassigned') };
+  const chips = unassignedCount > 0 ? [...athleteOptions, unassignedOption] : athleteOptions;
 
-  const option = (code: string, nameKey: string) => ({
-    value: code,
-    label: t(nameKey),
-  });
+  const option = (code: string, nameKey: string) => ({ value: code, label: t(nameKey) });
   let view: FamilyTimingView;
-  if (athletes.length === 0) view = { kind: "no_athletes" };
-  else if (step.kind === "setup")
+  if (athletes.length === 0) view = { kind: 'no_athletes' };
+  else if (step.kind === 'setup')
     view = {
-      kind: "setup",
+      kind: 'setup',
       setup: {
         mode: {
-          options: (["individual", "series"] as const).map((mode) => ({
-            value: mode,
-            label: t(`family_timing.setup.mode_${mode}`),
-          })),
+          options: (['individual', 'series'] as const).map((mode) => ({ value: mode, label: t(`family_timing.setup.mode_${mode}`) })),
           value: setup.mode,
         },
-        swimmers: {
-          options: swimmerCounts.map((n) => ({ value: n, label: n })),
-          value: String(setup.swimmers),
-        },
-        stroke: {
-          options: strokes.map((s) => option(s.code, s.nameKey)),
-          value: setup.stroke,
-        },
-        distance: {
-          options: distances.map((d) => option(d.code, d.nameKey)),
-          value: setup.distance,
-        },
-        pool: {
-          options: pools.map((p) => option(p.code, p.nameKey)),
-          value: setup.pool ?? "",
-        },
+        swimmers: { options: swimmerCounts.map((n) => ({ value: n, label: n })), value: String(setup.swimmers) },
+        stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: setup.stroke },
+        distance: { options: distances.map((d) => option(d.code, d.nameKey)), value: setup.distance },
+        pool: { options: pools.map((p) => option(p.code, p.nameKey)), value: setup.pool ?? '' },
         sessionType: {
-          options: (["training", "competition"] as const).map((type) => ({
-            value: type,
-            label: t(`family_timing.session_type.${type}`),
-          })),
+          options: (['training', 'competition'] as const).map((type) => ({ value: type, label: t(`family_timing.session_type.${type}`) })),
           value: setup.sessionType,
         },
         competition: setup.competition,
         // Individual mode only: a series gives each lane its swimmer after the arrivals.
-        athlete: {
-          options: [...athleteOptions, unassignedOption],
-          value: setup.athleteId ?? UNASSIGNED,
-        },
+        athlete: { options: [...athleteOptions, unassignedOption], value: setup.athleteId ?? UNASSIGNED },
         note: setup.athleteId === null ? setup.note : null,
       },
     };
-  else if (step.kind === "stopwatch") {
+  else if (step.kind === 'stopwatch') {
     void tick;
     const elapsed = elapsedMillisAt(stopwatch, now());
     view = {
-      kind: "stopwatch",
+      kind: 'stopwatch',
       saveError: step.saveError,
       stopwatch: {
         status: stopwatch.status,
-        time: stopwatch.status === "idle" ? format(0) : format(elapsed),
-        laps: lapRows(
-          splitMillis(stopwatch),
-          finalMillis(stopwatch),
-          laps > 1,
-        ).map(({ lap, total }) => ({
-          lap: formatLap(lap),
-          total: formatLap(total),
-        })),
+        time: stopwatch.status === 'idle' ? format(0) : format(elapsed),
+        laps: lapRows(splitMillis(stopwatch), finalMillis(stopwatch), laps > 1).map(({ lap, total }) => ({ lap: formatLap(lap), total: formatLap(total) })),
         lapProgress:
-          laps > 1 && stopwatch.status === "running"
-            ? t("family_timing.stopwatch.lap_progress", {
-                current: stopwatch.splitMarks.length + 1,
-                total: laps,
-              })
+          laps > 1 && stopwatch.status === 'running'
+            ? t('family_timing.stopwatch.lap_progress', { current: stopwatch.splitMarks.length + 1, total: laps })
             : null,
         hasLaps: laps > 1,
-        event: eventLabel({ ...setup, pool: setup.pool ?? "" }),
-        noTime:
-          stopwatch.status === "stopped" && finalMillis(stopwatch) === null,
-        buttonsHint: keys.active
-          ? buttonsHint(
-              buttonPrefs.startKey,
-              buttonPrefs.splitKey,
-              keys.keyboards[0]?.name,
-            )
-          : null,
-        canRecord: Boolean(videoCamera) && stopwatch.status === "idle",
-        videoNotice: step.videoNotice
-          ? t(`family_timing.video.${step.videoNotice}`)
-          : null,
+        event: eventLabel({ ...setup, pool: setup.pool ?? '' }),
+        noTime: stopwatch.status === 'stopped' && finalMillis(stopwatch) === null,
+        buttonsHint: keys.active ? buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keys.keyboards[0]?.name) : null,
+        canRecord: Boolean(videoCamera) && stopwatch.status === 'idle',
+        videoNotice: step.videoNotice ? t(`family_timing.video.${step.videoNotice}`) : null,
       },
     };
-  } else if (step.kind === "series") {
+  } else if (step.kind === 'series') {
     void tick;
     const status = seriesStatus(series);
     const times = arrivalMillis(series);
     view = {
-      kind: "series",
+      kind: 'series',
       series: {
         status,
         time: format(seriesElapsedAt(series, now()) ?? 0),
-        arrivals: times.map((time, index) => ({
-          position: index + 1,
-          time: format(time),
-        })),
-        progress: t("family_timing.series.progress", {
-          count: times.length,
-          total: series.size,
-        }),
-        event: seriesEventLabel({ ...setup, pool: setup.pool ?? "" }),
-        buttonsHint: keys.active
-          ? seriesButtonsHint(buttonPrefs.startKey, keys.keyboards[0]?.name)
-          : null,
+        arrivals: times.map((time, index) => ({ position: index + 1, time: format(time) })),
+        progress: t('family_timing.series.progress', { count: times.length, total: series.size }),
+        event: seriesEventLabel({ ...setup, pool: setup.pool ?? '' }),
+        buttonsHint: keys.active ? seriesButtonsHint(buttonPrefs.startKey, keys.keyboards[0]?.name) : null,
       },
     };
-  } else if (step.kind === "series_assign") {
+  } else if (step.kind === 'series_assign') {
     const times = arrivalMillis(series);
     view = {
-      kind: "series_assign",
+      kind: 'series_assign',
       saveError: step.saveError,
-      event: seriesEventLabel({ ...setup, pool: setup.pool ?? "" }),
+      event: seriesEventLabel({ ...setup, pool: setup.pool ?? '' }),
       lanes: step.lanes.map((lane, index) => {
         // An athlete swims one lane: the ones in another lane are not offered here.
-        const taken = new Set(
-          step.lanes.flatMap((other, i) =>
-            i !== index && other.athleteId ? [other.athleteId] : [],
-          ),
-        );
+        const taken = new Set(step.lanes.flatMap((other, i) => (i !== index && other.athleteId ? [other.athleteId] : [])));
         return {
           position: index + 1,
           time: format(times[index] ?? null),
-          athlete: {
-            options: [
-              unassignedOption,
-              ...athleteOptions.filter((a) => !taken.has(a.value)),
-            ],
-            value: lane.athleteId ?? UNASSIGNED,
-          },
-          stroke: {
-            options: strokes.map((s) => option(s.code, s.nameKey)),
-            value: lane.stroke,
-          },
+          athlete: { options: [unassignedOption, ...athleteOptions.filter((a) => !taken.has(a.value))], value: lane.athleteId ?? UNASSIGNED },
+          stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: lane.stroke },
         };
       }),
     };
-  } else if (step.kind === "choose_official") {
+  } else if (step.kind === 'choose_official') {
     const card = cards.find((c) => c.id === step.id);
     const match = matches.get(step.id);
     view =
       card && match
         ? {
-            kind: "choose_official",
+            kind: 'choose_official',
             choose: {
               card,
               options: match.choices.map((r) => {
@@ -1432,55 +958,34 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
                 return {
                   key: officialResultKeyOf(r),
                   time: formatTime(r.hundredths),
-                  detail: [
-                    organization ??
-                      t("family_timing.card.official_imported_generic"),
-                    r.competition,
-                  ]
-                    .filter(Boolean)
-                    .join(" · "),
-                  selected:
-                    match.chosen &&
-                    match.value?.kind === "imported" &&
-                    match.value.importedId === r.id,
+                  detail: [organization ?? t('family_timing.card.official_imported_generic'), r.competition].filter(Boolean).join(' · '),
+                  selected: match.chosen && match.value?.kind === 'imported' && match.value.importedId === r.id,
                 };
               }),
               saveError: step.saveError,
             },
           }
         : listView();
-  } else if (step.kind === "official") {
+  } else if (step.kind === 'official') {
     const card = cards.find((c) => c.id === step.id);
-    view = card
-      ? { kind: "official", card, text: step.text, invalid: step.invalid }
-      : listView();
-  } else if (loaded.status === "loading") view = { kind: "loading" };
-  else if (loaded.status === "error") view = { kind: "error" };
-  else if (step.kind === "edit") {
+    view = card ? { kind: 'official', card, text: step.text, invalid: step.invalid } : listView();
+  } else if (loaded.status === 'loading') view = { kind: 'loading' };
+  else if (loaded.status === 'error') view = { kind: 'error' };
+  else if (step.kind === 'edit') {
     const card = cards.find((c) => c.id === step.id);
     view = card
       ? {
-          kind: "edit",
+          kind: 'edit',
           edit: {
             card,
-            stroke: {
-              options: strokes.map((s) => option(s.code, s.nameKey)),
-              value: step.stroke,
-            },
+            stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: step.stroke },
             // Only a training time corrects its distance. (A time waiting for another family's answer does not open this screen.)
             distance:
-              everyTime.find((x) => x.id === step.id)?.sessionType ===
-              "training"
-                ? {
-                    options: distances.map((d) => option(d.code, d.nameKey)),
-                    value: step.distance,
-                  }
+              everyTime.find((x) => x.id === step.id)?.sessionType === 'training'
+                ? { options: distances.map((d) => option(d.code, d.nameKey)), value: step.distance }
                 : null,
             // "Sin asignar" is always offered: a time of someone else's child waits there, with a note, until it is sent.
-            athlete: {
-              options: [...athleteOptions, unassignedOption],
-              value: step.athleteId ?? UNASSIGNED,
-            },
+            athlete: { options: [...athleteOptions, unassignedOption], value: step.athleteId ?? UNASSIGNED },
             note: step.athleteId === null ? step.note : null,
             confirmingDelete: step.confirmingDelete,
             saveError: step.saveError,
@@ -1488,85 +993,54 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           },
         }
       : listView();
-  } else if (step.kind === "deleted")
-    view = {
-      kind: "deleted",
-      cards: deletedCards,
-      restoreError: step.restoreError,
-    };
-  else if (step.kind === "detail") {
+  } else if (step.kind === 'deleted') view = { kind: 'deleted', cards: deletedCards, restoreError: step.restoreError };
+  else if (step.kind === 'detail') {
     const card = cards.find((c) => c.id === step.id);
     const m = everyTime.find((x) => x.id === step.id);
-    view =
-      card && m
-        ? { kind: "detail", detail: detailOf(withSync(card), m) }
-        : listView();
-  } else if (step.kind === "send") {
+    view = card && m ? { kind: 'detail', detail: detailOf(withSync(card), m) } : listView();
+  }
+  else if (step.kind === 'send') {
     const card = cards.find((c) => c.id === step.id);
     view = card
       ? {
-          kind: "send",
+          kind: 'send',
           send: {
             card,
             code: step.code,
             found: step.found,
             busy: step.busy,
-            error: step.error
-              ? t(`family_timing.transfer.error.${step.error}`)
-              : null,
+            error: step.error ? t(`family_timing.transfer.error.${step.error}`) : null,
+            saved: {
+              options: keptCodes.map((k) => ({ value: k.id, label: `${k.athleteShortName} · ${k.code}` })),
+              value: step.savedId ?? '',
+            },
           },
         }
       : listView();
-  } else if (step.kind === "video_offer")
-    view = {
-      kind: "video_offer",
-      offer: step.offer,
-      id: step.id,
-      name: step.name,
-    };
-  else if (step.kind === "link_check")
-    view = { kind: "link_check", id: step.id, result: step.result };
+  }
+  else if (step.kind === 'video_offer') view = { kind: 'video_offer', offer: step.offer, id: step.id, name: step.name };
+  else if (step.kind === 'link_check') view = { kind: 'link_check', id: step.id, result: step.result };
   else view = listView();
 
-  if (step.kind === "time_video" && videoLibrary) {
+  if (step.kind === 'time_video' && videoLibrary) {
     const m = everyTime.find((x) => x.id === step.id);
     const link = videoLinks.get(step.id);
-    const back = () =>
-      setStep(
-        step.from === "detail"
-          ? { kind: "detail", id: step.id }
-          : { kind: "list" },
-      );
+    const back = () => setStep(step.from === 'detail' ? { kind: 'detail', id: step.id } : { kind: 'list' });
     if (m && link?.uri) {
       const day = localDay(m.capturedAt);
       return (
         <VideoPlayerScreen
           event={eventLabel(m)}
-          detail={[formatDate(day, "short") ?? day, format(m.millis)].join(
-            " · ",
-          )}
-          player={
-            <videoLibrary.Player
-              ref={player}
-              uri={link.uri}
-              style={{ flex: 1 }}
-            />
-          }
-          onJumpToStart={
-            link.startOffsetMillis === null
-              ? undefined
-              : () =>
-                  player.current?.seekTo(
-                    (link.startOffsetMillis ?? 0) - JUMP_LEAD_MILLIS,
-                  )
-          }
+          detail={[formatDate(day, 'short') ?? day, format(m.millis)].join(' · ')}
+          player={<videoLibrary.Player ref={player} uri={link.uri} style={{ flex: 1 }} />}
+          onJumpToStart={link.startOffsetMillis === null ? undefined : () => player.current?.seekTo((link.startOffsetMillis ?? 0) - JUMP_LEAD_MILLIS)}
           onBack={back}
         />
       );
     }
   }
 
-  if (step.kind === "video" && videoCamera && setup.pool) {
+  if (step.kind === 'video' && videoCamera && setup.pool) {
     return (
       <VideoStopwatchContainer
         event={eventLabel({ ...setup, pool: setup.pool })}
@@ -1575,40 +1049,25 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         buttons={buttons}
         camera={videoCamera}
         intro={videoIntro ? { store: videoIntro, userId } : undefined}
-        buttonsHint={(keyboard) =>
-          buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keyboard)
-        }
+        buttonsHint={(keyboard) => buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keyboard)}
         saveTime={async (sw) => {
           const measurement = measurementOf(sw);
-          if (!measurement) throw new Error("The stopwatch is not stopped");
+          if (!measurement) throw new Error('The stopwatch is not stopped');
           await repository.add(measurement);
           showSaved(measurement);
           return measurement.id;
         }}
-        linkVideo={
-          videos
-            ? (measurementId, assetId, startOffsetMillis) =>
-                videos.link(userId, {
-                  measurementId,
-                  assetId,
-                  startOffsetMillis,
-                })
-            : undefined
-        }
+        linkVideo={videos ? (measurementId, assetId, startOffsetMillis) => videos.link(userId, { measurementId, assetId, startOffsetMillis }) : undefined}
         onClose={(result) => {
-          if (result === "saved") {
+          if (result === 'saved') {
             goToList();
             setReload((n) => n + 1);
-          } else if (result === "discarded") goToList();
+          } else if (result === 'discarded') goToList();
           else {
             // The time is saved even when the video is not: the list reloads, and the notice shows in the stopwatch.
-            if (result === "saved_no_video") setReload((n) => n + 1);
+            if (result === 'saved_no_video') setReload((n) => n + 1);
             setStopwatch(idleFamilyStopwatch);
-            setStep({
-              kind: "stopwatch",
-              saveError: false,
-              videoNotice: result,
-            });
+            setStep({ kind: 'stopwatch', saveError: false, videoNotice: result });
           }
         }}
       />
@@ -1618,76 +1077,51 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   return (
     <FamilyTimingScreen
       view={view}
-      athletes={chips.map(({ value, label, dot }) => ({
-        id: value,
-        name: label,
-        dot,
-      }))}
+      athletes={chips.map(({ value, label, dot }) => ({ id: value, name: label, dot }))}
       selectedId={selectedId}
       onSelectAthlete={setChosenId}
       onBack={onBack}
       onRetry={() => setReload((n) => n + 1)}
       onNew={() => {
         // A new time goes to a swimmer by default: the one shown, or the first one while "Sin asignar" is shown.
-        setSetup((current) => ({
-          ...current,
-          athleteId:
-            selectedId !== UNASSIGNED && selectedId
-              ? selectedId
-              : (athletes[0]?.id ?? null),
-          note: "",
-        }));
-        setStep({ kind: "setup" });
+        setSetup((current) => ({ ...current, athleteId: selectedId !== UNASSIGNED && selectedId ? selectedId : (athletes[0]?.id ?? null), note: '' }));
+        setStep({ kind: 'setup' });
       }}
       onSetupChange={(field, value) =>
         setSetup((current) =>
-          field === "swimmers"
+          field === 'swimmers'
             ? { ...current, swimmers: Number(value) }
-            : field === "athleteId"
+            : field === 'athleteId'
               ? { ...current, athleteId: value === UNASSIGNED ? null : value }
               : { ...current, [field]: value },
         )
       }
       onGoToStopwatch={() => {
         if (!setup.pool) return;
-        if (setup.mode === "series") {
+        if (setup.mode === 'series') {
           setSeries(newFamilySeries(setup.swimmers));
-          setStep({ kind: "series" });
+          setStep({ kind: 'series' });
           return;
         }
         setStopwatch(idleFamilyStopwatch);
-        setStep({ kind: "stopwatch", saveError: false });
+        setStep({ kind: 'stopwatch', saveError: false });
       }}
       onSeriesPress={() => setSeries((fs) => pressAt(fs, now()))}
       onUndoLast={() => setSeries(undoLast)}
       onAssignSwimmers={() => {
-        if (seriesStatus(series) !== "done") return;
+        if (seriesStatus(series) !== 'done') return;
         // Every lane starts without a swimmer and with the stroke chosen before the start.
-        setStep({
-          kind: "series_assign",
-          saveError: false,
-          lanes: Array.from({ length: series.size }, () => ({
-            athleteId: null,
-            stroke: setup.stroke,
-          })),
-        });
+        setStep({ kind: 'series_assign', saveError: false, lanes: Array.from({ length: series.size }, () => ({ athleteId: null, stroke: setup.stroke })) });
       }}
-      onBackToSeries={() => setStep({ kind: "series" })}
+      onBackToSeries={() => setStep({ kind: 'series' })}
       onLaneChange={(index, field, value) =>
         setStep((s) =>
-          s.kind === "series_assign"
+          s.kind === 'series_assign'
             ? {
                 ...s,
                 saveError: false,
                 lanes: s.lanes.map((lane, i) =>
-                  i !== index
-                    ? lane
-                    : field === "stroke"
-                      ? { ...lane, stroke: value as StrokeCode }
-                      : {
-                          ...lane,
-                          athleteId: value === UNASSIGNED ? null : value,
-                        },
+                  i !== index ? lane : field === 'stroke' ? { ...lane, stroke: value as StrokeCode } : { ...lane, athleteId: value === UNASSIGNED ? null : value },
                 ),
               }
             : s,
@@ -1697,94 +1131,58 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       onCancel={goToList}
       onStart={() => setStopwatch((sw) => startAt(sw, now()))}
       onOpenVideo={() => {
-        if (!videoCamera || stopwatch.status !== "idle") return;
-        setStep({ kind: "video" });
+        if (!videoCamera || stopwatch.status !== 'idle') return;
+        setStep({ kind: 'video' });
       }}
       onSplit={() => setStopwatch((sw) => splitAt(sw, now(), laps))}
       onStop={() => setStopwatch((sw) => stopAt(sw, now()))}
       onSave={save}
       onDiscard={goToList}
       onOpenOfficial={(id) => {
-        const m =
-          loaded.status === "ready"
-            ? loaded.measurements.find((x) => x.id === id)
-            : undefined;
-        setStep({
-          kind: "official",
-          id,
-          text:
-            m?.officialMillis != null
-              ? formatMillis(m.officialMillis, { precision: "thousandths" })
-              : "",
-          invalid: false,
-        });
+        const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === id) : undefined;
+        setStep({ kind: 'official', id, text: m?.officialMillis != null ? formatMillis(m.officialMillis, { precision: 'thousandths' }) : '', invalid: false });
       }}
-      onOfficialText={(text) =>
-        setStep((s) =>
-          s.kind === "official" ? { ...s, text, invalid: false } : s,
-        )
-      }
+      onOfficialText={(text) => setStep((s) => (s.kind === 'official' ? { ...s, text, invalid: false } : s))}
       onSaveOfficial={() => {
-        if (step.kind !== "official") return;
+        if (step.kind !== 'official') return;
         const entry = parseTimeEntry(step.text);
         if (!entry.ok) setStep({ ...step, invalid: true });
         else writeOfficial(step.id, entry.value);
       }}
-      onClearOfficial={() =>
-        step.kind === "official" && writeOfficial(step.id, null)
-      }
-      onOpenDetail={(id) => setStep({ kind: "detail", id })}
+      onClearOfficial={() => step.kind === 'official' && writeOfficial(step.id, null)}
+      onOpenDetail={(id) => setStep({ kind: 'detail', id })}
       onOpenTimeVideo={
         videoLibrary
           ? (id) => {
-              if (videoLinks.get(id)?.uri)
-                setStep({
-                  kind: "time_video",
-                  id,
-                  from: step.kind === "detail" ? "detail" : "list",
-                });
+              if (videoLinks.get(id)?.uri) setStep({ kind: 'time_video', id, from: step.kind === 'detail' ? 'detail' : 'list' });
             }
           : undefined
       }
-      onOpenChooseOfficial={(id) =>
-        setStep({ kind: "choose_official", id, saveError: false })
-      }
+      onOpenChooseOfficial={(id) => setStep({ kind: 'choose_official', id, saveError: false })}
       onChooseOfficial={(resultKey) => {
-        if (step.kind !== "choose_official") return;
+        if (step.kind !== 'choose_official') return;
         const id = step.id;
         void change(
           () => repository.chooseOfficial(id, resultKey),
-          () => setStep({ kind: "choose_official", id, saveError: true }),
+          () => setStep({ kind: 'choose_official', id, saveError: true }),
         );
       }}
       onOpenEdit={(id) => {
-        const m =
-          loaded.status === "ready"
-            ? loaded.measurements.find((x) => x.id === id)
-            : undefined;
+        const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === id) : undefined;
         if (m)
-          setStep({
-            kind: "edit",
-            id,
-            stroke: m.stroke,
-            athleteId: m.athleteId,
-            distance: m.distance,
-            note: m.note ?? "",
-            confirmingDelete: false,
-            saveError: false,
-          });
+          setStep({ kind: 'edit', id, stroke: m.stroke, athleteId: m.athleteId, distance: m.distance, note: m.note ?? '', confirmingDelete: false, saveError: false });
       }}
       onEditChange={(field, value) =>
         setStep((s) =>
-          s.kind === "edit"
+          s.kind === 'edit'
             ? {
                 ...s,
                 saveError: false,
-                ...(field === "stroke"
+                ...(field === 'stroke'
                   ? { stroke: value as StrokeCode }
-                  : field === "distance"
+                  : field === 'distance'
                     ? { distance: value as DistanceCode }
-                    : field === "note"
+                    : field === 'note'
                       ? { note: value }
                       : { athleteId: value === UNASSIGNED ? null : value }),
               }
@@ -1792,25 +1190,16 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         )
       }
       onSaveEdit={() => {
-        if (step.kind !== "edit") return;
-        const m =
-          loaded.status === "ready"
-            ? loaded.measurements.find((x) => x.id === step.id)
-            : undefined;
+        if (step.kind !== 'edit') return;
+        const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === step.id) : undefined;
         if (!m) return;
         // The note counts only while the time stays without a swimmer; given to one, the repository clears it.
         const note = step.athleteId === null ? cleanNote(step.note) : null;
         const changes = {
           ...(step.stroke !== m.stroke ? { stroke: step.stroke } : {}),
-          ...(step.athleteId !== m.athleteId
-            ? { athleteId: step.athleteId }
-            : {}),
-          ...(step.distance !== m.distance && m.sessionType === "training"
-            ? { distance: step.distance }
-            : {}),
-          ...(step.athleteId === null && note !== (m.note ?? null)
-            ? { note }
-            : {}),
+          ...(step.athleteId !== m.athleteId ? { athleteId: step.athleteId } : {}),
+          ...(step.distance !== m.distance && m.sessionType === 'training' ? { distance: step.distance } : {}),
+          ...(step.athleteId === null && note !== (m.note ?? null) ? { note } : {}),
         };
         if (Object.keys(changes).length === 0) return goToList();
         // A time moved to another swimmer leaves this list: the list now shows that swimmer, where the time went.
@@ -1823,18 +1212,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           () => setStep({ ...step, saveError: true }),
         );
       }}
-      onAskDelete={() =>
-        setStep((s) =>
-          s.kind === "edit" ? { ...s, confirmingDelete: true } : s,
-        )
-      }
-      onCancelDelete={() =>
-        setStep((s) =>
-          s.kind === "edit" ? { ...s, confirmingDelete: false } : s,
-        )
-      }
+      onAskDelete={() => setStep((s) => (s.kind === 'edit' ? { ...s, confirmingDelete: true } : s))}
+      onCancelDelete={() => setStep((s) => (s.kind === 'edit' ? { ...s, confirmingDelete: false } : s))}
       onConfirmDelete={() => {
-        if (step.kind !== "edit") return;
+        if (step.kind !== 'edit') return;
         change(
           () => repository.remove(step.id, new Date().toISOString()),
           () => setStep({ ...step, confirmingDelete: false, saveError: true }),
@@ -1861,23 +1242,25 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           },
         );
       }}
-      onOpenDeleted={() => setStep({ kind: "deleted", restoreError: false })}
-      onOpenSend={() =>
-        step.kind === "edit" &&
-        setStep({
-          kind: "send",
-          id: step.id,
-          code: "",
-          found: null,
-          error: null,
-          busy: false,
-        })
-      }
-      onSendCode={(code) =>
-        setStep((s) =>
-          s.kind === "send" ? { ...s, code, found: null, error: null } : s,
-        )
-      }
+      onOpenDeleted={() => setStep({ kind: 'deleted', restoreError: false })}
+      onOpenSend={() => step.kind === 'edit' && setStep({ kind: 'send', id: step.id, code: '', found: null, error: null, busy: false })}
+      onSendCode={(code) => setStep((s) => (s.kind === 'send' ? { ...s, code, found: null, error: null, savedId: null } : s))}
+      // A kept code was already accepted by that family: its swimmer is known, so it goes straight to «Enviar a …» without a lookup.
+      onPickSavedCode={(id) => {
+        const k = keptCodes.find((x) => x.id === id);
+        if (k) setStep((s) => (s.kind === 'send' ? { ...s, code: k.code, found: k.athleteShortName, error: null, savedId: k.id } : s));
+      }}
+      onForgetSavedCode={async () => {
+        if (step.kind !== 'send' || !step.savedId || !savedCodes) return;
+        const id = step.savedId;
+        try {
+          await savedCodes.forget(id);
+          setForgotten((list) => [...list, id]);
+          setStep((s) => (s.kind === 'send' ? { ...s, code: '', found: null, error: null, savedId: null } : s));
+        } catch {
+          setStep((s) => (s.kind === 'send' ? { ...s, error: 'failed' } : s));
+        }
+      }}
       onLookUpCode={lookUpCode}
       onSendTime={sendTime}
       onWithdraw={(measurementId) => {
@@ -1888,45 +1271,22 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         if (!transfers) return;
         const measurementId = received.find((r) => r.id === id)?.measurementId;
         // Accepted, the family is asked whether they have the time's video, to link it (#1201). It is optional.
-        if (
-          (await answer(id, transfers.accept)) &&
-          videoSharing &&
-          measurementId
-        )
-          setStep({
-            kind: "video_offer",
-            offer: "link",
-            id: measurementId,
-            name: null,
-          });
+        if ((await answer(id, transfers.accept)) && videoSharing && measurementId) setStep({ kind: 'video_offer', offer: 'link', id: measurementId, name: null });
       }}
       onReject={(id) => transfers && answer(id, transfers.reject)}
       videoNotice={
-        videoNotice?.step === step
-          ? {
-              variant: VIDEO_NOTICE_VARIANT[videoNotice.kind],
-              text: t(`family_timing.video_share.${videoNotice.kind}`),
-            }
-          : null
+        videoNotice?.step === step ? { variant: VIDEO_NOTICE_VARIANT[videoNotice.kind], text: t(`family_timing.video_share.${videoNotice.kind}`) } : null
       }
       onShareVideo={videoSharing ? (id) => void shareVideo(id) : undefined}
       onLinkVideo={videoSharing ? (id) => void linkVideo(id) : undefined}
-      onLinkAnyway={() =>
-        step.kind === "link_check" &&
-        step.result === "unknown" &&
-        void adoptVideo(step.id, step.picked, step)
-      }
-      onFilter={(key, value) =>
-        setFilters((current) => ({ ...current, [key]: value }))
-      }
-      onApplyFilters={(values) =>
-        setFilters((current) => ({ ...current, ...values }))
-      }
+      onLinkAnyway={() => step.kind === 'link_check' && step.result === 'unknown' && void adoptVideo(step.id, step.picked, step)}
+      onFilter={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
+      onApplyFilters={(values) => setFilters((current) => ({ ...current, ...values }))}
       onRestore={(id) =>
         change(
           () => repository.restore(id),
-          () => setStep({ kind: "deleted", restoreError: true }),
-          { kind: "deleted", restoreError: false },
+          () => setStep({ kind: 'deleted', restoreError: true }),
+          { kind: 'deleted', restoreError: false },
         )
       }
     />

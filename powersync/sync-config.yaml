@@ -12,7 +12,7 @@
 # training-plans_coach_reads_fulfillments_assignment_school,
 # training-plans_admin_reads_fulfillments_assignment_school,
 # athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school,
-# athletes_photos, athletes_athlete_schools_end):
+# athletes_photos, athletes_athlete_schools_end, accounts_saved_share_codes):
 # a row syncs only if the signed-in user could read it through RLS.
 # An ended link (athlete_schools.ended_at, #1243) gives its school's coaches and admins nothing of that swimmer, one
 # (swimmer, school) pair at a time. Every staff query keeps ended_at IS NULL on athlete_schools. PowerSync 1.21 builds the
@@ -95,6 +95,13 @@ streams:
     auto_subscribe: true
     queries:
       - SELECT user_id AS id, first_name, last_name, contact_email FROM adult_profiles WHERE user_id IN admin_guardian_user_ids OR user_id IN admin_coach_user_ids
+
+  # The share codes another family gave this user, kept after an accepted send (saved_athlete_share_codes_select, #1302). The swimmer
+  # behind a code is not synced: the user has only the code and the short name, as when they typed it.
+  accounts_saved_share_codes:
+    auto_subscribe: true
+    queries:
+      - SELECT id, user_id, code, athlete_short_name, saved_at FROM saved_athlete_share_codes WHERE user_id = auth.user_id() AND user_id IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
 
   school_console_school:
     auto_subscribe: true
