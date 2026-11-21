@@ -1,6 +1,6 @@
 # 0002. Backend hosting: self-hosted on Dokploy
 
-- Status: Accepted; amended 2026-11-16 (environments, email provider, backups)
+- Status: Accepted; amended 2026-11-16 (environments, email provider, backups) and 2026-11-21 (every deployment that holds real data is backed up)
 - Date: 2026-10-24
 - Decider: maintainer
 - Issue: #15
@@ -90,8 +90,20 @@ Auth sends the sign-in code and invitations through Resend over SMTP, with the s
 
 ### Backups
 
-A database backup that leaves the server, and a restore that was tested, are a gate: real families are not invited to PROD until both exist (#1119). The destination is chosen by the maintainer. QA is not backed up.
+A database backup that leaves the server, and a restore that was tested, are a gate: real families are not invited to PROD until both exist (#1119). The destination is chosen by the maintainer. ~~QA is not backed up.~~ (Replaced by the [2026-11-21 amendment](#amendment-2026-11-21-every-deployment-with-real-data-is-backed-up) below.)
 
 ### Series issues
 
 #1113 (read-only checks before building PROD), #1115 (Supabase PROD stack runbook), #1116 (PROD compose, domains and deploy by tag), #1117 (Edge Functions and `pg_cron` in PROD), #1118 (first school administrator and school rows in PROD), #1119 (backups and a tested restore), #1120 (cut to PROD: EAS `production`, internal build and smoke test).
+
+## Amendment 2026-11-21: every deployment with real data is backed up
+
+Tracking issue: #1335 (part of the series #1335 to #1337). The maintainer's directive, verbatim: «a partir de ahora todo en la base de datos debe respaldarse para evitar que no se pierdan los datos de la prueba y de los usuarios.»
+
+This replaces «QA is not backed up» (2026-11-16 amendment, Backups). Today there is one backend, the Dokploy project `TrailSkill` that the documents call QA, and it probably serves the Google Play build the pilot testers use, so it can hold real data from testers and users. The rule is therefore about the data, not the name of the environment:
+
+- **Every deployment whose `migrate.sh` runs against real data is backed up**: today the `deploy` compose of the Dokploy project `TrailSkill`; PROD too, when it exists.
+- Backups go off the server (Cloudflare R2, see the [runbook](../deploy/prod-backup-restore.md)) and keep **14 days** of copies (`BACKUP_KEEP_DAYS`), so one bad copy cannot replace the only good one and an earlier copy can be restored.
+- The gate of 2026-11-16 does not change: real families are not invited to PROD until a backup has left the server and a restore from it was tested (#1119).
+
+Not decided here: the schedule and the copy before each migration (#1336) and the daily freshness alert (#1337).
