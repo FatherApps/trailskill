@@ -705,17 +705,20 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     }
   }
 
+  // The last lookup wins: an older answer, or one for a code the person has since replaced, is dropped.
+  const lookup = useRef(0);
   // A scanned code (issue 1322) arrives as the argument and goes through the same lookup as a typed one.
   async function lookUpCode(scannedCode?: string) {
     const code = (scannedCode ?? (step.kind === 'send' ? step.code : '')).trim();
     if (step.kind !== 'send' || !shareCodes || !code) return;
+    const id = ++lookup.current;
     setStep((s) => (s.kind === 'send' ? { ...s, code, busy: true, error: null, found: null, scan: null, scanNotice: null } : s));
     try {
       const name = await shareCodes.find(code);
-      setStep((s) => (s.kind === 'send' ? { ...s, busy: false, found: name, error: name ? null : 'unknown_code' } : s));
+      if (id === lookup.current) setStep((s) => (s.kind === 'send' ? { ...s, busy: false, found: name, error: name ? null : 'unknown_code' } : s));
     } catch (error) {
       const code: FamilyTransferErrorCode = error instanceof Error && error.name === 'TooManyShareCodeLookupsError' ? 'too_many_attempts' : 'failed';
-      setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
+      if (id === lookup.current) setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
     }
   }
 
@@ -1091,7 +1094,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
               value: step.savedId ?? '',
             },
             expired: step.expired ? t('family_timing.transfer.saved_expired', { name: step.expired }) : null,
-            canScan: !!qrScanner,
+            canScan: !!qrScanner && !!shareCodes,
             scan:
               step.scan === 'intro'
                 ? { phase: 'intro' }
@@ -1331,15 +1334,25 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       }}
       onOpenDeleted={() => setStep({ kind: 'deleted', restoreError: false })}
       onOpenSend={() => step.kind === 'edit' && setStep({ kind: 'send', id: step.id, code: '', found: null, error: null, busy: false })}
-      onSendCode={(code) => setStep((s) => (s.kind === 'send' ? { ...s, code, found: null, error: null, savedId: null, expired: null } : s))}
-      onEnterNewCode={() => setStep((s) => (s.kind === 'send' ? { ...s, code: '', found: null, error: null, savedId: null, expired: null } : s))}
+      // Changing the code drops the answer of a lookup still on its way.
+      onSendCode={(code) => {
+        lookup.current += 1;
+        setStep((s) => (s.kind === 'send' ? { ...s, code, found: null, error: null, busy: false, savedId: null, expired: null } : s));
+      }}
+      onEnterNewCode={() => {
+        lookup.current += 1;
+        setStep((s) => (s.kind === 'send' ? { ...s, code: '', found: null, error: null, busy: false, savedId: null, expired: null } : s));
+      }}
       // A kept code was already accepted by that family: its swimmer is known, so it goes straight to «Enviar a …» without a lookup.
       onPickSavedCode={(id) => {
         const k = keptCodes.find((x) => x.id === id);
         if (!k) return;
         // An expired one is never picked: it is explained and removed instead.
         if (k.expiredAt) void expireKeptCode(k.id, k.athleteShortName);
-        else setStep((s) => (s.kind === 'send' ? { ...s, code: k.code, found: k.athleteShortName, error: null, savedId: k.id, expired: null } : s));
+        else {
+          lookup.current += 1;
+          setStep((s) => (s.kind === 'send' ? { ...s, code: k.code, found: k.athleteShortName, error: null, busy: false, savedId: k.id, expired: null } : s));
+        }
       }}
       onForgetSavedCode={async () => {
         if (step.kind !== 'send' || !step.savedId || !savedCodes) return;
@@ -1352,8 +1365,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           setStep((s) => (s.kind === 'send' ? { ...s, error: 'failed' } : s));
         }
       }}
-      onLookUpCode={() => lookUpCode()}
-      onScanQr={startScan}
+      onLookUpCode={() => void lookUpCode()}
+      onScanQr={() => void startScan()}
       onScanContinue={continueScanIntro}
       onScanCancel={() => endScan(null)}
       onSendTime={sendTime}

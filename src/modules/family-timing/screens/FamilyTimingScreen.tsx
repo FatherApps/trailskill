@@ -1352,8 +1352,15 @@ const SCAN_INTRO_KEYS = ['scan_intro_read', 'scan_intro_stays', 'scan_intro_when
 // Reading a swimmer's code from a QR (issue 1322): what the camera is for before the system asks for it, the wait for the answer, then the live image.
 function ScanBody({ scan, onContinue, onCancel }: { scan: NonNullable<FamilySendView['scan']>; onContinue?: () => void; onCancel?: () => void }) {
   const { colors, space, radius, typography } = useTheme();
-  if (scan.phase === 'asking') return <StateView kind="loading" />;
   const typeIt = <Button variant="ghost" label={t('family_timing.transfer.scan_cancel')} onPress={() => onCancel?.()} />;
+  // Waiting for the person to answer the system's permission dialog: leaving is always possible.
+  if (scan.phase === 'asking')
+    return (
+      <View style={{ gap: space[4] }}>
+        <StateView kind="loading" />
+        {typeIt}
+      </View>
+    );
   if (scan.phase === 'intro')
     return (
       <View style={{ gap: space[4] }}>
