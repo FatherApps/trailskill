@@ -32,7 +32,7 @@ function powerSyncRepositories(): FulfillmentRepositories {
   return powerSync;
 }
 
-export type FulfillmentFlowProps = Pick<FulfillmentContainerProps, 'onOpenTiming' | 'refreshKey' | 'Avatar'> & {
+export type FulfillmentFlowProps = Pick<FulfillmentContainerProps, 'onOpenTiming' | 'refreshKey' | 'Avatar' | 'onBack'> & {
   // The assignment to mark and its day (YYYY-MM-DD); nothing shows until both are known.
   assignmentId?: string;
   day?: string;
@@ -40,7 +40,7 @@ export type FulfillmentFlowProps = Pick<FulfillmentContainerProps, 'onOpenTiming
 };
 
 // The grid of one assignment for the signed-in user on this device, with the repositories of the app.
-export function FulfillmentFlow({ assignmentId, day, onOpenTiming, refreshKey, Avatar, repositories = powerSyncRepositories() }: FulfillmentFlowProps) {
+export function FulfillmentFlow({ assignmentId, day, onOpenTiming, refreshKey, Avatar, onBack, repositories = powerSyncRepositories() }: FulfillmentFlowProps) {
   const { session } = useSession();
   const [deviceId, setDeviceId] = useState<string>();
   useEffect(() => {
@@ -60,6 +60,7 @@ export function FulfillmentFlow({ assignmentId, day, onOpenTiming, refreshKey, A
       day={day}
       refreshKey={refreshKey}
       onOpenTiming={onOpenTiming}
+      onBack={onBack}
     />
   );
 }

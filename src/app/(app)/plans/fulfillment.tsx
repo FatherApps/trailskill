@@ -12,5 +12,15 @@ export default function FulfillmentRoute() {
   // Coming back from the timing reloads the grid, so the times recorded show.
   useFocusEffect(useCallback(() => setRefreshKey((n) => n + 1), []));
 
-  return <FulfillmentFlow Avatar={AthleteAvatarWithPhoto} assignmentId={assignment} day={day} refreshKey={refreshKey} onOpenTiming={() => router.push('/timing?mode=series')} />;
+  return (
+    <FulfillmentFlow
+      Avatar={AthleteAvatarWithPhoto}
+      assignmentId={assignment}
+      day={day}
+      refreshKey={refreshKey}
+      onOpenTiming={() => router.push('/timing?mode=series')}
+      // Without history (a deep link) there is nowhere to go back to, so no back button.
+      onBack={router.canGoBack() ? () => router.back() : undefined}
+    />
+  );
 }

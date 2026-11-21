@@ -49,7 +49,7 @@ jest.mock('expo-router', () => ({
     const Route = mockRoute;
     return <Route />;
   },
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), navigate: mockNavigate, dismissTo: mockDismissTo }),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => false, navigate: mockNavigate, dismissTo: mockDismissTo }),
   useLocalSearchParams: () => ({ id: 'plan-1', plan: 'plan-1', assignment: 'assignment-1', day: '2026-11-16' }),
   // Runs once on mount, as a focus does; calling it on every render would loop through the state it sets.
   useFocusEffect: (effect: () => void) => jest.requireActual('react').useEffect(effect, []),

@@ -38,6 +38,8 @@ export type FulfillmentContainerProps = {
   onOpenTiming: (blockId: string) => void;
   // A new value reloads the grid, for example after coming back from the timing.
   refreshKey?: number;
+  // Goes back to the previous screen; absent when there is nowhere to go back to, and then no back button shows.
+  onBack?: () => void;
 };
 
 type Loaded = {
@@ -75,7 +77,7 @@ function contentOf({ blocks, athletes, marks, times }: Loaded): FulfillmentConte
 
 // Container: finds the assignment, its blocks and the athletes in charge of the user, and saves each mark on the device at once.
 export function FulfillmentContainer(props: FulfillmentContainerProps) {
-  const { plans, assignments, athletes, structure, schools, fulfillment, authorizations, series, userId, deviceId, assignmentId, day, onOpenTiming, refreshKey, Avatar } = props;
+  const { plans, assignments, athletes, structure, schools, fulfillment, authorizations, series, userId, deviceId, assignmentId, day, onOpenTiming, refreshKey, Avatar, onBack } = props;
   const [loaded, setLoaded] = useState<Loaded | 'loading' | 'error' | 'denied'>('loading');
   const [attempt, setAttempt] = useState(0);
   const [partial, setPartial] = useState<{ athleteId: string; blockId: string } | null>(null);
@@ -165,6 +167,7 @@ export function FulfillmentContainer(props: FulfillmentContainerProps) {
       view={view}
       onCycle={cycle}
       onOpenTiming={onOpenTiming}
+      onBack={onBack}
       partial={
         asking && askedBlock && partial
           ? {

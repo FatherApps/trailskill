@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { StateView } from '../../../core/ui';
+import { BackButton, StateView } from '../../../core/ui';
 import type { StaffSchoolRepository } from '../../school-console';
 import { BlockHasFulfillmentError, type TrainingPlanRepository } from '../data/plans';
 import { blockErrors, hasErrors, newDraftBlock, snapshot, toPlanBlock, type DraftBlock } from '../draft';
@@ -22,6 +22,8 @@ export type PlanEditorScreenProps = {
   onSaved?: (planId: string) => void;
   // Opens the assign flow for the saved plan; the editor never saves or assigns by itself. Without it there is no assign button.
   onAssign?: (planId: string) => void;
+  // Without a handler there is no back button: the route is the root of its role and has nowhere to go back to.
+  onBack?: () => void;
 };
 
 type Load =
@@ -32,7 +34,7 @@ type Load =
   | { kind: 'ready' };
 
 // Container: loads the plan from the local repository, holds the draft, validates and saves.
-export function PlanEditorScreen({ planId, repository, schools, userId, vocabulary, onSaved, onAssign }: PlanEditorScreenProps) {
+export function PlanEditorScreen({ planId, repository, schools, userId, vocabulary, onSaved, onAssign, onBack }: PlanEditorScreenProps) {
   const { colors, space } = useTheme();
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -121,7 +123,13 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
       no_school: { title: 'no_school_title', message: 'no_school_message' },
     } as const;
     return (
-      <View style={{ flex: 1, padding: space[4], backgroundColor: colors['surface-0'] }}>
+      <View style={{ flex: 1, padding: space[4], gap: space[4], backgroundColor: colors['surface-0'] }}>
+        {/* The load states keep the way back too: a missing or failed plan must not trap the person. */}
+        {onBack && (
+          <View style={{ alignSelf: 'flex-start' }}>
+            <BackButton onPress={onBack} />
+          </View>
+        )}
         {load.kind === 'loading' ? (
           <StateView kind="loading" />
         ) : (
@@ -245,6 +253,7 @@ export function PlanEditorScreen({ planId, repository, schools, userId, vocabula
       }}
       onSave={() => run('plan')}
       onSaveTemplate={() => run('template')}
+      onBack={onBack}
       onAssign={onAssign && (() => onAssign(plan.current.id))}
       assignBlocked={stored !== draft}
     />

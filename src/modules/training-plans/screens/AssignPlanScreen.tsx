@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, ConfirmSheet, Segmented, StateView, Tag } from '../../../core/ui';
+import { BackButton, Banner, Button, ConfirmSheet, Segmented, StateView, Tag } from '../../../core/ui';
 import type { AssignmentTarget } from '../data/assignments';
 import type { PlanSummary } from '../data/plans';
 import '../i18n';
@@ -47,6 +47,8 @@ export type AssignPlanScreenProps = {
   onWithdraw: (id: string) => void;
   // Opens the fulfillment grid of an assigned plan; without it the rows have no such button.
   onOpenFulfillment?: (id: string) => void;
+  // Without a handler there is no back button: the route is the root of its role and has nowhere to go back to.
+  onBack?: () => void;
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -191,11 +193,16 @@ function AssignForm({
 }
 
 // Presentational: no repository; the caller supplies the state and handles the events.
-export function AssignPlanScreen({ view, onPreviousDay, onNextDay, onSelectPlan, onSelectKind, onSelectOption, onAssign, onWithdraw, onOpenFulfillment }: AssignPlanScreenProps) {
+export function AssignPlanScreen({ view, onPreviousDay, onNextDay, onSelectPlan, onSelectKind, onSelectOption, onAssign, onWithdraw, onOpenFulfillment, onBack }: AssignPlanScreenProps) {
   const { colors, space, typography } = useTheme();
 
   return (
     <ScrollView nestedScrollEnabled style={{ backgroundColor: colors['surface-0'] }} contentContainerStyle={{ padding: space[4], gap: space[4] }}>
+      {onBack && (
+        <View style={{ alignSelf: 'flex-start' }}>
+          <BackButton onPress={onBack} />
+        </View>
+      )}
       <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
         {t('training_plans.assign.title')}
       </Text>

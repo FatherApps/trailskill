@@ -24,6 +24,8 @@ export type AssignPlanContainerProps = {
   initialPlanId?: string | string[];
   // Opens the fulfillment grid of an assignment of the day shown.
   onOpenFulfillment?: (assignmentId: string, day: string) => void;
+  // Goes back to the previous screen; absent when there is nowhere to go back to, and then no back button shows.
+  onBack?: () => void;
 };
 
 type Loaded = { schoolId: string; scope: AssignScope; plans: PlanSummary[] };
@@ -61,7 +63,7 @@ export function AssignPlanContainer(props: AssignPlanContainerProps) {
   return <AssignPlanBody key={props.userId} {...props} />;
 }
 
-function AssignPlanBody({ plans, assignments, athletes, structure, schools, userId, initialDay, initialPlanId, onOpenFulfillment }: AssignPlanContainerProps) {
+function AssignPlanBody({ plans, assignments, athletes, structure, schools, userId, initialDay, initialPlanId, onOpenFulfillment, onBack }: AssignPlanContainerProps) {
   const [loaded, setLoaded] = useState<Loaded | 'loading' | 'error' | 'no_school'>('loading');
   const [attempt, setAttempt] = useState(0);
   const ready = typeof loaded === 'object' ? loaded : null;
@@ -221,6 +223,7 @@ function AssignPlanBody({ plans, assignments, athletes, structure, schools, user
       onAssign={save}
       onWithdraw={withdraw}
       onOpenFulfillment={onOpenFulfillment && ((id) => onOpenFulfillment(id, day))}
+      onBack={onBack}
     />
   );
 }

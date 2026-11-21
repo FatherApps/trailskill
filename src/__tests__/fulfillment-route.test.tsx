@@ -9,7 +9,7 @@ jest.mock('../core/session', () => ({
   useSession: () => ({ session: mockUserId ? { user: { id: mockUserId } } : null }),
 }));
 jest.mock('../core/sync', () => ({ db: { getClientId: () => mockClientId() } }));
-type ContainerProps = { userId: string; deviceId: string; assignmentId: string; day: string; refreshKey: number; onOpenTiming: (blockId: string) => void };
+type ContainerProps = { userId: string; deviceId: string; assignmentId: string; day: string; refreshKey: number; onOpenTiming: (blockId: string) => void; onBack?: () => void };
 let mockProps: ContainerProps;
 // The flow lives in training-plans: only the grid it renders is replaced, so the session, the device and the repositories are its own.
 jest.mock('../modules/training-plans/screens/FulfillmentContainer', () => {
@@ -22,9 +22,11 @@ jest.mock('../modules/training-plans/screens/FulfillmentContainer', () => {
   };
 });
 const mockPush = jest.fn();
+const mockBack = jest.fn();
+let mockCanGoBack = true;
 let mockFocus: (() => void) | undefined;
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, back: mockBack, canGoBack: () => mockCanGoBack }),
   useLocalSearchParams: () => mockParams,
   // Runs once on mount, as a focus does; the test fires it again to simulate coming back to the screen.
   useFocusEffect: (effect: () => void) => {
@@ -38,6 +40,8 @@ beforeEach(() => {
   mockParams = { assignment: 'assignment-1', day: '2026-11-16' };
   mockClientId = () => Promise.resolve('device-1');
   mockPush.mockReset();
+  mockBack.mockReset();
+  mockCanGoBack = true;
   mockFocus = undefined;
 });
 
@@ -74,6 +78,19 @@ describe('plans/fulfillment route', () => {
     mockProps.onOpenTiming('block-1');
 
     expect(mockPush).toHaveBeenCalledWith('/timing?mode=series');
+  });
+
+  it('goes back when there is history, and offers no way back without it', async () => {
+    await render(<FulfillmentRoute />);
+    await screen.findByText(/grid of/);
+
+    mockProps.onBack!();
+    expect(mockBack).toHaveBeenCalledTimes(1);
+
+    mockCanGoBack = false;
+    await render(<FulfillmentRoute />);
+    await screen.findByText(/grid of/);
+    expect(mockProps.onBack).toBeUndefined();
   });
 
   it('reloads the grid when the screen gets the focus again, so the times recorded show', async () => {
