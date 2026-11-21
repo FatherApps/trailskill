@@ -134,8 +134,12 @@ export function createInMemoryAccountDeletionRepository(
   return repository satisfies AccountDeletionRepository;
 }
 
-/** `loading` until something is known; `unknown` when nothing is known and the server could not be asked (the app then opens as usual, as it does offline). */
-export type AccountDeletionStatus = { state: 'loading' | 'unknown' | 'active' } | { state: 'marked'; deleteAfter: string };
+/**
+ * `reading` while only the phone is being read (no spinner: it takes a frame, and a known state follows at once); `loading` while the server
+ * is awaited with nothing known (the spinner); `unknown` when nothing is known and the server could not be asked (the app then opens as
+ * usual, as it does offline).
+ */
+export type AccountDeletionStatus = { state: 'reading' | 'loading' | 'unknown' | 'active' } | { state: 'marked'; deleteAfter: string };
 
 /** Longest the app waits, with nothing known on the phone, before it opens as usual. */
 export const DELETION_STATUS_TIMEOUT_MS = 4000;
@@ -156,6 +160,8 @@ export function useAccountDeletionStatus(
 ): AccountDeletionStatus & { refresh: () => void } {
   const [attempt, setAttempt] = useState(0);
   const [answer, setAnswer] = useState<{ key: string; status: AccountDeletionStatus }>();
+  // The key whose read of the phone finished, with or without a known state.
+  const [readKey, setReadKey] = useState<string>();
   const key = `${userId}:${attempt}`;
 
   useEffect(() => {
@@ -172,7 +178,10 @@ export function useAccountDeletionStatus(
     const timer = setTimeout(() => !shown && show({ state: 'unknown' }), DELETION_STATUS_TIMEOUT_MS);
     const remembered = attempt === 0 && known ? known.read(userId).catch(() => null) : Promise.resolve(null);
     // The server's answer always wins over what was remembered, whichever arrives first.
-    remembered.then((saved) => saved && !answered && show(saved));
+    remembered.then((saved) => {
+      if (active) setReadKey(key);
+      if (saved && !answered) show(saved);
+    });
     repository.status().then(
       (deleteAfter) => {
         // An answer to a question already replaced (another person, or asked again after a cancellation) says nothing about now.
@@ -192,6 +201,11 @@ export function useAccountDeletionStatus(
   }, [repository, known, userId, key, attempt]);
 
   // Nobody is signed in: there is no account to ask about, so the layout goes on as it always did.
-  const status: AccountDeletionStatus = !userId ? { state: 'unknown' } : answer?.key === key ? answer.status : { state: 'loading' };
+  const readsPhone = known !== undefined && attempt === 0 && readKey !== key;
+  const status: AccountDeletionStatus = !userId
+    ? { state: 'unknown' }
+    : answer?.key === key
+      ? answer.status
+      : { state: readsPhone ? 'reading' : 'loading' };
   return { ...status, refresh: () => setAttempt((value) => value + 1) };
 }

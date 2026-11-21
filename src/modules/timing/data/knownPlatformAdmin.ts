@@ -15,6 +15,15 @@ export interface KnownPlatformAdminRepository {
 // SecureStore keys allow only letters, digits, ".", "-" and "_". One key: a different person's answer replaces the earlier one.
 const KEY = 'trailskill-platform-admin';
 
+// Every write and clear goes through one line, whichever repository object asks: a clear (the sign-out) always runs after the writes
+// that were asked before it, so a slow write can never put the value back on the phone afterwards.
+let tail: Promise<unknown> = Promise.resolve();
+function inOrder<T>(operation: () => Promise<T>): Promise<T> {
+  const run = tail.then(operation, operation);
+  tail = run.catch(() => {});
+  return run;
+}
+
 export function createInMemoryKnownPlatformAdminRepository(initial?: { userId: string; admin: boolean }): KnownPlatformAdminRepository & { calls: string[] } {
   let stored = initial;
   const calls: string[] = [];
@@ -48,7 +57,7 @@ export function createSecureStoreKnownPlatformAdminRepository(): KnownPlatformAd
         return null;
       }
     },
-    write: (userId, admin) => SecureStore.setItemAsync(KEY, JSON.stringify({ userId, admin })),
-    clear: () => SecureStore.deleteItemAsync(KEY),
+    write: (userId, admin) => inOrder(() => SecureStore.setItemAsync(KEY, JSON.stringify({ userId, admin }))),
+    clear: () => inOrder(() => SecureStore.deleteItemAsync(KEY)),
   };
 }

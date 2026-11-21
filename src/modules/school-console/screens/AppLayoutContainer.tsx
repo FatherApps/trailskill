@@ -196,7 +196,9 @@ export function AppLayoutContainer(props: AppLayoutContainerProps) {
   const { colors, space } = useTheme();
   const deletion = useAccountDeletionStatus(accountDeletion, session?.user.id, knownDeletion);
   useStartupMark('layout_mounted');
-  useStartupMark('deletion_gate_done', deletion.state !== 'loading');
+  useStartupMark('deletion_gate_done', deletion.state !== 'loading' && deletion.state !== 'reading');
+  // Reading the phone takes a frame and a known state follows: a plain background, never the spinner, which is only for waiting on the server.
+  if (deletion.state === 'reading') return <View style={{ flex: 1, backgroundColor: colors['surface-0'] }} />;
   if (deletion.state === 'loading') {
     return (
       <View style={{ flex: 1, padding: space[4], justifyContent: 'center', backgroundColor: colors['surface-0'] }}>
