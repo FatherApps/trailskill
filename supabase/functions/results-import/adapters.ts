@@ -1,6 +1,6 @@
 import type { ImportRecorder } from './actions.ts';
 import type { OrganizationData } from './registry.ts';
-import { InvalidSourceKeyError, NotAuthorizedError, type Claim, type Confirmations, type IdentityNumbers, type PendingStore, type QueryGate } from './service.ts';
+import { InvalidSourceKeyError, NotAuthorizedError, type Claim, type Confirmations, type IdentityNumbers, type PendingStore, type QueryGate, type TournamentCatalog } from './service.ts';
 
 // The message is typed so it can be seen and dropped: errors built here never repeat it.
 export type DbError = { code?: string; message?: string };
@@ -11,7 +11,8 @@ export type DbError = { code?: string; message?: string };
  */
 export interface Db {
   rpc(fn: string, args: Record<string, unknown>): Promise<{ data: unknown; error: DbError | null }>;
-  select(table: string, columns: string): Promise<{ data: Record<string, unknown>[] | null; error: DbError | null }>;
+  /** `equals` narrows the rows to those whose columns hold exactly these values; each value travels as a bound parameter. */
+  select(table: string, columns: string, equals?: Record<string, string>): Promise<{ data: Record<string, unknown>[] | null; error: DbError | null }>;
   deleteById(table: string, id: string): Promise<{ error: DbError | null }>;
 }
 
@@ -203,6 +204,50 @@ export function createImportRecorder(db: Db): ImportRecorder {
         throw failure('Recording the imported results', error);
       }
       return { importId: summary.importId, inserted: summary.inserted, duplicates: summary.duplicates, changes: summary.changes };
+    },
+  };
+}
+
+/**
+ * `public.results_import_claim_tournament_refresh` answers `{ retry_at, claimed_at }` like the query claim: taken (`retry_at` null, `claimed_at` the instant
+ * stored, kept as the string the database wrote so `release` matches it) or refused (the instant it can be taken again). `results_import_save_tournaments`
+ * saves what a platform listed by (platform, day) and answers how many rows. `find` reads the catalog table: which platform holds a day, and its year.
+ */
+export function createTournamentCatalog(db: Db): TournamentCatalog {
+  return {
+    async claim({ organizationId, intervalMs }) {
+      const { data, error } = await db.rpc('results_import_claim_tournament_refresh', { organization: organizationId, min_interval: `${intervalMs / 1000} seconds` });
+      if (error) throw failure('Claiming the tournament refresh', error);
+      const row = Array.isArray(data) && data.length === 1 ? data[0] : data;
+      const { retry_at: retryAtValue, claimed_at: claimedAt } = (typeof row === 'object' && row !== null ? row : {}) as Record<string, unknown>;
+      if (retryAtValue === null && typeof claimedAt === 'string' && claimedAt !== '') return { status: 'allowed', claimedAt };
+      const retryAt = typeof retryAtValue === 'string' ? new Date(retryAtValue) : null;
+      if (!retryAt || Number.isNaN(retryAt.getTime())) throw failure('Claiming the tournament refresh', null);
+      return { status: 'fresh', retryAt: retryAt.toISOString() };
+    },
+    async release({ organizationId, claimedAt, intervalMs, retryAfterMs }) {
+      const { data, error } = await db.rpc('results_import_release_tournament_refresh', {
+        organization: organizationId,
+        claimed_at: claimedAt,
+        min_interval: `${intervalMs / 1000} seconds`,
+        retry_after: `${retryAfterMs / 1000} seconds`,
+      });
+      if (error || typeof data !== 'boolean') throw failure('Releasing the tournament refresh', error);
+      return data;
+    },
+    async save(organizationId, entries) {
+      const rows = entries.map(({ year, dateKey, name, city, discipline, course, sourceUrl }) => ({ year, date_key: dateKey, name, city, discipline, course, source_url: sourceUrl }));
+      const { data, error } = await db.rpc('results_import_save_tournaments', { organization: organizationId, rows });
+      if (error || typeof data !== 'number') throw failure('Saving the tournaments', error);
+      return data;
+    },
+    async find(dateKey) {
+      const { data, error } = await db.select('results_import_tournaments', 'organization_id,year', { date_key: dateKey });
+      if (error || !data) throw failure('Reading the tournaments', error);
+      return data.map(({ organization_id: organizationId, year }) => {
+        if (typeof organizationId !== 'string' || !Number.isInteger(year)) throw failure('Reading the tournaments', null);
+        return { organizationId, year: year as number };
+      });
     },
   };
 }

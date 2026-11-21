@@ -130,6 +130,25 @@ describe('platform adapters', () => {
     for (const id of ['fed', 'unregistered', 'abroad', 'missing']) expect(withPlatform.platformFor(data, id)).toBeNull();
   });
 
+  it('lists every registered platform with the one organization that holds it', () => {
+    const twin = createFakePlatform({ key: 'zz-twin' });
+    const both = createProviderRegistry([fake], [platform, twin]);
+    const data = [org('fed', { provider: 'zz-test' }), games(), games('twin', { provider: 'zz-twin' })];
+    expect(both.platformOrganizations(data)).toEqual([
+      { provider: platform, organizationId: 'games' },
+      { provider: twin, organizationId: 'twin' },
+    ]);
+  });
+
+  it.each([
+    ['no organization holds it', [org('fed', { provider: 'zz-test' })]],
+    ['two organizations hold it', [games(), games('games-2')]],
+    ['the holder is a federation, not a platform', [org('fed', { provider: 'zz-games' })]],
+    ['the holder is of another country', [games('games', { countryCode: 'YY' })]],
+  ])('leaves a platform out of the list when %s', (_name, data) => {
+    expect(withPlatform.platformOrganizations(data)).toEqual([]);
+  });
+
   it('does not walk up from a platform organization, and resolve never answers a platform', () => {
     const data = [org('fed', { provider: 'zz-test' }), games('games', { parentId: 'fed' })];
     expect(withPlatform.resolve(data, 'games')).toBe(fake);
