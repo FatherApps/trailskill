@@ -12,7 +12,7 @@
 
 ## What it does
 
-1. `backup-prod.sh` runs `pg_dump -Fc` of the PROD database, checks it with `pg_restore --list`, records a manifest (size, sha256, date, row counts of key tables, no row content), encrypts the dump with a **public** key, checksums the encrypted file and only then calls one push command.
+1. `backup-prod.sh` runs `pg_dump -Fc` of the PROD database, checks it with `pg_restore --list`, records a manifest (size, sha256, date, the reason `backup_reason`, row counts of key tables, no row content), encrypts the dump with a **public** key, checksums the encrypted file and only then calls one push command.
 2. **Retention is 14 days.** The push command keeps every copy of the last `BACKUP_KEEP_DAYS` days (default 14) and replaces nothing: the new copy is stored in full and published before anything older than the window is deleted. Any failed step exits non-zero before the push, so a failed run never leaves zero copies.
 3. `restore-check.sh` fetches the latest copy (or an earlier one by its `sha`), verifies both checksums, decrypts it with the private key, restores it into a **throwaway** Postgres container (never PROD) and compares the row counts with the manifest.
 
@@ -22,6 +22,21 @@ Both scripts write the plain dump (`backup-prod.sh`) or the decrypted dump (`res
 - After a crash or a killed run, delete the leftovers by hand. On the backup host: `rm -rf "${TMPDIR:-/tmp}"/backup-prod.*`. On Mario's machine: `rm -rf "${TMPDIR:-/tmp}"/restore-check.*`.
 
 `backup-prod.sh` has no bypass: it **refuses to run** (before dumping) when `BACKUP_AGE_RECIPIENT` is not set, whatever else is in the environment.
+
+## Daily backup and backup before migrating (#1336)
+
+The `deploy` compose runs the scripts itself; nobody schedules them by hand any more. Details of the services and variables: [`deploy/README.md`](../../deploy/README.md#backups).
+
+| | Reason in the manifest (`BACKUP_REASON`) | When | Started by |
+| --- | --- | --- | --- |
+| Backup before migrating | `pre-migration` | On a deploy, only when `BACKUP_BEFORE_MIGRATE=required`, a migration is pending and `schema_migrations` already has rows | `migrate`, before it applies the first pending migration |
+| Daily backup | `daily` (the default) | 08:30 UTC (03:30 Bogotá), [`deploy/backup/crontab`](../../deploy/backup/crontab) | The `backup` service (`busybox crond -f`) |
+
+- **A failed backup stops the migration.** If `backup-prod.sh` exits non-zero (the dump does not verify, a key table has 0 rows or fewer than `BACKUP_MIN_COUNTS`, the upload or its read-back fails, a variable is missing), `migrate` exits 1 before applying anything. PowerSync does not start and the deploy fails in Dokploy. The database is untouched; read the `migrate` log, fix the cause and redeploy.
+- **One at a time.** Both use `flock` on the same lock file on the named volume `backup-lock`. `migrate` waits up to `BACKUP_LOCK_WAIT_SECONDS` (default 600) and then exits 1 without applying anything; the daily job waits up to 30 minutes and then logs an error until the next day. They never run in parallel.
+- **A by-hand backup** (outside the compose) must take the same lock or must not run while either of those could: a deploy or 08:30 UTC.
+- **A first deploy** (empty `schema_migrations`) takes no backup: there is nothing recorded yet and the all-zero guard would refuse an empty database anyway.
+- **Alerts.** A failed pre-migration backup fails the deploy, so the Dokploy failed-deploy notification (the maintainer turns it on) covers it. The daily job only logs: the freshness job (below) is what detects a missed backup.
 
 ## Destination: Cloudflare R2
 
@@ -94,7 +109,9 @@ Credentials for the bucket live only in the environment of the scheduler that ru
 | --- | --- |
 | `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` | Connection to the PROD database (a role that can read every schema, such as `supabase_admin`). `PGPASSWORD` only in the scheduler's environment, never in a command line. |
 | `BACKUP_AGE_RECIPIENT` | The age **public** key (`age1...`), see below. Required. |
-| `BACKUP_PUSH_CMD` | The push command: the `backup-r2.sh` line above. Required. |
+| `BACKUP_PUSH_CMD` | The push command: the `backup-r2.sh` line above. Required. In the `deploy` compose it is set by `compose.yaml`. |
+| `BACKUP_REASON` | Why the copy was taken, written to the manifest as `backup_reason=`. Lowercase letters, digits and hyphens, at most 32 characters; anything else is refused before dumping. Default `daily`. `migrate` sets `pre-migration`; set `manual` yourself for a by-hand copy. |
+| `BACKUP_BEFORE_MIGRATE` | `migrate` only: `required` or `off` (required variable, any other value fails). See above. |
 | `BACKUP_RCLONE_REMOTE`, `RCLONE_CONFIG_R2_*` | The bucket and the rclone remote, see [Destination](#environment-and-commands). Required. |
 | `BACKUP_COUNT_TABLES` | Optional. Default: `auth.users public.organizations public.schools public.athletes public.school_memberships`. |
 | `BACKUP_MIN_COUNTS` | Optional, space-separated `schema.table=N` (each table must be in `BACKUP_COUNT_TABLES`). The run fails, before pushing, if a table has fewer than N rows. Suggested once PROD has its first administrator: `auth.users=1 public.schools=1`. Mario sets the values. |
@@ -105,7 +122,7 @@ The script needs `pg_dump` of at least the server's major version (17), `pg_rest
 
 ## Schedule
 
-Daily, at a quiet hour. The scheduler (Dokploy schedule, cron or other) is **Mario's choice**; its environment holds the variables above.
+Daily at 08:30 UTC, by the `backup` service of the `deploy` compose (see above), which holds the variables above in its environment. Any other host that backs up a different deployment (PROD, when it exists) chooses its own scheduler.
 
 ## Alerts
 
@@ -123,7 +140,7 @@ Schedule the freshness job **hours apart** from the backup. `fetch` reads the ma
 
 ### One backup at a time
 
-**Only one backup may run at a time.** `backup-r2.sh` has no lock: it re-reads the manifest just before each delete, but a second push that publishes in that gap can still lose its dump. #1336 adds the lock that closes this race; until it is running, never start two backups at once. Run **one** backup job: exactly one scheduled job, and if the host can run two (a manual run while the schedule fires), wrap the command in `flock` (for example `flock -n /var/lock/trailskill-backup.lock <backup command>`) so a second one exits instead of overlapping. The manual first-run check in the checklist must not overlap the scheduled run either. A push against another push is the one case the replace cannot make safe by itself: the guards in `backup-r2.sh` only turn it into a loud failure. They are:
+**Only one backup may run at a time.** `backup-r2.sh` has no lock of its own: it re-reads the manifest just before each delete, but a second push that publishes in that gap can still lose its dump. In the `deploy` compose the lock is taken by its callers (`migrate` and the daily job, on the `backup-lock` volume, see above), so these two never overlap. For any other way of running a backup, run **one** backup job: exactly one scheduled job, and if the host can run two (a manual run while the schedule fires), wrap the command in `flock` (for example `flock -n /var/lock/trailskill-backup.lock <backup command>`) so a second one exits instead of overlapping. The manual first-run check in the checklist must not overlap a scheduled run either. A push against another push is the one case the replace cannot make safe by itself: the guards in `backup-r2.sh` only turn it into a loud failure. They are:
 
 - cleanup deletes only dumps older than `BACKUP_KEEP_DAYS` days (a newer dump, such as another push's not yet published upload, is kept), never the dump just pushed and never the dump the remote manifest names, which is read again before each delete;
 - before cleaning up, push checks that its own dump still exists (if not, it uploads the dump again, verifies it and exits non-zero without cleaning up) and, at the end, that the dump the manifest names exists; when a listing succeeds and the dump is absent, it exits non-zero with "run one backup by hand". A listing or manifest read that merely fails after the manifest is published is a warning with exit 0, because the new dump was verified before the publish and the freshness job checks the pair;
@@ -187,9 +204,15 @@ Copy the output into the table below.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | _pending_ | | | | | | | | | |
 
-### How often (proposal, Mario decides)
+### Full restore test (manual, never unattended)
 
-Not decided. Proposed: at first setup, after every major Postgres or Supabase upgrade of PROD, and monthly.
+The scripts check every copy as they take it, but only a restore proves a copy can be used. Run the [restore test procedure](#restore-test-procedure) by hand, on Mario's machine and never from a scheduler, and add one row to the table above each time:
+
+1. **First setup**, once the first copy of a deployment is in the bucket.
+2. **After every major upgrade of Postgres or Supabase** of that deployment, with a copy taken after the upgrade. Use `BACKUP_RESTORE_IMAGE` with the new major.
+3. **Monthly.** Restore the latest copy; once in a while an earlier one by its `sha` (see [Retention and earlier copies](#retention-and-earlier-copies)).
+
+A restore that fails, or whose counts differ from the manifest, is an incident: the copies in the bucket cannot be trusted until it is explained. Tell the maintainer and take a new copy by hand once the cause is fixed.
 
 ## When the backup fails
 
@@ -202,7 +225,7 @@ Not decided. Proposed: at first setup, after every major Postgres or Supabase up
 
 - [ ] Private R2 bucket and the bucket-scoped API token (Object Read & Write) created; the variables above set in the scheduler (and a read-only token for the freshness job and the restore test).
 - [ ] Key pair generated on Mario's machine; private key stored off the server.
-- [ ] Daily job scheduled with a single runner (one job, or `flock`); first run exits 0 and the bucket holds the manifest, one object under `dumps/` and its copy under `manifests/`.
+- [ ] Daily job scheduled with a single runner (the `backup` service of the `deploy` compose, or one job with `flock`); first run exits 0 and the bucket holds the manifest, one object under `dumps/` and its copy under `manifests/`.
 - [ ] Second run checked by hand, not while the scheduled job runs: both dumps are in `dumps/` (each with its `manifests/<sha>.manifest`), and the manifest names the newer one.
 - [ ] Restore test done and recorded in the results table.
-- [ ] Mario confirmed the restore frequency.
+- [ ] Mario confirmed the restore frequency (first setup, after each major upgrade, monthly).
