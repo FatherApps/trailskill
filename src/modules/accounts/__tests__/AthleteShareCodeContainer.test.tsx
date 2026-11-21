@@ -1,10 +1,15 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import { colors } from '../../../core/theme';
 import { createInMemoryShareCodeCache } from '../data/athleteShareCodeCache';
 import { createInMemoryAthleteShareCodeRepository } from '../data/athleteShareCodes';
 import { AthleteShareCodeContainer } from '../screens/AthleteShareCodeContainer';
 
 jest.mock('../../../core/sync', () => ({ supabase: {} }));
+
+// The QR is drawn by the library; the tests read what the component hands it.
+const mockQr = jest.fn((_props: { value: string; color: string; backgroundColor: string }) => null);
+jest.mock('react-native-qrcode-svg', () => ({ __esModule: true, default: (props: { value: string; color: string; backgroundColor: string }) => mockQr(props) }));
 
 async function show(options: { online?: boolean; failing?: boolean; cache?: ReturnType<typeof createInMemoryShareCodeCache> } = {}) {
   const repository = createInMemoryAthleteShareCodeRepository({ names: { a1: 'Ana M.' }, failing: options.failing });
@@ -82,5 +87,34 @@ describe('AthleteShareCodeContainer', () => {
     await fireEvent.press(screen.getAllByText('Cambiar código').at(-1)!);
     await screen.findByText('TS-AAAAA2');
     expect(await cache.get('u1', 'a1')).toBe('TS-AAAAA2');
+  });
+
+  // Issue 1322: the code as a QR, to scan it instead of typing it.
+  it('shows the code as a QR whose content is exactly the code, and hides it again', async () => {
+    await show();
+    await screen.findByText('TS-AAAAA1');
+    expect(mockQr).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByText('Mostrar QR'));
+    expect(mockQr.mock.calls.at(-1)![0].value).toBe('TS-AAAAA1');
+    await fireEvent.press(screen.getByText('Ocultar QR'));
+    expect(screen.queryByText('Ocultar QR')).toBeNull();
+    expect(screen.getByText('Mostrar QR')).toBeTruthy();
+  });
+
+  it('draws the QR dark on light with design-system tokens, whatever the theme', async () => {
+    await show();
+    await screen.findByText('TS-AAAAA1');
+    await fireEvent.press(screen.getByText('Mostrar QR'));
+    expect(mockQr.mock.calls.at(-1)![0]).toMatchObject({ color: colors.light.ink, backgroundColor: colors.light['surface-1'] });
+  });
+
+  it('shows the new code in the QR after the code is changed', async () => {
+    await show();
+    await screen.findByText('TS-AAAAA1');
+    await fireEvent.press(screen.getByText('Mostrar QR'));
+    await fireEvent.press(screen.getByText('Cambiar código'));
+    await fireEvent.press(screen.getAllByText('Cambiar código').at(-1)!);
+    await screen.findByText('TS-AAAAA2');
+    expect(mockQr.mock.calls.at(-1)![0].value).toBe('TS-AAAAA2');
   });
 });

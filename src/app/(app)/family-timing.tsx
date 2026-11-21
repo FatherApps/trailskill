@@ -15,6 +15,7 @@ import {
   createPowerSyncFamilyTransferRepository,
   createPowerSyncFamilyVideoRepository,
   createSecureStoreFamilyTimingNoticeStore,
+  qrScanner,
   videoCamera,
   videoLibrary,
   videoSharing,
@@ -32,6 +33,7 @@ const importedResults = createPowerSyncImportedResultsRepository();
 const importSources = createSupabaseImportSourcesRepository();
 const notice = createSecureStoreFamilyTimingNoticeStore();
 const videoIntro = createSecureStoreFamilyTimingNoticeStore('video-intro');
+const scanIntro = createSecureStoreFamilyTimingNoticeStore('qr-intro');
 const familyVideos = createPowerSyncFamilyVideoRepository();
 
 // "/family-timing": "Mis tiempos", the times a guardian or adult athlete measures on their own phone.
@@ -57,6 +59,8 @@ export default function FamilyTimingRoute() {
       savedCodes={savedShareCodes}
       notice={notice}
       videoIntro={videoIntro}
+      qrScanner={qrScanner}
+      scanIntro={scanIntro}
       videoCamera={videoCamera}
       videos={familyVideos}
       videoLibrary={videoLibrary}
