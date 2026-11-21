@@ -1228,6 +1228,19 @@ describe('refreshTournaments', () => {
     expect(s.catalog.rows()).toEqual([{ ...current, organizationId: PLATFORM_ORG, refreshedAt: Date.parse('2026-10-28T10:00:00Z') }]);
   });
 
+  it('updates a tournament already in the catalog: every field the platform sent and refreshed_at, and leaves the others alone', async () => {
+    const changed = { ...current, name: 'Renamed Open', city: 'New City', discipline: 'SW', sourceUrl: 'https://games.example.test/t/moved' };
+    const s = setup({ platformOptions: { tournaments: [changed] } });
+    const stored = tournamentEntry('20261010', { name: 'Old Open', city: 'Old City', discipline: 'PO', sourceUrl: 'https://games.example.test/t/old' });
+    s.catalog.seed(PLATFORM_ORG, stored, 1);
+    s.catalog.seed(PLATFORM_ORG, earlier, 1);
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+    expect(s.catalog.rows().sort((a, b) => a.dateKey.localeCompare(b.dateKey))).toEqual([
+      { ...earlier, organizationId: PLATFORM_ORG, refreshedAt: 1 },
+      { ...changed, organizationId: PLATFORM_ORG, refreshedAt: Date.parse('2026-10-28T10:00:00Z') },
+    ]);
+  });
+
   it('does not ask the platform again before 24 hours, and asks again after them', async () => {
     const s = setup({ platformOptions: listing });
     await s.service.refreshTournaments();

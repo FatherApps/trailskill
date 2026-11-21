@@ -2,7 +2,7 @@
 -- nothing for a client. All organizations and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(35);
 
 -- b1 and b2 are results platforms, b3 a federation.
 insert into public.organizations (id, type, country_code, parent_organization_id, name) values
@@ -130,6 +130,24 @@ select ok(
    where t.organization_id = '1341a000-0000-4000-8000-0000000000b1' and date_key = '20260314'),
   'its refreshed_at moves forward'
 );
+-- Every field of a known day is updated, not only the name, and its refreshed_at moves again.
+create temp table before_third_save as
+  select refreshed_at from public.results_import_tournaments where organization_id = '1341a000-0000-4000-8000-0000000000b1' and date_key = '20260314';
+select public.results_import_save_tournaments('1341a000-0000-4000-8000-0000000000b1', $j$[
+  {"year": 2026, "date_key": "20260314", "name": "Moved Open", "city": "Moved City", "discipline": "PO", "course": "25m", "source_url": "https://games.example.test/t/moved"}
+]$j$::jsonb);
+select is(
+  (select array[t.name, t.city, t.discipline, t.course, t.source_url] from public.results_import_tournaments t
+   where t.organization_id = '1341a000-0000-4000-8000-0000000000b1' and t.date_key = '20260314'),
+  array['Moved Open', 'Moved City', 'PO', '25m', 'https://games.example.test/t/moved'],
+  'a known day takes the name, city, discipline, course and address the platform sent'
+);
+select ok(
+  (select t.refreshed_at > b.refreshed_at from public.results_import_tournaments t, before_third_save b
+   where t.organization_id = '1341a000-0000-4000-8000-0000000000b1' and t.date_key = '20260314'),
+  'and its refreshed_at moves forward again'
+);
+
 select ok(
   (select t.refreshed_at = b.refreshed_at from public.results_import_tournaments t join before_second_save b using (date_key)
    where t.organization_id = '1341a000-0000-4000-8000-0000000000b1' and date_key = '20260418'),
