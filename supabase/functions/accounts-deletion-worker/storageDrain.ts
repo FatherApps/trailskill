@@ -8,7 +8,19 @@ export const MAX_ROUNDS = 20;
 export const ORPHAN_BATCH = 200;
 export const DEFAULT_GRACE_HOURS = 24;
 
-export type StorageSummary = { deleted: number; failed: number; orphansDeleted: number; orphansFailed: number };
+/** In report mode the run only counts orphans, up to this many (the runbook has the exact count query). */
+export const REPORT_LIMIT = 10000;
+
+export type SweepMode = 'report' | 'delete';
+export type Sweep = { mode: SweepMode; unrecognized: boolean };
+
+/** STORAGE_ORPHAN_SWEEP: `delete` deletes orphans, `report` (the default, also for any other value) only counts them. */
+export function sweepFrom(value: string | undefined): Sweep {
+  if (value === 'delete' || value === 'report') return { mode: value, unrecognized: false };
+  return { mode: 'report', unrecognized: value !== undefined && value !== '' };
+}
+
+export type StorageSummary = { deleted: number; failed: number; orphansDeleted: number; orphansFailed: number; orphansReported: number };
 
 /** STORAGE_ORPHAN_GRACE_HOURS as a whole number of hours, 24 when it is missing or not a positive integer. */
 export function graceHoursFrom(value: string | undefined): number {
@@ -20,14 +32,14 @@ const LOGGABLE = /^(Calling [a-z_]+ failed \(\w+\)|Storage delete failed \((netw
 const loggable = (error: unknown) => (error instanceof Error && LOGGABLE.test(error.message) ? error.message : 'unknown');
 
 /**
- * Deletes, through the Storage API only, the objects the database queued and the athlete-photos objects no photo row references
- * after the grace period. A queue row is finished only after the object is gone; a failure records the attempt and the row comes
+ * Deletes, through the Storage API only, the objects the database queued and, when `sweep.mode` is `delete`, the athlete-photos objects
+ * no photo row references after the grace period (in `report` mode, the default, it only counts and logs that total). A queue row is finished only after the object is gone; a failure records the attempt and the row comes
  * back in a later run. A failure on one object does not stop the others. Logs carry the queue row id and the failure kind, never a path.
  */
-export function createStorageDrain({ store, storage, clock, graceHours = DEFAULT_GRACE_HOURS }: { store: StorageDrainStore; storage: StorageApi; clock: Clock; graceHours?: number }) {
+export function createStorageDrain({ store, storage, clock, graceHours = DEFAULT_GRACE_HOURS, sweep = sweepFrom(undefined) }: { store: StorageDrainStore; storage: StorageApi; clock: Clock; graceHours?: number; sweep?: Sweep }) {
   return async function drain(): Promise<StorageSummary> {
     const now = clock.now();
-    const summary: StorageSummary = { deleted: 0, failed: 0, orphansDeleted: 0, orphansFailed: 0 };
+    const summary: StorageSummary = { deleted: 0, failed: 0, orphansDeleted: 0, orphansFailed: 0, orphansReported: 0 };
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const batch = await store.claim(now, DRAIN_BATCH);
@@ -47,6 +59,14 @@ export function createStorageDrain({ store, storage, clock, graceHours = DEFAULT
         }
       }
       if (batch.length < DRAIN_BATCH) break;
+    }
+
+    if (sweep.unrecognized) console.error('accounts-deletion-worker STORAGE_ORPHAN_SWEEP is not report or delete: using report');
+    if (sweep.mode === 'report') {
+      // Report only: totals, never a path, and nothing is deleted.
+      summary.orphansReported = (await store.listOrphans(now, graceHours, REPORT_LIMIT)).length;
+      console.log(`accounts-deletion-worker orphan sweep (report only, nothing deleted): ${summary.orphansReported} orphans older than ${graceHours} h${summary.orphansReported >= REPORT_LIMIT ? ' (counted up to ' + REPORT_LIMIT + ')' : ''}`);
+      return summary;
     }
 
     for (const orphan of await store.listOrphans(now, graceHours, ORPHAN_BATCH)) {

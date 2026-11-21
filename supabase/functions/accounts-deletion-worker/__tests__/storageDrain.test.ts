@@ -1,16 +1,16 @@
 import { createFakeClock } from './fakes.ts';
 import { createStorageApi, createStorageDrainStore } from '../storageAdapters.ts';
 import { ATHLETE, createFakeStorage, createMemoryDrainStore, pathOf } from './storageFakes.ts';
-import { createStorageDrain, DEFAULT_GRACE_HOURS, DRAIN_BATCH, graceHoursFrom, MAX_ROUNDS } from '../storageDrain.ts';
+import { createStorageDrain, DEFAULT_GRACE_HOURS, DRAIN_BATCH, graceHoursFrom, MAX_ROUNDS, REPORT_LIMIT, sweepFrom } from '../storageDrain.ts';
 
 const BUCKET = 'athlete-photos';
 const queuedRow = (n: number) => ({ id: `row-${n}`, bucket: BUCKET, path: pathOf(n) });
 
-function setup({ queued = [] as ReturnType<typeof queuedRow>[], held = [] as number[], failing = {} as Record<string, string>, orphans = [] as number[], graceHours = undefined as number | undefined } = {}) {
+function setup({ queued = [] as ReturnType<typeof queuedRow>[], held = [] as number[], failing = {} as Record<string, string>, orphans = [] as number[], graceHours = undefined as number | undefined, sweep = sweepFrom('delete') } = {}) {
   const memory = createMemoryDrainStore({ queued, orphans: orphans.map((n) => ({ bucket: BUCKET, path: pathOf(n) })) });
   const fake = createFakeStorage({ objects: held.map((n) => `${BUCKET}/${pathOf(n)}`), failing });
   const time = createFakeClock();
-  return { ...memory, ...fake, time, drain: createStorageDrain({ store: memory.store, storage: fake.storage, clock: time.clock, graceHours }) };
+  return { ...memory, ...fake, time, drain: createStorageDrain({ store: memory.store, storage: fake.storage, clock: time.clock, graceHours, sweep }) };
 }
 
 const logged = (spy: jest.SpyInstance) => spy.mock.calls.map((call) => call.join(' ')).join('\n');
@@ -24,7 +24,7 @@ describe('storage drain', () => {
 
   it('deletes each queued object through the Storage API and finishes its row', async () => {
     const s = setup({ queued: [queuedRow(1), queuedRow(2)], held: [1, 2] });
-    expect(await s.drain()).toEqual({ deleted: 2, failed: 0, orphansDeleted: 0, orphansFailed: 0 });
+    expect(await s.drain()).toEqual({ deleted: 2, failed: 0, orphansDeleted: 0, orphansFailed: 0, orphansReported: 0 });
     expect([...s.held]).toEqual([]);
     expect(s.rows).toEqual([]);
   });
@@ -100,13 +100,13 @@ describe('storage drain', () => {
     const memory = createMemoryDrainStore({ queued: [queuedRow(1)], referenced: [pathOf(1)] });
     const fake = createFakeStorage({ objects: [`${BUCKET}/${pathOf(1)}`] });
     const drain = createStorageDrain({ store: memory.store, storage: fake.storage, clock: createFakeClock().clock });
-    expect(await drain()).toEqual({ deleted: 0, failed: 0, orphansDeleted: 0, orphansFailed: 0 });
+    expect(await drain()).toEqual({ deleted: 0, failed: 0, orphansDeleted: 0, orphansFailed: 0, orphansReported: 0 });
     expect(fake.held.size).toBe(1);
   });
 
   it('sweeps the orphans the database lists, with the configured grace period, through the Storage API', async () => {
     const s = setup({ held: [7, 8], orphans: [7, 8], graceHours: 48 });
-    expect(await s.drain()).toEqual({ deleted: 0, failed: 0, orphansDeleted: 2, orphansFailed: 0 });
+    expect(await s.drain()).toEqual({ deleted: 0, failed: 0, orphansDeleted: 2, orphansFailed: 0, orphansReported: 0 });
     expect([...s.held]).toEqual([]);
     expect(s.graceCalls).toEqual([48]);
   });
@@ -126,6 +126,69 @@ describe('storage drain', () => {
     s.store.listOrphans = async (now, g, limit) => (nows.push(now), listOrphans(now, g, limit));
     await s.drain();
     expect(new Set(nows.map((d) => d.getTime())).size).toBe(1);
+  });
+});
+
+describe('orphan sweep mode', () => {
+  let log: jest.SpyInstance;
+  let error: jest.SpyInstance;
+  beforeEach(() => {
+    log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each([
+    ['report', 'report', false],
+    [undefined, 'report', false],
+    ['', 'report', false],
+    ['delete', 'delete', false],
+    ['DELETE', 'report', true],
+    ['true', 'report', true],
+  ])('reads STORAGE_ORPHAN_SWEEP %p as %p (unrecognized: %p)', (value, mode, unrecognized) => {
+    expect(sweepFrom(value as string | undefined)).toEqual({ mode, unrecognized });
+  });
+
+  const drainWith = (sweep: ReturnType<typeof sweepFrom> | undefined) => {
+    const memory = createMemoryDrainStore({ queued: [queuedRow(1)], orphans: [{ bucket: BUCKET, path: pathOf(7) }, { bucket: BUCKET, path: pathOf(8) }] });
+    const fake = createFakeStorage({ objects: [1, 7, 8].map((n) => `${BUCKET}/${pathOf(n)}`) });
+    const drain = createStorageDrain({ store: memory.store, storage: fake.storage, clock: createFakeClock().clock, ...(sweep ? { sweep } : {}) });
+    return { ...memory, ...fake, drain };
+  };
+
+  it('without the variable (report) counts the orphans, deletes none, logs only the total, and still drains the queue', async () => {
+    const s = drainWith(undefined);
+    expect(await s.drain()).toEqual({ deleted: 1, failed: 0, orphansDeleted: 0, orphansFailed: 0, orphansReported: 2 });
+    expect([...s.held].sort()).toEqual([`${BUCKET}/${pathOf(7)}`, `${BUCKET}/${pathOf(8)}`]);
+    expect(s.rows).toEqual([]);
+    expect(log).toHaveBeenCalledWith(`accounts-deletion-worker orphan sweep (report only, nothing deleted): 2 orphans older than ${DEFAULT_GRACE_HOURS} h`);
+    const output = [...log.mock.calls, ...error.mock.calls].map((c) => c.join(' ')).join('\n');
+    expect(output).not.toContain(ATHLETE);
+    expect(output).not.toContain('.jpg');
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('in report mode with an unrecognized value logs it once per run, without echoing the value, and does not delete', async () => {
+    const s = drainWith(sweepFrom('DELETE'));
+    expect((await s.drain()).orphansDeleted).toBe(0);
+    expect(s.held.size).toBe(2);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledWith('accounts-deletion-worker STORAGE_ORPHAN_SWEEP is not report or delete: using report');
+  });
+
+  it('in delete mode deletes the orphans through the Storage API and drains the queue', async () => {
+    const s = drainWith(sweepFrom('delete'));
+    expect(await s.drain()).toEqual({ deleted: 1, failed: 0, orphansDeleted: 2, orphansFailed: 0, orphansReported: 0 });
+    expect([...s.held]).toEqual([]);
+    expect(s.rows).toEqual([]);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('counts at most REPORT_LIMIT orphans in report mode and says so', async () => {
+    const memory = createMemoryDrainStore({ orphans: Array.from({ length: REPORT_LIMIT + 5 }, (_, i) => ({ bucket: BUCKET, path: pathOf(i + 1) })) });
+    const drain = createStorageDrain({ store: memory.store, storage: createFakeStorage().storage, clock: createFakeClock().clock });
+    expect((await drain()).orphansReported).toBe(REPORT_LIMIT);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(`counted up to ${REPORT_LIMIT}`));
   });
 });
 
@@ -164,7 +227,7 @@ describe('storage drain logs', () => {
       if (status === undefined && statuses.length === 1) throw new Error(leaky('network'));
       return { error: status === 404 ? null : { status, message: leaky('storage') + paths.join() } };
     });
-    const drain = createStorageDrain({ store: createStorageDrainStore(rpc), storage, clock: createFakeClock().clock });
+    const drain = createStorageDrain({ store: createStorageDrainStore(rpc), storage, clock: createFakeClock().clock, sweep: sweepFrom('delete') });
     const summary = await drain();
     expect(summary.failed + summary.orphansFailed + summary.deleted + summary.orphansDeleted).toBeGreaterThan(0);
     expect(calls).toContain('fail_storage_deletion');

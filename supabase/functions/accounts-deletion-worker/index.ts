@@ -7,7 +7,7 @@ import { createWorkerStore } from './adapters.ts';
 import { createHandler } from './handler.ts';
 import { createRunWorker } from './service.ts';
 import { createStorageApi, createStorageDrainStore } from './storageAdapters.ts';
-import { createStorageDrain, graceHoursFrom } from './storageDrain.ts';
+import { createStorageDrain, graceHoursFrom, sweepFrom } from './storageDrain.ts';
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 const store = createWorkerStore(async (fn, args) => admin.rpc(fn, args));
@@ -19,6 +19,8 @@ const drain = createStorageDrain({
   storage: createStorageApi((bucket, paths) => admin.storage.from(bucket).remove(paths)),
   clock,
   graceHours: graceHoursFrom(Deno.env.get('STORAGE_ORPHAN_GRACE_HOURS')),
+  // Orphans are only counted until the maintainer sets STORAGE_ORPHAN_SWEEP=delete.
+  sweep: sweepFrom(Deno.env.get('STORAGE_ORPHAN_SWEEP')),
 });
 const run = createRunWorker({ store, mailer, clock, drain });
 

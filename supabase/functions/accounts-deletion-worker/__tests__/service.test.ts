@@ -133,7 +133,7 @@ describe('account deletion worker run', () => {
   });
 
   it('adds the Storage drain summary after the accounts and emails, and the accounts part does not wait for it', async () => {
-    const summary = { deleted: 2, failed: 0, orphansDeleted: 1, orphansFailed: 0 };
+    const summary = { deleted: 2, failed: 0, orphansDeleted: 1, orphansFailed: 0, orphansReported: 0 };
     const memory = createMemoryStore({ due: ['r1'] });
     const run = createRunWorker({ store: memory.store, mailer: createRecordingMailer().mailer, clock: createFakeClock().clock, drain: async () => summary });
     expect(await run()).toEqual({ ...SUMMARY, erased: 1, storage: summary });
