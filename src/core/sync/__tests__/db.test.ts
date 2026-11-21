@@ -30,10 +30,15 @@ function loadDb(dev: boolean): DbModule {
 describe('connectOptions', () => {
   // Debug builds read the start of every HTTP response before handing it over, so the HTTP sync stream never arrives (#335).
   it('syncs over a WebSocket in development builds', () => {
-    expect(loadDb(true).connectOptions).toEqual({ connectionMethod: 'web-socket' });
+    expect(loadDb(true).connectOptions).toEqual({ connectionMethod: 'web-socket', params: { expired_saved_share_codes: 1 } });
+  });
+
+  // The stream of expired saved share codes checks `= 1`, so the value is the number 1, never true (#1321).
+  it('asks for the expired saved share codes, with the number 1', () => {
+    expect(loadDb(false).connectOptions.params).toEqual({ expired_saved_share_codes: 1 });
   });
 
   it('keeps HTTP streaming in release builds', () => {
-    expect(loadDb(false).connectOptions).toEqual({ connectionMethod: 'http' });
+    expect(loadDb(false).connectOptions).toEqual({ connectionMethod: 'http', params: { expired_saved_share_codes: 1 } });
   });
 });

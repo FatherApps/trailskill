@@ -99,7 +99,7 @@ export type FamilyTimingContainerProps = {
   shareCodes?: { find(code: string): Promise<string | null> };
   // The codes other families gave this person, kept after an accepted send (accounts module): picked instead of typed again.
   savedCodes?: {
-    list(userId: string): Promise<{ id: string; code: string; athleteShortName: string }[]>;
+    list(userId: string, options?: { includeExpired?: boolean }): Promise<{ id: string; code: string; athleteShortName: string; expiredAt: string | null }[]>;
     forget(id: string): Promise<void>;
   };
   // Changes when the device synced: requests and moved times arrive by sync, so the lists read again.
@@ -197,7 +197,17 @@ type Step =
   // The video of a saved time (#1089); back goes to where it was opened.
   | { kind: 'time_video'; id: string; from: 'list' | 'detail' }
   // Sending a time with the other swimmer's code: `found` is the short name once the code was looked up.
-  | { kind: 'send'; id: string; code: string; found: string | null; error: FamilyTransferErrorCode | null; busy: boolean; savedId?: string | null }
+  | {
+      kind: 'send';
+      id: string;
+      code: string;
+      found: string | null;
+      error: FamilyTransferErrorCode | null;
+      busy: boolean;
+      savedId?: string | null;
+      // The kept code that turned out expired (its family changed it): explained here once, while its entry is removed (#1321).
+      expired?: string | null;
+    }
   // After sending a time with its video, or accepting one, the offer to share or link the video (#1201).
   | { kind: 'video_offer'; offer: 'share' | 'link'; id: string; name: string | null }
   // The chosen video's name does not say it is this time's: of another time (it cannot be linked), or without the time's id.
@@ -330,14 +340,14 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const [discardFailed, setDiscardFailed] = useState<{ step: Step; selectedId: string | null } | null>(null);
   const discardError = discardFailed?.step === step && discardFailed.selectedId === selectedId;
   // The codes kept from other families, read when sending; a removed one hides at once, before the sync takes it away.
-  const [kept, setKept] = useState<{ id: string; code: string; athleteShortName: string }[]>([]);
+  const [kept, setKept] = useState<{ id: string; code: string; athleteShortName: string; expiredAt: string | null }[]>([]);
   const [forgotten, setForgotten] = useState<string[]>([]);
   const sending = step.kind === 'send';
   useEffect(() => {
     if (!sending || !savedCodes) return;
     let current = true;
     savedCodes
-      .list(userId)
+      .list(userId, { includeExpired: true })
       .then((rows) => current && setKept(rows))
       .catch(() => current && setKept([]));
     return () => {
@@ -697,8 +707,21 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     }
   }
 
+  // A kept code its family changed: the person is told once (the step keeps the name), and the entry is removed. If removing fails
+  // (no signal) it stays expired and unpickable, and the next touch tries again.
+  async function expireKeptCode(id: string, name: string) {
+    setStep((s) => (s.kind === 'send' ? { ...s, code: '', found: null, error: null, busy: false, savedId: null, expired: name } : s));
+    try {
+      await savedCodes?.forget(id);
+      setForgotten((list) => [...list, id]);
+    } catch {
+      // The entry stays; see above.
+    }
+  }
+
   async function sendTime() {
     if (step.kind !== 'send' || !transfers || !step.found || saving.current) return;
+    const { savedId, found } = step;
     saving.current = true;
     setStep({ ...step, busy: true, error: null });
     try {
@@ -708,7 +731,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       setReload((n) => n + 1);
     } catch (error) {
       const code = error instanceof FamilyTransferError ? error.code : 'failed';
-      setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
+      // The server no longer knows a code picked from the kept ones: its family changed it before this phone synced. A typed code keeps its error.
+      if (code === 'unknown_code' && savedId) void expireKeptCode(savedId, found);
+      else setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
     } finally {
       saving.current = false;
     }
@@ -1011,9 +1036,15 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
             busy: step.busy,
             error: step.error ? t(`family_timing.transfer.error.${step.error}`) : null,
             saved: {
-              options: keptCodes.map((k) => ({ value: k.id, label: `${k.athleteShortName} · ${k.code}` })),
+              options: keptCodes.map((k) => ({
+                value: k.id,
+                label: k.expiredAt
+                  ? t('family_timing.transfer.saved_expired_option', { name: k.athleteShortName, code: k.code })
+                  : `${k.athleteShortName} · ${k.code}`,
+              })),
               value: step.savedId ?? '',
             },
+            expired: step.expired ? t('family_timing.transfer.saved_expired', { name: step.expired }) : null,
           },
         }
       : listView();
@@ -1244,11 +1275,15 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       }}
       onOpenDeleted={() => setStep({ kind: 'deleted', restoreError: false })}
       onOpenSend={() => step.kind === 'edit' && setStep({ kind: 'send', id: step.id, code: '', found: null, error: null, busy: false })}
-      onSendCode={(code) => setStep((s) => (s.kind === 'send' ? { ...s, code, found: null, error: null, savedId: null } : s))}
+      onSendCode={(code) => setStep((s) => (s.kind === 'send' ? { ...s, code, found: null, error: null, savedId: null, expired: null } : s))}
+      onEnterNewCode={() => setStep((s) => (s.kind === 'send' ? { ...s, code: '', found: null, error: null, savedId: null, expired: null } : s))}
       // A kept code was already accepted by that family: its swimmer is known, so it goes straight to «Enviar a …» without a lookup.
       onPickSavedCode={(id) => {
         const k = keptCodes.find((x) => x.id === id);
-        if (k) setStep((s) => (s.kind === 'send' ? { ...s, code: k.code, found: k.athleteShortName, error: null, savedId: k.id } : s));
+        if (!k) return;
+        // An expired one is never picked: it is explained and removed instead.
+        if (k.expiredAt) void expireKeptCode(k.id, k.athleteShortName);
+        else setStep((s) => (s.kind === 'send' ? { ...s, code: k.code, found: k.athleteShortName, error: null, savedId: k.id, expired: null } : s));
       }}
       onForgetSavedCode={async () => {
         if (step.kind !== 'send' || !step.savedId || !savedCodes) return;

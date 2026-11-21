@@ -42,4 +42,6 @@ export const db = new PowerSyncDatabase({
 // and the downloaded checkpoint was never applied (#335). Development builds sync over a WebSocket; release builds keep HTTP.
 export const connectOptions: SyncOptions = {
   connectionMethod: __DEV__ ? SyncStreamConnectionMethod.WEB_SOCKET : SyncStreamConnectionMethod.HTTP,
+  // Turns on the stream of expired saved share codes (#1321); the stream checks `= 1`, so it is the number 1, never true.
+  params: { expired_saved_share_codes: 1 },
 };

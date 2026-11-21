@@ -167,7 +167,7 @@
       "change": "Cambiar código",
       "change_offline": "necesitas señal",
       "change_title": "¿Cambiar el código?",
-      "change_message": "El código actual deja de funcionar de inmediato. Quien lo tenga necesitará el nuevo.",
+      "change_message": "El código actual deja de funcionar de inmediato: quienes lo guardaron tendrán que pedírtelo otra vez.",
       "change_confirm": "Cambiar código",
       "change_cancel": "Conservar",
       "change_error": "No pudimos cambiar el código. El actual sigue funcionando. Inténtalo de nuevo.",
