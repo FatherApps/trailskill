@@ -88,13 +88,14 @@ describe('AppSchema', () => {
     expect(Object.keys(columns)).toContain('active');
   });
 
-  it('keeps pending_writes, upload_failures, uploaded_ops, family_measurements, family_timing_videos and athlete_photo_uploads local only', () => {
+  it('keeps pending_writes, upload_failures, uploaded_ops, family_measurements, family_timing_videos, family_timing_notes and athlete_photo_uploads local only', () => {
     expect(byName.get('pending_writes')?.localOnly).toBe(true);
     expect(byName.get('upload_failures')?.localOnly).toBe(true);
     expect(byName.get('uploaded_ops')?.localOnly).toBe(true);
     expect(byName.get('family_measurements')?.localOnly).toBe(true);
     expect(byName.get('family_timing_videos')?.localOnly).toBe(true);
+    expect(byName.get('family_timing_notes')?.localOnly).toBe(true);
     expect(byName.get('athlete_photo_uploads')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(36);
+    expect(AppSchema.tables).toHaveLength(37);
   });
 });

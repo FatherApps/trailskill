@@ -306,6 +306,12 @@ export const AppSchema = new Schema({
     },
     { localOnly: true, indexes: { measurement: ['measurement_id'] } },
   ),
+  // The note on a time without a swimmer (#1300), whose time it is ("Juan, hijo de Pedro"), on this phone only: it names someone else's
+  // child, so it never reaches the server. family-timing removes it once the time has a swimmer or has left this person's times.
+  family_timing_notes: new Table(
+    { created_at: column.text, measurement_id: column.text, note: column.text },
+    { localOnly: true, indexes: { measurement: ['measurement_id'] } },
+  ),
   // The photos of athletes waiting to go up (#1222), on this phone only: the image stays in documentDirectory until its object is in Storage
   // and its athlete_photos row is written; neither the queue nor the image ever syncs.
   athlete_photo_uploads: new Table({ athlete_id: column.text, local_uri: column.text }, { localOnly: true, indexes: { athlete: ['athlete_id'] } }),

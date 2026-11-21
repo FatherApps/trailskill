@@ -22,6 +22,7 @@ import {
   type TimingButtonPort,
 } from '../../timing';
 import {
+  cleanNote,
   FAMILY_MEASUREMENTS_TABLE,
   type FamilyMeasurement,
   type FamilyMeasurementRepository,
@@ -151,6 +152,9 @@ type Setup = {
   pool: PoolCode | null;
   sessionType: FamilySessionType;
   competition: string;
+  // Individual mode: who the time goes to, a swimmer by default, or null for "Sin asignar" (someone else's child), with a note.
+  athleteId: string | null;
+  note: string;
 };
 const initialSetup: Setup = {
   mode: 'individual',
@@ -160,6 +164,8 @@ const initialSetup: Setup = {
   pool: null,
   sessionType: 'training',
   competition: '',
+  athleteId: null,
+  note: '',
 };
 
 // A lane of a series once timed: who swam it (null: not given to a swimmer yet) and the stroke.
@@ -179,7 +185,7 @@ type Step =
   | { kind: 'official'; id: string; text: string; invalid: boolean }
   // Picking which imported official result goes with a competition time (#974).
   | { kind: 'choose_official'; id: string; saveError: boolean }
-  | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string | null; confirmingDelete: boolean; saveError: boolean }
+  | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string | null; note: string; confirmingDelete: boolean; saveError: boolean }
   | { kind: 'deleted'; restoreError: boolean }
   // One saved time with everything known about it (#1002).
   | { kind: 'detail'; id: string }
@@ -270,8 +276,6 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   const [unassignedCount, setUnassignedCount] = useState(0);
   const selectedId =
     chosenId === UNASSIGNED && unassignedCount > 0 ? UNASSIGNED : athletes.some((a) => a.id === chosenId) ? chosenId : (athletes[0]?.id ?? null);
-  // The swimmer the list reads and a new time goes to; null for "Sin asignar".
-  const athleteOfSelected = selectedId === UNASSIGNED ? null : selectedId;
   const key = `${selectedId}:${reload}`;
   const loaded = useMemo<Loaded>(() => (read.status !== 'loading' && read.key === key ? read : { status: 'loading' }), [read, key]);
   const [step, setStep] = useState<Step>({ kind: 'list' });
@@ -456,6 +460,8 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         athleteId: m.athleteId,
         // The row's second line: the time of day for today's times, the date for older ones, then the short type, the pool and the lengths.
         subtitle: [
+          // A time without a swimmer leads with its note: whose time it is.
+          m.athleteId === null ? m.note : null,
           age === 'today' ? clock : date,
           t(`family_timing.card.type_short.${m.sessionType}`),
           `${pools.find((pool) => pool.code === m.pool)?.lengthMeters ?? ''} m`,
@@ -474,6 +480,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         officialChoice: match && match.choices.length > 0 ? (match.chosen ? 'change' : 'choose') : null,
         hasManualOfficial: m.officialMillis !== null,
         unassigned: m.athleteId === null,
+        note: m.athleteId === null ? (m.note ?? null) : null,
         sentTo: sentByMeasurement.get(m.id)?.athleteShortName ?? null,
         video: videoLinks.has(m.id) ? (videoLinks.get(m.id)!.uri ? 'available' : 'missing') : null,
         canShareVideo: !!videoSharing && !!videoLinks.get(m.id)?.uri,
@@ -590,6 +597,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     const athlete = athletes.find((a) => a.id === m.athleteId);
     const rows = [
       { label: t('family_timing.detail.athlete'), value: athlete ? [athlete.firstName, athlete.lastName].filter(Boolean).join(' ') : t('family_timing.unassigned') },
+      ...(!athlete && m.note ? [{ label: t('family_timing.detail.note'), value: m.note }] : []),
       { label: t('family_timing.detail.when'), value: `${formatDate(day, 'long') ?? day} · ${clock}` },
       { label: t('family_timing.detail.session'), value: t(`family_timing.session_type.${m.sessionType}`) },
       ...(m.competition ? [{ label: t('family_timing.detail.competition'), value: m.competition }] : []),
@@ -770,7 +778,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       ? null
       : {
           id: randomUUID(),
-          athleteId: athleteOfSelected,
+          athleteId: setup.athleteId,
           createdBy: userId,
           stroke: setup.stroke,
           distance: setup.distance,
@@ -782,7 +790,11 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           splits: splitMillis(sw),
           officialMillis: null,
           officialSetAt: null,
+          note: setup.athleteId === null ? cleanNote(setup.note) : null,
         };
+
+  // After saving, the list shows where the time went: its swimmer, or "Sin asignar".
+  const showSaved = (measurement: FamilyMeasurement) => setChosenId(measurement.athleteId ?? UNASSIGNED);
 
   async function save() {
     if (saving.current || stopwatch.status !== 'stopped' || !selectedId || !setup.pool) return;
@@ -791,6 +803,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     saving.current = true;
     try {
       await repository.add(measurement);
+      showSaved(measurement);
       goToList();
       setReload((n) => n + 1);
     } catch {
@@ -852,6 +865,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           value: setup.sessionType,
         },
         competition: setup.competition,
+        // Individual mode only: a series gives each lane its swimmer after the arrivals.
+        athlete: { options: [...athleteOptions, unassignedOption], value: setup.athleteId ?? UNASSIGNED },
+        note: setup.athleteId === null ? setup.note : null,
       },
     };
   else if (step.kind === 'stopwatch') {
@@ -943,11 +959,9 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           edit: {
             card,
             stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: step.stroke },
-            // "Sin asignar" is offered for a time that has no swimmer yet, so it can stay there.
-            athlete: {
-              options: card.unassigned ? [...athleteOptions, unassignedOption] : athleteOptions,
-              value: step.athleteId ?? UNASSIGNED,
-            },
+            // "Sin asignar" is always offered: a time of someone else's child waits there, with a note, until it is sent.
+            athlete: { options: [...athleteOptions, unassignedOption], value: step.athleteId ?? UNASSIGNED },
+            note: step.athleteId === null ? step.note : null,
             confirmingDelete: step.confirmingDelete,
             saveError: step.saveError,
             canSend: !!transfers && !!shareCodes,
@@ -1011,6 +1025,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           const measurement = measurementOf(sw);
           if (!measurement) throw new Error('The stopwatch is not stopped');
           await repository.add(measurement);
+          showSaved(measurement);
           return measurement.id;
         }}
         linkVideo={videos ? (measurementId, assetId, startOffsetMillis) => videos.link(userId, { measurementId, assetId, startOffsetMillis }) : undefined}
@@ -1038,9 +1053,19 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       onSelectAthlete={setChosenId}
       onBack={onBack}
       onRetry={() => setReload((n) => n + 1)}
-      onNew={() => setStep({ kind: 'setup' })}
+      onNew={() => {
+        // A new time goes to a swimmer by default: the one shown, or the first one while "Sin asignar" is shown.
+        setSetup((current) => ({ ...current, athleteId: selectedId !== UNASSIGNED && selectedId ? selectedId : (athletes[0]?.id ?? null), note: '' }));
+        setStep({ kind: 'setup' });
+      }}
       onSetupChange={(field, value) =>
-        setSetup((current) => (field === 'swimmers' ? { ...current, swimmers: Number(value) } : { ...current, [field]: value }))
+        setSetup((current) =>
+          field === 'swimmers'
+            ? { ...current, swimmers: Number(value) }
+            : field === 'athleteId'
+              ? { ...current, athleteId: value === UNASSIGNED ? null : value }
+              : { ...current, [field]: value },
+        )
       }
       onGoToStopwatch={() => {
         if (!setup.pool) return;
@@ -1115,12 +1140,20 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       }}
       onOpenEdit={(id) => {
         const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === id) : undefined;
-        if (m) setStep({ kind: 'edit', id, stroke: m.stroke, athleteId: m.athleteId, confirmingDelete: false, saveError: false });
+        if (m) setStep({ kind: 'edit', id, stroke: m.stroke, athleteId: m.athleteId, note: m.note ?? '', confirmingDelete: false, saveError: false });
       }}
       onEditChange={(field, value) =>
         setStep((s) =>
           s.kind === 'edit'
-            ? { ...s, saveError: false, ...(field === 'stroke' ? { stroke: value as StrokeCode } : { athleteId: value === UNASSIGNED ? null : value }) }
+            ? {
+                ...s,
+                saveError: false,
+                ...(field === 'stroke'
+                  ? { stroke: value as StrokeCode }
+                  : field === 'note'
+                    ? { note: value }
+                    : { athleteId: value === UNASSIGNED ? null : value }),
+              }
             : s,
         )
       }
@@ -1128,9 +1161,12 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         if (step.kind !== 'edit') return;
         const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === step.id) : undefined;
         if (!m) return;
+        // The note counts only while the time stays without a swimmer; given to one, the repository clears it.
+        const note = step.athleteId === null ? cleanNote(step.note) : null;
         const changes = {
           ...(step.stroke !== m.stroke ? { stroke: step.stroke } : {}),
           ...(step.athleteId !== m.athleteId ? { athleteId: step.athleteId } : {}),
+          ...(step.athleteId === null && note !== (m.note ?? null) ? { note } : {}),
         };
         if (Object.keys(changes).length === 0) return goToList();
         // A time moved to another swimmer leaves this list: the list now shows that swimmer, where the time went.

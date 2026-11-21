@@ -26,4 +26,15 @@ describe('useMoveLocalFamilyTimes', () => {
     await renderHook(() => useMoveLocalFamilyTimes({ moveLocal }, undefined, 1_000));
     expect(moveLocal).not.toHaveBeenCalled();
   });
+
+  it('forgets the notes of gone times only after a sync (issue #1300)', async () => {
+    const repository = { moveLocal: jest.fn().mockResolvedValue(0), forgetGoneNotes: jest.fn().mockResolvedValue(0) };
+    const { rerender } = await renderHook(({ syncedAt }: { syncedAt?: number }) => useMoveLocalFamilyTimes(repository, 'u1', syncedAt), {
+      initialProps: {},
+    });
+    await waitFor(() => expect(repository.moveLocal).toHaveBeenCalledTimes(1));
+    expect(repository.forgetGoneNotes).not.toHaveBeenCalled();
+    await rerender({ syncedAt: 1_000 });
+    await waitFor(() => expect(repository.forgetGoneNotes).toHaveBeenCalledTimes(1));
+  });
 });
