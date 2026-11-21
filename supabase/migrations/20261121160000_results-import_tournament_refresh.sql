@@ -94,7 +94,8 @@ $$;
 -- Saves what the platform listed, all or none, by (platform, day): a new day is inserted, a known one is updated and its `refreshed_at`
 -- moves to now. A tournament the list no longer has is left alone: the stored list is never emptied by a refresh. `rows` is a JSON list of
 -- `{ year, date_key, name, city, discipline, course, source_url }`; the table's own checks and trigger refuse a bad row, and then nothing
--- is saved. Answers how many rows were saved.
+-- is saved. Two entries of the same day are one tournament (the day is the key): the first one is kept, so one upsert never touches a row twice.
+-- Answers how many rows were saved.
 create function public.results_import_save_tournaments(organization uuid, rows jsonb)
 returns integer
 language plpgsql
@@ -109,9 +110,13 @@ begin
   end if;
 
   insert into public.results_import_tournaments as t (organization_id, year, date_key, name, city, discipline, course, source_url, refreshed_at)
-  select results_import_save_tournaments.organization, r.year, r.date_key, r.name, r.city, r.discipline, r.course, r.source_url, clock_timestamp()
-  from jsonb_to_recordset(results_import_save_tournaments.rows)
-    as r(year integer, date_key text, name text, city text, discipline text, course text, source_url text)
+  select distinct on (r.date_key)
+    results_import_save_tournaments.organization, r.year, r.date_key, r.name, r.city, r.discipline, r.course, r.source_url, clock_timestamp()
+  from rows from (
+    jsonb_to_recordset(results_import_save_tournaments.rows)
+      as (year integer, date_key text, name text, city text, discipline text, course text, source_url text)
+  ) with ordinality as r(year, date_key, name, city, discipline, course, source_url, position)
+  order by r.date_key, r.position
   on conflict (organization_id, date_key) do update
     set year = excluded.year,
         name = excluded.name,

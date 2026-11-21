@@ -2,7 +2,7 @@
 -- nothing for a client. All organizations and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(33);
 
 -- b1 and b2 are results platforms, b3 a federation.
 insert into public.organizations (id, type, country_code, parent_organization_id, name) values
@@ -134,6 +134,19 @@ select ok(
   (select t.refreshed_at = b.refreshed_at from public.results_import_tournaments t join before_second_save b using (date_key)
    where t.organization_id = '1341a000-0000-4000-8000-0000000000b1' and date_key = '20260418'),
   'a tournament the list did not carry is left as it was'
+);
+
+-- Two entries of the same day are one tournament: the first is kept, and the list is saved instead of failing.
+select is(
+  public.results_import_save_tournaments('1341a000-0000-4000-8000-0000000000b2', $j$[
+    {"year": 2026, "date_key": "20260607", "name": "First Of The Day", "city": "Example City", "discipline": "SW", "course": null, "source_url": "https://games.example.test/t/a"},
+    {"year": 2026, "date_key": "20260607", "name": "Second Of The Day", "city": "Example City", "discipline": "PO", "course": null, "source_url": "https://games.example.test/t/b"}
+  ]$j$::jsonb),
+  1, 'two entries of the same day save one row'
+);
+select is(
+  (select name from public.results_import_tournaments where organization_id = '1341a000-0000-4000-8000-0000000000b2' and date_key = '20260607'),
+  'First Of The Day', 'the first entry of the day wins'
 );
 
 -- An empty list saves nothing and changes nothing.
