@@ -141,6 +141,7 @@ function toImportedResult(r: ImportedHistoryResult, sourceName: string | undefin
     context: 'competition',
     origin: 'import',
     ...(sourceName ? { sourceName } : {}),
+    ...(r.competition ? { competition: r.competition } : {}),
     value: { kind: 'race' },
     time: r.hundredths,
     isPersonalBest: r.id === personalBestId,

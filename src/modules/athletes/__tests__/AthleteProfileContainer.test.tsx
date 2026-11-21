@@ -609,6 +609,7 @@ describe('athlete profile container', () => {
       pool: 'SCM',
       hundredths: 2910,
       swumOn: '2026-09-05',
+      competition: null as string | null,
       ...over,
     });
     const repo = (rows: ReturnType<typeof imported>[]) => ({ listByAthlete: jest.fn().mockResolvedValue(rows) });
@@ -660,6 +661,30 @@ describe('athlete profile container', () => {
 
       await screen.findByLabelText(/Importado/);
       expect(screen.getByLabelText(new RegExp(`^Marca personal.*${spokenTime(3482)}`))).toBeOnTheScreen();
+    });
+
+    it('shows the competition name of the federation result when the same swim comes from a federation and a platform (issue 1358)', async () => {
+      await show({
+        importedResults: repo([
+          imported({ id: 'f1', provider: 'xx-fed', swumOn: '2026-09-03', competition: 'Torneo de prueba' }),
+          imported({ id: 't1', provider: 'xx-tour', swumOn: '2026-09-05', competition: 'Copa sintética' }),
+        ]),
+        sourceNames: { 'xx-fed': 'Federación Demo', 'xx-tour': 'Torneo Demo' },
+        sessionDated: ['xx-tour'],
+        federation: ['xx-fed'],
+      });
+
+      const row = await screen.findByLabelText(/Torneo de prueba/);
+      expect(row.props.accessibilityLabel).toMatch(/Federación Demo · Torneo Demo/);
+      expect(screen.getAllByText(/Torneo de prueba/, { includeHiddenElements: true }).length).toBeGreaterThan(0);
+      expect(screen.queryAllByText(/Copa sintética/, { includeHiddenElements: true })).toHaveLength(0);
+    });
+
+    it('shows no competition name on an imported row whose result has none', async () => {
+      await show({ importedResults: repo([imported({ competition: null })]), sourceNames: { 'xx-demo': 'Federación Demo' } });
+
+      const row = await screen.findByLabelText(/Federación Demo/);
+      expect(row.props.accessibilityLabel).toMatch(/Competencia, Federación Demo,/);
     });
 
     it('names the organization of an imported result from the data', async () => {

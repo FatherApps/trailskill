@@ -115,6 +115,21 @@ describe('HistoryList', () => {
     expect(hiddenText('11 oct 2026 · Competencia · Parcial 25 m')).toHaveLength(1);
   });
 
+  it('shows the competition name in the meta line, joined with the rest, and says it in the row label (issue 1358)', async () => {
+    const named = { ...byId('import'), competition: 'Torneo de prueba' };
+    await render(<HistoryList results={[named]} />);
+
+    expect(hiddenText('7 mar 2026 · Competencia · Torneo de prueba')).toHaveLength(1);
+    expect(screen.getByLabelText(/Competencia, Torneo de prueba, FEDNAT/, hidden)).toBeOnTheScreen();
+  });
+
+  it('leaves the row as it was without a competition name: no filler text, no empty separator', async () => {
+    await render(<HistoryList results={[{ ...byId('import'), competition: '' }, byId('race-pb')]} />);
+
+    expect(hiddenText('7 mar 2026 · Competencia')).toHaveLength(1);
+    expect(screen.getByLabelText(importRow, hidden)).toBeOnTheScreen();
+  });
+
   it('shows the origin as text for each origin but the own one', async () => {
     await render(<HistoryList results={['race-pb', 'import', 'external-timer', 'other-school'].map(byId)} />);
 

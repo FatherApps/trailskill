@@ -16,6 +16,8 @@ export type PersonalBestResult = {
   origin: HistoryOrigin;
   // The organization behind an imported best, from data.
   sourceName?: string;
+  // The competition of an imported best, from data.
+  competition?: string;
   // Previous best minus this one (positive: faster); null when there was no earlier valid time, never 0.
   improvement: { hundredths: Hundredths; previousDate: string } | null;
 };
@@ -55,6 +57,7 @@ export function personalBest(measurements: readonly Achievement[]): PersonalBest
     kind: best.kind,
     origin: best.origin,
     ...(best.sourceName ? { sourceName: best.sourceName } : {}),
+    ...(best.competition ? { competition: best.competition } : {}),
     improvement: previous
       ? { hundredths: (previous.hundredths - best.hundredths) as Hundredths, previousDate: previous.capturedAt }
       : null,

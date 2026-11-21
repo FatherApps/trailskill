@@ -38,7 +38,7 @@ const data = { kind: 'data' as const, athletes, selectedId: 'fx-1', firstName: '
 
 const scmMarks = [
   measured('FR', '50m', 3482, '2026-10-18'),
-  importedAchievement({ id: 'i-1', provider: 'xx-demo', stroke: 'FR', distance: '100m', pool: 'SCM', hundredths: 7966 as Hundredths, swumOn: '2025-08-23' }, 'Federación Demo'),
+  importedAchievement({ id: 'i-1', provider: 'xx-demo', stroke: 'FR', distance: '100m', pool: 'SCM', hundredths: 7966 as Hundredths, swumOn: '2025-08-23', competition: 'Torneo de prueba' }, 'Federación Demo'),
   measured('BK', '50m', 4108, '2026-10-02', { kind: 'repetition' }),
   measured('BR', '50m', 4731, '2026-08-23'),
   measured('FL', '50m', 3955, '2026-08-23'),
