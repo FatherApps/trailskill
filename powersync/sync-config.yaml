@@ -12,7 +12,7 @@
 # training-plans_coach_reads_fulfillments_assignment_school,
 # training-plans_admin_reads_fulfillments_assignment_school,
 # athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school,
-# athletes_photos, athletes_athlete_schools_end, accounts_saved_share_codes):
+# athletes_photos, athletes_athlete_schools_end, accounts_saved_share_codes, accounts_saved_share_codes_expired):
 # a row syncs only if the signed-in user could read it through RLS.
 # An ended link (athlete_schools.ended_at, #1243) gives its school's coaches and admins nothing of that swimmer, one
 # (swimmer, school) pair at a time. Every staff query keeps ended_at IS NULL on athlete_schools. PowerSync 1.21 builds the
@@ -101,10 +101,18 @@ streams:
 
   # The share codes another family gave this user, kept after an accepted send (saved_athlete_share_codes_select, #1302). The swimmer
   # behind a code is not synced: the user has only the code and the short name, as when they typed it.
+  # A code the family changed is kept with expired_at set (#1320). This stream, the one builds before #1320 know, gives only the
+  # current codes, so those builds behave as before: a row that expires leaves this stream and goes from their phone.
   accounts_saved_share_codes:
     auto_subscribe: true
     queries:
-      - SELECT id, user_id, code, athlete_short_name, saved_at FROM saved_athlete_share_codes WHERE (user_id = auth.user_id()) AND auth.user_id() IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
+      - SELECT id, user_id, code, athlete_short_name, saved_at FROM saved_athlete_share_codes WHERE (user_id = auth.user_id() AND expired_at IS NULL) AND auth.user_id() IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
+
+  # The expired codes of this user, with when they expired, for builds that know expired_at (#1320). Same rows, same table, never both streams.
+  accounts_saved_share_codes_expired:
+    auto_subscribe: true
+    queries:
+      - SELECT id, user_id, code, athlete_short_name, saved_at, expired_at FROM saved_athlete_share_codes WHERE (user_id = auth.user_id() AND expired_at IS NOT NULL) AND auth.user_id() IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
 
   school_console_school:
     auto_subscribe: true

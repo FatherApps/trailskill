@@ -4,8 +4,10 @@ import { db, supabase } from '../../../core/sync';
  * A share code another family gave this person, kept once that family accepted a time sent with it (issue 1302), so the next send can
  * pick it instead of asking again. The server keeps it and removes it, for everyone, as soon as the family changes the code. Only
  * what the person already had comes with it: the code and the swimmer's short name ("Ana M.").
+ * When the family changes the code the row stays with `expiredAt` set (issue 1320): the person sees it expired and asks for the new
+ * one. It is null while the code is current.
  */
-export type SavedShareCode = { id: string; code: string; athleteShortName: string; savedAt: string };
+export type SavedShareCode = { id: string; code: string; athleteShortName: string; savedAt: string; expiredAt: string | null };
 
 export interface SavedShareCodeRepository {
   /** This person's kept codes, most recently kept first. */
@@ -14,17 +16,23 @@ export interface SavedShareCodeRepository {
   forget(id: string): Promise<void>;
 }
 
-type Row = { id: string; code: string; athlete_short_name: string; saved_at: string };
+type Row = { id: string; code: string; athlete_short_name: string; saved_at: string; expired_at?: string | null };
 
 // The rows reach the phone by sync (saved_athlete_share_codes); only the server functions write them.
 export function createPowerSyncSavedShareCodeRepository(): SavedShareCodeRepository {
   return {
     async list(userId) {
       const rows = await db.getAll<Row>(
-        'SELECT id, code, athlete_short_name, saved_at FROM saved_athlete_share_codes WHERE user_id = ? ORDER BY saved_at DESC, id',
+        'SELECT id, code, athlete_short_name, saved_at, expired_at FROM saved_athlete_share_codes WHERE user_id = ? ORDER BY saved_at DESC, id',
         [userId],
       );
-      return rows.map((row) => ({ id: row.id, code: row.code, athleteShortName: row.athlete_short_name, savedAt: row.saved_at }));
+      return rows.map((row) => ({
+        id: row.id,
+        code: row.code,
+        athleteShortName: row.athlete_short_name,
+        savedAt: row.saved_at,
+        expiredAt: row.expired_at ?? null,
+      }));
     },
     async forget(id) {
       const { error } = await supabase.rpc('forget_saved_athlete_share_code', { saved: id });
