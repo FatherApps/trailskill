@@ -62,6 +62,7 @@ export { MyAthletesScreen, type MyAthleteCard, type MyAthletesScreenProps, type 
 export { MarksScreen, type MarkCard, type MarkSectionView, type MarksScreenProps, type MarksView } from './screens/MarksScreen';
 export { MarksContainer, type MarksContainerProps } from './screens/MarksContainer';
 export { MyAthletesContainer, type MyAthletesContainerProps } from './screens/MyAthletesContainer';
+export type { AthleteShareCodeSlot } from './components/AthleteStack';
 export type { AthleteStructure } from './data/useAthleteDetails';
 export {
   createInMemoryOtherSchoolResultsRepository,
