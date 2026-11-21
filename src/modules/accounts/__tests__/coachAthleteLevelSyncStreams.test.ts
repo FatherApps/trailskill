@@ -33,11 +33,11 @@ test("accounts_authorization_status reads the rows of a swimmer through every so
   ]);
 });
 
-// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244): this test pins the rest.
+// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244): this test pins the rest (the gate ends the top-level WHERE).
 const ungated = (text: string | undefined) =>
   text?.replaceAll(
-    / AND [\w.]+ IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)/g,
-    "",
+    / WHERE \((.*)\) AND auth\.user_id\(\) IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)$/gm,
+    " WHERE $1",
   );
 
 test("the coach athlete ids count only the schools where the coach is active", () => {
