@@ -158,6 +158,20 @@ describe('tournament calls', () => {
     expect(await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', url })).toEqual({ ok: false, error: { code } });
   });
 
+  it('reads the reason no_file of an unavailable answer as the no_file failure', async () => {
+    const { client } = clientReplying(refusal({ ok: false, error: { code: 'unavailable', reason: 'no_file' } }));
+    expect(await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', url })).toEqual({ ok: false, error: { code: 'no_file' } });
+  });
+
+  it.each([[{ code: 'unavailable', reason: 'otro' }], [{ code: 'unavailable', reason: 7 }], [{ code: 'unavailable' }], [{ code: 'nuevo', reason: 'no_file' }]])(
+    'keeps %j as unavailable or unexpected, never as no_file',
+    async (error) => {
+      const { client } = clientReplying(refusal({ ok: false, error }));
+      const outcome = await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', url });
+      expect(outcome).toEqual({ ok: false, error: { code: error.code === 'unavailable' ? 'unavailable' : 'unexpected' } });
+    },
+  );
+
   it('confirms with the organization of the tournament and returns the results the server offers', async () => {
     const offered = [{ id: 'r1', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: 3012, swumOn: '2026-05-10', competition: 'Synthetic Open' }];
     const { client, calls } = clientReplying({ data: { ok: true, value: { results: offered } } });

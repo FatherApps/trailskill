@@ -220,6 +220,13 @@ describe('results-import handler: tournament', () => {
   const body = { action: 'tournament', athleteId: ATHLETE, url: URL_ };
   const candidate = { organizationId: ORG, candidate: { id: 'candidate-1', name: 'Ana Example', club: 'Synthetic Club', resultCount: 2 } };
 
+  it('carries the reason of an unavailable tournament in the body, with the same 502', async () => {
+    const s = setup({ tournament: { ok: false, error: { code: 'unavailable', reason: 'no_file' } } });
+    const response = await s.post(body);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'unavailable', reason: 'no_file' } });
+  });
+
   it('looks the tournament up as the user of the token, with no number when none is typed', async () => {
     const s = setup({ tournament: { ok: true, value: candidate } });
     const response = await s.post({ ...body, userId: 'someone-else' });

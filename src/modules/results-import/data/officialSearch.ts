@@ -78,7 +78,9 @@ const KNOWN_FAILURES = ['not_authorized', 'rate_limited', 'no_provider', 'unavai
 
 // The body of a refusal is the server's `{ ok: false, error: { code, retryAt? } }`; anything else is unexpected.
 function failureFrom(body: unknown): SearchFailure {
-  const error = (body as { error?: { code?: unknown; retryAt?: unknown } } | null)?.error;
+  const error = (body as { error?: { code?: unknown; retryAt?: unknown; reason?: unknown } } | null)?.error;
+  // The tournament has no file yet: `unavailable` with a reason, so a device that does not know the reason keeps `unavailable`.
+  if (error?.code === 'unavailable' && error.reason === 'no_file') return { code: 'no_file' };
   const code = KNOWN_FAILURES.find((known) => known === error?.code);
   if (code === 'rate_limited') return typeof error?.retryAt === 'string' ? { code, retryAt: error.retryAt } : { code: 'unexpected' };
   return code ? { code } : { code: 'unexpected' };
