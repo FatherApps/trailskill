@@ -15,12 +15,18 @@ jest.mock('../../../core/sync', () => ({}));
 let mockSession: { user: { id: string } } | null = { user: { id: 'user-1' } };
 jest.mock('../../../core/session', () => ({ useSession: () => ({ session: mockSession }) }));
 const mockStore = new Map<string, string>();
+// A phone that is slow to write: the value lands this many ms after the call.
+let mockSetDelayMs = 0;
 jest.mock('expo-secure-store', () => ({
   getItemAsync: async (key: string) => mockStore.get(key) ?? null,
-  setItemAsync: async (key: string, value: string) => void mockStore.set(key, value),
+  setItemAsync: async (key: string, value: string) => {
+    if (mockSetDelayMs) await new Promise((resolve) => setTimeout(resolve, mockSetDelayMs));
+    mockStore.set(key, value);
+  },
   deleteItemAsync: async (key: string) => void mockStore.delete(key),
 }));
 beforeEach(() => {
+  mockSetDelayMs = 0;
   mockStore.clear();
   mockSession = { user: { id: 'user-1' } };
 });
@@ -186,6 +192,34 @@ describe('useAccountDeletionStatus with the last known state on the phone', () =
     await waitFor(() => expect(result.current.state).toBe('active'));
   });
 
+  it('never reports loading while it only reads the phone, so no spinner can flash before a known state', async () => {
+    const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'active' } });
+    const repository = never();
+    const states: string[] = [];
+    await renderHook(() => {
+      const status = useAccountDeletionStatus(repository, 'user-1', known);
+      states.push(status.state);
+      return status;
+    });
+
+    await waitFor(() => expect(states).toContain('active'));
+    expect(states).not.toContain('loading');
+  });
+
+  it('reports loading, the spinner, only once the phone has said it knows nothing and the server is awaited', async () => {
+    const repository = never();
+    const known = createInMemoryKnownDeletionStatusRepository();
+    const states: string[] = [];
+    await renderHook(() => {
+      const status = useAccountDeletionStatus(repository, 'user-1', known);
+      states.push(status.state);
+      return status;
+    });
+
+    await waitFor(() => expect(states).toContain('loading'));
+    expect(states[0]).toBe('reading');
+  });
+
   it('opens an account known to be marked on its grace screen with no connection', async () => {
     const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'marked', deleteAfter: MARKED } });
     const repository = createInMemoryAccountDeletionRepository({ offline: true });
@@ -322,6 +356,19 @@ describe('createSecureStoreKnownDeletionStatusRepository', () => {
 
     expect(await known.read('user-1')).toEqual({ state: 'marked', deleteAfter: '2026-12-20T15:00:00.000Z' });
     expect(await known.read('user-2')).toBeNull();
+  });
+
+  it('never leaves a value behind when a slow write is followed by the clear of a sign-out', async () => {
+    mockSetDelayMs = 30;
+    const writer = createSecureStoreKnownDeletionStatusRepository();
+    const guard = createSecureStoreKnownDeletionStatusRepository();
+
+    const write = writer.write('user-1', { state: 'marked', deleteAfter: '2026-12-20T15:00:00.000Z' });
+    const clear = guard.clear();
+    await Promise.all([write, clear]);
+
+    expect(mockStore.has('trailskill-deletion-status')).toBe(false);
+    expect(await writer.read('user-1')).toBeNull();
   });
 
   it('reads a damaged value as nothing known', async () => {

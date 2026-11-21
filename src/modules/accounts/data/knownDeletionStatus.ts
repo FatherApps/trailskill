@@ -17,6 +17,15 @@ export interface KnownDeletionStatusRepository {
 // SecureStore keys allow only letters, digits, ".", "-" and "_". One key: a different person's answer replaces the earlier one.
 const KEY = 'trailskill-deletion-status';
 
+// Every write and clear goes through one line, whichever repository object asks: a clear (the sign-out) always runs after the writes
+// that were asked before it, so a slow write can never put the value back on the phone afterwards.
+let tail: Promise<unknown> = Promise.resolve();
+function inOrder<T>(operation: () => Promise<T>): Promise<T> {
+  const run = tail.then(operation, operation);
+  tail = run.catch(() => {});
+  return run;
+}
+
 export function createInMemoryKnownDeletionStatusRepository(initial?: { userId: string; status: KnownDeletionStatus }): KnownDeletionStatusRepository {
   let stored = initial;
   return {
@@ -48,7 +57,7 @@ export function createSecureStoreKnownDeletionStatusRepository(): KnownDeletionS
         return null;
       }
     },
-    write: (userId, status) => SecureStore.setItemAsync(KEY, JSON.stringify({ userId, ...status })),
-    clear: () => SecureStore.deleteItemAsync(KEY),
+    write: (userId, status) => inOrder(() => SecureStore.setItemAsync(KEY, JSON.stringify({ userId, ...status }))),
+    clear: () => inOrder(() => SecureStore.deleteItemAsync(KEY)),
   };
 }

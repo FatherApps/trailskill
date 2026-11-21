@@ -31,6 +31,8 @@ export default function PlanEditorRoute() {
         if (id === 'new') router.replace(`/plans/${planId}`);
       }}
       onAssign={(planId) => router.push({ pathname: '/plans/assign', params: { plan: planId } })}
+      // Without history (a deep link) there is nowhere to go back to, so no back button.
+      onBack={router.canGoBack() ? () => router.back() : undefined}
     />
   );
 }

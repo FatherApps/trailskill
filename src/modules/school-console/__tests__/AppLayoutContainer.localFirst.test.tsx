@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react-native';
+import { act, render, screen, waitFor } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
 import { AppLayoutContainer } from '../screens/AppLayoutContainer';
@@ -21,6 +21,19 @@ jest.mock('../../athletes', () => ({
   ...jest.requireActual('../../athletes'),
   useManagedAthletes: () => ({ status: 'ready', athletes: [{ id: 'a1' }, { id: 'a2' }] }),
 }));
+
+// Every time the full-screen spinner is drawn: with something known on the phone it must never be (issue 1311).
+const mockSpinner = jest.fn();
+jest.mock('../../../core/ui', () => {
+  const actual = jest.requireActual('../../../core/ui');
+  return {
+    ...actual,
+    StateView: (props: { kind: string }) => {
+      if (props.kind === 'loading') mockSpinner();
+      return actual.StateView(props);
+    },
+  };
+});
 
 const MARKED = '2026-12-20T15:00:00.000Z';
 let mockAnswer: ((value: string | null) => void) | undefined;
@@ -50,6 +63,7 @@ const router = { replace: jest.fn(), navigate: jest.fn() };
 const renderLayout = () => render(<AppLayoutContainer router={router} segments={['(app)', 'home']} stack={<Text>navigator</Text>} />);
 
 beforeEach(() => {
+  mockSpinner.mockClear();
   mockAnswer = undefined;
   mockKnown = jest.requireActual('../../accounts').createInMemoryKnownDeletionStatusRepository();
 });
@@ -60,6 +74,7 @@ describe('AppLayoutContainer opens from the phone', () => {
     await renderLayout();
 
     expect(await screen.findByText('navigator')).toBeOnTheScreen();
+    expect(mockSpinner).not.toHaveBeenCalled();
   });
 
   it('opens an account known to be marked on its grace screen, with no answer from the server', async () => {
@@ -68,6 +83,7 @@ describe('AppLayoutContainer opens from the phone', () => {
 
     expect(await screen.findByText('Se borra el 20 de diciembre de 2026')).toBeOnTheScreen();
     expect(screen.queryByText('navigator')).toBeNull();
+    expect(mockSpinner).not.toHaveBeenCalled();
   });
 
   it('moves a known active account to the grace screen as soon as the server says it is marked', async () => {
@@ -85,5 +101,6 @@ describe('AppLayoutContainer opens from the phone', () => {
     await renderLayout();
 
     expect(screen.queryByText('navigator')).toBeNull();
+    await waitFor(() => expect(mockSpinner).toHaveBeenCalled());
   });
 });
