@@ -295,6 +295,20 @@ describe('useAccountDeletionStatus with the last known state on the phone', () =
   });
 });
 
+it('never remembers the late answer of a question that was asked again', async () => {
+  const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'marked', deleteAfter: '2026-12-20T15:00:00.000Z' } });
+  const answers: ((value: string | null) => void)[] = [];
+  const repository = { ...createInMemoryAccountDeletionRepository(), status: () => new Promise<string | null>((resolve) => answers.push(resolve)) };
+  const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+  await act(async () => result.current.refresh());
+
+  await act(async () => answers[1]?.(null));
+  await act(async () => answers[0]?.('2026-12-20T15:00:00.000Z'));
+
+  expect(result.current.state).toBe('active');
+  expect(await known.read('user-1')).toEqual({ state: 'active' });
+});
+
 describe('createSecureStoreKnownDeletionStatusRepository', () => {
   it('keeps only the state and the date of the account that is signed in, and nothing for another one', async () => {
     const known = createSecureStoreKnownDeletionStatusRepository();

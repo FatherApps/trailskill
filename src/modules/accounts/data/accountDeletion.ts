@@ -175,6 +175,8 @@ export function useAccountDeletionStatus(
     remembered.then((saved) => saved && !answered && show(saved));
     repository.status().then(
       (deleteAfter) => {
+        // An answer to a question already replaced (another person, or asked again after a cancellation) says nothing about now.
+        if (!active) return;
         answered = true;
         const status = statusOf(deleteAfter);
         show(status);
