@@ -48,6 +48,7 @@ SH
 cat >"$T/bin/gh" <<SH
 #!/bin/sh
 echo "\$*" >>$T/gh.log
+[ -z "\${GH_FAIL:-}" ] || exit 1
 case "\$1 \$2" in
   "issue list") cat $T/open ;;
   "label create") exit \${LABEL_EXIT:-0} ;;
@@ -105,12 +106,10 @@ LABEL_EXIT=1 run old; r=$?
 nonzero "label already exists: still exit non-zero" "$r"
 eq "label already exists: the issue is still created" 1 "$(calls 'issue create')"
 
-# gh missing or failing is itself a failure, never a silent pass
-mkdir -p "$T/nogh"
-: >"$T/gh.log"
-MODE=old FRESH_AT=$FRESH_AT OLD_AT=$OLD_AT PATH="$T/nogh:/usr/bin:/bin" BACKUP_FETCH_CMD="sh $T/fetch.sh \"\$0\" \"\$@\"" \
-  TMPDIR="$T" sh "$HERE/backup-freshness.sh" >"$T/out" 2>&1; r=$?
-nonzero "old copy and no gh: exit non-zero" "$r"
+# gh failing is itself a failure, never a silent pass (the fake gh is always first in PATH: never the real one)
+GH_FAIL=1 run old; r=$?
+nonzero "old copy and a failing gh: exit non-zero" "$r"
+has "old copy and a failing gh: says the issue could not be listed" "cannot list the open backup-failed issues"
 
 # secrets in the environment never reach the log or the issue
 SECRET=s3cr3t-value-123
