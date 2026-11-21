@@ -93,7 +93,7 @@ The two daily family-timing jobs run inside the database through `pg_cron` ([Sch
 
 #### Account deletion worker (#1244)
 
-The daily account deletion worker is a third `pg_cron` job (`accounts-deletion-worker`, 04:37 UTC). It runs `app.call_accounts_deletion_worker()`, which posts to the `accounts-deletion-worker` Edge Function through `pg_net`. Accounts marked for deletion that reach day 30 stay marked and blocked until it runs. #1233 (the Storage queue worker) must use this same `pg_cron` → `pg_net` → Edge Function route so only one scheduled worker exists.
+The daily account deletion worker is a third `pg_cron` job (`accounts-deletion-worker`, 04:37 UTC). It runs `app.call_accounts_deletion_worker()`, which posts to the `accounts-deletion-worker` Edge Function through `pg_net`. Accounts marked for deletion that reach day 30 stay marked and blocked until it runs. The same run also drains the Storage deletion queue and sweeps orphan athlete photos (#1233, see below), so only one scheduled worker exists.
 
 - [ ] Install `pg_net` next to `pg_cron`: `create extension if not exists pg_net;`. Without it, or without `pg_cron`, the next `migrate` run schedules nothing and the deploy does not fail.
 - [ ] Choose a long random value for the worker secret (`openssl rand -hex 32`). Set it as `ACCOUNTS_WORKER_SECRET` in the environment of the functions service, and store the same value in Vault together with the function URL (the URL of `accounts-deletion-worker` as the database reaches it, for example `http://kong:8000/functions/v1/accounts-deletion-worker`):
@@ -109,6 +109,17 @@ The daily account deletion worker is a third `pg_cron` job (`accounts-deletion-w
 - [ ] The functions service also needs `RESEND_API_KEY` and `RESEND_FROM` (the same as `school-console-invite-coach`). Without them the worker deletes on day 30 but the emails stay unsent and are retried on every run.
 - [ ] The functions bundle (`deploy/scripts/functions-bundle.sh`, `FUNCTIONS`) must list `accounts-delete-account` and `accounts-deletion-worker`, and both import the Resend sender from `school-console-invite-coach`. This PR does not touch `deploy/`; the maintainer adds them.
 - [ ] After the next `migrate` run, `select jobname, schedule from cron.job where jobname = 'accounts-deletion-worker';` returns one row.
+
+#### Storage deletion queue drain and orphan photo sweep (#1233)
+
+The `accounts-deletion-worker` run (same job, same secrets, same URL) ends by deleting files from Storage, through the Storage API only (never a `DELETE` on `storage.objects`): every object queued in `storage_deletion_queue` (a deleted or replaced photo, an athlete or an account deleted with its photos), and every object of `athlete-photos` that no `athlete_photos` row references and that is older than 24 hours (the upload that lost a `unique(athlete_id)` race). A queued path some photo row still references is skipped. **The deletion is permanent.**
+
+- [ ] **No new secret and no new job.** The function already reads `SUPABASE_SERVICE_ROLE_KEY` (the service role the functions service has) and the Vault secrets of the section above. Nothing to create or copy.
+- [ ] Optional env var for the functions service: `STORAGE_ORPHAN_GRACE_HOURS` (whole hours, default `24`, anything else falls back to 24; the database never uses less than 1). Do not lower it below the time an upload can take to get its row.
+- [ ] Redeploy the functions bundle after the next `migrate` (`deploy/scripts/functions-bundle.sh`; no new function, so `FUNCTIONS` does not change). The migration `20261120130000_athletes_storage_deletion_drain.sql` adds `attempts`, `last_attempt_at` and `leased_until` to the queue and four functions only `service_role` can run.
+- [ ] Before the first run, look at what will be deleted (counts only, no paths in a ticket or a chat): `select count(*) from public.storage_deletion_queue;` and `select count(*) from public.list_orphan_photo_objects(now(), 24, 100000);`.
+- [ ] After the first run, the response summary in the functions logs has a `storage` object (`deleted`, `failed`, `orphansDeleted`, `orphansFailed`), and `select count(*), max(attempts) from public.storage_deletion_queue;` goes to zero. A row with `attempts` above 0 failed on the Storage API; it is retried on every run (about once a day). Logs carry the queue row id and the HTTP status, never a path or an athlete id.
+- [ ] Known limits: a run takes up to 20 batches of 50 queued objects and 200 orphans, the rest waits for the next run; a photo row written for a path between the claim and the Storage call (a few seconds) is not re-checked.
 
 ### 4. Email: SMTP with Resend
 
