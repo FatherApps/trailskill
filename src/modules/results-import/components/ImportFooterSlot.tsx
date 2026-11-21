@@ -1,6 +1,5 @@
 import { useState, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '../../../core/theme';
 import { OfficialImportFooter, type OfficialImportFooterProps } from './OfficialImportFooter';
@@ -42,10 +41,9 @@ export function ImportFooterSlot({ store }: { store: ImportFooterStore }) {
   const footer = useSyncExternalStore(store.subscribe, store.get);
   if (!footer) return null;
   return (
-    <View style={{ borderTopWidth: 1, borderColor: colors.border, backgroundColor: colors['surface-1'] }}>
-      <SafeAreaView edges={['bottom']} style={{ gap: space[2], padding: space[4] }}>
-        <OfficialImportFooter {...footer} />
-      </SafeAreaView>
+    // The floating phone bar rests on the bottom edge: the button sits above it, with the clearance the lists use for their last row.
+    <View style={{ gap: space[2], paddingTop: space[3], paddingHorizontal: space[4], paddingBottom: space[12] * 2, borderTopWidth: 1, borderColor: colors.border, backgroundColor: colors['surface-1'] }}>
+      <OfficialImportFooter {...footer} />
     </View>
   );
 }
