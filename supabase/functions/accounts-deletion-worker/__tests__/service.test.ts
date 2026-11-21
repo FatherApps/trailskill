@@ -131,4 +131,21 @@ describe('account deletion worker run', () => {
     };
     await expect(s.run()).rejects.toThrow('08006');
   });
+
+  it('adds the Storage drain summary after the accounts and emails, and the accounts part does not wait for it', async () => {
+    const summary = { deleted: 2, failed: 0, orphansDeleted: 1, orphansFailed: 0, orphansReported: 0 };
+    const memory = createMemoryStore({ due: ['r1'] });
+    const run = createRunWorker({ store: memory.store, mailer: createRecordingMailer().mailer, clock: createFakeClock().clock, drain: async () => summary });
+    expect(await run()).toEqual({ ...SUMMARY, erased: 1, storage: summary });
+  });
+
+  it('counts a failed Storage drain as a failure and keeps the rest of the run, logging only the fixed message', async () => {
+    const memory = createMemoryStore({ due: ['r1'] });
+    const drain = async () => {
+      throw new Error('Calling claim_storage_deletions failed (57014)');
+    };
+    const run = createRunWorker({ store: memory.store, mailer: createRecordingMailer().mailer, clock: createFakeClock().clock, drain });
+    expect(await run()).toEqual({ ...SUMMARY, erased: 1, failed: 1 });
+    expect(error).toHaveBeenCalledWith('accounts-deletion-worker storage drain failed: Calling claim_storage_deletions failed (57014)');
+  });
 });
