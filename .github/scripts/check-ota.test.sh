@@ -170,6 +170,19 @@ if [ "$rc" -eq 0 ] && [ ! -s "$T/out" ]; then pass 'classify prints nothing and 
 rc=$?
 if [ "$rc" -eq 2 ]; then pass 'classify exits 2 on a bad ref'; else fail "classify with a bad ref (exit $rc)"; fi
 
+# --- Two histories with no common ancestor: the real "no merge base" error keeps its message ---
+git -C "$R" checkout -q --orphan unrelated
+git -C "$R" rm -rfq .
+echo x >"$R/x.txt"
+git -C "$R" add -A
+git -C "$R" commit -qm unrelated
+(cd "$R" && sh "$CHECK" classify base unrelated) >"$T/out" 2>"$T/err" </dev/null
+rc=$?
+if [ "$rc" -eq 2 ] && grep -Fxq 'check-ota: no merge base between "base" and "unrelated"' "$T/err"; then pass 'classify exits 2 with a message when there is no merge base'; else fail "classify without a merge base (exit $rc)"; fi
+(cd "$R" && PR_BODY=$(cat "$FX/ota.md") BASE_SHA=base HEAD_SHA=unrelated sh "$CHECK") >"$T/out" 2>"$T/err" </dev/null
+rc=$?
+if [ "$rc" -eq 1 ] && grep -Fq 'no merge base between "base" and "unrelated"' "$T/err"; then pass 'OTA without a merge base fails with the message'; else fail "OTA without a merge base (exit $rc)"; fi
+
 # --- A node that cannot run must not make a dependency change look OTA-safe ---
 mkdir "$T/fakebin" && printf '#!/bin/sh\nexit 127\n' >"$T/fakebin/node" && chmod +x "$T/fakebin/node"
 change package.json "$FX/package-deps.json"
