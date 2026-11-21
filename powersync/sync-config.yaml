@@ -109,10 +109,12 @@ streams:
       - SELECT id, user_id, code, athlete_short_name, saved_at FROM saved_athlete_share_codes WHERE (user_id = auth.user_id() AND expired_at IS NULL) AND auth.user_id() IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
 
   # The expired codes of this user, with when they expired, for builds that know expired_at (#1320). Same rows, same table, never both streams.
+  # It is auto-subscribed, and every client takes the auto-subscribed streams, so it also needs the connection parameter
+  # expired_saved_share_codes that only builds from #1320 send (connectOptions.params): older builds never get an expired row.
   accounts_saved_share_codes_expired:
     auto_subscribe: true
     queries:
-      - SELECT id, user_id, code, athlete_short_name, saved_at, expired_at FROM saved_athlete_share_codes WHERE (user_id = auth.user_id() AND expired_at IS NOT NULL) AND auth.user_id() IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
+      - SELECT id, user_id, code, athlete_short_name, saved_at, expired_at FROM saved_athlete_share_codes WHERE (user_id = auth.user_id() AND expired_at IS NOT NULL AND connection.parameter('expired_saved_share_codes') = 1) AND auth.user_id() IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
 
   school_console_school:
     auto_subscribe: true

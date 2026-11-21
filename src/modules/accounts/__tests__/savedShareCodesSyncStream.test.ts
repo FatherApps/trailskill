@@ -18,8 +18,8 @@ test('the accounts_saved_share_codes stream gives each user their own current co
   ]);
 });
 
-test('the accounts_saved_share_codes_expired stream gives each user only their own expired codes, with when they expired', () => {
+test('the accounts_saved_share_codes_expired stream gives each user only their own expired codes, with when they expired, and only to builds that ask for them', () => {
   expect(queriesOf('accounts_saved_share_codes_expired')).toEqual([
-    'SELECT id, user_id, code, athlete_short_name, saved_at, expired_at FROM saved_athlete_share_codes WHERE user_id = auth.user_id() AND expired_at IS NOT NULL',
+    "SELECT id, user_id, code, athlete_short_name, saved_at, expired_at FROM saved_athlete_share_codes WHERE user_id = auth.user_id() AND expired_at IS NOT NULL AND connection.parameter('expired_saved_share_codes') = 1",
   ]);
 });

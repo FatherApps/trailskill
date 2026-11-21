@@ -30,10 +30,10 @@ function loadDb(dev: boolean): DbModule {
 describe('connectOptions', () => {
   // Debug builds read the start of every HTTP response before handing it over, so the HTTP sync stream never arrives (#335).
   it('syncs over a WebSocket in development builds', () => {
-    expect(loadDb(true).connectOptions).toEqual({ connectionMethod: 'web-socket' });
+    expect(loadDb(true).connectOptions).toEqual({ connectionMethod: 'web-socket', params: { expired_saved_share_codes: true } });
   });
 
   it('keeps HTTP streaming in release builds', () => {
-    expect(loadDb(false).connectOptions).toEqual({ connectionMethod: 'http' });
+    expect(loadDb(false).connectOptions).toEqual({ connectionMethod: 'http', params: { expired_saved_share_codes: true } });
   });
 });
