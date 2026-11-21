@@ -48,9 +48,12 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -eu
-          IFS=' ' read -r state BASE_REF BASE_SHA HEAD_SHA <<EOF
-          $(gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '[.state, .base.ref, .base.sha, .head.sha] | join(" ")')
+          # A failed API call must fail the step (set -e), never read as "not open": assign first, then split.
+          pr=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '[.state, .base.ref, .base.sha, .head.sha] | join(" ")')
+          read -r state BASE_REF BASE_SHA HEAD_SHA <<EOF
+          $pr
           EOF
+          if [ -z "$HEAD_SHA" ]; then echo "::error::could not read PR #$PR_NUMBER" >&2; exit 1; fi
           if [ "$state" != open ]; then
             echo "PR #$PR_NUMBER is $state, not open: nothing to check."
             exit 0
