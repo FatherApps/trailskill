@@ -50,9 +50,9 @@ type PlatformOptions = {
   failWith?: Error;
 };
 
-export function createFakePlatform(options: PlatformOptions = {}): TournamentProvider & { calls: PlatformCall[]; listCalls: number[]; setFailure(error: Error | undefined): void } {
+export function createFakePlatform(options: PlatformOptions = {}): TournamentProvider & { calls: PlatformCall[]; listCalls: number[][]; setFailure(error: Error | undefined): void } {
   const calls: PlatformCall[] = [];
-  const listCalls: number[] = [];
+  const listCalls: number[][] = [];
   let failWith = options.failWith;
   return {
     key: options.key ?? 'zz-games',
@@ -60,10 +60,10 @@ export function createFakePlatform(options: PlatformOptions = {}): TournamentPro
     listCalls,
     setFailure: (error) => void (failWith = error),
     accepts: options.accepts ?? ((url) => url.startsWith('https://games.example.test/')),
-    async listTournaments(year) {
-      listCalls.push(year);
+    async listTournaments(years) {
+      listCalls.push([...years]);
       if (failWith) throw failWith;
-      return (options.tournaments ?? []).filter((entry) => entry.year === year);
+      return (options.tournaments ?? []).filter((entry) => years.includes(entry.year));
     },
     async lookup(...args: [string, string] | [number, string, string]) {
       calls.push(typeof args[0] === 'number' ? { year: args[0], dateKey: args[1], identityNumber: args[2]! } : { url: args[0], identityNumber: args[1] });

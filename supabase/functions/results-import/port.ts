@@ -69,8 +69,8 @@ export interface TournamentProvider {
   readonly key: string;
   /** Whether this adapter handles the address. It never throws. */
   accepts(url: string): boolean;
-  /** The tournaments of one year the platform lists. A source that answers in a shape this does not know throws `ProviderUnavailableError`, never an empty list. */
-  listTournaments(year: number): Promise<TournamentEntry[]>;
+  /** The tournaments of those years the platform lists, each with its own `year`, from one read of the platform. A source that answers in a shape this does not know throws `ProviderUnavailableError`, never an empty list. */
+  listTournaments(years: readonly number[]): Promise<TournamentEntry[]>;
   lookup(url: string, identityNumber: string): Promise<TournamentSearch>;
   /** The same lookup for a tournament of the list, by its year and key. */
   lookup(year: number, dateKey: string, identityNumber: string): Promise<TournamentSearch>;
