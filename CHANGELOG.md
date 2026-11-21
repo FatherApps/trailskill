@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.8.0](https://github.com/FatherApps/trailskill/compare/v0.7.0...v0.8.0) (2026-11-21)
+
+
+### Features
+
+* **accounts:** delete-account and grace-period screens ([#1288](https://github.com/FatherApps/trailskill/issues/1288)) ([df3f86a](https://github.com/FatherApps/trailskill/commit/df3f86a7a1f1117619aa0d5636130cc8dbef2672)), closes [#1245](https://github.com/FatherApps/trailskill/issues/1245)
+* **accounts:** keep a family's share code after they accept a sent time ([#1303](https://github.com/FatherApps/trailskill/issues/1303)) ([a9fa2f2](https://github.com/FatherApps/trailskill/commit/a9fa2f2e47e642b81e170baf617ee25855e86e21))
+* **family-timing:** correct the distance of a training time ([#1298](https://github.com/FatherApps/trailskill/issues/1298)) ([6dd99fc](https://github.com/FatherApps/trailskill/commit/6dd99fca415540e5739b55066bfcfdf4c9ba5f75)), closes [#1297](https://github.com/FatherApps/trailskill/issues/1297)
+* **family-timing:** let a time wait under Sin asignar with a phone-only note ([#1301](https://github.com/FatherApps/trailskill/issues/1301)) ([e7fb4a5](https://github.com/FatherApps/trailskill/commit/e7fb4a5e00a6d1239771cdd581d158af63cde957)), closes [#1300](https://github.com/FatherApps/trailskill/issues/1300)
+* **settings:** move Autorizaciones and Cerrar sesión to Ajustes ([#1299](https://github.com/FatherApps/trailskill/issues/1299)) ([de796ce](https://github.com/FatherApps/trailskill/commit/de796ce9e04cd59f1826f33f3d6f2c06430d229f)), closes [#778](https://github.com/FatherApps/trailskill/issues/778)
+
+
+### Bug Fixes
+
+* **accounts:** make adding an athlete the main action and keep fields above the keyboard ([#1305](https://github.com/FatherApps/trailskill/issues/1305)) ([c330853](https://github.com/FatherApps/trailskill/commit/c33085305cf51373718e831d28c9ea3e5e5d9520)), closes [#1304](https://github.com/FatherApps/trailskill/issues/1304)
+* **app:** make camera and microphone optional for Play ([#1292](https://github.com/FatherApps/trailskill/issues/1292)) ([ec73d75](https://github.com/FatherApps/trailskill/commit/ec73d75c504b9f94c82896365c1e64a4d744f49c)), closes [#1291](https://github.com/FatherApps/trailskill/issues/1291)
+* **athletes:** drain storage_deletion_queue through the Storage API and sweep orphan photos ([#1296](https://github.com/FatherApps/trailskill/issues/1296)) ([16522e3](https://github.com/FatherApps/trailskill/commit/16522e3614cd59cbe523020d3fe5261c5a0003f5)), closes [#1233](https://github.com/FatherApps/trailskill/issues/1233)
+* **release:** force a build when a release changes the backend ([#1290](https://github.com/FatherApps/trailskill/issues/1290)) ([f719bb2](https://github.com/FatherApps/trailskill/commit/f719bb28e02f9c97f323a1c3e192300f170ee294)), closes [#1289](https://github.com/FatherApps/trailskill/issues/1289)
+
 ## [0.7.0](https://github.com/FatherApps/trailskill/compare/v0.6.0...v0.7.0) (2026-11-20)
 
 
