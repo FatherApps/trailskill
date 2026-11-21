@@ -40,9 +40,6 @@ export const db = new PowerSyncDatabase({
 // Debug builds get a network inspector (added by expo-dev-launcher) that reads up to 1 MB of every HTTP response before
 // handing it over. The sync stream comes over HTTP/2, never chunked, so it reached PowerSync only when the server closed it,
 // and the downloaded checkpoint was never applied (#335). Development builds sync over a WebSocket; release builds keep HTTP.
-// expired_saved_share_codes (#1320) tells the server this build knows expired_at, so it also sends the saved share codes the family
-// changed (stream accounts_saved_share_codes_expired); builds without it keep receiving only the current ones.
 export const connectOptions: SyncOptions = {
   connectionMethod: __DEV__ ? SyncStreamConnectionMethod.WEB_SOCKET : SyncStreamConnectionMethod.HTTP,
-  params: { expired_saved_share_codes: true },
 };

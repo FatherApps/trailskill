@@ -10,8 +10,11 @@ import { db, supabase } from '../../../core/sync';
 export type SavedShareCode = { id: string; code: string; athleteShortName: string; savedAt: string; expiredAt: string | null };
 
 export interface SavedShareCodeRepository {
-  /** This person's kept codes, most recently kept first. */
-  list(userId: string): Promise<SavedShareCode[]>;
+  /**
+   * This person's kept codes, most recently kept first. Without `includeExpired` only the current ones come back, so a screen that does
+   * not know about expired codes (the send picker today) never offers a dead code as a normal one; the screen that shows them asks for them.
+   */
+  list(userId: string, options?: { includeExpired?: boolean }): Promise<SavedShareCode[]>;
   /** Online: stops keeping a code ("Quitar"). It leaves the phone with the next sync. */
   forget(id: string): Promise<void>;
 }
@@ -21,9 +24,9 @@ type Row = { id: string; code: string; athlete_short_name: string; saved_at: str
 // The rows reach the phone by sync (saved_athlete_share_codes); only the server functions write them.
 export function createPowerSyncSavedShareCodeRepository(): SavedShareCodeRepository {
   return {
-    async list(userId) {
+    async list(userId, { includeExpired = false } = {}) {
       const rows = await db.getAll<Row>(
-        'SELECT id, code, athlete_short_name, saved_at, expired_at FROM saved_athlete_share_codes WHERE user_id = ? ORDER BY saved_at DESC, id',
+        `SELECT id, code, athlete_short_name, saved_at, expired_at FROM saved_athlete_share_codes WHERE user_id = ?${includeExpired ? '' : ' AND expired_at IS NULL'} ORDER BY saved_at DESC, id`,
         [userId],
       );
       return rows.map((row) => ({
@@ -46,9 +49,9 @@ export function createInMemorySavedShareCodeRepository(seed: (SavedShareCode & {
   const rows = [...seed];
   const repository: SavedShareCodeRepository & { rows: typeof rows } = {
     rows,
-    async list(userId) {
+    async list(userId, { includeExpired = false } = {}) {
       return rows
-        .filter((row) => row.userId === userId)
+        .filter((row) => row.userId === userId && (includeExpired || !row.expiredAt))
         .sort((a, b) => b.savedAt.localeCompare(a.savedAt) || a.id.localeCompare(b.id))
         .map(({ userId: _owner, ...saved }) => saved);
     },

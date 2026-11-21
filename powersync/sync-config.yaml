@@ -110,7 +110,8 @@ streams:
 
   # The expired codes of this user, with when they expired, for builds that know expired_at (#1320). Same rows, same table, never both streams.
   # It is auto-subscribed, and every client takes the auto-subscribed streams, so it also needs the connection parameter
-  # expired_saved_share_codes that only builds from #1320 send (connectOptions.params): older builds never get an expired row.
+  # expired_saved_share_codes (a connectOptions.params entry). No build sends it yet: the screen that shows expired codes (#1321) turns it
+  # on in the same build, so until then nobody receives an expired row and every build behaves as before.
   accounts_saved_share_codes_expired:
     auto_subscribe: true
     queries:
