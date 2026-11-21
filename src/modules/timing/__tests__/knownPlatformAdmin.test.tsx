@@ -8,15 +8,21 @@ import { PLATFORM_ADMIN_WAIT_MS, usePlatformAdminStatus } from '../data/usePlatf
 // The Supabase adapter imports the sync module, which loads native code.
 jest.mock('../../../core/sync', () => ({ supabase: {} }));
 const mockStore = new Map<string, string>();
+// A phone that is slow to write: the value lands this many ms after the call.
+let mockSetDelayMs = 0;
 jest.mock('expo-secure-store', () => ({
   getItemAsync: async (key: string) => mockStore.get(key) ?? null,
-  setItemAsync: async (key: string, value: string) => void mockStore.set(key, value),
+  setItemAsync: async (key: string, value: string) => {
+    if (mockSetDelayMs) await new Promise((resolve) => setTimeout(resolve, mockSetDelayMs));
+    mockStore.set(key, value);
+  },
   deleteItemAsync: async (key: string) => void mockStore.delete(key),
 }));
 let mockSession: { user: { id: string } } | null = { user: { id: 'user-1' } };
 jest.mock('../../../core/session', () => ({ useSession: () => ({ session: mockSession }) }));
 
 beforeEach(() => {
+  mockSetDelayMs = 0;
   mockStore.clear();
   mockSession = { user: { id: 'user-1' } };
 });
@@ -104,6 +110,21 @@ it('with a phone read that never ends, unknown means not admin once the wait is 
   }
 });
 
+it('paints the landing from the remembered answer while the platform admin request is still pending', async () => {
+  const known = createInMemoryKnownPlatformAdminRepository({ userId: 'user-1', admin: true });
+  const server = pendingServer();
+  const router = { replace: jest.fn() };
+  const { result } = await renderHook(() => {
+    usePlatformAdminRouteCorrection({ repository: server, known, userId: 'user-1', router, segments: ['(app)'] });
+    return usePlatformAdminStatus(server, 'user-1', known);
+  });
+
+  await waitFor(() => expect(result.current).toBe(true));
+  await waitFor(() => expect(server.asked).toBe(1));
+  expect(result.current).toBe(true);
+  expect(router.replace).not.toHaveBeenCalled();
+});
+
 describe('usePlatformAdminRouteCorrection', () => {
   const run = async (props: { server: { isPlatformAdmin: () => Promise<boolean> }; known: ReturnType<typeof createInMemoryKnownPlatformAdminRepository>; segments?: string[]; userId?: string }) => {
     const router = { replace: jest.fn() };
@@ -156,6 +177,18 @@ describe('usePlatformAdminRouteCorrection', () => {
   it('does not move a person who already opened a screen of their own, but remembers the answer', async () => {
     const known = createInMemoryKnownPlatformAdminRepository({ userId: 'user-1', admin: true });
     const { router } = await run({ server: { isPlatformAdmin: async () => false }, known, segments: ['(app)', 'settings'] });
+
+    await waitFor(async () => expect(await known.read('user-1')).toBe(false));
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a profile the person opened', ['(app)', 'athletes', '[id]']],
+    ['My swimmers', ['(app)', 'my-swimmers']],
+    ['the console', ['(app)', 'console']],
+  ])('does not replace %s with "/", but remembers the answer', async (_name, segments) => {
+    const known = createInMemoryKnownPlatformAdminRepository({ userId: 'user-1', admin: true });
+    const { router } = await run({ server: { isPlatformAdmin: async () => false }, known, segments });
 
     await waitFor(async () => expect(await known.read('user-1')).toBe(false));
     expect(router.replace).not.toHaveBeenCalled();
@@ -219,6 +252,19 @@ describe('createSecureStoreKnownPlatformAdminRepository', () => {
     expect(await known.read('user-2')).toBeNull();
     await known.clear();
     expect(await known.read('user-1')).toBeNull();
+  });
+
+  it('never leaves a value behind when a slow write is followed by the clear of a sign-out', async () => {
+    mockSetDelayMs = 30;
+    const writer = createSecureStoreKnownPlatformAdminRepository();
+    const guard = createSecureStoreKnownPlatformAdminRepository();
+
+    const write = writer.write('user-1', true);
+    const clear = guard.clear();
+    await Promise.all([write, clear]);
+
+    expect(mockStore.has('trailskill-platform-admin')).toBe(false);
+    expect(await writer.read('user-1')).toBeNull();
   });
 
   it('reads a damaged value as nothing known', async () => {
