@@ -7,9 +7,23 @@ import {
   useAccountDeletionStatus,
   type AccountDeletionClient,
 } from '../data/accountDeletion';
+import { createInMemoryKnownDeletionStatusRepository, createSecureStoreKnownDeletionStatusRepository } from '../data/knownDeletionStatus';
+import { useKnownDeletionStatusGuard } from '../data/useKnownDeletionStatusGuard';
 
 // Avoids loading the native PowerSync database.
 jest.mock('../../../core/sync', () => ({}));
+let mockSession: { user: { id: string } } | null = { user: { id: 'user-1' } };
+jest.mock('../../../core/session', () => ({ useSession: () => ({ session: mockSession }) }));
+const mockStore = new Map<string, string>();
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: async (key: string) => mockStore.get(key) ?? null,
+  setItemAsync: async (key: string, value: string) => void mockStore.set(key, value),
+  deleteItemAsync: async (key: string) => void mockStore.delete(key),
+}));
+beforeEach(() => {
+  mockStore.clear();
+  mockSession = { user: { id: 'user-1' } };
+});
 
 function client(invoke: AccountDeletionClient['functions']['invoke'], rpc?: AccountDeletionClient['rpc']): AccountDeletionClient {
   return { functions: { invoke }, rpc: rpc ?? (async () => ({ data: null, error: null })) };
@@ -156,5 +170,178 @@ describe('useAccountDeletionStatus', () => {
     await act(async () => result.current.refresh());
 
     await waitFor(() => expect(result.current.state).toBe('active'));
+  });
+});
+
+// Issue 1311: the app paints from what the phone knows and asks the server in the background.
+describe('useAccountDeletionStatus with the last known state on the phone', () => {
+  const never = () => ({ ...createInMemoryAccountDeletionRepository(), status: () => new Promise<string | null>(() => {}) });
+  const MARKED = '2026-12-20T15:00:00.000Z';
+
+  it('paints an account known to be active at once, even when the server never answers', async () => {
+    const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'active' } });
+    const repository = never();
+    const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+
+    await waitFor(() => expect(result.current.state).toBe('active'));
+  });
+
+  it('opens an account known to be marked on its grace screen with no connection', async () => {
+    const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'marked', deleteAfter: MARKED } });
+    const repository = createInMemoryAccountDeletionRepository({ offline: true });
+    const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+
+    await waitFor(() => expect(result.current).toMatchObject({ state: 'marked', deleteAfter: MARKED }));
+  });
+
+  it('blocks an account known to be active as soon as the server says it is marked, and remembers it', async () => {
+    const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'active' } });
+    let answer: (value: string | null) => void = () => {};
+    const repository = { ...createInMemoryAccountDeletionRepository(), status: () => new Promise<string | null>((resolve) => (answer = resolve)) };
+    const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+    await waitFor(() => expect(result.current.state).toBe('active'));
+
+    await act(async () => answer(MARKED));
+
+    await waitFor(() => expect(result.current).toMatchObject({ state: 'marked', deleteAfter: MARKED }));
+    expect(await known.read('user-1')).toEqual({ state: 'marked', deleteAfter: MARKED });
+  });
+
+  it('lets an account known to be marked out once the server says it is not, and remembers it', async () => {
+    const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'marked', deleteAfter: MARKED } });
+    const repository = createInMemoryAccountDeletionRepository();
+    const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+
+    await waitFor(() => expect(result.current.state).toBe('active'));
+    expect(await known.read('user-1')).toEqual({ state: 'active' });
+  });
+
+  it('remembers the first answer of an account the phone knew nothing about', async () => {
+    const known = createInMemoryKnownDeletionStatusRepository();
+    const repository = createInMemoryAccountDeletionRepository({ deleteAfter: MARKED });
+    const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+
+    await waitFor(() => expect(result.current.state).toBe('marked'));
+    expect(await known.read('user-1')).toEqual({ state: 'marked', deleteAfter: MARKED });
+  });
+
+  it('keeps the known state when the server could not be asked', async () => {
+    const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'active' } });
+    const repository = createInMemoryAccountDeletionRepository({ offline: true });
+    const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+
+    await waitFor(() => expect(result.current.state).toBe('active'));
+    expect(await known.read('user-1')).toEqual({ state: 'active' });
+  });
+
+  it('with nothing known waits for the server up to the time limit, as before', async () => {
+    jest.useFakeTimers();
+    try {
+      const repository = never();
+      const known = createInMemoryKnownDeletionStatusRepository();
+      const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+      expect(result.current.state).toBe('loading');
+
+      await act(async () => {
+        jest.advanceTimersByTime(DELETION_STATUS_TIMEOUT_MS);
+      });
+
+      expect(result.current.state).toBe('unknown');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('blocks a marked account whose answer arrives after the time limit', async () => {
+    jest.useFakeTimers();
+    try {
+      let answer: (value: string | null) => void = () => {};
+      const repository = { ...createInMemoryAccountDeletionRepository(), status: () => new Promise<string | null>((resolve) => (answer = resolve)) };
+      const known = createInMemoryKnownDeletionStatusRepository();
+      const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+      await act(async () => {
+        jest.advanceTimersByTime(DELETION_STATUS_TIMEOUT_MS);
+      });
+      expect(result.current.state).toBe('unknown');
+
+      await act(async () => answer(MARKED));
+
+      expect(result.current).toMatchObject({ state: 'marked', deleteAfter: MARKED });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('never uses the state remembered for another person', async () => {
+    const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'marked', deleteAfter: MARKED } });
+    jest.useFakeTimers();
+    try {
+      const repository = never();
+      const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-2', known));
+      await act(async () => {
+        jest.advanceTimersByTime(DELETION_STATUS_TIMEOUT_MS);
+      });
+
+      expect(result.current.state).toBe('unknown');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not paint the old marked state again while it asks after a cancellation', async () => {
+    const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'marked', deleteAfter: MARKED } });
+    const repository = createInMemoryAccountDeletionRepository({ deleteAfter: MARKED });
+    const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+    await waitFor(() => expect(result.current.state).toBe('marked'));
+
+    await repository.cancel();
+    await act(async () => result.current.refresh());
+
+    await waitFor(() => expect(result.current.state).toBe('active'));
+  });
+});
+
+it('never remembers the late answer of a question that was asked again', async () => {
+  const known = createInMemoryKnownDeletionStatusRepository({ userId: 'user-1', status: { state: 'marked', deleteAfter: '2026-12-20T15:00:00.000Z' } });
+  const answers: ((value: string | null) => void)[] = [];
+  const repository = { ...createInMemoryAccountDeletionRepository(), status: () => new Promise<string | null>((resolve) => answers.push(resolve)) };
+  const { result } = await renderHook(() => useAccountDeletionStatus(repository, 'user-1', known));
+  await act(async () => result.current.refresh());
+
+  await act(async () => answers[1]?.(null));
+  await act(async () => answers[0]?.('2026-12-20T15:00:00.000Z'));
+
+  expect(result.current.state).toBe('active');
+  expect(await known.read('user-1')).toEqual({ state: 'active' });
+});
+
+describe('createSecureStoreKnownDeletionStatusRepository', () => {
+  it('keeps only the state and the date of the account that is signed in, and nothing for another one', async () => {
+    const known = createSecureStoreKnownDeletionStatusRepository();
+    await known.write('user-1', { state: 'marked', deleteAfter: '2026-12-20T15:00:00.000Z' });
+
+    expect(await known.read('user-1')).toEqual({ state: 'marked', deleteAfter: '2026-12-20T15:00:00.000Z' });
+    expect(await known.read('user-2')).toBeNull();
+  });
+
+  it('reads a damaged value as nothing known', async () => {
+    mockStore.set('trailskill-deletion-status', '{"userId":"user-1","state":"marked"}');
+
+    expect(await createSecureStoreKnownDeletionStatusRepository().read('user-1')).toBeNull();
+  });
+});
+
+describe('useKnownDeletionStatusGuard', () => {
+  it('forgets the remembered status when the session ends, and not before', async () => {
+    const known = createSecureStoreKnownDeletionStatusRepository();
+    await known.write('user-1', { state: 'marked', deleteAfter: '2026-12-20T15:00:00.000Z' });
+    const { rerender } = await renderHook(() => useKnownDeletionStatusGuard(known));
+    expect(await known.read('user-1')).not.toBeNull();
+
+    mockSession = null;
+    await rerender({});
+
+    await waitFor(async () => expect(await known.read('user-1')).toBeNull());
+    expect(mockStore.has('trailskill-deletion-status')).toBe(false);
   });
 });

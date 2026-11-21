@@ -17,6 +17,7 @@ jest.mock('../modules/accounts', () => ({
   createSecureStorePendingInvitationRepository: () => ({}),
   createSecureStoreRegistrationDraftRepository: () => ({}),
   createSupabaseAccountDeletionRepository: () => ({}),
+  createSecureStoreKnownDeletionStatusRepository: () => ({}),
   useAccountDeletionStatus: () => ({ state: 'active', refresh: () => {} }),
   createSupabaseAdultProfileRepository: () => ({}),
   createSupabaseInvitationRepository: () => ({}),
