@@ -48,6 +48,7 @@ const CONFIRM_INSERT_FUNCTIONS: Record<string, string> = {
 // `omit` columns are never sent: created_by is set by the server on insert, and an update that rewrote it would be refused by the freeze trigger.
 const UPSERT_BY_KEY: Record<string, { onConflict: string; omit: string[] }> = {
   athlete_photos: { onConflict: 'athlete_id', omit: ['created_by'] },
+  athlete_private_details: { onConflict: 'athlete_id', omit: [] },
 };
 
 // Columns that are JSON text on the device (PowerSync syncs a Postgres array as JSON text) but arrays on the server: they are parsed before upload.

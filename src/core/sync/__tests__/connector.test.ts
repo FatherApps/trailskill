@@ -1227,6 +1227,19 @@ describe('SupabaseConnector.fetchCredentials', () => {
   });
 });
 
+describe('SupabaseConnector athlete private details upsert (#1366)', () => {
+  it('applies a PUT of athlete_private_details as an upsert by athlete_id, so a row another device created is replaced, not rejected with 23505', async () => {
+    const t = setup();
+    const details = { athlete_id: 'athlete-1', birth_date: '2014-05-03', gender: 'undisclosed', updated_at: '2026-11-21T10:00:00.000Z' };
+    await t.connector.uploadData(t.database([entry('PUT', 'device-id', details, 'athlete_private_details')]));
+
+    expect(t.from).toHaveBeenCalledWith('athlete_private_details');
+    expect(t.upsert.mock.calls[0][0]).toMatchObject({ id: 'device-id', ...details });
+    expect(t.upsert.mock.calls[0][1]).toEqual({ onConflict: 'athlete_id' });
+    expect(t.complete).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('SupabaseConnector athlete photo upsert (#1253)', () => {
   const photo = { athlete_id: 'athlete-1', storage_path: 'athlete-1/photo-1.jpg', created_by: 'user-1', updated_at: '2026-11-20T10:00:00.000Z' };
 

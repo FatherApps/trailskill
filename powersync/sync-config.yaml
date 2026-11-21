@@ -12,7 +12,7 @@
 # training-plans_coach_reads_fulfillments_assignment_school,
 # training-plans_admin_reads_fulfillments_assignment_school,
 # athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school,
-# athletes_photos, athletes_athlete_schools_end, accounts_saved_share_codes, accounts_saved_share_codes_expired, results-import_tournaments):
+# athletes_photos, athletes_birth_date_and_gender, athletes_athlete_schools_end, accounts_saved_share_codes, accounts_saved_share_codes_expired, results-import_tournaments):
 # a row syncs only if the signed-in user could read it through RLS.
 # An ended link (athlete_schools.ended_at, #1243) gives its school's coaches and admins nothing of that swimmer, one
 # (swimmer, school) pair at a time. Every staff query keeps ended_at IS NULL on athlete_schools. PowerSync 1.21 builds the
@@ -263,6 +263,13 @@ streams:
       - SELECT * FROM athlete_photos WHERE athlete_id IN photo_coach_direct_athlete_ids
       - SELECT * FROM athlete_photos WHERE athlete_id IN photo_coach_group_athlete_ids
       - SELECT * FROM athlete_photos WHERE athlete_id IN photo_admin_athlete_ids
+
+  # Birth date and gender of a swimmer (#1366): only the guardians and adult athletes who manage the swimmer. Coaches and school
+  # admins have no query on purpose (and athletes_visible carries neither column), as athlete_private_details_select says.
+  athletes_private_details:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM athlete_private_details WHERE athlete_id IN managed_athlete_ids
 
   accounts_school_invitations:
     auto_subscribe: true
