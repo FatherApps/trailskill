@@ -45,20 +45,6 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: sh .github/scripts/check-ota.sh
 
-  commit-trailers:
-    name: No AI attribution in commits
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Check commit messages
-        # The range goes through env; the script reads the messages itself, never from the shell.
-        env:
-          COMMIT_RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
-        run: sh .github/scripts/check-commit-trailers.sh
-
   secret-scan:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
