@@ -1,7 +1,7 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
-import { msSinceStart } from './startupTiming';
+import { markStartup, msSinceStart } from './startupTiming';
 
 /** The longest the logo stays up from the start of the JavaScript: past it the app shows whatever it has, never trapped on the splash. */
 export const SPLASH_CAP_MS = 3000;

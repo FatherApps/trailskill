@@ -5,7 +5,7 @@ import { __resetSplashGateForTests, markFirstScreenReady, SPLASH_CAP_MS, useFirs
 import { msSinceStart } from '../startupTiming';
 
 jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn() }));
-jest.mock('../startupTiming', () => ({ msSinceStart: jest.fn() }));
+jest.mock('../startupTiming', () => ({ msSinceStart: jest.fn(), markStartup: jest.fn() }));
 
 const hideAsync = SplashScreen.hideAsync as jest.Mock;
 
