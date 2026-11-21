@@ -1,15 +1,24 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import { createInMemoryShareCodeCache } from '../data/athleteShareCodeCache';
 import { createInMemoryAthleteShareCodeRepository } from '../data/athleteShareCodes';
 import { AthleteShareCodeContainer } from '../screens/AthleteShareCodeContainer';
 
 jest.mock('../../../core/sync', () => ({ supabase: {} }));
 
-async function show(options: { online?: boolean; failing?: boolean } = {}) {
+async function show(options: { online?: boolean; failing?: boolean; cache?: ReturnType<typeof createInMemoryShareCodeCache> } = {}) {
   const repository = createInMemoryAthleteShareCodeRepository({ names: { a1: 'Ana M.' }, failing: options.failing });
   const share = jest.fn(async () => undefined);
   const view = await render(
-    <AthleteShareCodeContainer athleteId="a1" athleteName="Ana" repository={repository} online={options.online ?? true} share={share} />,
+    <AthleteShareCodeContainer
+      athleteId="a1"
+      athleteName="Ana"
+      repository={repository}
+      cache={options.cache ?? createInMemoryShareCodeCache()}
+      userId="u1"
+      online={options.online ?? true}
+      share={share}
+    />,
   );
   return { repository, share, view };
 }
@@ -46,7 +55,7 @@ describe('AthleteShareCodeContainer', () => {
     const { repository, share, view } = await show({ online: false });
     expect(screen.getByText('Con señal verás aquí el código.')).toBeTruthy();
     expect(repository.codes.size).toBe(0);
-    await view.rerender(<AthleteShareCodeContainer athleteId="a1" athleteName="Ana" repository={repository} online share={share} />);
+    await view.rerender(<AthleteShareCodeContainer athleteId="a1" athleteName="Ana" repository={repository} cache={createInMemoryShareCodeCache()} userId="u1" online share={share} />);
     expect(await screen.findByText('TS-AAAAA1')).toBeTruthy();
   });
 
@@ -54,5 +63,24 @@ describe('AthleteShareCodeContainer', () => {
     await show({ failing: true });
     expect(await screen.findByText('No pudimos traer el código')).toBeTruthy();
     expect(screen.getByText('Intentar de nuevo')).toBeTruthy();
+  });
+
+  it('shows the saved code without signal, but cannot change it', async () => {
+    const cache = createInMemoryShareCodeCache();
+    await cache.set('u1', 'a1', 'TS-AAAAAA');
+    await show({ online: false, cache });
+    expect(await screen.findByText('TS-AAAAAA')).toBeTruthy();
+    expect(screen.queryByText('Con señal verás aquí el código.')).toBeNull();
+  });
+
+  it('saves the code it fetched and the one it changed to', async () => {
+    const cache = createInMemoryShareCodeCache();
+    await show({ cache });
+    await screen.findByText('TS-AAAAA1');
+    expect(await cache.get('u1', 'a1')).toBe('TS-AAAAA1');
+    await fireEvent.press(screen.getByText('Cambiar código'));
+    await fireEvent.press(screen.getAllByText('Cambiar código').at(-1)!);
+    await screen.findByText('TS-AAAAA2');
+    expect(await cache.get('u1', 'a1')).toBe('TS-AAAAA2');
   });
 });

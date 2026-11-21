@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type ComponentType, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -26,7 +26,12 @@ export type MyAthleteCard = {
   isSelf?: boolean;
   // The athlete's `lg` AthleteAvatar with their photo, on the card in front (the container injects it); absent: none.
   avatar?: ReactNode;
+  // The athlete's share-code chip, on the card in front (the route injects it; accounts owns the code and its cache); absent: none.
+  shareCode?: ReactNode;
 };
+
+// What the route injects: it renders the chip for one athlete. Athletes cannot import the accounts internals.
+export type AthleteShareCodeSlot = ComponentType<{ athleteId: string }>;
 
 export type AthleteStackProps = {
   athletes: MyAthleteCard[];
@@ -113,6 +118,7 @@ function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidd
             )}
           </View>
         )}
+        {card.shareCode ? <View style={{ alignSelf: 'flex-start', paddingTop: space[1] }}>{card.shareCode}</View> : null}
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingTop: space[2] }}>
           <Button
             variant="dark"

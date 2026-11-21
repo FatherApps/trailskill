@@ -7,6 +7,9 @@ import {
   createPowerSyncAuthorizationStatusRepository,
   createPowerSyncManagedAthleteRepository,
   AthleteAvatarWithPhoto,
+  AthleteShareCodeChipContainer,
+  createSecureStoreShareCodeCache,
+  createSupabaseAthleteShareCodeRepository,
 } from '../../../modules/accounts';
 import {
   athleteProfileHref,
@@ -22,6 +25,23 @@ const schoolNames = createPowerSyncSchoolNameRepository();
 const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const schoolLinks = createPowerSyncAthleteSchoolRepository();
 const structure = createPowerSyncSchoolStructureRepository();
+const shareCodes = createSupabaseAthleteShareCodeRepository();
+const shareCodeCache = createSecureStoreShareCodeCache();
+
+// The share-code chip of one card; a module-level component so the cards keep it mounted between renders.
+function ShareCodeChip({ athleteId }: { athleteId: string }) {
+  const { session } = useSession();
+  const { connection } = useGlobalSyncSummary();
+  return (
+    <AthleteShareCodeChipContainer
+      athleteId={athleteId}
+      repository={shareCodes}
+      cache={shareCodeCache}
+      userId={session?.user.id}
+      online={connection === 'connected'}
+    />
+  );
+}
 
 // "Mis deportistas": one colour card per athlete the user manages; a card opens the profile. "Autorizaciones" and "Cerrar sesión" live in "Ajustes" (#778).
 export default function MyAthletesRoute() {
@@ -34,6 +54,7 @@ export default function MyAthletesRoute() {
     <View style={{ flex: 1 }}>
       <MyAthletesContainer
         Avatar={AthleteAvatarWithPhoto}
+        ShareCode={ShareCodeChip}
         userId={session?.user.id}
         managed={managedAthletes}
         athletes={schoolAthletes}

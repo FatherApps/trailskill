@@ -5,6 +5,11 @@ export class TooManyShareCodeLookupsError extends Error {
   override name = 'TooManyShareCodeLookupsError';
 }
 
+/** The server refuses the code: the caller no longer manages the swimmer (insufficient_privilege). A missing signal is not this. */
+export class ShareCodeRefusedError extends Error {
+  override name = 'ShareCodeRefusedError';
+}
+
 /**
  * The short code of a swimmer (for example TS-7K4Q2M) that their guardian gives to another family, so that family can share
  * times with the swimmer. Online only: the server keeps the codes and decides who may see or change them.
@@ -22,7 +27,7 @@ export function createSupabaseAthleteShareCodeRepository(): AthleteShareCodeRepo
   return {
     async get(athleteId) {
       const { data, error } = await supabase.rpc('athlete_share_code', { athlete: athleteId });
-      if (error) throw error;
+      if (error) throw error.code === '42501' ? new ShareCodeRefusedError() : error;
       return data as string;
     },
     async change(athleteId) {
@@ -39,13 +44,14 @@ export function createSupabaseAthleteShareCodeRepository(): AthleteShareCodeRepo
 }
 
 // For tests and the gallery: codes are TS-AAAAA1, TS-AAAAA2… in the order they are made.
-export function createInMemoryAthleteShareCodeRepository(options: { names?: Record<string, string>; failing?: boolean } = {}) {
+export function createInMemoryAthleteShareCodeRepository(options: { names?: Record<string, string>; failing?: boolean; refusing?: boolean } = {}) {
   const codes = new Map<string, string>();
   let made = 0;
   const next = () => `TS-AAAAA${++made}`;
   const repository: AthleteShareCodeRepository & { codes: Map<string, string> } = {
     codes,
     async get(athleteId) {
+      if (options.refusing) throw new ShareCodeRefusedError();
       if (options.failing) throw new Error('no signal');
       const code = codes.get(athleteId) ?? next();
       codes.set(athleteId, code);
