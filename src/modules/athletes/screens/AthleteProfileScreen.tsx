@@ -25,6 +25,8 @@ export type AthleteProfileContent = {
   importPrompt?: ImportPromptProps;
   // The official-results update (button, choices) of another module; only guardians and adults get it: the caller passes it or not.
   officialUpdate?: ReactNode;
+  // Pinned to the bottom of the screen, outside the scrolling list (the import button of the results-import module); the caller passes it or not.
+  bottomBar?: ReactNode;
   // Add, change or remove the athlete's photo (the container above, with its avatar); only who manages the swimmer gets it: the caller passes it or not.
   photo?: ReactNode;
   // The code to share times with the swimmer (accounts module); only who manages the swimmer gets it: the caller passes it or not.
@@ -237,6 +239,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         header={header}
         footer={footer}
       />
+      {content.bottomBar}
     </View>
   );
 }

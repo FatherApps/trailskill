@@ -52,6 +52,8 @@ export type AthleteProfileContainerProps = {
   sessionDated?: readonly string[];
   // The official-results update of the results-import module. Pass it only to viewers that may import.
   officialUpdate?: ReactNode;
+  // Pinned to the bottom of the screen, outside the scrolling list; the route passes it with the official-results update.
+  bottomBar?: ReactNode;
   // The code to share times with the swimmer, from the accounts module; the route passes it only to who manages the swimmer.
   shareCode?: ReactNode;
   // What the school lets the guardian see of this swimmer, from the school-console module; the route passes it only to staff of the swimmer's school.
@@ -182,6 +184,7 @@ export function AthleteProfileContainer({
   sourceNames,
   sessionDated,
   officialUpdate,
+  bottomBar,
   shareCode,
   guardianSharing,
   importPrompt,
@@ -372,6 +375,7 @@ export function AthleteProfileContainer({
     // The chart draws the same rows as the history, so imported results and the personal best are the ones the list shows.
     chart,
     ...(officialUpdate ? { officialUpdate } : {}),
+    ...(bottomBar ? { bottomBar } : {}),
     ...(shareCode ? { shareCode } : {}),
     ...(guardianSharing ? { guardianSharing } : {}),
     ...(photoCard ? { photo: photoCard(avatarOf(loadedAthlete)) } : {}),

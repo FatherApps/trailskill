@@ -21,6 +21,8 @@ export { createOfficialUpdate, sortOutFound, updateButtonState } from './officia
 export type { CheckOutcome, ImportOutcome, UpdateButtonState } from './officialUpdate';
 export { OfficialResultsScreen } from './screens/OfficialResultsScreen';
 export type { ChangeItem, ImportNotice, OfficialResultsScreenProps, OfficialResultsView, ResultItem } from './screens/OfficialResultsScreen';
+export { ImportFooterSlot, createImportFooterStore, useImportFooterStore, type ImportFooterState, type ImportFooterStore } from './components/ImportFooterSlot';
+export { OfficialImportFooter, type OfficialImportFooterProps } from './components/OfficialImportFooter';
 export { OfficialUpdateContainer, type OfficialUpdateContainerProps } from './screens/OfficialUpdateContainer';
 export { OfficialUpdateButton, type OfficialUpdateButtonProps } from './components/OfficialUpdateButton';
 export { PendingChangeCard, type PendingChangeCardProps } from './components/PendingChangeCard';

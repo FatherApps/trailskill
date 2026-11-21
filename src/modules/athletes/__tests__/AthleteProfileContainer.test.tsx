@@ -715,6 +715,19 @@ describe('athlete profile container', () => {
     expect(await screen.findByText('Actualizar resultados oficiales')).toBeOnTheScreen();
   });
 
+  it('renders the bottom bar it is given, outside the list', async () => {
+    await show({ bottomBar: <Text>Barra inferior</Text> });
+
+    expect(await screen.findByText('Barra inferior')).toBeOnTheScreen();
+  });
+
+  it('renders no bottom bar when none is given', async () => {
+    await show();
+
+    await screen.findByRole('header', { name: 'Ana Marin' });
+    expect(screen.queryByText('Barra inferior')).toBeNull();
+  });
+
   it('renders the share code content it is given', async () => {
     await show({ shareCode: <Text>Código para compartir tiempos</Text> });
 
