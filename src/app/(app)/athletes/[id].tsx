@@ -4,22 +4,15 @@ import { useSession } from '../../../core/session';
 import { useGlobalSyncSummary } from '../../../core/sync';
 import {
   AthleteAvatarWithPhoto,
-  AthleteShareCodeContainer,
   createPowerSyncAuthorizationStatusRepository,
   createPowerSyncManagedAthleteRepository,
-  createSecureStoreShareCodeCache,
-  createSupabaseAthleteShareCodeRepository,
-  useHasValidAuthorization,
 } from '../../../modules/accounts';
 import {
-  AthletePhotoContainer,
   AthleteProfileContainer,
-  createExpoPhotoPicker,
   createPowerSyncAthleteSchoolRepository,
   createPowerSyncHistoryRepository,
   createPowerSyncSchoolAthleteRepository,
   createSupabaseOtherSchoolResultsRepository,
-  getAthletePhotoService,
   useAthleteProfileRoute,
   useManagedAthletes,
 } from '../../../modules/athletes';
@@ -61,12 +54,8 @@ const identity = createIdentityConfirmation(officialResults);
 const changeResolver = createSupabasePendingChangeResolver();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const importSources = createSupabaseImportSourcesRepository();
-const shareCodes = createSupabaseAthleteShareCodeRepository();
-const shareCodeCache = createSecureStoreShareCodeCache();
 const guardianSharing = createSupabaseGuardianSharingRepository();
 const guardianRecords = createGuardianRecordsRepository(createPowerSyncMeasurementRepository());
-const photoService = getAthletePhotoService();
-const photoPicker = createExpoPhotoPicker();
 
 export default function AthleteProfileRoute() {
   // `name` is the only thing besides the id the route carries: the band shows it from the first frame.
@@ -80,8 +69,6 @@ export default function AthleteProfileRoute() {
   const staff = useStaffSchool(staffSchools, session?.user.id, syncedAt);
   const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, syncedAt);
   const sources = useImportSources(importSources, summary.connection === 'connected');
-  // The athletes module cannot read the authorization (a cycle with accounts), so the route does and passes it down.
-  const showPhoto = useHasValidAuthorization(id, 'show_photo');
   // The import button of the official-results update is pinned to the bottom of the screen, outside the list.
   const importFooter = useImportFooterStore();
   const { isStaff, sharingSchoolId, sourceNames, sessionDated, federation, managedAthlete, importPrompt } = useAthleteProfileRoute({
@@ -134,20 +121,6 @@ export default function AthleteProfileRoute() {
         />
       }
       bottomBar={<ImportFooterSlot store={importFooter} />}
-      // Only who manages the swimmer: the server refuses the code to anyone else.
-      shareCode={
-        managedAthlete ? (
-          <AthleteShareCodeContainer
-            key={`share-code-${id}`}
-            athleteId={id}
-            athleteName={managedAthlete.firstName}
-            repository={shareCodes}
-            cache={shareCodeCache}
-            userId={session.user.id}
-            online={summary.connection === 'connected'}
-          />
-        ) : undefined
-      }
       // Staff of the swimmer's school choose what the guardian sees; the server refuses anyone else.
       guardianSharing={
         sharingSchoolId ? (
@@ -161,24 +134,6 @@ export default function AthleteProfileRoute() {
             refreshKey={syncedAt}
           />
         ) : undefined
-      }
-      // Only who manages the swimmer adds, changes or removes the photo (the server refuses a coach). Without show_photo the button opens the authorization first.
-      photoCard={
-        managedAthlete
-          ? (avatar) => (
-              <AthletePhotoContainer
-                key={`photo-${id}`}
-                athleteId={id}
-                userId={session.user.id}
-                authorized={showPhoto}
-                online={summary.connection === 'connected'}
-                service={photoService}
-                picker={photoPicker}
-                avatar={avatar}
-                onAuthorize={() => router.push('/authorizations')}
-              />
-            )
-          : undefined
       }
       online={summary.connection === 'connected'}
       // Records waiting to be sent or that failed to send: with none, connected, the sync tag says "Al día".

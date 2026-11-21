@@ -26,6 +26,7 @@ import { PhotoRemoveSheet, type PhotoRemoveSheetProps } from './components/Photo
 import { ProgressChart } from './components/ProgressChart';
 import type { HistoryResult } from './components/HistoryList';
 import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHeader';
+import { AthleteEditScreen } from './screens/AthleteEditScreen';
 import { AthleteProfileScreen, type AthleteProfileContent, type AthleteProfileView } from './screens/AthleteProfileScreen';
 import { MarksScreen, type MarksView } from './screens/MarksScreen';
 import { MyAthletesScreen, type MyAthletesView } from './screens/MyAthletesScreen';
@@ -152,7 +153,7 @@ const marksPreview = (view: MarksView) =>
 
 const myAthletesPreview = (view: MyAthletesView) =>
   function MyAthletesPreview() {
-    return <MyAthletesScreen view={view} onOpen={noop} onAdd={noop} scrollEnabled={false} />;
+    return <MyAthletesScreen view={view} onOpen={noop} onEdit={noop} onAdd={noop} scrollEnabled={false} />;
   };
 
 const entry = (id: string, title: string, states: Record<string, () => ReactElement>): GalleryEntry => ({
@@ -267,7 +268,6 @@ export const galleryEntries: GalleryEntry[] = [
       kind: 'data',
       content: { ...content, importPrompt: { ...prompt, sourceName: h.sourceName, imported: false } },
     })),
-    'with-photo-card': screenPreview((content) => ({ kind: 'data', content: { ...content, photo: <PhotoCard {...photoCardBase} /> } })),
   }),
   entry('myAthletesScreen', 'MyAthletesScreen', {
     'with-data': myAthletesPreview({ kind: 'data', athletes: myAthletesFixture }),
@@ -281,6 +281,13 @@ export const galleryEntries: GalleryEntry[] = [
     'long-text': myAthletesPreview({ kind: 'data', athletes: myAthletesLongTextFixture }),
     empty: myAthletesPreview({ kind: 'empty' }),
     loading: myAthletesPreview({ kind: 'loading' }),
+  }),
+  entry('athleteEditScreen', 'AthleteEditScreen', {
+    // The share code lives in accounts, which athletes cannot import: a plain slot stands in for it here.
+    'with-photo': () => <AthleteEditScreen athleteId="a1" firstName="Ana" lastName="Marin" onBack={noop} onDone={noop} photo={<PhotoCard {...photoCardBase} />} />,
+    'long-text': () => (
+      <AthleteEditScreen athleteId="a2" firstName="María Fernanda del Carmen" lastName="Rodríguez de la Hoz Santamaría" onBack={noop} onDone={noop} photo={<PhotoCard {...photoCardBase} state="ready" avatar={withPhoto} />} />
+    ),
   }),
   entry('marksScreen', 'MarksScreen', {
     'with-data': marksPreview(marksFixture),

@@ -27,10 +27,6 @@ export type AthleteProfileContent = {
   officialUpdate?: ReactNode;
   // Pinned to the bottom of the screen, outside the scrolling list (the import button of the results-import module); the caller passes it or not.
   bottomBar?: ReactNode;
-  // Add, change or remove the athlete's photo (the container above, with its avatar); only who manages the swimmer gets it: the caller passes it or not.
-  photo?: ReactNode;
-  // The code to share times with the swimmer (accounts module); only who manages the swimmer gets it: the caller passes it or not.
-  shareCode?: ReactNode;
   // The school's choice of what the guardian sees (school-console module); only staff of the swimmer's school get it: the caller passes it or not.
   guardianSharing?: ReactNode;
   // Another school's results are online only: set while offline to explain why none show, in place of them.
@@ -194,7 +190,7 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
   );
 
   const footer =
-    empty || content.importPrompt || content.officialUpdate || content.photo || content.shareCode || content.guardianSharing || content.otherSchoolOffline || content.otherSchoolError ? (
+    empty || content.importPrompt || content.officialUpdate || content.guardianSharing || content.otherSchoolOffline || content.otherSchoolError ? (
       <View style={[padded, { gap: space[4], paddingVertical: space[4] }]}>
         {empty && (
           <StateView
@@ -223,8 +219,6 @@ export function AthleteProfileScreen({ name, view, scrollEnabled = true, onBack 
         )}
         {content.importPrompt && <ImportPrompt {...content.importPrompt} />}
         {content.officialUpdate}
-        {content.photo}
-        {content.shareCode}
         {content.guardianSharing}
       </View>
     ) : undefined;

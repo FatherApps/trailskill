@@ -15,6 +15,8 @@ export type MyAthletesScreenProps = {
   view: MyAthletesView;
   // Opens the profile (and with it the history) of the athlete in front.
   onOpen: (athleteId: string, name: string) => void;
+  // Opens the edit screen of the athlete in front; absent: no "Editar" button.
+  onEdit?: (athleteId: string, name: string) => void;
   onAdd: () => void;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
   scrollEnabled?: boolean;
@@ -23,7 +25,7 @@ export type MyAthletesScreenProps = {
 export const myAthletesScreenColors: { title: ColorToken; background: ColorToken } = { title: 'ink', background: 'surface-0' };
 
 // Presentational: no network, database or repository; the caller supplies the athletes and handles the presses.
-export function MyAthletesScreen({ view, onOpen, onAdd, scrollEnabled = true }: MyAthletesScreenProps) {
+export function MyAthletesScreen({ view, onOpen, onEdit, onAdd, scrollEnabled = true }: MyAthletesScreenProps) {
   const { colors, space, typography } = useTheme();
   const largeText = useLargeText();
   const frame = { alignSelf: 'stretch', flex: scrollEnabled ? 1 : undefined, backgroundColor: colors[myAthletesScreenColors.background] } as const;
@@ -58,7 +60,7 @@ export function MyAthletesScreen({ view, onOpen, onAdd, scrollEnabled = true }: 
   const cards = (
     <>
       {header}
-      <AthleteStack athletes={view.athletes} onOpen={onOpen} />
+      <AthleteStack athletes={view.athletes} onOpen={onOpen} onEdit={onEdit} />
     </>
   );
   return scrollEnabled ? (

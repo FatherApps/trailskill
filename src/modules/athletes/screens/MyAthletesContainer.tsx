@@ -22,6 +22,8 @@ export type MyAthletesContainerProps = {
   // Changing it looks the athletes up again (the route passes the last sync).
   refreshKey?: unknown;
   onOpen: (athleteId: string, name: string) => void;
+  // Every athlete here is one the user manages, so each card can be edited; the route decides by passing it or not.
+  onEdit?: (athleteId: string, name: string) => void;
   onAdd: () => void;
   scrollEnabled?: boolean;
   // Injected by the route (athletes cannot read show_photo without a cycle with accounts): the athlete's avatar with their photo. Absent: no avatar.
@@ -41,6 +43,7 @@ export function MyAthletesContainer({
   authorizations,
   refreshKey,
   onOpen,
+  onEdit,
   onAdd,
   scrollEnabled,
   Avatar,
@@ -76,5 +79,5 @@ export function MyAthletesContainer({
     // The user's own card goes first, so it is the one in front when the screen opens.
     view = { kind: 'data', athletes: [...cards.filter((card) => card.isSelf), ...cards.filter((card) => !card.isSelf)] };
   }
-  return <MyAthletesScreen view={view} onOpen={onOpen} onAdd={onAdd} scrollEnabled={scrollEnabled} />;
+  return <MyAthletesScreen view={view} onOpen={onOpen} onEdit={onEdit} onAdd={onAdd} scrollEnabled={scrollEnabled} />;
 }
