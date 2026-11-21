@@ -6,6 +6,9 @@ import type { OfficialResultsService } from '../data/officialResults';
 import type { ImportSource, ImportSourcesRepository, OfficialSearchRepository, SearchFailure, TournamentCandidate } from '../data/officialSearch';
 import '../i18n';
 import { formatRetryTime } from './ConfirmPersonContainer';
+import { formatTournamentDate } from '../components/tournamentDates';
+import { catalogYears, countByDateKey, shiftMonth, yearOfKey, type CalendarMonth } from '../data/tournamentCalendar';
+import { groupTournaments, type TournamentCatalogEntry, type TournamentCatalogRepository } from '../data/tournamentCatalog';
 import { ConfirmPersonScreen, type ConfirmPersonView, type NumberHint } from './ConfirmPersonScreen';
 
 export type TournamentImportContainerProps = {
@@ -14,6 +17,12 @@ export type TournamentImportContainerProps = {
   authorized: boolean;
   online: boolean;
   sources: ImportSourcesRepository;
+  // The tournaments the device has synced; read offline.
+  catalog: TournamentCatalogRepository;
+  // Asks the server to refresh the catalog; never awaited by the screen and never rejects its result into the UI.
+  refreshCatalog: () => Promise<void>;
+  // Changes when a sync finishes (the last synced time): the list is read again, so rows a sync brings show without reopening.
+  syncedAt?: number;
   search: OfficialSearchRepository;
   results: Pick<OfficialResultsService, 'importChosen'>;
   identityDocuments: Pick<IdentityDocumentRepository, 'hint'>;
@@ -29,6 +38,7 @@ type Step =
   // The server found the person in the tournament: nothing is saved until the guardian confirms.
   | { kind: 'candidate'; organizationId: string; candidate: TournamentCandidate }
   | { kind: 'empty' }
+  | { kind: 'no_file' }
   | { kind: 'done'; imported: number }
   // Confirmed, but saving the offered results failed: retrying repeats only the import.
   | { kind: 'import_failed'; offered: string[] }
@@ -46,6 +56,9 @@ export function TournamentImportContainer({
   authorized,
   online,
   sources,
+  catalog,
+  refreshCatalog,
+  syncedAt,
   search,
   results,
   identityDocuments,
@@ -61,6 +74,17 @@ export function TournamentImportContainer({
   const [busy, setBusy] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [entries, setEntries] = useState<TournamentCatalogEntry[] | null>(null);
+  // Counts the refreshes that finished: each one reads the list again.
+  const [refreshes, setRefreshes] = useState(0);
+  const [text, setText] = useState('');
+  const [year, setYear] = useState<number | null>(null);
+  const [dateKey, setDateKey] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [shownMonth, setShownMonth] = useState<CalendarMonth>();
+  const [chosen, setChosen] = useState<TournamentCatalogEntry | null>(null);
+  // The pasted address is the fallback: it opens only from the picker's link.
+  const [pasting, setPasting] = useState(false);
 
   const athleteName = athlete.firstName.trim();
   const requestKey = `${athlete.id}|${attempt}`;
@@ -79,6 +103,30 @@ export function TournamentImportContainer({
     };
   }, [authorized, online, sources, identityDocuments, athlete.id, requestKey]);
 
+  useEffect(() => {
+    let current = true;
+    catalog.list().then(
+      (list) => current && setEntries(list),
+      () => current && setEntries([]),
+    );
+    return () => {
+      current = false;
+    };
+  }, [catalog, syncedAt, refreshes]);
+
+  // Fire and forget: the list is whatever the device already has, and a slow or failed refresh never blocks it.
+  useEffect(() => {
+    if (!authorized || !online) return;
+    let current = true;
+    refreshCatalog().then(
+      () => current && setRefreshes((count) => count + 1),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [authorized, online, refreshCatalog]);
+
   const fail = useCallback((error: SearchFailure, onUnexpected: Step) => {
     switch (error.code) {
       case 'rate_limited':
@@ -91,6 +139,8 @@ export function TournamentImportContainer({
         return setStep({ kind: 'start', message: t('results_import.errors.number_required') });
       case 'identity_number_conflict':
         return setStep({ kind: 'start', message: t('results_import.errors.number_conflict') });
+      case 'no_file':
+        return setStep({ kind: 'no_file' });
       case 'unavailable':
         return setStep({ kind: 'unavailable' });
       case 'offline':
@@ -102,6 +152,43 @@ export function TournamentImportContainer({
 
   if (!authorized) {
     return <ConfirmPersonScreen view={{ kind: 'unauthorized', athleteName, onGoToAuthorizations }} onBack={onBack} />;
+  }
+
+  if (step.kind === 'start' && !chosen && !pasting) {
+    if (entries === null) return <ConfirmPersonScreen view={{ kind: 'loading' }} onBack={onBack} />;
+    const newest = entries.reduce((latest, entry) => (entry.dateKey > latest ? entry.dateKey : latest), '');
+    const month = shownMonth ?? (newest ? { year: yearOfKey(newest), month: Number(newest.slice(4, 6)) } : { year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+    const pick: ConfirmPersonView = {
+      kind: 'tournament_pick',
+      athleteName,
+      online,
+      text,
+      onChangeText: setText,
+      years: catalogYears(entries),
+      year,
+      onChangeYear: (next) => {
+        setYear(next);
+        // A day of another year would leave the list empty by itself: the chip wins.
+        if (dateKey && next !== null && yearOfKey(dateKey) !== next) setDateKey(null);
+      },
+      calendarOpen,
+      onToggleCalendar: () => setCalendarOpen((open) => !open),
+      month,
+      counts: countByDateKey(entries),
+      dateKey,
+      onSelectDay: (day) => {
+        if (day === dateKey) return setDateKey(null);
+        setDateKey(day);
+        setYear(yearOfKey(day));
+      },
+      onClearDay: () => setDateKey(null),
+      onPreviousMonth: () => setShownMonth(shiftMonth(month, -1)),
+      onNextMonth: () => setShownMonth(shiftMonth(month, 1)),
+      groups: groupTournaments(entries, { text, year, dateKey }),
+      onPick: setChosen,
+      onPasteUrl: () => setPasting(true),
+    };
+    return <ConfirmPersonScreen view={pick} onBack={onBack} />;
   }
   if (!online) return <ConfirmPersonScreen view={{ kind: 'offline' }} onBack={onBack} />;
   if (loaded.status === 'loading') return <ConfirmPersonScreen view={{ kind: 'loading' }} onBack={onBack} />;
@@ -126,7 +213,7 @@ export function TournamentImportContainer({
 
   async function runSearch() {
     const address = url.trim();
-    if (address === '' || address.length > URL_MAX_LENGTH) return setStep({ kind: 'start', message: t('results_import.errors.tournament_unknown') });
+    if (!chosen && (address === '' || address.length > URL_MAX_LENGTH)) return setStep({ kind: 'start', message: t('results_import.errors.tournament_unknown') });
     // The number is sent with the request only when none is saved; the server keeps it once the person is confirmed.
     let identityNumber: string | undefined;
     if (!hint.present) {
@@ -135,8 +222,11 @@ export function TournamentImportContainer({
       if (!isValidIdentityNumber(typed)) return setNumberInvalid(true);
       identityNumber = typed;
     }
-    const outcome = await search.tournament({ athleteId: athlete.id, url: address, ...(identityNumber ? { identityNumber } : {}) });
-    if (!outcome.ok) return fail(outcome.error, { kind: 'start', message: t('results_import.errors.unexpected') });
+    // A tournament of the list is asked for by its day (`tournamentKey`); only a pasted address is sent as `url`.
+    const target = chosen ? { tournamentKey: chosen.dateKey } : { url: address };
+    const outcome = await search.tournament({ athleteId: athlete.id, ...target, ...(identityNumber ? { identityNumber } : {}) });
+    // «Aún sin resultados» is the list's message; a pasted address keeps today's generic one.
+    if (!outcome.ok) return fail(outcome.error.code === 'no_file' && !chosen ? { code: 'unavailable' } : outcome.error, { kind: 'start', message: t('results_import.errors.unexpected') });
     // Found or not, the typed number is no longer needed on the screen.
     setNumber('');
     const { organizationId, candidate } = outcome.value;
@@ -167,6 +257,10 @@ export function TournamentImportContainer({
   }
 
   const goToStart = () => setStep({ kind: 'start' });
+  const changeTournament = () => {
+    setChosen(null);
+    setStep({ kind: 'start' });
+  };
 
   const view = ((): ConfirmPersonView => {
     switch (step.kind) {
@@ -175,6 +269,7 @@ export function TournamentImportContainer({
           kind: 'tournament_start',
           athleteName,
           hint,
+          chosen: chosen ? { name: chosen.name, date: formatTournamentDate(chosen.dateKey), onChange: changeTournament } : undefined,
           url,
           number,
           numberInvalid,
@@ -207,6 +302,8 @@ export function TournamentImportContainer({
         };
       case 'empty':
         return { kind: 'tournament_empty', athleteName, onRetry: goToStart };
+      case 'no_file':
+        return { kind: 'tournament_no_file', onChange: changeTournament };
       case 'done':
         return { kind: 'tournament_done', athleteName, imported: step.imported, onDone };
       case 'import_failed':

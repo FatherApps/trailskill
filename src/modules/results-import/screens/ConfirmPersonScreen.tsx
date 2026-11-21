@@ -3,6 +3,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { Banner, Button, ColorHeader, StateView, TextField } from '../../../core/ui';
+import { TournamentPicker, type TournamentPickerProps } from '../components/TournamentPicker';
 import type { SearchCandidate } from '../data/officialSearch';
 import '../i18n';
 
@@ -39,11 +40,16 @@ export type ConfirmPersonView =
       onConfirm: (candidateId: string) => void;
       onNone: () => void;
     }
+  | ({ kind: 'tournament_pick' } & TournamentPickerProps)
+  // The tournament picked from the list has no published file yet.
+  | { kind: 'tournament_no_file'; onChange: () => void }
   | {
       kind: 'tournament_start';
       athleteName: string;
       // Only asked when no number is saved.
       hint: NumberHint;
+      // Set when the tournament was picked from the list: it replaces the address field.
+      chosen?: { name: string; date: string; onChange: () => void };
       url: string;
       // What is being typed; held in memory only and shown as dots.
       number: string;
@@ -149,6 +155,18 @@ export function ConfirmPersonScreen({ view, onBack }: ConfirmPersonScreenProps) 
           action={{ label: t('results_import.empty.action'), onPress: view.onRetry }}
         />,
       );
+    case 'tournament_pick':
+      return frame(t('results_import.tournament.title'), <TournamentPicker {...view} />);
+    case 'tournament_no_file':
+      return state(
+        t('results_import.tournament.title'),
+        <StateView
+          kind="empty"
+          title={t('results_import.tournament.pick.no_file.title')}
+          message={t('results_import.tournament.pick.no_file.message')}
+          action={{ label: t('results_import.tournament.pick.change'), onPress: view.onChange }}
+        />,
+      );
     case 'tournament_import_failed':
       return state(
         t('results_import.tournament.title'),
@@ -235,18 +253,27 @@ export function ConfirmPersonScreen({ view, onBack }: ConfirmPersonScreenProps) 
       return frame(
         t('results_import.tournament.title'),
         <>
-          <Text style={[typography.body, { color: colors.ink }]}>{t('results_import.tournament.intro', { name: view.athleteName })}</Text>
+          {!view.chosen && <Text style={[typography.body, { color: colors.ink }]}>{t('results_import.tournament.intro', { name: view.athleteName })}</Text>}
           {view.message && <Banner variant="warn" icon="error">{view.message}</Banner>}
-          <TextField
-            label={t('results_import.tournament.url_label')}
-            help={t('results_import.tournament.url_help')}
-            value={view.url}
-            onChangeText={view.onChangeUrl}
-            keyboardType="url"
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={500}
-          />
+          {view.chosen ? (
+            <View style={{ backgroundColor: colors['surface-1'], padding: space[3], gap: space[1], borderWidth: 1, borderColor: colors['border-strong'] }}>
+              <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{t('results_import.tournament.pick.chosen_label')}</Text>
+              <Text style={[typography['body-strong'], { color: colors.ink }]}>{view.chosen.name}</Text>
+              <Text style={[typography.body, { color: colors['ink-muted'] }]}>{view.chosen.date}</Text>
+              <Button variant="ghost" label={t('results_import.tournament.pick.change')} onPress={view.chosen.onChange} />
+            </View>
+          ) : (
+            <TextField
+              label={t('results_import.tournament.url_label')}
+              help={t('results_import.tournament.url_help')}
+              value={view.url}
+              onChangeText={view.onChangeUrl}
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={500}
+            />
+          )}
           {!view.hint.present && (
             <TextField
               label={t('results_import.tournament.number_label')}

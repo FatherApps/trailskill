@@ -154,6 +154,49 @@
       "message": "Tu confirmación ya quedó guardada. Intenta importar de nuevo; no hace falta confirmar otra vez.",
       "action": "Reintentar importación"
     },
-    "number_label": "Número de identificación"
+    "number_label": "Número de identificación",
+    "pick": {
+      "intro": "Elige el torneo donde compitió {{name}}. Tú confirmas que es la misma persona antes de importar.",
+      "search_label": "Buscar",
+      "year_group": "Año",
+      "year_all": "Todos",
+      "offline_note": "Sin conexión. Puedes ver la lista; para buscar en un torneo necesitas conexión.",
+      "empty_title": "No encontramos torneos con ese filtro",
+      "empty_message": "Prueba con otro nombre, ciudad, año o fecha.",
+      "paste": "¿No está en la lista? Pegar la dirección",
+      "chosen_label": "Torneo elegido",
+      "change": "Elegir otro torneo",
+      "no_file": {
+        "title": "Aún sin resultados",
+        "message": "Este torneo todavía no tiene archivo publicado."
+      }
+    },
+    "calendar": {
+      "open": "Filtrar por fecha",
+      "close": "Ocultar calendario",
+      "previous": "Mes anterior",
+      "next": "Mes siguiente",
+      "title": "{{month}} {{year}}",
+      "selected": "Fecha: {{date}}",
+      "clear": "Quitar fecha",
+      "day_one": "{{day}} de {{month}}, {{count}} torneo",
+      "day_other": "{{day}} de {{month}}, {{count}} torneos",
+      "day_none": "{{day}} de {{month}}, sin torneos",
+      "weekdays": { "1": "L", "2": "M", "3": "M", "4": "J", "5": "V", "6": "S", "7": "D" },
+      "months": {
+        "1": "enero",
+        "2": "febrero",
+        "3": "marzo",
+        "4": "abril",
+        "5": "mayo",
+        "6": "junio",
+        "7": "julio",
+        "8": "agosto",
+        "9": "septiembre",
+        "10": "octubre",
+        "11": "noviembre",
+        "12": "diciembre"
+      }
+    }
   }
 }

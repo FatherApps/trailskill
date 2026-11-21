@@ -13,10 +13,11 @@ const cases = galleryEntries.flatMap((entry) => Object.keys(entry.states).flatMa
 
 describe('results-import gallery entries', () => {
   it('have unique ids and every state of the panel', () => {
-    expect(galleryEntries.map((entry) => entry.id)).toEqual(['officialUpdateButton', 'officialResultsScreen']);
+    expect(galleryEntries.map((entry) => entry.id)).toEqual(['officialUpdateButton', 'officialResultsScreen', 'tournamentPicker']);
     expect(Object.keys(galleryEntries[1]!.states)).toEqual([
       'list', 'long-text', 'imported', 'checking', 'none', 'unavailable', 'rate-limited', 'expired', 'import-failed', 'changes', 'change-failed',
     ]);
+    expect(Object.keys(galleryEntries[2]!.states)).toEqual(['list', 'filtered', 'empty', 'calendar', 'calendar-empty-day', 'no-file']);
   });
 
   it.each(cases)('renders %s / %s in the %s theme', async (id, state, theme) => {
