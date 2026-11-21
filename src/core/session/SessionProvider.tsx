@@ -32,6 +32,25 @@ function withTimeout<T>(step: string, work: Promise<T>): Promise<T> {
   });
 }
 
+// The `session_id` claim stays the same across token refreshes and changes with every sign-in. Read only to compare, so the signature is not checked.
+function sessionIdOf(accessToken: string): string | undefined {
+  try {
+    const payload = accessToken.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+    const claim: unknown = payload && (JSON.parse(atob(payload)) as { session_id?: unknown }).session_id;
+    return typeof claim === 'string' ? claim : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// The same account and the same session, notified again. Fails closed: a session_id that cannot be read counts as the same session,
+// so the sign-out goes on instead of leaving a signed-out person signed in.
+function isSameSession(before: Session | null, after: Session | null): boolean {
+  if (!before || !after || before.user.id !== after.user.id) return false;
+  const [idBefore, idAfter] = [sessionIdOf(before.access_token), sessionIdOf(after.access_token)];
+  return idBefore === undefined || idAfter === undefined || idBefore === idAfter;
+}
+
 /** `azure` is how Supabase names Microsoft. */
 export type AuthProvider = 'google' | 'azure';
 
@@ -96,6 +115,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signedInDuringHold = useRef(false);
   // The user now, for work that ends after a render (a late clear) and must not act on someone who signed in since.
   const userIdRef = useRef<string>(undefined);
+  // The session of the last auth event: tells a session notified again from a new sign-in.
+  const lastSession = useRef<Session | null>(null);
   // The late clear never ended in time: the person is asked to reopen the app.
   const [holdStuck, setHoldStuck] = useState(false);
   const setHold = useCallback((on: boolean) => {
@@ -135,7 +156,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Right away, not after a render: a write in flight checks it as it commits.
       userIdRef.current = next?.user.id;
       // While a late clear may still empty the database nobody writes, whoever signs in: it ending opens the writes (see finishLateClear).
-      if (event === 'SIGNED_IN' && holdWrites.current) signedInDuringHold.current = true;
+      // The same session notified again (a duplicate event, a refreshed token) is not a sign-in: it must not cancel the sign-out.
+      if (event === 'SIGNED_IN' && holdWrites.current && !isSameSession(lastSession.current, next)) signedInDuringHold.current = true;
+      lastSession.current = next;
       setSessionUser(holdWrites.current ? undefined : next?.user.id);
       setSession(next);
       setRestored(true);
@@ -350,18 +373,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     signedInDuringHold.current = false;
     setSessionUser(undefined);
     lateClear.current = clearing.then(() => {}, () => {});
-    const release = () => {
+    const release = (signedOut = false) => {
       lateClear.current = undefined;
-      // Writes open for whoever is signed in now, nobody after a finished sign-out.
-      setSessionUser(userIdRef.current);
+      // Writes open for whoever is signed in now, nobody after a finished sign-out (not even for an instant).
+      setSessionUser(signedOut ? undefined : userIdRef.current);
       setHold(false);
     };
     clearing.then(
       async () => {
         const now = userIdRef.current;
+        let signedOut = false;
         if (now === startedFor && !signedInDuringHold.current) {
           try {
             await endSession();
+            signedOut = true;
           } catch (error) {
             logLocalFailure(error);
             if (startedFor !== undefined) reconnectSync(startedFor);
@@ -370,7 +395,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           // The same person signed in again meanwhile: their check runs now that the clear is over.
           retryCheck();
         }
-        release();
+        release(signedOut);
       },
       (error: unknown) => {
         logLocalFailure(error);

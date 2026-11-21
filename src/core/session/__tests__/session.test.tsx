@@ -1100,7 +1100,9 @@ describe('a local database that does not answer', () => {
   });
 
   it('makes the same account signing in again wait for the late clear, and keeps its new session', async () => {
-    const again = { access_token: 'token-again', user: { id: 'coach-1' } };
+    // Fixture tokens carry a session_id each: a new sign-in is a new session.
+    mockInitialSession = { access_token: tokenOf('session-first', '1'), user: { id: 'coach-1' } };
+    const again = { access_token: tokenOf('session-again', '1'), user: { id: 'coach-1' } };
     await renderApp();
     let settle: () => void = () => {};
     mockClearGate = new Promise<void>((resolve) => (settle = resolve));
@@ -1122,6 +1124,87 @@ describe('a local database that does not answer', () => {
     // Signing in again is not the sign-out finishing: that session is not ended, and the sync connects once the clear is over.
     expect(mockSignOut).not.toHaveBeenCalled();
     expect(mockCalls).toContain('db.connect');
+  });
+
+  it('does not let the same session notified again cancel the sign-out waiting for the late clear', async () => {
+    await renderApp();
+    let settle: () => void = () => {};
+    mockClearGate = new Promise<void>((resolve) => (settle = resolve));
+    await pressSignOut();
+    await giveUp();
+    await screen.findByText('Terminando de cerrar la sesión anterior');
+
+    // The very session being closed, notified again (a duplicate event): it is not a new sign-in.
+    await act(async () => mockAuthCallback('SIGNED_IN', mockSignedIn));
+    await act(async () => settle());
+
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' }));
+  });
+
+  // An access token as Supabase issues it: only the session_id claim matters here.
+  const tokenOf = (sessionId: string, nonce: string) =>
+    `header.${Buffer.from(JSON.stringify({ session_id: sessionId, nonce })).toString('base64url')}.signature`;
+
+  async function signOutWaitingOnLateClear(initial: { access_token: string; user: { id: string } }) {
+    mockInitialSession = initial;
+    await render(
+      <SessionProvider>
+        <SignOutProbe />
+      </SessionProvider>,
+    );
+    await screen.findByText('signed-in:coach-1');
+    let settle: () => void = () => {};
+    mockClearGate = new Promise<void>((resolve) => (settle = resolve));
+    await pressSignOut();
+    await giveUp();
+    await screen.findByText('Terminando de cerrar la sesión anterior');
+    return settle;
+  }
+
+  it('does not let a refreshed access token of the same session cancel the sign-out', async () => {
+    const settle = await signOutWaitingOnLateClear({ access_token: tokenOf('session-a', '1'), user: { id: 'coach-1' } });
+
+    await act(async () => mockAuthCallback('SIGNED_IN', { access_token: tokenOf('session-a', '2'), user: { id: 'coach-1' } }));
+    await act(async () => settle());
+
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' }));
+  });
+
+  it('lets the same account signing in with a new session cancel the sign-out', async () => {
+    const settle = await signOutWaitingOnLateClear({ access_token: tokenOf('session-a', '1'), user: { id: 'coach-1' } });
+
+    await act(async () => mockAuthCallback('SIGNED_IN', { access_token: tokenOf('session-b', '1'), user: { id: 'coach-1' } }));
+    await act(async () => settle());
+
+    expect(await screen.findByText('signed-in:coach-1')).toBeOnTheScreen();
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith('coach-1');
+  });
+
+  it('fails closed: a session_id that cannot be read counts as the same session, so the sign-out completes', async () => {
+    const settle = await signOutWaitingOnLateClear({ access_token: tokenOf('session-a', '1'), user: { id: 'coach-1' } });
+
+    await act(async () => mockAuthCallback('SIGNED_IN', { access_token: 'not-a-jwt', user: { id: 'coach-1' } }));
+    await act(async () => settle());
+
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' }));
+  });
+
+  it('never gives writes back to the person who signed out once the late clear ends', async () => {
+    // The default sign-out mock does not emit SIGNED_OUT: only the provider decides who may write.
+    await renderApp();
+    let settle: () => void = () => {};
+    mockClearGate = new Promise<void>((resolve) => (settle = resolve));
+    await pressSignOut();
+    await giveUp();
+    await screen.findByText('Terminando de cerrar la sesión anterior');
+    mockSetSessionUser.mockClear();
+
+    await act(async () => settle());
+
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' }));
+    expect(mockSetSessionUser).not.toHaveBeenCalledWith('coach-1');
+    expect(mockSetSessionUser).toHaveBeenLastCalledWith(undefined);
   });
 
 });
