@@ -28,6 +28,8 @@ import {
   type FamilyMeasurementRepository,
   type FamilySessionType,
 } from '../data/familyMeasurements';
+import type { QrScanner } from '../data/qrScanner';
+import { shareCodeFromQr } from '../domain/scannedCode';
 import { FamilyTransferError, type FamilyTransfer, type FamilyTransferErrorCode, type FamilyTransferRepository } from '../data/familyTransfers';
 import {
   elapsedMillisAt,
@@ -108,6 +110,10 @@ export type FamilyTimingContainerProps = {
   notice?: FamilyTimingNoticeStore;
   // Remembers that the explanation before the camera permissions was seen (#1173), so it shows the first time only. Without it there is no explanation.
   videoIntro?: FamilyTimingNoticeStore;
+  // The camera for reading a swimmer's code QR in the send step (issue 1322); without it «Escanear QR» is not offered.
+  qrScanner?: QrScanner | null;
+  // Remembers that the explanation before the scanner's camera permission was seen, so it shows the first time only. Without it there is no explanation.
+  scanIntro?: FamilyTimingNoticeStore;
   // The rear camera and the gallery for the stopwatch with video (#1088); without it «Grabar» is not offered.
   videoCamera?: VideoCamera | null;
   // Which time each video belongs to, on this phone only (#1089); without it no video is linked nor offered.
@@ -207,6 +213,9 @@ type Step =
       savedId?: string | null;
       // The kept code that turned out expired (its family changed it): explained here once, while its entry is removed (#1321).
       expired?: string | null;
+      // Reading the code from a QR (issue 1322): the explanation, the permission, the camera; and what the last scan left to say.
+      scan?: 'intro' | 'asking' | 'scanning' | null;
+      scanNotice?: 'invalid' | 'denied' | 'error' | null;
     }
   // After sending a time with its video, or accepting one, the offer to share or link the video (#1201).
   | { kind: 'video_offer'; offer: 'share' | 'link'; id: string; name: string | null }
@@ -270,8 +279,9 @@ const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.
 
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
-  const { Avatar, userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, savedCodes, syncKey, notice, videoIntro, videos } =
+  const { Avatar, userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, savedCodes, syncKey, notice, videoIntro, videos, scanIntro } =
     props;
+  const qrScanner = props.qrScanner ?? null;
   const videoLibrary = props.videoLibrary ?? null;
   const videoSharing = (videos && videoLibrary && props.videoSharing) || null;
   // The video draws the stopwatch from the buttons' clock, so recording needs the native clock too.
@@ -695,16 +705,52 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     }
   }
 
-  async function lookUpCode() {
-    if (step.kind !== 'send' || !shareCodes || !step.code.trim()) return;
-    setStep({ ...step, busy: true, error: null, found: null });
+  // A scanned code (issue 1322) arrives as the argument and goes through the same lookup as a typed one.
+  async function lookUpCode(scannedCode?: string) {
+    const code = (scannedCode ?? (step.kind === 'send' ? step.code : '')).trim();
+    if (step.kind !== 'send' || !shareCodes || !code) return;
+    setStep((s) => (s.kind === 'send' ? { ...s, code, busy: true, error: null, found: null, scan: null, scanNotice: null } : s));
     try {
-      const name = await shareCodes.find(step.code.trim());
+      const name = await shareCodes.find(code);
       setStep((s) => (s.kind === 'send' ? { ...s, busy: false, found: name, error: name ? null : 'unknown_code' } : s));
     } catch (error) {
       const code: FamilyTransferErrorCode = error instanceof Error && error.name === 'TooManyShareCodeLookupsError' ? 'too_many_attempts' : 'failed';
       setStep((s) => (s.kind === 'send' ? { ...s, busy: false, error: code } : s));
     }
+  }
+
+  // Reading the code from a QR: the explanation the first time, then the permission, then the camera. Whatever goes wrong leaves the code field and a line saying why.
+  const scanning = useRef(false);
+  const endScan = (scanNotice: 'invalid' | 'denied' | 'error' | null) => {
+    scanning.current = false;
+    setStep((s) => (s.kind === 'send' ? { ...s, scan: null, scanNotice } : s));
+  };
+  async function askScanPermission() {
+    if (!qrScanner) return;
+    scanning.current = true;
+    setStep((s) => (s.kind === 'send' ? { ...s, scan: 'asking', scanNotice: null } : s));
+    const granted = await qrScanner.requestPermission().catch(() => false);
+    if (!scanning.current) return;
+    if (granted) setStep((s) => (s.kind === 'send' && s.scan === 'asking' ? { ...s, scan: 'scanning' } : s));
+    else endScan('denied');
+  }
+  async function startScan() {
+    if (step.kind !== 'send' || !qrScanner) return;
+    const seen = scanIntro ? await scanIntro.seen(userId).catch(() => true) : true;
+    if (seen) return askScanPermission();
+    setStep((s) => (s.kind === 'send' ? { ...s, scan: 'intro', scanNotice: null } : s));
+  }
+  function continueScanIntro() {
+    scanIntro?.markSeen(userId).catch(() => undefined);
+    void askScanPermission();
+  }
+  // The camera may report the same QR many times: the first one counts.
+  function scannedQr(data: string) {
+    if (!scanning.current) return;
+    scanning.current = false;
+    const code = shareCodeFromQr(data);
+    if (code) void lookUpCode(code);
+    else endScan('invalid');
   }
 
   // A kept code its family changed: the person is told once (the step keeps the name), and the entry is removed. If removing fails
@@ -1045,6 +1091,16 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
               value: step.savedId ?? '',
             },
             expired: step.expired ? t('family_timing.transfer.saved_expired', { name: step.expired }) : null,
+            canScan: !!qrScanner,
+            scan:
+              step.scan === 'intro'
+                ? { phase: 'intro' }
+                : step.scan === 'asking'
+                  ? { phase: 'asking' }
+                  : step.scan === 'scanning' && qrScanner
+                    ? { phase: 'scanning', scanner: <qrScanner.Scanner onScan={scannedQr} onError={() => endScan('error')} style={{ flex: 1 }} /> }
+                    : null,
+            scanNotice: step.scanNotice ? t(`family_timing.transfer.scan_${step.scanNotice}`) : null,
           },
         }
       : listView();
@@ -1296,7 +1352,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           setStep((s) => (s.kind === 'send' ? { ...s, error: 'failed' } : s));
         }
       }}
-      onLookUpCode={lookUpCode}
+      onLookUpCode={() => lookUpCode()}
+      onScanQr={startScan}
+      onScanContinue={continueScanIntro}
+      onScanCancel={() => endScan(null)}
       onSendTime={sendTime}
       onWithdraw={(measurementId) => {
         const transfer = sentByMeasurement.get(measurementId);
