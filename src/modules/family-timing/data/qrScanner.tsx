@@ -1,4 +1,4 @@
-import { Camera, CameraView } from 'expo-camera';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import type { ComponentType } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 
@@ -20,27 +20,48 @@ export type QrScanner = {
   Scanner: ComponentType<QrScannerProps>;
 };
 
-function NativeScanner({ onScan, onError, style }: QrScannerProps) {
-  return (
-    <CameraView
-      style={style}
-      facing="back"
-      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-      onBarcodeScanned={({ data }) => onScan(data)}
-      onMountError={onError}
-    />
-  );
+type ExpoCamera = typeof import('expo-camera');
+
+/** The scanner on top of expo-camera, or null where the library is not there (no scanner is offered). */
+export function qrScannerFor(camera: ExpoCamera | null): QrScanner | null {
+  if (!camera) return null;
+  const { Camera, CameraView } = camera;
+  return {
+    async requestPermission() {
+      try {
+        // The camera is optional hardware (issue 1292): without one the person types the code.
+        if (!(await CameraView.isAvailableAsync())) return false;
+        return (await Camera.requestCameraPermissionsAsync()).granted;
+      } catch {
+        return false;
+      }
+    },
+    Scanner: function NativeScanner({ onScan, onError, style }) {
+      return (
+        <CameraView
+          style={style}
+          facing="back"
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          onBarcodeScanned={({ data }) => onScan(data)}
+          onMountError={onError}
+        />
+      );
+    },
+  };
 }
 
-export const qrScanner: QrScanner = {
-  async requestPermission() {
-    try {
-      // The camera is optional hardware (issue 1292): without one the person types the code.
-      if (!(await CameraView.isAvailableAsync())) return false;
-      return (await Camera.requestCameraPermissionsAsync()).granted;
-    } catch {
-      return false;
-    }
-  },
-  Scanner: NativeScanner,
-};
+/**
+ * expo-camera throws when it is imported without its native module, which a build made before this library joined the app does not
+ * have (as with videoCamera and doNotDisturb): the library is only loaded when the module is installed, and any failure leaves no scanner.
+ */
+export function loadQrScanner(installed: boolean, load: () => ExpoCamera): QrScanner | null {
+  if (!installed) return null;
+  try {
+    return qrScannerFor(load());
+  } catch {
+    return null;
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- a static import makes every build without the native module fail at startup
+export const qrScanner: QrScanner | null = loadQrScanner(!!requireOptionalNativeModule('ExpoCamera'), () => require('expo-camera') as ExpoCamera);

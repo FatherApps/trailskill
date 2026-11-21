@@ -172,10 +172,10 @@ describe('gallery permissions', () => {
   });
 
   // Scanning the swimmer's code QR (#1322): the camera stays optional hardware and the plugin adds no microphone of its own.
-  it('declares the camera plugin with a Spanish purpose text and no microphone of its own', () => {
+  it('declares the camera plugin with a Spanish purpose text, adds no RECORD_AUDIO and keeps the iOS microphone text the image picker needs', () => {
     expect(cameraOptions()!.cameraPermission).toMatch(/c\u00e1mara.*QR/);
-    expect(cameraOptions()!.microphonePermission).toBe(false);
     expect(cameraOptions()!.recordAudioAndroid).toBe(false);
+    expect(cameraOptions()!.microphonePermission).not.toBe(false);
   });
 
   // The Expo template's main manifest declares "display over other apps" (#1182); the app never uses it and Play treats it as sensitive.
