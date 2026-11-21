@@ -19,7 +19,8 @@ export interface TournamentCatalogRepository {
   list(): Promise<TournamentCatalogEntry[]>;
 }
 
-export type TournamentFilter = { text?: string; year?: number | null };
+/** `dateKey` is one day (`YYYYMMDD`) of the month calendar; it adds to the text and the year. */
+export type TournamentFilter = { text?: string; year?: number | null; dateKey?: string | null };
 export type TournamentGroup = { city: string; tournaments: TournamentCatalogEntry[] };
 
 /** A `YYYYMMDD` that exists on the calendar (no 20260230), not only eight digits. */
@@ -52,11 +53,12 @@ const fold = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').t
  * Filters by text (name or city) and by year, groups by city from A to Z and orders each group from the most recent tournament to
  * the oldest. Two spellings of a city that differ only in case or accents share a group.
  */
-export function groupTournaments(entries: TournamentCatalogEntry[], { text, year }: TournamentFilter): TournamentGroup[] {
+export function groupTournaments(entries: TournamentCatalogEntry[], { text, year, dateKey }: TournamentFilter): TournamentGroup[] {
   const needle = fold(text ?? '');
   const groups = new Map<string, TournamentGroup>();
   for (const entry of entries) {
     if (year != null && entry.year !== year) continue;
+    if (dateKey && entry.dateKey !== dateKey) continue;
     if (needle && !fold(entry.name).includes(needle) && !fold(entry.city).includes(needle)) continue;
     const key = fold(entry.city);
     const group = groups.get(key) ?? { city: entry.city, tournaments: [] };
