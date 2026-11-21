@@ -184,6 +184,21 @@ export const AppSchema = new Schema({
     },
     { indexes: { athlete: ['athlete_id'] } },
   ),
+  // The catalog of a results platform's tournaments (#1339), read-only reference data: the picker by city and date works offline.
+  results_import_tournaments: new Table(
+    {
+      organization_id: column.text,
+      year: column.integer,
+      date_key: column.text,
+      name: column.text,
+      city: column.text,
+      discipline: column.text,
+      course: column.text,
+      source_url: column.text,
+      refreshed_at: column.text,
+    },
+    { indexes: { organization: ['organization_id'] } },
+  ),
   authorization_texts: new Table({
     ...audit,
     purpose: column.text,

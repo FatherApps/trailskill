@@ -46,7 +46,7 @@ Decided by Mario on 2026-11-16: the off-server copy goes to a private [Cloudflar
 
 1. A **private** R2 bucket (`<BUCKET>`). No public access, no custom domain.
 2. An R2 API token limited to **that bucket only**, with **Object Read & Write** and no admin permissions. Its Access Key ID and Secret Access Key live only in the environment of the backup scheduler.
-3. Optional: a second token with **Object Read only** on the same bucket, for the freshness job and for Mario's own shell during the restore test.
+3. A second token with **Object Read only** on the same bucket, required by the freshness workflow ([GitHub secrets](#freshness-workflow-in-github-actions-1337)) and also used by Mario's own shell during the restore test.
 
 ### Environment and commands
 
@@ -139,6 +139,32 @@ sh deploy/scripts/restore-check.sh --freshness
 with `BACKUP_FETCH_CMD` set (the `backup-r2.sh` line and the read-only token) and optionally `BACKUP_MAX_AGE_HOURS` (default 26). It needs no private key, no Docker and no `age`. It fails when the copy is older than the limit (the backup failed or stopped running, including a scheduler that never fired), when every key table in the manifest has 0 rows, when the manifest is unreadable, or when the stored file does not match its manifest checksum (for example a half-replaced pair). Route its failure to the same notification.
 
 Schedule the freshness job **hours apart** from the backup. `fetch` reads the manifest and then the dump it names in two requests; if a push publishes a new manifest and deletes the old dump in between, the fetch fails with "the copy named by the manifest is missing" although the stored pair is healthy. That can only happen when the two jobs overlap, and a single rerun resolves it (there is no retry code).
+
+### Freshness workflow in GitHub Actions (#1337)
+
+[`.github/workflows/backup-freshness.yml`](../../.github/workflows/backup-freshness.yml) is that second daily job. It runs every day at **14:00 UTC** (5.5 h after the 08:30 UTC backup, so the two never overlap) and on demand from Actions > Backup freshness > Run workflow. It installs rclone, then runs [`deploy/scripts/backup-freshness.sh`](../../deploy/scripts/backup-freshness.sh), which runs `restore-check.sh --freshness` with the default limit of 26 h. It only reads R2; it never writes, deletes or decrypts anything, and has no private key.
+
+What it checks (all from the manifest, the dump is never opened): the newest copy is not older than 26 h, the manifest exists and is readable, at least one key table has rows, and the stored file matches its checksum.
+
+**GitHub secrets it needs** (Settings > Secrets and variables > Actions; the maintainer sets the values, they are never in the repository):
+
+| Secret | Value |
+| --- | --- |
+| `BACKUP_R2_ENDPOINT` | `https://<account id>.r2.cloudflarestorage.com` |
+| `BACKUP_R2_BUCKET` | the bucket name (`<BUCKET>`) |
+| `BACKUP_R2_READONLY_ACCESS_KEY_ID` | Access Key ID of the **Object Read only** token, limited to that bucket |
+| `BACKUP_R2_READONLY_SECRET_ACCESS_KEY` | its Secret Access Key |
+
+Use the read-only token from [What Mario creates](#what-mario-creates), never the Read & Write one. Without these secrets the run fails and opens the issue below, which is the expected behavior until they are set.
+
+The workflow has `contents: read` and `issues: write` only. When the check fails the run turns red and the script opens an issue labeled `backup-failed` assigned to the maintainer (it creates the label on first use), or adds a comment to the one already open, with the reason and the link to the run. When the check passes it opens and comments nothing.
+
+#### When a `backup-failed` issue arrives
+
+1. Open the run linked in the issue and read the reason (the last `error:` line). Then follow [When the backup fails](#when-the-backup-fails): the previous copy is still the latest good one, do not delete it.
+2. `older than 26 h`: the daily backup stopped (check the `backup` service of the `deploy` compose and its log). `manifest ... not found` or `fetch command failed`: the bucket or the read-only token changed (check the secrets above and the token in Cloudflare). `checksum does not match`: the stored pair is half-replaced, run the backup again. `0 rows`: check the database before anything else.
+3. If the cause was only a push overlapping the check (the fetch said the copy named by the manifest is missing), run the workflow again by hand; it should pass.
+4. Close the issue once a manual run of the workflow passes. While the problem lasts, each daily run adds one comment to the same issue instead of opening another.
 
 ### One backup at a time
 

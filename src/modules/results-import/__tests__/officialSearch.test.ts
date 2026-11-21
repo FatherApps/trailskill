@@ -3,8 +3,10 @@ import {
   createInMemoryOfficialSearchRepository,
   createSupabaseImportSourcesRepository,
   createSupabaseOfficialSearchRepository,
+  refreshTournaments,
   type FunctionsClient,
 } from '../data/officialSearch';
+import { createInMemoryTournamentCatalogRepository, groupTournaments } from '../data/tournamentCatalog';
 
 jest.mock('../../../core/sync', () => ({ supabase: { from: jest.fn() } }));
 
@@ -161,5 +163,54 @@ describe('tournament calls', () => {
     const { client, calls } = clientReplying({ data: { ok: true, value: { results: offered } } });
     expect(await createSupabaseOfficialSearchRepository(client).confirmTournament({ athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1' })).toEqual({ ok: true, value: offered });
     expect(calls[0].body).toEqual({ action: 'confirm', athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1' });
+  });
+});
+
+describe('tournament by tournamentKey', () => {
+  const found = { organizationId: 'org-platform', candidate: { id: 'c1', name: 'Ana Example', club: 'Synthetic Club', resultCount: 3 } };
+
+  it('sends the tournamentKey and no url, and the typed number only when there is one', async () => {
+    const { client, calls } = clientReplying({ data: { ok: true, value: found } });
+    const repository = createSupabaseOfficialSearchRepository(client);
+    expect(await repository.tournament({ athleteId: 'athlete-1', tournamentKey: '20260510' })).toEqual({ ok: true, value: found });
+    await repository.tournament({ athleteId: 'athlete-1', tournamentKey: '20260510', identityNumber: '0000-synthetic' });
+    expect(calls.map((c) => c.body)).toEqual([
+      { action: 'tournament', athleteId: 'athlete-1', tournamentKey: '20260510' },
+      { action: 'tournament', athleteId: 'athlete-1', tournamentKey: '20260510', identityNumber: '0000-synthetic' },
+    ]);
+    expect(calls.every((c) => !('url' in (c.body as object)))).toBe(true);
+  });
+
+  it.each([['20260230'], ['20250229'], ['2026051'], ['2026-05-10'], ['']])('never sends the key %j that is not a real day', async (tournamentKey) => {
+    const { client, calls } = clientReplying({ data: { ok: true, value: found } });
+    expect(await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', tournamentKey })).toEqual({ ok: false, error: { code: 'unexpected' } });
+    expect(calls).toEqual([]);
+  });
+
+  it('is asked the same way through the fake, and the key of a listed tournament goes end to end', async () => {
+    const catalog = createInMemoryTournamentCatalogRepository([
+      { id: 't1', organizationId: 'org-platform', year: 2026, dateKey: '20260510', name: 'Copa Sintética', city: 'Ciudad Demo', discipline: 'swimming', course: null, sourceUrl: 'https://example.test/torneo', refreshedAt: '2026-11-21T10:00:00Z' },
+    ]);
+    const [picked] = groupTournaments(await catalog.list(), { text: 'demo', year: 2026 })[0].tournaments;
+    const fake = createInMemoryOfficialSearchRepository({ tournament: found });
+    expect(await fake.tournament({ athleteId: 'athlete-1', tournamentKey: picked.dateKey })).toEqual({ ok: true, value: found });
+    expect(fake.tournaments).toEqual([{ athleteId: 'athlete-1', tournamentKey: '20260510' }]);
+  });
+});
+
+describe('refreshTournaments', () => {
+  it('sends the refresh_tournaments action and nothing else', async () => {
+    const { client, calls } = clientReplying({ data: { ok: true, value: { refreshed: 1, skipped: 0 } } });
+    await refreshTournaments(client);
+    expect(calls).toEqual([{ name: 'results-import', body: { action: 'refresh_tournaments' } }]);
+  });
+
+  it.each([
+    ['a refusal', clientReplying(refusal({ ok: false, error: { code: 'rate_limited', retryAt: '2026-10-28T10:10:00.000Z' } })).client],
+    ['no connection', clientReplying({ error: { name: 'FunctionsFetchError' } }).client],
+    ['an action the server does not have yet', clientReplying(refusal({ ok: false, error: { code: 'internal' } })).client],
+    ['a client that throws', { functions: { invoke: async () => Promise.reject(new Error('boom')) } } as FunctionsClient],
+  ])('does not throw or reject on %s, and answers nothing', async (_name, client) => {
+    await expect(refreshTournaments(client)).resolves.toBeUndefined();
   });
 });
