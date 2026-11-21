@@ -3,7 +3,7 @@
 -- a manager. All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(41);
 
 -- Users: guardian G, adult athlete X (relation 'self'), guardian G2 of another athlete, coach A, school admin S,
 -- stranger N, platform admin P, and guardian M whose account is marked for deletion.
@@ -185,7 +185,7 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "13640000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
 select lives_ok(
-  $$update public.athletes set first_name = 'Pablo', created_at = '2026-01-01T00:00:00Z' where id = '13640000-0000-4000-8000-0000000000e3'$$,
+  $$update public.athletes set first_name = 'Pablo', created_at = '2026-01-01T12:00:00Z' where id = '13640000-0000-4000-8000-0000000000e3'$$,
   'a platform admin still updates any column'
 );
 select throws_ok(
@@ -194,9 +194,35 @@ select throws_ok(
 );
 reset role;
 select is(
-  (select first_name || '|' || created_at::date::text from public.athletes where id = '13640000-0000-4000-8000-0000000000e3'),
+  (select first_name || '|' || (created_at at time zone 'UTC')::date::text from public.athletes where id = '13640000-0000-4000-8000-0000000000e3'),
   'Pablo|2026-01-01',
   'the platform admin edit is stored'
+);
+
+-- Names made only of invisible characters, or with a bidi override inside, are refused; a plain name with ñ is kept and trimmed.
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "13640000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select throws_ok(
+  $$update public.athletes set first_name = chr(160) where id = '13640000-0000-4000-8000-0000000000e4'$$,
+  '23514', null, 'a name of only a no-break space is rejected'
+);
+select throws_ok(
+  $$update public.athletes set first_name = chr(8203) || chr(8203) where id = '13640000-0000-4000-8000-0000000000e4'$$,
+  '23514', null, 'a name of only zero-width spaces is rejected'
+);
+select throws_ok(
+  $$update public.athletes set last_name = 'Mu' || chr(8238) || 'noz' where id = '13640000-0000-4000-8000-0000000000e4'$$,
+  '23514', null, 'a name with a bidi override inside is rejected'
+);
+select lives_ok(
+  $$update public.athletes set first_name = chr(160) || 'Ñandú' || chr(8203) where id = '13640000-0000-4000-8000-0000000000e4'$$,
+  'a normal name with ñ passes, even padded with invisible characters'
+);
+reset role;
+select is(
+  (select first_name from public.athletes where id = '13640000-0000-4000-8000-0000000000e4'),
+  'Ñandú',
+  'the invisible padding is trimmed and the name with ñ is stored whole'
 );
 
 -- M: a guardian whose account is marked for deletion is refused by the existing guard.

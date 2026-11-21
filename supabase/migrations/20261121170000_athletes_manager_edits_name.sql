@@ -12,6 +12,33 @@ create policy athletes_manager_update on public.athletes for update to authentic
   using (id in (select app.managed_athlete_ids()))
   with check (id in (select app.managed_athlete_ids()));
 
+-- The stored form of a name: no whitespace or invisible formatting characters at either end (NBSP, zero-width, bidi marks and
+-- overrides, BOM and the other Unicode whitespace that \s covers), and then 1 to 100 characters with no control character and no
+-- invisible formatting character inside (a bidi override could make a name read reversed in the coach and school views).
+-- A name that is NULL or empty after the cleanup is refused with 23514.
+create function app.clean_athlete_name(p_name text, p_label text)
+returns text
+language plpgsql
+immutable
+security definer
+set search_path = ''
+as $fn$
+declare
+  cleaned text := regexp_replace(p_name, '^[\s\u00a0\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]+|[\s\u00a0\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]+$', '', 'g');
+begin
+  if cleaned is null
+     or cleaned = ''
+     or char_length(cleaned) > 100
+     or cleaned ~ '[\x01-\x1f\x7f-\x9f]'
+     or cleaned ~ '[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]' then
+    raise exception 'the % must have 1 to 100 characters, with no control or invisible formatting characters', p_label using errcode = '23514';
+  end if;
+  return cleaned;
+end;
+$fn$;
+
+revoke execute on function app.clean_athlete_name(text, text) from public, anon, authenticated;
+
 -- Like the marked-account guard, it looks at the signed-in user: with no user (service role, the deletion worker that calls
 -- erase_account, the owner) nothing is restricted; a platform admin keeps every column.
 create function app.athletes_limit_name_edit()
@@ -28,18 +55,11 @@ begin
   end if;
 
   -- Names are validated only when they change, so rows stored before this rule are never rejected for another edit.
-  -- shortcut: only ASCII/C1 control characters and the plain space are checked; upgrade if other invisible characters show up.
   if new.first_name is distinct from old.first_name then
-    new.first_name := btrim(new.first_name);
-    if new.first_name = '' or char_length(new.first_name) > 100 or new.first_name ~ '[\x01-\x1f\x7f-\x9f]' then
-      raise exception 'the first name must have 1 to 100 characters and no control characters' using errcode = '23514';
-    end if;
+    new.first_name := app.clean_athlete_name(new.first_name, 'first name');
   end if;
   if new.last_name is distinct from old.last_name then
-    new.last_name := btrim(new.last_name);
-    if new.last_name = '' or char_length(new.last_name) > 100 or new.last_name ~ '[\x01-\x1f\x7f-\x9f]' then
-      raise exception 'the last name must have 1 to 100 characters and no control characters' using errcode = '23514';
-    end if;
+    new.last_name := app.clean_athlete_name(new.last_name, 'last name');
   end if;
   return new;
 end;
