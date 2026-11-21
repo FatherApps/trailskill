@@ -1,4 +1,4 @@
-import { ProviderUnavailableError, SourceUnreachableError, type NormalizedResult } from '../port.ts';
+import { NoFileError, ProviderUnavailableError, SourceUnreachableError, type NormalizedResult } from '../port.ts';
 import { createProviderRegistry, type OrganizationData } from '../registry.ts';
 import {
   CANDIDATE_TTL_MS,
@@ -1061,6 +1061,24 @@ describe('findInTournament', () => {
     expect(s.fakeGate.releases).toEqual([]);
     s.fakeGate.advance(2 * 60_000);
     expect(await tournament(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(startedAt + QUERY_INTERVAL_MS).toISOString() } });
+  });
+
+  it('answers the reason no_file when the tournament has no file, and keeps the whole platform window as before', async () => {
+    const s = setup({ platformOptions: { failWith: new NoFileError() } });
+    const startedAt = s.fakeGate.now();
+    const outcome = await tournament(s);
+    expect(outcome).toEqual({ ok: false, error: { code: 'unavailable', reason: 'no_file' } });
+    expect(JSON.stringify(outcome)).not.toContain(NUMBER);
+    expect(s.fakeGate.releases).toEqual([]);
+    s.fakeGate.advance(2 * 60_000);
+    expect(await tournament(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(startedAt + QUERY_INTERVAL_MS).toISOString() } });
+  });
+
+  it('answers no reason for any other platform failure, and none for a federation that reports no file', async () => {
+    for (const failWith of [new SourceUnreachableError(), new ProviderUnavailableError('changed shape'), new Error('boom')]) {
+      expect(await tournament(setup({ platformOptions: { failWith } }))).toStrictEqual(unavailable);
+    }
+    expect(await refresh(setup({ providerOptions: { failWith: new NoFileError() } }))).toStrictEqual(unavailable);
   });
 
   it('gives the claim back when an answer throws while it is cleaned: a failure on our side', async () => {
