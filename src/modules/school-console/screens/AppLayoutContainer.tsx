@@ -4,6 +4,7 @@ import { useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useSession } from '../../../core/session';
+import { useStartupMark } from '../../../core/startup';
 import { useGlobalSyncSummary } from '../../../core/sync';
 import { useTheme } from '../../../core/theme';
 import { NavBar, StateView, type NavBarItem } from '../../../core/ui';
@@ -191,6 +192,8 @@ export function AppLayoutContainer(props: AppLayoutContainerProps) {
   const { connection } = useGlobalSyncSummary();
   const { colors, space } = useTheme();
   const deletion = useAccountDeletionStatus(accountDeletion, session?.user.id);
+  useStartupMark('layout_mounted');
+  useStartupMark('deletion_gate_done', deletion.state !== 'loading');
   if (deletion.state === 'loading') {
     return (
       <View style={{ flex: 1, padding: space[4], justifyContent: 'center', backgroundColor: colors['surface-0'] }}>
@@ -221,6 +224,7 @@ function ProfileGatedLayout({ router, segments, stack }: AppLayoutContainerProps
     // A coach invited by a school lands as staff on the first sign-in, before the registration is offered.
     acceptCoachInvitations: coachInvitations.accept, // Stable: the gate checks again whenever it changes.
   });
+  useStartupMark('profile_gate_done', gate.status === 'ready');
   if (gate.status === 'ready') return <AppShell router={router} segments={segments} stack={stack} />;
   return (
     <View style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
@@ -279,6 +283,7 @@ function AppShell({ router, segments, stack }: AppLayoutContainerProps) {
   // "Mis tiempos" kept only on this phone before they synced move to the server, so signing out no longer loses them; a phone copy is removed after a sync confirms its upload.
   useMoveLocalFamilyTimes(familyMeasurements, session?.user.id, lastSyncedAt?.getTime());
   const { colors, space } = useTheme();
+  useStartupMark('shell_mounted');
   // A draft typed here and never confirmed by a code is offered once the person is in with the same email.
   if (offer && !('existing' in offer)) {
     return (
