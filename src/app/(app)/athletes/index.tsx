@@ -16,6 +16,7 @@ import {
   createPowerSyncAthleteSchoolRepository,
   createPowerSyncSchoolAthleteRepository,
   MyAthletesContainer,
+  useAthleteNamesVersion,
 } from '../../../modules/athletes';
 import { createPowerSyncSchoolNameRepository, createPowerSyncSchoolStructureRepository } from '../../../modules/school-console';
 
@@ -48,6 +49,8 @@ export default function MyAthletesRoute() {
   const router = useRouter();
   const { session } = useSession();
   const { lastSyncedAt } = useGlobalSyncSummary();
+  // A rename saved on the Editar screen (still open under this one) is a local write: the version makes the cards read it right away.
+  const namesVersion = useAthleteNamesVersion();
 
   // The root layout already pads the system bars.
   return (
@@ -62,7 +65,7 @@ export default function MyAthletesRoute() {
         schoolNames={schoolNames}
         structure={structure}
         authorizations={authorizations}
-        refreshKey={lastSyncedAt?.getTime()}
+        refreshKey={`${lastSyncedAt?.getTime()}:${namesVersion}`}
         onOpen={(id, name) => router.push(athleteProfileHref(id, name))}
         onEdit={(id) => router.push(`/athletes/edit/${id}`)}
         onAdd={() => router.push({ pathname: '/athletes/add', params: { mode: 'add' } })}

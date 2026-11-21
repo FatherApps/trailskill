@@ -13,7 +13,7 @@ export interface AthleteRepository {
   createProfile(batch: WriteBatch, input: AthleteProfileInput): Promise<string>;
   /**
    * Changes the first and last name (trimmed, 1 to 100 characters each: anything else throws) of an athlete that is on the device.
-   * Local-first: the row changes here and the edit waits in the upload queue; the server decides who may do it (#1364).
+   * Local-first: the row changes here and the edit waits in the upload queue; the server decides who may do it (issue 1364).
    */
   renameProfile(athleteId: string, input: AthleteProfileInput): Promise<void>;
   /** The athletes the user manages that are on the device. Never document number or birth date: they do not exist. */

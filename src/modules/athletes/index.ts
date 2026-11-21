@@ -60,6 +60,8 @@ export { AthleteProfileContainer, type AthleteProfileContainerProps } from './sc
 export type { ImportedHistoryResult } from './achievements';
 export { MyAthletesScreen, type MyAthleteCard, type MyAthletesScreenProps, type MyAthletesView } from './screens/MyAthletesScreen';
 export { AthleteEditScreen, type AthleteEditScreenProps } from './screens/AthleteEditScreen';
+export { AthleteNameContainer, type AthleteNameContainerProps } from './screens/AthleteNameContainer';
+export { useAthleteNamesVersion } from './data/athleteNamesVersion';
 export { MarksScreen, type MarkCard, type MarkSectionView, type MarksScreenProps, type MarksView } from './screens/MarksScreen';
 export { MarksContainer, type MarksContainerProps } from './screens/MarksContainer';
 export { MyAthletesContainer, type MyAthletesContainerProps } from './screens/MyAthletesContainer';

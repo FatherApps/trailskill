@@ -1,4 +1,4 @@
-// Same limit as the server (app.clean_athlete_name, issue #1364): 1 to 100 characters after trimming.
+// Same limit as the server (app.clean_athlete_name, issue 1364): 1 to 100 characters after trimming.
 export const MAX_ATHLETE_NAME_LENGTH = 100;
 
 /** The stored form of a first or last name: trimmed; null when it is empty or too long (the server would refuse it for good). */
