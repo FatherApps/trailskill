@@ -4,6 +4,7 @@ import type { AuthorizationStatusRepository } from '../../accounts';
 import { trimName } from '../../../core/i18n';
 import { useSession } from '../../../core/session';
 import { distances, pools, strokes } from '../../../core/sport';
+import { useFirstScreenReady } from '../../../core/startup';
 import { useRecordSyncStates, type RecordSyncState } from '../../../core/sync';
 import type { AthleteAvatarSlot } from '../../../core/ui';
 import { importedAchievement, latestAchievement, type EventAchievement, type ImportedHistoryResult } from '../achievements';
@@ -204,6 +205,7 @@ export function AthleteProfileContainer({
   const requestKey = `${athleteId}|${attempt}`;
   const [answer, setAnswer] = useState<{ key: string; result: Loaded }>();
   const loaded = useMemo<Loaded>(() => (answer?.key === requestKey ? answer.result : { kind: 'loading' }), [answer, requestKey]);
+  useFirstScreenReady(loaded.kind !== 'loading');
   // The age of the last sync is read once, when the profile opens, so it does not change on every render.
   const [openedAt] = useState(() => Date.now());
 

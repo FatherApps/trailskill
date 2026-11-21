@@ -1,4 +1,4 @@
-import { useStartupMark } from '../../../core/startup';
+import { useFirstScreenReady, useStartupMark } from '../../../core/startup';
 import type { AthleteAvatarSlot } from '../../../core/ui';
 import type { AuthorizationStatusRepository, ManagedAthleteRepository } from '../../accounts';
 import { athleteDisplay } from '../athleteDisplay';
@@ -50,7 +50,9 @@ export function MyAthletesContainer({
   const details = useAthleteDetails(result.status === 'ready' ? result.athletes : undefined, schoolLinks, schoolNames, structure);
   const authorized = useAuthorizedAthletes(authorizations, refreshKey);
   const selfId = useSelfAthleteId(managed, userId, refreshKey);
-  useStartupMark('athletes_painted', result.status !== 'loading');
+  const painted = result.status !== 'loading';
+  useStartupMark('athletes_painted', painted);
+  useFirstScreenReady(painted);
 
   let view: MyAthletesView;
   if (result.status === 'loading') view = { kind: 'loading' };

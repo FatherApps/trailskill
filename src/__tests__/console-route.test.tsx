@@ -3,6 +3,15 @@ import { StyleSheet } from 'react-native';
 
 import ConsoleRoute from '../app/(app)/console';
 import { colors, space, ThemeProvider, type ThemeName } from '../core/theme';
+import * as SplashScreen from 'expo-splash-screen';
+import { __resetSplashGateForTests } from '../core/startup/splashGate';
+
+jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn(() => Promise.resolve()) }));
+const hideSplash = SplashScreen.hideAsync as jest.Mock;
+beforeEach(() => {
+  hideSplash.mockClear();
+  __resetSplashGateForTests();
+});
 
 let mockUserId: string | undefined;
 jest.mock('../core/session', () => ({
@@ -108,6 +117,14 @@ const show = (theme?: ThemeName) =>
   );
 
 describe('console route', () => {
+  it('hides the splash once the role lookup answers', async () => {
+    mockListAdminSchools.mockResolvedValue([{ id: 'school-a', name: 'Escuela Delfines' }]);
+    await show();
+
+    await screen.findByRole('header', { name: 'Deportistas' });
+    expect(hideSplash).toHaveBeenCalledTimes(1);
+  });
+
   it('sends a user who is not a school admin back to the home', async () => {
     await show();
 
@@ -150,6 +167,7 @@ describe('console route', () => {
     mockListAdminSchools.mockReturnValue(new Promise(() => {}));
     await show();
 
+    expect(hideSplash).not.toHaveBeenCalled();
     expect(screen.getByTestId('state-view')).toBeBusy();
     expect(screen.queryByText(/redirected/)).toBeNull();
     expect(screen.queryByRole('header')).toBeNull();

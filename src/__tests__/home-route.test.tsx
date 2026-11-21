@@ -1,6 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import HomeRoute from '../app/(app)/home';
+import * as SplashScreen from 'expo-splash-screen';
+
+import { __resetSplashGateForTests } from '../core/startup/splashGate';
+
+jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn(() => Promise.resolve()) }));
+const hideSplash = SplashScreen.hideAsync as jest.Mock;
+beforeEach(() => {
+  hideSplash.mockClear();
+  __resetSplashGateForTests();
+});
 
 let mockSession: { user: { id: string; user_metadata?: Record<string, unknown> } } | null = { user: { id: 'user-1' } };
 jest.mock('../core/session', () => ({ useSession: () => ({ session: mockSession }) }));
@@ -117,6 +127,17 @@ describe('home route', () => {
     await fireEvent.press(screen.getByRole('button'));
 
     expect(mockPush).toHaveBeenCalledWith('/today?athlete=a1');
+  });
+
+  it('hides the splash once the athletes are read, and not without a session', async () => {
+    mockSession = null;
+    await render(<HomeRoute />);
+    expect(hideSplash).not.toHaveBeenCalled();
+
+    mockSession = { user: { id: 'user-1' } };
+    await render(<HomeRoute />);
+
+    expect(hideSplash).toHaveBeenCalledTimes(1);
   });
 
   it('draws nothing without a session', async () => {

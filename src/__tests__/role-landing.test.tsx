@@ -4,6 +4,16 @@ import { useLocalSearchParams } from 'expo-router';
 
 import Index from '../app/(app)/index';
 import AuthorizationsRoute from '../app/(app)/athletes/authorizations';
+import * as SplashScreen from 'expo-splash-screen';
+
+import { __resetSplashGateForTests } from '../core/startup/splashGate';
+
+jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn(() => Promise.resolve()) }));
+const hideSplash = SplashScreen.hideAsync as jest.Mock;
+beforeEach(() => {
+  hideSplash.mockClear();
+  __resetSplashGateForTests();
+});
 
 // Everything the landing reads lives in `mockWorld`, read when a repository is used, so each test builds its own.
 type World = {
@@ -194,6 +204,14 @@ describe('landing by role', () => {
     expect(await screen.findByRole('button', { name: 'Revisar conflictos' })).toBeOnTheScreen();
   });
 
+  it('hides the splash when the landing settles on the home screen', async () => {
+    mockWorld.platformAdmin = true;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    await landsOnHome();
+    expect(hideSplash).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps an account with no sign of being a guardian or an adult on the old home screen', async () => {
     await renderRouter(routes, { initialUrl: '/' });
 
@@ -278,6 +296,7 @@ describe('landing while data is missing', () => {
     await renderRouter(routes, { initialUrl: '/' });
 
     await act(async () => {});
+    expect(hideSplash).not.toHaveBeenCalled();
     expect(screen.queryByText('Swimcro')).toBeNull();
     expect(screen.queryByText('my athletes')).toBeNull();
   });
