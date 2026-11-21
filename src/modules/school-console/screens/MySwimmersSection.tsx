@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { t } from '../../../core/i18n';
+import { useStartupMark } from '../../../core/startup';
 import type { SyncConnection } from '../../../core/sync';
 import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
@@ -77,6 +78,7 @@ export function MySwimmersSection({
   }, [repository, schoolId, coachUserId, refreshKey, attempt]);
 
   const loaded = answer?.schoolId === schoolId && answer.coachUserId === coachUserId && answer.attempt === attempt ? answer.result : undefined;
+  useStartupMark('my_swimmers_painted', loaded !== undefined);
   let view: MySwimmersView;
   if (loaded === undefined) view = { kind: 'loading' };
   else if (loaded === 'error') view = { kind: 'error', onRetry: () => setAttempt((n) => n + 1) };
