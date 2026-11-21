@@ -4,7 +4,7 @@
 -- All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(46);
 
 -- Users: guardian G, adult athlete X (relation 'self'), guardian G2 of another swimmer, coach A, school admin S, stranger N,
 -- platform admin P, guardian M whose account is marked for deletion.
@@ -48,7 +48,8 @@ insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('13660000-0000-4000-8000-0000000000a8', '13660000-0000-4000-8000-0000000000e5', 'guardian');
 -- G2's swimmer already has details (inserted by the owner, as a test fixture).
 insert into public.athlete_private_details (athlete_id, birth_date, gender)
-values ('13660000-0000-4000-8000-0000000000e3', '2011-01-02', 'M');
+values ('13660000-0000-4000-8000-0000000000e3', '2011-01-02', 'M'),
+  ('13660000-0000-4000-8000-0000000000e5', null, 'F');
 
 -- G: saves and reads the details of their swimmer; cannot write the details of G2's swimmer.
 set local role authenticated;
@@ -203,7 +204,7 @@ reset role;
 -- The platform admin reads and writes any row.
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "13660000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
-select is((select count(*) from public.athlete_private_details), 3::bigint, 'a platform admin reads every row');
+select is((select count(*) from public.athlete_private_details), 4::bigint, 'a platform admin reads every row');
 select lives_ok(
   $$update public.athlete_private_details set gender = 'undisclosed' where athlete_id = '13660000-0000-4000-8000-0000000000e3'$$,
   'and writes any row'
@@ -213,6 +214,22 @@ select throws_ok(
   '42501', 'athlete private details keep their athlete', 'even a platform admin cannot move a row to another swimmer (the trigger, not the policy)'
 );
 reset role;
+
+-- Offline: the query of the stream athletes_private_details, run as the stream runs it (no RLS), for each user. It is a copy of
+-- powersync/sync-config.yaml (athletes_private_details with the set managed_athlete_ids): src/modules/athletes/__tests__/
+-- privateDetailsSyncStream.test.ts pins both texts, so change them together. Guardians and the adult athlete get the rows of
+-- the swimmers they manage; the coach, the school admin, the stranger and the platform admin get nothing.
+create function pg_temp.stream_details(uuid) returns table (athlete_id uuid) language sql as $$
+  select d.athlete_id from public.athlete_private_details d
+    where d.athlete_id in (select m.athlete_id from public.athlete_managers m where m.user_id = $1
+      and $1 in (select s.user_id from public.account_sync_access s where s.user_id = $1)) $$;
+select is((select array_agg(athlete_id::text) from pg_temp.stream_details('13660000-0000-4000-8000-0000000000a2')), array['13660000-0000-4000-8000-0000000000e1'], 'the stream gives the guardian the details of their swimmer');
+select is((select array_agg(athlete_id::text) from pg_temp.stream_details('13660000-0000-4000-8000-0000000000a3')), array['13660000-0000-4000-8000-0000000000e2'], 'the stream gives the adult athlete their own details');
+select is((select array_agg(athlete_id::text) from pg_temp.stream_details('13660000-0000-4000-8000-0000000000a6')), array['13660000-0000-4000-8000-0000000000e3'], 'the stream gives the other guardian only their own swimmer');
+select is((select count(*) from pg_temp.stream_details('13660000-0000-4000-8000-0000000000a1')), 0::bigint, 'the stream gives the coach no row, though the coach sees the swimmers of the group');
+select is((select count(*) from pg_temp.stream_details('13660000-0000-4000-8000-0000000000a4')), 0::bigint, 'the stream gives the school admin no row, though the admin sees the swimmers of the school');
+select is((select count(*) from pg_temp.stream_details('13660000-0000-4000-8000-0000000000a5')), 0::bigint, 'the stream gives a stranger no row');
+select is((select count(*) from pg_temp.stream_details('13660000-0000-4000-8000-0000000000a7')), 0::bigint, 'and no stream gives the platform admin a row (online support)');
 
 -- M: a guardian whose account is marked for deletion is refused by the marked-account guard.
 insert into public.account_deletion_requests (user_id, email, delete_after)
@@ -224,6 +241,8 @@ select throws_ok(
   '42501', 'the account is marked for deletion', 'a marked account cannot save details'
 );
 reset role;
+-- A marked account syncs nothing (the gate of account_sync_access), even for a swimmer that has details (e5, fixture above).
+select is((select count(*) from pg_temp.stream_details('13660000-0000-4000-8000-0000000000a8')), 0::bigint, 'the stream gives a marked account nothing');
 
 -- The columns are not on athletes, which the staff read whole, and the table is in the sync publication.
 select hasnt_column('public', 'athletes', 'birth_date', 'athletes has no birth_date');

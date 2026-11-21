@@ -20,3 +20,14 @@ test('no other stream reads athlete_private_details, and no query names the two 
 test('athletes_visible keeps reading athletes whole, which is why the two columns are not on it', () => {
   expect(streamBlock('athletes_visible')[0]).toMatch(/^SELECT \* FROM athletes WHERE /);
 });
+
+// supabase/tests/database/athletes/private_details.test.sql runs a copy of this stream with the guardian, coach and admin fixtures
+// (pg_temp.stream_details). The copy is only as good as the text it copies, so the two texts it reproduces are pinned here: when
+// either changes, update the pgTAP copy in the same change.
+test('the managed_athlete_ids set the pgTAP copy of the stream reproduces is unchanged', () => {
+  expect(config).toContain(
+    '  managed_athlete_ids: SELECT athlete_id FROM athlete_managers WHERE (user_id = auth.user_id()) AND auth.user_id() IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())\n',
+  );
+  const pgtap = readFileSync(join(__dirname, '../../../../supabase/tests/database/athletes/private_details.test.sql'), 'utf8');
+  expect(pgtap).toContain('pg_temp.stream_details');
+});

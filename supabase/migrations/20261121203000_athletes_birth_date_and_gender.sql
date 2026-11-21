@@ -65,9 +65,9 @@ create policy athlete_private_details_update on public.athlete_private_details f
 create policy athlete_private_details_delete on public.athlete_private_details for delete to authenticated
   using ((select app.is_platform_admin()) or athlete_id in (select app.managed_athlete_ids()));
 
--- erase_account (accounts_erase_account) deletes the swimmer's private details with the rest of what it owns. A swimmer kept as a
+-- erase_account again (issue #1244, then #1369): the swimmer's private details go with the rest of what it owns. A swimmer kept as a
 -- placeholder because the school holds times keeps its athletes row, so the cascade of the foreign key does not reach them.
--- The body below is that function as it stands in main, plus the one delete marked (#1366).
+-- The body is the one in main (20261121190000_athletes_health.sql, with its two "#1369" lines) plus the one delete marked "#1366".
 create or replace function public.erase_account(p_request_id uuid, p_now timestamptz default now())
 returns jsonb
 language plpgsql
@@ -180,6 +180,7 @@ begin
     get diagnostics n = row_count;
     photos_queued := photos_queued + n;
     delete from public.athlete_identity_documents d where d.athlete_id = a;
+    delete from public.athlete_health h where h.athlete_id = a; -- #1369
     delete from public.athlete_private_details d where d.athlete_id = a; -- #1366
     delete from public.athlete_share_codes c where c.athlete_id = a;
     delete from public.imported_result_changes c where c.athlete_id = a;
@@ -237,7 +238,8 @@ begin
     'training_plan_assignments.created_by', 'training_plan_fulfillments.created_by', 'training_plan_notices.created_by',
     'timing_guardian_shared_measurements.shared_by', 'timing_guardian_sharing.updated_by',
     'timing_guardian_sharing_defaults.updated_by', 'athlete_groups.created_by', 'athlete_schools.created_by',
-    'athletes.created_by', 'athlete_photos.created_by', 'coach_group_assignments.created_by', 'coach_athlete_assignments.created_by',
+    'athletes.created_by', 'athlete_photos.created_by', 'athlete_health.updated_by', -- #1369
+     'coach_group_assignments.created_by', 'coach_athlete_assignments.created_by',
     'school_memberships.created_by'
   ] loop
     authored_emptied := authored_emptied + app.erasure_null_author(
