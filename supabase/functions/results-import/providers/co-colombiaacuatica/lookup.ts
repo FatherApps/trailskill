@@ -43,6 +43,12 @@ export function tournamentFromKey(year: number, dateKey: string): { tournament: 
   return { tournament: dateKey, zipUrl: `https://${HOST}/backtun/torneos/${year}/${dateKey}/resultados${dateKey}Lenex.zip` };
 }
 
+/** The PDF address the index lists for a tournament of the list, built from its year and key: the `sourceUrl` of a row that did not come from the index. */
+export function tournamentPdfUrl(year: number, dateKey: string): string {
+  if (!isTournamentKey(year, dateKey)) throw new ProviderUnavailableError(REJECTED);
+  return `https://${HOST}/backtun/torneos/resultados/pdf/${year}/${dateKey}resultados.pdf`;
+}
+
 async function download(fetchImpl: FetchImpl, url: string, signal: AbortSignal, limit: number): Promise<Uint8Array> {
   // `manual`: a redirect is answered, never followed. A request that fails is a platform that did not answer.
   const response = await fetchImpl(url, { redirect: 'manual', signal }).catch(() => {

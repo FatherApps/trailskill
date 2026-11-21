@@ -5,6 +5,6 @@
     "allowImportingTsExtensions": true,
     "types": ["jest", "node"]
   },
-  "include": ["src", "supabase/functions", "app.config.ts"],
-  "exclude": ["supabase/functions/**/index.ts"]
+  "include": ["src", "supabase/functions", "scripts", "app.config.ts"],
+  "exclude": ["supabase/functions/**/index.ts", "scripts/**/build-*.ts"]
 }

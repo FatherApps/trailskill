@@ -19,8 +19,12 @@ const cellText = (html: string) => spaces(decode(html.replace(/<[^>]*>/g, '')));
  * spelling («Bogota D.C.») and spaces are collapsed, so the same city written elsewhere (an old catalog, a typed one) is the same text.
  */
 export function normalizeCity(raw: string): string {
+  return normalizeCityName(raw.slice(raw.indexOf(',') + 1));
+}
+
+/** The same fixed spelling for a city written without the department prefix (the one a LENEX file carries): a comma stays part of the name. */
+export function normalizeCityName(raw: string): string {
   return raw
-    .slice(raw.indexOf(',') + 1)
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
     .replace(/\s+/g, ' ')
