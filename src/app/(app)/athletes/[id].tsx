@@ -30,7 +30,9 @@ import {
   createSupabaseImportSourcesRepository,
   createSupabaseOfficialResultsService,
   createSupabasePendingChangeResolver,
+  ImportFooterSlot,
   OfficialUpdateContainer,
+  useImportFooterStore,
   useImportSources,
 } from '../../../modules/results-import';
 import { createPowerSyncMeasurementRepository } from '../../../modules/timing';
@@ -80,6 +82,8 @@ export default function AthleteProfileRoute() {
   const sources = useImportSources(importSources, summary.connection === 'connected');
   // The athletes module cannot read the authorization (a cycle with accounts), so the route does and passes it down.
   const showPhoto = useHasValidAuthorization(id, 'show_photo');
+  // The import button of the official-results update is pinned to the bottom of the screen, outside the list.
+  const importFooter = useImportFooterStore();
   const { isStaff, sharingSchoolId, sourceNames, sessionDated, managedAthlete, importPrompt } = useAthleteProfileRoute({
     athleteId: id,
     syncedAt,
@@ -125,8 +129,10 @@ export default function AthleteProfileRoute() {
           authorizations={authorizations}
           resolver={changeResolver}
           syncKey={syncedAt}
+          footerStore={importFooter}
         />
       }
+      bottomBar={<ImportFooterSlot store={importFooter} />}
       // Only who manages the swimmer: the server refuses the code to anyone else.
       shareCode={
         managedAthlete ? (

@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { Banner, Button, StateView } from '../../../core/ui';
+import { OfficialImportFooter } from '../components/OfficialImportFooter';
 import { PendingChangeCard, type PendingChangeCardProps } from '../components/PendingChangeCard';
 import { ResultRow, type ResultRowProps } from '../components/ResultRow';
 import '../i18n';
@@ -37,6 +38,8 @@ export type OfficialResultsScreenProps = {
   changes: ChangeItem[];
   onUseNew: (changeId: string) => void;
   onKeepCurrent: (changeId: string) => void;
+  // True when the screen that hosts this one draws the import button pinned to its bottom (ImportFooterSlot); left out, the button follows the list.
+  footerHosted?: boolean;
 };
 
 function Notice({ notice }: { notice: ImportNotice }) {
@@ -55,7 +58,7 @@ function Notice({ notice }: { notice: ImportNotice }) {
 }
 
 // Presentational: the results the source found, the guardian's choice, and the differences waiting for an answer.
-export function OfficialResultsScreen({ view, notice, changes, onUseNew, onKeepCurrent }: OfficialResultsScreenProps) {
+export function OfficialResultsScreen({ view, notice, changes, onUseNew, onKeepCurrent, footerHosted = false }: OfficialResultsScreenProps) {
   const { colors, space, typography } = useTheme();
   const heading = (key: string) => (
     <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
@@ -93,12 +96,7 @@ export function OfficialResultsScreen({ view, notice, changes, onUseNew, onKeepC
           {view.items.map(({ id, ...row }) => (
             <ResultRow key={id} {...row} selected={view.selectedIds.includes(id)} onToggle={() => view.onToggle(id)} />
           ))}
-          <Button
-            label={view.selectedIds.length === 0 ? t('results_import.update.list.none_selected') : t('results_import.update.list.import', { count: view.selectedIds.length })}
-            loading={view.importing}
-            loadingLabel={t('results_import.update.list.importing')}
-            onPress={view.selectedIds.length === 0 || view.importing ? () => {} : view.onImport}
-          />
+          {!footerHosted && <OfficialImportFooter count={view.selectedIds.length} importing={view.importing} onImport={view.onImport} />}
           <Button variant="ghost" label={t('results_import.update.list.dismiss')} onPress={view.onDismiss} />
         </View>
       )}

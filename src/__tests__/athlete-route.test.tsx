@@ -43,6 +43,11 @@ jest.mock('../modules/results-import', () => ({
   createOfficialUpdate: () => ({}),
   createIdentityConfirmation: () => ({ isConfirmed: async () => mockConfirmed }),
   createSupabasePendingChangeResolver: () => ({}),
+  useImportFooterStore: () => ({}),
+  ImportFooterSlot: () => {
+    const { Text } = jest.requireActual('react-native');
+    return <Text>import footer slot</Text>;
+  },
   OfficialUpdateContainer: ({ athleteId }: { athleteId: string }) => {
     // Runs once per mount: a new athlete in the address must mount a fresh container.
     jest.requireActual('react').useEffect(() => mockMounted(athleteId), []);
@@ -72,6 +77,7 @@ jest.mock('../modules/athletes', () => {
       online,
       importPrompt,
       officialUpdate,
+      bottomBar,
       shareCode,
       guardianSharing,
       photoCard,
@@ -84,6 +90,7 @@ jest.mock('../modules/athletes', () => {
       online?: boolean;
       importPrompt?: object;
       officialUpdate?: import('react').ReactNode;
+      bottomBar?: import('react').ReactNode;
       shareCode?: import('react').ReactNode;
       guardianSharing?: import('react').ReactNode;
       photoCard?: (avatar: import('react').ReactNode) => import('react').ReactNode;
@@ -93,6 +100,7 @@ jest.mock('../modules/athletes', () => {
         {onBack && <Pressable accessibilityRole="button" accessibilityLabel="back" onPress={onBack} />}
         <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}${name ? ` named ${name}` : ''} pending ${pendingChanges}`}</Text>
         {officialUpdate}
+        {bottomBar}
         {shareCode}
         {guardianSharing}
         {photoCard?.(<Text>avatar</Text>)}
@@ -141,6 +149,13 @@ describe('athlete profile route', () => {
     await render(<AthleteRoute />);
 
     expect(await screen.findByText('profile of a1 online pending 0')).toBeOnTheScreen();
+  });
+
+  it('hands the profile the import footer to pin outside its list', async () => {
+    mockUserId = 'user-1';
+    await render(<AthleteRoute />);
+
+    expect(await screen.findByText('import footer slot')).toBeOnTheScreen();
   });
 
   it('hands the container the name in the address and every record still to send, pending or failed (issue 851)', async () => {

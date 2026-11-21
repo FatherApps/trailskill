@@ -94,6 +94,13 @@
       "import_one": "Importar {{count}} resultado",
       "import_other": "Importar {{count}} resultados",
       "importing": "Importando…",
+      "confirm": {
+        "title_one": "¿Importar {{count}} resultado?",
+        "title_other": "¿Importar {{count}} resultados?",
+        "message": "Los resultados elegidos se agregan al historial.",
+        "confirm": "Confirmar",
+        "cancel": "Cancelar"
+      },
       "dismiss": "Ahora no",
       "none_selected": "Elige al menos un resultado",
       "expired": "La lista venció. La consultamos de nuevo: vuelve a elegir.",

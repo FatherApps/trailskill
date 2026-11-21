@@ -1,9 +1,12 @@
+import { cloneElement } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import {
   createInMemoryImportedResultsRepository,
   createOfficialUpdate,
+  createImportFooterStore,
+  ImportFooterSlot,
   OfficialUpdateContainer,
   type FoundResult,
   type ImportedResult,
@@ -86,9 +89,49 @@ describe('OfficialUpdateContainer', () => {
 
     fireEvent.press(screen.getAllByRole('checkbox')[1]!);
     fireEvent.press(await screen.findByText('Importar 1 resultado'));
+    fireEvent.press(await screen.findByText('Confirmar'));
 
     await waitFor(() => expect(service.importChosen).toHaveBeenCalledWith('a1', ['f1']));
     expect(await screen.findByText(/Importamos 2 resultados\./)).toBeOnTheScreen();
+  });
+
+  describe('with the import button pinned outside the list', () => {
+    function hosted() {
+      const { view, service } = setup();
+      const store = createImportFooterStore();
+      return { service, store, tree: <>{cloneElement(view, { footerStore: store })}<ImportFooterSlot store={store} /></> };
+    }
+
+    it('shows no footer before there is a list, and the list has no button of its own', async () => {
+      const { tree, store } = hosted();
+      await render(tree);
+      expect(store.get()).toBeNull();
+      expect(screen.queryByText('Importar 2 resultados')).toBeNull();
+      fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
+      expect(await screen.findByText('Importar 2 resultados')).toBeOnTheScreen();
+      expect(screen.getAllByText('Importar 2 resultados')).toHaveLength(1);
+      expect(store.get()).toMatchObject({ count: 2, importing: false });
+    });
+
+    it('follows the choice and imports only after the sheet is confirmed', async () => {
+      const { tree, service } = hosted();
+      await render(tree);
+      fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
+      fireEvent.press((await screen.findAllByRole('checkbox'))[1]!);
+      fireEvent.press(await screen.findByText('Importar 1 resultado'));
+      expect(service.importChosen).not.toHaveBeenCalled();
+      fireEvent.press(await screen.findByText('Confirmar'));
+      await waitFor(() => expect(service.importChosen).toHaveBeenCalledWith('a1', ['f1']));
+    });
+
+    it('clears the footer when the container goes away', async () => {
+      const { tree, store } = hosted();
+      await render(tree);
+      fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
+      await screen.findByText('Importar 2 resultados');
+      await screen.unmount();
+      expect(store.get()).toBeNull();
+    });
   });
 
   it('imports nothing until the guardian confirms', async () => {
@@ -143,6 +186,7 @@ describe('OfficialUpdateContainer', () => {
     await render(view);
     fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
     fireEvent.press(await screen.findByText('Importar 2 resultados'));
+    fireEvent.press(await screen.findByText('Confirmar'));
 
     expect(await screen.findByText(/La lista venció/)).toBeOnTheScreen();
     expect(service.results).toHaveBeenCalledTimes(2);
@@ -153,6 +197,7 @@ describe('OfficialUpdateContainer', () => {
     await render(view);
     fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
     fireEvent.press(await screen.findByText('Importar 2 resultados'));
+    fireEvent.press(await screen.findByText('Confirmar'));
 
     expect(await screen.findByText('No pudimos importar. Lo que ya tenías sigue igual.')).toBeOnTheScreen();
     expect(screen.getByText('Importar 2 resultados')).toBeOnTheScreen();
@@ -259,6 +304,7 @@ describe('switching from one athlete to another', () => {
     expect(screen.getByText('Importar 1 resultado')).toBeOnTheScreen();
     expect(screen.queryByText('Importar 2 resultados')).toBeNull();
     fireEvent.press(screen.getByText('Importar 1 resultado'));
+    fireEvent.press(await screen.findByText('Confirmar'));
     await waitFor(() => expect(service.importChosen).toHaveBeenCalledWith('a2', ['fb']));
   });
 

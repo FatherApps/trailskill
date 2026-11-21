@@ -5,6 +5,7 @@ import { useTheme } from '../../../core/theme';
 import type { AuthorizationStatusRepository } from '../../accounts';
 import { formatDate } from '../../athletes';
 import { eventLabel } from '../components/eventLabel';
+import type { ImportFooterStore } from '../components/ImportFooterSlot';
 import { OfficialUpdateButton } from '../components/OfficialUpdateButton';
 import type { ImportedResult, ImportedResultsRepository, PendingResultChange } from '../data/importedResults';
 import type { FoundResult, IdentityConfirmation, PendingChangeResolver } from '../data/officialResults';
@@ -20,6 +21,8 @@ export type OfficialUpdateContainerProps = {
   resolver: PendingChangeResolver;
   // Changes when a sync finishes, so differences the server recorded show up without reopening the profile.
   syncKey?: number;
+  // Where the import button is pinned, outside the list (the route passes the store its ImportFooterSlot reads). Left out, the button follows the list.
+  footerStore?: ImportFooterStore;
 };
 
 type Loaded = { identityConfirmed: boolean; authorized: boolean; lastImportedAt: string | null; imported: ImportedResult[]; pending: PendingResultChange[] };
@@ -52,7 +55,7 @@ function toView(outcome: CheckOutcome, handlers: { retry: () => void; toggle: (i
 }
 
 // Connects the update button and the results panel to the server, the local database and the guardian's choices.
-export function OfficialUpdateContainer({ athleteId, update, repository, identity, authorizations, resolver, syncKey }: OfficialUpdateContainerProps) {
+export function OfficialUpdateContainer({ athleteId, update, repository, identity, authorizations, resolver, syncKey, footerStore }: OfficialUpdateContainerProps) {
   const { space } = useTheme();
   const [loaded, setLoaded] = useState<Loaded>();
   const [outcome, setOutcome] = useState<CheckOutcome>();
@@ -149,6 +152,21 @@ export function OfficialUpdateContainer({ athleteId, update, repository, identit
       }));
   }, [loaded, answered, busyChange, failedChange]);
 
+  const view: OfficialResultsView = checking
+    ? { kind: 'checking' }
+    : outcome
+      ? toView(outcome, { retry: check, toggle, submit, dismiss }, { selected, importing })
+      : { kind: 'idle' };
+
+  const chosenCount = view.kind === 'list' ? view.selectedIds.length : 0;
+  const listImporting = view.kind === 'list' && view.importing;
+  const onImport = view.kind === 'list' ? view.onImport : undefined;
+  useEffect(() => {
+    if (!footerStore) return;
+    footerStore.set(onImport ? { count: chosenCount, importing: listImporting, onImport } : null);
+    return () => footerStore.set(null);
+  }, [footerStore, chosenCount, listImporting, onImport]);
+
   const button = updateButtonState({
     identityConfirmed: loaded?.identityConfirmed ?? false,
     authorized: loaded?.authorized ?? false,
@@ -157,18 +175,13 @@ export function OfficialUpdateContainer({ athleteId, update, repository, identit
   });
   if (!button.visible) return null;
 
-  const view: OfficialResultsView = checking
-    ? { kind: 'checking' }
-    : outcome
-      ? toView(outcome, { retry: check, toggle, submit, dismiss }, { selected, importing })
-      : { kind: 'idle' };
-
   return (
     <View style={{ alignSelf: 'stretch', gap: space[3] }}>
       <OfficialUpdateButton checking={button.disabled} lastUpdated={button.lastUpdatedAt ? shortDate(button.lastUpdatedAt) : null} onPress={check} />
       <OfficialResultsScreen
         view={view}
         notice={notice}
+        footerHosted={footerStore !== undefined}
         changes={changes}
         onUseNew={(id) => answer(id, 'use_new')}
         onKeepCurrent={(id) => answer(id, 'keep_current')}
