@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
+
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository } from '../../athletes';
 import { t } from '../../../core/i18n';
@@ -10,7 +11,7 @@ import { MySwimmersSection, type MySwimmersSectionProps } from '../screens/MySwi
 import * as SplashScreen from 'expo-splash-screen';
 import { __resetSplashGateForTests } from '../../../core/startup/splashGate';
 
-jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn() }));
+jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn(() => Promise.resolve()) }));
 const hideSplash = SplashScreen.hideAsync as jest.Mock;
 beforeEach(() => {
   hideSplash.mockClear();

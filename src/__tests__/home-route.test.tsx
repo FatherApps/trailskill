@@ -5,7 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { __resetSplashGateForTests } from '../core/startup/splashGate';
 
-jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn() }));
+jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn(() => Promise.resolve()) }));
 const hideSplash = SplashScreen.hideAsync as jest.Mock;
 beforeEach(() => {
   hideSplash.mockClear();

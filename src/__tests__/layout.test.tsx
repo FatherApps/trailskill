@@ -10,7 +10,7 @@ import { colors, ThemeProvider } from '../core/theme';
 // Avoid loading the native PowerSync database and the ESM-only @powersync/react.
 jest.mock('../core/sync', () => ({ db: {}, useGlobalSyncSummary: () => ({ lastSyncedAt: null }) }));
 jest.mock('@powersync/react', () => ({ PowerSyncContext: { Provider: ({ children }: { children: unknown }) => children } }));
-jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn(), hideAsync: jest.fn() }));
+jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn(), hideAsync: jest.fn(() => Promise.resolve()) }));
 
 // Expiry of the registration draft is the accounts module's job; the root only calls it when the app opens.
 const mockDiscardStaleDraft = jest.fn().mockResolvedValue(undefined);

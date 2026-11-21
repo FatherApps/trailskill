@@ -7,17 +7,29 @@ import { markStartup, msSinceStart } from './startupTiming';
 export const SPLASH_CAP_MS = 3000;
 
 let hidden = false;
+let capTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Hides the native splash, once, whoever asks first (a screen, the cap or a font error). Never waits for the network. */
 export function markFirstScreenReady(): void {
   if (hidden) return;
   hidden = true;
-  SplashScreen.hideAsync();
+  clearTimeout(capTimer);
+  markStartup('splash_hidden');
+  // A failed hide must not surface as an unhandled rejection: the screen is already there.
+  SplashScreen.hideAsync().catch(() => {});
 }
 
 /** Tests only: the gate remembers it hid the splash for the whole run. */
 export function __resetSplashGateForTests(): void {
   hidden = false;
+  clearTimeout(capTimer);
+  capTimer = undefined;
+}
+
+/** Root module scope, next to `preventAutoHideAsync`: the cap runs whether or not any component is mounted. */
+export function startSplashCap(): void {
+  if (hidden || capTimer !== undefined) return;
+  capTimer = setTimeout(markFirstScreenReady, Math.max(0, SPLASH_CAP_MS - msSinceStart()));
 }
 
 /** Marks the moment a screen can paint with local data, once. Pass the same condition the screen's startup mark uses. */
@@ -27,13 +39,9 @@ export function useFirstScreenReady(when = true): void {
   }, [when]);
 }
 
-/** Root layout only: hides the splash on a font error, and at the cap when no screen has marked ready by then. */
-export function useSplashSafetyNet(fontError: boolean): void {
+/** Root layout only: a font error hides the splash, and the app falls back to the system font. */
+export function useSplashFontError(fontError: boolean): void {
   useEffect(() => {
     if (fontError) markFirstScreenReady();
   }, [fontError]);
-  useEffect(() => {
-    const timer = setTimeout(markFirstScreenReady, Math.max(0, SPLASH_CAP_MS - msSinceStart()));
-    return () => clearTimeout(timer);
-  }, []);
 }
