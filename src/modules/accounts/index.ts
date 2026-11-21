@@ -141,4 +141,10 @@ export {
   TooManyShareCodeLookupsError,
   type AthleteShareCodeRepository,
 } from './data/athleteShareCodes';
+export {
+  createInMemorySavedShareCodeRepository,
+  createPowerSyncSavedShareCodeRepository,
+  type SavedShareCode,
+  type SavedShareCodeRepository,
+} from './data/savedShareCodes';
 export { AthleteShareCodeContainer, type AthleteShareCodeContainerProps } from './screens/AthleteShareCodeContainer';

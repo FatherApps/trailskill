@@ -96,6 +96,11 @@ export type FamilyTimingContainerProps = {
   transfers?: FamilyTransferRepository;
   // The share-code lookup of the accounts module: the short name of the swimmer with a code, or null.
   shareCodes?: { find(code: string): Promise<string | null> };
+  // The codes other families gave this person, kept after an accepted send (accounts module): picked instead of typed again.
+  savedCodes?: {
+    list(userId: string): Promise<{ id: string; code: string; athleteShortName: string }[]>;
+    forget(id: string): Promise<void>;
+  };
   // Changes when the device synced: requests and moved times arrive by sync, so the lists read again.
   syncKey?: number;
   // Remembers that the notice was seen, so it shows on the first visit only. Without it the notice always shows.
@@ -186,7 +191,7 @@ type Step =
   // The video of a saved time (#1089); back goes to where it was opened.
   | { kind: 'time_video'; id: string; from: 'list' | 'detail' }
   // Sending a time with the other swimmer's code: `found` is the short name once the code was looked up.
-  | { kind: 'send'; id: string; code: string; found: string | null; error: FamilyTransferErrorCode | null; busy: boolean }
+  | { kind: 'send'; id: string; code: string; found: string | null; error: FamilyTransferErrorCode | null; busy: boolean; savedId?: string | null }
   // After sending a time with its video, or accepting one, the offer to share or link the video (#1201).
   | { kind: 'video_offer'; offer: 'share' | 'link'; id: string; name: string | null }
   // The chosen video's name does not say it is this time's: of another time (it cannot be linked), or without the time's id.
@@ -249,7 +254,7 @@ const seriesEventLabel = (m: { distance: string; pool: string }) => `${t(`sport.
 
 // Container: reads and writes the guardian's own times (kept on the server for them), and runs the stopwatch.
 export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
-  const { Avatar, userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, syncKey, notice, videoIntro, videos } =
+  const { Avatar, userId, athletes, repository, onBack, imports, sourceNames = {}, buttons = timingButton, transfers, shareCodes, savedCodes, syncKey, notice, videoIntro, videos } =
     props;
   const videoLibrary = props.videoLibrary ?? null;
   const videoSharing = (videos && videoLibrary && props.videoSharing) || null;
@@ -320,6 +325,22 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
   // The warning belongs to the view it appeared in: any other step (a new `step` object) or swimmer hides it.
   const [discardFailed, setDiscardFailed] = useState<{ step: Step; selectedId: string | null } | null>(null);
   const discardError = discardFailed?.step === step && discardFailed.selectedId === selectedId;
+  // The codes kept from other families, read when sending; a removed one hides at once, before the sync takes it away.
+  const [kept, setKept] = useState<{ id: string; code: string; athleteShortName: string }[]>([]);
+  const [forgotten, setForgotten] = useState<string[]>([]);
+  const sending = step.kind === 'send';
+  useEffect(() => {
+    if (!sending || !savedCodes) return;
+    let current = true;
+    savedCodes
+      .list(userId)
+      .then((rows) => current && setKept(rows))
+      .catch(() => current && setKept([]));
+    return () => {
+      current = false;
+    };
+  }, [sending, savedCodes, userId, syncKey]);
+  const keptCodes = kept.filter((k) => !forgotten.includes(k.id));
 
   // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
   const laps = setup.pool ? lapsFor(setup.distance, setup.pool) : 1;
@@ -971,6 +992,10 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
             found: step.found,
             busy: step.busy,
             error: step.error ? t(`family_timing.transfer.error.${step.error}`) : null,
+            saved: {
+              options: keptCodes.map((k) => ({ value: k.id, label: `${k.athleteShortName} · ${k.code}` })),
+              value: step.savedId ?? '',
+            },
           },
         }
       : listView();
@@ -1175,7 +1200,23 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       }}
       onOpenDeleted={() => setStep({ kind: 'deleted', restoreError: false })}
       onOpenSend={() => step.kind === 'edit' && setStep({ kind: 'send', id: step.id, code: '', found: null, error: null, busy: false })}
-      onSendCode={(code) => setStep((s) => (s.kind === 'send' ? { ...s, code, found: null, error: null } : s))}
+      onSendCode={(code) => setStep((s) => (s.kind === 'send' ? { ...s, code, found: null, error: null, savedId: null } : s))}
+      // A kept code was already accepted by that family: its swimmer is known, so it goes straight to «Enviar a …» without a lookup.
+      onPickSavedCode={(id) => {
+        const k = keptCodes.find((x) => x.id === id);
+        if (k) setStep((s) => (s.kind === 'send' ? { ...s, code: k.code, found: k.athleteShortName, error: null, savedId: k.id } : s));
+      }}
+      onForgetSavedCode={async () => {
+        if (step.kind !== 'send' || !step.savedId || !savedCodes) return;
+        const id = step.savedId;
+        try {
+          await savedCodes.forget(id);
+          setForgotten((list) => [...list, id]);
+          setStep((s) => (s.kind === 'send' ? { ...s, code: '', found: null, error: null, savedId: null } : s));
+        } catch {
+          setStep((s) => (s.kind === 'send' ? { ...s, error: 'failed' } : s));
+        }
+      }}
       onLookUpCode={lookUpCode}
       onSendTime={sendTime}
       onWithdraw={(measurementId) => {

@@ -246,6 +246,9 @@ export const AppSchema = new Schema({
     },
     { indexes: { athlete: ['athlete_id'] } },
   ),
+  // The share codes another family gave this person, kept once that family accepted a time sent with them (accounts, #1302), read-only
+  // here: the server functions write them and remove them when the family changes the code. The swimmer is not synced.
+  saved_athlete_share_codes: new Table({ user_id: column.text, code: column.text, athlete_short_name: column.text, saved_at: column.text }),
   // A family time sent to another swimmer's family (#973), read-only here: the server functions write it. The sender and the swimmer's
   // family read it; it carries the time as it was sent, because the receiving family cannot read the sender's times.
   family_timing_transfers: new Table(

@@ -47,6 +47,7 @@ describe('AppSchema', () => {
         'measurements',
         'record_conflicts',
         'results_imports',
+        'saved_athlete_share_codes',
         'school_memberships',
         'school_invitations',
         'schools',
@@ -95,6 +96,6 @@ describe('AppSchema', () => {
     expect(byName.get('family_measurements')?.localOnly).toBe(true);
     expect(byName.get('family_timing_videos')?.localOnly).toBe(true);
     expect(byName.get('athlete_photo_uploads')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(36);
+    expect(AppSchema.tables).toHaveLength(37);
   });
 });

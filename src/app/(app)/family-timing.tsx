@@ -3,7 +3,12 @@ import { useMemo } from 'react';
 import { useSession } from '../../core/session';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useGoBack } from '../../core/navigation';
-import { AthleteAvatarWithPhoto, createPowerSyncManagedAthleteRepository, createSupabaseAthleteShareCodeRepository } from '../../modules/accounts';
+import {
+  AthleteAvatarWithPhoto,
+  createPowerSyncManagedAthleteRepository,
+  createPowerSyncSavedShareCodeRepository,
+  createSupabaseAthleteShareCodeRepository,
+} from '../../modules/accounts';
 import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import {
   createPowerSyncFamilyMeasurementRepository,
@@ -22,6 +27,7 @@ const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const familyMeasurements = createPowerSyncFamilyMeasurementRepository();
 const familyTransfers = createPowerSyncFamilyTransferRepository();
 const shareCodes = createSupabaseAthleteShareCodeRepository();
+const savedShareCodes = createPowerSyncSavedShareCodeRepository();
 const importedResults = createPowerSyncImportedResultsRepository();
 const importSources = createSupabaseImportSourcesRepository();
 const notice = createSecureStoreFamilyTimingNoticeStore();
@@ -48,6 +54,7 @@ export default function FamilyTimingRoute() {
       sourceNames={sourceNames}
       transfers={familyTransfers}
       shareCodes={shareCodes}
+      savedCodes={savedShareCodes}
       notice={notice}
       videoIntro={videoIntro}
       videoCamera={videoCamera}

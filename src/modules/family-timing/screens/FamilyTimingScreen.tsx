@@ -102,6 +102,8 @@ export type FamilySendView = {
   found: string | null;
   busy: boolean;
   error: string | null;
+  // The codes kept from other families (picked instead of typed); value is the picked one, '' for none.
+  saved?: { options: ChipRowOption<string>[]; value: string };
 };
 
 export type FamilyFilterKey = 'sessionType' | 'stroke' | 'distance' | 'pool';
@@ -249,6 +251,8 @@ export type FamilyTimingScreenProps = {
   // Sending a time to another swimmer's family, and answering the ones received.
   onOpenSend?: () => void;
   onSendCode?: (code: string) => void;
+  onPickSavedCode?: (id: string) => void;
+  onForgetSavedCode?: () => void;
   onLookUpCode?: () => void;
   onSendTime?: () => void;
   onWithdraw?: (measurementId: string) => void;
@@ -1088,8 +1092,16 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       body = (
         <View style={{ gap: space[4] }}>
           <Card card={send.card} />
+          {send.saved && send.saved.options.length > 0 && (
+            <Field label={t('family_timing.transfer.saved_label')}>
+              <ChipRow accessibilityLabel={t('family_timing.transfer.saved_label')} {...send.saved} onChange={(v) => props.onPickSavedCode?.(v)} />
+              {send.saved.value !== '' && (
+                <Button variant="ghost" label={t('family_timing.transfer.saved_forget')} onPress={() => props.onForgetSavedCode?.()} />
+              )}
+            </Field>
+          )}
           <TextField
-            label={t('family_timing.transfer.code_label')}
+            label={t(send.saved && send.saved.options.length > 0 ? 'family_timing.transfer.code_label_new' : 'family_timing.transfer.code_label')}
             help={t('family_timing.transfer.code_help')}
             value={send.code}
             onChangeText={(v) => props.onSendCode?.(v)}

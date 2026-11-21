@@ -164,7 +164,10 @@
         "deleted_time": "Este tiempo está eliminado.",
         "failed": "No pudimos hacerlo. Revisa la señal e inténtalo de nuevo."
       },
-      "sent_row": "Enviado a {{name}} · pendiente"
+      "sent_row": "Enviado a {{name}} · pendiente",
+      "saved_label": "Códigos guardados",
+      "saved_forget": "Quitar código guardado",
+      "code_label_new": "O escribe un código nuevo"
     },
     "detail": {
       "title": "Detalle del tiempo",
