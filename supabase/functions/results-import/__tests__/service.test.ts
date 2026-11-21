@@ -1212,14 +1212,37 @@ describe('refreshTournaments', () => {
   const earlier = tournamentEntry('20251011');
   const listing = { tournaments: [current, tournamentEntry('20260314'), earlier] };
 
-  it('saves the tournaments of the current year, and only those, and answers how many platforms it refreshed', async () => {
-    const s = setup({ platformOptions: listing });
+  it('saves the tournaments of the current year and the year before, and only those, and answers how many platforms it refreshed', async () => {
+    const s = setup({ platformOptions: { tournaments: [...listing.tournaments, tournamentEntry('20241012')] } });
     expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
-    expect(s.platform.listCalls).toEqual([2026]);
+    expect(s.platform.listCalls).toEqual([[2026, 2025]]);
     expect(s.catalog.rows().map((row) => [row.organizationId, row.dateKey, row.refreshedAt]).sort()).toEqual([
+      [PLATFORM_ORG, '20251011', Date.parse('2026-10-28T10:00:00Z')],
       [PLATFORM_ORG, '20260314', Date.parse('2026-10-28T10:00:00Z')],
       [PLATFORM_ORG, '20261010', Date.parse('2026-10-28T10:00:00Z')],
     ]);
+  });
+
+  it('starts the new year by itself: on 1 January it keeps the year that ended and takes the new one, with one read of the platform per refresh', async () => {
+    const tournaments = [tournamentEntry('20241012'), tournamentEntry('20251011'), tournamentEntry('20261010'), tournamentEntry('20270110')];
+    const s = setup({ platformOptions: { tournaments } });
+    s.advanceClock(Date.parse('2026-12-31T23:59:00Z') - Date.parse('2026-10-28T10:00:00Z'));
+    await s.service.refreshTournaments();
+    expect(s.platform.listCalls).toEqual([[2026, 2025]]);
+    expect(s.catalog.rows().map((row) => row.dateKey).sort()).toEqual(['20251011', '20261010']);
+    s.advanceClock(Date.parse('2027-01-01T00:00:00Z') - Date.parse('2026-12-31T23:59:00Z') + TOURNAMENT_REFRESH_INTERVAL_MS);
+    await s.service.refreshTournaments();
+    expect(s.platform.listCalls).toEqual([[2026, 2025], [2027, 2026]]);
+    expect(s.catalog.rows().map((row) => row.dateKey).sort()).toEqual(['20251011', '20261010', '20270110']);
+  });
+
+  it('is the UTC year that counts: one millisecond before and at midnight UTC', async () => {
+    const s = setup({ platformOptions: { tournaments: [] } });
+    s.advanceClock(Date.parse('2026-12-31T23:59:59.999Z') - Date.parse('2026-10-28T10:00:00Z'));
+    await s.service.refreshTournaments();
+    s.advanceClock(1 + TOURNAMENT_REFRESH_INTERVAL_MS);
+    await s.service.refreshTournaments();
+    expect(s.platform.listCalls).toEqual([[2026, 2025], [2027, 2026]]);
   });
 
   it('saves the fields of each tournament and nothing else the platform sent', async () => {
@@ -1246,17 +1269,17 @@ describe('refreshTournaments', () => {
     await s.service.refreshTournaments();
     s.advanceClock(TOURNAMENT_REFRESH_INTERVAL_MS - 1);
     expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 0, skipped: 1 } });
-    expect(s.platform.listCalls).toEqual([2026]);
+    expect(s.platform.listCalls).toEqual([[2026, 2025]]);
     s.advanceClock(1);
     expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
-    expect(s.platform.listCalls).toEqual([2026, 2026]);
+    expect(s.platform.listCalls).toEqual([[2026, 2025], [2026, 2025]]);
     expect(s.catalog.claims.every((claim) => claim.intervalMs === TOURNAMENT_REFRESH_INTERVAL_MS && claim.organizationId === PLATFORM_ORG)).toBe(true);
   });
 
   it('asks the platform once for two calls at the same moment', async () => {
     const s = setup({ platformOptions: listing });
     const outcomes = await Promise.all([s.service.refreshTournaments(), s.service.refreshTournaments()]);
-    expect(s.platform.listCalls).toEqual([2026]);
+    expect(s.platform.listCalls).toEqual([[2026, 2025]]);
     expect(outcomes.map((outcome) => (outcome.ok ? outcome.value.refreshed : -1)).sort()).toEqual([0, 1]);
   });
 
@@ -1304,8 +1327,8 @@ describe('refreshTournaments', () => {
     }
   });
 
-  it('saves nothing and has nothing to ask when the platform lists no tournament of the year', async () => {
-    const s = setup({ platformOptions: { tournaments: [earlier] } });
+  it('saves nothing and has nothing to ask when the platform lists no tournament of the two years', async () => {
+    const s = setup({ platformOptions: { tournaments: [tournamentEntry('20241012')] } });
     expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
     expect(s.catalog.rows()).toEqual([]);
   });
