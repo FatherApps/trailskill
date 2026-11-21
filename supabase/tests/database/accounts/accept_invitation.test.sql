@@ -5,7 +5,7 @@
 -- in one transaction. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(52);
+select plan(54);
 
 -- The device time of every acceptance in this test.
 create function pg_temp.at() returns timestamptz language sql as $$ select '2026-11-01 10:00:00+00'::timestamptz $$;
@@ -410,6 +410,20 @@ select lives_ok(
              '44000000-0000-4000-8000-000000000304', '44000000-0000-4000-8000-000000000302', '44000000-0000-4000-8000-000000000303',
              '44000000-0000-4000-8000-0000000000e1', '2026-11-02 08:00:00+00') $$,
   'the coach records for the athlete who joined the school'
+);
+-- A measurement (a time) of the athlete who joined. Its insert policy asks for the coach's charge, not for record_times: what
+-- record_times changes is that the time stays visible (hidden only follows a withdrawal), so the control for the refusal is the
+-- fulfillment above, which does ask for record_times.
+select lives_ok(
+  $$ insert into public.measurements (school_id, id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+     values ('44000000-0000-4000-8000-0000000000b1', '44000000-0000-4000-8000-000000000321', 'repetition', '44000000-0000-4000-8000-0000000000e1',
+             3150, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-02 08:05:00+00') $$,
+  'the coach records a time of the athlete who joined the school'
+);
+select is(
+  (select count(*) from public.measurements where id = '44000000-0000-4000-8000-000000000321' and not hidden),
+  1::bigint,
+  'the coach reads that time back, not hidden: the school can see and edit what it records'
 );
 reset role;
 
