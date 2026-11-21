@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.11.0](https://github.com/FatherApps/trailskill/compare/v0.10.0...v0.11.0) (2026-11-21)
+
+
+### Features
+
+* **accounts:** show and scan the swimmer's share code as a QR ([#1357](https://github.com/FatherApps/trailskill/issues/1357)) ([cfd28be](https://github.com/FatherApps/trailskill/commit/cfd28be15942cc2cac5587fbc4dbb5455c3fb6d5)), closes [#1322](https://github.com/FatherApps/trailskill/issues/1322)
+* **athletes:** Editar screen with photo, data and share code ([#1378](https://github.com/FatherApps/trailskill/issues/1378)) ([cb3f2da](https://github.com/FatherApps/trailskill/commit/cb3f2da44e8e1060c0f2aa40b8e98649ab6d797f)), closes [#1362](https://github.com/FatherApps/trailskill/issues/1362)
+* **athletes:** mostrar el torneo del resultado oficial en Marcas y en el historial ([#1359](https://github.com/FatherApps/trailskill/issues/1359)) ([929f1ad](https://github.com/FatherApps/trailskill/commit/929f1ad3f58ee9076cde288f50eade2b6e6cc064)), closes [#1358](https://github.com/FatherApps/trailskill/issues/1358)
+* **athletes:** quien gestiona al nadador puede cambiar su nombre y apellido (RLS) ([#1377](https://github.com/FatherApps/trailskill/issues/1377)) ([4adc050](https://github.com/FatherApps/trailskill/commit/4adc050f26b861cda227cdfb3609592b546489e2)), closes [#1364](https://github.com/FatherApps/trailskill/issues/1364)
+* **athletes:** show the federation result whole when a swim has several sources ([#1356](https://github.com/FatherApps/trailskill/issues/1356)) ([43e7b0e](https://github.com/FatherApps/trailskill/commit/43e7b0eb4959086558da362eefaf57ef080f655b)), closes [#1354](https://github.com/FatherApps/trailskill/issues/1354)
+* **family-timing:** tell the person a saved share code expired and remove it when touched ([#1346](https://github.com/FatherApps/trailskill/issues/1346)) ([bae8973](https://github.com/FatherApps/trailskill/commit/bae8973ac149f6c9bf5340ed89dabc4450f9d1f1)), closes [#1321](https://github.com/FatherApps/trailskill/issues/1321)
+* **results-import:** add the tournaments catalog table with RLS and its PowerSync stream ([#1347](https://github.com/FatherApps/trailskill/issues/1347)) ([8c19502](https://github.com/FatherApps/trailskill/commit/8c1950279f5b19c7a945b5c8d53d8b969933b74b)), closes [#1339](https://github.com/FatherApps/trailskill/issues/1339)
+* **results-import:** list a platform's tournaments and look one up by its key ([#1348](https://github.com/FatherApps/trailskill/issues/1348)) ([a466efb](https://github.com/FatherApps/trailskill/commit/a466efb22af2cc9b0bac138571f4ba29df7e5446)), closes [#1340](https://github.com/FatherApps/trailskill/issues/1340)
+* **results-import:** refresh_tournaments action and tournamentKey lookup ([#1355](https://github.com/FatherApps/trailskill/issues/1355)) ([9f85d85](https://github.com/FatherApps/trailskill/commit/9f85d85966685572757fe861c510e7722999e911)), closes [#1341](https://github.com/FatherApps/trailskill/issues/1341)
+* **results-import:** tournament catalog repository and tournamentKey lookup ([#1375](https://github.com/FatherApps/trailskill/issues/1375)) ([706b5fa](https://github.com/FatherApps/trailskill/commit/706b5facd0d36d73d536f8815f4df52fa3e83df1)), closes [#1343](https://github.com/FatherApps/trailskill/issues/1343)
+* **results-import:** tournament picker with search, year chips and month calendar ([#1381](https://github.com/FatherApps/trailskill/issues/1381)) ([30e5aee](https://github.com/FatherApps/trailskill/commit/30e5aee77c32543440e66439af19be5785d4ddaf)), closes [#1344](https://github.com/FatherApps/trailskill/issues/1344)
+
+
+### Bug Fixes
+
+* **deploy:** un solo lock dentro de backup-prod.sh y crontab dentro de la imagen ([#1376](https://github.com/FatherApps/trailskill/issues/1376)) ([639ba19](https://github.com/FatherApps/trailskill/commit/639ba19821cf69e4d5c435de0d16c2618fe1af0b)), closes [#1336](https://github.com/FatherApps/trailskill/issues/1336)
+* **results-import:** refresh the tournaments of the current UTC year and the year before in one read ([#1383](https://github.com/FatherApps/trailskill/issues/1383)) ([94c2ec5](https://github.com/FatherApps/trailskill/commit/94c2ec55fc5d60feb5f3158551a28251f6f29235)), closes [#1380](https://github.com/FatherApps/trailskill/issues/1380)
+* **startup:** keep the splash until the first screen paints from local data ([#1368](https://github.com/FatherApps/trailskill/issues/1368)) ([e1e7ec7](https://github.com/FatherApps/trailskill/commit/e1e7ec7b65c2736e828f916cbac3822b7e45b72c)), closes [#1360](https://github.com/FatherApps/trailskill/issues/1360)
+
 ## [0.10.0](https://github.com/FatherApps/trailskill/compare/v0.9.0...v0.10.0) (2026-11-21)
 
 
