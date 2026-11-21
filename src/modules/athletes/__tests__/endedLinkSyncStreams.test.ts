@@ -13,7 +13,11 @@ import { join } from "node:path";
 //   coach by group the chain starts at training_groups.id IN coach_group_ids and ends at athlete_schools
 // A school condition of its own (IN member_school_ids, an extra join on school_memberships) beside the by-group or admin
 // joins makes swimmer and school independent again: the ended pair comes back.
-const config = readFileSync(join(__dirname, "../../../../powersync/sync-config.yaml"), "utf8");
+// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244); this test pins the rest (the gate ends the top-level WHERE).
+const config = readFileSync(join(__dirname, "../../../../powersync/sync-config.yaml"), "utf8").replaceAll(
+  / WHERE \((.*)\) AND auth\.user_id\(\) IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)$/gm,
+  " WHERE $1",
+);
 const queries = config
   .split("\n")
   .filter((line) => !line.trimStart().startsWith("#"))
