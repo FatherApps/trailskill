@@ -62,6 +62,37 @@ services:
     networks:
       - supabase
 
+  # One-shot: delivers the Edge Functions (deploy/scripts/functions-bundle.sh) into the functions folder of the Supabase stack.
+  # It runs after migrate, so it never delivers code for a migration that failed. The script checks every function (deno check)
+  # before it replaces any, so a failure leaves the folder as it was. The Deno image runs the check itself: no Docker socket.
+  # No database, no secret: only the repository files it needs (read-only) and the one folder it writes. The only network is
+  # `default`, so `deno check` reaches npm and jsr. Local mode leaves it out (compose.local.yaml).
+  functions:
+    image: denoland/deno:2.1.4 # same version as DENO_VERSION in functions-bundle.sh and the edge-runtime the stack runs
+    restart: "no"
+    command: ["sh", "/repo/deploy/scripts/functions-bundle.sh", "/functions"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./scripts:/repo/deploy/scripts:ro
+      - ../supabase:/repo/supabase:ro
+      - ../src/core/sport/catalogs.ts:/repo/src/core/sport/catalogs.ts:ro
+      - ${SUPABASE_FUNCTIONS_DIR:?Set SUPABASE_FUNCTIONS_DIR to the host folder the Supabase stack functions service mounts at /home/deno/functions}:/functions
+    networks:
+      - default
+
+  # Turns a failed delivery into a failed `docker compose up`, so the Dokploy deployment shows red. powersync does not depend on it.
+  functions-ok:
+    image: busybox:1.37.0
+    restart: "no"
+    command: ["true"]
+    depends_on:
+      functions:
+        condition: service_completed_successfully
+    networks:
+      - default
+
   # Daily backup at 08:30 UTC (03:30 Bogotá), from deploy/backup/crontab. Shares the lock volume with `migrate`, so the
   # two never back up at the same time. A failed run logs an error and the next one is the following day.
   backup:

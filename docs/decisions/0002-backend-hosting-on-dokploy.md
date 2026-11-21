@@ -56,7 +56,7 @@ As of 2026-11-16, three of the points below are closed by the [amendment](#amend
 - Physical location of the server, to confirm data residency under Colombian Law 1581 of 2012.
 - Backup destination, schedule and restore test.
 - Environments inside the Dokploy project (one shared environment, or separate staging and production).
-- How migrations and Edge Functions from `supabase/` are applied on each deployment.
+- How migrations and Edge Functions from `supabase/` are applied on each deployment. Closed 2026-11-21: see the last amendment.
 - PowerSync Open Edition license terms for this use.
 - Still open from ADR 0001: the email provider, now only for the fallback sign-in code and invitations ([ADR 0004](0004-sign-in-with-google-microsoft-and-email-code.md)), and the hosting budget.
 
@@ -107,3 +107,7 @@ This replaces «QA is not backed up» (2026-11-16 amendment, Backups). Today the
 - The gate of 2026-11-16 does not change: real families are not invited to PROD until a backup has left the server and a restore from it was tested (#1119).
 
 Not decided here: the schedule and the copy before each migration (#1336) and the daily freshness alert (#1337).
+
+## Amendment 2026-11-21: Edge Functions are delivered on every deployment
+
+Tracking issue: #1351. This closes the open item «how migrations and Edge Functions are applied on each deployment». Migrations were already applied by the one-shot `migrate` service. The functions are now delivered by a one-shot `functions` service of the `deploy` compose (Deno image, no Docker socket, no secret) that runs after `migrate` and checks every function before it replaces any; a failed delivery turns the Dokploy deployment red. GitHub Actions over SSH and the Dokploy API webhook were rejected because they need a new secret that reaches the shared server. Details: [deploy/README.md](../../deploy/README.md#edge-functions).
