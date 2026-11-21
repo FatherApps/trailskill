@@ -1,5 +1,5 @@
 # Starts the store delivery when a release tag vX.Y.Z is pushed (#1209).
-# Only pre-packaged Expo jobs, Android only: everything that delivers is Android. The `fingerprint` job has no platform option, so it also computes the iOS hash, which nothing uses. See docs/RELEASING.md.
+# Pre-packaged Expo jobs plus one custom job, Android only: everything that delivers is Android. The `fingerprint` job has no platform option, so it also computes the iOS hash, which nothing uses. The one custom job, `backend_changes`, applies the rule that backend changes always need a build (#1289). See docs/RELEASING.md.
 name: Release
 
 on:
@@ -16,6 +16,28 @@ jobs:
     if: ${{ !contains(github.ref_name, '+ota') }}
     environment: production
 
+  # The fingerprint does not see supabase/migrations/, supabase/functions/ or powersync/: when one changed since the previous release, force a build (#1289).
+  backend_changes:
+    name: Check for backend changes since the previous release
+    if: ${{ !contains(github.ref_name, '+ota') }}
+    # The tag name goes through the environment, never into the shell text: a ref name can hold shell characters.
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: eas/checkout
+      # eas/checkout is a shallow clone (--depth 1): get the history and the tags. If this fails, the script finds a shallow or incomplete checkout and fails closed (force_build=true).
+      - name: Fetch history and tags
+        run: git fetch --quiet --unshallow --tags origin || git fetch --quiet --tags origin || true
+      - id: check
+        name: Compare with the previous release
+        run: |
+          RESULT=$(sh .github/scripts/check-backend-release.sh "$RELEASE_TAG")
+          echo "$RESULT"
+          # Anything but an explicit force_build=false (a script that did not run, empty output) builds.
+          if [ "$RESULT" = "force_build=false" ]; then set-output force_build false; else set-output force_build true; fi
+    outputs:
+      force_build: ${{ steps.check.outputs.force_build }}
+
   get_build:
     name: Find a production build with the same fingerprint
     type: get-build
@@ -25,24 +47,24 @@ jobs:
       profile: production
       fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
 
-  # Same native code as an existing production build: publish the JavaScript only.
+  # Same native code as an existing production build and no backend change: publish the JavaScript only.
   update:
     name: Publish OTA update to production
     type: update
-    needs: [get_build]
-    if: ${{ needs.get_build.outputs.build_id }}
+    needs: [get_build, backend_changes]
+    if: ${{ needs.get_build.outputs.build_id && needs.backend_changes.outputs.force_build != 'true' }}
     environment: production
     params:
       platform: android
       channel: production
       message: ${{ github.ref_name }}
 
-  # Native code changed: build the store bundle and send it to the internal track.
+  # Native code changed, or the release changes migrations, functions or sync rules: build the store bundle and send it to the internal track.
   build:
     name: Build Android production
     type: build
-    needs: [get_build]
-    if: ${{ !needs.get_build.outputs.build_id }}
+    needs: [get_build, backend_changes]
+    if: ${{ !needs.get_build.outputs.build_id || needs.backend_changes.outputs.force_build == 'true' }}
     params:
       platform: android
       profile: production
