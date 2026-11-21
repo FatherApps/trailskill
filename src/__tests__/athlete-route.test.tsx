@@ -28,6 +28,7 @@ jest.mock('../modules/accounts', () => {
     createPowerSyncAuthorizationStatusRepository: () => ({}),
     createPowerSyncManagedAthleteRepository: () => ({}),
     createSupabaseAthleteShareCodeRepository: () => ({}),
+    createSecureStoreShareCodeCache: () => ({}),
     useHasValidAuthorization: (athleteId: string, purpose: string) => mockShowPhoto && purpose === 'show_photo' && athleteId.length > 0,
     AthleteShareCodeContainer: ({ athleteId, athleteName }: { athleteId: string; athleteName: string }) => (
       <Text>{`share code of ${athleteId} for ${athleteName}`}</Text>
