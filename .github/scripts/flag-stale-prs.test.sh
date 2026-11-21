@@ -121,7 +121,12 @@ failing_setup 7 "pull:7"
 run_case; expect_failure "pull request read failure: error, skipped, exit 1" 7 "could not read the pull request"
 
 failing_setup 8 ""; export FAKE_STATE_8=unknown FAKE_BEHIND_8=2
-run_case; expect_failure "mergeable_state stays unknown: error, skipped, exit 1" 8 "mergeable_state still unknown"
+run_case
+if [ "$RC" -eq 0 ] && has "$OUT" "::warning::#8: mergeable_state still unknown" && ! has "$OUT" "::error::" && ! has "$WRITES" "issues/8/" && has "$WRITES" "issues/9/labels"; then
+  pass "mergeable_state stays unknown: warning, skipped, others continue, exit 0"
+else
+  fail "mergeable_state stays unknown: warning, skipped, others continue, exit 0 (rc $RC: $OUT)"
+fi
 
 failing_setup 10 "fetch:10"; export FAKE_STATE_10=dirty FAKE_CONFLICT_10=1
 run_case; expect_failure "fetch failure: error, skipped, no files of another pull request" 10 "could not fetch the pull request head"
