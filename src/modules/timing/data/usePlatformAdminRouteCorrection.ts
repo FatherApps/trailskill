@@ -46,8 +46,13 @@ export function usePlatformAdminRouteCorrection({
         return repository.isPlatformAdmin(userId).then(
           (admin) => {
             if (!active) return;
-            known.write(userId, admin).catch(() => {});
-            if (admin !== saved && onLandingScreen(latest.current.segments)) latest.current.router.replace('/');
+            // Saved first: "/" reads the phone's answer again, and must not read the old one.
+            return known
+              .write(userId, admin)
+              .catch(() => {})
+              .then(() => {
+                if (active && admin !== saved && onLandingScreen(latest.current.segments)) latest.current.router.replace('/');
+              });
           },
           () => {},
         );

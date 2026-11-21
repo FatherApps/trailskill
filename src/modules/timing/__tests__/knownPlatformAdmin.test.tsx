@@ -86,6 +86,24 @@ describe('usePlatformAdminStatus with the last known answer on the phone', () =>
   });
 });
 
+it('with a phone read that never ends, unknown means not admin once the wait is over', async () => {
+  jest.useFakeTimers();
+  try {
+    const stuck = { ...createInMemoryKnownPlatformAdminRepository(), read: () => new Promise<boolean | null>(() => {}) };
+    const server = pendingServer();
+    const { result } = await renderHook(() => usePlatformAdminStatus(server, 'user-1', stuck));
+    expect(result.current).toBe('loading');
+
+    await act(async () => {
+      jest.advanceTimersByTime(PLATFORM_ADMIN_WAIT_MS);
+    });
+
+    expect(result.current).toBe(false);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 describe('usePlatformAdminRouteCorrection', () => {
   const run = async (props: { server: { isPlatformAdmin: () => Promise<boolean> }; known: ReturnType<typeof createInMemoryKnownPlatformAdminRepository>; segments?: string[]; userId?: string }) => {
     const router = { replace: jest.fn() };
@@ -109,6 +127,20 @@ describe('usePlatformAdminRouteCorrection', () => {
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
     expect(await known.read('user-1')).toBe(true);
+  });
+
+  it('opens "/" again only after the new answer is stored, so the landing never reads the old one', async () => {
+    const memory = createInMemoryKnownPlatformAdminRepository({ userId: 'user-1', admin: true });
+    let finish: () => void = () => {};
+    const slow = { ...memory, write: (userId: string, admin: boolean) => new Promise<void>((resolve) => (finish = () => void memory.write(userId, admin).then(resolve))) };
+    const { router } = await run({ server: { isPlatformAdmin: async () => false }, known: slow });
+
+    await act(async () => {});
+    expect(router.replace).not.toHaveBeenCalled();
+    await act(async () => finish());
+
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+    expect(await memory.read('user-1')).toBe(false);
   });
 
   it.each([true, false])('leaves the route alone when the answer is still %s', async (admin) => {

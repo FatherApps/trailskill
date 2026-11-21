@@ -22,8 +22,9 @@ export function usePlatformAdminStatus(
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     if (userId) {
-      const ask = () => {
-        timer = setTimeout(() => active && setAnswer((previous) => (previous?.userId === userId ? previous : { userId, admin: false })), PLATFORM_ADMIN_WAIT_MS);
+      // The wait covers reading what the phone knows too: a read that never ends must not leave the landing waiting for good.
+      timer = setTimeout(() => active && setAnswer((previous) => (previous?.userId === userId ? previous : { userId, admin: false })), PLATFORM_ADMIN_WAIT_MS);
+      const ask = () =>
         repository.isPlatformAdmin(userId).then(
           (admin) => {
             if (!active) return;
@@ -32,9 +33,16 @@ export function usePlatformAdminStatus(
           },
           () => active && setAnswer({ userId, admin: false }),
         );
-      };
-      if (known) known.read(userId).catch(() => null).then((saved) => (!active ? undefined : saved === null ? ask() : setAnswer({ userId, admin: saved })));
-      else ask();
+      if (known) {
+        known
+          .read(userId)
+          .catch(() => null)
+          .then((saved) => {
+            if (!active) return;
+            if (saved === null) ask();
+            else setAnswer({ userId, admin: saved });
+          });
+      } else ask();
     }
     return () => {
       active = false;
