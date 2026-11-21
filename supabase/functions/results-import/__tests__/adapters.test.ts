@@ -1,5 +1,6 @@
-import { createAccess, createConfirmationReader, createConfirmations, createIdentityNumbers, createImportRecorder, createOrganizationChain, createPendingStore, createQueryGate, type Db, type DbError } from '../adapters.ts';
-import { CANDIDATE_TTL_MS, InvalidSourceKeyError, NotAuthorizedError, QUERY_INTERVAL_MS, RETRY_AFTER_FAILURE_MS } from '../service.ts';
+import { createAccess, createConfirmationReader, createConfirmations, createIdentityNumbers, createImportRecorder, createOrganizationChain, createPendingStore, createQueryGate, createTournamentCatalog, type Db, type DbError } from '../adapters.ts';
+import { CANDIDATE_TTL_MS, InvalidSourceKeyError, NotAuthorizedError, QUERY_INTERVAL_MS, RETRY_AFTER_FAILURE_MS, TOURNAMENT_REFRESH_INTERVAL_MS } from '../service.ts';
+import { tournamentEntry } from './fakeProvider.ts';
 
 const ATHLETE = 'athlete-1';
 const USER = 'user-1';
@@ -13,6 +14,8 @@ function createFakeDb(replies: { data?: unknown; error?: DbError | null }[] = []
   const calls: RpcCall[] = [];
   const deleted: [string, string][] = [];
   const tables: Record<string, Record<string, unknown>[]> = {};
+  const selects: { table: string; columns: string; equals?: Record<string, string> }[] = [];
+  let selectError: DbError | null = null;
   let deleteError: DbError | null = null;
   const db: Db = {
     async rpc(fn, args) {
@@ -20,15 +23,16 @@ function createFakeDb(replies: { data?: unknown; error?: DbError | null }[] = []
       const reply = replies.shift() ?? {};
       return { data: reply.data ?? null, error: reply.error ?? null };
     },
-    async select(table) {
-      return { data: tables[table] ?? [], error: null };
+    async select(table, columns, equals) {
+      selects.push({ table, columns, equals });
+      return { data: (tables[table] ?? []).filter((row) => Object.entries(equals ?? {}).every(([column, value]) => row[column] === value)), error: selectError };
     },
     async deleteById(table, id) {
       deleted.push([table, id]);
       return { error: deleteError };
     },
   };
-  return { db, calls, deleted, tables, failDelete: (error: DbError) => void (deleteError = error) };
+  return { db, calls, deleted, tables, selects, failSelect: (error: DbError) => void (selectError = error), failDelete: (error: DbError) => void (deleteError = error) };
 }
 
 const CLAIMED_AT = '2026-10-28T10:00:00.123456+00:00';
@@ -336,5 +340,90 @@ describe('createImportRecorder', () => {
   it('throws, repeating nothing of the message, when the database fails or answers something else', async () => {
     await expect(createImportRecorder(createFakeDb([{ error: { code: 'XX000', message: NUMBER } }]).db).record(input)).rejects.toThrow('Recording the imported results failed (XX000)');
     await expect(createImportRecorder(createFakeDb([{ data: { importId: 'i1' } }]).db).record(input)).rejects.toThrow();
+  });
+});
+
+describe('createTournamentCatalog', () => {
+  const ORGANIZATION = 'platform-1';
+  const interval = { organizationId: ORGANIZATION, intervalMs: TOURNAMENT_REFRESH_INTERVAL_MS };
+
+  it('claims by platform and interval, and answers the instant it took exactly as the database wrote it', async () => {
+    const fake = createFakeDb([{ data: TAKEN }]);
+    expect(await createTournamentCatalog(fake.db).claim(interval)).toEqual({ status: 'allowed', claimedAt: CLAIMED_AT });
+    expect(fake.calls).toEqual([{ fn: 'results_import_claim_tournament_refresh', args: { organization: ORGANIZATION, min_interval: '86400 seconds' } }]);
+  });
+
+  it('accepts the answer as a one-element list, and translates a retry instant to fresh, as ISO 8601', async () => {
+    expect(await createTournamentCatalog(createFakeDb([{ data: [TAKEN] }]).db).claim(interval)).toEqual({ status: 'allowed', claimedAt: CLAIMED_AT });
+    expect(await createTournamentCatalog(createFakeDb([{ data: { retry_at: '2026-10-29T10:00:00+00:00', claimed_at: null } }]).db).claim(interval)).toEqual({
+      status: 'fresh',
+      retryAt: '2026-10-29T10:00:00.000Z',
+    });
+  });
+
+  it('throws on an error or an answer it does not know, with only the Postgres code', async () => {
+    await expect(createTournamentCatalog(createFakeDb([{ error: { code: '23514', message: 'leaked message' } }]).db).claim(interval)).rejects.toThrow('Claiming the tournament refresh failed (23514)');
+    await expect(createTournamentCatalog(createFakeDb([{ data: { retry_at: 'never', claimed_at: null } }]).db).claim(interval)).rejects.toThrow('Claiming the tournament refresh failed');
+    await expect(createTournamentCatalog(createFakeDb([{ data: null }]).db).claim(interval)).rejects.toThrow('Claiming the tournament refresh failed');
+  });
+
+  it('releases with the instant of the claim and the waits, and answers whether it gave the claim back', async () => {
+    const fake = createFakeDb([{ data: true }, { data: false }]);
+    const catalog = createTournamentCatalog(fake.db);
+    const request = { ...interval, claimedAt: CLAIMED_AT, retryAfterMs: RETRY_AFTER_FAILURE_MS };
+    expect(await catalog.release(request)).toBe(true);
+    expect(await catalog.release(request)).toBe(false);
+    expect(fake.calls[0]).toEqual({
+      fn: 'results_import_release_tournament_refresh',
+      args: { organization: ORGANIZATION, claimed_at: CLAIMED_AT, min_interval: '86400 seconds', retry_after: '60 seconds' },
+    });
+    await expect(createTournamentCatalog(createFakeDb([{ data: 'yes' }]).db).release(request)).rejects.toThrow('Releasing the tournament refresh failed');
+  });
+
+  it('saves the tournaments with the names of the columns, and answers how many rows the database saved', async () => {
+    const fake = createFakeDb([{ data: 2 }]);
+    const entries = [tournamentEntry('20261010'), tournamentEntry('20261011', { name: 'Other Open' })];
+    expect(await createTournamentCatalog(fake.db).save(ORGANIZATION, entries)).toBe(2);
+    expect(fake.calls).toEqual([
+      {
+        fn: 'results_import_save_tournaments',
+        args: {
+          organization: ORGANIZATION,
+          rows: entries.map((entry) => ({
+            year: 2026,
+            date_key: entry.dateKey,
+            name: entry.name,
+            city: 'Example City',
+            discipline: 'SW',
+            course: null,
+            source_url: entry.sourceUrl,
+          })),
+        },
+      },
+    ]);
+  });
+
+  it('throws when the save fails or answers something else than a count, with only the Postgres code', async () => {
+    await expect(createTournamentCatalog(createFakeDb([{ error: { code: '23514', message: 'leaked Synthetic Open' } }]).db).save(ORGANIZATION, [])).rejects.toThrow('Saving the tournaments failed (23514)');
+    await expect(createTournamentCatalog(createFakeDb([{ data: null }]).db).save(ORGANIZATION, [])).rejects.toThrow('Saving the tournaments failed');
+  });
+
+  it('finds the platforms that hold a day by asking the table for exactly that key', async () => {
+    const fake = createFakeDb();
+    fake.tables.results_import_tournaments = [
+      { organization_id: ORGANIZATION, year: 2026, date_key: '20261010' },
+      { organization_id: 'platform-2', year: 2026, date_key: '20261011' },
+    ];
+    expect(await createTournamentCatalog(fake.db).find('20261010')).toEqual([{ organizationId: ORGANIZATION, year: 2026 }]);
+    expect(fake.selects).toEqual([{ table: 'results_import_tournaments', columns: 'organization_id,year', equals: { date_key: '20261010' } }]);
+  });
+
+  it('throws when the table cannot be read or a row is not what it should be', async () => {
+    const failing = createFakeDb();
+    failing.failSelect({ code: 'XX000', message: 'leaked' });
+    await expect(createTournamentCatalog(failing.db).find('20261010')).rejects.toThrow('Reading the tournaments failed (XX000)');
+    const odd = createFakeDb();
+    odd.tables.results_import_tournaments = [{ organization_id: ORGANIZATION, year: '2026', date_key: '20261010' }];
+    await expect(createTournamentCatalog(odd.db).find('20261010')).rejects.toThrow('Reading the tournaments failed');
   });
 });

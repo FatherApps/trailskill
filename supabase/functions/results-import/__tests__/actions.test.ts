@@ -7,7 +7,7 @@ import {
   PENDING_TTL_MS,
   type ImportRecorder,
 } from '../actions.ts';
-import { createFakeProvider } from './fakeProvider.ts';
+import { createFakeCatalog, createFakeProvider } from './fakeProvider.ts';
 
 const ORG = 'fed';
 const ATHLETE = 'athlete-1';
@@ -103,6 +103,7 @@ function setup(
     confirmations,
     organizationChain: async () => chain,
     pending,
+    tournaments: createFakeCatalog().catalog,
   });
   const recorded: Parameters<ImportRecorder['record']>[0][] = [];
   const recorder: ImportRecorder = {

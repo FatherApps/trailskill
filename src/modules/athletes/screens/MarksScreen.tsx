@@ -24,6 +24,8 @@ export type MarkCard = {
   // `official`: an imported result; `sourceName` is the organization behind it, from data.
   origin?: 'competition' | 'training' | 'official';
   sourceName?: string;
+  // Name of the competition of an official result, from data.
+  competition?: string;
   // ISO date, yyyy-mm-dd.
   date?: string;
 };
@@ -41,6 +43,7 @@ export type MarkFeatured = {
   time: Hundredths;
   origin: 'competition' | 'training' | 'official';
   sourceName?: string;
+  competition?: string;
   // ISO date, yyyy-mm-dd.
   date: string;
   // Set within the last 14 days: the card carries the "Nueva" tag.
@@ -138,7 +141,7 @@ function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
     <View
       testID={`marks-card-${card.id}`}
       accessible
-      accessibilityLabel={t('athletes.marks.card_spoken', { event: card.event, time: spokenTime(card.time), detail: detail ?? '' }).trim()}
+      accessibilityLabel={t('athletes.marks.card_spoken', { event: card.event, time: spokenTime(card.time), detail: [detail, card.competition].filter(Boolean).join('. ') }).trim()}
       style={[box, { backgroundColor: colors[marksScreenColors.card] }]}
     >
       <Text testID={`marks-title-${card.id}`} style={[typography['body-strong'], title, { color: colors.ink }]}>
@@ -146,6 +149,11 @@ function Card({ card, wide }: { card: MarkCard; wide: boolean }) {
       </Text>
       <TimeValue value={card.time} size="time-md" />
       {detail && <Tag label={detail} />}
+      {card.competition && (
+        <Text style={[typography.caption, title, { color: colors[marksScreenColors.count] }]}>
+          {card.competition}
+        </Text>
+      )}
       {icon}
     </View>
   );
@@ -165,6 +173,7 @@ function FeaturedCard({ featured, color }: { featured: MarkFeatured; color: Athl
   const newDate = featured.isNew ? shortDate : null;
   const label = [
     t('athletes.marks.featured.spoken', { event: featured.event, time: spokenTime(featured.time), origin }),
+    featured.competition,
     newDate && t('athletes.marks.featured.new_spoken', { date: newDate }),
   ]
     .filter(Boolean)
@@ -181,6 +190,11 @@ function FeaturedCard({ featured, color }: { featured: MarkFeatured; color: Athl
         <Text style={[typography['body-strong'], text]}>{featured.title}</Text>
         <Text style={[typography['time-lg'], text]}>{formatTime(featured.time)}</Text>
         <Text style={[typography.caption, text]}>{origin}</Text>
+        {featured.competition && (
+          <Text style={[typography.caption, text]}>
+            {featured.competition}
+          </Text>
+        )}
       </View>
       {isStroke(featured.stroke) && (
         <View style={{ position: 'absolute', top: iconInset, right: iconInset }}>

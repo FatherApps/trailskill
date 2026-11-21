@@ -8,13 +8,14 @@ import {
   OrphanedConfirmationError,
   QUERY_INTERVAL_MS,
   RETRY_AFTER_FAILURE_MS,
+  TOURNAMENT_REFRESH_INTERVAL_MS,
   type Claim,
   type Confirmations,
   type IdentityNumbers,
   type PendingStore,
   type QueryGate,
 } from '../service.ts';
-import { createFakePlatform, createFakeProvider, TOURNAMENT_URL } from './fakeProvider.ts';
+import { createFakeCatalog, createFakePlatform, createFakeProvider, TOURNAMENT_URL, tournamentEntry } from './fakeProvider.ts';
 
 const ORG = 'fed';
 const ATHLETE = 'athlete-1';
@@ -201,6 +202,7 @@ function setup(
   let data = organizations(options.withProvider !== false, options.withPlatform !== false);
   let clock = Date.parse('2026-10-28T10:00:00Z');
   const pending = createFakePending(() => clock);
+  const catalog = createFakeCatalog(() => clock);
   const service = createResultsImport({
     registry: createProviderRegistry([provider], [platform]),
     gate: fakeGate.gate,
@@ -208,9 +210,11 @@ function setup(
     confirmations,
     organizationChain: async () => data,
     pending: pending.store,
+    tournaments: catalog.catalog,
     now: () => clock,
   });
   return {
+    catalog,
     provider,
     platform,
     fakeGate,
@@ -875,7 +879,7 @@ describe('findInTournament', () => {
   };
   const TYPED = '7654321';
   const tournament = (s: ReturnType<typeof setup>, overrides: Partial<Parameters<ReturnType<typeof setup>['service']['findInTournament']>[0]> = {}) =>
-    s.service.findInTournament({ userId: USER, athleteId: ATHLETE, url: TOURNAMENT_URL, identityNumber: null, ...overrides });
+    s.service.findInTournament({ userId: USER, athleteId: ATHLETE, url: TOURNAMENT_URL, identityNumber: null, ...overrides } as Parameters<ReturnType<typeof setup>['service']['findInTournament']>[0]);
   const shown = { id: expect.any(String), name: 'Ana Example', club: 'Synthetic Club', resultCount: 2 };
 
   it('claims the window of the platform provider, never the federation one, and leaves the federation window untouched', async () => {
@@ -1200,5 +1204,195 @@ describe('confirming a candidate of the platform', () => {
     if (!outcome.ok) throw new Error('search failed');
     expect(await confirm(s, outcome.value[0].id, ORG)).toEqual({ ok: true, value: undefined });
     expect([...s.pending.rows.values()].filter((row) => row.kind === 'results')).toEqual([]);
+  });
+});
+
+describe('refreshTournaments', () => {
+  const current = tournamentEntry('20261010');
+  const earlier = tournamentEntry('20251011');
+  const listing = { tournaments: [current, tournamentEntry('20260314'), earlier] };
+
+  it('saves the tournaments of the current year, and only those, and answers how many platforms it refreshed', async () => {
+    const s = setup({ platformOptions: listing });
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+    expect(s.platform.listCalls).toEqual([2026]);
+    expect(s.catalog.rows().map((row) => [row.organizationId, row.dateKey, row.refreshedAt]).sort()).toEqual([
+      [PLATFORM_ORG, '20260314', Date.parse('2026-10-28T10:00:00Z')],
+      [PLATFORM_ORG, '20261010', Date.parse('2026-10-28T10:00:00Z')],
+    ]);
+  });
+
+  it('saves the fields of each tournament and nothing else the platform sent', async () => {
+    const s = setup({ platformOptions: { tournaments: [{ ...current, idNumber: '1234567' } as typeof current] } });
+    await s.service.refreshTournaments();
+    expect(s.catalog.rows()).toEqual([{ ...current, organizationId: PLATFORM_ORG, refreshedAt: Date.parse('2026-10-28T10:00:00Z') }]);
+  });
+
+  it('updates a tournament already in the catalog: every field the platform sent and refreshed_at, and leaves the others alone', async () => {
+    const changed = { ...current, name: 'Renamed Open', city: 'New City', discipline: 'SW', sourceUrl: 'https://games.example.test/t/moved' };
+    const s = setup({ platformOptions: { tournaments: [changed] } });
+    const stored = tournamentEntry('20261010', { name: 'Old Open', city: 'Old City', discipline: 'PO', sourceUrl: 'https://games.example.test/t/old' });
+    s.catalog.seed(PLATFORM_ORG, stored, 1);
+    s.catalog.seed(PLATFORM_ORG, earlier, 1);
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+    expect(s.catalog.rows().sort((a, b) => a.dateKey.localeCompare(b.dateKey))).toEqual([
+      { ...earlier, organizationId: PLATFORM_ORG, refreshedAt: 1 },
+      { ...changed, organizationId: PLATFORM_ORG, refreshedAt: Date.parse('2026-10-28T10:00:00Z') },
+    ]);
+  });
+
+  it('does not ask the platform again before 24 hours, and asks again after them', async () => {
+    const s = setup({ platformOptions: listing });
+    await s.service.refreshTournaments();
+    s.advanceClock(TOURNAMENT_REFRESH_INTERVAL_MS - 1);
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 0, skipped: 1 } });
+    expect(s.platform.listCalls).toEqual([2026]);
+    s.advanceClock(1);
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+    expect(s.platform.listCalls).toEqual([2026, 2026]);
+    expect(s.catalog.claims.every((claim) => claim.intervalMs === TOURNAMENT_REFRESH_INTERVAL_MS && claim.organizationId === PLATFORM_ORG)).toBe(true);
+  });
+
+  it('asks the platform once for two calls at the same moment', async () => {
+    const s = setup({ platformOptions: listing });
+    const outcomes = await Promise.all([s.service.refreshTournaments(), s.service.refreshTournaments()]);
+    expect(s.platform.listCalls).toEqual([2026]);
+    expect(outcomes.map((outcome) => (outcome.ok ? outcome.value.refreshed : -1)).sort()).toEqual([0, 1]);
+  });
+
+  it('leaves the saved rows as they were and answers a typed error when the platform is unavailable, whatever the reason', async () => {
+    for (const failure of [new ProviderUnavailableError(), new SourceUnreachableError(), new Error('boom')]) {
+      const s = setup({ platformOptions: { tournaments: [] } });
+      s.catalog.seed(PLATFORM_ORG, earlier, 1);
+      s.platform.setFailure(failure);
+      expect(await s.service.refreshTournaments()).toEqual(unavailable);
+      expect(s.catalog.rows()).toEqual([{ ...earlier, organizationId: PLATFORM_ORG, refreshedAt: 1 }]);
+    }
+  });
+
+  it('gives the claim back only when the platform did not answer, so the next call retries soon', async () => {
+    const down = setup({ platformOptions: listing });
+    down.platform.setFailure(new SourceUnreachableError());
+    await down.service.refreshTournaments();
+    expect(down.catalog.releases).toEqual([{ organizationId: PLATFORM_ORG, claimedAt: expect.any(String), intervalMs: TOURNAMENT_REFRESH_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS }]);
+    down.platform.setFailure(undefined);
+    down.advanceClock(RETRY_AFTER_FAILURE_MS);
+    expect(await down.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+
+    const changed = setup({ platformOptions: listing });
+    changed.platform.setFailure(new ProviderUnavailableError());
+    await changed.service.refreshTournaments();
+    expect(changed.catalog.releases).toEqual([]);
+    changed.advanceClock(RETRY_AFTER_FAILURE_MS);
+    expect(await changed.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 0, skipped: 1 } });
+  });
+
+  it('saves nothing when the list is not valid: a tournament of another year, a bad key, a missing field or a course', async () => {
+    const invalid = [
+      tournamentEntry('20251010', { year: 2026 }),
+      tournamentEntry('2026-10-10'),
+      tournamentEntry('20261310'),
+      { ...current, city: '' },
+      { ...current, name: undefined },
+      { ...current, course: '25m' },
+      { ...current, sourceUrl: '' },
+    ];
+    for (const entry of invalid) {
+      const s = setup({ platformOptions: { tournaments: [current, entry as never] } });
+      expect(await s.service.refreshTournaments()).toEqual(unavailable);
+      expect(s.catalog.rows()).toEqual([]);
+    }
+  });
+
+  it('saves nothing and has nothing to ask when the platform lists no tournament of the year', async () => {
+    const s = setup({ platformOptions: { tournaments: [earlier] } });
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+    expect(s.catalog.rows()).toEqual([]);
+  });
+
+  it('does nothing when no organization holds a platform', async () => {
+    const s = setup({ withPlatform: false, platformOptions: listing });
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 0, skipped: 0 } });
+    expect(s.catalog.claims).toEqual([]);
+    expect(s.platform.listCalls).toEqual([]);
+  });
+
+  it('gives the claim back and fails when the rows cannot be saved', async () => {
+    const s = setup({ platformOptions: listing });
+    s.catalog.failSave(new Error('db down'));
+    await expect(s.service.refreshTournaments()).rejects.toThrow('db down');
+    expect(s.catalog.releases).toHaveLength(1);
+  });
+
+  it('spends no athlete window and reads no identity number', async () => {
+    const s = setup({ platformOptions: listing });
+    await s.service.refreshTournaments();
+    expect(s.fakeGate.claims).toEqual([]);
+    expect(s.identityNumbers.reads).toEqual([]);
+  });
+});
+
+describe('findInTournament by the key of a tournament of the list', () => {
+  const KEY = '20260314';
+  const found = { found: true, athlete: { name: 'Ana Example', club: 'Synthetic Club' }, results: [validResult] };
+  const byKey = (s: ReturnType<typeof setup>, tournamentKey = KEY, identityNumber: string | null = null) =>
+    s.service.findInTournament({ userId: USER, athleteId: ATHLETE, tournamentKey, identityNumber });
+  const withCatalog = (options: Parameters<typeof setup>[0] = {}) => {
+    const s = setup({ platformOptions: { search: found }, ...options });
+    s.catalog.seed(PLATFORM_ORG, tournamentEntry(KEY));
+    return s;
+  };
+
+  it('looks the tournament up by the year and key of the catalog, with the stored number, and offers the candidate as for an address', async () => {
+    const s = withCatalog();
+    expect(await byKey(s)).toEqual({ ok: true, value: { organizationId: PLATFORM_ORG, candidate: { id: expect.any(String), name: 'Ana Example', club: 'Synthetic Club', resultCount: 1 } } });
+    expect(s.platform.calls).toEqual([{ year: 2026, dateKey: KEY, identityNumber: NUMBER }]);
+    expect(s.fakeGate.claims).toEqual([{ athleteId: ATHLETE, userId: USER, provider: PLATFORM, intervalMs: QUERY_INTERVAL_MS }]);
+  });
+
+  it('keeps the rules of an address: the typed number, the conflict with the stored one, and the missing number', async () => {
+    const typed = withCatalog({ number: null });
+    await byKey(typed, KEY, '7654321');
+    expect(typed.platform.calls).toEqual([{ year: 2026, dateKey: KEY, identityNumber: '7654321' }]);
+    const conflict = withCatalog();
+    expect(await byKey(conflict, KEY, '7654321')).toEqual({ ok: false, error: { code: 'identity_number_conflict' } });
+    const missing = withCatalog({ number: null });
+    expect(await byKey(missing)).toEqual({ ok: false, error: { code: 'identity_number_required' } });
+  });
+
+  it('answers what an unknown address answers, with no claim and no request, for a key that is not in the catalog', async () => {
+    const s = withCatalog();
+    const unknownAddress = await s.service.findInTournament({ userId: USER, athleteId: ATHLETE, url: 'https://other.example.test/tournament/1', identityNumber: null });
+    expect(unknownAddress).toEqual({ ok: false, error: { code: 'no_provider' } });
+    expect(await byKey(s, '20260315')).toEqual(unknownAddress);
+    expect(s.fakeGate.claims).toEqual([]);
+    expect(s.platform.calls).toEqual([]);
+  });
+
+  it('answers the same when the platform of the catalog row is no longer registered', async () => {
+    const s = withCatalog();
+    s.removePlatform();
+    expect(await byKey(s)).toEqual({ ok: false, error: { code: 'no_provider' } });
+    expect(s.platform.calls).toEqual([]);
+  });
+
+  it('answers the same for a key held by two platforms: never a guess', async () => {
+    const s = withCatalog();
+    s.catalog.seed('other-games', tournamentEntry(KEY));
+    expect(await byKey(s)).toEqual({ ok: false, error: { code: 'no_provider' } });
+    expect(s.platform.calls).toEqual([]);
+  });
+
+  it('is rate limited with the platform window, like an address', async () => {
+    const s = withCatalog();
+    await byKey(s);
+    expect(await byKey(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: expect.any(String) } });
+    expect(s.platform.calls).toHaveLength(1);
+  });
+
+  it('is refused for a user who may not import, before the platform is asked', async () => {
+    const s = withCatalog({ authorized: false });
+    expect(await byKey(s)).toEqual({ ok: false, error: { code: 'not_authorized' } });
+    expect(s.platform.calls).toEqual([]);
   });
 });

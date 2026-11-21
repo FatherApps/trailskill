@@ -1,6 +1,6 @@
 import { isDistance, isPool, isStroke } from '../../../src/core/sport/catalogs.ts';
 import { keyHasNumber, normalizeNumber } from './identityNumber.ts';
-import { SourceUnreachableError, type Affiliation, type Candidate, type NormalizedResult, type ResultsProvider, type TournamentSearch } from './port.ts';
+import { SourceUnreachableError, type Affiliation, type Candidate, type NormalizedResult, type ResultsProvider, type TournamentEntry, type TournamentProvider, type TournamentSearch } from './port.ts';
 import type { OrganizationData, ProviderRegistry } from './registry.ts';
 
 // The worker's proposal, pending maintainer review: one source query per athlete and provider every 10 minutes, search and refresh alike.
@@ -10,6 +10,24 @@ export const QUERY_INTERVAL_MS = 10 * 60 * 1000;
 
 // Short enough that a passing blip is retried within a minute, long enough that a source that is down is not hammered by repeated taps.
 export const RETRY_AFTER_FAILURE_MS = 60 * 1000;
+
+// A platform is asked for its list of tournaments at most once per day: the list changes a few times a month.
+export const TOURNAMENT_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The catalog of tournaments of a results platform, implemented by `public.results_import_claim_tournament_refresh`, `_release_tournament_refresh`
+ * and `results_import_save_tournaments`, and a read of `results_import_tournaments`. A refresh claim is per platform: taken once per interval, and
+ * `claimedAt` is the instant the database stored for it, an opaque token for `release`: never parse it.
+ */
+export interface TournamentCatalog {
+  claim(request: { organizationId: string; intervalMs: number }): Promise<{ status: 'allowed'; claimedAt: string } | { status: 'fresh'; retryAt: string }>;
+  /** Gives a claim back, only while nobody claimed since: the next one is allowed `retryAfterMs` after the failed one. */
+  release(request: { organizationId: string; claimedAt: string; intervalMs: number; retryAfterMs: number }): Promise<boolean>;
+  /** Saves by (platform, day), all or none, and never removes a tournament the list no longer has. Answers how many rows it saved. */
+  save(organizationId: string, entries: TournamentEntry[]): Promise<number>;
+  /** The platforms whose catalog has a tournament of this day (`YYYYMMDD`), with its year. */
+  find(dateKey: string): Promise<{ organizationId: string; year: number }[]>;
+}
 
 // `claimedAt` is the instant the database stored for the claim, an opaque token for `QueryGate.release`: never parse it.
 export type Claim = { status: 'allowed'; claimedAt: string } | { status: 'rate_limited'; retryAt: string } | { status: 'not_authorized' };
@@ -201,6 +219,17 @@ function cleanSearch(raw: unknown): TournamentSearch | null {
   return typeof name === 'string' && isTextOrNull(club) && results !== null ? { found: true, athlete: { name, club }, results } : null;
 }
 
+// A tournament of the platform's list, rebuilt with only the declared fields: the key a real day of the year asked, text where text is
+// due, and no pool length (the list never says it). One entry that is not valid makes the whole list unusable, never a partial catalog.
+function cleanTournament(raw: unknown, year: number): TournamentEntry | null {
+  if (!isRecord(raw)) return null;
+  const { dateKey, name, city, discipline, course, sourceUrl } = raw;
+  if (typeof dateKey !== 'string' || !/^\d{8}$/.test(dateKey) || raw.year !== year || Number(dateKey.slice(0, 4)) !== year) return null;
+  if (!isRealDate(`${dateKey.slice(0, 4)}-${dateKey.slice(4, 6)}-${dateKey.slice(6)}`)) return null;
+  if (!isKey(name) || !isKey(city) || !isKey(discipline) || !isKey(sourceUrl) || course !== null) return null;
+  return { dateKey, year, name, city, discipline, course: null, sourceUrl };
+}
+
 // Typed number against the stored one, as the sources compare them. One that does not normalize never matches.
 function sameNumber(typed: string, stored: string): boolean {
   try {
@@ -218,12 +247,29 @@ type Dependencies = {
   /** Every organization with its provider key; the id is only a hint, because the registry walks the parents itself. */
   organizationChain: (organizationId?: string) => Promise<OrganizationData[]>;
   pending: PendingStore;
+  tournaments: TournamentCatalog;
 };
 
 type Who = { userId: string; athleteId: string; organizationId: string };
 
-export function createResultsImport({ registry, gate, identityNumbers, confirmations, organizationChain, pending, now = Date.now }: Dependencies & { now?: () => number }) {
+export function createResultsImport({ registry, gate, identityNumbers, confirmations, organizationChain, pending, tournaments, now = Date.now }: Dependencies & { now?: () => number }) {
   const providerFor = async (organizationId: string) => registry.resolve(await organizationChain(organizationId), organizationId);
+
+  // What a pasted address or the key of a listed tournament picks: the platform, its organization, and how to ask it about one number.
+  type Found = { provider: TournamentProvider; organizationId: string; lookup: (identityNumber: string) => Promise<TournamentSearch> };
+  const resolveUrl = (organizations: OrganizationData[], url: string): Found | null => {
+    const resolved = registry.resolveUrl(organizations, url);
+    return resolved && { ...resolved, lookup: (number) => resolved.provider.lookup(url, number) };
+  };
+  // The key is a `date_key` of the catalog. Held by exactly one platform that is registered it picks that one; held by none or by more than
+  // one it picks nothing (the same answer as an address no platform accepts), never a guess.
+  const resolveKey = async (organizations: OrganizationData[], dateKey: string): Promise<Found | null> => {
+    const held = await tournaments.find(dateKey);
+    if (held.length !== 1) return null;
+    const [{ organizationId, year }] = held;
+    const provider = registry.platformFor(organizations, organizationId);
+    return provider && { provider, organizationId, lookup: (number) => provider.lookup(year, dateKey, number) };
+  };
 
   // Returns the claim taken or the reason it was refused. The window is the athlete's with this provider only.
   async function claim({ userId, athleteId }: Who, provider: string, searchTtlMs?: number): Promise<{ claimedAt: string } | { denied: ImportError }> {
@@ -264,6 +310,49 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
   }
 
   return {
+    // Asks every registered platform for the tournaments of the current year, at most once per day each (the claim is per platform, never per
+    // person: the refresh needs no athlete). What a platform lists is saved by day; a platform that fails, or whose list is not valid, leaves
+    // the saved list as it was. A claim is given back only when the platform did not answer (as in `query`), so a platform that is down is
+    // retried within a minute; a list the platform answered but we cannot use keeps the day. Unavailable only when nothing was refreshed.
+    async refreshTournaments(): Promise<Outcome<{ refreshed: number; skipped: number }>> {
+      const year = new Date(now()).getUTCFullYear();
+      let [refreshed, skipped, failed] = [0, 0, 0];
+      for (const { provider, organizationId } of registry.platformOrganizations(await organizationChain())) {
+        const claimed = await tournaments.claim({ organizationId, intervalMs: TOURNAMENT_REFRESH_INTERVAL_MS });
+        if (claimed.status === 'fresh') {
+          skipped += 1;
+          continue;
+        }
+        const giveBack = async () => {
+          try {
+            await tournaments.release({ organizationId, claimedAt: claimed.claimedAt, intervalMs: TOURNAMENT_REFRESH_INTERVAL_MS, retryAfterMs: RETRY_AFTER_FAILURE_MS });
+          } catch {
+            // The claim simply stays spent.
+          }
+        };
+        let listed: TournamentEntry[] | null;
+        try {
+          listed = cleanList(await provider.listTournaments(year), (raw) => cleanTournament(raw, year));
+        } catch (error) {
+          if (error instanceof SourceUnreachableError) await giveBack();
+          failed += 1;
+          continue;
+        }
+        if (listed === null) {
+          failed += 1;
+          continue;
+        }
+        try {
+          await tournaments.save(organizationId, listed);
+        } catch (error) {
+          await giveBack();
+          throw error;
+        }
+        refreshed += 1;
+      }
+      return refreshed === 0 && failed > 0 ? UNAVAILABLE : { ok: true, value: { refreshed, skipped } };
+    },
+
     async findCandidates(who: Who & { firstName: string; lastName: string }): Promise<Outcome<PublicCandidate[]>> {
       const provider: ResultsProvider | null = await providerFor(who.organizationId);
       if (!provider) return fail({ code: 'no_provider' });
@@ -316,12 +405,12 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
     // its organization. The platform has its own window (`claim` is per provider), so asking it never spends the federation's.
     // The number is the stored one, else the typed one; a typed one that differs from the stored one is a conflict, found before
     // the platform is asked. Without either, the claim is already spent, as in `refreshResults`.
-    async findInTournament({ userId, athleteId, url, identityNumber }: { userId: string; athleteId: string; url: string; identityNumber: string | null }): Promise<
+    async findInTournament({ userId, athleteId, identityNumber, ...target }: { userId: string; athleteId: string; identityNumber: string | null } & ({ url: string; tournamentKey?: undefined } | { tournamentKey: string; url?: undefined })): Promise<
       Outcome<{ organizationId: string; candidate: { id: string; name: string; club: string | null; resultCount: number } | null }>
     > {
-      const resolved = registry.resolveUrl(await organizationChain(), url);
+      const resolved = target.tournamentKey === undefined ? resolveUrl(await organizationChain(), target.url) : await resolveKey(await organizationChain(), target.tournamentKey);
       if (!resolved) return fail({ code: 'no_provider' });
-      const { provider, organizationId } = resolved;
+      const { provider, organizationId, lookup } = resolved;
       const who = { userId, athleteId, organizationId };
       const claimed = await claim(who, provider.key);
       if ('denied' in claimed) return fail(claimed.denied);
@@ -329,7 +418,7 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
       if (identityNumber !== null && stored !== null && !sameNumber(identityNumber, stored)) return fail({ code: 'identity_number_conflict' });
       const number = stored ?? identityNumber;
       if (number === null) return fail({ code: 'identity_number_required' });
-      const outcome = await query(who, provider.key, claimed.claimedAt, () => provider.lookup(url, number), cleanSearch);
+      const outcome = await query(who, provider.key, claimed.claimedAt, () => lookup(number), cleanSearch);
       if (!outcome.ok) return outcome;
       const search = outcome.value;
       if (!search.found) return { ok: true, value: { organizationId, candidate: null } };
