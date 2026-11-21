@@ -1,0 +1,51 @@
+name: Backup freshness
+
+# Every day, 5.5 h after the 08:30 UTC backup, checks that the newest PROD backup in R2 is recent, not empty and intact
+# (restore-check.sh --freshness: age of the copy, row counts, encrypted checksum). It only READS R2, with a read-only token
+# kept in GitHub secrets; it needs no private key. When the check fails it opens an issue labeled `backup-failed`
+# (or comments on the one already open) and the run turns red. When it passes it touches nothing (#1337).
+# The logic lives in deploy/scripts/backup-freshness.sh (tests: sh deploy/scripts/backup-freshness.test.sh).
+# Secrets (values set by the maintainer, see docs/deploy/prod-backup-restore.md): BACKUP_R2_ENDPOINT, BACKUP_R2_BUCKET,
+# BACKUP_R2_READONLY_ACCESS_KEY_ID, BACKUP_R2_READONLY_SECRET_ACCESS_KEY. Without them the run fails and opens the issue.
+on:
+  schedule:
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: backup-freshness
+  cancel-in-progress: false
+
+jobs:
+  freshness:
+    name: Newest backup is fresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install rclone
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends rclone >/dev/null
+      - name: Check the newest backup
+        shell: bash
+        env:
+          # Through env, never inline in a script, so a value is masked in the log and cannot inject code.
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_NO_CHECK_BUCKET: 'true'
+          RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.BACKUP_R2_ENDPOINT }}
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_READONLY_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_READONLY_SECRET_ACCESS_KEY }}
+          BACKUP_RCLONE_REMOTE: r2:${{ secrets.BACKUP_R2_BUCKET }}
+          BACKUP_FETCH_CMD: sh deploy/scripts/backup-r2.sh "$0" "$@"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: sh deploy/scripts/backup-freshness.sh
