@@ -58,6 +58,17 @@ describe('the detail of a saved time', () => {
     expect(await screen.findByText('Medir un tiempo')).toBeTruthy();
   });
 
+  it('counts each marked lap as one length and the last one as the rest, after the distance was corrected', async () => {
+    // Set up as 50 m, marked at 25 m, stopped at 100 m, then corrected to 100 m in training.
+    await open([{ ...withLaps, sessionType: 'training', competition: null, splits: [16_000], millis: 70_000 }]);
+    await fireEvent.press(await screen.findByText('100 m libre'));
+
+    expect(screen.getByText('25 m')).toBeTruthy();
+    expect(screen.getByText('100 m')).toBeTruthy();
+    expect(screen.queryByText('50 m')).toBeNull();
+    expect(screen.getByText('0:54,00')).toBeTruthy();
+  });
+
   it('shows a time without laps with no laps section, and reaches the official time from there', async () => {
     await open([{ ...withLaps, distance: '25m', splits: [], millis: 16_900 }]);
     await fireEvent.press(await screen.findByText('25 m libre'));

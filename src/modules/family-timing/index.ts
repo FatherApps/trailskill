@@ -3,6 +3,7 @@ import './i18n';
 export {
   createInMemoryFamilyMeasurementRepository,
   NotCompetitionError,
+  NotTrainingError,
   UnknownMeasurementError,
   type FamilyMeasurement,
   type FamilyMeasurementEdit,

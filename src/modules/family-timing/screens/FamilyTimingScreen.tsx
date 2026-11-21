@@ -114,6 +114,8 @@ export type FamilyDeletedCard = FamilyCard & { removedOn: string };
 export type FamilyEditView = {
   card: FamilyCard;
   stroke: { options: SegmentedOption<string>[]; value: string };
+  // Training times only: a competition keeps the event it was swum and matched with.
+  distance?: { options: SegmentedOption<string>[]; value: string } | null;
   athlete: { options: ChipRowOption<string>[]; value: string };
   confirmingDelete: boolean;
   saveError: boolean;
@@ -229,7 +231,7 @@ export type FamilyTimingScreenProps = {
   onSaveOfficial: () => void;
   onClearOfficial: () => void;
   onOpenEdit: (id: string) => void;
-  onEditChange: (field: 'stroke' | 'athleteId', value: string) => void;
+  onEditChange: (field: 'stroke' | 'athleteId' | 'distance', value: string) => void;
   onSaveEdit: () => void;
   onAskDelete: () => void;
   onConfirmDelete: () => void;
@@ -999,6 +1001,14 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             </Text>
             <Segmented accessibilityLabel={t('family_timing.setup.stroke')} {...edit.stroke} onChange={(v) => props.onEditChange('stroke', v)} />
           </View>
+          {edit.distance && (
+            <View style={{ gap: space[3] }}>
+              <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+                {t('family_timing.setup.distance')}
+              </Text>
+              <Segmented accessibilityLabel={t('family_timing.setup.distance')} {...edit.distance} onChange={(v) => props.onEditChange('distance', v)} />
+            </View>
+          )}
           {edit.athlete.options.length > 1 && (
             <Field label={t('family_timing.athlete')}>
               <ChipRow accessibilityLabel={t('family_timing.athlete')} {...edit.athlete} onChange={(v) => props.onEditChange('athleteId', v)} />

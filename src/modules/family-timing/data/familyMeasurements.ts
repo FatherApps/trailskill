@@ -36,7 +36,8 @@ export type FamilyMeasurement = {
   deletedAt?: string | null;
 };
 
-export type FamilyMeasurementEdit = Partial<Pick<FamilyMeasurement, 'stroke' | 'athleteId'>>;
+// The distance can be corrected on a training time only (a competition keeps the event it was matched with).
+export type FamilyMeasurementEdit = Partial<Pick<FamilyMeasurement, 'stroke' | 'athleteId' | 'distance'>>;
 
 export interface FamilyMeasurementRepository {
   add(measurement: FamilyMeasurement): Promise<void>;
@@ -48,7 +49,7 @@ export interface FamilyMeasurementRepository {
   setOfficial(id: string, officialMillis: Millis | null, at: string): Promise<void>;
   /** Remembers (or forgets, null) which imported official result goes with a competition measurement. Training measurements refuse it. */
   chooseOfficial(id: string, officialResultKey: string | null): Promise<void>;
-  /** Corrects the stroke or the swimmer (one the user manages) of a measurement; the captured time never changes. */
+  /** Corrects the stroke, the swimmer (one the user manages) or, on a training time, the distance; the captured time never changes. Competition times refuse a distance. */
   edit(id: string, changes: FamilyMeasurementEdit): Promise<void>;
   /** Deletes a measurement: it leaves the list and can be restored for 30 days. */
   remove(id: string, at: string): Promise<void>;
@@ -69,6 +70,10 @@ export interface FamilyMeasurementRepository {
 
 export class NotCompetitionError extends Error {
   override name = 'NotCompetitionError';
+}
+
+export class NotTrainingError extends Error {
+  override name = 'NotTrainingError';
 }
 
 export class UnknownMeasurementError extends Error {
@@ -109,6 +114,7 @@ export function createInMemoryFamilyMeasurementRepository(
     async edit(id, changes) {
       const row = rows.get(id);
       if (!row) throw new UnknownMeasurementError(id);
+      if (changes.distance !== undefined && row.sessionType !== 'training') throw new NotTrainingError(id);
       rows.set(id, { ...row, ...changes });
     },
     async remove(id, at) {
