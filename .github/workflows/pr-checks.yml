@@ -36,14 +36,31 @@ jobs:
         with:
           fetch-depth: 0
       - name: Check the delivery box against the diff
-        # The description and the SHAs go through env, never inline in the script, to avoid injection.
+        # The description and the PR number go through env, never inline in the script, to avoid injection.
+        # The base and head are read from the API at run time: an event can arrive after the PR was merged
+        # (its head commit is then gone from the branches) or after the branches moved.
         env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref || '' }}
           PR_BODY: ${{ github.event.pull_request.body }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: sh .github/scripts/check-ota.sh
+        run: |
+          set -eu
+          # A failed API call must fail the step (set -e), never read as "not open": assign first, then split.
+          pr=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '[.state, .base.ref, .base.sha, .head.sha] | join(" ")')
+          read -r state BASE_REF BASE_SHA HEAD_SHA <<EOF
+          $pr
+          EOF
+          if [ -z "$HEAD_SHA" ]; then echo "::error::could not read PR #$PR_NUMBER" >&2; exit 1; fi
+          if [ "$state" != open ]; then
+            echo "PR #$PR_NUMBER is $state, not open: nothing to check."
+            exit 0
+          fi
+          git fetch --no-tags origin "+refs/pull/$PR_NUMBER/head" "$BASE_REF"
+          export BASE_SHA HEAD_SHA
+          sh .github/scripts/check-ota.sh
 
   secret-scan:
     name: Secret scan (gitleaks)

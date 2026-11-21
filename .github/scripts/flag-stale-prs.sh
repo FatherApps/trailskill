@@ -3,7 +3,8 @@
 # with the conflicting files. Bot-managed branches (release-please-- branches, bot authors such as Dependabot) are skipped: the bot regenerates them. Used by .github/workflows/update-pr-branches.yml; tests: bash .github/scripts/flag-stale-prs.test.sh
 # Needs GH_TOKEN, REPO (owner/name) and a checkout of main with full history. DRY_RUN=true only prints what it would do.
 # A failure is never read as "up to date": the pull request is skipped with an ::error:: line, the rest are still processed,
-# and the script exits 1 so the job goes red.
+# and the script exits 1 so the job goes red. The one exception is a mergeable_state that stays unknown after the retries:
+# that is a ::warning:: and a skip, and the exit code stays 0.
 set -uo pipefail
 LABEL=needs-main-merge
 MARKER='<!-- needs-main-merge -->'
@@ -36,7 +37,8 @@ while read -r n skip; do
     sleep "${RETRY_SLEEP:-5}"
   done
   if [ "$state" = failed ]; then fail "$n" "could not read the pull request"; continue; fi
-  if [ "$state" = unknown ]; then fail "$n" "mergeable_state still unknown after 5 tries"; continue; fi
+  # Not a failure: GitHub did not answer in time. Skip this pull request; the next push to main checks it again.
+  if [ "$state" = unknown ]; then echo "::warning::#$n: mergeable_state still unknown after 5 tries, skipped"; continue; fi
 
   # mergeable_state is only "behind" when a rule requires up-to-date branches, so compare as well.
   if ! behind_by=$(gh api "repos/$REPO/compare/main...$sha" --jq '.behind_by'); then

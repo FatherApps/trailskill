@@ -7,7 +7,8 @@ name: Flag stale pull requests
 # pr-checks, so a branch updated here would wait forever for its required checks. The worker or the person merges main
 # and pushes normally, which runs the CI. It checks out main only and never runs code from a pull request.
 # The logic lives in .github/scripts/flag-stale-prs.sh (tests: bash .github/scripts/flag-stale-prs.test.sh); any failure prints ::error::,
-# skips that pull request and turns the job red, so it is never read as "up to date".
+# skips that pull request and turns the job red, so it is never read as "up to date". A mergeable_state that GitHub still
+# reports as unknown after the retries is only a ::warning:: and a skip.
 # Manual run: Actions > Flag stale pull requests > Run workflow, with dry_run left on, only prints what it would do.
 on:
   push:
