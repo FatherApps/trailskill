@@ -10,20 +10,23 @@ import {
 } from '../../../../modules/accounts';
 import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../../../modules/athletes';
 import {
+  createPowerSyncTournamentCatalogRepository,
   createSupabaseImportSourcesRepository,
   createSupabaseOfficialResultsService,
   createSupabaseOfficialSearchRepository,
+  refreshTournaments,
   TournamentImportContainer,
 } from '../../../../modules/results-import';
 
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const sources = createSupabaseImportSourcesRepository();
+const catalog = createPowerSyncTournamentCatalogRepository();
 const search = createSupabaseOfficialSearchRepository();
 const results = createSupabaseOfficialResultsService();
 const identityDocuments = createSupabaseIdentityDocumentRepository();
 
-// "Is this person?" for one tournament: the guardian or adult athlete pastes its address and confirms before anything is imported.
+// "Is this person?" for one tournament: the guardian or adult athlete picks it from the list (or pastes its address) and confirms before anything is imported.
 export default function ImportTournament() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -43,6 +46,8 @@ export default function ImportTournament() {
       authorized={authorized}
       online={summary.connection === 'connected'}
       sources={sources}
+      catalog={catalog}
+      refreshCatalog={refreshTournaments}
       search={search}
       results={results}
       identityDocuments={identityDocuments}

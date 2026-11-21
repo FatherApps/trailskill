@@ -16,6 +16,8 @@ export type SearchFailure =
   | { code: 'rate_limited'; retryAt: string }
   | { code: 'no_provider' }
   | { code: 'unavailable' }
+  // The tournament picked from the list has no published results file yet. The device understands it before the server answers it.
+  | { code: 'no_file' }
   | { code: 'unknown_id' }
   | { code: 'identity_number_conflict' }
   // A tournament has no federation to resolve the person: without a stored number and none typed, nothing is asked.
@@ -72,7 +74,7 @@ export type FunctionsClient = {
   functions: { invoke(name: string, options: { body: Record<string, unknown> }): Promise<{ data: unknown; error: FunctionsError | null }> };
 };
 
-const KNOWN_FAILURES = ['not_authorized', 'rate_limited', 'no_provider', 'unavailable', 'unknown_id', 'identity_number_conflict', 'identity_number_required'] as const;
+const KNOWN_FAILURES = ['not_authorized', 'rate_limited', 'no_provider', 'unavailable', 'no_file', 'unknown_id', 'identity_number_conflict', 'identity_number_required'] as const;
 
 // The body of a refusal is the server's `{ ok: false, error: { code, retryAt? } }`; anything else is unexpected.
 function failureFrom(body: unknown): SearchFailure {

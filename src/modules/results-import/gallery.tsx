@@ -3,9 +3,56 @@ import { useState } from 'react';
 import type { GalleryEntry } from '../../core/ui';
 import { changeItemsFailedFixture, changeItemsFixture, resultItemsFixture, resultItemsLongTextFixture } from './__fixtures__/officialResults';
 import { OfficialUpdateButton } from './components/OfficialUpdateButton';
+import { catalogYears, countByDateKey } from './data/tournamentCalendar';
+import { groupTournaments, type TournamentCatalogEntry } from './data/tournamentCatalog';
+import { ConfirmPersonScreen, type ConfirmPersonView } from './screens/ConfirmPersonScreen';
 import { OfficialResultsScreen, type OfficialResultsScreenProps, type OfficialResultsView } from './screens/OfficialResultsScreen';
 
 const noop = () => {};
+
+// Synthetic tournaments only: cities and names that do not exist.
+const tournament = (id: string, dateKey: string, name: string, city: string): TournamentCatalogEntry => ({
+  id,
+  organizationId: 'org-gallery',
+  year: Number(dateKey.slice(0, 4)),
+  dateKey,
+  name,
+  city,
+  discipline: 'swimming',
+  course: null,
+  sourceUrl: null,
+  refreshedAt: '2026-11-21T00:00:00Z',
+});
+const catalogFixture = [
+  tournament('g1', '20260510', 'Torneo Beta', 'Ciudad Beta'),
+  tournament('g2', '20260510', 'Copa Alfa', 'Ciudad Alfa'),
+  tournament('g3', '20251018', 'Torneo Alfa Nocturno', 'Ciudad Alfa'),
+  tournament('g4', '20251018', 'Torneo Zeta Abierto', 'Ciudad Zeta'),
+];
+
+const pickView = (filter: { text?: string; year?: number | null; dateKey?: string | null } = {}, calendarOpen = false): ConfirmPersonView => ({
+  kind: 'tournament_pick',
+  athleteName: 'Ana',
+  online: true,
+  text: filter.text ?? '',
+  onChangeText: noop,
+  years: catalogYears(2026),
+  year: filter.year ?? null,
+  onChangeYear: noop,
+  calendarOpen,
+  onToggleCalendar: noop,
+  month: { year: 2026, month: 5 },
+  counts: countByDateKey(catalogFixture),
+  dateKey: filter.dateKey ?? null,
+  onSelectDay: noop,
+  onClearDay: noop,
+  onPreviousMonth: noop,
+  onNextMonth: noop,
+  groups: groupTournaments(catalogFixture, filter),
+  onPick: noop,
+  onPasteUrl: noop,
+});
+const screenOf = (view: ConfirmPersonView) => <ConfirmPersonScreen view={view} onBack={noop} />;
 
 // Holds the selection, so tapping a row changes it in the gallery.
 function ListPreview({ items, notice, changes = [] }: { items: typeof resultItemsFixture; notice?: OfficialResultsScreenProps['notice']; changes?: typeof changeItemsFixture }) {
@@ -51,6 +98,19 @@ export const galleryEntries: GalleryEntry[] = [
       'import-failed': () => <ListPreview items={resultItemsFixture} notice="failed" />,
       changes: () => panel({ kind: 'idle' }, { changes: changeItemsFixture }),
       'change-failed': () => panel({ kind: 'idle' }, { changes: changeItemsFailedFixture }),
+    },
+  },
+  {
+    id: 'tournamentPicker',
+    title: 'TournamentPicker',
+    states: {
+      list: () => screenOf(pickView()),
+      filtered: () => screenOf(pickView({ text: 'alfa', year: 2025 })),
+      empty: () => screenOf(pickView({ year: 2024 })),
+      // Pending design: the design system has no calendar; it is built from tokens only.
+      calendar: () => screenOf(pickView({ dateKey: '20260510', year: 2026 }, true)),
+      'calendar-empty-day': () => screenOf(pickView({ dateKey: '20260511', year: 2026 }, true)),
+      'no-file': () => screenOf({ kind: 'tournament_no_file', onChange: noop }),
     },
   },
 ];

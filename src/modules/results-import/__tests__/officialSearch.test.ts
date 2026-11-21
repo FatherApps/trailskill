@@ -153,7 +153,7 @@ describe('tournament calls', () => {
     expect(await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', url })).toEqual({ ok: true, value: { organizationId: 'org-platform', candidate: null } });
   });
 
-  it.each([['identity_number_required'], ['no_provider'], ['identity_number_conflict']] as const)('keeps the typed error %s', async (code) => {
+  it.each([['identity_number_required'], ['no_provider'], ['identity_number_conflict'], ['no_file']] as const)('keeps the typed error %s', async (code) => {
     const { client } = clientReplying(refusal({ ok: false, error: { code } }));
     expect(await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', url })).toEqual({ ok: false, error: { code } });
   });
