@@ -19,7 +19,7 @@ import { createSecureStorePreferencesRepository, PreferencesProvider, usePrefere
 import { SessionProvider, useSession } from '../core/session';
 import { db } from '../core/sync';
 import { ThemeProvider, useTheme } from '../core/theme';
-import { createSecureStoreRegistrationDraftRepository, discardStaleDraft } from '../modules/accounts';
+import { createSecureStoreRegistrationDraftRepository, createSecureStoreShareCodeCache, discardStaleDraft, useShareCodeCacheGuard } from '../modules/accounts';
 import { useAthletePhotoCacheGuard, useAthletePhotoUploads } from '../modules/athletes';
 import { VersionGate } from '../modules/settings';
 
@@ -27,6 +27,7 @@ SplashScreen.preventAutoHideAsync();
 
 const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 const preferences = createSecureStorePreferencesRepository();
+const shareCodeCache = createSecureStoreShareCodeCache();
 
 // The palette the person chose in Ajustes; "Sistema" follows the phone.
 function PreferredTheme({ children }: { children: ReactNode }) {
@@ -40,6 +41,8 @@ export function SessionGate() {
   const { session } = useSession();
   // Outside the route guards below: the guarded screens are gone when the session ends, this stays.
   useAthletePhotoCacheGuard();
+  // The share codes saved on the phone go with the person who saw them.
+  useShareCodeCacheGuard(shareCodeCache);
   // The photos chosen offline go up when the connection returns, whichever screen is open; they leave the phone with the session.
   useAthletePhotoUploads();
   const { name, colors } = useTheme();

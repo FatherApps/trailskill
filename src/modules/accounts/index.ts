@@ -150,3 +150,4 @@ export {
 export { AthleteShareCodeContainer, type AthleteShareCodeContainerProps } from './screens/AthleteShareCodeContainer';
 export { AthleteShareCodeChipContainer, type AthleteShareCodeChipContainerProps } from './screens/AthleteShareCodeChipContainer';
 export { createInMemoryShareCodeCache, createSecureStoreShareCodeCache, type ShareCodeCache } from './data/athleteShareCodeCache';
+export { useShareCodeCacheGuard } from './data/useShareCodeCacheGuard';
