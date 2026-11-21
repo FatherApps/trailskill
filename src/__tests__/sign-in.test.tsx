@@ -1,6 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import SignIn from '../app/(auth)/sign-in';
+import * as SplashScreen from 'expo-splash-screen';
+
+import { __resetSplashGateForTests } from '../core/startup/splashGate';
+
+jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn() }));
+const hideSplash = SplashScreen.hideAsync as jest.Mock;
+beforeEach(() => {
+  hideSplash.mockClear();
+  __resetSplashGateForTests();
+});
 
 // Avoids loading the native PowerSync database.
 jest.mock('../core/sync', () => ({}));
@@ -32,6 +42,12 @@ beforeEach(() => {
 });
 
 describe('sign-in route', () => {
+  it('hides the splash as soon as the sign-in screen can paint', async () => {
+    await render(<SignIn />);
+
+    expect(hideSplash).toHaveBeenCalledTimes(1);
+  });
+
   it('renders the landing and sends "Crear cuenta" to the registration', async () => {
     await render(<SignIn />);
 

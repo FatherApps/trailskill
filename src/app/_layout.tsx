@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { i18n } from '../core/i18n';
 import { createSecureStorePreferencesRepository, PreferencesProvider, usePreferences } from '../core/preferences';
 import { SessionProvider, useSession } from '../core/session';
-import { markStartup } from '../core/startup';
+import { markStartup, useSplashSafetyNet } from '../core/startup';
 import { db } from '../core/sync';
 import { ThemeProvider, useTheme } from '../core/theme';
 import {
@@ -103,9 +103,8 @@ export default function RootLayout() {
   });
   const ready = loaded || error != null;
 
-  useEffect(() => {
-    if (ready) SplashScreen.hideAsync();
-  }, [ready]);
+  // The splash stays up until the first screen can paint from local data; a font error or the cap hides it anyway.
+  useSplashSafetyNet(error != null);
 
   if (!ready) return null;
 

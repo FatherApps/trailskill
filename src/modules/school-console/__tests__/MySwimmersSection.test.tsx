@@ -1,6 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
-
 import { createInMemoryAuthorizationStatusRepository } from '../../accounts';
 import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository } from '../../athletes';
 import { t } from '../../../core/i18n';
@@ -8,6 +7,15 @@ import { ThemeProvider } from '../../../core/theme';
 import { createConsoleAthletesRepository, type ConsoleAthletesRepository } from '../data/consoleAthletes';
 import { createInMemorySchoolStructureRepository } from '../data/schoolStructure';
 import { MySwimmersSection, type MySwimmersSectionProps } from '../screens/MySwimmersSection';
+import * as SplashScreen from 'expo-splash-screen';
+import { __resetSplashGateForTests } from '../../../core/startup/splashGate';
+
+jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn() }));
+const hideSplash = SplashScreen.hideAsync as jest.Mock;
+beforeEach(() => {
+  hideSplash.mockClear();
+  __resetSplashGateForTests();
+});
 
 // Importing the module indexes loads the PowerSync repositories, which need the sync layer mocked.
 jest.mock('../../../core/sync', () => ({ db: {}, writeRecord: jest.fn() }));
@@ -91,6 +99,17 @@ const show = (extra: Partial<MySwimmersSectionProps> = {}) => render(element(ext
 const rowNames = () => screen.queryAllByRole('button', { name: /^(Lucía Ramírez|Mateo Castro|Sara Peña|Otto Elsewhere)/ }).map((b) => b.props.accessibilityLabel.split(',')[0]);
 
 describe('MySwimmersSection', () => {
+  it('keeps the splash while the local read is pending and hides it once the list is read', async () => {
+    let answer!: (rows: unknown[]) => void;
+    const slow = { ...setup(), listAthletes: () => new Promise((resolve) => (answer = resolve)) } as unknown as ConsoleAthletesRepository;
+    await show({ repository: slow });
+    expect(hideSplash).not.toHaveBeenCalled();
+
+    await act(async () => answer([]));
+
+    expect(hideSplash).toHaveBeenCalledTimes(1);
+  });
+
   it('lists the athletes assigned to the coach by group and directly, and no other athlete of the school', async () => {
     await show();
 

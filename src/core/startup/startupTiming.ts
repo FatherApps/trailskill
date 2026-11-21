@@ -4,6 +4,11 @@ import { useEffect } from 'react';
 const origin = Date.now();
 const marked = new Set<string>();
 
+/** Milliseconds since the JavaScript started. */
+export function msSinceStart(): number {
+  return Date.now() - origin;
+}
+
 /** The moments of a start that are logged, fixed here so a log line never carries anything but its name and a time. */
 export type StartupMark = 'js_loaded' | 'layout_mounted' | 'deletion_gate_done' | 'profile_gate_done' | 'shell_mounted' | 'home_painted' | 'athletes_painted' | 'my_swimmers_painted';
 

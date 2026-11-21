@@ -3,6 +3,7 @@ import { Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
+import { useFirstScreenReady } from '../../core/startup';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, StateView, SyncStatus } from '../../core/ui';
@@ -56,6 +57,8 @@ export default function Landing() {
     own,
     platformAdmin,
   });
+  // The home screen has no read of its own; every other destination marks the splash itself once it can paint.
+  useFirstScreenReady(landing.kind === 'home');
   switch (landing.kind) {
     case 'loading':
       return (

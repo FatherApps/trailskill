@@ -1,9 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
-
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { createInMemoryAuthorizationStatusRepository, createInMemoryManagedAthleteRepository } from '../../accounts';
 import { createInMemorySchoolNameRepository, createInMemorySchoolStructureRepository } from '../../school-console';
 import { ThemeProvider } from '../../../core/theme';
 import { createInMemoryAthleteSchoolRepository, createInMemorySchoolAthleteRepository, MyAthletesContainer } from '..';
+import * as SplashScreen from 'expo-splash-screen';
+import { __resetSplashGateForTests } from '../../../core/startup/splashGate';
+
+jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn() }));
+const hideSplash = SplashScreen.hideAsync as jest.Mock;
+beforeEach(() => {
+  hideSplash.mockClear();
+  __resetSplashGateForTests();
+});
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
@@ -62,6 +70,17 @@ const show = (userId: string | undefined, props: Partial<Parameters<typeof MyAth
   );
 
 describe('MyAthletesContainer', () => {
+  it('keeps the splash while the local read is pending and hides it once it answers', async () => {
+    let answer!: (ids: string[]) => void;
+    const slow = { ...managed, listManagedAthleteIds: () => new Promise<string[]>((resolve) => (answer = resolve)) };
+    await show('guardian-1', { managed: slow });
+    expect(hideSplash).not.toHaveBeenCalled();
+
+    await act(async () => answer(['a1']));
+
+    expect(hideSplash).toHaveBeenCalledTimes(1);
+  });
+
   it('shows a card for each managed athlete and none for another guardian’s', async () => {
     await show('guardian-1');
 

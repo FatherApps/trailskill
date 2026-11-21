@@ -17,6 +17,16 @@ import {
 } from '..';
 import type { HistoryMeasurement, HistoryRepository } from '..';
 import { forgetProfileLines } from '../profileLine';
+import * as SplashScreen from 'expo-splash-screen';
+
+import { __resetSplashGateForTests } from '../../../core/startup/splashGate';
+
+jest.mock('expo-splash-screen', () => ({ hideAsync: jest.fn() }));
+const hideSplash = SplashScreen.hideAsync as jest.Mock;
+beforeEach(() => {
+  hideSplash.mockClear();
+  __resetSplashGateForTests();
+});
 
 jest.mock('../../../core/sync', () => ({
   db: {},
@@ -101,6 +111,13 @@ const show = (props: Partial<Parameters<typeof AthleteProfileContainer>[0]> = {}
   );
 
 describe('athlete profile container', () => {
+  it('hides the splash once the local read answers', async () => {
+    await show();
+
+    expect(await screen.findByRole('header', { name: 'Ana Marin' })).toBeOnTheScreen();
+    expect(hideSplash).toHaveBeenCalledTimes(1);
+  });
+
   it('offers the official import only when the route passes the prompt', async () => {
     const onStart = jest.fn();
     await show({ importPrompt: { sourceName: 'FEDNAT', athleteName: 'Ana', imported: false, onDismiss: noop, onRefresh: noop, onStart } });

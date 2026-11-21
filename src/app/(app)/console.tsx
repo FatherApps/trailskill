@@ -3,6 +3,7 @@ import { useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../core/i18n';
 import { useSession } from '../../core/session';
+import { useFirstScreenReady } from '../../core/startup';
 import { useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { Button, StateView } from '../../core/ui';
@@ -67,6 +68,9 @@ export default function ConsoleRoute() {
   // Memberships arrive with a sync, so the lookup runs again when one completes.
   const { lastSyncedAt, connection } = useGlobalSyncSummary();
   const access = useAdminSchool(staffSchools, session?.user.id, lastSyncedAt?.getTime());
+
+  // Past the role lookup the console paints from local data; each section has its own states.
+  useFirstScreenReady(access.status !== 'loading');
 
   if (access.status === 'loading') {
     return (
