@@ -116,7 +116,7 @@ describe('personalBest', () => {
 // with the measured times; a tie goes to the first achievement by date, with no preference for the source.
 describe('personalBest with imported official results', () => {
   const official = (id: string, hundredths: number | null, swumOn: string) =>
-    importedAchievement({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: hundredths as Hundredths | null, swumOn }, 'Federación Demo');
+    importedAchievement({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: hundredths as Hundredths | null, swumOn, competition: null }, 'Federación Demo');
 
   it('counts an imported result as a race on its competition date, with its source', () => {
     expect(personalBest([official('i1', 3000, '2026-03-01')])).toEqual({

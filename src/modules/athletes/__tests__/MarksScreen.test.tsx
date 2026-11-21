@@ -171,6 +171,27 @@ describe('MarksScreen', () => {
     expect(within(screen.getByTestId('marks-card-FR-100m')).getByLabelText('Federación Demo · 2025')).toBeOnTheScreen();
   });
 
+  it('shows the competition name of an official card, wrapped like any text (no line limit), and says it in its label (issue 1358)', async () => {
+    const view: MarksView = {
+      ...data,
+      sections: data.sections.map((section) => ({ ...section, cards: section.cards.map((card) => (card.id === 'FR-100m' ? { ...card, competition: 'Torneo de prueba' } : card)) })),
+    };
+    await show(view);
+
+    const card = screen.getByTestId('marks-card-FR-100m');
+    expect(within(card).getByText('Torneo de prueba').props.numberOfLines).toBeUndefined();
+    expect(card.props.accessibilityLabel).toMatch(/Torneo de prueba/);
+    expect(within(screen.getByTestId('marks-card-FR-50m')).queryByText('Torneo de prueba')).toBeNull();
+  });
+
+  it('shows the competition name of the featured mark, and says it in its label (issue 1358)', async () => {
+    await show({ ...data, featured: { ...data.featured!, origin: 'official', sourceName: 'Federación Demo', competition: 'Torneo de prueba' } });
+
+    const featured = screen.getByTestId('marks-featured');
+    expect(within(featured).getByText('Torneo de prueba')).toBeOnTheScreen();
+    expect(featured.props.accessibilityLabel).toMatch(/Torneo de prueba/);
+  });
+
   it('says "Aún sin tiempo" for an event with no time, never zero', async () => {
     await show(data);
 

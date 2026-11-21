@@ -14,6 +14,8 @@ export type Achievement = {
   origin: HistoryOrigin;
   // Name of the organization behind an imported result, from data; never written in code.
   sourceName?: string;
+  // Name of the competition of an imported result, from data; absent when the source does not bring one.
+  competition?: string;
 };
 
 export type EventAchievement = Achievement & { stroke: StrokeCode; distance: DistanceCode; pool: PoolCode };
@@ -29,6 +31,8 @@ export type ImportedHistoryResult = {
   hundredths: Hundredths | null;
   // yyyy-mm-dd
   swumOn: string;
+  // The tournament the source reports; null when it does not bring a name.
+  competition: string | null;
 };
 
 /** The calendar day of an achievement: the date of an imported result, the day of a measured one. */
@@ -43,6 +47,7 @@ export function importedAchievement(result: ImportedHistoryResult, sourceName?: 
     capturedAt: result.swumOn,
     origin: 'import',
     ...(sourceName ? { sourceName } : {}),
+    ...(result.competition ? { competition: result.competition } : {}),
     stroke: result.stroke,
     distance: result.distance,
     pool: result.pool,
