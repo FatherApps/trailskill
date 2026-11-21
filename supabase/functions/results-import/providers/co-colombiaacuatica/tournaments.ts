@@ -58,10 +58,10 @@ export function parseTournamentIndex(html: string): TournamentEntry[] {
 
 type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>;
 
-/** `listTournaments` of the adapter: the index page, read with the rules every request to the platform follows, filtered to the year asked. */
+/** `listTournaments` of the adapter: the index page, read with the rules every request to the platform follows, filtered to the years asked, in one read. */
 export function createTournamentList(fetchImpl: FetchImpl = fetch) {
-  return async function listTournaments(year: number): Promise<TournamentEntry[]> {
+  return async function listTournaments(years: readonly number[]): Promise<TournamentEntry[]> {
     const html = new TextDecoder().decode(await fetchBounded(fetchImpl, INDEX_URL, MAX_INDEX_BYTES));
-    return parseTournamentIndex(html).filter((entry) => entry.year === year);
+    return parseTournamentIndex(html).filter((entry) => years.includes(entry.year));
   };
 }
