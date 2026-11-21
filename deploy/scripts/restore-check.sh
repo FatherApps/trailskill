@@ -6,7 +6,9 @@
 #
 # Earlier copy: the optional last argument `sha` (64 lowercase hex, the copy's encrypted_sha256) checks that
 # copy instead of the latest one. It is passed to the fetch command as `fetch <dir> <sha>`; without it the
-# fetch command is run as `fetch <dir>` exactly as before.
+# fetch command is run as `fetch <dir>` exactly as before. An earlier copy is older than the default age
+# limit, so `--freshness <sha>` (and the full restore of it) needs BACKUP_MAX_AGE_HOURS raised, for example
+# BACKUP_MAX_AGE_HOURS=400.
 #
 # Freshness mode: `sh deploy/scripts/restore-check.sh --freshness [sha]` fetches the copy and runs only the
 # manifest checks (age of the copy, not empty, encrypted checksum). It needs no key, docker or age, so it

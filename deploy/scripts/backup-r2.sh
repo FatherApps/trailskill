@@ -23,8 +23,10 @@
 # thing that deletes.
 # `fetch <dir>` brings the latest copy; `fetch <dir> <sha>` brings that earlier copy (sha: 64 lowercase hex).
 # Both write trailskill-prod-latest.dump.age and trailskill-prod-latest.manifest into <dir>.
-# Run ONE backup at a time. The guards turn an overlap into a loud failure (push fails when the manifest ends
-# up naming a missing dump); they do not make two simultaneous pushes safe. A listing or manifest read that
+# Run ONE backup at a time: nothing here makes two simultaneous pushes safe. The guards turn an overlap into a
+# loud failure (push fails when the manifest ends up naming a missing dump), but the manifest is re-read just
+# before each delete, so a second push publishing in that gap can still lose its dump. #1336 adds the lock that
+# closes this race; until it runs, never start two backups at once. A listing or manifest read that
 # merely fails after the commit point is a warning, not an error (see cleanup).
 set -eu
 set -f
@@ -128,7 +130,7 @@ push() {
   # 1-2. new dump under its own key, then read it back and compare (a failed read hashes differently)
   rclone copyto "$enc" "$obj" || die "upload failed; previous copy untouched"
   # Never delete $obj here: the key is content-addressed, so on a re-push it may be the live copy. A stray
-  # object is removed by the next successful push.
+  # object is removed by a later push only once it is older than BACKUP_KEEP_DAYS days (like any other dump).
   [ "$(rclone cat "$obj" | sha256)" = "$sha" ] || die "uploaded copy does not verify; previous copy untouched"
   # its manifest under its own key too, before the commit point, so a published copy can always be fetched by sha
   rclone copyto "$mf" "$R/manifests/$sha.manifest" || die "upload failed (manifest copy); previous copy untouched"
