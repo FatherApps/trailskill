@@ -6,11 +6,11 @@ import { join } from "node:path";
 // fulfillments and enrollments): the joins bind swimmer and school in one row. The pgTAP test
 // supabase/tests/database/training-plans/coach_category_assignment_school.test.sql (pg_temp.stream_direct_category,
 // pg_temp.stream_group_category) holds a copy of the two coach category queries: change both together.
-// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244); this test pins the rest.
+// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244); this test pins the rest (the gate ends the top-level WHERE).
 const config = readFileSync(
   join(__dirname, "../../../../powersync/sync-config.yaml"),
   "utf8",
-).replaceAll(/ AND [\w.]+ IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)/g, "");
+).replaceAll(/ WHERE \((.*)\) AND auth\.user_id\(\) IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)$/gm, " WHERE $1");
 const queriesOf = (stream: string) =>
   [
     ...(

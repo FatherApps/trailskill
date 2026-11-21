@@ -5,11 +5,11 @@ import { join } from "node:path";
 // only for a swimmer assigned in the mark's school, an admin only for their admin schools. The pgTAP test
 // supabase/tests/database/timing/coach_assignment_school.test.sql (pg_temp.staff_stream_ids) holds a copy of them:
 // change both together.
-// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244); this test pins the rest.
+// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244); this test pins the rest (the gate ends the top-level WHERE).
 const config = readFileSync(
   join(__dirname, "../../../../powersync/sync-config.yaml"),
   "utf8",
-).replaceAll(/ AND [\w.]+ IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)/g, "");
+).replaceAll(/ WHERE \((.*)\) AND auth\.user_id\(\) IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)$/gm, " WHERE $1");
 const definition = (name: string) =>
   config.match(new RegExp(`^ {2}${name}: (.+)$`, "m"))?.[1];
 const streamQueries =
