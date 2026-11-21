@@ -33,6 +33,7 @@ export {
 } from './data/familyVideos';
 export { videoLibrary, type VideoLibrary } from './data/videoLibrary';
 export { videoSharing, type PickedVideo, type VideoSharing } from './data/videoSharing';
+export { qrScanner, type QrScanner } from './data/qrScanner';
 export { useMoveLocalFamilyTimes } from './data/useMoveLocalFamilyTimes';
 export { FamilyTimingContainer, type FamilyTimingContainerProps } from './screens/FamilyTimingContainer';
 export { setFamilyTimingAtList, useFamilyTimingAtList } from './screens/familyTimingAtList';
