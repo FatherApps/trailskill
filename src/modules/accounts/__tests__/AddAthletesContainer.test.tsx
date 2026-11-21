@@ -184,31 +184,33 @@ describe('AddAthletesContainer', () => {
     await screen.findByText('Lucía R.');
   }
 
-  it('with an invitation, the category is optional: adding without choosing accepts it with no category', async () => {
-    const { mount, rows, invitations, onContinue } = setup('tok-1');
+  it('with an invitation, the category is optional: adding without choosing queues it with no category', async () => {
+    const { mount, rows, pending, invitations, onContinue } = setup('tok-1');
     await mount();
     await screen.findByRole('radio', { name: '9-10' });
 
     await addLucia();
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar' }));
 
-    await waitFor(() => expect(invitations.accepted).toStrictEqual([{ token: 'tok-1', athleteId: rows[0].athleteId }]));
+    // Queued without consent: it is sent when the person accepts on the authorizations step.
+    await waitFor(async () => expect(await pending.list()).toStrictEqual([{ userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, queuedAt: expect.any(Number) }]));
+    expect(invitations.accepted).toStrictEqual([]);
     await waitFor(() => expect(onContinue).toHaveBeenCalled());
   });
 
-  it('with an invitation, the chosen category goes with the accepted athlete and the choice starts over for the next one', async () => {
-    const { mount, rows, invitations } = setup('tok-1');
+  it('with an invitation, the chosen category goes with the queued athlete and the choice starts over for the next one', async () => {
+    const { mount, rows, pending } = setup('tok-1');
     await mount();
     await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
 
     await addLucia();
 
-    await waitFor(() => expect(invitations.accepted).toStrictEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
+    await waitFor(async () => expect(await pending.list()).toStrictEqual([{ userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1', queuedAt: expect.any(Number) }]));
     expect(screen.getByRole('radio', { name: 'Sin categoría' }).props.accessibilityState.checked).toBe(true);
   });
 
-  it('the choice starting over after an add is not a choice: the next athlete is accepted with no category', async () => {
-    const { mount, rows, invitations } = setup('tok-1');
+  it('the choice starting over after an add is not a choice: the next athlete is queued with no category', async () => {
+    const { mount, rows, pending } = setup('tok-1');
     await mount();
     await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
     await addLucia();
@@ -218,13 +220,13 @@ describe('AddAthletesContainer', () => {
     await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
 
-    await waitFor(() => expect(invitations.accepted).toHaveLength(2));
-    expect(invitations.accepted[1]).toStrictEqual({ token: 'tok-1', athleteId: rows[1].athleteId });
+    await waitFor(async () => expect(await pending.list()).toHaveLength(2));
+    expect((await pending.list())[1]).toStrictEqual({ userId: 'guardian-1', token: 'tok-1', athleteId: rows[1].athleteId, queuedAt: expect.any(Number) });
   });
 
   // The container keeps the category in two places (`categoryId` for the radios, `chosen` for the add); this pins that they never tell different stories.
-  it('the category the radios show is the category the athlete is accepted with, whatever was chosen before, back to none included', async () => {
-    const { mount, rows, invitations } = setup('tok-1');
+  it('the category the radios show is the category the athlete is queued with, whatever was chosen before, back to none included', async () => {
+    const { mount, rows, pending } = setup('tok-1');
     const checked = (name: string) => screen.getByRole('radio', { name }).props.accessibilityState.checked;
     await mount();
     await fireEvent.press(await screen.findByRole('radio', { name: '9-10' }));
@@ -239,14 +241,14 @@ describe('AddAthletesContainer', () => {
     await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Rojas');
     await fireEvent.press(screen.getByRole('button', { name: 'Agregar deportista' }));
 
-    await waitFor(() => expect(invitations.accepted).toHaveLength(2));
-    expect(invitations.accepted).toStrictEqual([
-      { token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-2' },
-      { token: 'tok-1', athleteId: rows[1].athleteId },
+    await waitFor(async () => expect(await pending.list()).toHaveLength(2));
+    expect(await pending.list()).toStrictEqual([
+      { userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-2', queuedAt: expect.any(Number) },
+      { userId: 'guardian-1', token: 'tok-1', athleteId: rows[1].athleteId, queuedAt: expect.any(Number) },
     ]);
   });
 
-  it('without network the acceptance stays pending, outlives the draft and completes by itself later', async () => {
+  it('without network the acceptance stays pending, outlives the draft and, once the person accepted, completes by itself later', async () => {
     const { mount, drafts, rows, pending, invitations } = setup('tok-1');
     await mount();
     await screen.findByRole('radio', { name: '9-10' });
@@ -256,6 +258,8 @@ describe('AddAthletesContainer', () => {
     await drafts.clear();
 
     expect(await pending.list()).toStrictEqual([{ userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, queuedAt: expect.any(Number) }]);
+    // The authorizations step stores the consent; the entry is sent only then.
+    await pending.setConsent(rows[0].athleteId, { acceptedAt: '2026-11-01T10:00:00.000Z', authorizations: [{ id: 'id-record', purpose: 'record_times', textId: 't-record' }] });
     invitations.offline = false;
     await acceptPendingInvitations('guardian-1', pending, invitations);
     expect(invitations.accepted).toHaveLength(1);
@@ -767,7 +771,7 @@ describe('AddAthletesContainer', () => {
     });
 
     it('the category chosen meanwhile is kept for the next athlete and the saved one goes with the saved athlete', async () => {
-      const { mount, profiles, rows, invitations } = setup('tok-1');
+      const { mount, profiles, rows, pending } = setup('tok-1');
       const create = profiles.createManagedAthlete.bind(profiles);
       let release!: () => void;
       const gate = new Promise<void>((resolve) => (release = resolve));
@@ -787,7 +791,7 @@ describe('AddAthletesContainer', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: 'Agregar deportista' }).props.accessibilityState.busy).toBe(false));
 
       expect(screen.getByRole('radio', { name: '11-12' }).props.accessibilityState.checked).toBe(true);
-      await waitFor(() => expect(invitations.accepted).toStrictEqual([{ token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1' }]));
+      await waitFor(async () => expect(await pending.list()).toStrictEqual([{ userId: 'guardian-1', token: 'tok-1', athleteId: rows[0].athleteId, categoryId: 'cat-1', queuedAt: expect.any(Number) }]));
     });
 
     // Adds Lucía Rojas with `first` chosen while the add is held, makes `choices` meanwhile, lets the add end and adds Mateo Rojas as the next athlete.

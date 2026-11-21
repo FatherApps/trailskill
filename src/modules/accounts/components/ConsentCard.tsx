@@ -90,7 +90,8 @@ export function ConsentCard({ athleteName, avatar, texts, inForce, selected, onT
           {athleteName}
         </Text>
       </View>
-      {!inForce.record_times && <Tag variant="warn" label={t('accounts.authorizations.skipped')} />}
+      {/* Only a card that offers record_times can skip it: the photo-only card of joining a school accepts it elsewhere. */}
+      {!inForce.record_times && texts.some(({ purpose }) => purpose === 'record_times') && <Tag variant="warn" label={t('accounts.authorizations.skipped')} />}
       {texts.map(({ purpose }) => {
         const accepted = inForce[purpose];
         return (

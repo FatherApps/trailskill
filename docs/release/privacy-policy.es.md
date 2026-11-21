@@ -52,7 +52,7 @@ No vendemos datos ni los usamos para publicidad.
 
 ## 5. Autorización y retiro
 
-Tratamos tus datos con tu autorización previa, expresa e informada. Para cada deportista, el acudiente (o el propio deportista adulto) acepta de forma separada cada finalidad: registrar tiempos, importar resultados oficiales, compartir resultados con la escuela y mostrar la foto del deportista. Puede **retirar** cada autorización desde la aplicación en cualquier momento. Al retirarla, el dato deja de usarse para esa finalidad.
+Tratamos tus datos con tu autorización previa, expresa e informada. Para cada deportista, el acudiente (o el propio deportista adulto) acepta cada finalidad: registrar tiempos, importar resultados oficiales, compartir resultados con la escuela y mostrar la foto del deportista. Cada una se acepta de forma separada, con una excepción: **al unirse a una escuela** con una invitación se aceptan juntas las tres primeras (registrar tiempos, importar resultados oficiales y compartir resultados con la escuela), viendo el texto completo de cada una; la foto sigue aceptándose aparte, y es opcional. Puede **retirar** cada autorización desde la aplicación en cualquier momento, una por una. Al retirarla, el dato deja de usarse para esa finalidad.
 
 **Foto:** al retirar «Mostrar la foto del deportista», la foto deja de mostrarse a todas las personas y se quita de los teléfonos en su próxima sincronización; una dirección temporal que ya se hubiera entregado sigue siendo válida unos 5 minutos. Retirar la autorización no borra el archivo de nuestros servidores: para eso, ver las secciones 9 y 11.
 
