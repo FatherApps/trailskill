@@ -130,6 +130,15 @@ node powersync/scripts/verify-ended-link-streams.mjs run
 
 Run it after any change to a school-linked query of `powersync/sync-config.yaml`. CI does not run it.
 
+The same pattern checks the account deletion (#1244): a marked account receives nothing and its writes are refused, a co-guardian keeps receiving and writing, and cancelling brings the rows back. Run it on a database that holds no data (`supabase db reset --no-seed` on the throwaway stack) after any change to a query of `powersync/sync-config.yaml`, with the same variables:
+
+```bash
+node powersync/scripts/verify-account-deletion-sync.mjs setup
+node powersync/scripts/verify-account-deletion-sync.mjs run
+```
+
+It must end with `ALL AS EXPECTED`. CI does not run it.
+
 ## When something fails
 
 The sign-in screen shows one message ("No pudimos enviar el código") for every failure. In the cloud mode, check the `api-gw` logs of the `supabase` compose in Dokploy; in the local mode, run `docker logs supabase_kong_swimcro`.
