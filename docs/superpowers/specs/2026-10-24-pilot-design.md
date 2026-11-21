@@ -107,6 +107,7 @@ The permission table in the design system (section "States, permissions and sync
 2. Account details, with sign-in by Google or Microsoft, or by a 6-digit code sent by email as fallback. No passwords ([ADR 0004](../../decisions/0004-sign-in-with-google-microsoft-and-email-code.md)).
 3. Guardian flow: one or more athlete profiles (name, surname, category, training group).
 4. Authorization per athlete and per purpose, never pre-checked: recording times and results; FECNA import; sharing results with another school. One acceptance never implies another.
+   - **Replaced for joining a school (Mario, 2026-11-21, [`docs/product/school-join-authorizations.md`](../../product/school-join-authorizations.md)):** accepting a school invitation accepts the recording of times and results, the FECNA import and the sharing of results with another school together, with their full text and version shown. The photo stays a separate optional box, and withdrawing stays one purpose at a time. Everywhere else this point holds.
 5. Evidence kept for each authorization: accepted full text and version, adult identity and validated representation, athlete, purposes, time and acceptance event. Authorizations can be withdrawn.
 6. A draft is saved on the device at each step, so a lost signal never loses typed data. Signing in and creating the account need signal.
 7. A school invitation link pre-fills school and group.
@@ -209,7 +210,7 @@ Timing has three modes. All of them save to the device first.
 
 - Minimum data: name, surname, category or group. Birth date and ID are collected only if legally required, stored separately, and never shown in full.
 - Poolside screens show only the short name ("Lucía R."). Lock-screen notifications never show times or full names.
-- Authorization per purpose with retained evidence (section 6.1).
+- Authorization per purpose with retained evidence (section 6.1). Joining a school is the one case where the three purposes of data and times are accepted together (section 6.1, point 4, and `docs/product/school-join-authorizations.md`).
 - FECNA import, school-to-school sharing and any future AI processing each need their own authorization.
 - Only synthetic data in tests, fixtures, seeds, screenshots, issues and pull requests.
 - **Open:** data controller, representation validation, retention, and legal copy, to be validated by counsel under Colombian Law 1581 of 2012.
