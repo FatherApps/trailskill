@@ -24,10 +24,18 @@ describe('markSections', () => {
   });
 
   it('carries the organization of an official result from its data, never from code', () => {
-    const imported = importedAchievement({ id: 'i1', provider: 'xx-demo', stroke: 'FR', distance: '100m', pool: 'SCM', hundredths: 7966 as Hundredths, swumOn: '2025-08-23' }, 'Federación Demo');
+    const imported = importedAchievement({ id: 'i1', provider: 'xx-demo', stroke: 'FR', distance: '100m', pool: 'SCM', hundredths: 7966 as Hundredths, swumOn: '2025-08-23', competition: null }, 'Federación Demo');
     const official = cardOf(markSections(marksByEvent([imported], 'SCM')), 'FR-100m');
 
     expect(official).toMatchObject({ origin: 'official', sourceName: 'Federación Demo' });
+  });
+
+  it('carries the competition name of an official result, and nothing without one (issue 1358)', () => {
+    const swum = (competition: string | null) => importedAchievement({ id: 'i1', provider: 'xx-demo', stroke: 'FR', distance: '100m', pool: 'SCM', hundredths: 7966 as Hundredths, swumOn: '2025-08-23', competition }, 'Federación Demo');
+
+    expect(cardOf(markSections(marksByEvent([swum('Torneo de prueba')], 'SCM')), 'FR-100m')).toMatchObject({ competition: 'Torneo de prueba' });
+    expect(cardOf(markSections(marksByEvent([swum(null)], 'SCM')), 'FR-100m')).not.toHaveProperty('competition');
+    expect(cardOf(sections, 'FR-50m')).not.toHaveProperty('competition');
   });
 
   it('has no time, origin or date on an event with no mark', () => {
@@ -56,9 +64,16 @@ describe('markFeatured', () => {
   });
 
   it('carries the organization of an official mark from its data', () => {
-    const imported = importedAchievement({ id: 'i1', provider: 'xx-demo', stroke: 'FR', distance: '100m', pool: 'SCM', hundredths: 7966 as Hundredths, swumOn: '2026-10-19' }, 'Federación Demo');
+    const imported = importedAchievement({ id: 'i1', provider: 'xx-demo', stroke: 'FR', distance: '100m', pool: 'SCM', hundredths: 7966 as Hundredths, swumOn: '2026-10-19', competition: null }, 'Federación Demo');
 
     expect(markFeatured(marksByEvent([imported], 'SCM'), '2026-10-20')).toMatchObject({ origin: 'official', sourceName: 'Federación Demo' });
+  });
+
+  it('carries the competition name of an official mark, and nothing without one (issue 1358)', () => {
+    const swum = (competition: string | null) => importedAchievement({ id: 'i1', provider: 'xx-demo', stroke: 'FR', distance: '100m', pool: 'SCM', hundredths: 7966 as Hundredths, swumOn: '2026-10-19', competition }, 'Federación Demo');
+
+    expect(markFeatured(marksByEvent([swum('Torneo de prueba')], 'SCM'), '2026-10-20')).toMatchObject({ competition: 'Torneo de prueba' });
+    expect(markFeatured(marksByEvent([swum(null)], 'SCM'), '2026-10-20')).not.toHaveProperty('competition');
   });
 
   it('is null when there are no marks, so no card is shown', () => {

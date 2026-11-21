@@ -16,6 +16,7 @@ const swim = (id: string, provider: string, swumOn: string, hundredths: number |
   pool: 'SCM',
   hundredths: hundredths as Hundredths | null,
   swumOn,
+  competition: null,
   ...over,
 });
 
@@ -59,6 +60,17 @@ describe('groupImportedResults', () => {
     expect(grouped).toHaveLength(1);
     expect(grouped[0].result).toMatchObject({ id: 'a', provider: 'xx-fed', swumOn: '2026-05-08', hundredths: 3012 });
     expect(grouped[0].sourceName).toBe('Federación Demo · Torneo Demo');
+  });
+
+  it('carries the competition name of the shown result: the federation one when the group holds both (issue 1358)', () => {
+    const results = [swim('a', 'xx-fed', '2026-05-08', 3012, { competition: 'Torneo de prueba' }), swim('b', 'xx-tour', '2026-05-10', 3012, { competition: 'Copa sintética' })];
+    const [shown] = groupImportedResults(results, names, sessionDated, federation);
+    expect(importedAchievement(shown.result, shown.sourceName)).toMatchObject({ id: 'a', competition: 'Torneo de prueba' });
+  });
+
+  it('leaves the competition out of the achievement when the shown result has no name (null or empty)', () => {
+    expect(importedAchievement(swim('a', 'xx-fed', '2026-05-08', 3012))).not.toHaveProperty('competition');
+    expect(importedAchievement(swim('a', 'xx-fed', '2026-05-08', 3012, { competition: '' }))).not.toHaveProperty('competition');
   });
 
   it('shows the federation result whichever source is older or listed first', () => {

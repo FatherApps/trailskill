@@ -10,6 +10,7 @@ const imported = {
   pool: 'LCM',
   hundredths: 3000 as Hundredths,
   swumOn: '2026-03-01',
+  competition: null,
 } as const;
 
 describe('importedAchievement', () => {

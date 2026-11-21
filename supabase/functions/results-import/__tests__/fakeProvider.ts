@@ -1,4 +1,5 @@
 import type { Candidate, CandidateQuery, NormalizedResult, ResultsProvider, TournamentEntry, TournamentProvider } from '../port.ts';
+import type { TournamentCatalog } from '../service.ts';
 
 export type FakeCall =
   | { method: 'findCandidates'; argument: CandidateQuery }
@@ -49,15 +50,18 @@ type PlatformOptions = {
   failWith?: Error;
 };
 
-export function createFakePlatform(options: PlatformOptions = {}): TournamentProvider & { calls: PlatformCall[]; setFailure(error: Error | undefined): void } {
+export function createFakePlatform(options: PlatformOptions = {}): TournamentProvider & { calls: PlatformCall[]; listCalls: number[]; setFailure(error: Error | undefined): void } {
   const calls: PlatformCall[] = [];
+  const listCalls: number[] = [];
   let failWith = options.failWith;
   return {
     key: options.key ?? 'zz-games',
     calls,
+    listCalls,
     setFailure: (error) => void (failWith = error),
     accepts: options.accepts ?? ((url) => url.startsWith('https://games.example.test/')),
     async listTournaments(year) {
+      listCalls.push(year);
       if (failWith) throw failWith;
       return (options.tournaments ?? []).filter((entry) => entry.year === year);
     },
@@ -68,3 +72,63 @@ export function createFakePlatform(options: PlatformOptions = {}): TournamentPro
     },
   };
 }
+
+/**
+ * The catalog as the database keeps it (`results_import_claim_tournament_refresh`, `_release_`, `_save_tournaments` and the table): one claim per
+ * platform per interval that a release gives back only while nobody claimed since, and rows saved by (platform, day), the first of a day winning.
+ */
+export function createFakeCatalog(now: () => number = Date.now) {
+  const claimed = new Map<string, number>();
+  const rows = new Map<string, TournamentEntry & { organizationId: string; refreshedAt: number }>();
+  const claims: Parameters<TournamentCatalog['claim']>[0][] = [];
+  const releases: Parameters<TournamentCatalog['release']>[0][] = [];
+  let saveFailure: Error | undefined;
+  const catalog: TournamentCatalog = {
+    async claim(request) {
+      claims.push(request);
+      const previous = claimed.get(request.organizationId);
+      if (previous !== undefined && now() < previous + request.intervalMs) return { status: 'fresh', retryAt: new Date(previous + request.intervalMs).toISOString() };
+      claimed.set(request.organizationId, now());
+      return { status: 'allowed', claimedAt: String(now()) };
+    },
+    async release(request) {
+      releases.push(request);
+      if (claimed.get(request.organizationId) !== Number(request.claimedAt)) return false;
+      claimed.set(request.organizationId, Number(request.claimedAt) - request.intervalMs + request.retryAfterMs);
+      return true;
+    },
+    async save(organizationId, entries) {
+      if (saveFailure) throw saveFailure;
+      const days = new Set<string>();
+      for (const entry of entries) {
+        if (days.has(entry.dateKey)) continue;
+        days.add(entry.dateKey);
+        rows.set(`${organizationId}|${entry.dateKey}`, { ...entry, organizationId, refreshedAt: now() });
+      }
+      return days.size;
+    },
+    async find(dateKey) {
+      return [...rows.values()].filter((row) => row.dateKey === dateKey).map(({ organizationId, year }) => ({ organizationId, year }));
+    },
+  };
+  return {
+    catalog,
+    claims,
+    releases,
+    rows: () => [...rows.values()],
+    failSave: (error: Error | undefined) => void (saveFailure = error),
+    // A tournament that is already in the catalog, as a refresh or a load of earlier years left it.
+    seed: (organizationId: string, entry: TournamentEntry, refreshedAt = now()) => void rows.set(`${organizationId}|${entry.dateKey}`, { ...entry, organizationId, refreshedAt }),
+  };
+}
+
+export const tournamentEntry = (dateKey: string, overrides: Partial<TournamentEntry> = {}): TournamentEntry => ({
+  dateKey,
+  year: Number(dateKey.slice(0, 4)),
+  name: `Synthetic Open ${dateKey}`,
+  city: 'Example City',
+  discipline: 'SW',
+  course: null,
+  sourceUrl: `https://games.example.test/t/${dateKey}`,
+  ...overrides,
+});

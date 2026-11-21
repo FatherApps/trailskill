@@ -167,6 +167,7 @@ describe('MarksContainer', () => {
       pool: 'LCM' as const,
       hundredths: hundredths as Hundredths | null,
       swumOn,
+      competition: null as string | null,
       ...over,
     });
     const importedRepo = (rows: ReturnType<typeof official>[]) => ({ listByAthlete: jest.fn(async (athleteId: string) => (athleteId === 'a1' ? rows : [])) });
@@ -207,6 +208,26 @@ describe('MarksContainer', () => {
       await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
       expect(screen.getAllByLabelText(/Federación Demo · Torneo Demo · 2025/).length).toBeGreaterThan(0);
       expect(screen.queryAllByLabelText(/Torneo Demo · 2026/)).toHaveLength(0);
+    });
+
+    it('shows the competition name of the federation result when the same swim comes from a federation and a platform (issue 1358)', async () => {
+      const both = [
+        official('i1', 3300, '2026-09-10', { provider: 'xx-fed', competition: 'Torneo de prueba' }),
+        official('i2', 3300, '2026-09-12', { provider: 'xx-tour', competition: 'Copa sintética' }),
+      ];
+      await show({ history: noHistory, importedResults: importedRepo(both), sourceNames: { 'xx-fed': 'Federación Demo', 'xx-tour': 'Torneo Demo' }, sessionDated: ['xx-tour'], federation: ['xx-fed'] });
+
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
+      expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('Torneo de prueba')).toBeOnTheScreen();
+      expect(screen.queryAllByText('Copa sintética')).toHaveLength(0);
+      expect(within(screen.getByTestId('marks-featured')).getByText('Torneo de prueba')).toBeOnTheScreen();
+    });
+
+    it('shows no competition line on an official mark without a name', async () => {
+      await show({ history: noHistory, importedResults: importedRepo([official('i1', 3300, '2026-09-12')]), sourceNames });
+
+      await waitFor(() => expect(within(screen.getByTestId('marks-card-FR-50m')).getByText('33,00')).toBeOnTheScreen());
+      expect(within(screen.getByTestId('marks-card-FR-50m')).getAllByText(/./)).toHaveLength(2);
     });
 
     it('says only "Oficial" when the organization is not known', async () => {
