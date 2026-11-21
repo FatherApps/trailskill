@@ -35,6 +35,7 @@ OPEN=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].numb
   { echo "error: cannot list the open backup-failed issues" >&2; exit 1; }
 if [ -n "$OPEN" ]; then
   gh issue comment "$OPEN" --body "$BODY" >/dev/null || { echo "error: cannot comment on issue #$OPEN" >&2; exit 1; }
+  gh issue edit "$OPEN" --add-assignee "$ASSIGNEE" >/dev/null || { echo "error: cannot assign issue #$OPEN to $ASSIGNEE" >&2; exit 1; }
   echo "commented on the open issue #$OPEN"
 else
   gh label create "$LABEL" --description "La copia de PROD no está fresca o no se pudo leer" --color B60205 >/dev/null 2>&1 || true

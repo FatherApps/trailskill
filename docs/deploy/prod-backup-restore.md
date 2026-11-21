@@ -46,7 +46,7 @@ Decided by Mario on 2026-11-16: the off-server copy goes to a private [Cloudflar
 
 1. A **private** R2 bucket (`<BUCKET>`). No public access, no custom domain.
 2. An R2 API token limited to **that bucket only**, with **Object Read & Write** and no admin permissions. Its Access Key ID and Secret Access Key live only in the environment of the backup scheduler.
-3. Optional: a second token with **Object Read only** on the same bucket, for the freshness job and for Mario's own shell during the restore test.
+3. A second token with **Object Read only** on the same bucket, required by the freshness workflow ([GitHub secrets](#freshness-workflow-in-github-actions-1337)) and also used by Mario's own shell during the restore test.
 
 ### Environment and commands
 
