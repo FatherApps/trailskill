@@ -4,7 +4,7 @@
 -- All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(38);
 
 -- Users: guardian G, adult athlete X (relation 'self'), guardian G2 of another swimmer, coach A, school admin S, stranger N,
 -- platform admin P, guardian M whose account is marked for deletion.
@@ -131,6 +131,13 @@ select throws_ok(
 );
 reset role;
 
+-- G2's row was neither changed nor deleted by the filtered statements above.
+select is(
+  (select gender from public.athlete_private_details where athlete_id = '13660000-0000-4000-8000-0000000000e3'),
+  'M',
+  'the filtered update and delete left the row of the other guardian alone'
+);
+
 -- X: the adult athlete (relation 'self') saves their own.
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "13660000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
@@ -161,8 +168,8 @@ set local request.jwt.claims = '{"sub": "13660000-0000-4000-8000-0000000000a1", 
 select is((select count(*) from public.athletes where id = '13660000-0000-4000-8000-0000000000e1'), 1::bigint, 'the coach does see the swimmer row');
 select is((select count(*) from public.athlete_private_details), 0::bigint, 'but not the birth date or the gender (coach)');
 select throws_ok(
-  $$insert into public.athlete_private_details (athlete_id, gender) values ('13660000-0000-4000-8000-0000000000e5', 'F')$$,
-  '42501', null, 'a coach cannot write details'
+  $$insert into public.athlete_private_details (athlete_id, gender) values ('13660000-0000-4000-8000-0000000000e3', 'F')$$,
+  '42501', null, 'a coach cannot write details of a swimmer of their own group'
 );
 reset role;
 
@@ -171,8 +178,8 @@ set local request.jwt.claims = '{"sub": "13660000-0000-4000-8000-0000000000a4", 
 select is((select count(*) from public.athletes where id = '13660000-0000-4000-8000-0000000000e1'), 1::bigint, 'the school admin does see the swimmer row');
 select is((select count(*) from public.athlete_private_details), 0::bigint, 'but not the birth date or the gender (school admin)');
 select throws_ok(
-  $$insert into public.athlete_private_details (athlete_id, gender) values ('13660000-0000-4000-8000-0000000000e5', 'F')$$,
-  '42501', null, 'a school admin cannot write details'
+  $$insert into public.athlete_private_details (athlete_id, gender) values ('13660000-0000-4000-8000-0000000000e3', 'F')$$,
+  '42501', null, 'a school admin cannot write details of a swimmer of their school'
 );
 reset role;
 
@@ -200,6 +207,10 @@ select is((select count(*) from public.athlete_private_details), 3::bigint, 'a p
 select lives_ok(
   $$update public.athlete_private_details set gender = 'undisclosed' where athlete_id = '13660000-0000-4000-8000-0000000000e3'$$,
   'and writes any row'
+);
+select throws_ok(
+  $$update public.athlete_private_details set athlete_id = '13660000-0000-4000-8000-0000000000e5' where athlete_id = '13660000-0000-4000-8000-0000000000e3'$$,
+  '42501', 'athlete private details keep their athlete', 'even a platform admin cannot move a row to another swimmer (the trigger, not the policy)'
 );
 reset role;
 
