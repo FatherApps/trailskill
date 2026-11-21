@@ -6,16 +6,52 @@
 
 name: trailskill-deploy
 
+# One image for `migrate` and `backup` (same pattern as `powersync`): the Postgres client tools plus age and rclone,
+# which backup-prod.sh and backup-r2.sh need. The build context holds only the crontab.
+x-backup-tools: &backup-tools
+  build:
+    context: ./backup
+    dockerfile_inline: |
+      FROM postgres:17-alpine
+      RUN apk add --no-cache age rclone
+  image: trailskill-deploy-backup-tools
+  pull_policy: build # always build on `compose up`; an unchanged Dockerfile reuses the cached image
+
+# Copy settings, taken from the service environment in Dokploy by name only (nothing sensitive is stored here).
+# Unset is fine while BACKUP_BEFORE_MIGRATE=off (local); with `required` a missing value makes the backup refuse.
+x-backup-env: &backup-env
+  TMPDIR: /backup-tmp # tmpfs, see below: the plain dump never reaches a disk
+  BACKUP_PUSH_CMD: sh /scripts/backup-r2.sh "$$0" "$$@"
+  BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+  BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
+  BACKUP_MIN_COUNTS: ${BACKUP_MIN_COUNTS:-}
+  BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+  RCLONE_CONFIG_R2_TYPE: ${RCLONE_CONFIG_R2_TYPE:-}
+  RCLONE_CONFIG_R2_PROVIDER: ${RCLONE_CONFIG_R2_PROVIDER:-}
+  RCLONE_CONFIG_R2_ENDPOINT: ${RCLONE_CONFIG_R2_ENDPOINT:-}
+  RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${RCLONE_CONFIG_R2_ACCESS_KEY_ID:-}
+  RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${RCLONE_CONFIG_R2_SECRET_ACCESS_KEY:-}
+  RCLONE_CONFIG_R2_NO_CHECK_BUCKET: ${RCLONE_CONFIG_R2_NO_CHECK_BUCKET:-true} # a bucket-scoped token cannot create buckets
+
 services:
-  # One-shot: prepares powersync_role, applies supabase/migrations, optionally the seed.
+  # One-shot: takes a verified backup when migrations are pending, then prepares powersync_role, applies
+  # supabase/migrations and optionally the seed. A failed backup stops it before anything is applied.
   migrate:
-    image: postgres:17-alpine
+    <<: *backup-tools
     restart: "no"
     command: ["sh", "/scripts/migrate.sh"]
     volumes:
       - ./scripts:/scripts:ro
       - ../supabase:/repo/supabase:ro
+      - backup-lock:/backup-lock
+    tmpfs:
+      - /backup-tmp:mode=700
     environment:
+      <<: *backup-env
+      BACKUP_BEFORE_MIGRATE: ${BACKUP_BEFORE_MIGRATE:?Set BACKUP_BEFORE_MIGRATE to required (or off, only for a database without real data)}
+      BACKUP_LOCK_WAIT_SECONDS: ${BACKUP_LOCK_WAIT_SECONDS:-600}
+      BACKUP_PGUSER: ${BACKUP_PGUSER:-}
+      BACKUP_PGPASSWORD: ${BACKUP_PGPASSWORD:-}
       PGHOST: ${SUPABASE_DB_HOST:?Set SUPABASE_DB_HOST to the Supabase database host on the supabase network (db)}
       PGPORT: ${SUPABASE_DB_PORT:-5432}
       PGUSER: ${SUPABASE_DB_USER:-postgres}
@@ -23,6 +59,28 @@ services:
       PGDATABASE: ${SUPABASE_DB_NAME:-postgres}
       POWERSYNC_DB_PASSWORD: ${POWERSYNC_DB_PASSWORD:?Set POWERSYNC_DB_PASSWORD}
       APPLY_SEED: ${APPLY_SEED:-false}
+    networks:
+      - supabase
+
+  # Daily backup at 08:30 UTC (03:30 Bogotá), from deploy/backup/crontab. Shares the lock volume with `migrate`, so the
+  # two never back up at the same time. A failed run logs an error and the next one is the following day.
+  backup:
+    <<: *backup-tools
+    restart: unless-stopped
+    command: ["busybox", "crond", "-f", "-L", "/dev/stdout", "-c", "/etc/crontabs"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./backup/crontab:/etc/crontabs/root:ro
+      - backup-lock:/backup-lock
+    tmpfs:
+      - /backup-tmp:mode=700
+    environment:
+      <<: *backup-env
+      PGHOST: ${SUPABASE_DB_HOST:?Set SUPABASE_DB_HOST to the Supabase database host on the supabase network (db)}
+      PGPORT: ${SUPABASE_DB_PORT:-5432}
+      PGUSER: ${BACKUP_PGUSER:-${SUPABASE_DB_USER:-postgres}}
+      PGPASSWORD: ${BACKUP_PGPASSWORD:-${SUPABASE_DB_PASSWORD:?Set SUPABASE_DB_PASSWORD}}
+      PGDATABASE: ${SUPABASE_DB_NAME:-postgres}
     networks:
       - supabase
 
@@ -78,6 +136,8 @@ services:
 
 volumes:
   powersync-storage-data:
+  # Only holds the lock file shared by `migrate` and `backup`.
+  backup-lock:
 
 networks:
   # Default network of the Supabase stack (in Dokploy: <supabase app name>_default).

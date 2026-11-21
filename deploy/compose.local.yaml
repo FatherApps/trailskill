@@ -7,6 +7,10 @@ services:
   powersync-storage:
     restart: "no"
 
+  # The daily backup needs the R2 settings and has nothing to back up locally: not started unless asked for.
+  backup:
+    profiles: ["backup"]
+
   powersync:
     # Stops with the machine instead of restart-looping once the local Supabase is down.
     restart: "no"
