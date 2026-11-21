@@ -32,6 +32,7 @@ export function markSections(rows: readonly MarkRow[]): MarkSectionView[] {
         ? {
             origin: best.origin === 'import' ? ('official' as const) : best.kind === 'race' ? ('competition' as const) : ('training' as const),
             ...(best.sourceName ? { sourceName: best.sourceName } : {}),
+            ...(best.competition ? { competition: best.competition } : {}),
             date: day(best.date),
           }
         : {}),
@@ -52,6 +53,7 @@ export function markFeatured(rows: readonly MarkRow[], today: string): MarkFeatu
     time: best.hundredths,
     origin: best.origin === 'import' ? 'official' : best.kind === 'race' ? 'competition' : 'training',
     ...(best.sourceName ? { sourceName: best.sourceName } : {}),
+    ...(best.competition ? { competition: best.competition } : {}),
     date: day(best.date),
     isNew: daysBetween(day(best.date), today) <= newForDays,
   };

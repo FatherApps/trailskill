@@ -8,7 +8,7 @@ type Official = ReturnType<typeof createOfficialResultsActions>;
 export type HandlerDeps = {
   /** The id of the user whose JWT the request carries, or null. The user is never taken from the body. */
   authenticate: (request: Request) => Promise<string | null>;
-  service: Pick<Service, 'findCandidates' | 'confirmCandidate' | 'findInTournament'>;
+  service: Pick<Service, 'findCandidates' | 'confirmCandidate' | 'findInTournament' | 'refreshTournaments'>;
   official: Pick<Official, 'status' | 'results' | 'import'>;
 };
 
@@ -30,6 +30,7 @@ const STATUS: Record<HandlerError['code'], number> = {
 
 const NAME_MAX_LENGTH = 100;
 const URL_MAX_LENGTH = 500;
+const TOURNAMENT_KEY = /^\d{8}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const respond = (status: number, body: unknown) => Response.json(body, { status });
@@ -49,6 +50,18 @@ const typedNumber = (value: unknown) => {
   }
 };
 
+// Exactly one of `url` (the address as pasted) and `tournamentKey` (a `YYYYMMDD` day of the platform's list); absent or null is "not given".
+// Both, neither or one that is not valid is undefined, and the whole request is refused.
+const tournamentTarget = (body: Record<string, unknown>) => {
+  const [url, key] = [body.url ?? null, body.tournamentKey ?? null];
+  if ((url === null) === (key === null)) return undefined;
+  if (key === null) {
+    const address = text(url, URL_MAX_LENGTH);
+    return address ? { url: address } : undefined;
+  }
+  return typeof key === 'string' && TOURNAMENT_KEY.test(key) ? { tournamentKey: key } : undefined;
+};
+
 type Body = Record<string, unknown>;
 type Action = (userId: string, body: Body) => Promise<Response> | Response;
 
@@ -56,8 +69,10 @@ type Action = (userId: string, body: Body) => Promise<Response> | Response;
  * One POST endpoint, `{ action, ... }`. Each action validates its own fields and answers `{ ok, value | error }`.
  * `status`, `results` and `import` are the official results update: they read what was confirmed (of one organization when
  * `organizationId` is sent, else of the federation), list what the source has behind opaque ids, and import the ids the guardian chose.
- * `tournament` looks one pasted tournament address up on a results platform, by the stored identity number or the one typed
- * (`identityNumber`, optional), and answers `{ organizationId, candidate }`; `confirm` then answers `{ results }` for it (or `{}` for a federation).
+ * `tournament` looks one tournament up on a results platform, by the stored identity number or the one typed (`identityNumber`, optional), and
+ * answers `{ organizationId, candidate }`; `confirm` then answers `{ results }` for it (or `{}` for a federation). The tournament is given by
+ * exactly one of `tournamentKey` (a `YYYYMMDD` day of the platform's list, see `refresh_tournaments`) or `url` (the address as pasted, the fallback).
+ * `refresh_tournaments` fills that list from each platform, at most once a day each, and answers `{ refreshed, skipped }`.
  */
 export function createHandler({ authenticate, service, official }: HandlerDeps) {
   const answer = <T>(outcome: { ok: true; value: T } | { ok: false; error: ActionError }, value: (v: T) => unknown) =>
@@ -77,9 +92,13 @@ export function createHandler({ authenticate, service, official }: HandlerDeps) 
       return answer(await service.confirmCandidate({ userId, athleteId, organizationId, candidateId }), (value) => value ?? {});
     },
     async tournament(userId, body) {
-      const [athleteId, url, identityNumber] = [id(body.athleteId), text(body.url, URL_MAX_LENGTH), typedNumber(body.identityNumber)];
-      if (!athleteId || !url || identityNumber === undefined) return refuse({ code: 'bad_request' });
-      return answer(await service.findInTournament({ userId, athleteId, url, identityNumber }), (value) => value);
+      const [athleteId, target, identityNumber] = [id(body.athleteId), tournamentTarget(body), typedNumber(body.identityNumber)];
+      if (!athleteId || !target || identityNumber === undefined) return refuse({ code: 'bad_request' });
+      return answer(await service.findInTournament({ userId, athleteId, identityNumber, ...target }), (value) => value);
+    },
+    // Any signed-in user may ask: it needs no athlete, and the service refreshes each platform at most once a day.
+    async refresh_tournaments() {
+      return answer(await service.refreshTournaments(), (value) => value);
     },
     async status(userId, body) {
       const [athleteId, organizationId] = [id(body.athleteId), optionalId(body.organizationId)];

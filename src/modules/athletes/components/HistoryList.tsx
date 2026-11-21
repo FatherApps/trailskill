@@ -30,6 +30,8 @@ export type HistoryResult = {
   origin: HistoryOrigin;
   // Name of the import provider or of the other school, from data; never written in code.
   sourceName?: string;
+  // Name of the competition of an imported result, from data.
+  competition?: string;
   value: HistoryValue;
   // A missing time is `null`, never 0.
   time: Hundredths | null;
@@ -145,7 +147,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
   const longDate = formatDate(result.date, 'long');
 
   // A malformed date is left out rather than shown wrong.
-  const meta = [shortDate, context, value].filter(Boolean).join(' · ');
+  const meta = [shortDate, context, value, result.competition].filter(Boolean).join(' · ');
 
   const spokenResult =
     result.time !== null
@@ -160,6 +162,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
     longDate,
     context,
     value,
+    result.competition,
     origin,
     spokenResult,
     result.time !== null && result.isPersonalBest ? t('time_value.pb_spoken') : null,

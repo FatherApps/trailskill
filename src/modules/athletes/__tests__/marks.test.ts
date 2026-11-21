@@ -90,7 +90,7 @@ describe('marksByEvent', () => {
 
   describe('with imported official results', () => {
     const official = (id: string, hundredths: number | null, swumOn: string, over: Partial<Parameters<typeof importedAchievement>[0]> = {}) =>
-      importedAchievement({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: hundredths as Hundredths | null, swumOn, ...over }, 'Federación Demo');
+      importedAchievement({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'LCM', hundredths: hundredths as Hundredths | null, swumOn, competition: null, ...over }, 'Federación Demo');
 
     it('shows the marks of an athlete who only has imported results', () => {
       const rows = marksByEvent([official('i1', 3300, '2026-09-12'), official('i2', 7100, '2026-09-13', { distance: '100m' })], 'LCM');
@@ -217,7 +217,7 @@ describe('marksByStroke with a stroke outside the catalog', () => {
 
 describe('featuredMark', () => {
   const official = (id: string, hundredths: number, swumOn: string, over: Partial<Parameters<typeof importedAchievement>[0]> = {}) =>
-    importedAchievement({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: hundredths as Hundredths, swumOn, ...over }, 'Federación Demo');
+    importedAchievement({ id, provider: 'xx-demo', stroke: 'FR', distance: '50m', pool: 'SCM', hundredths: hundredths as Hundredths, swumOn, competition: null, ...over }, 'Federación Demo');
   const featured = (measurements: Parameters<typeof marksByEvent>[0], pool: 'SCM' | 'LCM' = 'SCM') => featuredMark(marksByEvent(measurements, pool))?.id;
 
   it('is the best set most recently, in any event of the pool', () => {
