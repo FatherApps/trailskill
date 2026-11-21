@@ -129,6 +129,13 @@ describe('ConsentCard', () => {
     expect(screen.queryByRole('text', { name: 'Se omitirá' })).toBeNull();
   });
 
+  it('shows no skipped tag when the card has no record_times text (only the optional photo, while joining a school)', async () => {
+    await render(card({ texts: texts.filter((text) => text.purpose === 'show_photo') }));
+
+    expect(screen.queryByRole('text', { name: 'Se omitirá' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: PHOTO })).toBeOnTheScreen();
+  });
+
   it('shows "En el teléfono" for a pending record and nothing for a synced one or one not accepted', async () => {
     const view = await render(card({ inForce: { record_times: accepted } }));
     expect(screen.getByRole('text', { name: 'En el teléfono' })).toBeOnTheScreen();
