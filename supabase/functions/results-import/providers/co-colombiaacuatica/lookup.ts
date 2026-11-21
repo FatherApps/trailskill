@@ -9,8 +9,12 @@ export const PROVIDER_KEY = 'co-colombiaacuatica';
 export const TOTAL_TIMEOUT_MS = 30_000;
 
 // The only host the server ever asks, an exact constant. Nothing else in the codebase writes this name.
-export const HOST = 'www.colombiaacuatica.com';
+const HOST = 'www.colombiaacuatica.com';
 const FOLDER = new RegExp(`^https://${HOST.replaceAll('.', '\\.')}/backtun/torneos/(\\d{4})/(\\d{8})/(?:index\\.php)?$`);
+/** The page that lists the tournaments of the year. */
+export const INDEX_URL = `https://${HOST}/seccion/resultados`;
+/** The PDF link of a row of that page, exactly: the key of the tournament is in its path. */
+export const TOURNAMENT_PDF = new RegExp(`^https://${HOST.replaceAll('.', '\\.')}/backtun/torneos/resultados/pdf/(\\d{4})/(\\d{8})resultados\\.pdf$`);
 
 const REJECTED = 'The tournament address is not one this provider accepts';
 const NO_FILE = 'The tournament has no published results file';

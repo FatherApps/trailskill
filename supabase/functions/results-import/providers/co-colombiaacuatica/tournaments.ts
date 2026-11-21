@@ -1,11 +1,8 @@
 import { ProviderUnavailableError, type TournamentEntry } from '../../port.ts';
-import { HOST, fetchBounded, isTournamentKey } from './lookup.ts';
+import { INDEX_URL, TOURNAMENT_PDF, fetchBounded, isTournamentKey } from './lookup.ts';
 
-export const INDEX_URL = `https://${HOST}/seccion/resultados`;
 // The index of one year is about 80 KB; 2 MB leaves room to grow and still bounds what a wrong answer can make us hold.
 const MAX_INDEX_BYTES = 2 * 1024 * 1024;
-// The PDF link of a row, exactly: the key of the tournament is in its path, and nothing else is trusted from the link.
-const PDF = new RegExp(`^https://${HOST.replaceAll('.', '\\.')}/backtun/torneos/resultados/pdf/(\\d{4})/(\\d{8})resultados\\.pdf$`);
 const CHANGED = 'The tournament list is not in the shape this provider reads';
 
 const NAMED: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -43,7 +40,7 @@ export function parseTournamentIndex(html: string): TournamentEntry[] {
     const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((cell) => cell[1]);
     const href = /\shref="([^"]*)"/.exec(row)?.[1];
     const title = /\stitle="([^"]*)"/.exec(row)?.[1];
-    const [, year, dateKey] = (href && PDF.exec(href)) || [];
+    const [, year, dateKey] = (href && TOURNAMENT_PDF.exec(href)) || [];
     if (cells.length < 4 || title === undefined || !isTournamentKey(Number(year), dateKey ?? '')) continue;
     entries.push({
       dateKey,
