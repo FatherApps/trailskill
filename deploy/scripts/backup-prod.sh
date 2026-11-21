@@ -12,6 +12,14 @@
 #      BACKUP_REASON         why this copy was taken, written to the manifest as backup_reason=. Lowercase letters,
 #                            digits and hyphens, at most 32 characters. Default `daily` (the scheduled copy); the
 #                            copy before a migration (migrate.sh) uses `pre-migration`.
+#      BACKUP_PGUSER,        optional, both or none: the role to connect as (it must be able to dump every schema),
+#      BACKUP_PGPASSWORD     replacing PGUSER and PGPASSWORD. Never printed.
+#      BACKUP_LOCK_FILE      lock file (default /backup-lock/lock, a named volume shared by every caller). The run takes
+#                            it with flock before it dumps and holds it until it ends, so two backups never overlap
+#                            (backup-r2.sh has no lock of its own). THIS is the only place the lock is taken: callers
+#                            (migrate.sh, the cron job, a run by hand) must not lock the same file themselves, because
+#                            a second open of it by a child deadlocks against the parent.
+#      BACKUP_LOCK_WAIT_SECONDS  how long to wait for the lock (digits, default 600); then exit 1 with nothing done.
 # A copy where every key table has 0 rows is never pushed (no bypass), so it cannot replace a good one.
 # Nothing is kept locally: the plaintext dump lives in a private temp dir that is always removed.
 set -eu
@@ -24,6 +32,8 @@ umask 077
 : "${BACKUP_PUSH_CMD:?BACKUP_PUSH_CMD is required}"
 BACKUP_COUNT_TABLES=${BACKUP_COUNT_TABLES:-auth.users public.organizations public.schools public.athletes public.school_memberships}
 BACKUP_REASON=${BACKUP_REASON:-daily}
+BACKUP_LOCK_FILE=${BACKUP_LOCK_FILE:-/backup-lock/lock}
+BACKUP_LOCK_WAIT_SECONDS=${BACKUP_LOCK_WAIT_SECONDS:-600}
 LC_ALL=C
 export LC_ALL
 
@@ -31,6 +41,15 @@ log() { echo "$*"; }
 die() { echo "error: $*" >&2; exit 1; }
 sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 bytes() { wc -c <"$1" | tr -d ' '; }
+
+# The backup role replaces the connection login: both variables or none, never a mix with another password.
+if [ -n "${BACKUP_PGUSER:-}" ] || [ -n "${BACKUP_PGPASSWORD:-}" ]; then
+  [ -n "${BACKUP_PGUSER:-}" ] || die "BACKUP_PGPASSWORD is set but BACKUP_PGUSER is not"
+  [ -n "${BACKUP_PGPASSWORD:-}" ] || die "BACKUP_PGUSER is set but BACKUP_PGPASSWORD is not"
+  PGUSER=$BACKUP_PGUSER
+  PGPASSWORD=$BACKUP_PGPASSWORD
+  export PGUSER PGPASSWORD
+fi
 
 # Refuse before touching the database when there is no way to encrypt. There is no bypass.
 [ -n "${BACKUP_AGE_RECIPIENT:-}" ] ||
@@ -49,6 +68,20 @@ for m in ${BACKUP_MIN_COUNTS:-}; do
   found=0
   for t in $BACKUP_COUNT_TABLES; do [ "$t" = "${m%%=*}" ] && found=1; done
   [ "$found" -eq 1 ] || die "table of '$m' in BACKUP_MIN_COUNTS is not in BACKUP_COUNT_TABLES"
+done
+
+# One backup at a time. busybox flock has no timeout, so poll without blocking. Held on fd 9 until the process ends.
+case $BACKUP_LOCK_WAIT_SECONDS in
+  '' | *[!0-9]* | ????????*) die "BACKUP_LOCK_WAIT_SECONDS must be a whole number of seconds (at most 9999999)" ;;
+esac
+[ -d "$(dirname "$BACKUP_LOCK_FILE")" ] || die "BACKUP_LOCK_FILE ($BACKUP_LOCK_FILE): its directory does not exist (mount the backup-lock volume)"
+exec 9>"$BACKUP_LOCK_FILE"
+waited=0
+until flock -n 9; do
+  [ "$waited" -lt "$BACKUP_LOCK_WAIT_SECONDS" ] || die "could not get the backup lock within $BACKUP_LOCK_WAIT_SECONDS s; no backup was taken"
+  [ "$waited" -gt 0 ] || log "waiting for the backup lock (up to $BACKUP_LOCK_WAIT_SECONDS s)"
+  sleep 1
+  waited=$((waited + 1))
 done
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/backup-prod.XXXXXX")

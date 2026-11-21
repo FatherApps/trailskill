@@ -7,13 +7,16 @@
 name: trailskill-deploy
 
 # One image for `migrate` and `backup` (same pattern as `powersync`): the Postgres client tools plus age and rclone,
-# which backup-prod.sh and backup-r2.sh need. The build context holds only the crontab.
+# which backup-prod.sh and backup-r2.sh need, and the daily crontab. The crontab is copied in (not bind-mounted from the
+# Dokploy clone) because busybox crond ignores a crontab that root does not own. The build context holds only it.
 x-backup-tools: &backup-tools
   build:
     context: ./backup
     dockerfile_inline: |
       FROM postgres:17-alpine
       RUN apk add --no-cache age rclone
+      COPY crontab /etc/crontabs/root
+      RUN chmod 600 /etc/crontabs/root
   image: trailskill-deploy-backup-tools
   pull_policy: build # always build on `compose up`; an unchanged Dockerfile reuses the cached image
 
@@ -26,6 +29,9 @@ x-backup-env: &backup-env
   BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
   BACKUP_MIN_COUNTS: ${BACKUP_MIN_COUNTS:-}
   BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+  BACKUP_LOCK_WAIT_SECONDS: ${BACKUP_LOCK_WAIT_SECONDS:-600}
+  BACKUP_PGUSER: ${BACKUP_PGUSER:-} # both or none: backup-prod.sh refuses one without the other
+  BACKUP_PGPASSWORD: ${BACKUP_PGPASSWORD:-}
   RCLONE_CONFIG_R2_TYPE: ${RCLONE_CONFIG_R2_TYPE:-}
   RCLONE_CONFIG_R2_PROVIDER: ${RCLONE_CONFIG_R2_PROVIDER:-}
   RCLONE_CONFIG_R2_ENDPOINT: ${RCLONE_CONFIG_R2_ENDPOINT:-}
@@ -49,9 +55,6 @@ services:
     environment:
       <<: *backup-env
       BACKUP_BEFORE_MIGRATE: ${BACKUP_BEFORE_MIGRATE:?Set BACKUP_BEFORE_MIGRATE to required (or off, only for a database without real data)}
-      BACKUP_LOCK_WAIT_SECONDS: ${BACKUP_LOCK_WAIT_SECONDS:-600}
-      BACKUP_PGUSER: ${BACKUP_PGUSER:-}
-      BACKUP_PGPASSWORD: ${BACKUP_PGPASSWORD:-}
       PGHOST: ${SUPABASE_DB_HOST:?Set SUPABASE_DB_HOST to the Supabase database host on the supabase network (db)}
       PGPORT: ${SUPABASE_DB_PORT:-5432}
       PGUSER: ${SUPABASE_DB_USER:-postgres}
@@ -62,15 +65,14 @@ services:
     networks:
       - supabase
 
-  # Daily backup at 08:30 UTC (03:30 Bogotá), from deploy/backup/crontab. Shares the lock volume with `migrate`, so the
-  # two never back up at the same time. A failed run logs an error and the next one is the following day.
+  # Daily backup at 08:30 UTC (03:30 Bogotá), from deploy/backup/crontab. backup-prod.sh takes the lock on the volume
+  # shared with `migrate`, so the two never back up at the same time. A failed run logs an error; the next is tomorrow.
   backup:
     <<: *backup-tools
     restart: unless-stopped
     command: ["busybox", "crond", "-f", "-L", "/dev/stdout", "-c", "/etc/crontabs"]
     volumes:
       - ./scripts:/scripts:ro
-      - ./backup/crontab:/etc/crontabs/root:ro
       - backup-lock:/backup-lock
     tmpfs:
       - /backup-tmp:mode=700
@@ -78,8 +80,8 @@ services:
       <<: *backup-env
       PGHOST: ${SUPABASE_DB_HOST:?Set SUPABASE_DB_HOST to the Supabase database host on the supabase network (db)}
       PGPORT: ${SUPABASE_DB_PORT:-5432}
-      PGUSER: ${BACKUP_PGUSER:-${SUPABASE_DB_USER:-postgres}}
-      PGPASSWORD: ${BACKUP_PGPASSWORD:-${SUPABASE_DB_PASSWORD:?Set SUPABASE_DB_PASSWORD}}
+      PGUSER: ${SUPABASE_DB_USER:-postgres}
+      PGPASSWORD: ${SUPABASE_DB_PASSWORD:?Set SUPABASE_DB_PASSWORD}
       PGDATABASE: ${SUPABASE_DB_NAME:-postgres}
     networks:
       - supabase

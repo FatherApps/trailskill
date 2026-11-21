@@ -1,6 +1,7 @@
 # Daily PROD backup for the `backup` service (busybox crond, UTC). Edit the schedule here; Dokploy redeploys on push.
+# The file is copied into the image at build time (deploy/compose.yaml), so crond reads a root-owned crontab.
 # minute hour day month weekday  command
 # 08:30 UTC = 03:30 Bogotá. The job logs to the container's stdout (PID 1) so it shows in the Dokploy logs.
-# It waits up to 30 minutes for the lock it shares with `migrate`, and holds it (fd 9) until the backup ends: a
-# backup is never started while another one runs. Not getting the lock is logged as an error; the next try is tomorrow.
-30 8 * * * exec >/proc/1/fd/1 2>&1; exec 9>/backup-lock/lock; w=0; until flock -n 9; do [ "$w" -lt 1800 ] || { echo "error: could not get the backup lock within 1800 s; no daily backup"; exit 1; }; w=$((w+1)); sleep 1; done; BACKUP_REASON=daily exec sh /scripts/backup-prod.sh
+# backup-prod.sh takes the lock shared with `migrate` itself (BACKUP_LOCK_FILE, waits BACKUP_LOCK_WAIT_SECONDS) and
+# gives up with an error if it cannot get it; the next try is tomorrow. Do not add a lock here: it would deadlock.
+30 8 * * * exec >/proc/1/fd/1 2>&1; BACKUP_REASON=daily exec sh /scripts/backup-prod.sh

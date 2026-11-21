@@ -13,6 +13,8 @@ NET=$ID
 DB=$ID-db
 TOOLS=$ID-tools
 S3=$ID-s3
+LOCKVOL=$ID-lock
+HOLDER=$ID-holder
 T=$(mktemp -d)
 rand() { od -An -N12 -tx1 /dev/urandom | tr -d ' \n'; }
 PW=$(rand)
@@ -25,6 +27,8 @@ mkdir -p "$DEST" "$BKTMP" "$T/rc-tmp" "$T/bin" "$T/shim"
 cleanup() {
   docker rm -f -v "$DB" >/dev/null 2>&1
   docker rm -f -v "$S3" >/dev/null 2>&1
+  docker rm -f -v "$HOLDER" >/dev/null 2>&1
+  docker volume rm "$LOCKVOL" >/dev/null 2>&1
   docker rm -f -v "$RCNAME" >/dev/null 2>&1
   docker network rm "$NET" >/dev/null 2>&1
   docker rmi "$TOOLS" >/dev/null 2>&1
@@ -132,7 +136,7 @@ FETCH='cp '"$DEST"'/trailskill-prod-latest.* "$1"/'
 bk() {
   docker run --rm --network "$NET" --user "$(id -u):$(id -g)" -v "$T:$T" -v "$HERE/backup-prod.sh:/backup-prod.sh:ro" -v "$HERE:/scripts:ro" \
     -e TMPDIR="$BKTMP" -e PGHOST="$DB" -e PGUSER=supabase_admin -e PGPASSWORD="$PW" -e PGDATABASE=postgres \
-    -e BACKUP_PUSH_CMD="$PUSH" "$@" "$TOOLS" sh /backup-prod.sh >"$T/out" 2>&1
+    -e BACKUP_PUSH_CMD="$PUSH" -e BACKUP_LOCK_FILE=/tmp/backup.lock "$@" "$TOOLS" sh /backup-prod.sh >"$T/out" 2>&1
 }
 # rc KEYFILE: restore-check.sh on the host (Docker for the temporary database, age through the wrapper).
 rc() { PATH="$T/bin:$PATH" TMPDIR="$T/rc-tmp" BACKUP_FETCH_CMD="$FETCH" RESTORE_CHECK_CONTAINER_NAME="$RCNAME" sh "$HERE/restore-check.sh" "$1" >"$T/out" 2>&1; }
@@ -155,6 +159,7 @@ nonzero "bad key: exit non-zero" "$r"
 
 # --- 2. backup -> push ------------------------------------------------------
 t0=$(date +%s)
+docker volume create "$LOCKVOL" >/dev/null || exit 2
 docker volume ls -q | sort >"$T/vols.before"
 bk -e BACKUP_AGE_RECIPIENT="$PUB" -e BACKUP_COUNT_TABLES="auth.users public.organizations public.schools public.athletes public.school_memberships public.copy_probe" -e BACKUP_MIN_COUNTS="auth.users=2 public.athletes=3"; r=$?
 echo "backup elapsed: $(($(date +%s) - t0)) s"
@@ -180,6 +185,52 @@ for v in "two words" "UPPER" "-lead" "$(printf 'a\nb=c')" "$(printf 'x%.0s' $(se
   nonzero "reason: invalid value rejected" "$r"
   has "reason: invalid value says why, before dumping" "invalid BACKUP_REASON"
 done
+# the credential pair: BACKUP_PGUSER and BACKUP_PGPASSWORD replace the connection login, both or none
+bk -e BACKUP_AGE_RECIPIENT="$PUB" -e PGUSER=nobody -e PGPASSWORD=wrong -e BACKUP_PGUSER=supabase_admin -e BACKUP_PGPASSWORD="$PW"; r=$?
+eq "backup role: the pair replaces PGUSER and PGPASSWORD" 0 "$r"
+bk -e BACKUP_AGE_RECIPIENT="$PUB" -e BACKUP_PGUSER=supabase_admin -e PGHOST=unreachable.invalid; r=$?
+nonzero "backup role without password: exit non-zero" "$r"
+has "backup role without password: says why, before dumping" "BACKUP_PGPASSWORD"
+bk -e BACKUP_AGE_RECIPIENT="$PUB" -e BACKUP_PGPASSWORD=x -e PGHOST=unreachable.invalid; r=$?
+nonzero "backup role password without user: exit non-zero" "$r"
+has "backup role password without user: says why" "BACKUP_PGUSER"
+eq "backup role: password not printed" 0 "$(grep -c "$PW" "$T/out")"
+
+# the lock lives in backup-prod.sh: a direct run waits while another container holds it
+hold() { # hold SECONDS: a container takes the lock file on the named volume
+  docker run -d --name "$HOLDER" -v "$LOCKVOL:/backup-lock" "$TOOLS" \
+    sh -c "touch /backup-lock/lock; chmod 666 /backup-lock/lock; exec 9>/backup-lock/lock; flock -n 9 || exit 1; echo held; sleep $1" >/dev/null || exit 2
+  i=0
+  until docker logs "$HOLDER" 2>&1 | grep -q '^held'; do
+    i=$((i + 1)); [ "$i" -gt 30 ] && { echo "lock holder did not start"; exit 2; }
+    sleep 1
+  done
+}
+lk() { bk -v "$LOCKVOL:/backup-lock" -e BACKUP_LOCK_FILE=/backup-lock/lock -e BACKUP_AGE_RECIPIENT="$PUB" "$@"; }
+before=$(wc -l <"$T/push.log" | tr -d ' ')
+hold 300
+t0=$(date +%s)
+lk -e BACKUP_LOCK_WAIT_SECONDS=3; r=$?
+waited=$(($(date +%s) - t0))
+nonzero "lock held: a direct run exits non-zero" "$r"
+eq "lock held: it waited for the bound" 1 "$([ "$waited" -ge 3 ] && echo 1 || echo 0)"
+has "lock held: says it gave up" "could not get the backup lock within 3 s"
+eq "lock held: nothing was pushed" "$before" "$(wc -l <"$T/push.log" | tr -d ' ')"
+eq "lock held: no plaintext dump left behind" 0 "$(leftovers)"
+docker rm -f -v "$HOLDER" >/dev/null 2>&1
+lk -e BACKUP_LOCK_WAIT_SECONDS=3; r=$?
+eq "lock released: the run goes through" 0 "$r"
+hold 4
+lk -e BACKUP_LOCK_WAIT_SECONDS=60; r=$?
+eq "lock freed during the wait: exit 0" 0 "$r"
+has "lock freed during the wait: it said it was waiting" "waiting for the backup lock"
+docker rm -f -v "$HOLDER" >/dev/null 2>&1
+lk -e BACKUP_LOCK_WAIT_SECONDS=abc; r=$?
+nonzero "lock wait: invalid value exit non-zero" "$r"
+has "lock wait: names the variable" "BACKUP_LOCK_WAIT_SECONDS"
+lk -e BACKUP_LOCK_FILE=/nonexistent-dir/lock; r=$?
+nonzero "lock file in a missing directory: exit non-zero" "$r"
+has "lock file in a missing directory: clear message" "BACKUP_LOCK_FILE"
 GOOD=$(sums)
 
 # --- 3. restore check passes ------------------------------------------------
