@@ -12,6 +12,7 @@ import {
   createPowerSyncManagedAthleteProfileRepository,
   createPowerSyncManagedAthleteRepository,
   createPowerSyncOwnAuthorizationEvidence,
+  createSecureStoreKnownDeletionStatusRepository,
   createSecureStorePendingInvitationRepository,
   createSecureStoreRegistrationDraftRepository,
   createSupabaseAccountDeletionRepository,
@@ -63,6 +64,7 @@ function buildRepositories() {
     managedAthletes: createPowerSyncManagedAthleteRepository(),
     schoolAthletes: createPowerSyncSchoolAthleteRepository(),
     accountDeletion: createSupabaseAccountDeletionRepository(),
+    knownDeletion: createSecureStoreKnownDeletionStatusRepository(),
     drafts: createSecureStoreRegistrationDraftRepository(),
     profiles: createSupabaseAdultProfileRepository(),
     managedProfiles: createPowerSyncManagedAthleteProfileRepository(
@@ -185,13 +187,14 @@ async function hasLocalProfile(userId: string) {
 }
 
 // An account marked for deletion (issue 1245) sees only its date and the way to cancel: the app, the registration and the profile checks
-// below do not run for it. Without an answer from the server in time the app opens as usual (a marked account syncs nothing).
+// below do not run for it. The app opens from what the phone last learned about the account and the server is asked in the background
+// (issue 1311); only a phone that knows nothing yet waits for the server, up to a time limit, and then opens as usual.
 export function AppLayoutContainer(props: AppLayoutContainerProps) {
-  const { accountDeletion } = repositories();
+  const { accountDeletion, knownDeletion } = repositories();
   const { session } = useSession();
   const { connection } = useGlobalSyncSummary();
   const { colors, space } = useTheme();
-  const deletion = useAccountDeletionStatus(accountDeletion, session?.user.id);
+  const deletion = useAccountDeletionStatus(accountDeletion, session?.user.id, knownDeletion);
   useStartupMark('layout_mounted');
   useStartupMark('deletion_gate_done', deletion.state !== 'loading');
   if (deletion.state === 'loading') {
