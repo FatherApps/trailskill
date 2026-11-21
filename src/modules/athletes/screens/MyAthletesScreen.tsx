@@ -62,7 +62,8 @@ export function MyAthletesScreen({ view, onOpen, onAdd, scrollEnabled = true }: 
     </>
   );
   return scrollEnabled ? (
-    <ScrollView style={frame} contentContainerStyle={padding}>
+    // The floating phone bar rests on the bottom edge: the last card scrolls above it, as the last rows of the other screens do.
+    <ScrollView style={frame} contentContainerStyle={{ ...padding, paddingBottom: space[12] * 2 }}>
       {cards}
     </ScrollView>
   ) : (

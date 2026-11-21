@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import { createStore, openDatabase, type FakeDatabase } from '../../../core/sync/testing/fakeDatabase';
-import { createPowerSyncFamilyMeasurementRepository, NotCompetitionError, UnknownMeasurementError, type FamilyMeasurement } from '..';
+import { createPowerSyncFamilyMeasurementRepository, NotCompetitionError, NotTrainingError, UnknownMeasurementError, type FamilyMeasurement } from '..';
 
 let mockDb: FakeDatabase;
 jest.mock('../../../core/sync/db', () => ({
@@ -29,6 +29,7 @@ const TABLES = `
     deleted_at TEXT
   );
   CREATE TABLE family_measurements (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, athlete_id TEXT, ${COLUMNS});
+  CREATE TABLE family_timing_notes (id TEXT PRIMARY KEY, created_at TEXT, measurement_id TEXT, note TEXT);
 `;
 
 const base: FamilyMeasurement = {
@@ -86,7 +87,7 @@ describe('PowerSync family measurements', () => {
   it('saves a time in the synced table, queued for upload, owned by who captured it', async () => {
     const repo = createPowerSyncFamilyMeasurementRepository();
     await repo.add(base);
-    expect(await repo.listByAthlete('a1')).toEqual([{ ...base, officialResultKey: null, deletedAt: null }]);
+    expect(await repo.listByAthlete('a1')).toEqual([{ ...base, officialResultKey: null, deletedAt: null, note: null }]);
     expect(mockDb.getAll('SELECT owner_user_id, captured_by, splits FROM family_timing_measurements')).toEqual([
       { owner_user_id: 'u1', captured_by: 'u1', splits: '[23100]' },
     ]);
@@ -122,6 +123,16 @@ describe('PowerSync family measurements', () => {
     expect((await repo.listByAthlete('a2'))[0]).toMatchObject({ stroke: 'BK', millis: 47_210 });
     expect(pending()).toHaveLength(2);
     await expect(repo.edit('nope', { stroke: 'BK' })).rejects.toBeInstanceOf(UnknownMeasurementError);
+  });
+
+  it('corrects the distance of a training time only', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.add({ ...base, sessionType: 'training', competition: null });
+    await repo.add({ ...base, id: 'c1', sessionType: 'competition', competition: 'Festival' });
+    await repo.edit('m1', { distance: '100m' });
+    expect((await repo.listByAthlete('a1')).find((m) => m.id === 'm1')).toMatchObject({ distance: '100m', millis: 47_210 });
+    await expect(repo.edit('c1', { distance: '100m' })).rejects.toBeInstanceOf(NotTrainingError);
+    expect((await repo.listByAthlete('a1')).find((m) => m.id === 'c1')).toMatchObject({ distance: '50m' });
   });
 
   it('saves the times of a series together, with the ones without a swimmer listed apart', async () => {
@@ -273,5 +284,52 @@ describe('a phone-only time the server rejected (issue 1025)', () => {
     const repo = await rejectedAndAccepted();
     server((s) => s.exec("INSERT INTO pending_writes (id, table_name, record_id) VALUES ('p1', 'family_timing_measurements', 'rej-1')"));
     expect(await repo.listRejected('u1', 'a1')).toEqual([]);
+  });
+});
+
+describe('the note on a time without a swimmer (issue #1300)', () => {
+  const unassigned: FamilyMeasurement = { ...base, id: 'm9', athleteId: null };
+  const notes = () => mockDb.getAll<{ measurement_id: string; note: string }>('SELECT measurement_id, note FROM family_timing_notes ORDER BY measurement_id');
+
+  it('keeps the note on this phone only: never in the synced table nor queued for upload', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.add({ ...unassigned, note: '  Juan, hijo de Pedro  ' });
+    expect((await repo.listByAthlete(null))[0]).toMatchObject({ id: 'm9', note: 'Juan, hijo de Pedro' });
+    expect(notes()).toEqual([{ measurement_id: 'm9', note: 'Juan, hijo de Pedro' }]);
+    expect(pending()).toEqual([{ table_name: 'family_timing_measurements', record_id: 'm9' }]);
+    expect(Object.keys(mockDb.getAll<Record<string, unknown>>('SELECT * FROM family_timing_measurements')[0])).not.toContain('note');
+  });
+
+  it('saves no note for a time with a swimmer, and cuts a long one', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.add({ ...base, note: 'Juan' });
+    expect(notes()).toEqual([]);
+    await repo.add({ ...unassigned, note: 'x'.repeat(80) });
+    expect(notes()[0].note).toHaveLength(60);
+  });
+
+  it('changes and clears the note without uploading anything, and drops it once the time has a swimmer', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.add(unassigned);
+    await repo.edit('m9', { note: 'Ana' });
+    expect((await repo.listByAthlete(null))[0].note).toBe('Ana');
+    await repo.edit('m9', { note: '  ' });
+    expect(notes()).toEqual([]);
+    await repo.edit('m9', { note: 'Ana' });
+    expect(pending()).toHaveLength(1);
+    await repo.edit('m9', { athleteId: 'a1' });
+    expect(notes()).toEqual([]);
+    expect((await repo.listByAthlete('a1'))[0].note).toBeNull();
+  });
+
+  it('after a sync, forgets the notes of times that left this person (accepted by another family) and keeps the rest', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.add({ ...unassigned, note: 'Ana' });
+    await repo.add({ ...unassigned, id: 'm8', note: 'Luis' });
+    // The other family accepted m8: the sync takes it off this phone.
+    server((s) => s.exec("DELETE FROM family_timing_measurements WHERE id = 'm8'"));
+    expect(await repo.forgetGoneNotes()).toBe(1);
+    expect(notes()).toEqual([{ measurement_id: 'm9', note: 'Ana' }]);
+    expect(await repo.forgetGoneNotes()).toBe(0);
   });
 });

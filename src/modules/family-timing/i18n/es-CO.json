@@ -187,7 +187,8 @@
       "col_lap": "Parcial",
       "col_total": "Acumulado",
       "measured": "Tiempo medido",
-      "edit": "Editar registro"
+      "edit": "Editar registro",
+      "note": "Nota"
     },
     "choose_official": {
       "title": "Resultado oficial",
@@ -261,6 +262,10 @@
       "this_week": "esta semana",
       "week_count_one": "{{count}} tiempo",
       "week_count_other": "{{count}} tiempos"
+    },
+    "note": {
+      "label": "Nota",
+      "help": "Opcional. Por ejemplo, de quién es el tiempo. Queda solo en este celular."
     }
   }
 }

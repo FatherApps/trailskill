@@ -22,6 +22,7 @@ import {
   type InitialsDotProps,
   type SegmentedOption,
 } from '../../../core/ui';
+import { NOTE_MAX_LENGTH } from '../data/familyMeasurements';
 import { FilterSheet } from '../components/FilterSheet';
 import '../i18n';
 
@@ -58,6 +59,8 @@ export type FamilyCard = {
   isBest?: boolean;
   // Not given to a swimmer yet ("Sin asignar").
   unassigned?: boolean;
+  // The owner's note on a time without a swimmer: whose time it is (on this phone only).
+  note?: string | null;
   // Sent to another swimmer's family and waiting for their answer: that swimmer's short name.
   sentTo?: string | null;
   // The server did not accept it ("No enviado").
@@ -116,7 +119,11 @@ export type FamilyDeletedCard = FamilyCard & { removedOn: string };
 export type FamilyEditView = {
   card: FamilyCard;
   stroke: { options: SegmentedOption<string>[]; value: string };
+  // Training times only: a competition keeps the event it was swum and matched with.
+  distance?: { options: SegmentedOption<string>[]; value: string } | null;
   athlete: { options: ChipRowOption<string>[]; value: string };
+  // The note, offered while the time has no swimmer; null when it has one.
+  note: string | null;
   confirmingDelete: boolean;
   saveError: boolean;
   // Sending to another family is offered.
@@ -170,6 +177,9 @@ export type FamilySetupView = {
   pool: { options: SegmentedOption<string>[]; value: string };
   sessionType: { options: SegmentedOption<string>[]; value: string };
   competition: string;
+  // Individual mode: who the time goes to (a swimmer by default, or "Sin asignar"), and the note while it is "Sin asignar".
+  athlete: { options: ChipRowOption<string>[]; value: string };
+  note: string | null;
 };
 
 export type FamilyTimingView =
@@ -211,7 +221,7 @@ export type FamilyTimingScreenProps = {
   onBack: () => void;
   onRetry: () => void;
   onNew: () => void;
-  onSetupChange: (field: 'mode' | 'swimmers' | 'stroke' | 'distance' | 'pool' | 'sessionType' | 'competition', value: string) => void;
+  onSetupChange: (field: 'mode' | 'swimmers' | 'stroke' | 'distance' | 'pool' | 'sessionType' | 'competition' | 'athleteId' | 'note', value: string) => void;
   onGoToStopwatch: () => void;
   onCancel: () => void;
   onStart: () => void;
@@ -231,7 +241,7 @@ export type FamilyTimingScreenProps = {
   onSaveOfficial: () => void;
   onClearOfficial: () => void;
   onOpenEdit: (id: string) => void;
-  onEditChange: (field: 'stroke' | 'athleteId', value: string) => void;
+  onEditChange: (field: 'stroke' | 'athleteId' | 'distance' | 'note', value: string) => void;
   onSaveEdit: () => void;
   onAskDelete: () => void;
   onConfirmDelete: () => void;
@@ -1003,10 +1013,27 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             </Text>
             <Segmented accessibilityLabel={t('family_timing.setup.stroke')} {...edit.stroke} onChange={(v) => props.onEditChange('stroke', v)} />
           </View>
+          {edit.distance && (
+            <View style={{ gap: space[3] }}>
+              <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+                {t('family_timing.setup.distance')}
+              </Text>
+              <Segmented accessibilityLabel={t('family_timing.setup.distance')} {...edit.distance} onChange={(v) => props.onEditChange('distance', v)} />
+            </View>
+          )}
           {edit.athlete.options.length > 1 && (
             <Field label={t('family_timing.athlete')}>
               <ChipRow accessibilityLabel={t('family_timing.athlete')} {...edit.athlete} onChange={(v) => props.onEditChange('athleteId', v)} />
             </Field>
+          )}
+          {edit.note !== null && (
+            <TextField
+              label={t('family_timing.note.label')}
+              help={t('family_timing.note.help')}
+              value={edit.note}
+              maxLength={NOTE_MAX_LENGTH}
+              onChangeText={(v) => props.onEditChange('note', v)}
+            />
           )}
           {edit.saveError && (
             <Banner variant="warn" icon="error">
@@ -1043,6 +1070,20 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             <Field label={t('family_timing.setup.swimmers')}>
               <ChipRow accessibilityLabel={t('family_timing.setup.swimmers')} {...setup.swimmers} onChange={(v) => props.onSetupChange('swimmers', v)} />
             </Field>
+          )}
+          {!series && (
+            <Field label={t('family_timing.athlete')}>
+              <ChipRow accessibilityLabel={t('family_timing.athlete')} {...setup.athlete} onChange={(v) => props.onSetupChange('athleteId', v)} />
+            </Field>
+          )}
+          {!series && setup.note !== null && (
+            <TextField
+              label={t('family_timing.note.label')}
+              help={t('family_timing.note.help')}
+              value={setup.note}
+              maxLength={NOTE_MAX_LENGTH}
+              onChangeText={(v) => props.onSetupChange('note', v)}
+            />
           )}
           <Field label={t(series ? 'family_timing.setup.stroke_series' : 'family_timing.setup.stroke')}>
             <Segmented accessibilityLabel={t('family_timing.setup.stroke')} {...setup.stroke} onChange={(v) => props.onSetupChange('stroke', v)} />
