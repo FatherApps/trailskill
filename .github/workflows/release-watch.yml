@@ -9,7 +9,8 @@ on:
   push:
     tags:
       - v*
-      - '!v*+ota*'
+      # In GitHub filters "+" repeats the previous character, so the "+" of vX.Y.Z+ota.N is escaped; unescaped, GitHub rejects the whole file (#1329).
+      - '!v*\+ota*'
   workflow_dispatch:
     inputs:
       tag:
