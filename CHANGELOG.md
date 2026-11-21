@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/FatherApps/trailskill/compare/v0.8.0...v0.8.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* **session:** make a new sign-in wait for the late clear of the earlier sign-out (replaces [#1294](https://github.com/FatherApps/trailskill/issues/1294)) ([#1310](https://github.com/FatherApps/trailskill/issues/1310)) ([8d4ec35](https://github.com/FatherApps/trailskill/commit/8d4ec350f23c27a4696ecde94ca54cbf6e56e598)), closes [#1270](https://github.com/FatherApps/trailskill/issues/1270)
+
 ## [0.8.0](https://github.com/FatherApps/trailskill/compare/v0.7.0...v0.8.0) (2026-11-21)
 
 
