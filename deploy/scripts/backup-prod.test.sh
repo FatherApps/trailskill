@@ -23,7 +23,7 @@ BKTMP=$T/bk-tmp
 mkdir -p "$DEST" "$BKTMP" "$T/rc-tmp" "$T/bin" "$T/shim"
 
 cleanup() {
-  docker rm -f "$DB" >/dev/null 2>&1
+  docker rm -f -v "$DB" >/dev/null 2>&1
   docker rm -f -v "$S3" >/dev/null 2>&1
   docker rm -f -v "$RCNAME" >/dev/null 2>&1
   docker network rm "$NET" >/dev/null 2>&1
@@ -50,6 +50,13 @@ while [ "$ok" -lt 2 ]; do
   i=$((i + 1)); [ "$i" -gt 90 ] && { echo "database did not start"; exit 2; }
   sleep 2
 done
+# The image has the storage schema but not the Storage API tables the photo migrations use (the Storage service
+# creates them in a real stack): stand-ins with only the columns the migrations touch.
+sql <<'SQL' || exit 2
+create table storage.buckets (id text primary key, name text not null, public boolean default false, file_size_limit bigint, allowed_mime_types text[]);
+create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets (id), name text, created_at timestamptz not null default now());
+alter table storage.objects enable row level security;
+SQL
 docker cp "$ROOT/supabase/migrations" "$DB:/m" >/dev/null
 docker exec -e PGOPTIONS="-c client_min_messages=warning" "$DB" sh -c 'for f in /m/*.sql; do psql -X -U supabase_admin -d postgres -q -1 -v ON_ERROR_STOP=1 -f "$f" >/dev/null || { echo "migration failed: $f" >&2; exit 1; }; done' || exit 2
 sql <<'SQL' || exit 2
@@ -317,7 +324,7 @@ fetched() {
 bkr; r=$?
 eq "r2: backup exit 0" 0 "$r"
 SHA_A=$(remote_sha)
-eq "r2: exactly the manifest and dumps/ at the remote" "dumps/ trailskill-prod-latest.manifest " "$(rcl lsf "$BACKUP_RCLONE_REMOTE" | sort | tr '\n' ' ')"
+eq "r2: exactly the manifest, dumps/ and manifests/ at the remote" "dumps/ manifests/ trailskill-prod-latest.manifest " "$(rcl lsf "$BACKUP_RCLONE_REMOTE" | sort | tr '\n' ' ')"
 eq "r2: one dump, named by the manifest's encrypted_sha256" "$SHA_A.dump.age " "$(dumps)"
 # (b) restore through the R2 fetch
 rc "$T/key1.txt"; r=$?
@@ -330,7 +337,8 @@ sql -c "insert into public.athletes (first_name, last_name) values ('Second', 'S
 bkr; r=$?
 eq "r2: second backup exit 0" 0 "$r"
 SHA_C=$(remote_sha)
-eq "r2: second backup: still one dump, new name" "$SHA_C.dump.age " "$(dumps)"
+eq "r2: second backup: both dumps are kept (14-day retention), the manifest names the new one" "$(printf '%s\n%s\n' "$SHA_A.dump.age" "$SHA_C.dump.age" | sort | tr '\n' ' ')" "$(dumps)"
+eq "r2: second backup: the manifest names the new dump" "$SHA_C" "$(remote_sha)"
 [ "$SHA_C" != "$SHA_A" ] && pass "r2: second backup: the name changed" || fail "r2: second backup: the name changed" "same sha"
 
 # (d) crash at every step boundary. State A is the committed pair now at the remote; B is a second real backup
@@ -376,16 +384,18 @@ nonzero "r2 freshness: a just-uploaded manifest with an old created_at fails" "$
 has "r2 freshness: judged by created_at, not by object age" "older than 26 h"
 # 4. crash mid-cleanup (manifest B, B dump, one stray old dump left)
 printf 'orphan' >"$T/orphan"
+touch -t 202001010000.00 "$T/orphan" # old, so the cleanup reaches it and must leave it alone
 state "$T/B/m" "$SHA_B=$T/B/d" "orphan=$T/orphan"
 rcf; r=$?
 eq "r2 crash mid-cleanup: freshness passes" 0 "$r"
 fetched "$T/B/m"; r=$?
 eq "r2 crash mid-cleanup: fetch returns the consistent new pair B" 0 "$r"
-# next normal backup from that state leaves exactly one dump
+# next normal backup from that state: B and the new D are inside the 14 days, the object with another name is left alone
 bkr; r=$?
 eq "r2: backup after a crash exits 0" 0 "$r"
 SHA_D=$(remote_sha)
-eq "r2: backup after a crash leaves exactly one dump (stray ones removed)" "$SHA_D.dump.age " "$(dumps)"
+eq "r2: backup after a crash keeps B and D and leaves the object with another name alone" "$(printf '%s\n%s\n%s\n' "$SHA_B.dump.age" "$SHA_D.dump.age" orphan.dump.age | sort | tr '\n' ' ')" "$(dumps)"
+has "r2: backup after a crash warns about the object with another name" "other names"
 
 # (e) manifest naming a missing dump, (f) malformed sha, (g) usage
 rcl deletefile "$RR/dumps/$SHA_D.dump.age"
@@ -437,6 +447,8 @@ mfsha() { sed -n 's/^encrypted_sha256=//p' "$1/m"; }
 
 mk_pair "$T/XA"; r=$?
 eq "r2 order setup: pair A made" 0 "$r"
+# A is an old copy (past the 14 days): its dump time is what makes the cleanup delete it. Dates are kept by rclone.
+touch -t 202001010000.00 "$T/XA/d"
 mk_pair "$T/XC"; r=$?
 eq "r2 order setup: pair C made" 0 "$r"
 SHA_XA=$(mfsha "$T/XA"); SHA_XC=$(mfsha "$T/XC")
@@ -459,7 +471,8 @@ push_fails() {
 push_fails "r2 step 1, dump upload fails" fail "copyto:.dump.age" "upload failed"
 push_fails "r2 step 2, read-back fails" fail "cat:dumps/" "does not verify"
 push_fails "r2 step 2, read-back returns garbage (manifest must not be published)" garbage "cat:dumps/" "does not verify"
-push_fails "r2 step 3, manifest publish fails" fail "copyto:.manifest" "cannot publish the manifest"
+push_fails "r2 step 2b, manifest copy upload fails" fail "copyto:manifests/" "upload failed"
+push_fails "r2 step 3, manifest publish fails" fail "copyto:r2:$BUCKET/trailskill-prod-latest.manifest" "cannot publish the manifest"
 # step 4: a failed delete is only a warning; the new pair is already committed
 disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
 arm fail "deletefile:dumps/"
@@ -598,28 +611,8 @@ bkx; r=$?
 nonzero "r2 step 6 manifest names a missing dump: backup exits non-zero" "$r"
 has "r2 step 6 manifest names a missing dump: says so" "the published manifest names a missing dump (dumps/$FAKESHA.dump.age)"
 
-# strictly older: with the same listed time as the new dump a dump is kept (one warning), one second older it is
-# deleted. The hook reads the new dump's listed time, then uploads C with that time and A one second earlier.
-cp "$T/XC/d" "$T/XC/d.eq"; cp "$T/XA/d" "$T/XA/d.old"
-disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
-cat >"$T/fake/before.sh" <<SH
-S=\$(/usr/bin/rclone cat "$RR/trailskill-prod-latest.manifest" | sed -n 's/^encrypted_sha256=//p')
-T0=\$(/usr/bin/rclone lsf --format t --include "\$S.dump.age" "$RR/dumps/")
-E=\$(date -d "\$T0" +%s)
-touch -d "\$T0" "$T/XC/d.eq"
-touch -d "\$(date -d "@\$((E - 1))" +'%Y-%m-%d %H:%M:%S')" "$T/XA/d.old"
-/usr/bin/rclone copyto "$T/XC/d.eq" "$RR/dumps/$SHA_XC.dump.age"
-/usr/bin/rclone deletefile "$RR/dumps/$SHA_XA.dump.age"
-/usr/bin/rclone copyto "$T/XA/d.old" "$RR/dumps/$SHA_XA.dump.age"
-SH
-arm before "lsf:dumps/"
-bkx; r=$?
-eq "r2 strictly older: backup exits 0" 0 "$r"
-has_dump "$SHA_XC"; r=$?; eq "r2 strictly older: a dump with the same time is kept" 0 "$r"
-has "r2 strictly older: the kept dump is reported with the reason" "kept dumps/$SHA_XC.dump.age: not older than the new copy"
-eq "r2 strictly older: one kept warning in total" 1 "$(grep -c '^warning: kept' "$T/out")"
-has_dump "$SHA_XA"; r=$?; nonzero "r2 strictly older: a dump one second older is deleted" "$r"
-has_dump "$(remote_sha)"; r=$?; eq "r2 strictly older: the manifest names an existing dump" 0 "$r"
+# the 14-day boundary (13, 15 and 30 days, BACKUP_KEEP_DAYS) and every other fail-safe of the cleanup are tested
+# without Postgres in backup-r2.test.sh
 
 # nested folders under dumps/ are left alone with one warning in total
 disarm; state "$T/XA/m" "$SHA_XA=$T/XA/d"
