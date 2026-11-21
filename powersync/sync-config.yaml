@@ -12,7 +12,7 @@
 # training-plans_coach_reads_fulfillments_assignment_school,
 # training-plans_admin_reads_fulfillments_assignment_school,
 # athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school,
-# athletes_photos, athletes_athlete_schools_end, accounts_saved_share_codes, accounts_saved_share_codes_expired):
+# athletes_photos, athletes_athlete_schools_end, accounts_saved_share_codes, accounts_saved_share_codes_expired, results-import_tournaments):
 # a row syncs only if the signed-in user could read it through RLS.
 # An ended link (athlete_schools.ended_at, #1243) gives its school's coaches and admins nothing of that swimmer, one
 # (swimmer, school) pair at a time. Every staff query keeps ended_at IS NULL on athlete_schools. PowerSync 1.21 builds the
@@ -279,6 +279,14 @@ streams:
       - SELECT * FROM results_imports WHERE athlete_id IN import_authorized_athlete_ids
       - SELECT * FROM imported_results WHERE athlete_id IN import_authorized_athlete_ids
       - SELECT * FROM imported_result_changes WHERE athlete_id IN import_authorized_athlete_ids
+
+  # The catalog of tournaments of a results platform (#1339), so the picker by city and date works offline. It is public reference data
+  # (results_import_tournaments_select lets any signed-in user read it), so there is no user binding: only the gate of a marked account,
+  # like accounts_authorization_texts. Columns are listed so a column added later does not reach old builds by surprise.
+  results_import_tournaments:
+    auto_subscribe: true
+    queries:
+      - SELECT id, organization_id, year, date_key, name, city, discipline, course, source_url, refreshed_at FROM results_import_tournaments WHERE auth.user_id() IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
 
   # "Mis tiempos": the times a guardian or adult athlete measured themselves, only for their owner
   # (family_timing_measurements_select). Deleted ones come too, so "Eliminados" can restore them for 30 days.
