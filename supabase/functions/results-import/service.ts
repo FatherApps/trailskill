@@ -1,6 +1,6 @@
 import { isDistance, isPool, isStroke } from '../../../src/core/sport/catalogs.ts';
 import { keyHasNumber, normalizeNumber } from './identityNumber.ts';
-import { SourceUnreachableError, type Affiliation, type Candidate, type NormalizedResult, type ResultsProvider, type TournamentEntry, type TournamentProvider, type TournamentSearch } from './port.ts';
+import { NoFileError, SourceUnreachableError, type Affiliation, type Candidate, type NormalizedResult, type ResultsProvider, type TournamentEntry, type TournamentProvider, type TournamentSearch } from './port.ts';
 import type { OrganizationData, ProviderRegistry } from './registry.ts';
 
 // The worker's proposal, pending maintainer review: one source query per athlete and provider every 10 minutes, search and refresh alike.
@@ -148,7 +148,8 @@ export type ImportError =
   | { code: 'not_authorized' }
   | { code: 'rate_limited'; retryAt: string }
   | { code: 'no_provider' }
-  | { code: 'unavailable' }
+  // `reason` only says why, for the tournament action; the code stays the same, so a client that does not know it treats it as any unavailable.
+  | { code: 'unavailable'; reason?: 'no_file' }
   | { code: 'unknown_id' }
   | { code: 'identity_number_conflict' }
   | { code: 'identity_number_required' };
@@ -421,8 +422,19 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
       if (identityNumber !== null && stored !== null && !sameNumber(identityNumber, stored)) return fail({ code: 'identity_number_conflict' });
       const number = stored ?? identityNumber;
       if (number === null) return fail({ code: 'identity_number_required' });
-      const outcome = await query(who, provider.key, claimed.claimedAt, () => lookup(number), cleanSearch);
-      if (!outcome.ok) return outcome;
+      let noFile = false;
+      const outcome = await query(
+        who,
+        provider.key,
+        claimed.claimedAt,
+        () =>
+          lookup(number).catch((error) => {
+            noFile = error instanceof NoFileError;
+            throw error;
+          }),
+        cleanSearch,
+      );
+      if (!outcome.ok) return noFile ? fail({ code: 'unavailable', reason: 'no_file' }) : outcome;
       const search = outcome.value;
       if (!search.found) return { ok: true, value: { organizationId, candidate: null } };
       // The result key syncs to the device: it must not carry the number.

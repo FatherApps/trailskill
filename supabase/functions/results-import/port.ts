@@ -38,6 +38,14 @@ export class SourceUnreachableError extends ProviderUnavailableError {
   }
 }
 
+/** The source answered that the tournament has no results file (yet). Not a failure of the source: the same ask answers the same until the file is published. */
+export class NoFileError extends ProviderUnavailableError {
+  constructor() {
+    super('The tournament has no published results file');
+    this.name = 'NoFileError';
+  }
+}
+
 export interface ResultsProvider {
   /** '<country>-<organization>', lower case, the organization's ISO country code first. */
   readonly key: string;

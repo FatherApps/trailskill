@@ -1,4 +1,4 @@
-import { ProviderUnavailableError, SourceUnreachableError } from '../../port.ts';
+import { NoFileError, ProviderUnavailableError, SourceUnreachableError } from '../../port.ts';
 import { searchLenex, type LenexSearch } from './lenex.ts';
 import { TOO_LARGE, isRealDay, readBounded } from './shared.ts';
 import { NOT_LENEX } from './xml.ts';
@@ -17,7 +17,6 @@ export const INDEX_URL = `https://${HOST}/seccion/resultados`;
 export const TOURNAMENT_PDF = new RegExp(`^https://${HOST.replaceAll('.', '\\.')}/backtun/torneos/resultados/pdf/(\\d{4})/(\\d{8})resultados\\.pdf$`);
 
 const REJECTED = 'The tournament address is not one this provider accepts';
-const NO_FILE = 'The tournament has no published results file';
 const REDIRECTS = 'The tournament address redirects';
 const NO_ANSWER = 'The platform did not answer';
 
@@ -55,7 +54,7 @@ async function download(fetchImpl: FetchImpl, url: string, signal: AbortSignal, 
   }
   if (response.status === 404) {
     cancel();
-    throw new ProviderUnavailableError(NO_FILE);
+    throw new NoFileError();
   }
   if (response.status !== 200) {
     cancel();
