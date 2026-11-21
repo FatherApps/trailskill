@@ -104,7 +104,7 @@ streams:
   accounts_saved_share_codes:
     auto_subscribe: true
     queries:
-      - SELECT id, user_id, code, athlete_short_name, saved_at FROM saved_athlete_share_codes WHERE user_id = auth.user_id() AND user_id IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
+      - SELECT id, user_id, code, athlete_short_name, saved_at FROM saved_athlete_share_codes WHERE (user_id = auth.user_id()) AND auth.user_id() IN (SELECT user_id FROM account_sync_access WHERE user_id = auth.user_id())
 
   school_console_school:
     auto_subscribe: true
