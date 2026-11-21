@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { ProviderUnavailableError, SourceUnreachableError } from '../../../port.ts';
+import { NoFileError, ProviderUnavailableError, SourceUnreachableError } from '../../../port.ts';
 import { MAX_ZIP_BYTES } from '../zip.ts';
 import { PROVIDER_KEY, TOTAL_TIMEOUT_MS, createTournamentLookup, tournamentFromKey, tournamentFromUrl } from '../lookup.ts';
 import { ME, lenex } from './lenexBuilder.ts';
@@ -129,6 +129,13 @@ describe('createTournamentLookup', () => {
     expect(error).toBeInstanceOf(SourceUnreachableError);
     expect(error.message).not.toContain(NUMBER);
     expect(error.cause).toBeUndefined();
+  });
+
+  it('throws the typed no-file error for a 404, and for nothing else', async () => {
+    expect(await createTournamentLookup(async () => new Response(null, { status: 404 }))(FOLDER, NUMBER).catch((e) => e)).toBeInstanceOf(NoFileError);
+    for (const status of [301, 403, 500]) {
+      expect(await createTournamentLookup(async () => new Response(null, { status }))(FOLDER, NUMBER).catch((e) => e)).not.toBeInstanceOf(NoFileError);
+    }
   });
 
   it.each([404, 301])('is not unreachable when the platform answered %i', async (status) => {
