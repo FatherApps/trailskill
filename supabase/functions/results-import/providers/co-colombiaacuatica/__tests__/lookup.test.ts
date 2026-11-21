@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { ProviderUnavailableError, SourceUnreachableError } from '../../../port.ts';
 import { MAX_ZIP_BYTES } from '../zip.ts';
-import { PROVIDER_KEY, TOTAL_TIMEOUT_MS, createTournamentLookup, tournamentFromUrl } from '../lookup.ts';
+import { PROVIDER_KEY, TOTAL_TIMEOUT_MS, createTournamentLookup, tournamentFromKey, tournamentFromUrl } from '../lookup.ts';
 import { ME, lenex } from './lenexBuilder.ts';
 import { buildZip } from './zipBuilder.ts';
 
@@ -204,5 +204,39 @@ describe('createTournamentLookup', () => {
     await jest.advanceTimersByTimeAsync(TOTAL_TIMEOUT_MS - 1);
     expect((await pending).found).toBe(true);
     expect(jest.getTimerCount()).toBe(0);
+  });
+});
+
+describe('createTournamentLookup by tournament key', () => {
+  const KEY_ZIP_URL = `https://${HOST}/backtun/torneos/2026/20261120/resultados20261120Lenex.zip`;
+
+  it('asks for exactly the zip of the key, on the adapter\'s host, and reads it like a pasted address', async () => {
+    const zip = await zipOf(lenex());
+    const fetchImpl = jest.fn(async () => ok(zip));
+    const search = await createTournamentLookup(fetchImpl)(2026, '20261120', NUMBER);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(KEY_ZIP_URL, expect.objectContaining({ redirect: 'manual' }));
+    expect(search.found && search.results.length).toBe(3);
+  });
+
+  it('builds the same zip address from a key as from the pasted folder', () => {
+    expect(tournamentFromKey(2025, '20251018')).toEqual(tournamentFromUrl(FOLDER));
+  });
+
+  it.each([
+    ['a year that is not the key\'s', 2025, '20261120'],
+    ['a day that does not exist', 2026, '20260230'],
+    ['an impossible month', 2026, '20261340'],
+    ['a short key', 2026, '2026112'],
+    ['a long key', 2026, '202611200'],
+    ['text around the key', 2026, '20261120x'],
+    ['spaces around the key', 2026, ' 20261120'],
+    ['a path in the key', 2026, '../20261120'],
+    ['a year that is not a whole number', 2026.5, '20261120'],
+    ['empty text', 2026, ''],
+  ])('rejects %s like an invalid address, before any request', async (_label, year, key) => {
+    const fetchImpl = jest.fn();
+    await expect(createTournamentLookup(fetchImpl)(year, key, NUMBER)).rejects.toThrow(new ProviderUnavailableError('The tournament address is not one this provider accepts'));
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
