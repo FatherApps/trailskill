@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { supabase } from '../../../core/sync';
+import type { KnownDeletionStatus, KnownDeletionStatusRepository } from './knownDeletionStatus';
 
 /** A school that still links the account: deleting is refused until the school unlinks the person. */
 export type BlockingSchool = { id: string; name: string };
@@ -133,18 +134,26 @@ export function createInMemoryAccountDeletionRepository(
   return repository satisfies AccountDeletionRepository;
 }
 
-/** `loading` until the server answers; `unknown` when it could not be asked (the app then opens as usual, as it does offline). */
+/** `loading` until something is known; `unknown` when nothing is known and the server could not be asked (the app then opens as usual, as it does offline). */
 export type AccountDeletionStatus = { state: 'loading' | 'unknown' | 'active' } | { state: 'marked'; deleteAfter: string };
 
-/** Longest the app waits for the server before it opens as usual. */
+/** Longest the app waits, with nothing known on the phone, before it opens as usual. */
 export const DELETION_STATUS_TIMEOUT_MS = 4000;
 
+const statusOf = (deleteAfter: string | null): KnownDeletionStatus => (deleteAfter ? { state: 'marked', deleteAfter } : { state: 'active' });
+
 /**
- * Asks, each time the app opens for a signed-in person, whether their account is marked for deletion. `refresh` asks again, for
- * after a cancellation. Without an answer in time (or without a person) the app opens as usual: a marked account syncs nothing, so
- * nothing of it shows. The first answer is final for its question: a late timeout never takes back a real answer.
+ * Asks, each time the app opens for a signed-in person, whether their account is marked for deletion, and tells the layout at once
+ * what the phone last learned (`known`), so the app paints from the device and the server's answer arrives in the background (issue
+ * 1311). A marked account is blocked as soon as the server says so, even after the time limit; an answer is remembered for the next
+ * opening. With nothing known (the first opening on this phone) it waits up to the time limit, then opens as usual: a marked account
+ * syncs nothing, so nothing of it shows. `refresh` asks again, for after a cancellation, and never trusts what was remembered.
  */
-export function useAccountDeletionStatus(repository: AccountDeletionRepository, userId: string | undefined): AccountDeletionStatus & { refresh: () => void } {
+export function useAccountDeletionStatus(
+  repository: AccountDeletionRepository,
+  userId: string | undefined,
+  known?: KnownDeletionStatusRepository,
+): AccountDeletionStatus & { refresh: () => void } {
   const [attempt, setAttempt] = useState(0);
   const [answer, setAnswer] = useState<{ key: string; status: AccountDeletionStatus }>();
   const key = `${userId}:${attempt}`;
@@ -152,23 +161,35 @@ export function useAccountDeletionStatus(repository: AccountDeletionRepository, 
   useEffect(() => {
     if (!userId) return;
     let active = true;
-    let settled = false;
-    const settle = (status: AccountDeletionStatus) => {
-      if (!active || settled) return;
-      settled = true;
+    let shown = false;
+    let answered = false;
+    const show = (status: AccountDeletionStatus) => {
+      if (!active) return;
+      shown = true;
       clearTimeout(timer);
       setAnswer({ key, status });
     };
-    const timer = setTimeout(() => settle({ state: 'unknown' }), DELETION_STATUS_TIMEOUT_MS);
+    const timer = setTimeout(() => !shown && show({ state: 'unknown' }), DELETION_STATUS_TIMEOUT_MS);
+    const remembered = attempt === 0 && known ? known.read(userId).catch(() => null) : Promise.resolve(null);
+    // The server's answer always wins over what was remembered, whichever arrives first.
+    remembered.then((saved) => saved && !answered && show(saved));
     repository.status().then(
-      (deleteAfter) => settle(deleteAfter ? { state: 'marked', deleteAfter } : { state: 'active' }),
-      () => settle({ state: 'unknown' }),
+      (deleteAfter) => {
+        // An answer to a question already replaced (another person, or asked again after a cancellation) says nothing about now.
+        if (!active) return;
+        answered = true;
+        const status = statusOf(deleteAfter);
+        show(status);
+        known?.write(userId, status).catch(() => {});
+      },
+      // Not asked: what the phone knows stands, and with nothing known the app opens as usual.
+      () => void remembered.then((saved) => !saved && !shown && show({ state: 'unknown' })),
     );
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [repository, userId, key]);
+  }, [repository, known, userId, key, attempt]);
 
   // Nobody is signed in: there is no account to ask about, so the layout goes on as it always did.
   const status: AccountDeletionStatus = !userId ? { state: 'unknown' } : answer?.key === key ? answer.status : { state: 'loading' };

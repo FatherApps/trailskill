@@ -16,6 +16,12 @@ export {
   type AccountDeletionRepository,
   type AccountDeletionStatus,
 } from './data/accountDeletion';
+export {
+  createInMemoryKnownDeletionStatusRepository,
+  createSecureStoreKnownDeletionStatusRepository,
+  type KnownDeletionStatus,
+  type KnownDeletionStatusRepository,
+} from './data/knownDeletionStatus';
 export { useSignOut } from './screens/useSignOut';
 export {
   ProviderRegistrationContainer,
