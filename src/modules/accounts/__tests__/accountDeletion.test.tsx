@@ -8,16 +8,22 @@ import {
   type AccountDeletionClient,
 } from '../data/accountDeletion';
 import { createInMemoryKnownDeletionStatusRepository, createSecureStoreKnownDeletionStatusRepository } from '../data/knownDeletionStatus';
+import { useKnownDeletionStatusGuard } from '../data/useKnownDeletionStatusGuard';
 
 // Avoids loading the native PowerSync database.
 jest.mock('../../../core/sync', () => ({}));
+let mockSession: { user: { id: string } } | null = { user: { id: 'user-1' } };
+jest.mock('../../../core/session', () => ({ useSession: () => ({ session: mockSession }) }));
 const mockStore = new Map<string, string>();
 jest.mock('expo-secure-store', () => ({
   getItemAsync: async (key: string) => mockStore.get(key) ?? null,
   setItemAsync: async (key: string, value: string) => void mockStore.set(key, value),
   deleteItemAsync: async (key: string) => void mockStore.delete(key),
 }));
-beforeEach(() => mockStore.clear());
+beforeEach(() => {
+  mockStore.clear();
+  mockSession = { user: { id: 'user-1' } };
+});
 
 function client(invoke: AccountDeletionClient['functions']['invoke'], rpc?: AccountDeletionClient['rpc']): AccountDeletionClient {
   return { functions: { invoke }, rpc: rpc ?? (async () => ({ data: null, error: null })) };
@@ -322,5 +328,20 @@ describe('createSecureStoreKnownDeletionStatusRepository', () => {
     mockStore.set('trailskill-deletion-status', '{"userId":"user-1","state":"marked"}');
 
     expect(await createSecureStoreKnownDeletionStatusRepository().read('user-1')).toBeNull();
+  });
+});
+
+describe('useKnownDeletionStatusGuard', () => {
+  it('forgets the remembered status when the session ends, and not before', async () => {
+    const known = createSecureStoreKnownDeletionStatusRepository();
+    await known.write('user-1', { state: 'marked', deleteAfter: '2026-12-20T15:00:00.000Z' });
+    const { rerender } = await renderHook(() => useKnownDeletionStatusGuard(known));
+    expect(await known.read('user-1')).not.toBeNull();
+
+    mockSession = null;
+    await rerender({});
+
+    await waitFor(async () => expect(await known.read('user-1')).toBeNull());
+    expect(mockStore.has('trailskill-deletion-status')).toBe(false);
   });
 });

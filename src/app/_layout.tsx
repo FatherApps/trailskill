@@ -20,9 +20,10 @@ import { SessionProvider, useSession } from '../core/session';
 import { markStartup } from '../core/startup';
 import { db } from '../core/sync';
 import { ThemeProvider, useTheme } from '../core/theme';
-import { createSecureStoreRegistrationDraftRepository, discardStaleDraft } from '../modules/accounts';
+import { createSecureStoreRegistrationDraftRepository, discardStaleDraft, useKnownDeletionStatusGuard } from '../modules/accounts';
 import { useAthletePhotoCacheGuard, useAthletePhotoUploads } from '../modules/athletes';
 import { VersionGate } from '../modules/settings';
+import { useKnownPlatformAdminGuard } from '../modules/timing';
 
 markStartup('js_loaded');
 SplashScreen.preventAutoHideAsync();
@@ -44,6 +45,9 @@ export function SessionGate() {
   useAthletePhotoCacheGuard();
   // The photos chosen offline go up when the connection returns, whichever screen is open; they leave the phone with the session.
   useAthletePhotoUploads();
+  // What the phone remembers about the account (deletion status, platform admin answer) leaves with the session.
+  useKnownDeletionStatusGuard();
+  useKnownPlatformAdminGuard();
   const { name, colors } = useTheme();
   const insets = useSafeAreaInsets();
 

@@ -22,6 +22,7 @@ export {
   type KnownDeletionStatus,
   type KnownDeletionStatusRepository,
 } from './data/knownDeletionStatus';
+export { useKnownDeletionStatusGuard } from './data/useKnownDeletionStatusGuard';
 export { useSignOut } from './screens/useSignOut';
 export {
   ProviderRegistrationContainer,

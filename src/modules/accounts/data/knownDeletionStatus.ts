@@ -10,6 +10,8 @@ export type KnownDeletionStatus = { state: 'active' } | { state: 'marked'; delet
 export interface KnownDeletionStatusRepository {
   read(userId: string): Promise<KnownDeletionStatus | null>;
   write(userId: string, status: KnownDeletionStatus): Promise<void>;
+  /** Forgets it: the person signed out. */
+  clear(): Promise<void>;
 }
 
 // SecureStore keys allow only letters, digits, ".", "-" and "_". One key: a different person's answer replaces the earlier one.
@@ -23,6 +25,9 @@ export function createInMemoryKnownDeletionStatusRepository(initial?: { userId: 
     },
     async write(userId, status) {
       stored = { userId, status };
+    },
+    async clear() {
+      stored = undefined;
     },
   };
 }
@@ -44,5 +49,6 @@ export function createSecureStoreKnownDeletionStatusRepository(): KnownDeletionS
       }
     },
     write: (userId, status) => SecureStore.setItemAsync(KEY, JSON.stringify({ userId, ...status })),
+    clear: () => SecureStore.deleteItemAsync(KEY),
   };
 }

@@ -61,6 +61,13 @@ export {
 } from './data/conflictReview';
 export { usePlatformAdmin } from './data/usePlatformAdmin';
 export { usePlatformAdminStatus } from './data/usePlatformAdminStatus';
+export { usePlatformAdminRouteCorrection } from './data/usePlatformAdminRouteCorrection';
+export { useKnownPlatformAdminGuard } from './data/useKnownPlatformAdminGuard';
+export {
+  createInMemoryKnownPlatformAdminRepository,
+  createSecureStoreKnownPlatformAdminRepository,
+  type KnownPlatformAdminRepository,
+} from './data/knownPlatformAdmin';
 export { ReviewConflictsFlow, type ReviewConflictsFlowProps } from './screens/ReviewConflictsFlow';
 export {
   arrivalButtonAction,
