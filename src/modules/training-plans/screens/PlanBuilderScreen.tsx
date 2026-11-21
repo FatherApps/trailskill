@@ -3,7 +3,7 @@ import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, ConfirmSheet, Icon, StateView, TextField } from '../../../core/ui';
+import { BackButton, Banner, Button, ConfirmSheet, Icon, StateView, TextField } from '../../../core/ui';
 import '../i18n';
 import { BlockCard } from '../components/BlockCard';
 import { BlockEditor } from '../components/BlockEditor';
@@ -38,6 +38,8 @@ export type PlanBuilderScreenProps = {
   onSaveTemplate?: () => void;
   // Set to false when a parent ScrollView scrolls instead.
   scrollEnabled?: boolean;
+  // Without a handler there is no back button: the route is the root of its role and has nowhere to go back to.
+  onBack?: () => void;
   // Without a handler there is no assign button; the caller opens its assign flow, this screen never assigns.
   onAssign?: () => void;
   // The plan has changes that are not saved: the assign button stays visible but disabled, and says why.
@@ -68,6 +70,7 @@ export function PlanBuilderScreen({
   onSave,
   onSaveTemplate,
   scrollEnabled = true,
+  onBack,
   onAssign,
   assignBlocked = false,
   width,
@@ -178,6 +181,11 @@ export function PlanBuilderScreen({
       style={{ backgroundColor: colors['surface-0'] }}
       contentContainerStyle={{ padding: space[4], gap: space[4] }}
     >
+      {onBack && (
+        <View style={{ alignSelf: 'flex-start' }}>
+          <BackButton onPress={onBack} />
+        </View>
+      )}
       <View style={{ gap: space[1] }}>
         <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
           {planName.trim() || t('training_plans.builder.untitled')}

@@ -2,7 +2,7 @@ import { ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, StateView } from '../../../core/ui';
+import { BackButton, Banner, Button, StateView } from '../../../core/ui';
 import '../i18n';
 import type { FulfillmentContent } from '../components/fulfillment';
 import { FulfillmentGrid } from '../components/FulfillmentGrid';
@@ -28,6 +28,8 @@ export type FulfillmentScreenProps = {
   partial?: { athleteName: string; max: number; onPick: (count: number) => void; onCancel: () => void };
   // Set to false when a parent ScrollView scrolls instead.
   scrollEnabled?: boolean;
+  // Without a handler there is no back button: the route is the root of its role and has nowhere to go back to.
+  onBack?: () => void;
 };
 
 function PartialAmount({ athleteName, max, onPick, onCancel }: NonNullable<FulfillmentScreenProps['partial']>) {
@@ -86,7 +88,7 @@ function Content({
 }
 
 // Presentational (tablet): no network, database or repository; the caller supplies the state and saves the marks.
-export function FulfillmentScreen({ planName, dateLabel, view, onCycle, onOpenTiming, partial, scrollEnabled = true }: FulfillmentScreenProps) {
+export function FulfillmentScreen({ planName, dateLabel, view, onCycle, onOpenTiming, partial, scrollEnabled = true, onBack }: FulfillmentScreenProps) {
   const { colors, space, typography } = useTheme();
   const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
 
@@ -98,6 +100,11 @@ export function FulfillmentScreen({ planName, dateLabel, view, onCycle, onOpenTi
       style={{ backgroundColor: colors['surface-0'] }}
       contentContainerStyle={{ padding: space[4], gap: space[4] }}
     >
+      {onBack && (
+        <View style={{ alignSelf: 'flex-start' }}>
+          <BackButton onPress={onBack} />
+        </View>
+      )}
       <View style={{ gap: space[1] }}>
         <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
           {planName}
