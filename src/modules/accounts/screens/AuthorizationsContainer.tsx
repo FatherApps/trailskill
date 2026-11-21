@@ -159,8 +159,10 @@ export function AuthorizationsContainer({
       await pending.setConsent(athleteId, { acceptedAt, authorizations: shown.map((text) => ({ id: newId(), purpose: text!.purpose, textId: text!.id })) });
     }
     // The server rows reach this phone by sync: nothing is written to the local authorizations here, or they would count twice.
-    await acceptPendingInvitations(userId, pending, invitations).catch(() => {});
-    return entries.map((item) => item.athleteId);
+    const accepted = await acceptPendingInvitations(userId, pending, invitations).catch(() => [] as string[]);
+    // Joined: accepted now, or still waiting for the network. An entry the server refused for good is gone and its swimmer did not join.
+    const waiting = (await pending.list().catch(() => [])).filter((item) => item.userId === userId && item.token === token).map((item) => item.athleteId);
+    return entries.map((item) => item.athleteId).filter((id) => accepted.includes(id) || waiting.includes(id));
   }
 
   // Resolves false when a local write failed, so the screen keeps the checked boxes. `choice` is only given by the screen of joining a school.
@@ -236,7 +238,7 @@ export function AuthorizationsContainer({
         join={
           mode === 'registration' && invitation
             ? {
-                athletes: athletes.filter(({ id }) => invitation.athleteIds.includes(id)).map(({ name }) => name),
+                athleteIds: invitation.athleteIds,
                 onAccept: (selected) => save(selected, 'accept'),
                 onDecline: (selected) => save(selected, 'decline'),
               }

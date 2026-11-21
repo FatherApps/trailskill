@@ -29,7 +29,7 @@ export type AuthorizationsScreenProps = {
   onWithdraw: (authorizationId: string) => void;
   // Registration with an invitation: joining the school accepts the three purposes together, so they show with their full text and
   // no boxes; only the optional photo is chosen, and it goes along with either button. «Continuar sin unirme» joins nothing.
-  join?: { athletes: string[]; onAccept: AuthorizationsScreenProps['onSave']; onDecline: AuthorizationsScreenProps['onSave'] };
+  join?: { athleteIds: string[]; onAccept: AuthorizationsScreenProps['onSave']; onDecline: AuthorizationsScreenProps['onSave'] };
   // The last save or withdrawal did not work on this device.
   // 'load': the texts or authorizations could not be read; true: the last save or withdrawal failed.
   failed?: boolean | 'load';
@@ -115,7 +115,7 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
       {join ? (
         <>
           <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.authorizations.join_intro')}</Text>
-          <Text style={[typography.subtitle, { color: colors.ink }]}>{t('accounts.authorizations.join_athletes', { names: join.athletes.join(', ') })}</Text>
+          <Text style={[typography.subtitle, { color: colors.ink }]}>{t('accounts.authorizations.join_athletes', { names: athletes.filter(({ id }) => join.athleteIds.includes(id)).map(({ name }) => name).join(', ') })}</Text>
           {JOIN_PURPOSES.flatMap((purpose) => texts.filter((text) => text.purpose === purpose)).map((text) => (
             <View key={text.purpose} style={{ gap: space[1], padding: space[4], borderRadius: radius.md, backgroundColor: colors[consentCardColors.background] }}>
               <Text style={[typography.subtitle, { color: colors[consentCardColors.title] }]}>{t(`accounts.consent.purpose.${text.purpose}`)}</Text>
@@ -136,7 +136,8 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
           key={athlete.id}
           athleteName={athlete.name}
           avatar={<Avatar athleteId={athlete.id} initials={initialsOf(athlete.name)} color={athleteColor(athlete.id)} size="sm" />}
-          texts={join ? texts.filter(({ purpose }) => purpose === 'show_photo') : texts}
+          // A swimmer who does not join keeps the ordinary card: nothing else gives them a way to authorize.
+          texts={join?.athleteIds.includes(athlete.id) ? texts.filter(({ purpose }) => purpose === 'show_photo') : texts}
           inForce={inForce[athlete.id] ?? {}}
           selected={Object.fromEntries(texts.map(({ purpose }) => [purpose, selected[keyOf(athlete.id, purpose)] === true]))}
           onToggle={(purpose) => setSelected((current) => ({ ...current, [keyOf(athlete.id, purpose)]: !current[keyOf(athlete.id, purpose)] }))}

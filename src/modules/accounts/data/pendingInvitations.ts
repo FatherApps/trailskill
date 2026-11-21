@@ -94,8 +94,10 @@ const INACTIVE_CATEGORY = '23514';
  * An entry queued more than DRAFT_TTL_MS ago is dropped without calling the server: for an athlete that never arrives the server only says 42501,
  * so it would never reveal an expired or revoked token. An entry with no stamp predates the expiry and is dropped too, like an unstamped draft.
  * An entry without consent (the person has not accepted yet, or it was queued by an older version of the app) is never sent: it only expires.
+ * Returns the athletes the server accepted in this run (not the ones that stay queued or were dropped).
  */
-export async function acceptPendingInvitations(userId: string, pending: PendingInvitationRepository, invitations: InvitationRepository, now = Date.now()): Promise<void> {
+export async function acceptPendingInvitations(userId: string, pending: PendingInvitationRepository, invitations: InvitationRepository, now = Date.now()): Promise<string[]> {
+  const accepted: string[] = [];
   for (const { token, athleteId, categoryId, consent, queuedAt } of (await pending.list()).filter((item) => item.userId === userId)) {
     if (queuedAt === undefined || now - queuedAt > DRAFT_TTL_MS) {
       await pending.remove(athleteId);
@@ -109,9 +111,13 @@ export async function acceptPendingInvitations(userId: string, pending: PendingI
       });
     } catch (error) {
       if (!PERMANENT.has((error as { code?: string }).code ?? '')) continue;
+      await pending.remove(athleteId);
+      continue;
     }
+    accepted.push(athleteId);
     await pending.remove(athleteId);
   }
+  return accepted;
 }
 
 // Queues the invitation first, so a failed or slow first attempt loses nothing, then tries once right away.

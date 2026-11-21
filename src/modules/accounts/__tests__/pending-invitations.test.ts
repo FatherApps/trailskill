@@ -32,6 +32,23 @@ describe('pending invitations', () => {
     expect(await pending.list()).toEqual([]);
   });
 
+  it('reports the athletes the server accepted, and not the ones that stay queued or are dropped for good', async () => {
+    const { pending, invitations } = setup();
+    await pending.add({ userId: 'u1', token, athleteId: 'a1' });
+    await pending.setConsent('a1', consent);
+    invitations.offline = true;
+    expect(await acceptPendingInvitations('u1', pending, invitations)).toEqual([]);
+    invitations.offline = false;
+    invitations.rejectWith = 'P0002';
+    expect(await acceptPendingInvitations('u1', pending, invitations)).toEqual([]);
+    expect(await pending.list()).toEqual([]);
+
+    await pending.add({ userId: 'u1', token, athleteId: 'a2' });
+    await pending.setConsent('a2', consent);
+    invitations.rejectWith = undefined;
+    expect(await acceptPendingInvitations('u1', pending, invitations)).toEqual(['a2']);
+  });
+
   it('keeps the invitation without a network and accepts it once, when the connection returns', async () => {
     const { pending, invitations } = setup();
     invitations.offline = true;

@@ -513,7 +513,7 @@ describe('AuthorizationsScreen: joining a school', () => {
     inForce: {},
     onSave: jest.fn().mockResolvedValue(true),
     onWithdraw: jest.fn(),
-    join: { athletes: ['Ana M.', 'Tomás P.'], onAccept: jest.fn().mockResolvedValue(true), onDecline: jest.fn().mockResolvedValue(true) },
+    join: { athleteIds: ['a1', 'a2'], onAccept: jest.fn().mockResolvedValue(true), onDecline: jest.fn().mockResolvedValue(true) },
     ...extra,
   });
 
@@ -534,7 +534,7 @@ describe('AuthorizationsScreen: joining a school', () => {
 
   it('«Aceptar» joins and passes no photo when its box is not checked', async () => {
     const onAccept = jest.fn().mockResolvedValue(true);
-    await render(<AuthorizationsScreen {...props({ join: { athletes: ['Ana M.'], onAccept, onDecline: jest.fn() } })} />);
+    await render(<AuthorizationsScreen {...props({ join: { athleteIds: ['a1'], onAccept, onDecline: jest.fn() } })} />);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Aceptar' }));
 
@@ -543,7 +543,7 @@ describe('AuthorizationsScreen: joining a school', () => {
 
   it('«Aceptar» passes the photo of the swimmer whose box was checked, as the only optional authorization', async () => {
     const onAccept = jest.fn().mockResolvedValue(true);
-    await render(<AuthorizationsScreen {...props({ athletes, join: { athletes: ['Ana M.'], onAccept, onDecline: jest.fn() } })} />);
+    await render(<AuthorizationsScreen {...props({ athletes, join: { athleteIds: ['a1'], onAccept, onDecline: jest.fn() } })} />);
 
     await fireEvent.press(screen.getByRole('checkbox', { name: PHOTO }));
     await fireEvent.press(screen.getByRole('button', { name: 'Aceptar' }));
@@ -554,7 +554,7 @@ describe('AuthorizationsScreen: joining a school', () => {
   it('«Continuar sin unirme» declines and never accepts', async () => {
     const onAccept = jest.fn();
     const onDecline = jest.fn().mockResolvedValue(true);
-    await render(<AuthorizationsScreen {...props({ join: { athletes: ['Ana M.'], onAccept, onDecline } })} />);
+    await render(<AuthorizationsScreen {...props({ join: { athleteIds: ['a1'], onAccept, onDecline } })} />);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Continuar sin unirme' }));
 
@@ -565,7 +565,7 @@ describe('AuthorizationsScreen: joining a school', () => {
   it('a second press while the first is working does nothing', async () => {
     let release!: (done: boolean) => void;
     const onAccept = jest.fn(() => new Promise<boolean>((resolve) => (release = resolve)));
-    await render(<AuthorizationsScreen {...props({ join: { athletes: ['Ana M.'], onAccept, onDecline: jest.fn() } })} />);
+    await render(<AuthorizationsScreen {...props({ join: { athleteIds: ['a1'], onAccept, onDecline: jest.fn() } })} />);
 
     // The first press waits for the answer, so neither press is awaited until it is released.
     await act(async () => {
@@ -575,6 +575,15 @@ describe('AuthorizationsScreen: joining a school', () => {
     await act(async () => release(true));
 
     expect(onAccept).toHaveBeenCalledTimes(1);
+  });
+
+  it('a swimmer who does not join keeps the ordinary card with a box per purpose', async () => {
+    await render(<AuthorizationsScreen {...props({ join: { athleteIds: ['a1'], onAccept: jest.fn(), onDecline: jest.fn() } })} />);
+
+    // Ana joins: only her photo box. Tomás does not: the four purposes.
+    expect(screen.getAllByRole('checkbox')).toHaveLength(5);
+    expect(screen.getAllByRole('checkbox', { name: RECORD })).toHaveLength(1);
+    expect(screen.getByText('Se unen: Ana M.')).toBeOnTheScreen();
   });
 
   it('without an invitation it is the ordinary screen: one box per purpose and «Continuar»', async () => {
@@ -677,17 +686,45 @@ describe('AuthorizationsContainer: joining a school', () => {
   });
 
   it('without a network the entries keep their consent for the next run, and the registration still continues', async () => {
-    const { pending, invitations, onDone } = await renderJoin({ offline: true });
+    const { pending, invitations, identityDocuments, onDone } = await renderJoin({ offline: true });
 
     await fireEvent.press(await screen.findByRole('button', { name: 'Aceptar' }));
 
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     expect(invitations.accepted).toEqual([]);
+    // Still waiting for the network, so it will join: the number goes as it did before.
+    expect(identityDocuments.saved).toEqual([{ athleteId: 'a1', identityNumber: '987654321' }]);
     const waiting = (await pending.list()).filter((item) => item.token === token && item.userId === 'guardian-1');
     expect(waiting.map((item) => [item.athleteId, item.consent?.authorizations.length])).toEqual([
       ['a1', 3],
       ['a2', 3],
     ]);
+  });
+
+  it('a refusal for good (expired or revoked invitation) is not a join: the held number is dropped, not sent', async () => {
+    const { identityDocuments, identityNumbers, invitations, pending, onDone } = await renderJoin();
+    invitations.rejectWith = 'P0002';
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Aceptar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(identityDocuments.saved).toEqual([]);
+    expect(identityNumbers.take('a1')).toBeUndefined();
+    expect((await pending.list()).map((item) => item.athleteId)).toEqual(['x1', 'x2']);
+  });
+
+  it('a swimmer with no queued entry is not named and keeps the ordinary card, whose boxes are saved on the device', async () => {
+    const { repository, invitations, onDone } = await renderJoin({ queued: ['a1'] });
+
+    expect(await screen.findByText('Se unen: Ana M.')).toBeOnTheScreen();
+    // Ana: her photo box. Tomás: the four purposes.
+    expect(screen.getAllByRole('checkbox')).toHaveLength(5);
+    await fireEvent.press(screen.getAllByRole('checkbox', { name: RECORD })[0]!);
+    await fireEvent.press(screen.getByRole('button', { name: 'Aceptar' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(invitations.accepted.map((item) => item.athleteId)).toEqual(['a1']);
+    expect((await repository.listAuthorizations('guardian-1', ['a1', 'a2'])).map((row) => [row.athleteId, row.purpose])).toEqual([['a2', 'record_times']]);
   });
 
   it('«Continuar sin unirme» drops the entries of the token without calling the server, and drops the held numbers', async () => {
