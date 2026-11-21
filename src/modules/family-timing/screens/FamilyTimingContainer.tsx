@@ -51,7 +51,7 @@ import {
   undoLast,
   type FamilySeries,
 } from '../domain/familySeries';
-import { lapsFor } from '../domain/laps';
+import { lapMeters, lapsFor } from '../domain/laps';
 import { localDay } from '../domain/localDay';
 import { officialMatches, officialResultKeyOf, type OfficialImport, type OfficialMatch } from '../domain/officialValue';
 import { parseTimeEntry } from '../domain/timeEntry';
@@ -179,7 +179,7 @@ type Step =
   | { kind: 'official'; id: string; text: string; invalid: boolean }
   // Picking which imported official result goes with a competition time (#974).
   | { kind: 'choose_official'; id: string; saveError: boolean }
-  | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string | null; confirmingDelete: boolean; saveError: boolean }
+  | { kind: 'edit'; id: string; stroke: StrokeCode; athleteId: string | null; distance: DistanceCode; confirmingDelete: boolean; saveError: boolean }
   | { kind: 'deleted'; restoreError: boolean }
   // One saved time with everything known about it (#1002).
   | { kind: 'detail'; id: string }
@@ -596,12 +596,11 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       { label: t('family_timing.detail.event'), value: eventLabel(m) },
     ];
     const raw = lapRows(m.splits, m.millis, m.splits.length > 0);
-    const meters = Number.parseInt(m.distance, 10);
-    const each = raw.length > 0 && Number.isFinite(meters) ? meters / raw.length : null;
+    const meters = lapMeters(m.distance, m.pool, raw.length);
     const laps = raw.map(({ lap, total }, i) => ({
       lap: formatLap(lap),
       total: formatLap(total),
-      distance: each !== null ? `${Math.round(each * (i + 1))} m` : String(i + 1),
+      distance: meters ? `${meters[i]} m` : String(i + 1),
     }));
     // The slowest length against the fastest, when every length has a time.
     const known = raw.map((r) => r.lap);
@@ -943,6 +942,11 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           edit: {
             card,
             stroke: { options: strokes.map((s) => option(s.code, s.nameKey)), value: step.stroke },
+            // Only a training time corrects its distance. (A time waiting for another family's answer does not open this screen.)
+            distance:
+              everyTime.find((x) => x.id === step.id)?.sessionType === 'training'
+                ? { options: distances.map((d) => option(d.code, d.nameKey)), value: step.distance }
+                : null,
             // "Sin asignar" is offered for a time that has no swimmer yet, so it can stay there.
             athlete: {
               options: card.unassigned ? [...athleteOptions, unassignedOption] : athleteOptions,
@@ -1115,12 +1119,20 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
       }}
       onOpenEdit={(id) => {
         const m = loaded.status === 'ready' ? loaded.measurements.find((x) => x.id === id) : undefined;
-        if (m) setStep({ kind: 'edit', id, stroke: m.stroke, athleteId: m.athleteId, confirmingDelete: false, saveError: false });
+        if (m) setStep({ kind: 'edit', id, stroke: m.stroke, athleteId: m.athleteId, distance: m.distance, confirmingDelete: false, saveError: false });
       }}
       onEditChange={(field, value) =>
         setStep((s) =>
           s.kind === 'edit'
-            ? { ...s, saveError: false, ...(field === 'stroke' ? { stroke: value as StrokeCode } : { athleteId: value === UNASSIGNED ? null : value }) }
+            ? {
+                ...s,
+                saveError: false,
+                ...(field === 'stroke'
+                  ? { stroke: value as StrokeCode }
+                  : field === 'distance'
+                    ? { distance: value as DistanceCode }
+                    : { athleteId: value === UNASSIGNED ? null : value }),
+              }
             : s,
         )
       }
@@ -1131,6 +1143,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
         const changes = {
           ...(step.stroke !== m.stroke ? { stroke: step.stroke } : {}),
           ...(step.athleteId !== m.athleteId ? { athleteId: step.athleteId } : {}),
+          ...(step.distance !== m.distance && m.sessionType === 'training' ? { distance: step.distance } : {}),
         };
         if (Object.keys(changes).length === 0) return goToList();
         // A time moved to another swimmer leaves this list: the list now shows that swimmer, where the time went.

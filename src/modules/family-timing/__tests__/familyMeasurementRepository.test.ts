@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 
 import { createStore, openDatabase, type FakeDatabase } from '../../../core/sync/testing/fakeDatabase';
-import { createPowerSyncFamilyMeasurementRepository, NotCompetitionError, UnknownMeasurementError, type FamilyMeasurement } from '..';
+import { createPowerSyncFamilyMeasurementRepository, NotCompetitionError, NotTrainingError, UnknownMeasurementError, type FamilyMeasurement } from '..';
 
 let mockDb: FakeDatabase;
 jest.mock('../../../core/sync/db', () => ({
@@ -122,6 +122,16 @@ describe('PowerSync family measurements', () => {
     expect((await repo.listByAthlete('a2'))[0]).toMatchObject({ stroke: 'BK', millis: 47_210 });
     expect(pending()).toHaveLength(2);
     await expect(repo.edit('nope', { stroke: 'BK' })).rejects.toBeInstanceOf(UnknownMeasurementError);
+  });
+
+  it('corrects the distance of a training time only', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.add({ ...base, sessionType: 'training', competition: null });
+    await repo.add({ ...base, id: 'c1', sessionType: 'competition', competition: 'Festival' });
+    await repo.edit('m1', { distance: '100m' });
+    expect((await repo.listByAthlete('a1')).find((m) => m.id === 'm1')).toMatchObject({ distance: '100m', millis: 47_210 });
+    await expect(repo.edit('c1', { distance: '100m' })).rejects.toBeInstanceOf(NotTrainingError);
+    expect((await repo.listByAthlete('a1')).find((m) => m.id === 'c1')).toMatchObject({ distance: '50m' });
   });
 
   it('saves the times of a series together, with the ones without a swimmer listed apart', async () => {
