@@ -180,6 +180,12 @@ dc run --rm --no-deps -T --entrypoint sh migrate -c '
   [ ! -e /repo/.git ] && [ ! -e /repo/deploy ]' \
   || fail "migrate can see files outside its mounts"
 echo "PASS: migrate sees only scripts and supabase"
+
+# The crontab is baked into the image (a bind mount from the Dokploy clone would not be owned by root, and busybox
+# crond ignores such a file). The service must be up and hold the repo's schedule, owned by root.
+dc exec -T backup sh -c '[ "$(stat -c %u /etc/crontabs/root)" = 0 ] && grep -q "^30 8 \* \* \* " /etc/crontabs/root && ps -o args | grep -q "^busybox crond -f"' \
+  || fail "backup service: crontab missing, not owned by root, or crond not running"
+echo "PASS: backup service runs crond with the repo crontab owned by root"
 # A deploy where only the Sync Streams file changed must restart PowerSync with the new file.
 # Like Dokploy, replace the file and run compose up again.
 old=$(dc ps -q powersync)
