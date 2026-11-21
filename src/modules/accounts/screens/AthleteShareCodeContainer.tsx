@@ -6,6 +6,7 @@ import { useTheme } from '../../../core/theme';
 import { Banner, Button, ConfirmSheet, StateView } from '../../../core/ui';
 import type { ShareCodeCache } from '../data/athleteShareCodeCache';
 import type { AthleteShareCodeRepository } from '../data/athleteShareCodes';
+import { ShareCodeQr } from '../components/ShareCodeQr';
 import { useAthleteShareCode } from '../data/useAthleteShareCode';
 import '../i18n';
 
@@ -31,6 +32,7 @@ export function AthleteShareCodeContainer({ athleteId, athleteName, repository, 
   const [attempt, setAttempt] = useState(0);
   const { state: shown, replace } = useAthleteShareCode({ repository, cache, userId, athleteId, online, attempt });
   const [confirming, setConfirming] = useState(false);
+  const [qr, setQr] = useState(false);
   const [changeError, setChangeError] = useState(false);
 
   async function change() {
@@ -71,6 +73,8 @@ export function AthleteShareCodeContainer({ athleteId, athleteName, repository, 
           label={t('accounts.share_code.share')}
           onPress={() => share(t('accounts.share_code.share_message', { code: shown.code })).catch(() => {})}
         />
+        <Button variant="secondary" label={t(qr ? 'accounts.share_code.hide_qr' : 'accounts.share_code.show_qr')} onPress={() => setQr((shownNow) => !shownNow)} />
+        {qr && <ShareCodeQr code={shown.code} />}
         <Button
           variant="ghost"
           label={t('accounts.share_code.change')}

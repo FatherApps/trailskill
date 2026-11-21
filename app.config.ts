@@ -67,6 +67,15 @@ const config: ExpoConfig = {
     // The athlete photo (#1222): the camera, and the system Photo Picker for the gallery, which needs no permission, so no read description is declared (the app reads no library).
     // The microphone stays at its default: the individual stopwatch's local module records audio and declares RECORD_AUDIO itself, and blocking it here would remove it.
     ['expo-image-picker', { photosPermission: false, cameraPermission: 'Swimcro usa la cámara para tomar la foto del deportista.' }],
+    // Scanning the swimmer's share code QR (#1322): the camera only reads the code, the image is never saved. The microphone is not asked for here; the video recorder module declares its own.
+    [
+      'expo-camera',
+      {
+        cameraPermission: 'Swimcro usa la cámara para escanear el código QR del nadador. La imagen no se guarda.',
+        microphonePermission: false,
+        recordAudioAndroid: false,
+      },
+    ],
     [
       'expo-splash-screen',
       {

@@ -23,6 +23,11 @@ function imagePickerOptions() {
   return (entry as [string, Record<string, any>] | undefined)?.[1];
 }
 
+function cameraOptions() {
+  const entry = (config.plugins ?? []).find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-camera');
+  return (entry as [string, Record<string, any>] | undefined)?.[1];
+}
+
 function mediaLibraryOptions() {
   const entry = (config.plugins ?? []).find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-media-library');
   return (entry as [string, Record<string, any>] | undefined)?.[1];
@@ -164,6 +169,13 @@ describe('gallery permissions', () => {
     expect(imagePickerOptions()!.photosPermission).toBe(false);
     expect(imagePickerOptions()!.cameraPermission).toEqual(expect.any(String));
     expect(imagePickerOptions()!.microphonePermission).not.toBe(false);
+  });
+
+  // Scanning the swimmer's code QR (#1322): the camera stays optional hardware and the plugin adds no microphone of its own.
+  it('declares the camera plugin with a Spanish purpose text and no microphone of its own', () => {
+    expect(cameraOptions()!.cameraPermission).toMatch(/c\u00e1mara.*QR/);
+    expect(cameraOptions()!.microphonePermission).toBe(false);
+    expect(cameraOptions()!.recordAudioAndroid).toBe(false);
   });
 
   // The Expo template's main manifest declares "display over other apps" (#1182); the app never uses it and Play treats it as sensitive.
