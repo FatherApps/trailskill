@@ -2,7 +2,7 @@
 -- is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(28);
 
 -- s1 sends; r1 manages swimmer b1 (the receiving family); o1 is someone else.
 insert into auth.users (id, email) values
@@ -60,12 +60,25 @@ select lives_ok($$ select public.forget_saved_athlete_share_code((select id from
 reset role;
 select is((select count(*)::int from public.saved_athlete_share_codes), 1, 'and removes nothing');
 
--- The family changes the code: it goes from everyone who kept it.
+-- The family changes the code: the row stays, marked as expired, with the old code (issue #1320).
 set local role authenticated;
 select pg_temp.as_user('99100000-0000-4000-8000-0000000000a2');
 select isnt(public.rotate_athlete_share_code('99100000-0000-4000-8000-0000000000b1'), 'TS-BBBBBB', 'the family changes the code');
 reset role;
-select is((select count(*)::int from public.saved_athlete_share_codes), 0, 'a changed code is kept by nobody');
+select is((select count(*)::int from public.saved_athlete_share_codes), 1, 'a changed code is not deleted for who kept it');
+select results_eq($$ select code, expired_at is not null from public.saved_athlete_share_codes $$,
+  $$ values ('TS-BBBBBB', true) $$, 'it keeps the old code and is marked as expired');
+-- The select policy is the same: the owner reads the expired row, nobody else does, and nobody else can remove it.
+set local role authenticated;
+select pg_temp.as_user('99100000-0000-4000-8000-0000000000a1');
+select results_eq($$ select code, expired_at is not null from public.saved_athlete_share_codes $$,
+  $$ values ('TS-BBBBBB', true) $$, 'the owner reads their expired code');
+select pg_temp.as_user('99100000-0000-4000-8000-0000000000a3');
+select is((select count(*)::int from public.saved_athlete_share_codes), 0, 'anyone else reads no expired codes');
+select lives_ok($$ select public.forget_saved_athlete_share_code((select id from public.saved_athlete_share_codes limit 1)) $$,
+  'forgetting an expired code that is not yours runs');
+reset role;
+select is((select count(*)::int from public.saved_athlete_share_codes), 1, 'and removes nothing');
 
 -- A send made with the code of then, accepted after the family changed it, keeps nothing: the sender never had the new code.
 update public.athlete_share_codes set code = 'TS-DDDDDD', created_at = now() - interval '1 hour'
@@ -82,7 +95,8 @@ select lives_ok(format('select public.accept_family_time(%L)',
   (select id from public.family_timing_transfers where measurement_id = '99100000-0000-4000-8000-0000000000c4')),
   'the family accepts a time sent before the change');
 reset role;
-select is((select count(*)::int from public.saved_athlete_share_codes), 0, 'the new code is not kept for a sender who never had it');
+select results_eq($$ select code, expired_at is not null from public.saved_athlete_share_codes $$,
+  $$ values ('TS-BBBBBB', true) $$, 'the new code is not kept for a sender who never had it: the row stays expired');
 
 -- Later (the code is an hour old now).
 update public.athlete_share_codes set created_at = now() - interval '1 hour' where athlete_id = '99100000-0000-4000-8000-0000000000b1';
@@ -93,17 +107,36 @@ select public.send_family_time('99100000-0000-4000-8000-0000000000c5', 'TS-CCCCC
 select pg_temp.as_user('99100000-0000-4000-8000-0000000000a2');
 select public.accept_family_time((select id from public.family_timing_transfers where measurement_id = '99100000-0000-4000-8000-0000000000c5'));
 select pg_temp.as_user('99100000-0000-4000-8000-0000000000a1');
-select is((select code from public.saved_athlete_share_codes), 'TS-CCCCCC', 'the current code is kept after an accepted send');
+select results_eq($$ select code, expired_at is null from public.saved_athlete_share_codes $$,
+  $$ values ('TS-CCCCCC', true) $$, 'the new code is kept after an accepted send and the expired mark is gone');
 select lives_ok($$ select public.forget_saved_athlete_share_code((select id from public.saved_athlete_share_codes limit 1)) $$,
   'the owner removes a kept code');
 select is((select count(*)::int from public.saved_athlete_share_codes), 0, 'and it is gone');
 
--- A swimmer removed takes the kept codes along.
+-- The owner removes an expired code too ("Quitar").
 reset role;
-insert into public.saved_athlete_share_codes (user_id, athlete_id, code, athlete_short_name)
-values ('99100000-0000-4000-8000-0000000000a1', '99100000-0000-4000-8000-0000000000b1', 'TS-CCCCCC', 'Ana M.');
+insert into public.saved_athlete_share_codes (user_id, athlete_id, code, athlete_short_name, expired_at)
+values ('99100000-0000-4000-8000-0000000000a1', '99100000-0000-4000-8000-0000000000b1', 'TS-CCCCCC', 'Ana M.', now());
+set local role authenticated;
+select pg_temp.as_user('99100000-0000-4000-8000-0000000000a1');
+select lives_ok($$ select public.forget_saved_athlete_share_code((select id from public.saved_athlete_share_codes limit 1)) $$,
+  'the owner removes an expired code');
+select is((select count(*)::int from public.saved_athlete_share_codes), 0, 'and it is gone too');
+
+-- A removed code takes the kept codes along, expired or not.
+reset role;
+insert into public.saved_athlete_share_codes (user_id, athlete_id, code, athlete_short_name, expired_at)
+values ('99100000-0000-4000-8000-0000000000a1', '99100000-0000-4000-8000-0000000000b1', 'TS-CCCCCC', 'Ana M.', now());
 delete from public.athlete_share_codes where athlete_id = '99100000-0000-4000-8000-0000000000b1';
 select is((select count(*)::int from public.saved_athlete_share_codes), 0, 'a removed code is kept by nobody');
+
+-- So does a removed swimmer (the cascade of athlete_id).
+insert into public.athlete_share_codes (athlete_id, code, created_at) values ('99100000-0000-4000-8000-0000000000b1', 'TS-EEEEEE', now() - interval '1 day');
+insert into public.saved_athlete_share_codes (user_id, athlete_id, code, athlete_short_name, expired_at)
+values ('99100000-0000-4000-8000-0000000000a1', '99100000-0000-4000-8000-0000000000b1', 'TS-CCCCCC', 'Ana M.', now());
+delete from public.athlete_managers where athlete_id = '99100000-0000-4000-8000-0000000000b1';
+delete from public.athletes where id = '99100000-0000-4000-8000-0000000000b1';
+select is((select count(*)::int from public.saved_athlete_share_codes), 0, 'a removed swimmer is kept by nobody');
 
 select * from finish();
 rollback;
