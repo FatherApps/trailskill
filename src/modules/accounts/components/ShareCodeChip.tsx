@@ -26,6 +26,8 @@ export function ShareCodeChip({ code, onShare }: ShareCodeChipProps) {
         {
           flexDirection: 'row',
           flexWrap: 'wrap',
+          // With wrapping, the lines sit at the top unless the content is centred in the minimum height.
+          alignContent: 'center',
           alignItems: 'center',
           alignSelf: 'flex-start',
           gap: space[2],
