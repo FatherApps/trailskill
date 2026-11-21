@@ -219,12 +219,13 @@ function cleanSearch(raw: unknown): TournamentSearch | null {
   return typeof name === 'string' && isTextOrNull(club) && results !== null ? { found: true, athlete: { name, club }, results } : null;
 }
 
-// A tournament of the platform's list, rebuilt with only the declared fields: the key a real day of the year asked, text where text is
+// A tournament of the platform's list, rebuilt with only the declared fields: the key a real day of a year asked, text where text is
 // due, and no pool length (the list never says it). One entry that is not valid makes the whole list unusable, never a partial catalog.
-function cleanTournament(raw: unknown, year: number): TournamentEntry | null {
+function cleanTournament(raw: unknown, years: readonly number[]): TournamentEntry | null {
   if (!isRecord(raw)) return null;
   const { dateKey, name, city, discipline, course, sourceUrl } = raw;
-  if (typeof dateKey !== 'string' || !/^\d{8}$/.test(dateKey) || raw.year !== year || Number(dateKey.slice(0, 4)) !== year) return null;
+  const year = raw.year;
+  if (typeof dateKey !== 'string' || !/^\d{8}$/.test(dateKey) || typeof year !== 'number' || !years.includes(year) || Number(dateKey.slice(0, 4)) !== year) return null;
   if (!isRealDate(`${dateKey.slice(0, 4)}-${dateKey.slice(4, 6)}-${dateKey.slice(6)}`)) return null;
   if (!isKey(name) || !isKey(city) || !isKey(discipline) || !isKey(sourceUrl) || course !== null) return null;
   return { dateKey, year, name, city, discipline, course: null, sourceUrl };
@@ -310,12 +311,14 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
   }
 
   return {
-    // Asks every registered platform for the tournaments of the current year, at most once per day each (the claim is per platform, never per
+    // Asks every registered platform for the tournaments of the current UTC year and the year before (so January still refreshes December's
+    // tournaments and a new year starts by itself), in one read each, at most once per day each (the claim is per platform, never per
     // person: the refresh needs no athlete). What a platform lists is saved by day; a platform that fails, or whose list is not valid, leaves
     // the saved list as it was. A claim is given back only when the platform did not answer (as in `query`), so a platform that is down is
     // retried within a minute; a list the platform answered but we cannot use keeps the day. Unavailable only when nothing was refreshed.
     async refreshTournaments(): Promise<Outcome<{ refreshed: number; skipped: number }>> {
       const year = new Date(now()).getUTCFullYear();
+      const years = [year, year - 1];
       let [refreshed, skipped, failed] = [0, 0, 0];
       for (const { provider, organizationId } of registry.platformOrganizations(await organizationChain())) {
         const claimed = await tournaments.claim({ organizationId, intervalMs: TOURNAMENT_REFRESH_INTERVAL_MS });
@@ -332,7 +335,7 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
         };
         let listed: TournamentEntry[] | null;
         try {
-          listed = cleanList(await provider.listTournaments(year), (raw) => cleanTournament(raw, year));
+          listed = cleanList(await provider.listTournaments(years), (raw) => cleanTournament(raw, years));
         } catch (error) {
           if (error instanceof SourceUnreachableError) await giveBack();
           failed += 1;
