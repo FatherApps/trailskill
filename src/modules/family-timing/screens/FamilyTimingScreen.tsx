@@ -107,6 +107,8 @@ export type FamilySendView = {
   error: string | null;
   // The codes kept from other families (picked instead of typed); value is the picked one, '' for none.
   saved?: { options: ChipRowOption<string>[]; value: string };
+  // Said once when a kept code turned out expired: its family changed it (#1321). The action leaves the code field empty.
+  expired?: string | null;
 };
 
 export type FamilyFilterKey = 'sessionType' | 'stroke' | 'distance' | 'pool';
@@ -263,6 +265,7 @@ export type FamilyTimingScreenProps = {
   onSendCode?: (code: string) => void;
   onPickSavedCode?: (id: string) => void;
   onForgetSavedCode?: () => void;
+  onEnterNewCode?: () => void;
   onLookUpCode?: () => void;
   onSendTime?: () => void;
   onWithdraw?: (measurementId: string) => void;
@@ -1140,6 +1143,14 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
                 <Button variant="ghost" label={t('family_timing.transfer.saved_forget')} onPress={() => props.onForgetSavedCode?.()} />
               )}
             </Field>
+          )}
+          {send.expired && (
+            <>
+              <Banner variant="warn" icon="error">
+                {send.expired}
+              </Banner>
+              <Button variant="secondary" label={t('family_timing.transfer.saved_expired_action')} onPress={() => props.onEnterNewCode?.()} />
+            </>
           )}
           <TextField
             label={t(send.saved && send.saved.options.length > 0 ? 'family_timing.transfer.code_label_new' : 'family_timing.transfer.code_label')}
