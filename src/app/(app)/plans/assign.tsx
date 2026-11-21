@@ -30,6 +30,8 @@ export default function AssignPlanRoute() {
       userId={session.user.id}
       initialPlanId={plan}
       onOpenFulfillment={(id, day) => router.push({ pathname: '/plans/fulfillment', params: { assignment: id, day } })}
+      // Without history (a deep link) there is nowhere to go back to, so no back button.
+      onBack={router.canGoBack() ? () => router.back() : undefined}
     />
   );
 }
