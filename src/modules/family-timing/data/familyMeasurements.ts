@@ -1,10 +1,10 @@
-import type { DistanceCode, PoolCode, StrokeCode } from '../../../core/sport';
-import type { Millis } from '../../../core/time';
+import type { DistanceCode, PoolCode, StrokeCode } from "../../../core/sport";
+import type { Millis } from "../../../core/time";
 
 // The synced table of the times (core/sync/schema.ts): the sync state of a time is read from it.
-export const FAMILY_MEASUREMENTS_TABLE = 'family_timing_measurements';
+export const FAMILY_MEASUREMENTS_TABLE = "family_timing_measurements";
 
-export type FamilySessionType = 'training' | 'competition';
+export type FamilySessionType = "training" | "competition";
 
 /**
  * A time a guardian (or adult athlete) measured themselves. It is theirs, kept on the server for them only, and never the school's record.
@@ -34,10 +34,24 @@ export type FamilyMeasurement = {
   officialResultKey?: string | null;
   // Set when deleted: hidden from the list and restorable for 30 days, then the server removes it.
   deletedAt?: string | null;
+  // Only for a time without a swimmer: the owner's own words on whose time it is ("Juan, hijo de Pedro"), until it is given to a swimmer
+  // or another family accepts it. Kept on this phone only, never on the server. At most NOTE_MAX_LENGTH characters.
+  note?: string | null;
 };
 
+/** The longest note a time without a swimmer takes; the server refuses a longer one. */
+export const NOTE_MAX_LENGTH = 60;
+
+/** The note as it is saved: trimmed, cut to NOTE_MAX_LENGTH, and null when empty. */
+export function cleanNote(note: string | null | undefined): string | null {
+  const trimmed = (note ?? "").trim().slice(0, NOTE_MAX_LENGTH).trim();
+  return trimmed ? trimmed : null;
+}
+
 // The distance can be corrected on a training time only (a competition keeps the event it was matched with).
-export type FamilyMeasurementEdit = Partial<Pick<FamilyMeasurement, 'stroke' | 'athleteId' | 'distance'>>;
+export type FamilyMeasurementEdit = Partial<
+  Pick<FamilyMeasurement, "stroke" | "athleteId" | "distance" | "note">
+>;
 
 export interface FamilyMeasurementRepository {
   add(measurement: FamilyMeasurement): Promise<void>;
@@ -46,10 +60,17 @@ export interface FamilyMeasurementRepository {
   /** Every measurement of the athlete, newest first (by id on a tie); null lists the times not given to a swimmer yet. */
   listByAthlete(athleteId: string | null): Promise<FamilyMeasurement[]>;
   /** Sets or clears (null) the hand-typed official time of a competition measurement. Training measurements refuse it. */
-  setOfficial(id: string, officialMillis: Millis | null, at: string): Promise<void>;
+  setOfficial(
+    id: string,
+    officialMillis: Millis | null,
+    at: string,
+  ): Promise<void>;
   /** Remembers (or forgets, null) which imported official result goes with a competition measurement. Training measurements refuse it. */
   chooseOfficial(id: string, officialResultKey: string | null): Promise<void>;
-  /** Corrects the stroke, the swimmer (one the user manages) or, on a training time, the distance; the captured time never changes. Competition times refuse a distance. */
+  /**
+   * Corrects the stroke, the swimmer (one the user manages), the note or, on a training time, the distance; the captured time never changes.
+   * Competition times refuse a distance. A time given to a swimmer keeps no note: it is cleared. The note stays on this phone.
+   */
   edit(id: string, changes: FamilyMeasurementEdit): Promise<void>;
   /** Deletes a measurement: it leaves the list and can be restored for 30 days. */
   remove(id: string, at: string): Promise<void>;
@@ -63,24 +84,39 @@ export interface FamilyMeasurementRepository {
    */
   moveLocal(userId: string): Promise<number>;
   /** This user's phone-only times the server rejected (kept on the phone, #1021), newest first; null for the ones not given to a swimmer. */
-  listRejected(userId: string, athleteId: string | null): Promise<FamilyMeasurement[]>;
+  listRejected(
+    userId: string,
+    athleteId: string | null,
+  ): Promise<FamilyMeasurement[]>;
+  /**
+   * Removes the notes of times no longer among this person's times on this phone, for example one another family accepted. Call it only
+   * after a sync, when the times on the phone are the server's. Returns how many went.
+   */
+  forgetGoneNotes(): Promise<number>;
   /** Deletes for good one of this user's rejected phone-only times and its upload failure. Any other time (synced, pending, another user's) is refused with UnknownMeasurementError. */
   discardRejected(userId: string, id: string): Promise<void>;
 }
 
 export class NotCompetitionError extends Error {
-  override name = 'NotCompetitionError';
+  override name = "NotCompetitionError";
 }
 
 export class NotTrainingError extends Error {
-  override name = 'NotTrainingError';
+  override name = "NotTrainingError";
 }
 
 export class UnknownMeasurementError extends Error {
-  override name = 'UnknownMeasurementError';
+  override name = "UnknownMeasurementError";
 }
 
-const newestFirst = (a: FamilyMeasurement, b: FamilyMeasurement) => b.capturedAt.localeCompare(a.capturedAt) || b.id.localeCompare(a.id);
+const newestFirst = (a: FamilyMeasurement, b: FamilyMeasurement) =>
+  b.capturedAt.localeCompare(a.capturedAt) || b.id.localeCompare(a.id);
+
+// The server's rule: only a time without a swimmer keeps a note.
+const withNoteRule = (m: FamilyMeasurement): FamilyMeasurement => ({
+  ...m,
+  note: m.athleteId === null ? cleanNote(m.note) : null,
+});
 
 // `rejected` are the phone-only times the server refused: they are listed and discarded apart from `initial`.
 export function createInMemoryFamilyMeasurementRepository(
@@ -91,31 +127,38 @@ export function createInMemoryFamilyMeasurementRepository(
   const refused = new Map(rejected.map((m) => [m.id, m]));
   return {
     async add(measurement) {
-      rows.set(measurement.id, measurement);
+      rows.set(measurement.id, withNoteRule(measurement));
     },
     async addMany(measurements) {
-      for (const m of measurements) rows.set(m.id, m);
+      for (const m of measurements) rows.set(m.id, withNoteRule(m));
     },
     async listByAthlete(athleteId) {
-      return [...rows.values()].filter((m) => m.athleteId === athleteId && !m.deletedAt).sort(newestFirst);
+      return [...rows.values()]
+        .filter((m) => m.athleteId === athleteId && !m.deletedAt)
+        .sort(newestFirst);
     },
     async setOfficial(id, officialMillis, at) {
       const row = rows.get(id);
       if (!row) throw new UnknownMeasurementError(id);
-      if (row.sessionType !== 'competition') throw new NotCompetitionError(id);
-      rows.set(id, { ...row, officialMillis, officialSetAt: officialMillis === null ? null : at });
+      if (row.sessionType !== "competition") throw new NotCompetitionError(id);
+      rows.set(id, {
+        ...row,
+        officialMillis,
+        officialSetAt: officialMillis === null ? null : at,
+      });
     },
     async chooseOfficial(id, officialResultKey) {
       const row = rows.get(id);
       if (!row) throw new UnknownMeasurementError(id);
-      if (row.sessionType !== 'competition') throw new NotCompetitionError(id);
+      if (row.sessionType !== "competition") throw new NotCompetitionError(id);
       rows.set(id, { ...row, officialResultKey });
     },
     async edit(id, changes) {
       const row = rows.get(id);
       if (!row) throw new UnknownMeasurementError(id);
-      if (changes.distance !== undefined && row.sessionType !== 'training') throw new NotTrainingError(id);
-      rows.set(id, { ...row, ...changes });
+      if (changes.distance !== undefined && row.sessionType !== "training")
+        throw new NotTrainingError(id);
+      rows.set(id, withNoteRule({ ...row, ...changes }));
     },
     async remove(id, at) {
       const row = rows.get(id);
@@ -129,17 +172,29 @@ export function createInMemoryFamilyMeasurementRepository(
     },
     async listDeleted(athleteId) {
       return [...rows.values()]
-        .filter((m): m is FamilyMeasurement & { deletedAt: string } => m.athleteId === athleteId && !!m.deletedAt)
-        .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt) || b.id.localeCompare(a.id));
+        .filter(
+          (m): m is FamilyMeasurement & { deletedAt: string } =>
+            m.athleteId === athleteId && !!m.deletedAt,
+        )
+        .sort(
+          (a, b) =>
+            b.deletedAt.localeCompare(a.deletedAt) || b.id.localeCompare(a.id),
+        );
     },
     async moveLocal() {
       return 0;
     },
+    async forgetGoneNotes() {
+      return 0;
+    },
     async listRejected(userId, athleteId) {
-      return [...refused.values()].filter((m) => m.createdBy === userId && m.athleteId === athleteId).sort(newestFirst);
+      return [...refused.values()]
+        .filter((m) => m.createdBy === userId && m.athleteId === athleteId)
+        .sort(newestFirst);
     },
     async discardRejected(userId, id) {
-      if (refused.get(id)?.createdBy !== userId) throw new UnknownMeasurementError(id);
+      if (refused.get(id)?.createdBy !== userId)
+        throw new UnknownMeasurementError(id);
       refused.delete(id);
     },
   };

@@ -1,5 +1,6 @@
 import { db, writeBatch, writeRecord } from '../../../core/sync';
 import {
+  cleanNote,
   FAMILY_MEASUREMENTS_TABLE,
   NotCompetitionError,
   NotTrainingError,
@@ -11,6 +12,8 @@ import {
 // The synced table (core/sync/schema.ts) and the phone-only one the times lived in before #967.
 const TABLE = FAMILY_MEASUREMENTS_TABLE;
 const LOCAL_TABLE = 'family_measurements';
+// The notes on times without a swimmer, on this phone only (core/sync/schema.ts): they name someone else's child.
+const NOTES_TABLE = 'family_timing_notes';
 
 type Row = {
   id: string;
@@ -28,9 +31,24 @@ type Row = {
   official_set_at: string | null;
   official_result_key?: string | null;
   deleted_at: string | null;
+  note?: string | null;
 };
 
 type LocalRow = Omit<Row, 'captured_by' | 'deleted_at'> & { created_by: string };
+
+// Each row with its note, read from the phone-only table; only a time without a swimmer shows one.
+const withNote = (table: string) =>
+  `SELECT t.*, (SELECT n.note FROM ${NOTES_TABLE} n WHERE n.measurement_id = t.id AND t.athlete_id IS NULL) AS note FROM ${table} t`;
+
+// Saves (or clears, null) the note of a time. Phone-only table: no outbox.
+async function writeNote(id: string, note: string | null) {
+  await db.writeTransaction(async (tx) => {
+    await tx.execute(`DELETE FROM ${NOTES_TABLE} WHERE measurement_id = ?`, [id]);
+    if (note) {
+      await tx.execute(`INSERT INTO ${NOTES_TABLE} (id, created_at, measurement_id, note) VALUES (uuid(), ?, ?, ?)`, [new Date().toISOString(), id, note]);
+    }
+  });
+}
 
 function parseSplits(raw: string | null): number[] {
   if (!raw) return [];
@@ -58,6 +76,7 @@ const toMeasurement = (row: Row): FamilyMeasurement => ({
   officialSetAt: row.official_set_at,
   officialResultKey: row.official_result_key ?? null,
   deletedAt: row.deleted_at,
+  note: row.athlete_id === null ? (row.note ?? null) : null,
 });
 
 // Every column of a new row. The owner is who captured it; the server checks both are the signed-in user.
@@ -99,6 +118,8 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
   return {
     async add(m) {
       await writeRecord(TABLE, newRow(m));
+      const note = m.athleteId === null ? cleanNote(m.note) : null;
+      if (note) await writeNote(m.id, note);
     },
     async addMany(measurements) {
       if (measurements.length === 0) return;
@@ -108,7 +129,7 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
     },
     async listByAthlete(athleteId) {
       const rows = await db.getAll<Row>(
-        `SELECT * FROM ${TABLE} WHERE ${athleteIs(athleteId)} AND deleted_at IS NULL ORDER BY captured_at DESC, id DESC`,
+        `${withNote(TABLE)} WHERE ${athleteIs(athleteId)} AND deleted_at IS NULL ORDER BY captured_at DESC, id DESC`,
         athleteParams(athleteId),
       );
       return rows.map(toMeasurement);
@@ -130,7 +151,10 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
       if (changes.stroke !== undefined) values.stroke = changes.stroke;
       if (changes.distance !== undefined) values.distance = changes.distance;
       if (changes.athleteId !== undefined) values.athlete_id = changes.athleteId;
-      await writeRecord(TABLE, values);
+      if (Object.keys(values).length > 1) await writeRecord(TABLE, values);
+      // Given to a swimmer, the time keeps no note.
+      if (changes.athleteId) await writeNote(id, null);
+      else if (changes.note !== undefined) await writeNote(id, cleanNote(changes.note));
     },
     async remove(id, at) {
       await existing(id);
@@ -142,7 +166,7 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
     },
     async listDeleted(athleteId) {
       const rows = await db.getAll<Row>(
-        `SELECT * FROM ${TABLE} WHERE ${athleteIs(athleteId)} AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC`,
+        `${withNote(TABLE)} WHERE ${athleteIs(athleteId)} AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC`,
         athleteParams(athleteId),
       );
       return rows.map(toMeasurement);
@@ -170,10 +194,18 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
       );
       return local.length;
     },
+    async forgetGoneNotes() {
+      // A time gone from both tables left this person's times: accepted by another family, or removed by the server after 30 days.
+      const gone = `measurement_id NOT IN (SELECT id FROM ${TABLE}) AND measurement_id NOT IN (SELECT id FROM ${LOCAL_TABLE})`;
+      const assigned = `measurement_id IN (SELECT id FROM ${TABLE} WHERE athlete_id IS NOT NULL)`;
+      const [{ count }] = await db.getAll<{ count: number }>(`SELECT count(*) AS count FROM ${NOTES_TABLE} WHERE (${gone}) OR ${assigned}`);
+      if (count > 0) await db.writeTransaction((tx) => tx.execute(`DELETE FROM ${NOTES_TABLE} WHERE (${gone}) OR ${assigned}`));
+      return count;
+    },
     async listRejected(userId, athleteId) {
       // Gone from the synced table (the sync dropped the rejected upload) but still on the phone, with its failure recorded and no new upload waiting.
       const rows = await db.getAll<LocalRow>(
-        `SELECT * FROM ${LOCAL_TABLE} WHERE created_by = ? AND ${athleteIs(athleteId)} AND id IN (${failed}) AND id NOT IN (${pending}) AND id NOT IN (SELECT id FROM ${TABLE})
+        `${withNote(LOCAL_TABLE)} WHERE created_by = ? AND ${athleteIs(athleteId)} AND id IN (${failed}) AND id NOT IN (${pending}) AND id NOT IN (SELECT id FROM ${TABLE})
          ORDER BY captured_at DESC, id DESC`,
         [userId, ...athleteParams(athleteId), TABLE, TABLE],
       );
@@ -189,6 +221,7 @@ export function createPowerSyncFamilyMeasurementRepository(): FamilyMeasurementR
         if (!row) throw new UnknownMeasurementError(id);
         await tx.execute(`DELETE FROM ${LOCAL_TABLE} WHERE id = ? AND created_by = ?`, [id, userId]);
         await tx.execute('DELETE FROM upload_failures WHERE table_name = ? AND record_id = ?', [TABLE, id]);
+        await tx.execute(`DELETE FROM ${NOTES_TABLE} WHERE measurement_id = ?`, [id]);
       });
     },
   };
