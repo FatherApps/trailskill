@@ -1,13 +1,10 @@
 import type { TournamentCatalogEntry } from './tournamentCatalog';
 
-// The first year the catalog can hold (decided by the maintainer in #1344).
-const FIRST_YEAR = 2024;
-
 export type CalendarMonth = { year: number; month: number };
 
-/** The year chips: from the current year down to 2024, so a new year appears by itself. */
-export function catalogYears(currentYear: number): number[] {
-  return Array.from({ length: Math.max(currentYear - FIRST_YEAR + 1, 1) }, (_, index) => currentYear - index);
+/** The year chips: the distinct years of the catalog, newest first, so a year appears when its rows arrive and none is hard-coded. */
+export function catalogYears(entries: TournamentCatalogEntry[]): number[] {
+  return [...new Set(entries.map((entry) => entry.year))].sort((a, b) => b - a);
 }
 
 export const yearOfKey = (dateKey: string) => Number(dateKey.slice(0, 4));

@@ -36,7 +36,7 @@ const pickView = (filter: { text?: string; year?: number | null; dateKey?: strin
   online: true,
   text: filter.text ?? '',
   onChangeText: noop,
-  years: catalogYears(2026),
+  years: catalogYears(catalogFixture),
   year: filter.year ?? null,
   onChangeYear: noop,
   calendarOpen,
@@ -106,7 +106,7 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       list: () => screenOf(pickView()),
       filtered: () => screenOf(pickView({ text: 'alfa', year: 2025 })),
-      empty: () => screenOf(pickView({ year: 2024 })),
+      empty: () => screenOf(pickView({ text: 'nada coincide' })),
       // Pending design: the design system has no calendar; it is built from tokens only.
       calendar: () => screenOf(pickView({ dateKey: '20260510', year: 2026 }, true)),
       'calendar-empty-day': () => screenOf(pickView({ dateKey: '20260511', year: 2026 }, true)),

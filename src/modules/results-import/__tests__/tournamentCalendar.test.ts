@@ -16,9 +16,19 @@ const entry = (id: string, dateKey: string, city = 'Ciudad Sintética'): Tournam
 });
 
 describe('catalogYears', () => {
-  it('lists the years from the current one down to 2024, so a new year appears by itself', () => {
-    expect(catalogYears(2026)).toEqual([2026, 2025, 2024]);
-    expect(catalogYears(2027)).toEqual([2027, 2026, 2025, 2024]);
+  it('lists the distinct years of the catalog, newest first', () => {
+    const entries = [entry('a', '20251018'), entry('b', '20260510'), entry('c', '20260511')];
+    expect(catalogYears(entries)).toEqual([2026, 2025]);
+  });
+
+  it('lists a new year as soon as its rows are in the catalog', () => {
+    const entries = [entry('a', '20260510')];
+    expect(catalogYears(entries)).toEqual([2026]);
+    expect(catalogYears([...entries, entry('b', '20270110')])).toEqual([2027, 2026]);
+  });
+
+  it('has no year for an empty catalog', () => {
+    expect(catalogYears([])).toEqual([]);
   });
 });
 

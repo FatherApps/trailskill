@@ -44,7 +44,6 @@ function setup(
   options: {
     entries?: TournamentCatalogEntry[];
     refresh?: () => Promise<void>;
-    currentYear?: number;
     authorized?: boolean;
     online?: boolean;
     hint?: { present: boolean; lastThree: string | null };
@@ -73,7 +72,6 @@ function setup(
         sources={sources}
         catalog={catalog}
         refreshCatalog={refreshCatalog}
-        currentYear={options.currentYear ?? 2026}
         search={search}
         results={{ importChosen }}
         identityDocuments={identityDocuments}
@@ -273,19 +271,28 @@ describe('TournamentImportContainer: the list', () => {
     expect(s.refreshCatalog).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the chips 2026, 2025, 2024 and Todos, with Todos chosen', async () => {
+  it('shows a chip for each year of the catalog, newest first, and Todos chosen', async () => {
     const s = setup();
     await s.mount();
     await screen.findByText('Torneo Beta');
-    expect(screen.getAllByRole('radio').map((chip) => chip.props.accessibilityLabel)).toEqual(['2026', '2025', '2024', 'Todos']);
+    expect(screen.getAllByRole('radio').map((chip) => chip.props.accessibilityLabel)).toEqual(['2026', '2025', 'Todos']);
     expect(screen.getByRole('radio', { name: 'Todos', checked: true })).toBeOnTheScreen();
   });
 
-  it('gets a new year chip by itself', async () => {
-    const s = setup({ currentYear: 2027 });
+  it('gets a new year chip when its rows are in the catalog', async () => {
+    const s = setup({ entries: [...catalogEntries, tournament('t6', '20270110', 'Torneo Delta', 'Ciudad Delta')] });
     await s.mount();
     await screen.findByText('Torneo Beta');
-    expect(screen.getAllByRole('radio').map((chip) => chip.props.accessibilityLabel)).toEqual(['2027', '2026', '2025', '2024', 'Todos']);
+    expect(screen.getAllByRole('radio').map((chip) => chip.props.accessibilityLabel)).toEqual(['2027', '2026', '2025', 'Todos']);
+  });
+
+  it('shows only Todos, the empty state and the link to paste the address when the catalog is empty', async () => {
+    const s = setup({ entries: [] });
+    await s.mount();
+    expect(await screen.findByText('No encontramos torneos con ese filtro')).toBeOnTheScreen();
+    expect(screen.getAllByRole('radio').map((chip) => chip.props.accessibilityLabel)).toEqual(['Todos']);
+    await press(PASTE);
+    expect(await screen.findByLabelText('Dirección del torneo')).toBeOnTheScreen();
   });
 
   it('groups by city from A to Z with the name and the date of each tournament', async () => {
@@ -320,7 +327,7 @@ describe('TournamentImportContainer: the list', () => {
   it('says nothing matched and opens the address field from the link', async () => {
     const s = setup();
     await s.mount();
-    await chip('2024');
+    await fill('Buscar', 'nada coincide');
     expect(await screen.findByText('No encontramos torneos con ese filtro')).toBeOnTheScreen();
 
     await press(PASTE);

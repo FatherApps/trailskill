@@ -21,8 +21,6 @@ export type TournamentImportContainerProps = {
   catalog: TournamentCatalogRepository;
   // Asks the server to refresh the catalog; never awaited by the screen and never rejects its result into the UI.
   refreshCatalog: () => Promise<void>;
-  // The year chips run from this year down to 2024; only tests set it.
-  currentYear?: number;
   search: OfficialSearchRepository;
   results: Pick<OfficialResultsService, 'importChosen'>;
   identityDocuments: Pick<IdentityDocumentRepository, 'hint'>;
@@ -58,7 +56,6 @@ export function TournamentImportContainer({
   sources,
   catalog,
   refreshCatalog,
-  currentYear = new Date().getFullYear(),
   search,
   results,
   identityDocuments,
@@ -147,14 +144,14 @@ export function TournamentImportContainer({
   if (step.kind === 'start' && !chosen && !pasting) {
     if (entries === null) return <ConfirmPersonScreen view={{ kind: 'loading' }} onBack={onBack} />;
     const newest = entries.reduce((latest, entry) => (entry.dateKey > latest ? entry.dateKey : latest), '');
-    const month = shownMonth ?? (newest ? { year: yearOfKey(newest), month: Number(newest.slice(4, 6)) } : { year: currentYear, month: new Date().getMonth() + 1 });
+    const month = shownMonth ?? (newest ? { year: yearOfKey(newest), month: Number(newest.slice(4, 6)) } : { year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
     const pick: ConfirmPersonView = {
       kind: 'tournament_pick',
       athleteName,
       online,
       text,
       onChangeText: setText,
-      years: catalogYears(currentYear),
+      years: catalogYears(entries),
       year,
       onChangeYear: (next) => {
         setYear(next);
