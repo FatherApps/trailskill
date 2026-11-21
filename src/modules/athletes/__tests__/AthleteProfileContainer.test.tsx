@@ -595,7 +595,7 @@ describe('athlete profile container', () => {
       competition: null as string | null,
       ...over,
     });
-    const repo =(rows: ReturnType<typeof imported>[]) => ({ listByAthlete: jest.fn().mockResolvedValue(rows) });
+    const repo = (rows: ReturnType<typeof imported>[]) => ({ listByAthlete: jest.fn().mockResolvedValue(rows) });
 
     it('shows no "Solo en línea" on an imported row: it is on the device with nothing pending (issue 849)', async () => {
       await show({ importedResults: repo([imported()]) });
