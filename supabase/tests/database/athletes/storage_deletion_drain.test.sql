@@ -2,7 +2,7 @@
 -- the outcome; the Edge Function deletes through the Storage API. All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(26);
 
 -- Athletes: d1 has a photo and is deleted in the test (cascade), d2 keeps a photo.
 insert into auth.users (id, email) values ('12330000-0000-4000-8000-0000000000a1', 'drain-guardian@example.test');
@@ -26,6 +26,15 @@ reset role;
 
 -- Cascade: deleting an athlete with a photo queues its path; claiming it returns the path once.
 delete from public.athletes where id = '12330000-0000-4000-8000-0000000000d1';
+select is_empty(
+  $$ select 1 from public.athlete_photos where athlete_id = '12330000-0000-4000-8000-0000000000d1' $$,
+  'deleting the athlete deleted its photo row (cascade)'
+);
+select results_eq(
+  $$ select bucket_id, storage_path from public.storage_deletion_queue $$,
+  $$ values ('athlete-photos'::text, '12330000-0000-4000-8000-0000000000d1/12330000-0000-4000-8000-0000000000f1.jpg'::text) $$,
+  'the cascade queued exactly the path of the deleted athlete''s photo'
+);
 select is(
   (select count(*) from public.claim_storage_deletions('2026-12-01 12:00+00')),
   1::bigint,

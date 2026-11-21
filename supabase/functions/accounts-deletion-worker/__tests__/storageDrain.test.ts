@@ -1,4 +1,5 @@
 import { createFakeClock } from './fakes.ts';
+import { createStorageApi, createStorageDrainStore } from '../storageAdapters.ts';
 import { ATHLETE, createFakeStorage, createMemoryDrainStore, pathOf } from './storageFakes.ts';
 import { createStorageDrain, DEFAULT_GRACE_HOURS, DRAIN_BATCH, graceHoursFrom, MAX_ROUNDS } from '../storageDrain.ts';
 
@@ -125,6 +126,59 @@ describe('storage drain', () => {
     s.store.listOrphans = async (now, g, limit) => (nows.push(now), listOrphans(now, g, limit));
     await s.drain();
     expect(new Set(nows.map((d) => d.getTime())).size).toBe(1);
+  });
+});
+
+describe('storage drain after an athlete is deleted', () => {
+  it('leaves no object of that athlete in Storage after a run, and the other athletes keep theirs', async () => {
+    const OTHER = '12330000-0000-4000-8000-0000000000d2';
+    const mine = [pathOf(1), pathOf(2)]; // the cascade queued every photo path of the athlete (pgTAP covers the queueing)
+    const kept = `${OTHER}/12330000-0000-4000-8000-000000000099.jpg`;
+    const memory = createMemoryDrainStore({ queued: mine.map((path, i) => ({ id: `row-${i}`, bucket: BUCKET, path })) });
+    const fake = createFakeStorage({ objects: [...mine, kept].map((p) => `${BUCKET}/${p}`) });
+    const summary = await createStorageDrain({ store: memory.store, storage: fake.storage, clock: createFakeClock().clock })();
+    expect(summary.deleted).toBe(2);
+    expect([...fake.held].filter((key) => key.includes(ATHLETE))).toEqual([]);
+    expect([...fake.held]).toEqual([`${BUCKET}/${kept}`]);
+    expect(memory.rows).toEqual([]);
+  });
+});
+
+describe('storage drain logs', () => {
+  const ALL = ['error', 'warn', 'log', 'info', 'debug'] as const;
+
+  it('never writes a storage path or an athlete id on any failure path, with the real adapters', async () => {
+    const spies = ALL.map((level) => jest.spyOn(console, level).mockImplementation(() => undefined));
+    const leaky = (what: string) => `${what} ${pathOf(1)} ${pathOf(7)} ${ATHLETE}`;
+    const calls: string[] = [];
+    const rpc = async (fn: string) => {
+      calls.push(fn);
+      if (fn === 'claim_storage_deletions') return { data: [{ queue_id: 'row-1', bucket: BUCKET, path: pathOf(1) }], error: null };
+      if (fn === 'fail_storage_deletion') return { data: null, error: { code: '57014', message: leaky('fail') } };
+      if (fn === 'list_orphan_photo_objects') return { data: [{ bucket: BUCKET, path: pathOf(7) }], error: null };
+      return { data: { status: 'ok' }, error: null };
+    };
+    const statuses = [503, undefined, 404];
+    const storage = createStorageApi(async (_bucket, paths) => {
+      const status = statuses.shift();
+      if (status === undefined && statuses.length === 1) throw new Error(leaky('network'));
+      return { error: status === 404 ? null : { status, message: leaky('storage') + paths.join() } };
+    });
+    const drain = createStorageDrain({ store: createStorageDrainStore(rpc), storage, clock: createFakeClock().clock });
+    const summary = await drain();
+    expect(summary.failed + summary.orphansFailed + summary.deleted + summary.orphansDeleted).toBeGreaterThan(0);
+    expect(calls).toContain('fail_storage_deletion');
+
+    // A claim that fails on its own is the error the service logs: only the function name and the Postgres code.
+    const broken = createStorageDrain({ store: createStorageDrainStore(async () => ({ data: null, error: { code: '57014', message: leaky('claim') } })), storage, clock: createFakeClock().clock });
+    await expect(broken()).rejects.toThrow(new Error('Calling claim_storage_deletions failed (57014)'));
+
+    const output = spies.map((spy) => spy.mock.calls.map((call) => call.join(' ')).join('\n')).join('\n');
+    expect(output).not.toContain(ATHLETE);
+    expect(output).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/);
+    expect(output).not.toContain('.jpg');
+    expect(output).toContain('queue row row-1');
+    spies.forEach((spy) => spy.mockRestore());
   });
 });
 
