@@ -5,7 +5,7 @@ const origin = Date.now();
 const marked = new Set<string>();
 
 /** The moments of a start that are logged, fixed here so a log line never carries anything but its name and a time. */
-export type StartupMark = 'js_loaded' | 'layout_mounted' | 'deletion_gate_done' | 'profile_gate_done' | 'shell_mounted' | 'home_painted' | 'athletes_painted';
+export type StartupMark = 'js_loaded' | 'layout_mounted' | 'deletion_gate_done' | 'profile_gate_done' | 'shell_mounted' | 'home_painted' | 'athletes_painted' | 'my_swimmers_painted';
 
 /**
  * Development only (issue 1311): logs once per run how long after the JavaScript started a moment of the start was reached, to
