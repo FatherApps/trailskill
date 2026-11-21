@@ -9,10 +9,12 @@ import { SettingsScreen, type ButtonKey } from './SettingsScreen';
 // Reads and saves the device preferences; every change applies at once.
 export function SettingsContainer({
   onBack,
+  onOpenAccount,
   buttons = timingButton,
   dnd = doNotDisturb,
 }: {
   onBack: () => void;
+  onOpenAccount?: () => void;
   buttons?: TimingButtonPort;
   dnd?: DoNotDisturbPort;
 }) {
@@ -43,6 +45,7 @@ export function SettingsContainer({
       timePrecision={preferences.timePrecision}
       onThemeModeChange={(themeMode) => update({ themeMode })}
       onTimePrecisionChange={(timePrecision) => update({ timePrecision })}
+      onOpenAccount={onOpenAccount}
       onBack={() => {
         learner.cancel();
         onBack();

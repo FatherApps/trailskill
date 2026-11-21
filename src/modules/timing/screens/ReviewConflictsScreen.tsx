@@ -35,7 +35,7 @@ function VersionCard({ title, version }: { title: string; version: ConflictVersi
     <View style={{ flex: 1, gap: space[1], padding: space[3], borderRadius: radius.sm, backgroundColor: colors['surface-1'] }}>
       <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{title}</Text>
       <TimeValue value={version.hundredths} size="time-md" />
-      <Text style={[typography['body-strong'], { color: colors.ink }]}>{version.author ?? t('timing.review.unknown_author')}</Text>
+      <Text style={[typography['body-strong'], { color: colors.ink }]}>{version.authorDeleted ? t('common.deleted_account') : (version.author ?? t('timing.review.unknown_author'))}</Text>
       <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{version.device ?? t('timing.review.unknown_device')}</Text>
       <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{formatConflictTime(version.at)}</Text>
     </View>

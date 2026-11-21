@@ -10,6 +10,8 @@ export const accountsFixture = {
     { id: 'category-9-10', name: '9-10' },
     { id: 'category-11-12', name: '11-12' },
   ],
+  // When the synthetic account is deleted, for the deletion screens.
+  deleteAfter: '2026-12-20T15:00:00.000Z',
   // A six-digit code that does not match: used by the mismatch states.
   wrongCode: '482913',
   // Profiles a guardian already added (names already shortened, as the athletes module gives them).

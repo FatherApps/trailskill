@@ -2,6 +2,7 @@
   "settings": {
     "title": "Ajustes",
     "open": "Ajustes",
+    "account": "Mi cuenta",
     "theme": {
       "label": "Tema",
       "hint": "Sol sube el contraste para leer el teléfono al aire libre.",

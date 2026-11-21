@@ -57,7 +57,7 @@ export function toEntry(m: LogMeasurement, sync?: RecordSyncState, Avatar?: Athl
     avatar: avatarOf(Avatar, { id: m.athleteId, initials: m.initials, color: m.color }),
     event: eventLabel(m.stroke, m.distance),
     kind: t(`schoolConsole.measurements.kind.${m.kind}`),
-    versions: [{ time: m.time, author: shortId(m.authorId), device: shortId(m.deviceId), at: localDateTime(new Date(m.capturedAt)) }],
+    versions: [{ time: m.time, author: m.authorId === null ? t('common.deleted_account') : shortId(m.authorId), device: shortId(m.deviceId), at: localDateTime(new Date(m.capturedAt)) }],
     sync,
   };
 }

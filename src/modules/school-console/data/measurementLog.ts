@@ -30,8 +30,8 @@ export type LogMeasurement = {
   distance: DistanceCode;
   kind: MeasurementKind;
   time: Hundredths | null;
-  // User id of whoever wrote it: names are not readable by a school admin yet (issue 220).
-  authorId: string;
+  // User id of whoever wrote it: names are not readable by a school admin yet (issue 220). Null when that account was deleted.
+  authorId: string | null;
   deviceId: string;
   // ISO 8601.
   capturedAt: string;
@@ -137,7 +137,7 @@ export function measurementFilterOptions(
           position(strokes, a.stroke) - position(strokes, b.stroke) || position(distances, a.distance) - position(distances, b.distance),
       )
       .map(([id, m]) => ({ id, label: eventLabel(m.stroke, m.distance) })),
-    coach: [...new Set(list.map((m) => m.authorId))].sort().map((id) => ({ id, label: shortId(id) })),
+    coach: [...new Set(list.flatMap((m) => (m.authorId === null ? [] : [m.authorId])))].sort().map((id) => ({ id, label: shortId(id) })),
     range: dateRanges.map((id) => ({ id, label: t(`schoolConsole.measurements.range.${id}`) })),
   };
 }

@@ -25,6 +25,8 @@ export type SettingsScreenProps = {
   onThemeModeChange: (mode: ThemeMode) => void;
   onTimePrecisionChange: (precision: TimePrecision) => void;
   onBack: () => void;
+  /** Opens "Mi cuenta" (sign out, delete the account); the entry is not shown without it. */
+  onOpenAccount?: () => void;
   /** The headset or volume keys; null where the phone cannot use them (iOS, or a build without the module). */
   buttons: SettingsButtonsView | null;
   /** Recording the individual stopwatch on video. */
@@ -222,7 +224,7 @@ function VideoSettings({ view }: { view: SettingsVideoView }) {
 }
 
 // Presentational: the caller reads and saves the preferences.
-export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, onTimePrecisionChange, onBack, buttons, video }: SettingsScreenProps) {
+export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, onTimePrecisionChange, onBack, onOpenAccount, buttons, video }: SettingsScreenProps) {
   const { colors, space, typography } = useTheme();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
@@ -257,6 +259,7 @@ export function SettingsScreen({ themeMode, timePrecision, onThemeModeChange, on
           {t('settings.video.title')}
         </Text>
         <VideoSettings view={video} />
+        {onOpenAccount && <Button variant="secondary" label={t('settings.account')} onPress={onOpenAccount} />}
       </ScrollView>
     </SafeAreaView>
   );

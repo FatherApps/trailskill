@@ -117,7 +117,7 @@ Los videos del cronómetro están solo en tu teléfono (y en donde tú los hayas
 
 ## 11. Eliminación de tu cuenta y tus datos
 
-Puedes pedir la eliminación de tu cuenta y de tus datos desde la aplicación («Eliminar mis datos», distinta de «Salir») o por correo a **soporte@fatherapps.com**, desde el correo con el que ingresas a Swimcro, con el asunto «Eliminar mi cuenta y mis datos». La eliminación es irreversible una vez cumplido el periodo de gracia.
+Puedes pedir la eliminación de tu cuenta y de tus datos desde la aplicación («Eliminar mis datos», distinta de «Salir») o por correo a **soporte@fatherapps.com**, desde el correo con el que ingresas a Swimcro, con el asunto «Eliminar mi cuenta y mis datos». La eliminación es irreversible una vez cumplido el periodo de gracia. Los pasos, el periodo de 30 días y cómo cancelar también están en la página de eliminación: https://fatherapps.github.io/trailskill/eliminar-cuenta/.
 
 **Cómo funciona desde la aplicación.**
 

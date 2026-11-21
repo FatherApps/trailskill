@@ -160,6 +160,15 @@ describe('measurementFilterOptions', () => {
   });
 });
 
+describe('a measurement whose author account was deleted', () => {
+  it('shows «cuenta eliminada» as the author and leaves it out of the coach filter', () => {
+    const deleted = log('m3', { authorId: null });
+
+    expect(toEntry(deleted).versions[0].author).toBe('cuenta eliminada');
+    expect(measurementFilterOptions([log('m1'), deleted], new Map()).coach.map((o) => o.label)).toEqual(['aaaaaaaa']);
+  });
+});
+
 describe('toEntry', () => {
   it('shows a missing time as null and the author and device as short ids, with the sync state', () => {
     const entry = toEntry(log('m1', { time: null, capturedAt: new Date(2026, 9, 24, 8, 30).toISOString() }), 'needs_review');

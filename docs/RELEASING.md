@@ -222,7 +222,7 @@ Complete before the first closed-track release and keep up to date:
 
 ### Privacy policy page
 
-The policy lives in one file, [`release/privacy-policy.es.md`](release/privacy-policy.es.md), and `.github/workflows/pages.yml` publishes it at `https://fatherapps.github.io/trailskill/privacidad/` (deletion request: `#eliminar-datos`) on every push to `main` that changes it, or by hand with `workflow_dispatch`. Nothing else from `docs/` is published.
+The policy lives in one file, [`release/privacy-policy.es.md`](release/privacy-policy.es.md), and the account deletion page in another, [`release/account-deletion.es.md`](release/account-deletion.es.md). `.github/workflows/pages.yml` publishes them at `https://fatherapps.github.io/trailskill/privacidad/` (deletion section: `#eliminar-datos`) and `https://fatherapps.github.io/trailskill/eliminar-cuenta/` (the URL Play asks for to request deleting the account and data) on every push to `main` that changes either, or by hand with `workflow_dispatch`. The workflow fails, and publishes nothing, unless the artifact holds exactly those two pages. Nothing else from `docs/` is published.
 
 One-time step (maintainer): in the repository settings, **Pages**, set the source to **GitHub Actions**; without it the deploy job fails.
 

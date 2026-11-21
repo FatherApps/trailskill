@@ -164,6 +164,77 @@
       "error_title": "No pudimos traer el código",
       "error_message": "Revisa la señal e inténtalo de nuevo.",
       "retry": "Intentar de nuevo"
+    },
+    "account": {
+      "title": "Mi cuenta",
+      "delete": "Eliminar mis datos",
+      "delete_hint": "Marca tu cuenta para borrarla a los 30 días. Antes de ese plazo puedes cancelarlo."
+    },
+    "delete": {
+      "title": "Eliminar mis datos",
+      "offer_title": "Antes de eliminar, ¿quieres exportar tus datos?",
+      "offer_body": "Puedes guardar una copia de tus datos antes de que se borren.",
+      "export": "Exportar mis datos",
+      "exporting": "Exportando…",
+      "export_failed": "No pudimos exportar tus datos. Inténtalo de nuevo.",
+      "continue": "Continuar",
+      "notice_title": "Esto es lo que va a pasar",
+      "notice_days": "Tu cuenta se borra a los 30 días de confirmar.",
+      "notice_irreversible": "Después de ese plazo no se puede recuperar.",
+      "notice_pending": "Los registros que aún no se han enviado se pierden.",
+      "notice_cancel": "Antes de esos 30 días puedes cancelarlo entrando con tu código.",
+      "request_code": "Enviarme el código",
+      "requesting": "Enviando…",
+      "code_title": "Escribe el código",
+      "code_help": "Te enviamos un código de 6 dígitos al correo de tu cuenta.",
+      "code_label": "Código de 6 dígitos",
+      "confirm": "Eliminar mis datos",
+      "confirming": "Eliminando…",
+      "resend": "Reenviar código",
+      "email_not_sent": "No pudimos enviar el correo con el código. Pídelo de nuevo.",
+      "error": {
+        "offline": "La solicitud no llegó: revisa tu conexión e inténtalo de nuevo.",
+        "invalid_code": "El código no coincide.",
+        "code_expired": "El código venció. Pide uno nuevo.",
+        "too_many_attempts": "Demasiados intentos con este código. Pide uno nuevo.",
+        "rate_limited": "Pediste demasiados códigos. Inténtalo más tarde.",
+        "unavailable": "No pudimos hacerlo ahora. Inténtalo de nuevo."
+      },
+      "blocked_title": "No puedes eliminar tu cuenta todavía",
+      "blocked_message_none": "Tu cuenta sigue vinculada a una escuela. Contáctala para que te desvincule y vuelve a intentarlo.",
+      "blocked_message_one": "Tu cuenta sigue vinculada a la escuela {{schools}}. Contáctala para que te desvincule y vuelve a intentarlo.",
+      "blocked_message_other": "Tu cuenta sigue vinculada a las escuelas {{schools}}. Contáctalas para que te desvinculen y vuelve a intentarlo.",
+      "admin_title": "Pide la eliminación a soporte",
+      "admin_message": "Una cuenta de administrador se elimina por soporte: escribe a soporte@fatherapps.com.",
+      "offline": "Sin conexión. Para eliminar tu cuenta necesitas conexión a internet.",
+      "done_title": "Tu cuenta quedó marcada",
+      "done_date": "Se borra el {{date}}",
+      "done_help": "Para cancelarlo, vuelve a entrar con tu código antes de esa fecha.",
+      "done_leave": "Salir",
+      "leave_failed": "No pudimos cerrar la sesión. Inténtalo de nuevo.",
+      "date": "{{day}} de {{month}} de {{year}}",
+      "month": {
+        "1": "enero",
+        "2": "febrero",
+        "3": "marzo",
+        "4": "abril",
+        "5": "mayo",
+        "6": "junio",
+        "7": "julio",
+        "8": "agosto",
+        "9": "septiembre",
+        "10": "octubre",
+        "11": "noviembre",
+        "12": "diciembre"
+      }
+    },
+    "grace": {
+      "title": "Tu cuenta se va a borrar",
+      "date": "Se borra el {{date}}",
+      "cancel": "Cancelar eliminación",
+      "cancelling": "Cancelando…",
+      "cancel_failed": "No pudimos cancelar la eliminación. Inténtalo de nuevo.",
+      "offline": "Sin conexión. Para cancelar la eliminación necesitas conexión a internet."
     }
   }
 }
