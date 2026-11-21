@@ -4,7 +4,6 @@ import AthleteRoute from '../app/(app)/athletes/[id]';
 
 let mockUserId: string | undefined;
 let mockStaff = false;
-let mockShowPhoto = true;
 const mockPush = jest.fn();
 let mockSwimmerSchoolIds: string[] = [];
 let mockCanGoBack = true;
@@ -23,16 +22,9 @@ jest.mock('../core/session', () => ({
 }));
 jest.mock('../core/sync', () => ({ useGlobalSyncSummary: () => ({ lastSyncedAt: null, connection: 'connected', ...mockUnsent }) }));
 jest.mock('../modules/accounts', () => {
-  const { Text } = jest.requireActual('react-native');
   return {
     createPowerSyncAuthorizationStatusRepository: () => ({}),
     createPowerSyncManagedAthleteRepository: () => ({}),
-    createSupabaseAthleteShareCodeRepository: () => ({}),
-    createSecureStoreShareCodeCache: () => ({}),
-    useHasValidAuthorization: (athleteId: string, purpose: string) => mockShowPhoto && purpose === 'show_photo' && athleteId.length > 0,
-    AthleteShareCodeContainer: ({ athleteId, athleteName }: { athleteId: string; athleteName: string }) => (
-      <Text>{`share code of ${athleteId} for ${athleteName}`}</Text>
-    ),
   };
 });
 jest.mock('../modules/results-import', () => ({
@@ -61,11 +53,6 @@ jest.mock('../modules/athletes', () => {
     createPowerSyncHistoryRepository: () => ({}),
     createPowerSyncAthleteSchoolRepository: () => ({ listByAthlete: async () => mockSwimmerSchoolIds.map((schoolId) => ({ schoolId, categoryId: null })) }),
     createSupabaseOtherSchoolResultsRepository: () => ({}),
-    getAthletePhotoService: () => ({}),
-    createExpoPhotoPicker: () => ({}),
-    AthletePhotoContainer: ({ athleteId, authorized, onAuthorize }: { athleteId: string; authorized: boolean; onAuthorize: () => void }) => (
-      <Pressable accessibilityRole="button" accessibilityLabel={`photo of ${athleteId} ${authorized ? 'authorized' : 'needs authorization'}`} onPress={onAuthorize} />
-    ),
     useManagedAthletes: () => mockManaged,
     // The real hook: the route test keeps checking what the route does with the state this hook owns.
     useAthleteProfileRoute: jest.requireActual('../modules/athletes/data/useAthleteProfileRoute').useAthleteProfileRoute,
@@ -78,9 +65,7 @@ jest.mock('../modules/athletes', () => {
       importPrompt,
       officialUpdate,
       bottomBar,
-      shareCode,
       guardianSharing,
-      photoCard,
       onBack,
     }: {
       athleteId: string;
@@ -91,9 +76,7 @@ jest.mock('../modules/athletes', () => {
       importPrompt?: object;
       officialUpdate?: import('react').ReactNode;
       bottomBar?: import('react').ReactNode;
-      shareCode?: import('react').ReactNode;
       guardianSharing?: import('react').ReactNode;
-      photoCard?: (avatar: import('react').ReactNode) => import('react').ReactNode;
       onBack?: () => void;
     }) => (
       <View>
@@ -101,9 +84,7 @@ jest.mock('../modules/athletes', () => {
         <Text>{`profile of ${athleteId}${otherSchoolResults ? ' with other schools' : ''}${online ? ' online' : ''}${importPrompt ? ' with import prompt' : ''}${name ? ` named ${name}` : ''} pending ${pendingChanges}`}</Text>
         {officialUpdate}
         {bottomBar}
-        {shareCode}
         {guardianSharing}
-        {photoCard?.(<Text>avatar</Text>)}
       </View>
     ),
   };
@@ -204,75 +185,6 @@ describe('athlete profile route', () => {
       await render(<AthleteRoute />);
       expect(await screen.findByText(/^profile of a1/)).toBeOnTheScreen();
       expect(screen.queryByText(/guardian sharing/)).not.toBeOnTheScreen();
-    });
-  });
-
-  describe('photo', () => {
-    afterEach(() => {
-      mockManaged = { status: 'loading' };
-      mockShowPhoto = true;
-    });
-
-    it('gives the photo card to who manages the swimmer, with show_photo read by the route', async () => {
-      mockUserId = 'user-1';
-      mockManaged = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
-      await render(<AthleteRoute />);
-
-      expect(await screen.findByRole('button', { name: 'photo of a1 authorized' })).toBeOnTheScreen();
-    });
-
-    it('without show_photo the card opens the authorization flow of accounts first', async () => {
-      mockUserId = 'user-1';
-      mockShowPhoto = false;
-      mockManaged = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
-      await render(<AthleteRoute />);
-
-      await fireEvent.press(await screen.findByRole('button', { name: 'photo of a1 needs authorization' }));
-
-      expect(mockPush).toHaveBeenCalledWith('/authorizations');
-    });
-
-    it('gives no photo card to anyone else, for example the coach', async () => {
-      mockUserId = 'user-1';
-      mockManaged = { status: 'ready', athletes: [] };
-      await render(<AthleteRoute />);
-
-      await screen.findByText('profile of a1 online pending 0');
-      expect(screen.queryByRole('button', { name: /photo of/ })).toBeNull();
-    });
-  });
-
-  describe('share code', () => {
-    afterEach(() => {
-      mockManaged = { status: 'loading' };
-    });
-
-    it('gives the share code to who manages the swimmer', async () => {
-      mockUserId = 'user-1';
-      mockManaged = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
-      await render(<AthleteRoute />);
-
-      expect(await screen.findByText('share code of a1 for Ana')).toBeOnTheScreen();
-    });
-
-    it('renders the official update and the share code as siblings with different keys (issue 1035)', async () => {
-      mockUserId = 'user-1';
-      mockManaged = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
-      const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
-      await render(<AthleteRoute />);
-
-      await screen.findByText('share code of a1 for Ana');
-      expect(errors.mock.calls.filter((call) => String(call[0]).includes('same key'))).toEqual([]);
-      errors.mockRestore();
-    });
-
-    it('gives no share code to anyone else, for example the coach', async () => {
-      mockUserId = 'user-1';
-      mockManaged = { status: 'ready', athletes: [] };
-      await render(<AthleteRoute />);
-
-      await screen.findByText('profile of a1 online pending 0');
-      expect(screen.queryByText(/share code/)).toBeNull();
     });
   });
 

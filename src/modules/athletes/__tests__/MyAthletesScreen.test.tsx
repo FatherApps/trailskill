@@ -35,10 +35,10 @@ const mateo: MyAthleteCard = { id: 'a3', name: 'Mateo C.', firstName: 'Mateo', l
 
 const stack = (...athletes: MyAthleteCard[]): MyAthletesView => ({ kind: 'data', athletes });
 
-const show = (view: MyAthletesView, { onOpen = jest.fn(), onAdd = jest.fn() } = {}) =>
+const show = (view: MyAthletesView, { onOpen = jest.fn(), onAdd = jest.fn(), onEdit }: { onOpen?: jest.Mock; onAdd?: jest.Mock; onEdit?: jest.Mock } = {}) =>
   render(
     <ThemeProvider>
-      <MyAthletesScreen view={view} onOpen={onOpen} onAdd={onAdd} scrollEnabled={false} />
+      <MyAthletesScreen view={view} onOpen={onOpen} onAdd={onAdd} onEdit={onEdit} scrollEnabled={false} />
     </ThemeProvider>,
   );
 
@@ -287,5 +287,25 @@ describe('MyAthletesScreen share-code slot', () => {
     await show(stack(paula));
 
     expect(screen.queryByRole('button', { name: /^Compartir/ })).toBeNull();
+  });
+});
+
+describe('MyAthletesScreen edit button', () => {
+  it('shows Editar next to Historial on the card in front, and pressing it edits without opening the profile', async () => {
+    const onOpen = jest.fn();
+    const onEdit = jest.fn();
+    await show(stack(paula, tomas), { onOpen, onEdit });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Editar' }));
+
+    expect(onEdit).toHaveBeenCalledWith('a0', 'Paula Gómez');
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Historial' })).toBeOnTheScreen();
+  });
+
+  it('shows no Editar button without onEdit', async () => {
+    await show(stack(paula));
+
+    expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull();
   });
 });

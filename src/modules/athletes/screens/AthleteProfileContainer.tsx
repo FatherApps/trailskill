@@ -56,14 +56,10 @@ export type AthleteProfileContainerProps = {
   officialUpdate?: ReactNode;
   // Pinned to the bottom of the screen, outside the scrolling list; the route passes it with the official-results update.
   bottomBar?: ReactNode;
-  // The code to share times with the swimmer, from the accounts module; the route passes it only to who manages the swimmer.
-  shareCode?: ReactNode;
   // What the school lets the guardian see of this swimmer, from the school-console module; the route passes it only to staff of the swimmer's school.
   guardianSharing?: ReactNode;
   // Only guardians and adults get it: the route decides by passing it or not.
   importPrompt?: ImportPromptProps;
-  // The card to add, change or remove the photo, built by the route (it needs show_photo from accounts); it receives the athlete's avatar. Only who manages the swimmer: the route passes it or not.
-  photoCard?: (avatar: ReactNode) => ReactNode;
   // Where the band's back button goes; the route decides (the module has no router). Left out when there is nowhere to go back to: no button.
   onBack?: () => void;
   // Injected by the route (athletes cannot read show_photo without a cycle with accounts): the athlete's avatar with their photo. Absent: no avatar.
@@ -189,10 +185,8 @@ export function AthleteProfileContainer({
   federation,
   officialUpdate,
   bottomBar,
-  shareCode,
   guardianSharing,
   importPrompt,
-  photoCard,
   onBack,
 }: AthleteProfileContainerProps) {
   // The event the person chose, for this athlete; until then the profile opens in the event of the athlete's most recent result, and with no results as before.
@@ -380,9 +374,7 @@ export function AthleteProfileContainer({
     chart,
     ...(officialUpdate ? { officialUpdate } : {}),
     ...(bottomBar ? { bottomBar } : {}),
-    ...(shareCode ? { shareCode } : {}),
     ...(guardianSharing ? { guardianSharing } : {}),
-    ...(photoCard ? { photo: photoCard(avatarOf(loadedAthlete)) } : {}),
     ...(importPrompt ? { importPrompt } : {}),
     ...(otherSchoolResults && !online ? { otherSchoolOffline: true } : {}),
     // Connected but the server failed or did not answer: not the offline notice, a retry of this section only.

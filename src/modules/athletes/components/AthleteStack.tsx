@@ -38,6 +38,8 @@ export type AthleteStackProps = {
   // Opens the profile (and with it the history) of the athlete in front.
   // The full name goes with the id: the profile route carries it so its band has the name from the first frame.
   onOpen: (athleteId: string, name: string) => void;
+  // Opens the edit screen of the athlete in front (photo, data, share code); absent: no "Editar" button.
+  onEdit?: (athleteId: string, name: string) => void;
 };
 
 export const athleteStackColors: { text: ColorToken } = { text: 'on-color' };
@@ -85,7 +87,7 @@ function CollapsedCard({ card, hidden, first, onPress }: { card: MyAthleteCard; 
   );
 }
 
-function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidden: number; covers: boolean; onOpen: () => void }) {
+function FrontCard({ card, hidden, covers, onOpen, onEdit }: { card: MyAthleteCard; hidden: number; covers: boolean; onOpen: () => void; onEdit?: () => void }) {
   const { colors, space, radius, typography } = useTheme();
   const { focusProps, ring } = useFocusRing();
   const largeText = useLargeText();
@@ -119,7 +121,15 @@ function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidd
           </View>
         )}
         {card.shareCode ? <View style={{ alignSelf: 'flex-start', paddingTop: space[1] }}>{card.shareCode}</View> : null}
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingTop: space[2] }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: space[2], paddingTop: space[2] }}>
+          {onEdit ? (
+            <Button
+              variant="secondary"
+              label={t('athletes.my.edit')}
+              accessibilityHint={t('athletes.my.edit_hint', { name: card.name })}
+              onPress={onEdit}
+            />
+          ) : null}
           <Button
             variant="dark"
             label={t('athletes.my.history')}
@@ -134,7 +144,7 @@ function FrontCard({ card, hidden, covers, onOpen }: { card: MyAthleteCard; hidd
 
 // A wallet of cards: the athletes not chosen are collapsed one over the other, each showing only its strip, and the chosen one is open in front.
 // Pressing a collapsed card brings it to the front; the order of the others does not change.
-export function AthleteStack({ athletes, onOpen }: AthleteStackProps) {
+export function AthleteStack({ athletes, onOpen, onEdit }: AthleteStackProps) {
   const { radius } = useTheme();
   const [chosenId, setChosenId] = useState<string>();
   // A choice that is no longer among the athletes falls back to the first one.
@@ -142,13 +152,20 @@ export function AthleteStack({ athletes, onOpen }: AthleteStackProps) {
   if (!front) return null;
   const behind = athletes.filter((athlete) => athlete !== front);
   const hidden = radius.md;
+  const fullName = `${front.firstName} ${front.lastName}`.trim();
 
   return (
     <View>
       {behind.map((card, index) => (
         <CollapsedCard key={card.id} card={card} hidden={hidden} first={index === 0} onPress={() => setChosenId(card.id)} />
       ))}
-      <FrontCard card={front} hidden={hidden} covers={behind.length > 0} onOpen={() => onOpen(front.id, `${front.firstName} ${front.lastName}`.trim())} />
+      <FrontCard
+        card={front}
+        hidden={hidden}
+        covers={behind.length > 0}
+        onOpen={() => onOpen(front.id, fullName)}
+        onEdit={onEdit && (() => onEdit(front.id, fullName))}
+      />
     </View>
   );
 }
