@@ -1,5 +1,6 @@
 import { supabase } from '../../../core/sync';
 import type { FoundResult } from './officialResults';
+import { isRealDateKey } from './tournamentCatalog';
 
 /** What the device sees of a person found at the source: an opaque id, never the source's own reference. */
 export type SearchCandidate = {
@@ -42,13 +43,21 @@ export type ImportSource = {
   provider: string;
 };
 
+/** The tournament to look in: a day of the platform's catalog (`tournamentKey`, a real `YYYYMMDD`) or the address as pasted, never both. */
+export type TournamentTarget =
+  | { athleteId: string; tournamentKey: string; url?: undefined; identityNumber?: string }
+  | { athleteId: string; url: string; tournamentKey?: undefined; identityNumber?: string };
+
 export interface OfficialSearchRepository {
   /** Online only. Looks for one athlete at the source; spends the server's rate limit. */
   search(input: { athleteId: string; organizationId: string; firstName: string; lastName: string }): Promise<SearchOutcome<SearchCandidate[]>>;
   /** Online only. Confirms "Is this person?" for a candidate id that `search` returned. */
   confirm(input: { athleteId: string; organizationId: string; candidateId: string }): Promise<SearchOutcome<void>>;
-  /** Online only. Looks for the athlete in the tournament at this address; `null` when the athlete is not in it. Spends the platform's rate limit. */
-  tournament(input: { athleteId: string; url: string; identityNumber?: string }): Promise<SearchOutcome<{ organizationId: string; candidate: TournamentCandidate | null }>>;
+  /**
+   * Online only. Looks for the athlete in the tournament of this catalog day or at this address; `null` when the athlete is not in it. Spends the
+   * platform's rate limit. A `tournamentKey` that is not a real day is never sent: it answers `unexpected`.
+   */
+  tournament(input: TournamentTarget): Promise<SearchOutcome<{ organizationId: string; candidate: TournamentCandidate | null }>>;
   /** Online only. Confirms "Is this person?" for a tournament candidate and returns the results the server now offers. Nothing is saved yet. */
   confirmTournament(input: { athleteId: string; organizationId: string; candidateId: string }): Promise<SearchOutcome<TournamentResult[]>>;
 }
@@ -89,11 +98,30 @@ export function createSupabaseOfficialSearchRepository(client: FunctionsClient =
       call(client, { action: 'search', athleteId, organizationId, firstName, lastName }, (value) => (value as { candidates: SearchCandidate[] }).candidates),
     confirm: ({ athleteId, organizationId, candidateId }) =>
       call(client, { action: 'confirm', athleteId, organizationId, candidateId }, () => undefined),
-    tournament: ({ athleteId, url, identityNumber }) =>
-      call(client, { action: 'tournament', athleteId, url, ...(identityNumber ? { identityNumber } : {}) }, (value) => value as { organizationId: string; candidate: TournamentCandidate | null }),
+    tournament: async ({ athleteId, url, tournamentKey, identityNumber }) =>
+      tournamentKey !== undefined && !isRealDateKey(tournamentKey)
+        ? { ok: false, error: { code: 'unexpected' } }
+        : call(
+            client,
+            { action: 'tournament', athleteId, ...(tournamentKey !== undefined ? { tournamentKey } : { url }), ...(identityNumber ? { identityNumber } : {}) },
+            (value) => value as { organizationId: string; candidate: TournamentCandidate | null },
+          ),
     confirmTournament: ({ athleteId, organizationId, candidateId }) =>
       call(client, { action: 'confirm', athleteId, organizationId, candidateId }, (value) => (value as { results?: TournamentResult[] } | null)?.results ?? []),
   };
+}
+
+/**
+ * Asks the server to refresh the catalog of tournaments (it does so at most once a day per platform). Fire and forget: whoever calls it does
+ * not wait for the answer and a failure, including a server that does not have the action yet, is not shown. The list always comes from
+ * the synced catalog, never from this call.
+ */
+export async function refreshTournaments(client: FunctionsClient = supabase): Promise<void> {
+  try {
+    await client.functions.invoke('results-import', { body: { action: 'refresh_tournaments' } });
+  } catch {
+    // A refresh that did not happen leaves the catalog as it was synced.
+  }
 }
 
 export function createSupabaseImportSourcesRepository(): ImportSourcesRepository {
@@ -124,7 +152,7 @@ export function createInMemoryOfficialSearchRepository(options: {
 } = {}) {
   const searches: { athleteId: string; organizationId: string; firstName: string; lastName: string }[] = [];
   const confirmed: { athleteId: string; organizationId: string; candidateId: string }[] = [];
-  const tournaments: { athleteId: string; url: string; identityNumber?: string }[] = [];
+  const tournaments: TournamentTarget[] = [];
   const tournamentConfirmed: { athleteId: string; organizationId: string; candidateId: string }[] = [];
   return {
     searches,
