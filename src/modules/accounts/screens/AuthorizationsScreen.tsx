@@ -14,7 +14,8 @@ import { LEGAL_REVIEW_PENDING } from '../legalReview';
 
 export type AuthorizationsScreenProps = {
   // Registration is a step with "Continuar"; manage is the screen opened later from the home screen.
-  mode: 'registration' | 'manage';
+  // 'added' continues like registration, without its step: the athletes were just added from "+" in Deportistas.
+  mode: 'registration' | 'added' | 'manage';
   step?: { current: number; total: number };
   athletes: { id: string; name: string }[];
   // The current text of each purpose.
@@ -45,7 +46,8 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
   // State updates land after the render: a ref blocks a second press made before the loading state shows.
   const saveInFlight = useRef(false);
   const keyOf = (athleteId: string, purpose: AuthorizationPurpose) => `${athleteId}:${purpose}`;
-  const registration = mode === 'registration';
+  // "Continuar", which may save nothing: registration and the athletes just added.
+  const registration = mode !== 'manage';
 
   // A purpose that is now in force (for example after a partial save) leaves the selection, so withdrawing it later shows it unchecked.
   const stale = Object.keys(selected).filter((key) => {
@@ -78,11 +80,11 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
 
   return (
     <ScreenFrame
-      title={registration ? t('accounts.create_title') : t('accounts.authorizations.title')}
+      title={mode === 'registration' ? t('accounts.create_title') : t('accounts.authorizations.title')}
       before={!registration && onBack ? <BackButton onPress={onBack} /> : undefined}
       footer={<Button label={t(registration ? 'accounts.authorizations.continue' : 'accounts.authorizations.save')} onPress={save} loading={saving} />}
     >
-      {registration && step && onBack && (
+      {mode === 'registration' && step && onBack && (
         <StepHeader step={step.current} total={step.total} title={t('accounts.authorizations.title')} onBack={onBack} />
       )}
       {LEGAL_REVIEW_PENDING && (

@@ -10,7 +10,8 @@ export type AuthorizationsContainerProps = {
   repository: AuthorizationRepository;
   userId: string;
   athletes: { id: string; name: string }[];
-  mode: 'registration' | 'manage';
+  // 'added': the athletes just added from "+" in Deportistas. Like registration it continues without authorizing and sends the held identity numbers, but it is no step of creating the account and has no draft.
+  mode: 'registration' | 'added' | 'manage';
   // Registration only: the draft says how many steps there are and is dropped when the last one is done.
   drafts?: RegistrationDraftRepository;
   // Registration only: the identity numbers typed while adding athletes are sent for those who accepted the import of official results, and dropped for the rest.
@@ -116,10 +117,10 @@ export function AuthorizationsContainer({ repository, userId, athletes, mode, dr
       await load();
       return false;
     }
-    if (mode === 'registration') {
+    if (mode !== 'manage') {
       sendIdentityNumbers(selected);
       // A failed draft cleanup must not block the flow.
-      await drafts?.clear().catch(() => {});
+      if (mode === 'registration') await drafts?.clear().catch(() => {});
       onDone();
       return true;
     }

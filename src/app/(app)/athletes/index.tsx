@@ -43,7 +43,7 @@ export default function MyAthletesRoute() {
         authorizations={authorizations}
         refreshKey={lastSyncedAt?.getTime()}
         onOpen={(id, name) => router.push(athleteProfileHref(id, name))}
-        onAdd={() => router.push('/athletes/add')}
+        onAdd={() => router.push({ pathname: '/athletes/add', params: { mode: 'add' } })}
       />
     </View>
   );

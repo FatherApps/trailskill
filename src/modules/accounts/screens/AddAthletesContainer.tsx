@@ -13,6 +13,8 @@ import { AddAthletesScreen, type AddAthleteField, type AddedAthlete } from './Ad
 
 export type AddAthletesContainerProps = {
   userId: string;
+  // 'add' is "+" in Deportistas: after each add the person is asked whether to add another, and saying no continues with the athletes added in this visit.
+  mode?: 'registration' | 'add';
   step?: number;
   total?: number;
   profiles: ManagedAthleteProfileRepository;
@@ -26,7 +28,8 @@ export type AddAthletesContainerProps = {
   renderStatus?: (athleteId: string) => ReactNode;
   // "Salir" and the Android back button leave the registration through here: the account exists already, so there is no previous step. The route decides where to (the role landing).
   onExit: () => void;
-  onContinue: () => void;
+  // Registration: the reached step was kept. 'add': `added` are the athletes added in this visit, in order.
+  onContinue: (added: string[]) => void;
 };
 
 const empty = { firstName: '', lastName: '' };
@@ -45,6 +48,7 @@ const holds = (draft: RegistrationDraft, names?: typeof empty) =>
 
 export function AddAthletesContainer({
   userId,
+  mode = 'registration',
   step = 3,
   total = 4,
   profiles,
@@ -104,6 +108,10 @@ export function AddAthletesContainer({
     );
   }, [athletes, userId, ifMounted]);
 
+  // The athletes added in this visit, and the name of the last one while the "add another?" question is open.
+  const addedHere = useRef<string[]>([]);
+  const [addedHereCount, setAddedHereCount] = useState(0);
+  const [askAnother, setAskAnother] = useState<string>();
   const [confirmingExit, setConfirmingExit] = useState(false);
   // Leaving here cuts the registration, so the held number is dropped (Continuar keeps it for the authorizations step). The athletes already added and the draft stay as they are.
   const leave = useCallback(() => {
@@ -239,6 +247,11 @@ export function AddAthletesContainer({
         return;
       }
       if (savingNumber) identityNumbers?.put(athleteId, savingNumber);
+      addedHere.current = [...addedHere.current, athleteId];
+      ifMounted(() => {
+        setAddedHereCount(addedHere.current.length);
+        setAskAnother(`${saving.firstName.trim()} ${saving.lastName.trim()}`);
+      });
       // Only what was saved goes: what the person edited while it saved is the next athlete's (see `edits`).
       const left = {
         firstName: edits.current.firstName === savingEdits.firstName ? '' : typed.current.firstName,
@@ -268,6 +281,13 @@ export function AddAthletesContainer({
 
   // The profiles are saved; the names typed for the next athlete, the swimmer choice and the reached step stay until the authorizations step ends.
   // If the step cannot be kept the person stays here: going on would bring them back to this screen on the next launch.
+  // "No, continuar". Registration keeps the reached step first; 'add' has no draft to keep (the account exists already). The held numbers go on to the authorizations.
+  function continueAdded() {
+    setAskAnother(undefined);
+    if (mode === 'add') onContinue(addedHere.current);
+    else void finish();
+  }
+
   async function finish() {
     // A second tap while the first one still saves would continue twice; an add in flight would land after the step was kept.
     if (finishingRef.current || addingRef.current) return;
@@ -282,12 +302,15 @@ export function AddAthletesContainer({
       setFinishing(false);
     }
     if (!kept) return setFailed('continue');
-    onContinue();
+    onContinue(addedHere.current);
   }
 
   return (
     <>
       <AddAthletesScreen
+        mode={mode}
+        // Registration continues with everybody listed; '+' only with the athletes added in this visit.
+        showContinue={mode === 'add' ? addedHereCount > 0 : added.length > 0 || unreadable}
         step={step}
         total={total}
         values={values}
@@ -305,7 +328,7 @@ export function AddAthletesContainer({
         renderStatus={renderStatus}
         onChange={change}
         onAdd={() => void add()}
-        onContinue={() => void finish()}
+        onContinue={() => (mode === 'add' ? continueAdded() : void finish())}
         onExit={exit}
       />
       <ConfirmSheet
@@ -320,6 +343,16 @@ export function AddAthletesContainer({
           leave();
         }}
         onCancel={() => setConfirmingExit(false)}
+      />
+      <ConfirmSheet
+        visible={askAnother !== undefined}
+        title={t('accounts.athletes.another_title')}
+        message={t('accounts.athletes.another_message', { name: askAnother ?? '' })}
+        confirmLabel={t('accounts.athletes.another_confirm')}
+        cancelLabel={t('accounts.athletes.another_cancel')}
+        onConfirm={() => setAskAnother(undefined)}
+        // Dismissing continues too: leaving the form instead would drop the identity numbers held for the authorizations.
+        onCancel={continueAdded}
       />
     </>
   );
