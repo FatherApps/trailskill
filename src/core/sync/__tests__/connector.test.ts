@@ -135,6 +135,27 @@ describe('SupabaseConnector.uploadData', () => {
     expect(failureInserts(t.committed)[0][1].at(-1)).toBe(7);
   });
 
+  it('uploads an offline name edit of a swimmer as a PATCH of only the changed columns (issue 1364)', async () => {
+    const t = setup();
+    await t.connector.uploadData(t.database([entry('PATCH', 'a1', { first_name: 'Lucía', last_name: 'Gómez' })]));
+
+    expect(t.from).toHaveBeenCalledWith('athletes');
+    expect(t.update).toHaveBeenCalledWith({ first_name: 'Lucía', last_name: 'Gómez' });
+    expect(t.updateEq).toHaveBeenCalledWith('id', 'a1');
+    expect(failureInserts(t.committed)).toHaveLength(0);
+    expect(t.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('records a name edit the server refuses (check violation) instead of retrying it (issue 1364)', async () => {
+    const t = setup({ update: { data: null, error: { code: '23514', message: 'the first name must have 1 to 100 characters' } } });
+    await expect(t.connector.uploadData(t.database([entry('PATCH', 'a1', { first_name: '  ' })]))).resolves.toBeUndefined();
+
+    const inserts = failureInserts(t.committed);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0][1]).toEqual(['athletes', 'a1', 'PATCH', JSON.stringify({ first_name: '  ' }), '23514', expect.any(String), 1]);
+    expect(t.complete).toHaveBeenCalledTimes(1);
+  });
+
   it('records no_rows_affected when a PATCH matched no row', async () => {
     const t = setup({ update: empty });
     await expect(t.connector.uploadData(t.database([entry('PATCH', 'b', { first_name: 'Bea' })]))).resolves.toBeUndefined();
