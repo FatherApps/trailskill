@@ -116,7 +116,11 @@
     "first_name": "Nombre",
     "last_name": "Apellido",
     "name_locked": "Por ahora el nombre no se puede cambiar desde la app.",
-    "done": "Listo"
+    "done": "Listo",
+    "not_found": {
+      "title": "No encontramos al deportista",
+      "message": "Solo quien administra al deportista puede editarlo. Vuelve y elige uno de tus deportistas."
+    }
   },
   "marks": {
     "title": "Marcas de {{name}}",

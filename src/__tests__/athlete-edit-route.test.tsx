@@ -86,13 +86,26 @@ describe('athlete edit route', () => {
     expect(mockBack).toHaveBeenCalledTimes(2);
   });
 
-  it('shows nothing editable to anyone who does not manage the swimmer, for example the coach', async () => {
+  it('keeps the way back while the athletes load, with the loading state', async () => {
+    mockUserId = 'user-1';
+    mockManaged = { status: 'loading' };
+    await render(<EditRoute />);
+
+    expect(screen.queryByText('No encontramos al deportista')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Listo' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a not-found state with the back button to anyone who does not manage the swimmer, for example the coach', async () => {
     mockUserId = 'user-1';
     mockManaged = { status: 'ready', athletes: [] };
     await render(<EditRoute />);
 
-    expect(screen.queryByRole('header')).toBeNull();
+    expect(screen.getByText('No encontramos al deportista')).toBeOnTheScreen();
     expect(screen.queryByText(/share code/)).toBeNull();
     expect(screen.queryByRole('button', { name: /photo of/ })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,8 +1,13 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { View } from 'react-native';
+
+import { t } from '../../../../core/i18n';
 
 import { useGoBack } from '../../../../core/navigation';
 import { useSession } from '../../../../core/session';
 import { useGlobalSyncSummary } from '../../../../core/sync';
+import { useTheme } from '../../../../core/theme';
+import { BackButton, StateView } from '../../../../core/ui';
 import {
   AthleteAvatarWithPhoto,
   AthleteShareCodeContainer,
@@ -30,6 +35,7 @@ const photoPicker = createExpoPhotoPicker();
 
 // "Editar a <nombre>": the photo, the swimmer's data and the share code, for who manages the swimmer (a guardian or the adult athlete); the server decides the permissions.
 export default function AthleteEditRoute() {
+  const { space, colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const goBack = useGoBack('/athletes');
@@ -41,8 +47,22 @@ export default function AthleteEditRoute() {
   const showPhoto = useHasValidAuthorization(id, 'show_photo');
   const athlete = managed.status === 'ready' ? managed.athletes.find((candidate) => candidate.id === id) : undefined;
 
-  // Nothing editable for anyone who does not manage the swimmer, and nothing until the athlete is known.
-  if (!session || !athlete) return null;
+  if (!session) return null;
+  // Nothing editable until the athlete is known, nor for anyone who does not manage the swimmer (a deep link): the screen keeps its way back.
+  if (!athlete) {
+    return (
+      <View style={{ flex: 1, alignSelf: 'stretch', padding: space[4], gap: space[4], backgroundColor: colors['surface-0'] }}>
+        <View style={{ flexDirection: 'row' }}>
+          <BackButton onPress={goBack} />
+        </View>
+        {managed.status === 'loading' ? (
+          <StateView kind="loading" />
+        ) : (
+          <StateView kind="empty" icon="group" title={t('athletes.edit.not_found.title')} message={t('athletes.edit.not_found.message')} />
+        )}
+      </View>
+    );
+  }
   const { initials, color } = athleteDisplay(athlete);
   return (
     <AthleteEditScreen
