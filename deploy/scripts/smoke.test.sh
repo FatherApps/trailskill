@@ -21,12 +21,13 @@ SUPABASE_DB_HOST=$DB
 SUPABASE_DB_PASSWORD=$SUPER_PW
 DOKPLOY_NETWORK=$TNET
 SUPABASE_NETWORK=$NET
-export POWERSYNC_DB_PASSWORD POWERSYNC_STORAGE_PASSWORD SUPABASE_JWT_SECRET SUPABASE_DB_HOST SUPABASE_DB_PASSWORD DOKPLOY_NETWORK SUPABASE_NETWORK
+BACKUP_BEFORE_MIGRATE=off
+export BACKUP_BEFORE_MIGRATE POWERSYNC_DB_PASSWORD POWERSYNC_STORAGE_PASSWORD SUPABASE_JWT_SECRET SUPABASE_DB_HOST SUPABASE_DB_PASSWORD DOKPLOY_NETWORK SUPABASE_NETWORK
 # Compose runs from a copy of the needed files in the temp dir: Docker creates missing bind
 # sources as empty directories, and powersync/ and supabase/ must never appear in the worktree.
 R=$T/repo
 mkdir -p "$R/deploy" "$R/powersync" "$R/supabase/migrations" "$R/supabase/functions" "$R/src/core/sport" "$R/.git"
-cp -R "$HERE/../compose.yaml" "$HERE/../compose.local.yaml" "$HERE/../local.env" "$HERE/../powersync" "$HERE/../scripts" "$R/deploy/"
+cp -R "$HERE/../compose.yaml" "$HERE/../compose.local.yaml" "$HERE/../local.env" "$HERE/../powersync" "$HERE/../scripts" "$HERE/../backup" "$R/deploy/"
 cp "$HERE/../../powersync/sync-config.yaml" "$R/powersync/"
 # What the functions service delivers: the four functions of the repository and the one file they import from src/.
 cp -R "$HERE/../../supabase/functions/results-import" "$HERE/../../supabase/functions/school-console-invite-coach" \

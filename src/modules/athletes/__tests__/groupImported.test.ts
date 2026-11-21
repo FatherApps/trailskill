@@ -6,6 +6,7 @@ import { personalBest } from '../personalBest';
 // Synthetic: fictional providers and times.
 const names = { 'xx-fed': 'Federación Demo', 'xx-tour': 'Torneo Demo' };
 const sessionDated = ['xx-tour'];
+const federation = ['xx-fed'];
 
 const swim = (id: string, provider: string, swumOn: string, hundredths: number | null, over: Partial<ImportedHistoryResult> = {}): ImportedHistoryResult => ({
   id,
@@ -51,6 +52,42 @@ describe('groupImportedResults', () => {
     expect(two).toHaveLength(1);
     expect(two[0].result).toMatchObject({ id: 'b', swumOn: '2026-05-10' });
     expect(group([swim('a', 'xx-fed', '2026-05-07', 3012), swim('b', 'xx-tour', '2026-05-10', 3012)])).toHaveLength(1);
+  });
+
+  it('shows the whole federation result (date, time, id) when the group holds one, listing both sources', () => {
+    const grouped = groupImportedResults([swim('a', 'xx-fed', '2026-05-08', 3012), swim('b', 'xx-tour', '2026-05-10', 3012)], names, sessionDated, federation);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].result).toMatchObject({ id: 'a', provider: 'xx-fed', swumOn: '2026-05-08', hundredths: 3012 });
+    expect(grouped[0].sourceName).toBe('Federación Demo · Torneo Demo');
+  });
+
+  it('shows the federation result whichever source is older or listed first', () => {
+    const grouped = groupImportedResults([swim('a', 'xx-tour', '2026-05-08', 3012), swim('b', 'xx-fed', '2026-05-10', 3012)], names, sessionDated, federation);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].result).toMatchObject({ id: 'b', swumOn: '2026-05-10' });
+  });
+
+  it('keeps the session-dated result when the group holds no federation result, as before', () => {
+    const grouped = groupImportedResults([swim('a', 'xx-other', '2026-05-08', 3012), swim('b', 'xx-tour', '2026-05-10', 3012)], names, sessionDated, federation);
+    expect(grouped[0].result).toMatchObject({ id: 'b' });
+  });
+
+  it('gives the same result without the fourth parameter as with an empty one', () => {
+    const results = [swim('a', 'xx-fed', '2026-05-08', 3012), swim('b', 'xx-tour', '2026-05-10', 3012)];
+    expect(groupImportedResults(results, names, sessionDated)).toEqual(groupImportedResults(results, names, sessionDated, []));
+    expect(groupImportedResults(results, names, sessionDated)[0].result.id).toBe('b');
+  });
+
+  it('does not change the joining window: a federation result 4 days away stays apart', () => {
+    const grouped = groupImportedResults([swim('a', 'xx-fed', '2026-05-06', 3012), swim('b', 'xx-tour', '2026-05-10', 3012)], names, sessionDated, federation);
+    expect(grouped.map((g) => g.result.id)).toEqual(['a', 'b']);
+  });
+
+  it('takes the personal best date from the federation result', () => {
+    const best = personalBest(
+      groupImportedResults([swim('a', 'xx-fed', '2026-05-08', 3012), swim('b', 'xx-tour', '2026-05-10', 3012)], names, sessionDated, federation).map(({ result, sourceName }) => importedAchievement(result, sourceName)),
+    );
+    expect(best).toMatchObject({ id: 'a', date: '2026-05-08' });
   });
 
   it('keeps two results from different sources 4 days apart', () => {

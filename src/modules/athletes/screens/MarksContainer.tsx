@@ -25,6 +25,8 @@ export type MarksContainerProps = {
   sourceNames?: Readonly<Record<string, string>>;
   // The providers that date a result by its session, from data: the date shown when two sources agree on a swim.
   sessionDated?: readonly string[];
+  // The providers of a federation, from data: its result is shown whole (date, tournament, time) when it is one of the sources of a swim.
+  federation?: readonly string[];
   // Changing it looks the athletes and their history up again (the route passes the last sync).
   refreshKey?: unknown;
   scrollEnabled?: boolean;
@@ -37,7 +39,7 @@ export type MarksContainerProps = {
 type Read = { athleteId: string; attempt: number; result: { measured: HistoryMeasurement[]; imported: ImportedHistoryResult[] } | 'error' };
 
 // Connects the screen to the athletes the user manages and the local history of the one chosen, measured and imported. The pool filter is applied here, on what the device holds.
-export function MarksContainer({ userId, managed, athletes, history, importedResults, sourceNames, sessionDated, refreshKey, scrollEnabled, today, Avatar }: MarksContainerProps) {
+export function MarksContainer({ userId, managed, athletes, history, importedResults, sourceNames, sessionDated, federation, refreshKey, scrollEnabled, today, Avatar }: MarksContainerProps) {
   const result = useManagedAthletes(managed, athletes, userId, refreshKey);
   const selfId = useSelfAthleteId(managed, userId, refreshKey);
   const [chosenId, setChosenId] = useState<string>();
@@ -70,7 +72,7 @@ export function MarksContainer({ userId, managed, athletes, history, importedRes
   else if (read?.athleteId !== selected.id || read.attempt !== attempt) view = { kind: 'loading' };
   else if (read.result === 'error') view = { kind: 'error', onRetry: retry };
   else {
-    const achievements = [...read.result.measured, ...groupImportedResults(read.result.imported, sourceNames, sessionDated).map((g) => importedAchievement(g.result, g.sourceName))];
+    const achievements = [...read.result.measured, ...groupImportedResults(read.result.imported, sourceNames, sessionDated, federation).map((g) => importedAchievement(g.result, g.sourceName))];
     // Without a choice the screen opens in the pool of the most recent result; with no results at all, as before, in the short one.
     const pool = (chosenPool?.athleteId === selected.id ? chosenPool.pool : undefined) ?? latestAchievement(achievements)?.pool ?? 'SCM';
     const rows = marksByEvent(achievements, pool);

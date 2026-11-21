@@ -16,7 +16,7 @@ There are two backend environments on the same Dokploy server. They run the same
 | Email | Resend over SMTP, sender `Swimcro <no-reply@send.tuls.app>` | The same provider and sender; the maintainer first confirms which sending domain is verified in Resend (ADR 0002). |
 | Demo seed (`APPLY_SEED`) | May be applied by the maintainer, see [Demo data](#demo-data). The data is not only demo: testers of the pilot may have registered real accounts. | Never: `APPLY_SEED` stays `false`. |
 | Secrets | Its own | Its own, never the same value as QA's. |
-| Backups | Must be backed up: it may hold real data from pilot testers (ADR 0002, amendment 2026-11-21, #1335). `backup-r2.sh` keeps 14 days of copies in R2; the automatic job is #1336 and until it runs a copy is taken by hand, see the [runbook](../docs/deploy/prod-backup-restore.md). | The same rule, and also a gate before inviting real families: #1119. |
+| Backups | Must be backed up: it may hold real data from pilot testers (ADR 0002, amendment 2026-11-21, #1335). `backup-r2.sh` keeps 14 days of copies in R2. `migrate` takes a verified copy before applying any pending migration and the `backup` service takes one daily at 08:30 UTC (#1336, see [Backups](#backups)); the [runbook](../docs/deploy/prod-backup-restore.md) covers restoring. | The same rule, and also a gate before inviting real families: #1119. |
 | TLS to the origin | Cloudflare Tunnel ends TLS at the edge, then plain HTTP to the Dokploy proxy on port 80. Dokploy domains keep HTTPS off ([Public and internal](#public-and-internal)). | The same route. The hostnames are free and the tunnel can route them ([#1113 report](../docs/deploy/prod-step0-readonly-checks.md)). |
 
 The Dokploy deploy webhook hostname (`trailskill-deploy`) is shared by both. Capacity of the server for two stacks: it fits at the ADR 0002 minimum, with little margin. Mario decided (Q6) that PROD goes on the same server, in its own project «Swimcro PROD»; if room is needed, QA gets memory and CPU limits (step planned in #1116), and capacity is watched with thresholds (#1115). See the [#1113 report](../docs/deploy/prod-step0-readonly-checks.md).
@@ -27,9 +27,11 @@ Unless a section says otherwise, everything below describes QA, the deployment t
 
 | In this folder | Purpose |
 | --- | --- |
-| `compose.yaml` | The Compose service Dokploy deploys: `migrate`, `functions` (delivers the Edge Functions), `functions-ok`, `powersync-storage`, `powersync`. |
+| `compose.yaml` | The Compose service Dokploy deploys: `migrate`, `functions` (delivers the Edge Functions), `functions-ok`, `backup`, `powersync-storage`, `powersync`. |
 | `compose.local.yaml`, `local.env`, `powersync/powersync.local.yaml` | Run PowerSync on a developer's machine next to `supabase start`. Dokploy does not use them. See [Local development](../docs/local-development.md). |
-| `scripts/migrate.sh` | Creates `powersync_role`, applies `supabase/migrations/*.sql`, schedules the `pg_cron` jobs, optional seed. |
+| `scripts/migrate.sh` | Takes a verified backup when migrations are pending, creates `powersync_role`, applies `supabase/migrations/*.sql`, schedules the `pg_cron` jobs, optional seed. |
+| `backup/crontab` | The daily backup schedule of the `backup` service (08:30 UTC). |
+| `scripts/backup-prod.sh`, `scripts/backup-r2.sh`, `scripts/restore-check.sh` | The backup, its upload to R2 and the restore check, see [Backups](#backups). |
 | `powersync/powersync.yaml` | PowerSync service config. |
 | `scripts/functions-bundle.sh` | Builds the `results-import`, `school-console-invite-coach`, `accounts-delete-account` and `accounts-deletion-worker` Edge Function bundles and puts them in the Supabase stack's functions volume. The `functions` service runs it on every deploy, see [Edge Functions](#edge-functions). |
 | `scripts/functions-egress.sh` | Checks that the Edge Functions runtime's network can reach the providers' external sources over HTTPS. |
@@ -81,7 +83,7 @@ To turn it off: switch off Auto Deploy on the `deploy` compose in Dokploy, or bl
 - **Code or config regression:** revert the merge on `main` (a PR with `git revert`). Continuous deployment deploys the reverted state.
 - **Migrations are forward-only.** Never edit or delete an applied migration; fix it with a new migration. Reverting a commit does not undo an applied migration.
 - **Failed `migrate`:** PowerSync stays stopped. Read the `migrate` logs in Dokploy, merge a fix (or a revert), and it redeploys.
-- **Data loss or corruption:** restore from a database backup. Every deployment that holds real data is backed up, QA included (ADR 0002, amendment 2026-11-21): copies are kept for 14 days and an earlier copy is restored by its `sha` (see the [runbook](../docs/deploy/prod-backup-restore.md)). The automatic backup is built by #1336; until it is running, take one by hand before any change to the data. For PROD, an off-server backup and a tested restore are a gate before real families are invited (#1119).
+- **Data loss or corruption:** restore from a database backup. Every deployment that holds real data is backed up, QA included (ADR 0002, amendment 2026-11-21): copies are kept for 14 days and an earlier copy is restored by its `sha` (see the [runbook](../docs/deploy/prod-backup-restore.md)). `migrate` takes a verified copy before every migration and the `backup` service one every day (see [Backups](#backups)); take one by hand before any other change to the data. For PROD, an off-server backup and a tested restore are a gate before real families are invited (#1119).
 - **PROD:** go back to the previous release tag (procedure in #1116). Migrations already applied stay: fix forward.
 
 ## Environment variables of `compose.yaml`
@@ -102,9 +104,17 @@ Set them in the environment of this Compose service in Dokploy, once per environ
 | `PS_SYNC_CONFIG_PATH` | `/sync/sync-config.yaml` | Sync config file inside the container | See [Sync config](#sync-config) |
 | `SUPABASE_FUNCTIONS_DIR` | required | Host folder that the Supabase stack's `functions` service mounts at `/home/deno/functions` (the `functions` service of this compose mounts the same folder and writes the four functions into it). Local mode sets a placeholder in `local.env`, because it does not run the delivery | `volumes` of the Supabase `functions` service in Dokploy (`docker inspect`); the real path is set only in Dokploy, never in the repository |
 | `APPLY_SEED` | `false` | `true` applies the demo data in `supabase/seed.sql` once (see [Demo data](#demo-data)) | Set by hand |
+| `BACKUP_BEFORE_MIGRATE` | **required**, `required` or `off` | `required`: `migrate` must take a verified backup before it applies a pending migration (see [Backups](#backups)). `off` skips it and exists only for a database without real data (`local.env` sets it). Any other value, or a missing one, fails before anything runs. | Set by hand |
+| `BACKUP_AGE_RECIPIENT` | needed by every real backup | Public age key (`age1...`) the copy is encrypted with | Maintainer, see the [runbook](../docs/deploy/prod-backup-restore.md#encryption-key) |
+| `BACKUP_RCLONE_REMOTE`, `RCLONE_CONFIG_R2_TYPE`, `RCLONE_CONFIG_R2_PROVIDER`, `RCLONE_CONFIG_R2_ENDPOINT`, `RCLONE_CONFIG_R2_ACCESS_KEY_ID`, `RCLONE_CONFIG_R2_SECRET_ACCESS_KEY` | needed by every real backup | The R2 bucket (`r2:<BUCKET>`) and its rclone remote; the token needs Object Read & Write on that bucket only | Cloudflare R2, see the [runbook](../docs/deploy/prod-backup-restore.md#destination-cloudflare-r2) |
+| `RCLONE_CONFIG_R2_NO_CHECK_BUCKET` | `true` | A bucket-scoped token cannot create buckets | Leave the default |
+| `BACKUP_PGUSER`, `BACKUP_PGPASSWORD` | the `SUPABASE_DB_*` user and password | Role the backup connects as; it must be able to dump every schema. Set both or neither | Supabase service |
+| `BACKUP_MIN_COUNTS` | empty | Space-separated `schema.table=N`: a backup with fewer rows in a key table is refused | Maintainer, for example `auth.users=1 public.schools=1` |
+| `BACKUP_KEEP_DAYS` | `14` | Days of copies kept in R2 | Leave the default |
+| `BACKUP_LOCK_WAIT_SECONDS` | `600` | How long `migrate` waits for the lock the daily backup may hold before it exits 1 without applying anything | Leave the default |
 | `DOKPLOY_NETWORK` | `dokploy-network` | Traefik network, used only so `powersync` can be routed | Change only for tests |
 
-Dokploy writes these variables to `deploy/.env` in the clone, so each service mounts only what it needs: `powersync` mounts `deploy/powersync` (`powersync/sync-config.yaml` is copied into its image; the build context is `powersync/` only), `migrate` gets `deploy/scripts` and `supabase/`, and `functions` gets `deploy/scripts`, `supabase/` and `src/core/sport/catalogs.ts`, all read-only, plus the functions folder, writable. Never mount the repository root.
+Dokploy writes these variables to `deploy/.env` in the clone, so each service mounts only what it needs: `powersync` mounts `deploy/powersync` (`powersync/sync-config.yaml` is copied into its image; the build context is `powersync/` only), `migrate` gets `deploy/scripts` and `supabase/`, `backup` gets `deploy/scripts` and `deploy/backup/crontab`, and `functions` gets `deploy/scripts`, `supabase/` and `src/core/sport/catalogs.ts`, all read-only, plus the functions folder, writable. Never mount the repository root.
 
 Passwords go inside connection URIs, so they must be URL-safe: letters and digits only (for example `openssl rand -hex 24`).
 
@@ -151,14 +161,26 @@ To add or change a public hostname (as done for QA; the new PROD hostnames follo
 On every deploy of `main`, `migrate` runs once before PowerSync starts:
 
 1. Creates `powersync_role` (`LOGIN REPLICATION BYPASSRLS`) with `POWERSYNC_DB_PASSWORD`. If it exists, only the attributes are updated; the password is set again only when logging in with `POWERSYNC_DB_PASSWORD` fails (so rotating the variable works, and the password is not sent on every deploy).
-2. Applies `supabase/migrations/*.sql` in name order. Names must be `<digits>_<name>.sql`. Each file runs in one transaction together with its record in `supabase_migrations.schema_migrations`, so a failure leaves nothing partial. Applied versions are skipped.
+2. **Backup first.** When `BACKUP_BEFORE_MIGRATE=required`, at least one migration is pending and `supabase_migrations.schema_migrations` already has rows, it runs `backup-prod.sh` (reason `pre-migration`) and applies nothing until that exits 0. See [Backups](#backups).
+3. Applies `supabase/migrations/*.sql` in name order. Names must be `<digits>_<name>.sql`. Each file runs in one transaction together with its record in `supabase_migrations.schema_migrations`, so a failure leaves nothing partial. Applied versions are skipped.
 
    **Migration versions must be unique.** `migrate` records and checks only the version (the digits before the first `_`), not the full name. A second file with a version that is already applied is skipped without an error, so its SQL never runs. Before merging a migration, check that no file in `supabase/migrations/` and no open pull request uses its timestamp (this happened once and the file had to be renamed).
-3. Grants `powersync_role` read access (`SELECT`) on `public`, now and for future tables.
-4. Schedules the daily family-timing jobs by calling `app.schedule_family_timing_jobs()`. It does nothing (and logs `scheduled jobs: 0`) while `pg_cron` is not installed. A scheduling failure never fails the deploy: it logs `WARN scheduled jobs failed: SQLSTATE ...` and the deploy and PowerSync continue. See [Scheduled jobs (pg_cron)](#scheduled-jobs-pg_cron).
-5. With `APPLY_SEED=true` only (the value must be exactly `true` or `false`), applies `supabase/seed.sql` once (recorded by path and hash in `supabase_migrations.seed_files`; see [Demo data](#demo-data)).
+4. Grants `powersync_role` read access (`SELECT`) on `public`, now and for future tables.
+5. Schedules the daily family-timing jobs by calling `app.schedule_family_timing_jobs()`. It does nothing (and logs `scheduled jobs: 0`) while `pg_cron` is not installed. A scheduling failure never fails the deploy: it logs `WARN scheduled jobs failed: SQLSTATE ...` and the deploy and PowerSync continue. See [Scheduled jobs (pg_cron)](#scheduled-jobs-pg_cron).
+6. With `APPLY_SEED=true` only (the value must be exactly `true` or `false`), applies `supabase/seed.sql` once (recorded by path and hash in `supabase_migrations.seed_files`; see [Demo data](#demo-data)).
 
 If anything fails, `migrate` exits non-zero and PowerSync does not start: the deploy fails and PowerSync stays stopped until a fix is merged (see [Rolling back](#rolling-back)).
+
+## Backups
+
+Every deployment that holds real data is backed up (ADR 0002, amendment 2026-11-21). The scripts and the restore are in the [runbook](../docs/deploy/prod-backup-restore.md); this is how the deploy uses them.
+
+- **Before migrating.** `migrate` runs `backup-prod.sh` with `BACKUP_REASON=pre-migration` only when `BACKUP_BEFORE_MIGRATE=required`, a migration is pending and `schema_migrations` already has rows (a first deploy has nothing to lose). «Verified» means the script's own checks: `pg_restore --list`, the row counts of the dump, the guard against 0 rows and `BACKUP_MIN_COUNTS`, and the sha read back from R2. **If any of that fails, `migrate` exits 1 before applying the first migration, PowerSync does not start and the deploy fails in Dokploy.** Nothing was changed in the database: fix the cause (the `migrate` log says which check failed) and redeploy. The failed-deploy notification in Dokploy is what tells the maintainer.
+- **Daily.** The `backup` service runs `busybox crond -f` with [`backup/crontab`](backup/crontab): `backup-prod.sh` (reason `daily`) at 08:30 UTC (03:30 Bogotá). A failure is logged as `error: ...` in the service logs; Dokploy does not notify on it, so the daily freshness check (`restore-check.sh --freshness`, next issue of the series) is what catches a backup that stopped.
+- **One at a time.** Both use the lock file on the named volume `backup-lock`, mounted in both services (`flock`). `migrate` waits up to `BACKUP_LOCK_WAIT_SECONDS` (600) for it and, if it cannot get it, exits 1 without applying anything. The daily job waits up to 30 minutes and then gives up until the next day. This closes the race between two pushes described in the runbook.
+- **No plaintext on disk.** `TMPDIR` is a `tmpfs` with mode 700 in both services, so the plain dump lives in memory only and goes with the container.
+- **Local.** `local.env` sets `BACKUP_BEFORE_MIGRATE=off` and `compose.local.yaml` leaves `backup` out unless the `backup` profile is enabled, so nothing needs R2 locally.
+- **Before merging a change to `deploy/**`.** The merge deploys by itself and `BACKUP_BEFORE_MIGRATE` is required: set `BACKUP_BEFORE_MIGRATE=required` and the copy variables above in Dokploy, and turn on the failed-deploy notification, first. Without them the deploy fails on purpose.
 
 PowerSync logs replication errors (`Publication 'powersync' does not exist`) until the foundations migration creates the `powersync` publication.
 
@@ -347,7 +369,8 @@ PowerSync loads the Sync Streams in [`powersync/sync-config.yaml`](../powersync/
 All of them need Docker and are safe to run locally (random names, synthetic data, cleaned up on exit):
 
 ```sh
-sh deploy/scripts/migrate.test.sh   # migrate.sh against a temporary Postgres
+sh deploy/scripts/migrate.test.sh   # migrate.sh against a temporary Postgres, including the backup gate, the lock and the compose checks
+sh deploy/scripts/backup-prod.test.sh # backup-prod.sh, backup-r2.sh and restore-check.sh against a throwaway Postgres and S3 endpoint
 sh deploy/scripts/smoke.test.sh     # compose up with a stand-in database; PowerSync liveness and Sync Streams load; a sync config change restarts PowerSync; the functions delivery (after migrate, a broken function fails compose up and leaves the folder and PowerSync as they were)
 sh deploy/scripts/functions.test.sh # the four function bundles loaded in the Edge Functions runtime image; see Edge Functions above
 ```

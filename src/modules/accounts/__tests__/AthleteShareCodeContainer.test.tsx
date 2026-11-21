@@ -36,7 +36,7 @@ describe('AthleteShareCodeContainer', () => {
     const { repository } = await show();
     await screen.findByText('TS-AAAAA1');
     await fireEvent.press(screen.getByText('Cambiar código'));
-    expect(screen.getByText('El código actual deja de funcionar de inmediato. Quien lo tenga necesitará el nuevo.')).toBeTruthy();
+    expect(screen.getByText('El código actual deja de funcionar de inmediato: quienes lo guardaron tendrán que pedírtelo otra vez.')).toBeTruthy();
     await fireEvent.press(screen.getAllByText('Cambiar código').at(-1)!);
     expect(await screen.findByText('TS-AAAAA2')).toBeTruthy();
     expect(await repository.find('TS-AAAAA1')).toBeNull();

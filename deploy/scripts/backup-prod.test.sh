@@ -170,6 +170,16 @@ eq "backup: password not printed" 0 "$(grep -c "$PW" "$T/out")"
 eq "push contract: called once as 'push <encrypted> <manifest>'" "push trailskill-prod-latest.dump.age trailskill-prod-latest.manifest" "$(cat "$T/push.log")"
 eq "push contract: one call only" 1 "$(wc -l <"$T/push.log" | tr -d ' ')"
 eq "push contract: no temporary files left at the destination" 2 "$(ls -A "$DEST" | wc -l | tr -d ' ')"
+eq "reason: the default is daily" "daily" "$(sed -n 's/^backup_reason=//p' "$DEST/trailskill-prod-latest.manifest")"
+bk -e BACKUP_AGE_RECIPIENT="$PUB" -e BACKUP_REASON=pre-migration; r=$?
+eq "reason: pre-migration backup exit 0" 0 "$r"
+eq "reason: BACKUP_REASON goes into the manifest" "pre-migration" "$(sed -n 's/^backup_reason=//p' "$DEST/trailskill-prod-latest.manifest")"
+eq "reason: exactly one reason line" 1 "$(grep -c '^backup_reason=' "$DEST/trailskill-prod-latest.manifest")"
+for v in "two words" "UPPER" "-lead" "$(printf 'a\nb=c')" "$(printf 'x%.0s' $(seq 1 40))"; do
+  bk -e BACKUP_AGE_RECIPIENT="$PUB" -e BACKUP_REASON="$v" -e PGHOST=unreachable.invalid; r=$?
+  nonzero "reason: invalid value rejected" "$r"
+  has "reason: invalid value says why, before dumping" "invalid BACKUP_REASON"
+done
 GOOD=$(sums)
 
 # --- 3. restore check passes ------------------------------------------------
