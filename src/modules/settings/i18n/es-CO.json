@@ -3,6 +3,8 @@
     "title": "Ajustes",
     "open": "Ajustes",
     "account": "Mi cuenta",
+    "account_section": "Cuenta",
+    "authorizations": "Autorizaciones",
     "theme": {
       "label": "Tema",
       "hint": "Sol sube el contraste para leer el teléfono al aire libre.",
