@@ -35,7 +35,9 @@ function withTimeout<T>(step: string, work: Promise<T>): Promise<T> {
 // The `session_id` claim stays the same across token refreshes and changes with every sign-in. Read only to compare, so the signature is not checked.
 function sessionIdOf(accessToken: string): string | undefined {
   try {
-    const payload = accessToken.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+    // JWT segments are base64url without padding; atob wants standard, padded base64.
+    const segment = accessToken.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = segment && segment.padEnd(Math.ceil(segment.length / 4) * 4, '=');
     const claim: unknown = payload && (JSON.parse(atob(payload)) as { session_id?: unknown }).session_id;
     return typeof claim === 'string' ? claim : undefined;
   } catch {
@@ -376,7 +378,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const release = (signedOut = false) => {
       lateClear.current = undefined;
       // Writes open for whoever is signed in now, nobody after a finished sign-out (not even for an instant).
-      setSessionUser(signedOut ? undefined : userIdRef.current);
+      // Someone else who signed in while the sign-out was being ended keeps their writes.
+      const now = userIdRef.current;
+      setSessionUser(signedOut && now === startedFor ? undefined : now);
       setHold(false);
     };
     clearing.then(

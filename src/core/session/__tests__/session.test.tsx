@@ -1126,21 +1126,6 @@ describe('a local database that does not answer', () => {
     expect(mockCalls).toContain('db.connect');
   });
 
-  it('does not let the same session notified again cancel the sign-out waiting for the late clear', async () => {
-    await renderApp();
-    let settle: () => void = () => {};
-    mockClearGate = new Promise<void>((resolve) => (settle = resolve));
-    await pressSignOut();
-    await giveUp();
-    await screen.findByText('Terminando de cerrar la sesión anterior');
-
-    // The very session being closed, notified again (a duplicate event): it is not a new sign-in.
-    await act(async () => mockAuthCallback('SIGNED_IN', mockSignedIn));
-    await act(async () => settle());
-
-    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' }));
-  });
-
   // An access token as Supabase issues it: only the session_id claim matters here.
   const tokenOf = (sessionId: string, nonce: string) =>
     `header.${Buffer.from(JSON.stringify({ session_id: sessionId, nonce })).toString('base64url')}.signature`;
@@ -1160,6 +1145,61 @@ describe('a local database that does not answer', () => {
     await screen.findByText('Terminando de cerrar la sesión anterior');
     return settle;
   }
+
+  it('does not let the very same session notified again cancel the sign-out waiting for the late clear', async () => {
+    const same = { access_token: tokenOf('session-a', '1'), user: { id: 'coach-1' } };
+    const settle = await signOutWaitingOnLateClear(same);
+
+    // A duplicate event of the session being closed: it is not a new sign-in.
+    await act(async () => mockAuthCallback('SIGNED_IN', { ...same }));
+    await act(async () => settle());
+
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' }));
+  });
+
+  it('reads the session_id of a base64url token that needs - or _ and padding, as a strict atob would', async () => {
+    // Hermes-like atob: standard base64 only, padded; Node's is more forgiving.
+    const strictAtob = (input: string) => {
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(input) || input.length % 4 !== 0) throw new Error('invalid base64');
+      return Buffer.from(input, 'base64').toString('binary');
+    };
+    const spy = jest.spyOn(globalThis, 'atob').mockImplementation(strictAtob);
+    try {
+      const wide = (sessionId: string) => {
+        const payload = Buffer.from(JSON.stringify({ session_id: sessionId, pad: '???>>>~~~' })).toString('base64url');
+        // The fixture only proves something if the segment needs the base64url alphabet and padding.
+        expect(payload).toMatch(/[-_]/);
+        expect(payload.length % 4).not.toBe(0);
+        return `header.${payload}.signature`;
+      };
+      const settle = await signOutWaitingOnLateClear({ access_token: wide('session-a'), user: { id: 'coach-1' } });
+
+      // A new sign-in of the same account: readable on both sides, so it is a different session and keeps its new session.
+      await act(async () => mockAuthCallback('SIGNED_IN', { access_token: wide('session-b'), user: { id: 'coach-1' } }));
+      await act(async () => settle());
+
+      expect(await screen.findByText('signed-in:coach-1')).toBeOnTheScreen();
+      expect(mockSignOut).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('keeps the writes of another account that signs in while the sign-out is being ended', async () => {
+    let finishSignOut: () => void = () => {};
+    mockSignOut.mockImplementation(async () => {
+      await new Promise<void>((resolve) => (finishSignOut = resolve));
+      return { error: null };
+    });
+    const settle = await signOutWaitingOnLateClear(mockSignedIn);
+    await act(async () => settle());
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' }));
+
+    await act(async () => mockAuthCallback('SIGNED_IN', { access_token: 'token-2', user: { id: 'coach-2' } }));
+    await act(async () => finishSignOut());
+
+    await waitFor(() => expect(mockSetSessionUser).toHaveBeenLastCalledWith('coach-2'));
+  });
 
   it('does not let a refreshed access token of the same session cancel the sign-out', async () => {
     const settle = await signOutWaitingOnLateClear({ access_token: tokenOf('session-a', '1'), user: { id: 'coach-1' } });
