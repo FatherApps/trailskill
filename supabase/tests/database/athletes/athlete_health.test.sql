@@ -5,7 +5,7 @@
 -- adult athlete X (e4, relation self, granted), guardian M (e5, granted, then marked for deletion), stranger N, guardian E (e6, erased).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(61);
+select plan(62);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('13690000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as
@@ -44,9 +44,13 @@ join public.authorization_texts t on t.purpose = 'store_health_data' and t.versi
 -- Rows that already exist, written as the table owner: e1 (G, granted), e2 (G, never granted), e3 (G2), e6 (guardian E, becomes a marker).
 insert into public.athlete_health (athlete_id, blood_type, weight_kg, height_cm, measured_on, allergies) values
   (pg_temp.u('e1'), 'O+', 45.5, 150.0, '2026-11-01', 'Penicilina'),
-  (pg_temp.u('e2'), 'A-', 50, 160, '2026-11-01', null),
   (pg_temp.u('e3'), 'B+', 60, 170, null, null),
   (pg_temp.u('e6'), 'AB-', 40, 140, null, 'Nueces');
+-- e2 never had the authorization, so no insert would be accepted: its row is written with the triggers off (a row left from before).
+set local session_replication_role = replica;
+insert into public.athlete_health (athlete_id, blood_type, weight_kg, height_cm, measured_on)
+values (pg_temp.u('e2'), 'A-', 50, 160, '2026-11-01');
+set local session_replication_role = origin;
 
 -- Structure.
 select is((select count(*) from public.authorization_purposes where code = 'store_health_data'), 1::bigint, 'store_health_data is an authorization purpose');
@@ -87,6 +91,7 @@ select throws_ok($$update public.athlete_health set blood_type = 'o+' where athl
 select throws_ok($$update public.athlete_health set allergies = repeat('a', 501) where athlete_id = pg_temp.u('e1')$$, '23514', null, 'allergies over 500 characters are refused');
 select lives_ok($$update public.athlete_health set allergies = repeat('a', 500) where athlete_id = pg_temp.u('e1')$$, 'allergies of exactly 500 characters are accepted');
 select throws_ok($$update public.athlete_health set allergies = '' where athlete_id = pg_temp.u('e1')$$, '23514', null, 'empty allergies text is refused (the app stores null)');
+select throws_ok($$update public.athlete_health set allergies = '   ' where athlete_id = pg_temp.u('e1')$$, '23514', null, 'allergies made only of spaces are refused');
 select throws_ok($$update public.athlete_health set weight_kg = 9.9 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'weight 9.9 kg is refused');
 select lives_ok($$update public.athlete_health set weight_kg = 10 where athlete_id = pg_temp.u('e1')$$, 'weight 10 kg is accepted');
 select lives_ok($$update public.athlete_health set weight_kg = 200 where athlete_id = pg_temp.u('e1')$$, 'weight 200 kg is accepted');
