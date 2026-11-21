@@ -99,3 +99,17 @@ Open:
 
 - Which of two official times counts when a typed one and an imported one exist for the same event and day.
 - Whether the personal best of the athlete profile (`athletes`) follows this same rule; its own rule is tracked in #204.
+
+## 7. Which result shows when a swim comes from several sources
+
+Status: **confirmed** by the maintainer on 2026-11-21 (issue #1354).
+
+The maintainer's words: «cuando se importan los datos de otros torneos hay que pensar que seguramente en fecna podrina ya estar importados aunque antes salen los datos de los torneos entonces si hay datos iguales igual fecha igual tiempo, se deja como prioritario el de fecna con el nombre del torneo.» On which date to show, he chose «Todo de FECNA»: the federation result is shown whole (its date, its tournament name and its time), even when the federation dates by the first day of the tournament.
+
+Details:
+
+- This replaces «gana la fuente que fecha por sesión» (issue #897) when one of the sources of the swim is a federation. Without a federation result in the group, the result of the source that dates by session still shows, and otherwise the first.
+- A source is a federation by the `kind` of the source in data, never by its name.
+- Marks, the personal best and the history take the date and the tournament from the result shown.
+- The joining rule does not change: same stroke, distance, pool and hundredths, and the same source on the same date or two sources up to 3 days apart. The source names line lists every source.
+- Only the reading changes: nothing is merged or deleted in storage.

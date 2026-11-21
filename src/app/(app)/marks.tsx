@@ -22,6 +22,9 @@ export default function MarksRoute() {
   // A results platform dates each result by its session: that date wins when two sources hold the same swim.
   const sessionDated = useMemo(() => sources.filter((source) => source.kind === 'platform').map((source) => source.provider), [sources]);
 
+  // A federation's result is shown whole when it is one of the sources of a swim; it wins over the session date.
+  const federation = useMemo(() => sources.filter((source) => source.kind === 'federation').map((source) => source.provider), [sources]);
+
   // Managed athletes arrive with a sync, so the lookup runs again when one completes.
   return (
     <MarksContainer
@@ -33,6 +36,7 @@ export default function MarksRoute() {
       importedResults={importedResults}
       sourceNames={sourceNames}
       sessionDated={sessionDated}
+      federation={federation}
       refreshKey={lastSyncedAt?.getTime()}
     />
   );
