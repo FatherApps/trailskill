@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// The stream must say what saved_athlete_share_codes_select says (issue #1302): each user reads their own kept codes, and the swimmer
+// The stream must say what saved_athlete_share_codes_select says (issue 1302): each user reads their own kept codes, and the swimmer
 // behind a code never reaches the phone.
 test('the accounts_saved_share_codes stream gives each user their own codes, without the swimmer', () => {
   const config = readFileSync(join(__dirname, '../../../../powersync/sync-config.yaml'), 'utf8').replaceAll(

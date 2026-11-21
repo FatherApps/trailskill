@@ -2,7 +2,7 @@ import { createInMemorySavedShareCodeRepository } from '../data/savedShareCodes'
 
 jest.mock('../../../core/sync', () => ({ db: {}, supabase: {} }));
 
-describe('the share codes kept from other families (issue #1302)', () => {
+describe('the share codes kept from other families (issue 1302)', () => {
   it('lists only this person\'s codes, most recently kept first, and forgets one', async () => {
     const repository = createInMemorySavedShareCodeRepository([
       { id: 's1', userId: 'u1', code: 'TS-BBBBBB', athleteShortName: 'Ana M.', savedAt: '2026-11-20T10:00:00.000Z' },

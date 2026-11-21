@@ -1,7 +1,7 @@
 import { db, supabase } from '../../../core/sync';
 
 /**
- * A share code another family gave this person, kept once that family accepted a time sent with it (#1302), so the next send can
+ * A share code another family gave this person, kept once that family accepted a time sent with it (issue 1302), so the next send can
  * pick it instead of asking again. The server keeps it and removes it, for everyone, as soon as the family changes the code. Only
  * what the person already had comes with it: the code and the swimmer's short name ("Ana M.").
  */
