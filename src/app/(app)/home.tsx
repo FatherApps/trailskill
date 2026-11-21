@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useWindowDimensions } from 'react-native';
 
 import { useSession } from '../../core/session';
+import { useStartupMark } from '../../core/startup';
 import { recordSyncState, useGlobalSyncSummary } from '../../core/sync';
 import { useTheme } from '../../core/theme';
 import { AthleteAvatarWithPhoto, createPowerSyncManagedAthleteRepository, createPowerSyncOwnAuthorizationEvidence, providerAccountOf, useOwnLandingEvidence } from '../../modules/accounts';
@@ -37,6 +38,7 @@ export default function HomeRoute() {
   const managed = useManagedAthletes(managedAthletes, schoolAthletes, session?.user.id, lastSyncedAt);
   const own = useOwnLandingEvidence(managedAthletes, hasOwnAuthorizations, session?.user.id, lastSyncedAt);
 
+  useStartupMark('home_painted', session != null && managed.status === 'ready');
   if (!session || managed.status !== 'ready') return null;
   // An adult athlete is greeted by the name of their own athlete; a guardian by the name their sign-in provider gave, if any.
   const self = own !== 'loading' && own.selfAthleteId ? managed.athletes.find((a) => a.id === own.selfAthleteId)?.firstName : undefined;

@@ -19,10 +19,12 @@ type World = {
   ownAuthorizations: boolean;
   // true / false, or 'silent' when the server never answers.
   platformAdmin: boolean | 'silent';
+  // The answer the phone remembers from an earlier start (issue 1311): null when it knows nothing.
+  knownPlatformAdmin: boolean | null;
   // The membership lookup on the device fails.
   staffLookupFails: boolean;
 };
-const mockWorld: World = { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], coachSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, staffLookupFails: false };
+const mockWorld: World = { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], coachSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, knownPlatformAdmin: null, staffLookupFails: false };
 
 jest.mock('../core/sync', () => ({
   ...jest.requireActual('../core/sync/syncState'),
@@ -71,6 +73,7 @@ jest.mock('../modules/athletes', () => ({
 jest.mock('../modules/timing', () => ({
   ...jest.requireActual('../modules/timing/data/usePlatformAdmin'),
   ...jest.requireActual('../modules/timing/data/usePlatformAdminStatus'),
+  createSecureStoreKnownPlatformAdminRepository: () => ({ read: async () => mockWorld.knownPlatformAdmin, write: async () => {}, clear: async () => {} }),
   createSupabaseConflictReviewRepository: () => ({
     isPlatformAdmin: () => (mockWorld.platformAdmin === 'silent' ? new Promise<boolean>(() => {}) : Promise.resolve(mockWorld.platformAdmin)),
   }),
@@ -98,7 +101,7 @@ const routes = {
 
 beforeEach(() => {
   mockWidth = 390;
-  Object.assign(mockWorld, { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], coachSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, staffLookupFails: false });
+  Object.assign(mockWorld, { synced: true, syncConnectFailed: false, schools: [], adminSchools: [], coachSchools: [], managedIds: [], selfId: null, ownAuthorizations: false, platformAdmin: false, knownPlatformAdmin: null, staffLookupFails: false });
 });
 
 const guardian = () => Object.assign(mockWorld, { managedIds: ['a1', 'a2'], ownAuthorizations: true });
@@ -309,6 +312,24 @@ describe('landing while data is missing', () => {
     await act(async () => {});
     expect(screen.queryByText('Swimcro')).toBeNull();
     expect(screen.queryByText('my athletes')).toBeNull();
+  });
+
+  it('sends a guardian away at once when the phone remembers they are not a platform admin, whatever the server says', async () => {
+    guardian();
+    mockWorld.platformAdmin = 'silent';
+    mockWorld.knownPlatformAdmin = false;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    expect(await screen.findByText('my athletes')).toBeOnTheScreen();
+  });
+
+  it('keeps a remembered platform admin on the home screen at once, whatever the server says', async () => {
+    guardian();
+    mockWorld.platformAdmin = 'silent';
+    mockWorld.knownPlatformAdmin = true;
+    await renderRouter(routes, { initialUrl: '/' });
+
+    await landsOnHome();
   });
 });
 

@@ -18,7 +18,7 @@ import {
 } from '../../modules/accounts';
 import { createPowerSyncSchoolAthleteRepository, useManagedAthletes } from '../../modules/athletes';
 import { createPowerSyncStaffSchoolRepository, useAdminSchool, useCoachSchool, useStaffSchool } from '../../modules/school-console';
-import { createSupabaseConflictReviewRepository, usePlatformAdmin, usePlatformAdminStatus } from '../../modules/timing';
+import { createSecureStoreKnownPlatformAdminRepository, createSupabaseConflictReviewRepository, usePlatformAdmin, usePlatformAdminStatus } from '../../modules/timing';
 
 const staffSchools = createPowerSyncStaffSchoolRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
@@ -26,6 +26,7 @@ const schoolAthletes = createPowerSyncSchoolAthleteRepository();
 const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 const pendingInvitations = createSecureStorePendingInvitationRepository();
 const conflictReview = createSupabaseConflictReviewRepository();
+const knownPlatformAdmin = createSecureStoreKnownPlatformAdminRepository();
 const hasOwnAuthorizations = createPowerSyncOwnAuthorizationEvidence();
 
 // "/" is the landing of every role: a school admin opens the console and a coach My swimmers; a guardian or an adult athlete with one athlete in
@@ -42,7 +43,7 @@ export default function Landing() {
   const adminSchool = useAdminSchool(staffSchools, userId, lastSyncedAt);
   const coachSchool = useCoachSchool(staffSchools, userId, lastSyncedAt);
   const own = useOwnLandingEvidence(managedAthletes, hasOwnAuthorizations, userId, lastSyncedAt);
-  const platformAdmin = usePlatformAdminStatus(conflictReview, userId);
+  const platformAdmin = usePlatformAdminStatus(conflictReview, userId, knownPlatformAdmin);
   const landing = resolveLanding({
     synced: lastSyncedAt != null,
     syncGaveUp: syncConnectFailed || waitExpired,
