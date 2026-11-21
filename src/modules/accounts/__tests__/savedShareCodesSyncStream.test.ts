@@ -5,8 +5,8 @@ import { join } from 'node:path';
 // behind a code never reaches the phone.
 test('the accounts_saved_share_codes stream gives each user their own codes, without the swimmer', () => {
   const config = readFileSync(join(__dirname, '../../../../powersync/sync-config.yaml'), 'utf8').replaceAll(
-    / AND [\w.]+ IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)/g,
-    '',
+    / WHERE \((.*)\) AND auth\.user_id\(\) IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)$/gm,
+    ' WHERE $1',
   );
   const stream = config.split(/\n {2}accounts_saved_share_codes:\n/)[1]?.split(/\n\s*\n/)[0] ?? '';
   const queries = [...stream.matchAll(/^\s+- (SELECT .+)$/gm)].map((match) => match[1]);

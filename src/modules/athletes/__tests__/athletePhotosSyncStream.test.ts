@@ -4,9 +4,13 @@ import { join } from "node:path";
 // The athletes_photos stream (issue #1221) gives the row of an athlete's photo to whoever can see the athlete, only
 // while show_photo is in force: the condition of the athlete_photos_select policy
 // (supabase/migrations/20261119150500_athletes_photos.sql). When show_photo is withdrawn the row leaves the devices.
+// The streams also require the user's row in account_sync_access (a marked account syncs nothing, issue 1244); this test pins the rest (the gate ends the top-level WHERE).
 const config = readFileSync(
   join(__dirname, "../../../../powersync/sync-config.yaml"),
   "utf8",
+).replaceAll(
+  / WHERE \((.*)\) AND auth\.user_id\(\) IN \(SELECT user_id FROM account_sync_access WHERE user_id = auth\.user_id\(\)\)$/gm,
+  " WHERE $1",
 );
 
 const withSets = new Map(
