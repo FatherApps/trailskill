@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Dimensions, StyleSheet } from 'react-native';
+import { Dimensions, Pressable, StyleSheet, Text } from 'react-native';
 
 import { colors, radius, size, ThemeProvider, typography } from '../../../core/theme';
 import { MyAthletesScreen, type MyAthleteCard, type MyAthletesView } from '..';
@@ -263,5 +263,29 @@ describe('MyAthletesScreen', () => {
 
     expect(screen.queryByRole('button', { name: 'Historial' })).toBeNull();
     expect(screen.queryByText('Aún no hay deportistas')).toBeNull();
+  });
+});
+
+describe('MyAthletesScreen share-code slot', () => {
+  it('shows what the route injects on the card in front, and pressing it does not open the profile', async () => {
+    const onOpen = jest.fn();
+    const onShare = jest.fn();
+    const chip = (
+      <Pressable accessibilityRole="button" accessibilityLabel="Compartir el código TS-AAAAAA" onPress={onShare}>
+        <Text>TS-AAAAAA</Text>
+      </Pressable>
+    );
+    await show(stack({ ...paula, shareCode: chip }, tomas), { onOpen });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Compartir el código TS-AAAAAA' }));
+
+    expect(onShare).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('adds nothing to a card without the slot', async () => {
+    await show(stack(paula));
+
+    expect(screen.queryByRole('button', { name: /^Compartir/ })).toBeNull();
   });
 });

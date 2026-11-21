@@ -9,6 +9,9 @@ jest.mock('../core/session', () => ({
 jest.mock('../core/sync', () => ({ useGlobalSyncSummary: () => ({ lastSyncedAt: null }) }));
 jest.mock('../modules/accounts', () => ({
   AthleteAvatarWithPhoto: () => null,
+  AthleteShareCodeChipContainer: () => null,
+  createSecureStoreShareCodeCache: () => ({}),
+  createSupabaseAthleteShareCodeRepository: () => ({}),
   createPowerSyncManagedAthleteRepository: () => ({}),
   createPowerSyncAuthorizationStatusRepository: () => ({}),
 }));

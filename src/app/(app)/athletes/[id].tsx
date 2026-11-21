@@ -7,6 +7,7 @@ import {
   AthleteShareCodeContainer,
   createPowerSyncAuthorizationStatusRepository,
   createPowerSyncManagedAthleteRepository,
+  createSecureStoreShareCodeCache,
   createSupabaseAthleteShareCodeRepository,
   useHasValidAuthorization,
 } from '../../../modules/accounts';
@@ -59,6 +60,7 @@ const changeResolver = createSupabasePendingChangeResolver();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const importSources = createSupabaseImportSourcesRepository();
 const shareCodes = createSupabaseAthleteShareCodeRepository();
+const shareCodeCache = createSecureStoreShareCodeCache();
 const guardianSharing = createSupabaseGuardianSharingRepository();
 const guardianRecords = createGuardianRecordsRepository(createPowerSyncMeasurementRepository());
 const photoService = getAthletePhotoService();
@@ -133,6 +135,8 @@ export default function AthleteProfileRoute() {
             athleteId={id}
             athleteName={managedAthlete.firstName}
             repository={shareCodes}
+            cache={shareCodeCache}
+            userId={session.user.id}
             online={summary.connection === 'connected'}
           />
         ) : undefined

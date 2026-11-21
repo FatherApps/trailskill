@@ -7,6 +7,7 @@ import { useAthleteDetails, type AthleteSchoolNames, type AthleteStructure } fro
 import { useAuthorizedAthletes } from '../data/useAuthorizedAthletes';
 import { useManagedAthletes } from '../data/useManagedAthletes';
 import { useSelfAthleteId } from '../data/useSelfAthleteId';
+import type { AthleteShareCodeSlot } from '../components/AthleteStack';
 import { MyAthletesScreen, type MyAthletesView } from './MyAthletesScreen';
 
 export type MyAthletesContainerProps = {
@@ -24,6 +25,8 @@ export type MyAthletesContainerProps = {
   scrollEnabled?: boolean;
   // Injected by the route (athletes cannot read show_photo without a cycle with accounts): the athlete's avatar with their photo. Absent: no avatar.
   Avatar?: AthleteAvatarSlot;
+  // Injected by the route like Avatar: the share-code chip of the athlete, on the card in front. Absent: none.
+  ShareCode?: AthleteShareCodeSlot;
 };
 
 // Connects the screen to the athletes the user manages, the names of their school, category and group, and their authorization on this device.
@@ -40,6 +43,7 @@ export function MyAthletesContainer({
   onAdd,
   scrollEnabled,
   Avatar,
+  ShareCode,
 }: MyAthletesContainerProps) {
   const result = useManagedAthletes(managed, athletes, userId, refreshKey);
   const details = useAthleteDetails(result.status === 'ready' ? result.athletes : undefined, schoolLinks, schoolNames, structure);
@@ -62,6 +66,7 @@ export function MyAthletesContainer({
         authorized: authorized?.has(athlete.id),
         isSelf: athlete.id === selfId,
         avatar: Avatar && <Avatar athleteId={athlete.id} initials={initials} color={color} size="lg" />,
+        shareCode: ShareCode && <ShareCode athleteId={athlete.id} />,
       };
     });
     // The user's own card goes first, so it is the one in front when the screen opens.
