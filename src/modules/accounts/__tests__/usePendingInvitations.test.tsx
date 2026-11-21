@@ -18,12 +18,15 @@ function Probe({ userId, refreshKey, pending, invitations }: ProbeProps) {
   return null;
 }
 
+// What the authorizations step stores when the person accepts; an entry without it is never sent.
+const consent = { acceptedAt: '2026-11-01T10:00:00.000Z', authorizations: [{ id: 'id-record', purpose: 'record_times' as const, textId: 't-record' }] };
+
 describe('usePendingInvitations', () => {
   it('retries when the key changes, once the athlete reached the server', async () => {
     const pending = createInMemoryPendingInvitationRepository();
     const invitations = createInMemoryInvitationRepository();
     // Synthetic token and ids only.
-    await pending.add({ userId: 'u1', token: 'a'.repeat(32), athleteId: 'a1' });
+    await pending.add({ userId: 'u1', token: 'a'.repeat(32), athleteId: 'a1', consent });
     invitations.rejectWith = '42501';
 
     const view = await render(<Probe userId="u1" refreshKey={1} pending={pending} invitations={invitations} />);
