@@ -1,6 +1,7 @@
 import { createProviderRegistry, type OrganizationData } from '../../../registry.ts';
 import { createResultsImport, type Claim, type QueryGate } from '../../../service.ts';
 import type { History } from '../parse.ts';
+import { createFakeCatalog } from '../../../__tests__/fakeProvider.ts';
 import { createHttpSource } from '../source.ts';
 import { createCoFecnaProvider, type Source } from '../provider.ts';
 
@@ -33,6 +34,7 @@ function setup(roster = NUMBERS.map((key) => ({ key, value: key, name: 'PEREZ AN
     confirmations: { record: async () => 'evidence-1', remove: async () => undefined },
     organizationChain: async () => chain,
     pending: { put: async () => `pending-${++stored}`, take: async () => null },
+    tournaments: createFakeCatalog().catalog,
   });
   return { service, claims, releases };
 }

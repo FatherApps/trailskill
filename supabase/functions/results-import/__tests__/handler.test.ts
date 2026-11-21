@@ -15,6 +15,7 @@ function setup(
     search?: Outcome<PublicCandidate[]>;
     confirm?: Outcome<unknown> | Error;
     tournament?: Outcome<unknown>;
+    refresh?: Outcome<unknown>;
     official?: ActionOutcome<unknown>;
   } = {},
 ) {
@@ -30,6 +31,10 @@ function setup(
         calls.push({ method: 'confirmCandidate', argument });
         if (options.confirm instanceof Error) throw options.confirm;
         return (options.confirm ?? { ok: true, value: undefined }) as Awaited<ReturnType<Parameters<typeof createHandler>[0]['service']['confirmCandidate']>>;
+      },
+      async refreshTournaments() {
+        calls.push({ method: 'refreshTournaments', argument: undefined });
+        return (options.refresh ?? { ok: true, value: { refreshed: 1, skipped: 0 } }) as Awaited<ReturnType<Parameters<typeof createHandler>[0]['service']['refreshTournaments']>>;
       },
       async findInTournament(argument) {
         calls.push({ method: 'findInTournament', argument });
@@ -267,5 +272,76 @@ describe('results-import handler: tournament', () => {
     const response = await setup({ tournament: { ok: false, error } }).post(body);
     expect(response.status).toBe(status);
     expect(await response.json()).toEqual({ ok: false, error });
+  });
+});
+
+describe('results-import handler: tournament by key', () => {
+  const KEY = '20260314';
+  const body = { action: 'tournament', athleteId: ATHLETE, tournamentKey: KEY };
+
+  it('looks up the tournament of the list by its key, with no address in the call', async () => {
+    const s = setup();
+    expect((await s.post(body)).status).toBe(200);
+    expect(s.calls).toEqual([{ method: 'findInTournament', argument: { userId: USER, athleteId: ATHLETE, tournamentKey: KEY, identityNumber: null } }]);
+  });
+
+  it('passes a typed number normalized, and takes a null address as not given', async () => {
+    const s = setup();
+    await s.post({ ...body, url: null, identityNumber: ' 1.234-567 ' });
+    expect(s.calls).toEqual([{ method: 'findInTournament', argument: { userId: USER, athleteId: ATHLETE, tournamentKey: KEY, identityNumber: '1234567' } }]);
+  });
+
+  it.each([
+    ['both the key and an address', { url: 'https://games.example.test/tournament/1' }],
+    ['neither the key nor an address', { tournamentKey: undefined }],
+    ['a key with dashes', { tournamentKey: '2026-03-14' }],
+    ['a key of seven digits', { tournamentKey: '2026031' }],
+    ['a key of nine digits', { tournamentKey: '202603140' }],
+    ['a key with spaces around it', { tournamentKey: ` ${KEY} ` }],
+    ['a key that is a number', { tournamentKey: 20260314 }],
+    ['an empty key', { tournamentKey: '' }],
+  ])('answers 400 for %s, and calls nothing', async (_name, override) => {
+    const s = setup();
+    const response = await s.post({ ...body, ...override });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'bad_request' } });
+    expect(s.calls).toEqual([]);
+  });
+
+  it('answers 400 for no key and no address at all, and for an address and an empty key', async () => {
+    const s = setup();
+    expect((await s.post({ action: 'tournament', athleteId: ATHLETE })).status).toBe(400);
+    expect((await s.post({ action: 'tournament', athleteId: ATHLETE, url: 'https://games.example.test/tournament/1', tournamentKey: '' })).status).toBe(400);
+    expect(s.calls).toEqual([]);
+  });
+
+  it('keeps the error an unknown address gets for a key that is not in the catalog', async () => {
+    const response = await setup({ tournament: { ok: false, error: { code: 'no_provider' } } }).post(body);
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'no_provider' } });
+  });
+});
+
+describe('results-import handler: refresh_tournaments', () => {
+  const body = { action: 'refresh_tournaments' };
+
+  it('refreshes for any signed-in user and answers what it did, whatever else the body carries', async () => {
+    const s = setup();
+    const response = await s.post({ ...body, athleteId: 'ignored', url: 'ignored' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+    expect(s.calls).toEqual([{ method: 'refreshTournaments', argument: undefined }]);
+  });
+
+  it('answers 401 without a verified user, and refreshes nothing', async () => {
+    const s = setup({ userId: null });
+    expect((await s.post(body)).status).toBe(401);
+    expect(s.calls).toEqual([]);
+  });
+
+  it('answers a typed error, not a 500, when the platform is unavailable', async () => {
+    const response = await setup({ refresh: { ok: false, error: { code: 'unavailable' } } }).post(body);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'unavailable' } });
   });
 });

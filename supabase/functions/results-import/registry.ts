@@ -54,6 +54,17 @@ export function createProviderRegistry(adapters: readonly ResultsProvider[], pla
       return holders.length === 1 ? { provider, organizationId: holders[0].id } : null;
     },
 
+    /**
+     * Every registered platform with the organization that holds it, one `results_platform` organization per adapter; a platform held by
+     * none or by more than one organization is left out (the same rule as `resolveUrl`), never guessed.
+     */
+    platformOrganizations(organizations: readonly OrganizationData[]): { provider: TournamentProvider; organizationId: string }[] {
+      return [...platformByKey.values()].flatMap((provider) => {
+        const holders = organizations.filter((organization) => providerOf(organization, 'results_platform') === provider.key);
+        return holders.length === 1 ? [{ provider, organizationId: holders[0].id }] : [];
+      });
+    },
+
     /** The platform adapter of a `results_platform` organization itself (a platform has no parents to walk), or null. */
     platformFor(organizations: readonly OrganizationData[], organizationId: string): TournamentProvider | null {
       const organization = organizations.find((candidate) => candidate.id === organizationId);

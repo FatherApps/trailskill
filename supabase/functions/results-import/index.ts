@@ -12,6 +12,7 @@ import {
   createOrganizationChain,
   createPendingStore,
   createQueryGate,
+  createTournamentCatalog,
   type Db,
 } from './adapters.ts';
 import { createHandler } from './handler.ts';
@@ -28,8 +29,8 @@ const db: Db = {
     const { data, error } = await serviceRole.rpc(fn, args);
     return { data, error };
   },
-  select: async (table, columns) => {
-    const { data, error } = await serviceRole.from(table).select(columns);
+  select: async (table, columns, equals = {}) => {
+    const { data, error } = await Object.entries(equals).reduce((query, [column, value]) => query.eq(column, value), serviceRole.from(table).select(columns));
     return { data: data as Record<string, unknown>[] | null, error };
   },
   deleteById: async (table, id) => {
@@ -50,6 +51,7 @@ const service = createResultsImport({
   confirmations: createConfirmations(db),
   organizationChain,
   pending,
+  tournaments: createTournamentCatalog(db),
 });
 const official = createOfficialResultsActions({
   service,
