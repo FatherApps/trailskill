@@ -5,6 +5,18 @@
 #
 # Env: POWERSYNC_DB_PASSWORD (required), APPLY_SEED (default false),
 #      MIGRATIONS_DIR (default /repo/supabase/migrations), SEED_FILE (default /repo/supabase/seed.sql)
+#      BACKUP_BEFORE_MIGRATE  required: `required` or `off`, any other value is an error. With `required`, when at least
+#                             one migration is pending AND supabase_migrations.schema_migrations already has rows, a
+#                             verified backup (backup-prod.sh with BACKUP_REASON=pre-migration) must succeed before the
+#                             first migration is applied; if it fails, or the lock is not obtained, this script exits 1
+#                             before applying anything, so PowerSync does not start. `off` never makes a backup (local only).
+#      BACKUP_SCRIPT          the backup command (default: backup-prod.sh next to this script; tests replace it)
+#      BACKUP_LOCK_FILE       lock shared with the scheduled backup (default /backup-lock/lock, a named volume)
+#      BACKUP_LOCK_WAIT_SECONDS  how long to wait for that lock (default 600); it never runs in parallel with another backup
+#      BACKUP_PGUSER, BACKUP_PGPASSWORD  optional, both or none: the role the backup connects as (it must be able to dump
+#                             every schema); by default the backup uses PGUSER and PGPASSWORD. The backup also reads
+#                             BACKUP_AGE_RECIPIENT, BACKUP_RCLONE_REMOTE, RCLONE_CONFIG_R2_*, BACKUP_PUSH_CMD and
+#                             BACKUP_MIN_COUNTS (see backup-prod.sh and backup-r2.sh). Values are never printed.
 set -eu
 
 : "${POWERSYNC_DB_PASSWORD:?POWERSYNC_DB_PASSWORD is required}"
@@ -22,6 +34,23 @@ case $APPLY_SEED in
   true | false) ;;
   *) echo "error: APPLY_SEED must be 'true' or 'false', got '$APPLY_SEED'" >&2; exit 1 ;;
 esac
+
+case ${BACKUP_BEFORE_MIGRATE:-} in
+  required | off) ;;
+  *) echo "error: BACKUP_BEFORE_MIGRATE must be 'required' or 'off', got '${BACKUP_BEFORE_MIGRATE:-}'" >&2; exit 1 ;;
+esac
+BACKUP_SCRIPT=${BACKUP_SCRIPT:-$(dirname "$0")/backup-prod.sh}
+BACKUP_LOCK_FILE=${BACKUP_LOCK_FILE:-/backup-lock/lock}
+BACKUP_LOCK_WAIT_SECONDS=${BACKUP_LOCK_WAIT_SECONDS:-600}
+if [ "$BACKUP_BEFORE_MIGRATE" = required ]; then
+  case $BACKUP_LOCK_WAIT_SECONDS in
+    '' | *[!0-9]* | ????????*) echo "error: BACKUP_LOCK_WAIT_SECONDS must be a whole number of seconds (at most 9999999), got '$BACKUP_LOCK_WAIT_SECONDS'" >&2; exit 1 ;;
+  esac
+  if [ -n "${BACKUP_PGUSER:-}" ] && [ -z "${BACKUP_PGPASSWORD:-}" ]; then
+    echo "error: BACKUP_PGUSER is set but BACKUP_PGPASSWORD is not" >&2
+    exit 1
+  fi
+fi
 
 PSQL="psql -X -v ON_ERROR_STOP=1 -q"
 TMP=$(mktemp -d)
@@ -79,9 +108,16 @@ cat >"$TMP/record_seed.sql" <<'SQL'
 insert into supabase_migrations.seed_files (path, hash) values (:'path', :'hash');
 SQL
 
-# d. migrations
+# is_applied VERSION: prints 1 when the migration is already recorded
+is_applied() {
+  $PSQL -Atq -v version="$1" <<'SQL'
+select 1 from supabase_migrations.schema_migrations where version = :'version';
+SQL
+}
+
+# c2. backup before migrating. Validate every name first so a bad file stops the run before a backup is taken.
+pending=0
 if [ -d "$MIGRATIONS_DIR" ]; then
-  # Validate every name first so a bad file stops the run before anything is applied.
   for f in "$MIGRATIONS_DIR"/*.sql; do
     [ -e "$f" ] || continue
     if ! echo "${f##*/}" | grep -Eq '^[0-9]+_.+\.sql$'; then
@@ -92,13 +128,60 @@ if [ -d "$MIGRATIONS_DIR" ]; then
   for f in "$MIGRATIONS_DIR"/*.sql; do
     [ -e "$f" ] || continue
     base=${f##*/}
+    seen=$(is_applied "${base%%_*}")
+    [ -n "$seen" ] || pending=$((pending + 1))
+  done
+fi
+recorded=$($PSQL -Atq -c 'select count(*) from supabase_migrations.schema_migrations')
+
+# Runs with the lock on fd 9 (the caller opens it): busybox flock has no timeout, so poll without blocking.
+# The lock is held while the backup runs and released when the caller's redirection ends.
+run_backup() {
+  waited=0
+  until flock -n 9; do
+    if [ "$waited" -ge "$BACKUP_LOCK_WAIT_SECONDS" ]; then
+      echo "error: could not get the backup lock within $BACKUP_LOCK_WAIT_SECONDS s; nothing was applied" >&2
+      return 1
+    fi
+    [ "$waited" -gt 0 ] || log "waiting for the backup lock (up to $BACKUP_LOCK_WAIT_SECONDS s)"
+    sleep 1
+    waited=$((waited + 1))
+  done
+  log "running the backup before migrating ($pending pending, $recorded recorded)"
+  (
+    if [ -n "${BACKUP_PGUSER:-}" ]; then
+      PGUSER=$BACKUP_PGUSER
+      PGPASSWORD=$BACKUP_PGPASSWORD
+      export PGUSER PGPASSWORD
+    fi
+    BACKUP_REASON=pre-migration
+    export BACKUP_REASON
+    sh "$BACKUP_SCRIPT"
+  )
+}
+
+if [ "$pending" -eq 0 ]; then
+  log "backup before migrating: not needed (no pending migrations)"
+elif [ "$recorded" -eq 0 ]; then
+  log "backup before migrating: not needed (nothing recorded yet, first deploy)"
+elif [ "$BACKUP_BEFORE_MIGRATE" = off ]; then
+  log "backup before migrating: skipped (BACKUP_BEFORE_MIGRATE=off)"
+else
+  if ! run_backup 9>"$BACKUP_LOCK_FILE"; then
+    echo "error: the backup before migrating failed; no migration was applied" >&2
+    exit 1
+  fi
+fi
+
+# d. migrations
+if [ -d "$MIGRATIONS_DIR" ]; then
+  for f in "$MIGRATIONS_DIR"/*.sql; do
+    [ -e "$f" ] || continue
+    base=${f##*/}
     version=${base%%_*}
     name=${base#*_}
     name=${name%.sql}
-    done_already=$($PSQL -Atq -v version="$version" <<'SQL'
-select 1 from supabase_migrations.schema_migrations where version = :'version';
-SQL
-    )
+    done_already=$(is_applied "$version")
     if [ -n "$done_already" ]; then
       log "skipped $version $name"
       continue

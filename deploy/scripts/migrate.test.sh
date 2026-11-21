@@ -8,6 +8,8 @@ IMG=postgres:17-alpine
 ID="ts-migtest-$$-$(date +%s)"
 NET=$ID
 DB=$ID-db
+LOCKVOL=$ID-lock
+HOLDER=$ID-holder
 T=$(mktemp -d)
 rand() { od -An -N12 -tx1 /dev/urandom | tr -d ' \n'; }
 SUPER_PW=$(rand)
@@ -16,7 +18,9 @@ PS_PW2=$(rand)
 FAILS=0
 
 cleanup() {
+  docker rm -f "$HOLDER" >/dev/null 2>&1
   docker rm -f "$DB" >/dev/null 2>&1
+  docker volume rm "$LOCKVOL" >/dev/null 2>&1
   docker network rm "$NET" >/dev/null 2>&1
   rm -rf "$T"
 }
@@ -40,7 +44,17 @@ migrate() {
     --mount "type=bind,src=$T/fx,dst=/fx,readonly" \
     -e PGHOST="$DB" -e PGUSER=postgres -e PGPASSWORD="$SUPER_PW" -e PGDATABASE="$d" \
     -e POWERSYNC_DB_PASSWORD="$PS_PW" -e MIGRATIONS_DIR="/fx/$m" -e SEED_FILE=/fx/seed.sql \
+    -e BACKUP_BEFORE_MIGRATE=off \
     "$@" "$IMG" sh /migrate.sh >"$T/out" 2>&1
+}
+
+# mig_bk DBNAME MIGRATIONS_SUBDIR STUB [docker run options...]: the gate on, the backup replaced by a stub from
+# $T/bk (the real script needs age and an R2 bucket; its own tests are in backup-prod.test.sh), the lock on a
+# named volume shared with the holder container.
+mig_bk() {
+  d=$1; m=$2; stub=$3; shift 3
+  migrate "$d" "$m" --mount "type=bind,src=$T/bk,dst=/bk,readonly" -v "$LOCKVOL:/backup-lock" \
+    -e BACKUP_BEFORE_MIGRATE=required -e BACKUP_SCRIPT="/bk/$stub" -e BACKUP_LOCK_FILE=/backup-lock/lock "$@"
 }
 
 pass() { echo "PASS: $1"; }
@@ -98,6 +112,17 @@ echo 'create table public.nope (id int);' >"$T/fx/badname/notanumber.sql"
 cat >"$T/fx/seed.sql" <<'SQL'
 insert into public.a values (100), (101);
 SQL
+
+mkdir -p "$T/bk"
+cat >"$T/bk/ok.sh" <<'SH'
+#!/bin/sh
+echo "STUB backup reason=$BACKUP_REASON user=$PGUSER versions=$(psql -X -Atc 'select count(*) from supabase_migrations.schema_migrations')"
+SH
+cat >"$T/bk/fail.sh" <<'SH'
+#!/bin/sh
+echo "STUB backup failing" >&2
+exit 1
+SH
 
 # --- infrastructure ---------------------------------------------------------
 docker network create "$NET" >/dev/null || { echo "cannot create docker network"; exit 2; }
@@ -199,9 +224,140 @@ eq "schedule warning: warns with the SQLSTATE" 1 "$(grep -c '^WARN scheduled job
 eq "schedule warning: not reported as nothing to schedule" 0 "$(grep -c 'scheduled jobs: 0 (pg_cron not installed' "$T/out")"
 eq "schedule warning: later steps still run" 1 "$(grep -c '^migrate done' "$T/out")"
 
+# --- 8. backup before migrating (#1336) ----------------------------------------
+docker volume create "$LOCKVOL" >/dev/null || exit 2
+stub_runs() { grep -c '^STUB backup' "$T/out"; }
+
+# 8a. empty schema_migrations (first deploy): no backup, migrations apply as today
+newdb t10
+mig_bk t10 ok ok.sh; rc=$?
+eq "gate: first deploy exit 0" 0 "$rc"
+eq "gate: first deploy (no rows in schema_migrations) makes no backup" 0 "$(stub_runs)"
+eq "gate: first deploy applies the migrations" "20260101000000,20260101000001" "$(versions t10)"
+
+# 8b. nothing pending: no backup
+mig_bk t10 ok ok.sh; rc=$?
+eq "gate: nothing pending exit 0" 0 "$rc"
+eq "gate: nothing pending makes no backup" 0 "$(stub_runs)"
+eq "gate: nothing pending still finishes" 1 "$(grep -c '^migrate done' "$T/out")"
+
+# 8c. one pending migration and rows already recorded: backup first, with reason pre-migration
+mig_bk t10 okplus ok.sh; rc=$?
+eq "gate: pending migration exit 0" 0 "$rc"
+eq "gate: backup ran once" 1 "$(stub_runs)"
+eq "gate: backup ran before the pending migration was applied, with the reason" "STUB backup reason=pre-migration user=postgres versions=2" "$(grep '^STUB backup' "$T/out")"
+eq "gate: the pending migration was then applied" "20260101000000,20260101000001,20260101000002" "$(versions t10)"
+eq "gate: backup output comes before the applied line" 1 "$(awk '/^STUB backup/{s=NR} /^applied 20260101000002/{a=NR} END{print (s && a && s<a) ? 1 : 0}' "$T/out")"
+
+# 8d. the backup fails: exit 1, nothing applied, PowerSync steps not reached
+newdb t11
+migrate t11 ok; rc=$?
+eq "failed backup: setup exit 0" 0 "$rc"
+mig_bk t11 okplus fail.sh; rc=$?
+eq "failed backup: exit code 1" 1 "$rc"
+eq "failed backup: no new row in schema_migrations" "20260101000000,20260101000001" "$(versions t11)"
+eq "failed backup: the pending migration did not run" "f" "$(sql t11 "select to_regclass('public.late_mig') is not null")"
+eq "failed backup: says so" 1 "$(grep -c 'the backup before migrating failed; no migration was applied' "$T/out")"
+eq "failed backup: nothing applied" 0 "$(grep -c '^applied' "$T/out")"
+eq "failed backup: later steps not reached" 0 "$(grep -c -e 'grants for powersync_role applied' -e '^migrate done' "$T/out")"
+
+# 8e. BACKUP_BEFORE_MIGRATE=off: no backup even with a pending migration and a failing backup script
+mig_bk t11 okplus fail.sh -e BACKUP_BEFORE_MIGRATE=off; rc=$?
+eq "off: exit 0" 0 "$rc"
+eq "off: no backup attempted" 0 "$(grep -c 'STUB backup' "$T/out")"
+eq "off: the pending migration was applied" "20260101000000,20260101000001,20260101000002" "$(versions t11)"
+
+# 8f. other values and an empty value are errors before the migrations step
+newdb t12
+for v in yes true REQUIRED Off ""; do
+  mig_bk t12 ok ok.sh -e BACKUP_BEFORE_MIGRATE="$v"; rc=$?
+  eq "value '$v': exit 1" 1 "$rc"
+  eq "value '$v': names the variable" 1 "$(grep -c 'BACKUP_BEFORE_MIGRATE' "$T/out")"
+  eq "value '$v': nothing applied, no bookkeeping table" "f" "$(sql t12 "select to_regclass('supabase_migrations.schema_migrations') is not null")"
+done
+
+# 8g. a dedicated backup role is used for the backup only
+mig_bk t11 okplus ok.sh -e BACKUP_BEFORE_MIGRATE=required -e BACKUP_PGUSER=backup_role -e BACKUP_PGPASSWORD=unused; rc=$?
+eq "backup role: nothing pending, exit 0" 0 "$rc"
+newdb t13
+migrate t13 ok >/dev/null
+sql t13 "create role bk_role login superuser password 'bk-synthetic'" >/dev/null
+mig_bk t13 okplus ok.sh -e BACKUP_PGUSER=bk_role -e BACKUP_PGPASSWORD=bk-synthetic; rc=$?
+eq "backup role: exit 0" 0 "$rc"
+eq "backup role: the backup ran as BACKUP_PGUSER" 1 "$(grep -c 'user=bk_role versions=2' "$T/out")"
+newdb t14
+migrate t14 ok >/dev/null
+mig_bk t14 okplus ok.sh -e BACKUP_PGUSER=postgres; rc=$?
+eq "backup role without password: exit 1" 1 "$rc"
+eq "backup role without password: names BACKUP_PGPASSWORD" 1 "$(grep -c 'BACKUP_PGPASSWORD' "$T/out")"
+eq "backup role without password: nothing applied" "20260101000000,20260101000001" "$(versions t14)"
+
+# 8h. the lock: held by another container, migrate waits, then exits 1 without applying anything
+newdb t15
+migrate t15 ok >/dev/null
+docker run -d --name "$HOLDER" -v "$LOCKVOL:/backup-lock" "$IMG" \
+  sh -c 'exec 9>/backup-lock/lock; flock -n 9 || exit 1; echo held; sleep 300' >/dev/null || exit 2
+i=0
+until docker logs "$HOLDER" 2>&1 | grep -q '^held'; do
+  i=$((i + 1)); [ "$i" -gt 30 ] && { echo "lock holder did not start"; exit 2; }
+  sleep 1
+done
+t0=$(date +%s)
+mig_bk t15 okplus ok.sh -e BACKUP_LOCK_WAIT_SECONDS=3; rc=$?
+waited=$(($(date +%s) - t0))
+eq "lock held: exit code 1" 1 "$rc"
+eq "lock held: it waited for the bound" 1 "$([ "$waited" -ge 3 ] && echo 1 || echo 0)"
+eq "lock held: says it waited and gave up" 1 "$(grep -c 'could not get the backup lock within 3 s; nothing was applied' "$T/out")"
+eq "lock held: the backup did not run" 0 "$(grep -c 'STUB backup' "$T/out")"
+eq "lock held: nothing applied" "20260101000000,20260101000001" "$(versions t15)"
+docker rm -f "$HOLDER" >/dev/null 2>&1
+mig_bk t15 okplus ok.sh -e BACKUP_LOCK_WAIT_SECONDS=3; rc=$?
+eq "lock released: exit 0" 0 "$rc"
+eq "lock released: backup ran and the migration was applied" "20260101000000,20260101000001,20260101000002" "$(versions t15)"
+
+# 8i. the lock is released after a few seconds: migrate waits for it and then goes on
+newdb t16
+migrate t16 ok >/dev/null
+docker run -d --name "$HOLDER" -v "$LOCKVOL:/backup-lock" "$IMG" \
+  sh -c 'exec 9>/backup-lock/lock; flock -n 9 || exit 1; echo held; sleep 4' >/dev/null || exit 2
+i=0
+until docker logs "$HOLDER" 2>&1 | grep -q '^held'; do
+  i=$((i + 1)); [ "$i" -gt 30 ] && { echo "lock holder did not start"; exit 2; }
+  sleep 1
+done
+mig_bk t16 okplus ok.sh -e BACKUP_LOCK_WAIT_SECONDS=60; rc=$?
+eq "lock freed during the wait: exit 0" 0 "$rc"
+eq "lock freed during the wait: it said it was waiting" 1 "$(grep -c 'waiting for the backup lock' "$T/out")"
+eq "lock freed during the wait: backup ran, migration applied" "20260101000000,20260101000001,20260101000002" "$(versions t16)"
+docker rm -f "$HOLDER" >/dev/null 2>&1
+
+# 8j. invalid wait value
+mig_bk t16 okplus ok.sh -e BACKUP_LOCK_WAIT_SECONDS=abc; rc=$?
+eq "lock wait: invalid value exit 1" 1 "$rc"
+eq "lock wait: names the variable" 1 "$(grep -c 'BACKUP_LOCK_WAIT_SECONDS' "$T/out")"
+
 # --- no secrets in output ---------------------------------------------------
 migrate t4 okplus -e POWERSYNC_DB_PASSWORD="$PS_PW2"
 eq "output: passwords not printed" 0 "$(grep -c -e "$PS_PW2" -e "$SUPER_PW" "$T/out")"
+mig_bk t13 okplus ok.sh -e BACKUP_PGUSER=bk_role -e BACKUP_PGPASSWORD=bk-synthetic -e BACKUP_AGE_RECIPIENT=age1synthetic
+eq "output: backup password not printed" 0 "$(grep -c -e bk-synthetic -e "$SUPER_PW" "$T/out")"
+
+# --- 9. compose (#1336) -----------------------------------------------------
+ROOT=$(cd "$HERE/../.." && pwd)
+cfg() { env -u BACKUP_BEFORE_MIGRATE docker compose -f "$ROOT/deploy/compose.yaml" --env-file "$1" config >"$T/out" 2>&1; }
+cfg "$ROOT/deploy/local.env"; rc=$?
+eq "compose: config works with local.env" 0 "$rc"
+eq "compose: local.env turns the gate off" 1 "$(grep -c '^BACKUP_BEFORE_MIGRATE=off$' "$ROOT/deploy/local.env")"
+eq "compose: migrate and backup use the same image" 2 "$(grep -c -x '    image: trailskill-deploy-backup-tools' "$T/out")"
+eq "compose: backup runs busybox crond in the foreground" 1 "$(grep -c -x -e '      - crond' "$T/out")"
+eq "compose: both services share the backup-lock volume" 2 "$(grep -c 'target: /backup-lock' "$T/out")"
+eq "compose: TMPDIR is a tmpfs with mode 700 in both services" 2 "$(grep -c -x -e '      - /backup-tmp:mode=700' "$T/out")"
+grep -v '^BACKUP_BEFORE_MIGRATE=' "$ROOT/deploy/local.env" >"$T/no-gate.env"
+cfg "$T/no-gate.env"; rc=$?
+nonzero "compose: config fails without BACKUP_BEFORE_MIGRATE" "$rc"
+eq "compose: the error names BACKUP_BEFORE_MIGRATE" 1 "$(grep -c 'BACKUP_BEFORE_MIGRATE' "$T/out")"
+eq "compose: the crontab runs the daily backup at 08:30 UTC" 1 "$(grep -c '^30 8 \* \* \* ' "$ROOT/deploy/backup/crontab")"
+eq "compose: no real values in the repository files" 0 "$(grep -c -E 'age1[a-z0-9]{20,}|AKIA' "$ROOT/deploy/compose.yaml" "$ROOT/deploy/local.env" "$ROOT/deploy/backup/crontab" | awk -F: '{s+=$2} END{print s+0}')"
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL PASSED"; else echo "$FAILS FAILED"; exit 1; fi

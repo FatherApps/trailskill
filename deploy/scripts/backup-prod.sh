@@ -9,6 +9,9 @@
 #      BACKUP_MIN_COUNTS     optional, space-separated schema.table=N: refuse to push when a key table has
 #                            fewer than N rows. Each table must be in BACKUP_COUNT_TABLES.
 #      BACKUP_COUNT_TABLES   tables whose row counts go in the manifest (default: see below)
+#      BACKUP_REASON         why this copy was taken, written to the manifest as backup_reason=. Lowercase letters,
+#                            digits and hyphens, at most 32 characters. Default `daily` (the scheduled copy); the
+#                            copy before a migration (migrate.sh) uses `pre-migration`.
 # A copy where every key table has 0 rows is never pushed (no bypass), so it cannot replace a good one.
 # Nothing is kept locally: the plaintext dump lives in a private temp dir that is always removed.
 set -eu
@@ -20,6 +23,7 @@ umask 077
 : "${PGDATABASE:?PGDATABASE is required}"
 : "${BACKUP_PUSH_CMD:?BACKUP_PUSH_CMD is required}"
 BACKUP_COUNT_TABLES=${BACKUP_COUNT_TABLES:-auth.users public.organizations public.schools public.athletes public.school_memberships}
+BACKUP_REASON=${BACKUP_REASON:-daily}
 LC_ALL=C
 export LC_ALL
 
@@ -32,6 +36,10 @@ bytes() { wc -c <"$1" | tr -d ' '; }
 [ -n "${BACKUP_AGE_RECIPIENT:-}" ] ||
   die "BACKUP_AGE_RECIPIENT is not set: refusing to back up without an encryption public key"
 case $BACKUP_AGE_RECIPIENT in age1*) ;; *) die "BACKUP_AGE_RECIPIENT is not an age public key (age1...)" ;; esac
+case $BACKUP_REASON in
+  '' | -* | *[!a-z0-9-]*) die "invalid BACKUP_REASON (lowercase letters, digits and hyphens, at most 32 characters)" ;;
+esac
+[ "${#BACKUP_REASON}" -le 32 ] || die "invalid BACKUP_REASON (lowercase letters, digits and hyphens, at most 32 characters)"
 for t in $BACKUP_COUNT_TABLES; do
   echo "$t" | grep -Eq '^[a-z_]+\.[a-z_]+$' || die "invalid table name '$t' in BACKUP_COUNT_TABLES"
 done
@@ -62,6 +70,7 @@ DUMP_BYTES=$(bytes "$DUMP")
 {
   echo "created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "database=$PGDATABASE"
+  echo "backup_reason=$BACKUP_REASON"
   echo "pg_dump=$(pg_dump --version | tr ' ' '_')"
   echo "dump_bytes=$DUMP_BYTES"
   echo "dump_sha256=$DUMP_SHA"
