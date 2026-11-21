@@ -71,7 +71,7 @@ These tools run in Docker:
 | PowerSync | `docker compose` | `http://127.0.0.1:8080` |
 | PowerSync storage | `docker compose` | Internal only |
 
-Supabase is not in the Compose file: the Supabase CLI starts it and applies `supabase/migrations` and `supabase/seed.sql`. `deploy/compose.yaml` is the file Dokploy deploys; `deploy/compose.local.yaml` adapts it to your machine, and `deploy/local.env` holds values that work only locally.
+Supabase is not in the Compose file: the Supabase CLI starts it and applies `supabase/migrations` and `supabase/seed.sql`. `deploy/compose.yaml` is the file Dokploy deploys; `deploy/compose.local.yaml` adapts it to your machine, and `deploy/local.env` holds values that work only locally. The Edge Functions delivery that Dokploy runs on every deploy (the `functions` and `functions-ok` services) is left out of the local mode, so the command below does not change.
 
 Install Docker Desktop and the Supabase CLI, start Docker, and run these from the root of your checkout:
 
