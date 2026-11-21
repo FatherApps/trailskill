@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.0](https://github.com/FatherApps/trailskill/compare/v0.8.0...v0.9.0) (2026-11-21)
+
+
+### Features
+
+* **athletes:** share a swimmer's code from their card in «Mis deportistas» ([#1324](https://github.com/FatherApps/trailskill/issues/1324)) ([3e5e341](https://github.com/FatherApps/trailskill/commit/3e5e341331abb2f4c45f08e42f67adf626c5f611)), closes [#1317](https://github.com/FatherApps/trailskill/issues/1317)
+* **results-import:** confirm before importing the chosen official results ([#1327](https://github.com/FatherApps/trailskill/issues/1327)) ([359c379](https://github.com/FatherApps/trailskill/commit/359c379d28aefb66157d819968f3d9a4e67aa852)), closes [#1319](https://github.com/FatherApps/trailskill/issues/1319)
+* **training-plans:** show the back button on the plan editor, assign and fulfillment screens ([#1326](https://github.com/FatherApps/trailskill/issues/1326)) ([54ef793](https://github.com/FatherApps/trailskill/commit/54ef793b2d72654c98fcc021e7757dbaf93cb771)), closes [#1318](https://github.com/FatherApps/trailskill/issues/1318)
+
+
+### Bug Fixes
+
+* **accounts:** draw no spinner while only the phone is read, order cache writes before the sign-out clear and narrow the landing correction ([#1325](https://github.com/FatherApps/trailskill/issues/1325)) ([2879afd](https://github.com/FatherApps/trailskill/commit/2879afd19ff2b25d13dc42960ec80f919383b23b)), closes [#1311](https://github.com/FatherApps/trailskill/issues/1311)
+* **accounts:** restore the sync gate of a marked account (replaces [#1312](https://github.com/FatherApps/trailskill/issues/1312)) ([#1330](https://github.com/FatherApps/trailskill/issues/1330)) ([9ff7266](https://github.com/FatherApps/trailskill/commit/9ff7266f3677d4fe2012ebbbc38e22359e7a112b)), closes [#1244](https://github.com/FatherApps/trailskill/issues/1244)
+* **core:** la app carga desde el teléfono primero y lo remoto llega en segundo plano ([#1313](https://github.com/FatherApps/trailskill/issues/1313)) ([3daf1bb](https://github.com/FatherApps/trailskill/commit/3daf1bbd8dc0a620a1019efb72684b321e37ec9d)), closes [#1311](https://github.com/FatherApps/trailskill/issues/1311)
+* **session:** a SIGNED_IN of the same session no longer cancels the pending sign-out ([#1316](https://github.com/FatherApps/trailskill/issues/1316)) ([b3d8c80](https://github.com/FatherApps/trailskill/commit/b3d8c80cace41f7b50f226bffeeb573278685fde)), closes [#1314](https://github.com/FatherApps/trailskill/issues/1314)
+* **session:** make a new sign-in wait for the late clear of the earlier sign-out (replaces [#1294](https://github.com/FatherApps/trailskill/issues/1294)) ([#1310](https://github.com/FatherApps/trailskill/issues/1310)) ([8d4ec35](https://github.com/FatherApps/trailskill/commit/8d4ec350f23c27a4696ecde94ca54cbf6e56e598)), closes [#1270](https://github.com/FatherApps/trailskill/issues/1270)
+
 ## [0.8.0](https://github.com/FatherApps/trailskill/compare/v0.7.0...v0.8.0) (2026-11-21)
 
 
