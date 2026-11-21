@@ -25,8 +25,9 @@
 # Both write trailskill-prod-latest.dump.age and trailskill-prod-latest.manifest into <dir>.
 # Run ONE backup at a time: nothing here makes two simultaneous pushes safe. The guards turn an overlap into a
 # loud failure (push fails when the manifest ends up naming a missing dump), but the manifest is re-read just
-# before each delete, so a second push publishing in that gap can still lose its dump. #1336 adds the lock that
-# closes this race; until it runs, never start two backups at once. A listing or manifest read that
+# before each delete, so a second push publishing in that gap can still lose its dump. backup-prod.sh takes the
+# lock (flock on BACKUP_LOCK_FILE) before it dumps and holds it through this push, which closes that race for every
+# caller of backup-prod.sh; run this script directly only when no backup can run. A listing or manifest read that
 # merely fails after the commit point is a warning, not an error (see cleanup).
 set -eu
 set -f
