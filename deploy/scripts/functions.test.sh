@@ -272,3 +272,35 @@ echo "$out" | grep -q "^FAIL: accounts-delete-account imports from the sibling f
 [ "$(find "$T/vol-sib" -type f | sort | xargs cksum)" = "$before" ] || fail "a refused bundle changed the volume"
 [ ! -e "$T/vol-sib/.staging" ] || fail "the staging folder was left in the volume"
 echo "PASS: a function importing from a sibling outside FUNCTIONS is refused and the volume is untouched"
+
+# 12. Delivering the same code again changes nothing in the volume (the deploy compose runs the bundle on every deploy), and a
+# change in one function replaces only that function.
+mkdir -p "$T/vol-idem/main"
+out=$(sh "$HERE/functions-bundle.sh" "$T/vol-idem" 2>&1) || fail "the first delivery failed: $out"
+for f in results-import school-console-invite-coach accounts-delete-account accounts-deletion-worker; do
+  echo "$out" | grep -q "^DONE: .*/$f updated" || fail "no DONE for $f in the first delivery: $out"
+done
+before=$(cd "$T/vol-idem" && find . -type f | sort | xargs cksum)
+sleep 1; touch "$T/idem-marker"; sleep 1 # anything written from here on is newer than the marker
+out=$(sh "$HERE/functions-bundle.sh" "$T/vol-idem" 2>&1) || fail "the second delivery of the same code failed: $out"
+for f in results-import school-console-invite-coach accounts-delete-account accounts-deletion-worker; do
+  echo "$out" | grep -q "^SKIP: $f unchanged" || fail "no SKIP line for $f in the second delivery: $out"
+done
+! echo "$out" | grep -q "^DONE:" || fail "the second delivery of the same code replaced a function: $out"
+[ "$(cd "$T/vol-idem" && find . -type f | sort | xargs cksum)" = "$before" ] || fail "the second delivery changed the files of the volume"
+[ -z "$(find "$T/vol-idem" -mindepth 1 -newer "$T/idem-marker")" ] || fail "the second delivery touched the volume: $(find "$T/vol-idem" -mindepth 1 -newer "$T/idem-marker")"
+C5=$T/clone-one
+mkdir -p "$C5/deploy/scripts" "$C5/supabase/functions" "$C5/src/core/sport"
+cp "$HERE/functions-bundle.sh" "$C5/deploy/scripts/"
+cp "$ROOT/src/core/sport/catalogs.ts" "$C5/src/core/sport/"
+cp -R "$ROOT"/supabase/functions/results-import "$ROOT"/supabase/functions/school-console-invite-coach "$ROOT"/supabase/functions/accounts-delete-account "$ROOT"/supabase/functions/accounts-deletion-worker "$C5/supabase/functions/"
+echo "// changed in this delivery" >>"$C5/supabase/functions/results-import/service.ts"
+out=$(sh "$C5/deploy/scripts/functions-bundle.sh" "$T/vol-idem" 2>&1) || fail "the delivery of one changed function failed: $out"
+echo "$out" | grep -q "^DONE: .*/results-import updated" || fail "the changed function was not replaced: $out"
+for f in school-console-invite-coach accounts-delete-account accounts-deletion-worker; do
+  echo "$out" | grep -q "^SKIP: $f unchanged" || fail "no SKIP line for the unchanged $f: $out"
+  [ -z "$(find "$T/vol-idem/$f" -newer "$T/idem-marker")" ] || fail "the unchanged $f was touched"
+done
+grep -qxF "// changed in this delivery" "$T/vol-idem/results-import/service.ts" || fail "the changed function does not carry its change"
+[ ! -e "$T/vol-idem/.staging" ] || fail "the staging folder was left in the volume"
+echo "PASS: a second delivery of the same code changes no file of the volume (SKIP for each function); a change in one function replaces only that one"

@@ -4,6 +4,14 @@
 name: trailskill-local
 
 services:
+  # The Edge Functions are delivered into the Supabase stack's functions folder, which `supabase start` does not have:
+  # they only run with the profile `dokploy-only`, which nobody turns on locally.
+  functions:
+    profiles: ["dokploy-only"]
+
+  functions-ok:
+    profiles: ["dokploy-only"]
+
   powersync-storage:
     restart: "no"
 

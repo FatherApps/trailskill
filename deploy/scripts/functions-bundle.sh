@@ -5,6 +5,8 @@
 #   <functions-volume-dir> is the host folder the stack's `functions` service mounts at /home/deno/functions.
 # Only <functions-volume-dir>/<each function listed in FUNCTIONS below> is replaced; `main` and every other function stay as they are.
 # Every bundle is built and checked (deno check) before any of them is swapped in: if one fails, the volume stays as it was.
+# A function whose staged copy is identical to the published one is not swapped (a line says so), so delivering the same code
+# again changes nothing in the volume. The `functions` service of deploy/compose.yaml runs this script on every deploy.
 #
 # results-import imports src/core/sport/catalogs.ts through relative paths that point outside its folder (two depths: from the
 # function root and from providers/<name>/). Outside the volume the runtime has nothing there, and it gives every function the
@@ -137,6 +139,10 @@ done
 # renames, not atomic: between them a request finds no $f for an instant. A run interrupted between them leaves .$f.old; the
 # next run puts it back first (above).
 for f in $FUNCTIONS; do
+  if [ -d "$DEST/$f" ] && diff -r "$DEST/.staging/$f" "$DEST/$f" >/dev/null 2>&1; then
+    echo "SKIP: $f unchanged, not replaced"
+    continue
+  fi
   OLD=$DEST/.$f.old
   [ ! -e "$DEST/$f" ] || mv "$DEST/$f" "$OLD"
   mv "$DEST/.staging/$f" "$DEST/$f"
