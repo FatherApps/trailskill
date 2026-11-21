@@ -1,12 +1,12 @@
 import * as SecureStore from 'expo-secure-store';
 
-// Whether this person already saw a notice: the one that explains "Mis tiempos", or the one before the camera permissions (#1173). Each shows on the first visit only, on this phone.
+// Whether this person already saw a notice: the one that explains "Mis tiempos", the one before the camera permissions (#1173), or the one before the QR scanner's (issue 1322). Each shows on the first visit only, on this phone.
 export interface FamilyTimingNoticeStore {
   seen(userId: string): Promise<boolean>;
   markSeen(userId: string): Promise<void>;
 }
 
-export type FamilyTimingNoticeKind = 'notice' | 'video-intro';
+export type FamilyTimingNoticeKind = 'notice' | 'video-intro' | 'qr-intro';
 
 // SecureStore keys take letters, digits, ".", "-" and "_"; a user id is a UUID. The first kind keeps the key it always had.
 const keyOf = (kind: FamilyTimingNoticeKind, userId: string) => `trailskill-family-timing-${kind}-${userId.replace(/[^A-Za-z0-9._-]/g, '_')}`;

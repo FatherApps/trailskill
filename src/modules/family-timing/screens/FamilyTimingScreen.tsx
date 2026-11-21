@@ -109,6 +109,11 @@ export type FamilySendView = {
   saved?: { options: ChipRowOption<string>[]; value: string };
   // Said once when a kept code turned out expired: its family changed it (#1321). The action leaves the code field empty.
   expired?: string | null;
+  // Reading the code from a QR (issue 1322): offered when the phone can; while it runs, the explanation, the wait for the permission or the camera replace the form.
+  canScan?: boolean;
+  scan?: { phase: 'intro' } | { phase: 'asking' } | { phase: 'scanning'; scanner: ReactNode } | null;
+  // What the last scan left to say: a QR that is not a code, no permission, the camera failing.
+  scanNotice?: string | null;
 };
 
 export type FamilyFilterKey = 'sessionType' | 'stroke' | 'distance' | 'pool';
@@ -267,6 +272,9 @@ export type FamilyTimingScreenProps = {
   onForgetSavedCode?: () => void;
   onEnterNewCode?: () => void;
   onLookUpCode?: () => void;
+  onScanQr?: () => void;
+  onScanContinue?: () => void;
+  onScanCancel?: () => void;
   onSendTime?: () => void;
   onWithdraw?: (measurementId: string) => void;
   onAccept?: (transferId: string) => void;
@@ -1133,6 +1141,10 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
       break;
     case 'send': {
       const { send } = view;
+      if (send.scan) {
+        body = <ScanBody scan={send.scan} onContinue={props.onScanContinue} onCancel={props.onScanCancel} />;
+        break;
+      }
       body = (
         <View style={{ gap: space[4] }}>
           <Card card={send.card} />
@@ -1161,6 +1173,12 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
             autoCorrect={false}
             autoFocus
           />
+          {send.scanNotice && (
+            <Banner variant="warn" icon="error">
+              {send.scanNotice}
+            </Banner>
+          )}
+          {send.canScan && !send.found && <Button variant="secondary" label={t('family_timing.transfer.scan_button')} onPress={() => props.onScanQr?.()} />}
           {send.error && (
             <Banner variant="warn" icon="error">
               {send.error}
@@ -1326,5 +1344,43 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
         />
       )}
     </SafeAreaView>
+  );
+}
+
+const SCAN_INTRO_KEYS = ['scan_intro_read', 'scan_intro_stays', 'scan_intro_when', 'scan_intro_next'] as const;
+
+// Reading a swimmer's code from a QR (issue 1322): what the camera is for before the system asks for it, the wait for the answer, then the live image.
+function ScanBody({ scan, onContinue, onCancel }: { scan: NonNullable<FamilySendView['scan']>; onContinue?: () => void; onCancel?: () => void }) {
+  const { colors, space, radius, typography } = useTheme();
+  const typeIt = <Button variant="ghost" label={t('family_timing.transfer.scan_cancel')} onPress={() => onCancel?.()} />;
+  // Waiting for the person to answer the system's permission dialog: leaving is always possible.
+  if (scan.phase === 'asking')
+    return (
+      <View style={{ gap: space[4] }}>
+        <StateView kind="loading" />
+        {typeIt}
+      </View>
+    );
+  if (scan.phase === 'intro')
+    return (
+      <View style={{ gap: space[4] }}>
+        <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
+          {t('family_timing.transfer.scan_intro_title')}
+        </Text>
+        {SCAN_INTRO_KEYS.map((key) => (
+          <Text key={key} style={[typography.body, { color: colors.ink }]}>
+            {t(`family_timing.transfer.${key}`)}
+          </Text>
+        ))}
+        <Button label={t('family_timing.transfer.scan_intro_continue')} onPress={() => onContinue?.()} />
+        {typeIt}
+      </View>
+    );
+  return (
+    <View style={{ gap: space[4] }}>
+      <Text style={[typography.body, { color: colors.ink }]}>{t('family_timing.transfer.scan_help')}</Text>
+      <View style={{ aspectRatio: 1, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors['surface-2'] }}>{scan.scanner}</View>
+      {typeIt}
+    </View>
   );
 }
