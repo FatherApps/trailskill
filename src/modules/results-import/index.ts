@@ -37,6 +37,8 @@ export {
   createInMemoryOfficialSearchRepository,
   createSupabaseImportSourcesRepository,
   createSupabaseOfficialSearchRepository,
+  refreshTournaments,
+  type TournamentTarget,
   type ImportSource,
   type ImportSourcesRepository,
   type OfficialSearchRepository,
@@ -46,3 +48,13 @@ export {
   type TournamentCandidate,
 } from './data/officialSearch';
 export { useImportSources } from './data/useImportSources';
+export { createPowerSyncTournamentCatalogRepository } from './data/powerSyncTournamentCatalogRepository';
+export {
+  createInMemoryTournamentCatalogRepository,
+  groupTournaments,
+  isRealDateKey,
+  type TournamentCatalogEntry,
+  type TournamentCatalogRepository,
+  type TournamentFilter,
+  type TournamentGroup,
+} from './data/tournamentCatalog';
