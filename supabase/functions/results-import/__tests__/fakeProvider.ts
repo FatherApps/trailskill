@@ -1,4 +1,4 @@
-import type { Candidate, CandidateQuery, NormalizedResult, ResultsProvider, TournamentProvider } from '../port.ts';
+import type { Candidate, CandidateQuery, NormalizedResult, ResultsProvider, TournamentEntry, TournamentProvider } from '../port.ts';
 
 export type FakeCall =
   | { method: 'findCandidates'; argument: CandidateQuery }
@@ -37,13 +37,15 @@ export function createFakeProvider(options: FakeOptions = {}): ResultsProvider &
 
 export const TOURNAMENT_URL = 'https://games.example.test/tournament/1';
 
-export type PlatformCall = { url: string; identityNumber: string };
+// `url` is the pasted address; `year` and `dateKey` are the tournament of the list.
+export type PlatformCall = { url: string; identityNumber: string } | { year: number; dateKey: string; identityNumber: string };
 
 type PlatformOptions = {
   key?: string;
   accepts?: (url: string) => boolean;
   // Typed loosely so a test can make the "platform" return something invalid.
   search?: unknown;
+  tournaments?: TournamentEntry[];
   failWith?: Error;
 };
 
@@ -55,8 +57,12 @@ export function createFakePlatform(options: PlatformOptions = {}): TournamentPro
     calls,
     setFailure: (error) => void (failWith = error),
     accepts: options.accepts ?? ((url) => url.startsWith('https://games.example.test/')),
-    async lookup(url, identityNumber) {
-      calls.push({ url, identityNumber });
+    async listTournaments(year) {
+      if (failWith) throw failWith;
+      return (options.tournaments ?? []).filter((entry) => entry.year === year);
+    },
+    async lookup(...args: [string, string] | [number, string, string]) {
+      calls.push(typeof args[0] === 'number' ? { year: args[0], dateKey: args[1], identityNumber: args[2]! } : { url: args[0], identityNumber: args[1] });
       if (failWith) throw failWith;
       return (options.search ?? { found: false }) as Awaited<ReturnType<TournamentProvider['lookup']>>;
     },
