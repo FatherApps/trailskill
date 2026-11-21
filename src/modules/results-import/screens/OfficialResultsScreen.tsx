@@ -1,8 +1,9 @@
-import { Text, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, StateView } from '../../../core/ui';
+import { Banner, Button, ConfirmSheet, StateView } from '../../../core/ui';
 import { PendingChangeCard, type PendingChangeCardProps } from '../components/PendingChangeCard';
 import { ResultRow, type ResultRowProps } from '../components/ResultRow';
 import '../i18n';
@@ -57,6 +58,9 @@ function Notice({ notice }: { notice: ImportNotice }) {
 // Presentational: the results the source found, the guardian's choice, and the differences waiting for an answer.
 export function OfficialResultsScreen({ view, notice, changes, onUseNew, onKeepCurrent }: OfficialResultsScreenProps) {
   const { colors, space, typography } = useTheme();
+  const { height } = useWindowDimensions();
+  // The sheet opens only when the guardian taps the button, never on its own.
+  const [confirming, setConfirming] = useState(false);
   const heading = (key: string) => (
     <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
       {t(key)}
@@ -90,16 +94,31 @@ export function OfficialResultsScreen({ view, notice, changes, onUseNew, onKeepC
         <View style={{ gap: space[2] }}>
           {heading('results_import.update.list.title')}
           <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('results_import.update.list.hint')}</Text>
-          {view.items.map(({ id, ...row }) => (
-            <ResultRow key={id} {...row} selected={view.selectedIds.includes(id)} onToggle={() => view.onToggle(id)} />
-          ))}
+          {/* The rows scroll inside their own area, so the import button below stays in view however long the list is. */}
+          <ScrollView nestedScrollEnabled style={{ maxHeight: height * 0.5 }} contentContainerStyle={{ gap: space[2] }}>
+            {view.items.map(({ id, ...row }) => (
+              <ResultRow key={id} {...row} selected={view.selectedIds.includes(id)} onToggle={() => view.onToggle(id)} />
+            ))}
+          </ScrollView>
           <Button
             label={view.selectedIds.length === 0 ? t('results_import.update.list.none_selected') : t('results_import.update.list.import', { count: view.selectedIds.length })}
             loading={view.importing}
             loadingLabel={t('results_import.update.list.importing')}
-            onPress={view.selectedIds.length === 0 || view.importing ? () => {} : view.onImport}
+            onPress={view.selectedIds.length === 0 || view.importing ? () => {} : () => setConfirming(true)}
           />
           <Button variant="ghost" label={t('results_import.update.list.dismiss')} onPress={view.onDismiss} />
+          <ConfirmSheet
+            visible={confirming && view.selectedIds.length > 0}
+            title={t('results_import.update.list.confirm.title', { count: view.selectedIds.length })}
+            message={t('results_import.update.list.confirm.message')}
+            confirmLabel={t('results_import.update.list.confirm.confirm')}
+            cancelLabel={t('results_import.update.list.confirm.cancel')}
+            onConfirm={() => {
+              setConfirming(false);
+              view.onImport();
+            }}
+            onCancel={() => setConfirming(false)}
+          />
         </View>
       )}
       {changes.length > 0 && (

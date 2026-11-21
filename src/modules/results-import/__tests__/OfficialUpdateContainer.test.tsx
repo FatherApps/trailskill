@@ -86,6 +86,7 @@ describe('OfficialUpdateContainer', () => {
 
     fireEvent.press(screen.getAllByRole('checkbox')[1]!);
     fireEvent.press(await screen.findByText('Importar 1 resultado'));
+    fireEvent.press(await screen.findByText('Confirmar'));
 
     await waitFor(() => expect(service.importChosen).toHaveBeenCalledWith('a1', ['f1']));
     expect(await screen.findByText(/Importamos 2 resultados\./)).toBeOnTheScreen();
@@ -143,6 +144,7 @@ describe('OfficialUpdateContainer', () => {
     await render(view);
     fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
     fireEvent.press(await screen.findByText('Importar 2 resultados'));
+    fireEvent.press(await screen.findByText('Confirmar'));
 
     expect(await screen.findByText(/La lista venció/)).toBeOnTheScreen();
     expect(service.results).toHaveBeenCalledTimes(2);
@@ -153,6 +155,7 @@ describe('OfficialUpdateContainer', () => {
     await render(view);
     fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
     fireEvent.press(await screen.findByText('Importar 2 resultados'));
+    fireEvent.press(await screen.findByText('Confirmar'));
 
     expect(await screen.findByText('No pudimos importar. Lo que ya tenías sigue igual.')).toBeOnTheScreen();
     expect(screen.getByText('Importar 2 resultados')).toBeOnTheScreen();
@@ -259,6 +262,7 @@ describe('switching from one athlete to another', () => {
     expect(screen.getByText('Importar 1 resultado')).toBeOnTheScreen();
     expect(screen.queryByText('Importar 2 resultados')).toBeNull();
     fireEvent.press(screen.getByText('Importar 1 resultado'));
+    fireEvent.press(await screen.findByText('Confirmar'));
     await waitFor(() => expect(service.importChosen).toHaveBeenCalledWith('a2', ['fb']));
   });
 
