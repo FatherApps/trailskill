@@ -144,8 +144,9 @@ rclone lsf --format tp --separator ' ' "$BACKUP_RCLONE_REMOTE/manifests/"
 To check or restore an earlier copy, pass its `sha` (the file name without `.manifest`, 64 lowercase hex) as the last argument. `restore-check.sh` passes it to the fetch command as `fetch <dir> <sha>`:
 
 ```sh
-sh deploy/scripts/restore-check.sh /path/to/trailskill-backup-key.txt <sha>
-BACKUP_MAX_AGE_HOURS=400 sh deploy/scripts/restore-check.sh --freshness <sha>   # manifest checks only; raise the age limit for an older copy
+# an earlier copy is older than the 26 h default, so raise the limit (at most 8760) or the check refuses it
+BACKUP_MAX_AGE_HOURS=400 sh deploy/scripts/restore-check.sh /path/to/trailskill-backup-key.txt <sha>
+BACKUP_MAX_AGE_HOURS=400 sh deploy/scripts/restore-check.sh --freshness <sha>   # manifest checks only
 ```
 
 Without `sha` both behave as before (the latest copy). A `sha` with no copy, a manifest that names another dump, or a dump that does not match its checksum exits non-zero. Copies pushed before #1335 have no `manifests/<sha>.manifest` and cannot be fetched by `sha`; the latest copy always can.
