@@ -1,0 +1,14 @@
+# The code style is only measured on src/ (singleQuote, printWidth 160). Everything else is ignored.
+# Generated or native code
+android/
+ios/
+dist/
+build/
+.expo/
+.cxx/
+node_modules/
+# Lockfiles
+package-lock.json
+# Everything at the root except src/
+/*
+!/src

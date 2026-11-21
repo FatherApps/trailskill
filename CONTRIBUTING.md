@@ -119,6 +119,7 @@ Refs #12
 - **Description:** in Spanish, following [`.github/pull_request_template.md`](.github/pull_request_template.md): summary, linked issue (`Closes #12`), changes, how it was tested, screenshots (synthetic data only), risks, the Definition of Done checklist, and whether maintainer approval is needed.
 - **Merge method:** squash merge only. Linear history on `main`.
 - **Draft pull requests** are welcome for early feedback. Agents open every pull request as a draft and mark it ready (`gh pr ready`) only when CI is green and the Definition of Done is met.
+- **Never run a formatter over whole files** (`prettier --write .`, `eslint --fix` without files, `npm run format`), least of all to resolve a conflict: it rewrites files other pull requests touch and conflicts them all. Resolve conflicts by hand, line by line. A Claude Code hook ([`.claude/hooks/no-whole-file-format.sh`](.claude/hooks/no-whole-file-format.sh)) denies it. `.prettierrc` records the style of `src/`; `npm run format:check` is manual and not part of CI, because existing files do not all match it.
 
 ### Review
 
