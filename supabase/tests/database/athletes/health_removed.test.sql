@@ -1,6 +1,7 @@
--- Issue #1407: the health data of a swimmer was dropped (20261121240000_athletes_remove_health.sql). Neither the tables, nor the functions,
+-- Issue #1407: the health data of a swimmer was dropped (20261122000000_athletes_remove_health.sql). Neither the tables, nor the functions,
 -- nor the two authorization purposes (and their texts) exist any more, and the account erasure no longer names the dropped tables.
 begin;
+create extension if not exists pgtap with schema extensions;
 
 select plan(11);
 
