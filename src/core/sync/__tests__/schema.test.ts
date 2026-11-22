@@ -32,6 +32,7 @@ describe('AppSchema', () => {
         'athlete_groups',
         'athlete_managers',
         'athlete_photos',
+        'athlete_private_details',
         'athlete_schools',
         'athletes',
         'authorization_status',
@@ -74,10 +75,17 @@ describe('AppSchema', () => {
     expect(columnsOf('record_conflicts')).toEqual(['table_name', 'record_id', 'status']);
   });
 
-  it('tracks the athlete of athlete_photos before a change, so a PATCH or DELETE finds the row by athlete_id (#1253), and no other table', () => {
+  it('tracks the athlete of athlete_photos and athlete_private_details before a change, so a PATCH or DELETE finds the row by athlete_id (#1253, #1366), and no other table', () => {
     const tracked = (AppSchema.tables as unknown as { name: string; trackPrevious?: unknown }[]).filter((table) => table.trackPrevious);
-    expect(tracked.map((table) => table.name)).toEqual(['athlete_photos']);
-    expect(tracked[0].trackPrevious).toEqual({ columns: ['athlete_id'] });
+    expect(tracked.map((table) => table.name)).toEqual(['athlete_photos', 'athlete_private_details']);
+    for (const table of tracked) expect(table.trackPrevious).toEqual({ columns: ['athlete_id'] });
+  });
+
+  it('gives athlete_private_details the birth date and the gender, and athletes neither (#1366)', () => {
+    const columnsOf = (name: string) => Object.keys((byName.get(name) as unknown as { columns: Record<string, unknown> }).columns);
+    expect(columnsOf('athlete_private_details')).toEqual(['athlete_id', 'birth_date', 'gender', 'updated_at']);
+    expect(columnsOf('athletes')).not.toEqual(expect.arrayContaining(['birth_date']));
+    expect(columnsOf('athletes')).not.toEqual(expect.arrayContaining(['gender']));
   });
 
   it('syncs the deactivation stamp of school memberships', () => {
@@ -98,6 +106,6 @@ describe('AppSchema', () => {
     expect(byName.get('family_timing_videos')?.localOnly).toBe(true);
     expect(byName.get('family_timing_notes')?.localOnly).toBe(true);
     expect(byName.get('athlete_photo_uploads')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(39);
+    expect(AppSchema.tables).toHaveLength(40);
   });
 });

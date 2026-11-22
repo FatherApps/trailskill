@@ -22,6 +22,11 @@ export const AppSchema = new Schema({
     { created_by: column.text, athlete_id: column.text, storage_path: column.text, updated_at: column.text },
     { indexes: { athlete: ['athlete_id'] }, trackPrevious: { columns: ['athlete_id'] } },
   ),
+  // Birth date (YYYY-MM-DD) and gender (null, 'F', 'M' or 'undisclosed') of a swimmer, synced only to who manages them (#1366). One row per athlete, found by athlete_id like athlete_photos.
+  athlete_private_details: new Table(
+    { athlete_id: column.text, birth_date: column.text, gender: column.text, updated_at: column.text },
+    { indexes: { athlete: ['athlete_id'] }, trackPrevious: { columns: ['athlete_id'] } },
+  ),
   timing_series: new Table({
     ...audit,
     school_id: column.text,
