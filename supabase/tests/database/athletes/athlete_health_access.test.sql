@@ -8,7 +8,7 @@
 -- a marker); e6 active only in b2 and granted. All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(65);
+select plan(71);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('13700000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as
@@ -24,13 +24,15 @@ insert into auth.users (id, email) values
   (pg_temp.u('a1'), 'reveal-guardian-g@example.test'), (pg_temp.u('a2'), 'reveal-coach-k@example.test'),
   (pg_temp.u('a3'), 'reveal-admin-s@example.test'), (pg_temp.u('a4'), 'reveal-admin-t@example.test'),
   (pg_temp.u('a5'), 'reveal-admin-v@example.test'), (pg_temp.u('a6'), 'reveal-stranger-n@example.test'),
-  (pg_temp.u('a7'), 'reveal-guardian-g2@example.test'), (pg_temp.u('a8'), 'reveal-guardian-g3@example.test');
-insert into public.adult_profiles (user_id, first_name, last_name) values (pg_temp.u('a3'), 'Admin', 'Siete');
+  (pg_temp.u('a7'), 'reveal-guardian-g2@example.test'), (pg_temp.u('a8'), 'reveal-guardian-g3@example.test'),
+  (pg_temp.u('a9'), 'reveal-former-admin-w@example.test');
+insert into public.adult_profiles (user_id, first_name, last_name) values (pg_temp.u('a3'), 'Admin', 'Siete'), (pg_temp.u('a9'), 'Ex', 'Admin');
 insert into public.schools (id, name) values (pg_temp.u('b1'), 'Reveal School One'), (pg_temp.u('b2'), 'Reveal School Two');
 insert into public.training_groups (id, school_id, name) values (pg_temp.u('d1'), pg_temp.u('b1'), 'Reveal Group One');
 insert into public.school_memberships (school_id, user_id, role) values
   (pg_temp.u('b1'), pg_temp.u('a2'), 'coach'), (pg_temp.u('b1'), pg_temp.u('a3'), 'school_admin'),
-  (pg_temp.u('b2'), pg_temp.u('a4'), 'school_admin'), (pg_temp.u('b1'), pg_temp.u('a5'), 'school_admin');
+  (pg_temp.u('b2'), pg_temp.u('a4'), 'school_admin'), (pg_temp.u('b1'), pg_temp.u('a5'), 'school_admin'),
+  (pg_temp.u('b1'), pg_temp.u('a9'), 'school_admin');
 insert into public.coach_group_assignments (coach_user_id, group_id) values (pg_temp.u('a2'), pg_temp.u('d1'));
 insert into public.athletes (id, first_name, last_name) values
   (pg_temp.u('e1'), 'Athlete', 'R1'), (pg_temp.u('e2'), 'Athlete', 'R2'), (pg_temp.u('e3'), 'Athlete', 'R3'),
@@ -193,6 +195,26 @@ select is((public.erase_account((select id from public.account_deletion_requests
 select is((select first_name from public.athletes where id = pg_temp.u('e5')), 'Nadador', 'e5 stays as a marker because of its school time');
 select is(pg_temp.logs(pg_temp.u('e5')), 0::bigint, 'erase_account deletes the log rows of the marker');
 select is(pg_temp.logs(pg_temp.u('e1')), 4::bigint, 'and only those');
+
+-- An erased viewer: admin W (a9, with a profile) reveals e4, leaves the school (an admin with an active membership cannot be erased) and
+-- is erased. The record stays, its viewer column is emptied, and the family still reads it, without a name.
+set local role authenticated;
+select pg_temp.as_user('a9');
+select lives_ok($$select * from public.reveal_athlete_health(pg_temp.u('e4'), pg_temp.u('b1'), 'Consulta de un administrador que luego se fue')$$, 'admin W reveals e4');
+reset role;
+select set_config('request.jwt.claims', '', true);
+select is((select count(*) from public.athlete_health_access_log where viewer_user_id = pg_temp.u('a9')), 1::bigint, 'the record of W names W');
+delete from public.school_memberships where user_id = pg_temp.u('a9');
+select public.confirm_account_deletion(pg_temp.u('a9'), (public.request_account_deletion(pg_temp.u('a9')) ->> 'code'));
+update public.account_deletion_requests set delete_after = now() - interval '1 day' where user_id = pg_temp.u('a9');
+select is((public.erase_account((select id from public.account_deletion_requests where user_id = pg_temp.u('a9'))) ->> 'status'), 'deleted', 'erase_account runs for W');
+select is((select count(*) from public.athlete_health_access_log where athlete_id = pg_temp.u('e4') and viewer_user_id is null), 1::bigint,
+  'the record of W stays with the viewer emptied');
+set local role authenticated;
+select pg_temp.as_user('a1');
+select is((select row(viewer_name, school_name)::text from public.athlete_health_access_log_for_manager(pg_temp.u('e4')) where reason like 'Consulta de un admin%'),
+  row(null::text, 'Reveal School One')::text, 'the family still reads it, with the school and the reason but no name');
+select is((select count(*) from public.athlete_health_access_log_for_manager(pg_temp.u('e4'))), 2::bigint, 'next to the earlier consultation of e4');
 
 select * from finish();
 rollback;

@@ -68,6 +68,11 @@ begin
     raise exception 'the observation must have 10 to 500 characters' using errcode = '22023';
   end if;
 
+  -- The athletes row first, the advisory lock after: erase_account locks the swimmers FOR UPDATE at its start and only later reaches the
+  -- advisory lock (through the status refresh), and the foreign key of the log insert below needs this same row. Taking them in that
+  -- order here keeps the two from waiting on each other (a 40P01 would fail an emergency reveal).
+  perform 1 from public.athletes a where a.id = reveal_athlete_health.athlete_id for key share;
+
   -- Same lock as authorizations_refresh_status (and as store_athlete_identity_number): a withdrawal that races this call either lands
   -- first (not in force, refused) or waits for this transaction.
   perform pg_advisory_xact_lock(hashtextextended(reveal_athlete_health.athlete_id::text || ':share_health_with_school', 0));
