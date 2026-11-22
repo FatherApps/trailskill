@@ -1,3 +1,4 @@
+import type { SchoolRelinkRequest } from '../../athletes';
 import type { AthleteAuthorizations, SharingRequest } from '../components/AuthorizationList';
 
 // Synthetic data for the development gallery and the tests: fictional people and schools.
@@ -53,4 +54,24 @@ export const longTextAuthorizationFixture: AthleteAuthorizations = {
 export const sharingRequestsFixture: SharingRequest[] = [
   { id: 's1', school: 'Escuela Tiburones', requestedOn: '2026-10-22', status: 'pending' },
   { id: 's2', school: 'Club Náutico Olas de la Costa Atlántica', requestedOn: '2026-10-24', status: 'approved' },
+];
+
+// Synthetic relink requests of families, one per state (names are made up).
+export const relinkRequestsFixture: SchoolRelinkRequest[] = [
+  { id: 'l1', createdAt: '2026-11-22T10:00:00Z', status: 'pending', athleteFirstName: 'Ana', athleteLastName: 'Marín', timesCount: 12, resolvedAt: null, movedCount: null },
+  { id: 'l2', createdAt: '2026-11-21T15:30:00Z', status: 'approved', athleteFirstName: 'Luis', athleteLastName: 'Pérez', timesCount: 0, resolvedAt: '2026-11-21T18:00:00Z', movedCount: 7 },
+  { id: 'l3', createdAt: '2026-11-19T08:15:00Z', status: 'rejected', athleteFirstName: 'Sara', athleteLastName: 'Gómez', timesCount: 0, resolvedAt: '2026-11-20T09:00:00Z', movedCount: 0 },
+];
+
+export const relinkRequestsLongTextFixture: SchoolRelinkRequest[] = [
+  {
+    id: 'l4',
+    createdAt: '2026-11-22T10:00:00Z',
+    status: 'pending',
+    athleteFirstName: 'María Fernanda de los Ángeles',
+    athleteLastName: 'Restrepo Villegas de la Hoz',
+    timesCount: 1,
+    resolvedAt: null,
+    movedCount: null,
+  },
 ];

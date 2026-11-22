@@ -84,6 +84,7 @@ export default function AthleteEditRoute() {
       lastName={athlete.lastName}
       onBack={goBack}
       onDone={goBack}
+      onRelink={() => router.push(`/athletes/relink/${id}`)}
       name={<AthleteNameContainer key={`name-${id}`} athleteId={id} firstName={athlete.firstName} lastName={athlete.lastName} repository={athleteProfiles} />}
       photo={
         <AthletePhotoContainer
