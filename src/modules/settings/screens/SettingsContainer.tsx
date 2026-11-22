@@ -1,86 +1,41 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { AppState } from 'react-native';
-
 import { usePreferences } from '../../../core/preferences';
-import { doNotDisturb, type DoNotDisturbPort } from '../../family-timing';
-import { keyName, timingButton, useExternalKeyboards, useLearnKey, type TimingButtonPort } from '../../timing';
-import { SettingsScreen, type ButtonKey } from './SettingsScreen';
+import { timingButton, type TimingButtonPort } from '../../timing';
+import { SettingsScreen } from './SettingsScreen';
 
-// Reads and saves the device preferences; every change applies at once.
+// "Ajustes": reads and saves the device preferences shown on it; every change applies at once.
 export function SettingsContainer({
   onBack,
+  onOpenStopwatch,
+  onOpenVideo,
   onOpenAccount,
-  onOpenAuthorizations,
-  signOut,
   buttons = timingButton,
-  dnd = doNotDisturb,
 }: {
   onBack: () => void;
+  onOpenStopwatch: () => void;
+  onOpenVideo: () => void;
   onOpenAccount?: () => void;
-  onOpenAuthorizations?: () => void;
-  signOut?: ReactNode;
   buttons?: TimingButtonPort;
-  dnd?: DoNotDisturbPort;
 }) {
   const { preferences, update } = usePreferences();
-  const timingButtons = preferences.timingButtons;
-  const keyboards = useExternalKeyboards(buttons);
-  const learner = useLearnKey(buttons);
-  const [learningKey, setLearningKey] = useState<ButtonKey | null>(null);
-  const changeButtons = (changes: Partial<typeof timingButtons>) => update({ timingButtons: { ...timingButtons, ...changes } });
-  const videoRecording = preferences.videoRecording;
-  // The access to "No molestar" is given in Android's settings: read again each time the person comes back to the app.
-  const [dndAccess, setDndAccess] = useState(() => dnd.hasAccess());
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') setDndAccess(dnd.hasAccess());
-    });
-    return () => subscription.remove();
-  }, [dnd]);
-  const changeVideo = (changes: Partial<typeof videoRecording>) => {
-    update({ videoRecording: { ...videoRecording, ...changes } });
-    // Turning the option on without access takes the person to the screen where Android gives it.
-    if (changes.doNotDisturb && !dnd.hasAccess()) dnd.openAccessSettings();
-  };
-
+  const { timingButtons, videoRecording } = preferences;
   return (
     <SettingsScreen
       themeMode={preferences.themeMode}
       timePrecision={preferences.timePrecision}
       onThemeModeChange={(themeMode) => update({ themeMode })}
       onTimePrecisionChange={(timePrecision) => update({ timePrecision })}
-      onOpenAccount={onOpenAccount}
-      onOpenAuthorizations={onOpenAuthorizations}
-      signOut={signOut}
-      onBack={() => {
-        learner.cancel();
-        onBack();
-      }}
-      video={{
-        settings: videoRecording,
-        onChange: changeVideo,
-        doNotDisturb: dnd.available ? { hasAccess: dndAccess, onOpenAccess: () => dnd.openAccessSettings() } : null,
-      }}
-      buttons={
-        buttons.available
-          ? {
-              settings: timingButtons,
-              startKeyName: keyName(timingButtons.startKey),
-              splitKeyName: keyName(timingButtons.splitKey),
-              keyboards: keyboards.map((k) => k.name),
-              learning: learner.learning ? learningKey : null,
-              onChange: changeButtons,
-              onLearn: (key) => {
-                setLearningKey(key);
-                learner.learn((keyCode) => changeButtons(key === 'start' ? { startKey: keyCode } : { splitKey: keyCode }));
-              },
-              onCancelLearn: () => {
-                learner.cancel();
-                setLearningKey(null);
-              },
-            }
+      // The vibration belongs to the buttons: it shows where they are used, as it did beside them.
+      vibrate={
+        buttons.available && timingButtons.enabled
+          ? { value: timingButtons.vibrate, onChange: (vibrate) => update({ timingButtons: { ...timingButtons, vibrate } }) }
           : null
       }
+      videoQuality={videoRecording.quality}
+      onVideoQualityChange={(quality) => update({ videoRecording: { ...videoRecording, quality } })}
+      onOpenStopwatch={buttons.available ? onOpenStopwatch : undefined}
+      onOpenVideo={onOpenVideo}
+      onOpenAccount={onOpenAccount}
+      onBack={onBack}
     />
   );
 }

@@ -1,7 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
-import { defaultTimingButtons, defaultVideoRecording } from '../../../core/preferences';
-import { SettingsScreen, type SettingsButtonsView } from '../screens/SettingsScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 
 async function setup(overrides: Partial<Parameters<typeof SettingsScreen>[0]> = {}) {
   const props = {
@@ -9,9 +8,11 @@ async function setup(overrides: Partial<Parameters<typeof SettingsScreen>[0]> = 
     timePrecision: 'hundredths' as const,
     onThemeModeChange: jest.fn(),
     onTimePrecisionChange: jest.fn(),
+    vibrate: null,
+    videoQuality: 'medium' as const,
+    onVideoQualityChange: jest.fn(),
+    onOpenVideo: jest.fn(),
     onBack: jest.fn(),
-    buttons: null,
-    video: { settings: defaultVideoRecording, onChange: jest.fn() },
     ...overrides,
   };
   await render(<SettingsScreen {...props} />);
@@ -37,125 +38,49 @@ describe('SettingsScreen', () => {
     expect(screen.getByText('Ejemplo: 1:05,372')).toBeTruthy();
   });
 
+  it('offers the three video qualities and reports the chosen one', async () => {
+    const props = await setup();
+    for (const label of ['Baja 480p', 'Media 720p', 'Alta 1080p']) expect(screen.getByText(label)).toBeTruthy();
+    await fireEvent.press(screen.getByText('Alta 1080p'));
+    expect(props.onVideoQualityChange).toHaveBeenCalledWith('high');
+  });
+
+  it('shows the vibration only where the buttons are used, and reports it', async () => {
+    await setup();
+    expect(screen.queryByText('Vibrar al marcar')).toBeNull();
+
+    const onChange = jest.fn();
+    await setup({ vibrate: { value: true, onChange } });
+    await fireEvent.press(screen.getByText('No'));
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
   it('goes back', async () => {
     const props = await setup();
     await fireEvent.press(screen.getByLabelText('Volver'));
     expect(props.onBack).toHaveBeenCalled();
   });
 
-  describe('the account section at the end (#778)', () => {
-    it('shows "Autorizaciones", "Mi cuenta" and the sign-out it receives, in that order', async () => {
-      const { Text } = jest.requireActual('react-native');
-      const props = await setup({ onOpenAuthorizations: jest.fn(), onOpenAccount: jest.fn(), signOut: <Text>sign-out</Text> });
+  describe('the entries to the other screens', () => {
+    it('opens "Cronómetro avanzado", "Configuración de video" and "Mi cuenta", in that order', async () => {
+      const props = await setup({ onOpenStopwatch: jest.fn(), onOpenAccount: jest.fn() });
 
-      expect(screen.getByRole('header', { name: 'Cuenta' })).toBeOnTheScreen();
-      await fireEvent.press(screen.getByRole('button', { name: 'Autorizaciones' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Cronómetro avanzado' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Configuración de video' }));
       await fireEvent.press(screen.getByRole('button', { name: 'Mi cuenta' }));
-      expect(props.onOpenAuthorizations).toHaveBeenCalledTimes(1);
+      expect(props.onOpenStopwatch).toHaveBeenCalledTimes(1);
+      expect(props.onOpenVideo).toHaveBeenCalledTimes(1);
       expect(props.onOpenAccount).toHaveBeenCalledTimes(1);
-      const order = screen.getAllByText(/^(Autorizaciones|Mi cuenta|sign-out)$/).map((node) => node.props.children);
-      expect(order).toEqual(['Autorizaciones', 'Mi cuenta', 'sign-out']);
+      const order = screen.getAllByText(/^(Cronómetro avanzado|Configuración de video|Mi cuenta)$/).map((node) => node.props.children);
+      expect(order).toEqual(['Cronómetro avanzado', 'Configuración de video', 'Mi cuenta']);
     });
 
-    it('leaves "Autorizaciones" out without its handler', async () => {
-      await setup({ onOpenAccount: jest.fn() });
-
-      expect(screen.queryByRole('button', { name: 'Autorizaciones' })).toBeNull();
-      expect(screen.getByRole('button', { name: 'Mi cuenta' })).toBeOnTheScreen();
-    });
-
-    it('shows no account section when it gets no entry', async () => {
+    it('leaves out the entries it gets no handler for', async () => {
       await setup();
 
-      expect(screen.queryByRole('header', { name: 'Cuenta' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Cronómetro avanzado' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Mi cuenta' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Configuración de video' })).toBeOnTheScreen();
     });
-  });
-});
-
-function buttonsView(overrides: Partial<SettingsButtonsView> = {}): SettingsButtonsView {
-  return {
-    settings: defaultTimingButtons,
-    startKeyName: 'Subir volumen (+)',
-    splitKeyName: 'Bajar volumen (−)',
-    keyboards: [],
-    learning: null,
-    onChange: jest.fn(),
-    onLearn: jest.fn(),
-    onCancelLearn: jest.fn(),
-    ...overrides,
-  };
-}
-
-describe('SettingsScreen timing buttons', () => {
-  it('hides the buttons where the phone cannot use them', async () => {
-    await setup();
-    expect(screen.queryByText('Botones para cronometrar')).toBeNull();
-  });
-
-  it('shows the keys, the lockout and the vibration, and the phone keys when no headset is connected', async () => {
-    await setup({ buttons: buttonsView() });
-    expect(screen.getByText('Iniciar y detener: Subir volumen (+)')).toBeTruthy();
-    expect(screen.getByText('Parcial: Bajar volumen (−)')).toBeTruthy();
-    expect(screen.getByText('No hay diadema conectada: se usan los botones de volumen del teléfono.')).toBeTruthy();
-    const lockout = within(screen.getByLabelText('Bloqueo después de iniciar'));
-    for (const label of ['0 s', '1 s', '2 s', '3 s', '5 s', '10 s']) expect(lockout.getByText(label)).toBeTruthy();
-    expect(screen.getByText('Vibrar al marcar')).toBeTruthy();
-  });
-
-  it('names the connected headset', async () => {
-    await setup({ buttons: buttonsView({ keyboards: ['USB Headset'] }) });
-    expect(screen.getByText('Conectado: USB Headset')).toBeTruthy();
-  });
-
-  it('reports the lockout, the vibration and turning the buttons off', async () => {
-    const buttons = buttonsView();
-    await setup({ buttons });
-    await fireEvent.press(within(screen.getByLabelText('Bloqueo después de iniciar')).getByText('5 s'));
-    expect(buttons.onChange).toHaveBeenCalledWith({ lockoutSeconds: 5 });
-    await fireEvent.press(screen.getAllByText('No')[1]!);
-    expect(buttons.onChange).toHaveBeenCalledWith({ vibrate: false });
-    await fireEvent.press(screen.getAllByText('No')[0]!);
-    expect(buttons.onChange).toHaveBeenCalledWith({ enabled: false });
-  });
-
-  it('asks for the new key while one is being chosen', async () => {
-    const buttons = buttonsView();
-    await setup({ buttons });
-    await fireEvent.press(screen.getByText('Cambiar Parcial'));
-    expect(buttons.onLearn).toHaveBeenCalledWith('split');
-
-    await setup({ buttons: buttonsView({ learning: 'split', onCancelLearn: buttons.onCancelLearn }) });
-    expect(screen.getByText('Presiona ahora el botón que quieres usar.')).toBeTruthy();
-    await fireEvent.press(screen.getByText('Cancelar'));
-    expect(buttons.onCancelLearn).toHaveBeenCalled();
-  });
-
-  it('shows only the switch when the buttons are off', async () => {
-    await setup({ buttons: buttonsView({ settings: { ...defaultTimingButtons, enabled: false } }) });
-    expect(screen.queryByText('Teclas')).toBeNull();
-  });
-});
-
-describe('SettingsScreen video recording', () => {
-  it('offers the three qualities and the four stop delays', async () => {
-    await setup();
-    expect(screen.getByText('Grabación de video')).toBeTruthy();
-    for (const label of ['Baja 480p', 'Media 720p', 'Alta 1080p']) expect(screen.getByText(label)).toBeTruthy();
-    const stopAfter = within(screen.getByLabelText('Parar el video después de detener el reloj'));
-    for (const label of ['0 s', '3 s', '5 s', '10 s']) expect(stopAfter.getByText(label)).toBeTruthy();
-    expect(stopAfter.queryByText('1 s')).toBeNull();
-  });
-
-  it('reports each change', async () => {
-    const onChange = jest.fn();
-    await setup({ video: { settings: defaultVideoRecording, onChange } });
-    await fireEvent.press(screen.getByText('Alta 1080p'));
-    await fireEvent.press(within(screen.getByLabelText('Parar el video después de detener el reloj')).getByText('10 s'));
-    await fireEvent.press(within(screen.getByLabelText('Grabar con audio')).getByText('No'));
-    await fireEvent.press(within(screen.getByLabelText('Mostrar el cronómetro en el video')).getByText('No'));
-    expect(onChange).toHaveBeenCalledWith({ audio: false });
-    expect(onChange).toHaveBeenCalledWith({ showStopwatch: false });
-    expect(onChange).toHaveBeenCalledWith({ quality: 'high' });
-    expect(onChange).toHaveBeenCalledWith({ stopAfterSeconds: 10 });
   });
 });
