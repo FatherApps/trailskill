@@ -135,7 +135,7 @@ export function createInMemoryAthleteRegistrationRepository(options: { now?: () 
   // The server's rule for renew and revoke: an active admin of the enrolling school, on an unclaimed link.
   const adminLink = (athleteId: string) => {
     const link = [...links.values()].find((own) => own.athleteId === athleteId);
-    if (!link || !(link.declaredBy === repository.userId || repository.adminSchoolIds.includes(link.schoolId))) throw new Error('not_allowed');
+    if (!link || !repository.adminSchoolIds.includes(link.schoolId)) throw new Error('not_allowed');
     if (link.used || repository.endedAthleteIds.includes(athleteId)) throw new Error('not_open');
     return link;
   };
@@ -146,7 +146,7 @@ export function createInMemoryAthleteRegistrationRepository(options: { now?: () 
     rejectWith: undefined as string | undefined,
     // The schools where the caller is an active admin or coach: a claim of a link of one of them fails with 'not_allowed', as the server does.
     staffSchoolIds: [] as string[],
-    // The schools where the caller is an active admin, besides the swimmers the caller registered: renew and revoke are refused for the rest, as the server does.
+    // The schools where the caller is an active admin: renew, revoke and findLink are refused for the rest, as the server does (registering a swimmer does not make the caller an admin).
     adminSchoolIds: [] as string[],
     // Swimmers the school ended (the baja): their links cannot be renewed or revoked, nor claimed.
     endedAthleteIds: [] as string[],
@@ -202,7 +202,7 @@ export function createInMemoryAthleteRegistrationRepository(options: { now?: () 
     async findLink(athleteId: string): Promise<AthleteClaimLinkState | null> {
       if (repository.rejectWith) throw new Error(repository.rejectWith);
       const link = [...links.values()].find((own) => own.athleteId === athleteId);
-      if (!link || !(link.declaredBy === repository.userId || repository.adminSchoolIds.includes(link.schoolId))) return null;
+      if (!link || !repository.adminSchoolIds.includes(link.schoolId)) return null;
       const status = link.used ? 'claimed' : link.revoked ? 'revoked' : new Date(link.expiresAt) <= now() ? 'expired' : 'open';
       return { status, token: link.token, expiresAt: link.expiresAt };
     },

@@ -735,6 +735,7 @@ describe('AthletesSection', () => {
     // Registers swimmer a1 (Lucía Ramírez, who the console lists) as the signed-in admin, then opens her detail.
     const open = async (extra: Extra = {}) => {
       const repository = createInMemoryAthleteRegistrationRepository({ now });
+      repository.adminSchoolIds = ['school-a'];
       const first = await repository.register({ athleteId: 'a1', schoolId: 'school-a', firstName: 'Lucía', lastName: 'Ramírez', guardianAuthorizationCollected: true });
       const share = jest.fn().mockResolvedValue(undefined);
       await show(setup().repository, { registration: { repository, newId: () => 'athlete-new' }, share, ...extra });

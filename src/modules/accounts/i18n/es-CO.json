@@ -89,7 +89,7 @@
       "accept_wait": "Esperando los textos",
       "cancel": "Ahora no",
       "failure": {
-        "link_not_found": "Este enlace ya no sirve: venció, ya se usó o la escuela dio de baja al nadador. Pide a la escuela un enlace nuevo.",
+        "link_not_found": "Este enlace ya no sirve: venció, ya se usó, la escuela lo anuló o dio de baja al nadador. Pide a la escuela un enlace nuevo.",
         "not_allowed": "Tu cuenta es del personal de la escuela que registró al nadador, y la escuela no puede reclamar a su propio nadador. Pide a la familia que abra el enlace.",
         "invalid": "No pudimos aceptar las autorizaciones. Vuelve a abrir el enlace.",
         "other": "No pudimos aceptar. Si ya aceptaste, revisa Mis deportistas; si no, inténtalo de nuevo."

@@ -234,6 +234,7 @@ describe('in-memory athlete registration repository', () => {
   describe('renewing and revoking', () => {
     const open = async (now = () => new Date('2026-11-22T10:00:00.000Z')) => {
       const repository = createInMemoryAthleteRegistrationRepository({ now });
+      repository.adminSchoolIds = ['s1'];
       const first = await repository.register(registration);
       const claimWith = (token: string) => repository.claim({ ...claim, token });
       return { repository, first, claimWith };
@@ -262,14 +263,17 @@ describe('in-memory athlete registration repository', () => {
       await expect(claimWith(renewed.token)).resolves.toBe('a1');
     });
 
-    it('is refused for anyone who is not the admin who registered it or an admin of the school, as the server does', async () => {
+    it('is refused for anyone who is not an active admin of the school, the user who registered the swimmer included, as the server does', async () => {
       const { repository } = await open();
-      repository.userId = 'someone-else';
+      repository.adminSchoolIds = [];
 
       await expect(repository.renew('a1')).rejects.toThrow('not_allowed');
       await expect(repository.revoke('a1')).rejects.toThrow('not_allowed');
       await expect(repository.renew('unknown')).rejects.toThrow('not_allowed');
       await expect(repository.findLink('a1')).resolves.toBeNull();
+
+      repository.adminSchoolIds = ['another-school'];
+      await expect(repository.renew('a1')).rejects.toThrow('not_allowed');
 
       repository.adminSchoolIds = ['s1'];
       await expect(repository.renew('a1')).resolves.toMatchObject({ athleteId: 'a1' });
