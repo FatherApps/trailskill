@@ -48,7 +48,7 @@ export function AthletePrivateDetailsForm({ birthDate, gender, today, draft, sav
         value={values.birthDate}
         help={shown ?? t('athletes.edit.private.birth_date_hint')}
         error={error}
-        placeholder="AAAA-MM-DD"
+        placeholder={t('athletes.edit.private.birth_date_placeholder')}
         maxLength={10}
         keyboardType="numbers-and-punctuation"
         autoCorrect={false}

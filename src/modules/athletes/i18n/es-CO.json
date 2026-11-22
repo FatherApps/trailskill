@@ -125,6 +125,7 @@
     "private": {
       "title": "Fecha de nacimiento y género",
       "birth_date": "Fecha de nacimiento",
+      "birth_date_placeholder": "AAAA-MM-DD",
       "birth_date_hint": "Año-mes-día, por ejemplo 2014-05-03.",
       "birth_date_future": "La fecha no puede ser futura.",
       "birth_date_invalid": "Escribe una fecha real, desde 1900-01-01.",

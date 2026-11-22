@@ -46,9 +46,11 @@ const CONFIRM_INSERT_FUNCTIONS: Record<string, string> = {
 // A PATCH or DELETE of such a row finds it by that key too (the device may hold an id the upsert of another device replaced, which would miss the row
 // and, for a DELETE, leave a minor's photo on the server): the key comes from the values of the row before the change (trackPrevious in the schema).
 // `omit` columns are never sent: created_by is set by the server on insert, and an update that rewrote it would be refused by the freeze trigger.
+// updated_at of athlete_private_details is the server's too (not null default now(), stamped by its trigger): a retried PUT re-sends the whole local row,
+// where the column is null, and the server would refuse it for good with 23502.
 const UPSERT_BY_KEY: Record<string, { onConflict: string; omit: string[] }> = {
   athlete_photos: { onConflict: 'athlete_id', omit: ['created_by'] },
-  athlete_private_details: { onConflict: 'athlete_id', omit: [] },
+  athlete_private_details: { onConflict: 'athlete_id', omit: ['updated_at'] },
 };
 
 // Columns that are JSON text on the device (PowerSync syncs a Postgres array as JSON text) but arrays on the server: they are parsed before upload.

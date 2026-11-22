@@ -1234,9 +1234,25 @@ describe('SupabaseConnector athlete private details upsert (#1366)', () => {
     await t.connector.uploadData(t.database([entry('PUT', 'device-id', details, 'athlete_private_details')]));
 
     expect(t.from).toHaveBeenCalledWith('athlete_private_details');
-    expect(t.upsert.mock.calls[0][0]).toMatchObject({ id: 'device-id', ...details });
+    // updated_at is the server's: never sent.
+    const { updated_at: _serverStamp, ...sent } = details;
+    expect(t.upsert.mock.calls[0][0]).toEqual({ id: 'device-id', ...sent });
     expect(t.upsert.mock.calls[0][1]).toEqual({ onConflict: 'athlete_id' });
     expect(t.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('never sends updated_at in a PUT, nor in a retried PUT that re-sends the whole local row with it null (the server would refuse it with 23502)', async () => {
+    const t = setup();
+    const row = { id: 'device-id', athlete_id: 'athlete-1', birth_date: '2014-05-03', gender: 'F' };
+    await t.connector.uploadData(t.database([entry('PUT', 'device-id', { ...row, updated_at: null }, 'athlete_private_details')]));
+    await t.connector.uploadData(t.database([entry('PUT', 'device-id', { ...row, updated_at: '2026-11-21T10:00:00.000Z' }, 'athlete_private_details')]));
+
+    expect(t.upsert).toHaveBeenCalledTimes(2);
+    for (const [values, options] of t.upsert.mock.calls) {
+      expect(values).toEqual(row);
+      expect(values).not.toHaveProperty('updated_at');
+      expect(options).toEqual({ onConflict: 'athlete_id' });
+    }
   });
 });
 
