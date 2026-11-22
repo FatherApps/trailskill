@@ -47,6 +47,8 @@
       "save": "Guardar",
       "personal_best": "MP {{time}}",
       "split_row": "{{label}} · {{time}}",
+      "split_meters": "{{label}} · {{meters}} m",
+      "review_meters": "Revisar metros",
       "announce_running": "Cronómetro en marcha",
       "announce_stopped": "Tiempo detenido: {{time}}",
       "exit_title": "¿Descartar este tiempo?",
@@ -74,6 +76,16 @@
       "title": "Completado sin tiempo",
       "finish": "Terminar",
       "error": "No pudimos guardar el cambio en este teléfono. Inténtalo de nuevo."
+    },
+    "meters": {
+      "title": "Metros de los parciales",
+      "help": "Opcional. Corrige o completa los metros de cada parcial. Si no cambias nada, se guardan los de la piscina.",
+      "field_label": "Metros hasta {{label}}",
+      "field_help": "Déjalo vacío si no los sabes.",
+      "save": "Listo",
+      "error_format": "Escribe los metros con números, por ejemplo 37,5.",
+      "error_range": "Los metros deben ser más de 0 y menos de {{distance}} m.",
+      "error_order": "Los metros deben ir en aumento de un parcial al siguiente."
     },
     "correct": {
       "title": "Corregir un tiempo",

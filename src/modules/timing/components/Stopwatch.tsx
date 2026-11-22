@@ -23,6 +23,8 @@ export type StopwatchProps = {
   onStop: () => void;
   onSave: () => void;
   onDiscard: () => void;
+  // Offered once stopped, to correct or complete the meters of the marks. Absent: no such step.
+  onReviewMeters?: () => void;
 };
 
 export function Stopwatch({
@@ -35,6 +37,7 @@ export function Stopwatch({
   onStop,
   onSave,
   onDiscard,
+  onReviewMeters,
 }: StopwatchProps) {
   const { colors, space, typography } = useTheme();
   const running = state === 'running';
@@ -112,6 +115,7 @@ export function Stopwatch({
           primary={{ variant: 'stop', onClock: true, size: 'timing', label: t('timing.stopwatch.stop'), onPress: onStop }}
         />
       )}
+      {stopped && onReviewMeters && <Button variant="ghost" label={t('timing.stopwatch.review_meters')} onPress={onReviewMeters} />}
       {stopped && (
         <ActionRow
           large={large}

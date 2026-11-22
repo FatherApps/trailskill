@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 
 import { t } from '../../../core/i18n';
 import { usePreferences } from '../../../core/preferences';
+import { distances, pools } from '../../../core/sport';
 import { retryFailedRecord, useRecordSyncStates } from '../../../core/sync';
-import type { Hundredths } from '../../../core/time';
+import { formatTime, type Hundredths } from '../../../core/time';
 import { StateView } from '../../../core/ui';
 import {
   CompletedMeasurementTimeError,
@@ -18,8 +19,10 @@ import { stopwatchButtonsHint } from '../data/keyName';
 import type { SessionSetupRepository } from '../data/sessionSetup';
 import { timingButton, type TimingButtonPort } from '../data/timingButton';
 import { buttonSettingsOf, useButtonDisconnect, useTimingButtons } from '../data/useTimingButtons';
+import { defaultSplitMeters, formatMeters } from '../domain/splitMeters';
 import type { ButtonTarget } from '../domain/timingButton';
 import '../i18n';
+import { SplitMetersScreen } from './SplitMetersScreen';
 import { StopwatchScreen } from './StopwatchScreen';
 import { TimeCorrectionScreen } from './TimeCorrectionScreen';
 import { TimingSummaryScreen } from './TimingSummaryScreen';
@@ -55,6 +58,7 @@ type Saved = { id: string; athlete: RosterAthlete; time: Hundredths | null };
 type Step =
   | { kind: 'setup' }
   | { kind: 'timing'; queue: RosterAthlete[]; position: number; saved: Saved[] }
+  | { kind: 'review'; queue: RosterAthlete[]; position: number; saved: Saved[] }
   | { kind: 'summary'; saved: Saved[] }
   | { kind: 'correct'; saved: Saved[]; id: string; error?: string };
 
@@ -66,6 +70,12 @@ function correctionError(error: unknown): string {
 }
 
 const TICK_MS = 50;
+
+// "Parcial 2 · 50 m" when the mark has meters, "Parcial 5" when it has none.
+function splitLabel(index: number, meters: number | null): string {
+  const label = `${t('timing.stopwatch.split')} ${index + 1}`;
+  return meters === null ? label : t('timing.stopwatch.split_meters', { label, meters: formatMeters(meters) });
+}
 
 // Times the athletes of the session one by one with the on-screen stopwatch and saves each time on the phone.
 export function IndividualTimingFlow(props: IndividualTimingFlowProps) {
@@ -90,6 +100,8 @@ function IndividualSession({
   const { choice, selectedIds, ready, changeChoice, changeSelected } = useSessionSetup(setups, roster);
   const [step, setStep] = useState<Step>({ kind: 'setup' });
   const [stopwatch, setStopwatch] = useState<Stopwatch>(idleStopwatch);
+  // The meters of the marks once the person reviewed them; until then each mark has the meters of its pool length.
+  const [reviewed, setReviewed] = useState<(number | null)[] | null>(null);
   const [exitConfirm, setExitConfirm] = useState(false);
   const [, setTick] = useState(0);
 
@@ -139,6 +151,9 @@ function IndividualSession({
   const syncStates = useRecordSyncStates('measurements', savedIds);
 
   const eventSubtitle = eventSubtitleOf(choice);
+  // The setup only offers catalog codes; the choice is typed as plain strings.
+  const poolLength = pools.find((p) => p.code === choice.pool)?.lengthMeters ?? 0;
+  const distance = distances.find((d) => d.code === choice.distance)?.meters ?? 0;
 
   if (step.kind === 'setup') {
     if (!ready) return <StateView kind="loading" />;
@@ -160,6 +175,8 @@ function IndividualSession({
   if (step.kind === 'timing') {
     const athlete = step.queue[step.position]!;
     const elapsed = elapsedAt(stopwatch, now()) ?? (0 as Hundredths);
+    const marks = splitTimes(stopwatch);
+    const meters = reviewed?.length === marks.length ? reviewed : defaultSplitMeters(marks.length, poolLength, distance);
     // The mark is taken here, at the touch: the updater runs when React renders, which may be later.
     const markedAt = (apply: (current: Stopwatch, at: bigint) => Stopwatch) => () => {
       const at = now();
@@ -167,6 +184,7 @@ function IndividualSession({
     };
     const toSetup = () => {
       setStopwatch(reset());
+      setReviewed(null);
       setExitConfirm(false);
       setStep({ kind: 'setup' });
     };
@@ -202,8 +220,8 @@ function IndividualSession({
           hundredths: total,
           parentId: null,
         } as Measurement);
-        for (const time of splitTimes(stopwatch)) {
-          await measurements.add({ ...base, id: randomUUID(), kind: 'split', hundredths: time, parentId: id } as Measurement);
+        for (const [i, time] of marks.entries()) {
+          await measurements.add({ ...base, id: randomUUID(), kind: 'split', hundredths: time, parentId: id, meters: meters[i] ?? null } as Measurement);
         }
       } catch {
         // Nothing is logged with the times (personal data); the stopped time stays on screen so it can be saved again.
@@ -211,6 +229,7 @@ function IndividualSession({
       }
       const saved = [...step.saved, { id, athlete, time: total }];
       setStopwatch(reset());
+      setReviewed(null);
       setStep(step.position + 1 < step.queue.length ? { ...step, position: step.position + 1, saved } : { kind: 'summary', saved });
     }
 
@@ -224,12 +243,17 @@ function IndividualSession({
         state={stopwatch.status === 'idle' ? 'ready' : stopwatch.status}
         elapsedHundredths={elapsed}
         bestTime={best?.athleteId === athlete.id ? best.value : null}
-        splits={splitTimes(stopwatch).map((value, i) => ({ label: `${t('timing.stopwatch.split')} ${i + 1}`, value }))}
+        splits={marks.map((value, i) => ({ label: splitLabel(i, meters[i] ?? null), value }))}
         onStart={markedAt(start)}
         onSplit={markedAt(split)}
         onStop={markedAt(stop)}
         onSave={save}
-        onDiscard={() => setStopwatch(reset())}
+        onDiscard={() => {
+          setStopwatch(reset());
+          setReviewed(null);
+        }}
+        // Optional: without it the meters of the pool are saved.
+        onReviewMeters={marks.length > 0 ? () => setStep({ kind: 'review', queue: step.queue, position: step.position, saved: step.saved }) : undefined}
         // Leaving with a running or stopped time would lose it: the container asks first.
         onBack={() => (stopwatch.status === 'idle' ? toSetup() : setExitConfirm(true))}
         exitConfirmVisible={exitConfirm}
@@ -238,6 +262,25 @@ function IndividualSession({
         buttonsHint={keys.active ? stopwatchButtonsHint(settings.config.startKey, settings.config.splitKey, keys.keyboards[0]?.name) : undefined}
         externalTimerDisconnected={disconnect.disconnected}
         onUseOnScreenStopwatch={disconnect.dismiss}
+      />
+    );
+  }
+
+  if (step.kind === 'review') {
+    const { queue, position, saved } = step;
+    const marks = splitTimes(stopwatch);
+    const meters = reviewed?.length === marks.length ? reviewed : defaultSplitMeters(marks.length, poolLength, distance);
+    const toTiming = () => setStep({ kind: 'timing', queue, position, saved });
+    return (
+      <SplitMetersScreen
+        subtitle={eventSubtitle}
+        distance={distance}
+        splits={marks.map((time, i) => ({ label: `${t('timing.stopwatch.split')} ${i + 1} · ${formatTime(time)}`, meters: meters[i] ?? null }))}
+        onSave={(values) => {
+          setReviewed(values);
+          toTiming();
+        }}
+        onBack={toTiming}
       />
     );
   }
