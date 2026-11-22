@@ -222,13 +222,17 @@ begin
   if p_approve then
     -- The triggers of measurements check that the editor is a coach of both swimmers and that the new swimmer is in the school; none
     -- of that is the rule here (the school's admin decided), so they are off for this statement, like erase_account does, and back on
-    -- before the recompute below, which relies on them. Only the times of this school move.
+    -- before the recomputes below, which rely on them. Only the times of this school move. The swimmer is not linked to the school by
+    -- this: the school's staff read the moved times only while the swimmer has an active link with it (the family always reads them).
     perform app.erasure_guard_off('public.measurements'::regclass);
     update public.measurements t set athlete_id = r.athlete_id where t.athlete_id = r.former_athlete_id and t.school_id = r.school_id;
     get diagnostics v_moved = row_count;
     perform app.erasure_guards_on();
-    -- hidden depends on the authorizations of the swimmer who now owns the times.
+    -- hidden depends on the authorizations of the swimmer who now owns the times, and guardian_visible on the sharing switch of the new
+    -- (swimmer, school) pair or the school's default: the triggers that set them were off, so the moved rows still carry the values of
+    -- the marker's pair and are recomputed here (only the rows whose value changes are written).
     perform public.measurements_recompute_hidden(r.athlete_id);
+    perform public.measurements_recompute_guardian_visible(r.athlete_id, r.school_id);
   end if;
 
   v_status := case when p_approve then 'approved' else 'rejected' end;

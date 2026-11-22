@@ -6,14 +6,17 @@
 -- Times of the marker: f1 and f3 of school A, f2 of school B. The key of M is AAAA-BBBB-CCCC-DDDD-EEEE (a made-up value). All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(46);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('12510000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', pg_temp.u($1), 'role', 'authenticated')::text, true) $$;
 -- The id of the request of a school for X (a client cannot read the table; this reads it as the owner).
-create function pg_temp.rid(school text) returns uuid language sql security definer as $$
-  select id from public.athlete_relink_requests where school_id = pg_temp.u($1) and athlete_id = pg_temp.u('e1') order by created_at desc limit 1 $$;
+create function pg_temp.rid(school text, marker text default 'e2') returns uuid language sql security definer as $$
+  select id from public.athlete_relink_requests where school_id = pg_temp.u($1) and athlete_id = pg_temp.u('e1') and former_athlete_id = pg_temp.u($2) $$;
+-- guardian_visible of a mark, as the owner reads it.
+create function pg_temp.gv(mark text) returns text language sql security definer as $$
+  select case when guardian_visible then 't' else 'f' end from public.measurements where id = pg_temp.u($1) $$;
 create function pg_temp.owner_of(mark text) returns text language sql security definer as $$
   select right(athlete_id::text, 2) from public.measurements where id = pg_temp.u($1) $$;
 create function pg_temp.state(school text) returns text language sql security definer as $$
@@ -40,12 +43,23 @@ insert into public.athlete_schools (athlete_id, school_id, ended_at, ended_by) v
   (pg_temp.u('e2'), pg_temp.u('b1'), now(), pg_temp.u('a1')), (pg_temp.u('e2'), pg_temp.u('b2'), now(), pg_temp.u('a2'));
 insert into public.former_athlete_keys (athlete_id, key_hash)
   values (pg_temp.u('e2'), encode(sha256(convert_to('AAAA-BBBB-CCCC-DDDD-EEEE', 'UTF8')), 'hex'));
+-- The sharing switches: the marker's pair with A shares (its rows start visible to the guardian), X's own pair with A does not and X's
+-- pair with B does, so an approval must recompute guardian_visible both ways.
+insert into public.timing_guardian_sharing (athlete_id, school_id, shares_all, updated_by) values
+  (pg_temp.u('e2'), pg_temp.u('b1'), true, pg_temp.u('a1')), (pg_temp.u('e1'), pg_temp.u('b1'), false, pg_temp.u('a1')),
+  (pg_temp.u('e1'), pg_temp.u('b2'), true, pg_temp.u('a1'));
+-- A second marker M2 (e4) with one time of school A, to reject a request.
+insert into public.athletes (id, first_name, last_name) values (pg_temp.u('e4'), 'Nadador', 'anterior');
+insert into public.athlete_schools (athlete_id, school_id, ended_at, ended_by) values (pg_temp.u('e4'), pg_temp.u('b1'), now(), pg_temp.u('a1'));
+insert into public.former_athlete_keys (athlete_id, key_hash)
+  values (pg_temp.u('e4'), encode(sha256(convert_to('2222-3333-4444-5555-6666', 'UTF8')), 'hex'));
 insert into public.measurements
   (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
 values
   (pg_temp.u('f1'), pg_temp.u('a3'), pg_temp.u('b1'), 'repetition', pg_temp.u('e2'), 3100, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 08:00:00+00'),
   (pg_temp.u('f2'), pg_temp.u('a2'), pg_temp.u('b2'), 'repetition', pg_temp.u('e2'), 3200, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-e', '2026-11-01 09:00:00+00'),
-  (pg_temp.u('f3'), pg_temp.u('a1'), pg_temp.u('b1'), 'repetition', pg_temp.u('e2'), 3300, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 10:00:00+00');
+  (pg_temp.u('f3'), pg_temp.u('a1'), pg_temp.u('b1'), 'repetition', pg_temp.u('e2'), 3300, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 10:00:00+00'),
+  (pg_temp.u('f4'), pg_temp.u('a1'), pg_temp.u('b1'), 'repetition', pg_temp.u('e4'), 3400, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 11:00:00+00');
 
 select has_table('public', 'athlete_relink_requests', 'the requests table exists');
 select hasnt_column('public', 'athlete_relink_requests', 'key_hash', 'the requests table keeps no key, not even its hash');
@@ -105,20 +119,38 @@ select pg_temp.as_user('a1');
 select throws_ok($$select public.resolve_athlete_relink('12510000-0000-4000-8000-0000000000ff', true)$$, '42501', null, 'a request that does not exist answers like a refusal');
 select is(pg_temp.owner_of('f1') || pg_temp.owner_of('f2') || pg_temp.owner_of('f3'), 'e2e2e2', 'no refusal moved a time');
 
+select is(pg_temp.gv('f1') || pg_temp.gv('f2') || pg_temp.gv('f3'), 'tft', 'before the approval the times carry the sharing of the marker (A shares, B does not)');
+
 -- 7. Approving moves the times of that school to the swimmer of the family, even when the swimmer is in no school, and closes the request.
 select is((select count(*)::int from public.school_relink_requests(pg_temp.u('b1')) where status = 'pending' and times_count = 2 and athlete_first_name = 'Athlete'),
   1, 'the inbox of school A shows the pending request with the two times and the name of the swimmer');
 select is(public.resolve_athlete_relink(pg_temp.rid('b1'), true), '{"status": "approved", "moved": 2}'::jsonb, 'the admin of A approves: two times moved');
 select is(pg_temp.owner_of('f1') || pg_temp.owner_of('f3') || pg_temp.owner_of('f2'), 'e1e1e2', 'the times of A are on the swimmer, the time of B stays on the marker');
 select is(pg_temp.state('b1'), 'approved:2', 'the request is closed with the count');
+select is(pg_temp.gv('f1') || pg_temp.gv('f3'), 'ff', 'the moved times follow the sharing of the new pair: X does not share with A, so they are no longer visible to the guardian');
+-- The swimmer is not linked to the school by an approval: its staff read the moved times only while there is an active link.
+select is((select count(*)::int from public.measurements where id in (pg_temp.u('f1'), pg_temp.u('f3'))), 0, 'the staff of A cannot read the moved times while the swimmer has no active link with A');
+reset role;
+insert into public.athlete_schools (athlete_id, school_id) values (pg_temp.u('e1'), pg_temp.u('b1'));
+set local role authenticated;
+select pg_temp.as_user('a1');
+select is((select count(*)::int from public.measurements where id in (pg_temp.u('f1'), pg_temp.u('f3'))), 2, 'once the swimmer is linked with A, its staff read the moved times');
 select is(public.resolve_athlete_relink(pg_temp.rid('b1'), true), '{"status": "already_resolved"}'::jsonb, 'approving again changes nothing');
 select is(pg_temp.owner_of('f1') || pg_temp.owner_of('f3'), 'e1e1', 'and the times are still where they were');
 
--- 8. Rejecting moves nothing and is final for that request.
+-- 8. Rejecting moves nothing and is final for that request (a second marker, M2, with its own request).
+select pg_temp.as_user('a5');
+select is(public.request_athlete_relink(pg_temp.u('e1'), '2222-3333-4444-5555-6666'), 'requested', 'the family asks for the times of the second marker');
+select pg_temp.as_user('a1');
+select is(public.resolve_athlete_relink(pg_temp.rid('b1', 'e4'), false), '{"status": "rejected", "moved": 0}'::jsonb, 'the admin of A rejects it');
+select is(pg_temp.owner_of('f4'), 'e4', 'a rejection moves no time');
+select is(public.resolve_athlete_relink(pg_temp.rid('b1', 'e4'), true), '{"status": "already_resolved"}'::jsonb, 'a rejected request cannot be approved afterwards');
+
+-- 9. School B approves its own request: its time moves and follows the sharing of the new pair (X shares with B).
 select pg_temp.as_user('a2');
-select is(public.resolve_athlete_relink(pg_temp.rid('b2'), false), '{"status": "rejected", "moved": 0}'::jsonb, 'the admin of B rejects');
-select is(pg_temp.owner_of('f2'), 'e2', 'a rejection moves no time');
-select is(public.resolve_athlete_relink(pg_temp.rid('b2'), true), '{"status": "already_resolved"}'::jsonb, 'a rejected request cannot be approved afterwards');
+select is(public.resolve_athlete_relink(pg_temp.rid('b2'), true), '{"moved": 1, "status": "approved"}'::jsonb, 'the admin of B approves: one time moved');
+select is(pg_temp.owner_of('f2'), 'e1', 'the time of B is on the swimmer of the family');
+select is(pg_temp.gv('f2'), 't', 'and it is visible to the guardian because X shares with B (it was not before)');
 reset role;
 select is((select count(*)::int from pg_trigger where tgrelid = 'public.measurements'::regclass and tgenabled <> 'O'), 0, 'the triggers of measurements are back on');
 
