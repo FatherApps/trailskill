@@ -69,6 +69,68 @@ describe('Supabase athlete registration repository', () => {
     await expect(createSupabaseAthleteRegistrationRepository(client).claim(claim)).rejects.toThrow(message);
   });
 
+  it('renews with renew_athlete_claim_link and returns the new link', async () => {
+    const client = { rpc: jest.fn().mockResolvedValue({ data: { athlete_id: 'a1', token: 'new', expires_at: '2026-12-06T10:00:00+00:00' }, error: null }) };
+
+    await expect(createSupabaseAthleteRegistrationRepository(client).renew('a1')).resolves.toEqual({ athleteId: 'a1', token: 'new', expiresAt: '2026-12-06T10:00:00+00:00' });
+
+    expect(client.rpc).toHaveBeenCalledWith('renew_athlete_claim_link', { athlete_id: 'a1' });
+  });
+
+  it('revokes with revoke_athlete_claim_link', async () => {
+    const client = { rpc: jest.fn().mockResolvedValue({ data: null, error: null }) };
+
+    await expect(createSupabaseAthleteRegistrationRepository(client).revoke('a1')).resolves.toBeUndefined();
+
+    expect(client.rpc).toHaveBeenCalledWith('revoke_athlete_claim_link', { athlete_id: 'a1' });
+  });
+
+  it.each([
+    ['42501', 'not_allowed'],
+    ['55000', 'not_open'],
+  ])('maps the database error %s of renew and revoke to %s', async (code, message) => {
+    const client = { rpc: jest.fn().mockResolvedValue(failure(code)) };
+
+    await expect(createSupabaseAthleteRegistrationRepository(client).renew('a1')).rejects.toThrow(message);
+    await expect(createSupabaseAthleteRegistrationRepository(client).revoke('a1')).rejects.toThrow(message);
+  });
+
+  describe('findLink', () => {
+    const reader = (data: unknown, error: (Error & { code?: string }) | null = null) => {
+      const eq = jest.fn(() => ({ maybeSingle: () => Promise.resolve({ data, error }) }));
+      const select = jest.fn(() => ({ eq }));
+      return { client: { from: jest.fn(() => ({ select })) }, select, eq };
+    };
+    const rpc = { rpc: jest.fn() };
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const past = new Date(Date.now() - 86_400_000).toISOString();
+
+    it.each([
+      ['open', { token: 't', expires_at: future, claimed_at: null, revoked_at: null }],
+      ['expired', { token: 't', expires_at: past, claimed_at: null, revoked_at: null }],
+      ['revoked', { token: 't', expires_at: future, claimed_at: null, revoked_at: past }],
+      ['claimed', { token: 't', expires_at: past, claimed_at: past, revoked_at: null }],
+    ])('reads the claim row of the swimmer and says it is %s', async (status, row) => {
+      const { client, select, eq } = reader(row);
+
+      await expect(createSupabaseAthleteRegistrationRepository(rpc, client).findLink('a1')).resolves.toEqual({ status, token: 't', expiresAt: row.expires_at });
+
+      expect(client.from).toHaveBeenCalledWith('athlete_claims');
+      expect(select).toHaveBeenCalledWith('token, expires_at, claimed_at, revoked_at');
+      expect(eq).toHaveBeenCalledWith('athlete_id', 'a1');
+    });
+
+    it('answers null when the swimmer has no link, or the caller may not read it', async () => {
+      await expect(createSupabaseAthleteRegistrationRepository(rpc, reader(null).client).findLink('a1')).resolves.toBeNull();
+    });
+
+    it('rejects with the error of the read', async () => {
+      const offline = Object.assign(new Error('Failed to fetch'), { code: '' });
+
+      await expect(createSupabaseAthleteRegistrationRepository(rpc, reader(null, offline).client).findLink('a1')).rejects.toBe(offline);
+    });
+  });
+
   it('rejects with the original error for anything else, offline included', async () => {
     const offline = Object.assign(new Error('Failed to fetch'), { code: '' });
     const client = { rpc: jest.fn().mockResolvedValue({ data: null, error: offline }) };
@@ -168,5 +230,73 @@ describe('in-memory athlete registration repository', () => {
 
     expect(repository.registered).toEqual([]);
     expect(repository.claimed).toEqual([]);
+  });
+  describe('renewing and revoking', () => {
+    const open = async (now = () => new Date('2026-11-22T10:00:00.000Z')) => {
+      const repository = createInMemoryAthleteRegistrationRepository({ now });
+      const first = await repository.register(registration);
+      const claimWith = (token: string) => repository.claim({ ...claim, token });
+      return { repository, first, claimWith };
+    };
+
+    it('renew gives a new token and the old one stops working at once', async () => {
+      const { repository, first, claimWith } = await open();
+
+      const renewed = await repository.renew('a1');
+
+      expect(renewed.token).not.toBe(first.token);
+      expect(renewed.expiresAt).toBe('2026-12-06T10:00:00.000Z');
+      await expect(claimWith(first.token)).rejects.toThrow('link_not_found');
+      await expect(claimWith(renewed.token)).resolves.toBe('a1');
+    });
+
+    it('revoke makes the link fail with link_not_found, and renewing it issues a new one', async () => {
+      const { repository, first, claimWith } = await open();
+
+      await repository.revoke('a1');
+      await expect(claimWith(first.token)).rejects.toThrow('link_not_found');
+      await expect(repository.findLink('a1')).resolves.toMatchObject({ status: 'revoked' });
+
+      const renewed = await repository.renew('a1');
+      await expect(repository.findLink('a1')).resolves.toMatchObject({ status: 'open', token: renewed.token });
+      await expect(claimWith(renewed.token)).resolves.toBe('a1');
+    });
+
+    it('is refused for anyone who is not the admin who registered it or an admin of the school, as the server does', async () => {
+      const { repository } = await open();
+      repository.userId = 'someone-else';
+
+      await expect(repository.renew('a1')).rejects.toThrow('not_allowed');
+      await expect(repository.revoke('a1')).rejects.toThrow('not_allowed');
+      await expect(repository.renew('unknown')).rejects.toThrow('not_allowed');
+      await expect(repository.findLink('a1')).resolves.toBeNull();
+
+      repository.adminSchoolIds = ['s1'];
+      await expect(repository.renew('a1')).resolves.toMatchObject({ athleteId: 'a1' });
+    });
+
+    it('is refused with not_open once the link was claimed or the school ended the swimmer', async () => {
+      const { repository, first, claimWith } = await open();
+      await claimWith(first.token);
+
+      await expect(repository.renew('a1')).rejects.toThrow('not_open');
+      await expect(repository.revoke('a1')).rejects.toThrow('not_open');
+      await expect(repository.findLink('a1')).resolves.toMatchObject({ status: 'claimed' });
+
+      const other = await open();
+      other.repository.endedAthleteIds = ['a1'];
+      await expect(other.repository.renew('a1')).rejects.toThrow('not_open');
+      await expect(other.claimWith(other.first.token)).rejects.toThrow('link_not_found');
+    });
+
+    it('reports an expired link as expired and renews it', async () => {
+      let time = new Date('2026-11-22T10:00:00.000Z');
+      const { repository, claimWith } = await open(() => time);
+      time = new Date('2026-12-07T10:00:00.000Z');
+
+      await expect(repository.findLink('a1')).resolves.toMatchObject({ status: 'expired' });
+      const renewed = await repository.renew('a1');
+      await expect(claimWith(renewed.token)).resolves.toBe('a1');
+    });
   });
 });
