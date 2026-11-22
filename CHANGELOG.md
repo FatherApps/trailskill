@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.13.0](https://github.com/FatherApps/trailskill/compare/v0.12.0...v0.13.0) (2026-11-22)
+
+
+### Features
+
+* **accounts:** identity number section on the Editar screen ([#1393](https://github.com/FatherApps/trailskill/issues/1393)) ([99b8395](https://github.com/FatherApps/trailskill/commit/99b839513a51c57358f0776d7ed5d7e7985e846b)), closes [#1363](https://github.com/FatherApps/trailskill/issues/1363)
+* **athletes:** birth date and gender of the swimmer, only for their managers (server) ([#1389](https://github.com/FatherApps/trailskill/issues/1389)) ([1212156](https://github.com/FatherApps/trailskill/commit/12121567a1d1b147fe8d0e1b2a4084f535b80c74)), closes [#1366](https://github.com/FatherApps/trailskill/issues/1366)
+* **athletes:** edit a swimmer's first and last name on the Editar screen ([#1390](https://github.com/FatherApps/trailskill/issues/1390)) ([516281f](https://github.com/FatherApps/trailskill/commit/516281f15094c45ffcdb593128bc604ac6a5f028)), closes [#1365](https://github.com/FatherApps/trailskill/issues/1365)
+* **athletes:** fecha de nacimiento y género en la pantalla Editar ([#1405](https://github.com/FatherApps/trailskill/issues/1405)) ([04f660c](https://github.com/FatherApps/trailskill/commit/04f660cf750350159b2b5804178aec1c34c12f84)), closes [#1367](https://github.com/FatherApps/trailskill/issues/1367)
+* **athletes:** remove the health data of the swimmer ([#1408](https://github.com/FatherApps/trailskill/issues/1408)) ([bdca3d8](https://github.com/FatherApps/trailskill/commit/bdca3d82851f59fde07ef1741236b2e852375935)), closes [#1407](https://github.com/FatherApps/trailskill/issues/1407)
+* **athletes:** school admin emergency reveal of health data with an access log ([#1401](https://github.com/FatherApps/trailskill/issues/1401)) ([0ba1383](https://github.com/FatherApps/trailskill/commit/0ba13830044eb7e82a32b4f0c8ea351bd0a8fd32)), closes [#1370](https://github.com/FatherApps/trailskill/issues/1370)
+* **settings:** split Ajustes into Cronómetro avanzado, Configuración de video and Mi cuenta ([#1410](https://github.com/FatherApps/trailskill/issues/1410)) ([fcdfc6f](https://github.com/FatherApps/trailskill/commit/fcdfc6f8bd0fef4eb121b82081ad85aa3b813aa1))
+
+
+### Bug Fixes
+
+* **athletes:** stricter health ranges, blank allergies and withdrawal race ([#1391](https://github.com/FatherApps/trailskill/issues/1391)) ([fdb9002](https://github.com/FatherApps/trailskill/commit/fdb900270dac47d2f085c825c82ba6e68b32a847)), closes [#1369](https://github.com/FatherApps/trailskill/issues/1369)
+* **family-timing:** ask for the camera permission without the web-only availability gate ([#1412](https://github.com/FatherApps/trailskill/issues/1412)) ([dcd9eac](https://github.com/FatherApps/trailskill/commit/dcd9eac7dd6adb2fa5091cd5ffeaa8b349eb9017)), closes [#1411](https://github.com/FatherApps/trailskill/issues/1411)
+
 ## [0.12.0](https://github.com/FatherApps/trailskill/compare/v0.11.0...v0.12.0) (2026-11-21)
 
 
