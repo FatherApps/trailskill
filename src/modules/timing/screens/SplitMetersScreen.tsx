@@ -17,12 +17,14 @@ export type SplitMetersScreenProps = {
   // One per mark, in order: "Parcial 2 · 0:25,10" and the meters it has now (`null`: none).
   splits: { label: string; meters: number | null }[];
   // Meters increase and stay above 0 and below the distance; an empty field is no meters, never 0.
+  // Why the container could not save, already worded for the person; the fields' own errors come first.
+  error?: string;
   onSave: (meters: (number | null)[]) => void;
   onBack: () => void;
 };
 
 // The optional step between stopping and saving: the meters were filled from the pool, and any of them can be corrected.
-export function SplitMetersScreen({ subtitle, distance, splits, onSave, onBack }: SplitMetersScreenProps) {
+export function SplitMetersScreen({ subtitle, distance, splits, error: saveError, onSave, onBack }: SplitMetersScreenProps) {
   const { colors, space, typography } = useTheme();
   const [texts, setTexts] = useState(() => splits.map((split) => (split.meters === null ? '' : formatMeters(split.meters))));
   const [reason, setReason] = useState<'format' | 'range' | 'order'>();
@@ -33,7 +35,7 @@ export function SplitMetersScreen({ subtitle, distance, splits, onSave, onBack }
     else setReason(parsed.reason);
   }
 
-  const error = reason && t(`timing.meters.error_${reason}`, { distance });
+  const error = (reason && t(`timing.meters.error_${reason}`, { distance })) || saveError;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>

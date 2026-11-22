@@ -9,6 +9,7 @@ import { formatTime, type Hundredths } from '../../../core/time';
 import { StateView } from '../../../core/ui';
 import {
   CompletedMeasurementTimeError,
+  InvalidMeasurementMetersError,
   InvalidMeasurementTimeError,
   type Measurement,
   type MeasurementEvent,
@@ -58,7 +59,7 @@ type Saved = { id: string; athlete: RosterAthlete; time: Hundredths | null };
 type Step =
   | { kind: 'setup' }
   | { kind: 'timing'; queue: RosterAthlete[]; position: number; saved: Saved[] }
-  | { kind: 'review'; queue: RosterAthlete[]; position: number; saved: Saved[] }
+  | { kind: 'review'; queue: RosterAthlete[]; position: number; saved: Saved[]; error?: string }
   | { kind: 'summary'; saved: Saved[] }
   | { kind: 'correct'; saved: Saved[]; id: string; error?: string };
 
@@ -223,8 +224,12 @@ function IndividualSession({
         for (const [i, time] of marks.entries()) {
           await measurements.add({ ...base, id: randomUUID(), kind: 'split', hundredths: time, parentId: id, meters: meters[i] ?? null } as Measurement);
         }
-      } catch {
+      } catch (error) {
         // Nothing is logged with the times (personal data); the stopped time stays on screen so it can be saved again.
+        // Refused meters send the person back to where they are set, with the reason.
+        if (error instanceof InvalidMeasurementMetersError) {
+          setStep({ kind: 'review', queue: step.queue, position: step.position, saved: step.saved, error: t('timing.meters.error_save') });
+        }
         return;
       }
       const saved = [...step.saved, { id, athlete, time: total }];
@@ -281,6 +286,7 @@ function IndividualSession({
           toTiming();
         }}
         onBack={toTiming}
+        error={step.error}
       />
     );
   }

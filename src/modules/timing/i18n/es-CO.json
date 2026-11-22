@@ -85,7 +85,8 @@
       "save": "Listo",
       "error_format": "Escribe los metros con números, por ejemplo 37,5.",
       "error_range": "Los metros deben ser más de 0 y menos de {{distance}} m.",
-      "error_order": "Los metros deben ir en aumento de un parcial al siguiente."
+      "error_order": "Los metros deben ir en aumento de un parcial al siguiente.",
+      "error_save": "No pudimos guardar los metros. Revísalos e inténtalo de nuevo."
     },
     "correct": {
       "title": "Corregir un tiempo",

@@ -5,6 +5,7 @@ import {
   createInMemoryMeasurementRepository,
   createInMemorySessionSetupRepository,
   IndividualTimingFlow,
+  InvalidMeasurementMetersError,
   type IndividualTimingFlowProps,
 } from '..';
 
@@ -302,6 +303,31 @@ describe('individual timing flow', () => {
       await press('Listo');
 
       expect(await screen.findByText(message)).toBeOnTheScreen();
+      expect(screen.getByText('Metros de los parciales')).toBeOnTheScreen();
+    });
+
+    it('sends the person back to the review with the reason when the meters are refused on saving', async () => {
+      const inner = createInMemoryMeasurementRepository();
+      const refusing = {
+        ...inner,
+        add: async (m: Parameters<typeof inner.add>[0]) => {
+          if (m.kind === 'split') throw new InvalidMeasurementMetersError('Meters must be above 0 and below 100000');
+          return inner.add(m);
+        },
+      };
+      await setup({ measurements: refusing });
+      await screen.findByText('Nadadores (2 de 3)');
+      await fireEvent.press(screen.getByRole('radio', { name: '100 m' }));
+      await press('Empezar toma');
+      await screen.findByText('Ana M. · 1 de 2');
+      await press('Iniciar');
+      clock += 10n * second;
+      await press('Parcial');
+      clock += 10n * second;
+      await press('Detener');
+      await press('Guardar');
+
+      expect(await screen.findByText('No pudimos guardar los metros. Revísalos e inténtalo de nuevo.')).toBeOnTheScreen();
       expect(screen.getByText('Metros de los parciales')).toBeOnTheScreen();
     });
 
