@@ -42,6 +42,14 @@ export {
   type AthleteSchoolRow,
 } from './data/athleteSchools';
 export {
+  createInMemoryAthleteRegistrationRepository,
+  createSupabaseAthleteRegistrationRepository,
+  type AthleteClaimLink,
+  type AthleteRegistrationRepository,
+  type ClaimAthleteInput,
+  type RegisterAthleteInput,
+} from './data/athleteRegistration';
+export {
   createInMemoryAthleteSchoolEndRepository,
   createSupabaseAthleteSchoolEndRepository,
   type AthleteSchoolEndRepository,
