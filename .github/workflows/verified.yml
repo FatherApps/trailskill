@@ -6,6 +6,7 @@ on:
 
 permissions:
   pull-requests: write
+  checks: read
 
 # The last event decides the final status. Every run decides from the live state (draft, labels, and
 # whether the label is older than the head commit), never from its own event, so a cancelled run
@@ -57,7 +58,9 @@ jobs:
             # The label counts only if it was added after the head commit arrived. ISO 8601 UTC strings
             # compare as text. A missing timestamp reads as stale (fail closed).
             labeled_at=$(gh api --paginate "repos/$GH_REPO/issues/$PR_NUMBER/events" --jq '.[] | select(.event == "labeled" and .label.name == "verificado") | .created_at' | tail -n 1)
-            head_at=$(gh api "repos/$GH_REPO/commits/$HEAD_SHA/check-suites" --jq '[.check_suites[].created_at] | sort | first // empty')
+            # --paginate runs --jq once per page, so the earliest time is taken over all pages after the
+            # call (sed, not head: head would close the pipe early and trip pipefail).
+            head_at=$(gh api --paginate "repos/$GH_REPO/commits/$HEAD_SHA/check-suites?per_page=100" --jq '.check_suites[].created_at' | sort | sed -n 1p)
             if [ -z "$labeled_at" ] || [ -z "$head_at" ] || [[ ! "$labeled_at" > "$head_at" ]]; then
               stale=true
             fi
