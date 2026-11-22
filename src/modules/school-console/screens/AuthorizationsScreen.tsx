@@ -11,6 +11,7 @@ import {
   type AuthorizationPurpose,
   type SharingRequestsState,
 } from '../components/AuthorizationList';
+import { RelinkRequestList, relinkAthleteName, type RelinkRequestsState } from '../components/RelinkRequestList';
 import { SectionFrame, type SectionView } from '../components/SectionFrame';
 import type { ConsoleSectionProps } from './ConsoleScreen';
 
@@ -20,6 +21,8 @@ export type AuthorizationsContent = {
   athletes: AthleteAuthorizations[];
   // Other schools asking to see this school's results, pending or approved; otherwise why they are not shown: still loading, offline, or the online read failed.
   sharingRequests: SharingRequestsState;
+  // Families asking this school for the times it kept of an erased swimmer (issue 1251). Absent: the area is not shown.
+  relinkRequests?: RelinkRequestsState;
 };
 
 export type AuthorizationsView = SectionView<AuthorizationsContent>;
@@ -33,6 +36,9 @@ export type AuthorizationsScreenProps = ConsoleSectionProps & {
   onWithdrawSharing: (requestId: string) => void;
   // Reads the requests again after a failed read.
   onRetrySharingRequests: () => void;
+  // Approves or rejects a relink request; fires only after the ConfirmSheet is confirmed.
+  onResolveRelink?: (requestId: string, approve: boolean) => void;
+  onRetryRelink?: () => void;
   // Why the last action failed, shown above the list; null or absent when nothing failed.
   resendError?: string | null;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
@@ -42,7 +48,10 @@ export type AuthorizationsScreenProps = ConsoleSectionProps & {
 type RequestAction = 'approve' | 'withdraw' | 'reject';
 
 // The sheet that is open: re-sending a purpose to an athlete's guardian, or approving, withdrawing or rejecting another school's request.
-type Pending = { kind: 'resend'; athleteId: string; purpose: AuthorizationPurpose } | { kind: RequestAction; requestId: string };
+type Pending =
+  | { kind: 'resend'; athleteId: string; purpose: AuthorizationPurpose }
+  | { kind: RequestAction; requestId: string }
+  | { kind: 'relink_approve' | 'relink_reject'; requestId: string };
 
 // Presentational: no network, database or repository; the caller supplies everything and handles the events.
 export function AuthorizationsScreen({
@@ -54,6 +63,8 @@ export function AuthorizationsScreen({
   onApproveSharing,
   onWithdrawSharing,
   onRetrySharingRequests,
+  onResolveRelink,
+  onRetryRelink,
   resendError,
   scrollEnabled,
 }: AuthorizationsScreenProps) {
@@ -84,6 +95,27 @@ export function AuthorizationsScreen({
           onConfirm={() => {
             close();
             onResend(athlete.id, pending.purpose);
+          }}
+          onCancel={close}
+        />
+      );
+    }
+  } else if (pending?.kind === 'relink_approve' || pending?.kind === 'relink_reject') {
+    const relinks = Array.isArray(content?.relinkRequests) ? content.relinkRequests : [];
+    const request = relinks.find((row) => row.id === pending.requestId);
+    if (request) {
+      const prefix = `schoolConsole.authorizations.relink.${pending.kind === 'relink_approve' ? 'approve' : 'reject'}_confirm`;
+      const athlete = relinkAthleteName(request);
+      sheet = (
+        <ConfirmSheet
+          visible
+          title={t(`${prefix}.title`, { athlete })}
+          message={t(`${prefix}.message`, { athlete })}
+          confirmLabel={t(`${prefix}.confirm`)}
+          cancelLabel={t('schoolConsole.authorizations.cancel')}
+          onConfirm={() => {
+            close();
+            onResolveRelink?.(request.id, pending.kind === 'relink_approve');
           }}
           onCancel={close}
         />
@@ -129,9 +161,17 @@ export function AuthorizationsScreen({
       }}
       overlay={sheet}
     >
-      {({ athletes, sharingRequests }) => (
+      {({ athletes, sharingRequests, relinkRequests }) => (
         <>
           {resendError ? <Banner variant="warn" icon="error">{resendError}</Banner> : null}
+          {relinkRequests !== undefined && relinkRequests !== 'loading' && !(Array.isArray(relinkRequests) && relinkRequests.length === 0) && (
+            <RelinkRequestList
+              requests={relinkRequests}
+              onApprove={(requestId) => setPending({ kind: 'relink_approve', requestId })}
+              onReject={(requestId) => setPending({ kind: 'relink_reject', requestId })}
+              onRetry={() => onRetryRelink?.()}
+            />
+          )}
           {sharingRequests !== 'loading' && !(Array.isArray(sharingRequests) && sharingRequests.length === 0) && (
             <SharingRequestList
               requests={sharingRequests}

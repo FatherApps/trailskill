@@ -29,10 +29,10 @@ const sourceFiles = filesIn(moduleDir).filter((file) => !file.includes('__tests_
 
 describe('athletes gallery entries', () => {
   it('have unique ids and the expected states', () => {
-    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'progressChart', 'importPrompt', 'photoCard', 'photoRemoveSheet', 'athleteProfileScreen', 'myAthletesScreen', 'athleteNameForm', 'athletePrivateDetailsForm', 'athleteEditScreen', 'marksScreen']);
+    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'progressChart', 'importPrompt', 'photoCard', 'photoRemoveSheet', 'athleteProfileScreen', 'myAthletesScreen', 'athleteNameForm', 'athletePrivateDetailsForm', 'athleteEditScreen', 'relinkRequestScreen', 'marksScreen']);
     expect(stateKeys('athleteNameForm')).toEqual(['unchanged', 'edited', 'empty-name', 'saved-offline', 'not-sent', 'save-failed', 'long-text']);
     expect(stateKeys('athletePrivateDetailsForm')).toEqual(['empty', 'saved', 'edited', 'future-date', 'before-1900', 'saved-offline', 'not-sent', 'save-failed']);
-    expect(stateKeys('athleteEditScreen')).toEqual(['with-photo', 'with-birth-date-gender', 'long-text']);
+    expect(stateKeys('athleteEditScreen')).toEqual(['with-photo', 'with-birth-date-gender', 'with-relink', 'long-text']);
     expect(stateKeys('myAthletesScreen')).toEqual(['with-data', 'with-avatar', 'long-text', 'empty', 'loading']);
     expect(stateKeys('marksScreen')).toEqual(['with-data', 'long-pool', 'long-text', 'empty', 'loading', 'error']);
     expect(stateKeys('profileHeader')).toEqual(['one-school', 'with-avatar', 'several-schools', 'pending-authorization', 'with-event-chips', 'no-sync-info', 'long-text', 'long-text-with-event-chips']);

@@ -145,7 +145,10 @@
     "not_found": {
       "title": "No encontramos al deportista",
       "message": "Solo quien administra al deportista puede editarlo. Vuelve y elige uno de tus deportistas."
-    }
+    },
+    "relink_title": "Tiempos de una escuela anterior",
+    "relink_text": "Si borraste una cuenta, puedes pedir a la escuela que te devuelva los tiempos que conservó.",
+    "relink_action": "Recuperar tiempos"
   },
   "marks": {
     "title": "Marcas de {{name}}",
@@ -280,5 +283,38 @@
       "keep": "Conservarla"
     },
     "sheet_error": "No pudimos borrar la foto. Revisa la señal e inténtalo de nuevo."
+  },
+  "relink": {
+    "title": "Recuperar tiempos de la escuela",
+    "intro": "Si antes borraste una cuenta, la escuela conservó los tiempos de ese nadador sin su nombre. Escribe la clave que te enviamos por correo y la escuela decide si los pasa a {{name}}.",
+    "key_label": "Clave del deportista anterior",
+    "key_help": "Son 20 letras y números en grupos de cuatro, como AAAA-BBBB-CCCC-DDDD-EEEE.",
+    "submit": "Pedir los tiempos",
+    "sending": "Enviando…",
+    "result": {
+      "requested": "Listo: pedimos los tiempos a la escuela. Aquí verás qué responde.",
+      "already_requested": "Ya habías pedido estos tiempos. Esperamos la respuesta de la escuela.",
+      "nothing_to_relink": "Esa clave es válida, pero ya no quedan tiempos por pasar.",
+      "invalid_key": "No reconocemos esa clave. Revísala e inténtalo de nuevo.",
+      "rate_limited": "Hiciste demasiados intentos. Espera 24 horas e inténtalo de nuevo.",
+      "error": "No pudimos enviar la solicitud. Revisa tu conexión e inténtalo de nuevo."
+    },
+    "requests": {
+      "title": "Tus solicitudes",
+      "empty": "Aún no has pedido tiempos.",
+      "error_message": "No pudimos leer tus solicitudes. Revisa tu conexión.",
+      "retry": "Reintentar",
+      "asked_on": "Pedida el {{date}}",
+      "status": {
+        "pending": "Pendiente",
+        "approved": "Aprobada",
+        "rejected": "Rechazada"
+      },
+      "pending_detail": "La escuela aún no responde",
+      "rejected_detail": "La escuela no pasó los tiempos",
+      "approved_detail_one": "Se pasó {{count}} tiempo a {{name}}",
+      "approved_detail_other": "Se pasaron {{count}} tiempos a {{name}}"
+    },
+    "key_required": "Escribe la clave para pedir los tiempos."
   }
 }

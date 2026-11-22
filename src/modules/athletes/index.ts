@@ -139,3 +139,10 @@ export {
   type RelinkStatus,
   type SchoolRelinkRequest,
 } from './data/athleteRelink';
+export { RelinkRequestContainer, type RelinkRequestContainerProps } from './screens/RelinkRequestContainer';
+export {
+  RelinkRequestScreen,
+  type RelinkRequestScreenProps,
+  type RelinkRequestState,
+  type RelinkRequestsView,
+} from './screens/RelinkRequestScreen';
