@@ -99,3 +99,12 @@ export {
   type UseTimingButtonsOptions,
 } from './data/useTimingButtons';
 export { arrivalButtonsHint, keyName, stopwatchButtonsHint } from './data/keyName';
+export {
+  consistency,
+  defaultMarkMeters,
+  halfSplit,
+  paceSegments,
+  projectFinish,
+  type PaceMark,
+  type PaceSegment,
+} from './domain/pace';
