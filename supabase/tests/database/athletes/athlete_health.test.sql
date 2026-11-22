@@ -5,7 +5,7 @@
 -- adult athlete X (e4, relation self, granted), guardian M (e5, granted, then marked for deletion), stranger N, guardian E (e6, erased).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(48);
+select plan(62);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('13690000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as
@@ -44,16 +44,19 @@ join public.authorization_texts t on t.purpose = 'store_health_data' and t.versi
 -- Rows that already exist, written as the table owner: e1 (G, granted), e2 (G, never granted), e3 (G2), e6 (guardian E, becomes a marker).
 insert into public.athlete_health (athlete_id, blood_type, weight_kg, height_cm, measured_on, allergies) values
   (pg_temp.u('e1'), 'O+', 45.5, 150.0, '2026-11-01', 'Penicilina'),
-  (pg_temp.u('e2'), 'A-', 50, 160, '2026-11-01', null),
   (pg_temp.u('e3'), 'B+', 60, 170, null, null),
   (pg_temp.u('e6'), 'AB-', 40, 140, null, 'Nueces');
+-- e2 never had the authorization, so no insert would be accepted: its row is written with the triggers off (a row left from before).
+set local session_replication_role = replica;
+insert into public.athlete_health (athlete_id, blood_type, weight_kg, height_cm, measured_on)
+values (pg_temp.u('e2'), 'A-', 50, 160, '2026-11-01');
+set local session_replication_role = origin;
 
 -- Structure.
 select is((select count(*) from public.authorization_purposes where code = 'store_health_data'), 1::bigint, 'store_health_data is an authorization purpose');
 select is((select relrowsecurity from pg_class where oid = 'public.athlete_health'::regclass), true, 'athlete_health has row level security enabled');
 select ok(exists (select 1 from pg_publication_tables where pubname = 'powersync' and tablename = 'athlete_health'), 'athlete_health is in the powersync publication');
 select ok(exists (select 1 from pg_trigger where tgrelid = 'public.athlete_health'::regclass and tgname = 'account_marked_refuses_write'), 'athlete_health has the marked-account guard');
-select ok(pg_get_functiondef('public.accept_invitation(text,uuid,uuid,timestamptz,jsonb)'::regprocedure) not like '%store_health_data%', 'store_health_data is not part of the joint acceptance of the school');
 select ok(not has_table_privilege('anon', 'public.athlete_health', 'select, insert, update, delete'), 'anon has no privilege on athlete_health');
 select is((select count(*) from pg_policies where schemaname = 'public' and tablename = 'athlete_health'), 4::bigint, 'athlete_health has the four manager policies and no other');
 
@@ -88,10 +91,20 @@ select throws_ok($$update public.athlete_health set blood_type = 'o+' where athl
 select throws_ok($$update public.athlete_health set allergies = repeat('a', 501) where athlete_id = pg_temp.u('e1')$$, '23514', null, 'allergies over 500 characters are refused');
 select lives_ok($$update public.athlete_health set allergies = repeat('a', 500) where athlete_id = pg_temp.u('e1')$$, 'allergies of exactly 500 characters are accepted');
 select throws_ok($$update public.athlete_health set allergies = '' where athlete_id = pg_temp.u('e1')$$, '23514', null, 'empty allergies text is refused (the app stores null)');
+select throws_ok($$update public.athlete_health set allergies = '   ' where athlete_id = pg_temp.u('e1')$$, '23514', null, 'allergies made only of spaces are refused');
+select throws_ok($$update public.athlete_health set weight_kg = 9.9 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'weight 9.9 kg is refused');
+select lives_ok($$update public.athlete_health set weight_kg = 10 where athlete_id = pg_temp.u('e1')$$, 'weight 10 kg is accepted');
+select lives_ok($$update public.athlete_health set weight_kg = 200 where athlete_id = pg_temp.u('e1')$$, 'weight 200 kg is accepted');
+select throws_ok($$update public.athlete_health set weight_kg = 200.1 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'weight 200.1 kg is refused');
 select throws_ok($$update public.athlete_health set weight_kg = 0 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'weight 0 is refused');
-select throws_ok($$update public.athlete_health set weight_kg = 301 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'weight over 300 kg is refused');
-select throws_ok($$update public.athlete_health set height_cm = 29 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'height under 30 cm is refused');
-select throws_ok($$update public.athlete_health set height_cm = 251 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'height over 250 cm is refused');
+select lives_ok($$update public.athlete_health set weight_kg = 45.5 where athlete_id = pg_temp.u('e1')$$, 'weight with one decimal is accepted');
+select throws_ok($$update public.athlete_health set weight_kg = 45.55 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'weight with two decimals is refused, not rounded');
+select throws_ok($$update public.athlete_health set height_cm = 79.9 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'height 79.9 cm is refused');
+select lives_ok($$update public.athlete_health set height_cm = 80 where athlete_id = pg_temp.u('e1')$$, 'height 80 cm is accepted');
+select lives_ok($$update public.athlete_health set height_cm = 230 where athlete_id = pg_temp.u('e1')$$, 'height 230 cm is accepted');
+select throws_ok($$update public.athlete_health set height_cm = 230.1 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'height 230.1 cm is refused');
+select lives_ok($$update public.athlete_health set height_cm = 150.5 where athlete_id = pg_temp.u('e1')$$, 'height with one decimal is accepted');
+select throws_ok($$update public.athlete_health set height_cm = 150.55 where athlete_id = pg_temp.u('e1')$$, '23514', null, 'height with two decimals is refused, not rounded');
 
 -- Another guardian, a stranger, the coach, the school admin and anon: nothing.
 select pg_temp.as_user('a4');
@@ -121,6 +134,36 @@ set local role authenticated;
 select pg_temp.as_user('a5');
 select lives_ok($$insert into public.athlete_health (athlete_id, blood_type) values (pg_temp.u('e4'), 'B-')$$, 'the adult athlete inserts their own row');
 reset role;
+
+-- Joining a school (accept_invitation, #1328) neither requires nor grants store_health_data: e7 joins school one through a real
+-- invitation, and its status shows the three school purposes and nothing for health. Sending store_health_data too is refused.
+reset role;
+insert into public.athletes (id, first_name, last_name) values (pg_temp.u('e7'), 'Athlete', 'H7');
+insert into public.athlete_managers (user_id, athlete_id, relation) values (pg_temp.u('a1'), pg_temp.u('e7'), 'guardian');
+set local role authenticated;
+select pg_temp.as_user('a3');
+insert into public.school_invitations (id, school_id, group_id) values (pg_temp.u('c1'), pg_temp.u('b1'), pg_temp.u('d1'));
+reset role;
+select set_config('request.jwt.claims', '', true);
+select set_config('test.token', (select token from public.school_invitations where id = pg_temp.u('c1')), true);
+create function pg_temp.auths(extra text[]) returns jsonb language sql as $$
+  select jsonb_agg(jsonb_build_object('id', gen_random_uuid(), 'purpose', p,
+    'text_id', (select id from public.authorization_texts where purpose = p and language = 'es-CO' order by version limit 1)) order by p)
+  from unnest(array['record_times', 'import_official_results', 'share_results_with_school'] || extra) as p $$;
+grant execute on function pg_temp.auths(text[]) to authenticated;
+set local role authenticated;
+select pg_temp.as_user('a1');
+select throws_ok($$select public.accept_invitation(current_setting('test.token'), pg_temp.u('e7'), null, now(), pg_temp.auths(array['store_health_data']))$$,
+  '22023', null, 'joining a school refuses a fourth object for store_health_data');
+select lives_ok($$select public.accept_invitation(current_setting('test.token'), pg_temp.u('e7'), null, now(), pg_temp.auths(array[]::text[]))$$,
+  'the guardian joins the school with the three school authorizations');
+reset role;
+select is((select count(*) from public.authorization_status where athlete_id = pg_temp.u('e7') and is_granted), 3::bigint,
+  'joining the school granted exactly the three school purposes');
+select is((select count(*) from public.authorization_status where athlete_id = pg_temp.u('e7') and purpose = 'store_health_data'), 0::bigint,
+  'joining the school did not grant store_health_data');
+select is((select count(*) from public.authorizations where athlete_id = pg_temp.u('e7') and purpose = 'store_health_data'), 0::bigint,
+  'nor recorded any acceptance of it');
 
 -- Withdrawing store_health_data deletes the row in the same transaction.
 update public.authorizations set withdrawn_at = now() where athlete_id = pg_temp.u('e3') and purpose = 'store_health_data';
