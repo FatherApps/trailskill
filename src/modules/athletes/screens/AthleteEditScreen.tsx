@@ -13,7 +13,7 @@ export type AthleteEditScreenProps = {
   lastName: string;
   // The sections of other modules, passed by the route (athletes cannot import accounts: a cycle). Order on screen: photo, data (identity inside it), health, share code.
   photo?: ReactNode;
-  // The identity document, inside "Datos del nadador" (a later issue fills it).
+  // The identity document, inside "Datos del nadador".
   identity?: ReactNode;
   // "Salud y emergencias": reserved and empty today.
   health?: ReactNode;
