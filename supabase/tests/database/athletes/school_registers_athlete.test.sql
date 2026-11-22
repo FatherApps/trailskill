@@ -5,10 +5,10 @@
 -- Until a family claims it, the profile stays under the school and no family sees it.
 -- Users: platform admin P (a1), admin SA of A (a2), admin SB of B (a3), coach K of A (a4), admin DA of A whose membership is
 -- deactivated (a5), guardian G of another swimmer (a6), N with no role (a7), family F (a8), family F2 (a9), adult athlete AA (aa),
--- a second admin SA2 of A (ab). Schools: A (b1), B (b2). Swimmer Z (e0) is G's own. All users and data here are synthetic.
+-- a second admin SA2 of A (ab), a coach of A whose membership is deactivated (ac). Schools: A (b1), B (b2). Swimmer Z (e0) is G's own. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(73);
+select plan(84);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('14220000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -34,17 +34,17 @@ insert into auth.users (id, email) values
   (pg_temp.u('a5'), 'admin-da@example.test'), (pg_temp.u('a6'), 'guardian-g@example.test'),
   (pg_temp.u('a7'), 'nobody-n@example.test'), (pg_temp.u('a8'), 'family-f@example.test'),
   (pg_temp.u('a9'), 'family-f2@example.test'), (pg_temp.u('aa'), 'adult-aa@example.test'),
-  (pg_temp.u('ab'), 'admin-sa2@example.test');
+  (pg_temp.u('ab'), 'admin-sa2@example.test'), (pg_temp.u('ac'), 'coach-former@example.test');
 insert into public.platform_admins (user_id) values (pg_temp.u('a1'));
 insert into public.schools (id, name) values (pg_temp.u('b1'), 'Register School A'), (pg_temp.u('b2'), 'Register School B');
 insert into public.school_memberships (school_id, user_id, role) values
   (pg_temp.u('b1'), pg_temp.u('a2'), 'school_admin'), (pg_temp.u('b2'), pg_temp.u('a3'), 'school_admin'),
   (pg_temp.u('b1'), pg_temp.u('a4'), 'coach'), (pg_temp.u('b1'), pg_temp.u('a5'), 'school_admin'),
-  (pg_temp.u('b1'), pg_temp.u('ab'), 'school_admin');
+  (pg_temp.u('b1'), pg_temp.u('ab'), 'school_admin'), (pg_temp.u('b1'), pg_temp.u('ac'), 'coach');
 -- A deactivated admin cannot be built through the table check (only coaches are deactivated), so it is lifted here and
 -- rolled back with the transaction: the function must still refuse a membership with deactivated_at set.
 alter table public.school_memberships drop constraint school_memberships_deactivated_coach_only;
-update public.school_memberships set deactivated_at = now() where school_id = pg_temp.u('b1') and user_id = pg_temp.u('a5');
+update public.school_memberships set deactivated_at = now() where school_id = pg_temp.u('b1') and user_id in (pg_temp.u('a5'), pg_temp.u('ac'));
 insert into public.athletes (id, first_name, last_name) values (pg_temp.u('e0'), 'Swimmer', 'Z');
 insert into public.athlete_managers (user_id, athlete_id, relation) values (pg_temp.u('a6'), pg_temp.u('e0'), 'guardian');
 
@@ -128,6 +128,7 @@ select is((select count(*)::int from public.athlete_managers where athlete_id = 
 set local role authenticated;
 select pg_temp.as_user('a2');
 select is(public.register_athlete_in_school(pg_temp.u('e1'), pg_temp.u('b1'), 'Ana', 'Uno', true) ->> 'token', pg_temp.token_of('e1'), 'a re-send answers with the same link');
+select throws_ok($$select public.register_athlete_in_school(pg_temp.u('e1'), pg_temp.u('b1'), 'Otro', 'Uno', true)$$, '22023', null, 'a re-send with other names is refused, not answered with the old link');
 select pg_temp.as_user('ab');
 select throws_ok($$select public.register_athlete_in_school(pg_temp.u('e1'), pg_temp.u('b1'), 'Ana', 'Uno', true)$$, '42501', null, 'another admin cannot adopt the swimmer by re-sending the id');
 select pg_temp.as_user('a3');
@@ -240,6 +241,30 @@ select pg_temp.as_user('a9');
 select is(public.claim_athlete(pg_temp.token_of('e5'), 'guardian', pg_temp.at(), pg_temp.auths('f2')), pg_temp.u('e5'), 'the same link still works with fresh ids');
 reset role;
 
+-- 11b. The school's own staff cannot claim. e7: refused for an active admin and an active coach of A, then the family claims it;
+-- e8: a coach of A whose membership was deactivated may claim (PROVISIONAL); e9: an admin of another school (B) may claim.
+set local role authenticated;
+select pg_temp.as_user('a2');
+select public.register_athlete_in_school(pg_temp.u('e7'), pg_temp.u('b1'), 'Gina', 'Siete', true);
+select public.register_athlete_in_school(pg_temp.u('e8'), pg_temp.u('b1'), 'Hugo', 'Ocho', true);
+select public.register_athlete_in_school(pg_temp.u('e9'), pg_temp.u('b1'), 'Iris', 'Nueve', true);
+select throws_ok($$select public.claim_athlete(pg_temp.token_of('e7'), 'guardian', pg_temp.at(), pg_temp.auths('s1'))$$, '42501', null, 'an active admin of the enrolling school cannot claim');
+select pg_temp.as_user('a4');
+select throws_ok($$select public.claim_athlete(pg_temp.token_of('e7'), 'guardian', pg_temp.at(), pg_temp.auths('s2'))$$, '42501', null, 'an active coach of the enrolling school cannot claim');
+reset role;
+select is(
+  (select count(*)::int from public.athlete_managers where athlete_id = pg_temp.u('e7')) + (select count(*)::int from public.authorizations where athlete_id = pg_temp.u('e7'))
+  + (select count(*)::int from public.athlete_claims where athlete_id = pg_temp.u('e7') and claimed_at is not null), 0,
+  'the refused staff left no manager, no authorization and the link unused');
+set local role authenticated;
+select pg_temp.as_user('a8');
+select is(public.claim_athlete(pg_temp.token_of('e7'), 'guardian', pg_temp.at(), pg_temp.auths('s3')), pg_temp.u('e7'), 'the link still works for the family after the staff attempts');
+select pg_temp.as_user('ac');
+select is(public.claim_athlete(pg_temp.token_of('e8'), 'guardian', pg_temp.at(), pg_temp.auths('s4')), pg_temp.u('e8'), 'a deactivated former coach of the school may claim (provisional)');
+select pg_temp.as_user('a3');
+select is(public.claim_athlete(pg_temp.token_of('e9'), 'guardian', pg_temp.at(), pg_temp.auths('s5')), pg_temp.u('e9'), 'an admin of another school may claim');
+reset role;
+
 -- 12. Deleting a swimmer removes its claim link (account deletion removes swimmers).
 set local role authenticated;
 select pg_temp.as_user('a2');
@@ -249,6 +274,43 @@ delete from public.athlete_schools where athlete_id = pg_temp.u('e6');
 select lives_ok($$delete from public.athletes where id = pg_temp.u('e6')$$, 'an unclaimed swimmer can be deleted');
 select is((select count(*)::int from public.athlete_claims where athlete_id = pg_temp.u('e6')), 0, 'and its claim link goes with it');
 select has_trigger('public', 'athlete_claims', 'account_marked_refuses_write', 'a marked account writes nothing to the claim links');
+
+-- 13. Erasing the family's account (account deletion, #1244) keeps the used link used but leaves no id of the erased user. The
+-- swimmer was enrolled, the school recorded a time and ended the link, so the swimmer stays as a marker and the claim row stays.
+insert into auth.users (id, email) values (pg_temp.u('ad'), 'family-erased@example.test');
+set local role authenticated;
+select pg_temp.as_user('a2');
+select public.register_athlete_in_school(pg_temp.u('ea'), pg_temp.u('b1'), 'Luz', 'Diez', true);
+select pg_temp.as_user('ad');
+select public.claim_athlete(pg_temp.token_of('ea'), 'guardian', pg_temp.at(), pg_temp.auths('er'));
+select pg_temp.as_user('a2');
+select public.end_athlete_school(pg_temp.u('ea'), pg_temp.u('b1'));
+reset role;
+-- No signed-in user for the erasure, as the worker runs it (the name-edit guard rejects the anonymizing update otherwise).
+select set_config('request.jwt.claims', '', true);
+insert into public.measurements
+  (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+values
+  (pg_temp.u('fa'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('ea'), 3100, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 08:00:00+00');
+create function pg_temp.mark(uuid) returns uuid language plpgsql as $$
+declare c text; rid uuid;
+begin
+  c := public.request_account_deletion($1) ->> 'code';
+  perform public.confirm_account_deletion($1, c);
+  update public.account_deletion_requests set delete_after = now() - interval '1 day' where user_id = $1 returning id into rid;
+  return rid;
+end;
+$$;
+create temp table erase_req on commit drop as select pg_temp.mark(pg_temp.u('ad')) as id;
+select is((public.erase_account((select id from erase_req)) ->> 'status'), 'deleted', 'the family account is erased');
+select is(
+  (select coalesce(claimed_by::text, 'null') || '|' || (claimed_at is not null)::text from public.athlete_claims where athlete_id = pg_temp.u('ea')),
+  'null|true', 'the claim row keeps when it was used and no longer names the erased user');
+select is((select declared_by from public.athlete_claims where athlete_id = pg_temp.u('ea')), pg_temp.u('a2'), 'the admin who attested is still recorded');
+set local role authenticated;
+select pg_temp.as_user('a9');
+select throws_ok($$select public.claim_athlete(pg_temp.token_of('ea'), 'guardian', pg_temp.at(), pg_temp.auths('er2'))$$, 'P0002', null, 'the used link still fails after the erasure');
+reset role;
 
 select * from finish();
 rollback;

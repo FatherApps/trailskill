@@ -14,7 +14,8 @@
 --   * the link lasts 14 days, like school invitations (#157);
 --   * a used link fails for everyone, the same family included: a lost answer is solved by reading whether the family now manages the swimmer;
 --   * a link whose enrollment the school already ended (the baja, #1243) fails: the school gave up the swimmer, so nobody claims it through that link;
---   * there is no way yet to renew an expired link (the console, T158, asks for it);
+--   * an active member (admin or coach) of the enrolling school cannot claim (maintainer decision on #1422); a deactivated former member can;
+--   * there is no way yet to renew or revoke a link (#1423);
 --   * the table is not in the PowerSync publication: the app gets the token from the answer of register_athlete_in_school and reads the table online.
 -- Revert: drop both functions and the table. Nothing else changes; swimmers already claimed keep their manager rows.
 
@@ -26,13 +27,14 @@ create table public.athlete_claims (
   school_id uuid not null references public.schools,
   token text not null unique check (char_length(token) >= 32),
   expires_at timestamptz not null,
-  -- Who attested, and when, that the school holds the guardian's signed authorization. No foreign key to auth.users, like
-  -- athlete_schools.ended_by: the record outlives the account.
-  declared_by uuid not null,
+  -- Who attested, and when, that the school holds the guardian's signed authorization. The person goes with their account
+  -- (account deletion, #1244: set null, so no id of an erased user stays here); declared_at stays as the evidence of when.
+  declared_by uuid references auth.users on delete set null,
   declared_at timestamptz not null default now(),
-  claimed_by uuid,
+  -- Who used the link, and when. claimed_at stays when the family's account is erased, so a used link stays used.
+  claimed_by uuid references auth.users on delete set null,
   claimed_at timestamptz,
-  constraint athlete_claims_claimed_both_or_neither check ((claimed_by is null) = (claimed_at is null))
+  constraint athlete_claims_claimed_by_needs_claimed_at check (claimed_by is null or claimed_at is not null)
 );
 
 alter table public.athlete_claims enable row level security;
@@ -112,6 +114,14 @@ begin
     if not found then
       raise exception 'swimmer already exists' using errcode = '42501';
     end if;
+    -- Identical means the same names too: a re-send with other names is a different request, never a silent success.
+    if not exists (
+      select 1 from public.athletes a
+      where a.id = register_athlete_in_school.athlete_id
+        and a.first_name = register_athlete_in_school.first_name and a.last_name = register_athlete_in_school.last_name
+    ) then
+      raise exception 'a re-send must carry the same names' using errcode = '22023';
+    end if;
   end if;
 
   return jsonb_build_object('athlete_id', claim.athlete_id, 'token', claim.token, 'expires_at', claim.expires_at);
@@ -179,6 +189,16 @@ begin
   for update;
   if not found then
     raise exception 'claim link not found' using errcode = 'P0002';
+  end if;
+
+  -- The school cannot claim its own swimmer: an active member (admin or coach) of the enrolling school who holds the token is
+  -- refused, so the family's consent is never recorded by the school. The call fails whole, so the link stays unused. PROVISIONAL:
+  -- a deactivated former member (deactivated_at set) is not staff any more and may claim; staff of another school may claim too.
+  if exists (
+    select 1 from public.school_memberships m
+    where m.user_id = caller and m.school_id = claim.school_id and m.deactivated_at is null
+  ) then
+    raise exception 'staff of the enrolling school cannot claim the swimmer' using errcode = '42501';
   end if;
 
   insert into public.athlete_managers (user_id, athlete_id, relation, created_by)

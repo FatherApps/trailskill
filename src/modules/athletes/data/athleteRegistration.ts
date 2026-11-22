@@ -26,14 +26,15 @@ export interface AthleteRegistrationRepository {
   /**
    * An active admin of the school registers a swimmer who has no account: the swimmer, its link with the school and a claim link are made
    * in one step, and the school stays responsible for the profile until a family claims it. Online only, because the server makes the
-   * token. Rejects with `not_allowed` (not an active admin of that school), `invalid` (a name, the id or the attestation is wrong) or the
+   * token. Rejects with `not_allowed` (not an active admin of that school), `invalid` (a name, the id or the attestation is wrong, or a re-send carries other names) or the
    * original error for anything else, offline included. Repeating the same call answers with the same link.
    */
   register(input: RegisterAthleteInput): Promise<AthleteClaimLink>;
   /**
    * A guardian, or the adult swimmer, opens a claim link: the caller becomes a manager of the swimmer and records the three authorizations,
-   * in one step. Answers with the swimmer id. Online, signed in. Rejects with `link_not_found` (unknown, expired, already used, or the school
-   * ended the swimmer), `invalid` (relation or authorizations are wrong) or the original error for anything else. A used link fails for
+   * in one step. Answers with the swimmer id. Online, signed in. Rejects with `not_allowed` (the caller is an active admin or coach of the enrolling
+   * school: the school cannot claim its own swimmer), `link_not_found` (unknown, expired, already used, or the school ended the swimmer),
+   * `invalid` (relation or authorizations are wrong) or the original error for anything else. A used link fails for
    * everyone, so after a lost answer read whether the caller now manages the swimmer instead of repeating the call.
    */
   claim(input: ClaimAthleteInput): Promise<string>;
@@ -84,21 +85,34 @@ export function createInMemoryAthleteRegistrationRepository(options: { now?: () 
   const now = options.now ?? (() => new Date());
   const registered: RegisterAthleteInput[] = [];
   const claimed: ClaimAthleteInput[] = [];
-  const links = new Map<string, AthleteClaimLink & { used: boolean }>();
+  const links = new Map<string, AthleteClaimLink & { schoolId: string; firstName: string; lastName: string; declaredBy: string; used: boolean }>();
   const repository = {
     registered,
     claimed,
     // An error that rejects every call, for example 'not_allowed' for a coach or 'link_not_found'.
     rejectWith: undefined as string | undefined,
+    // The schools where the caller is an active admin or coach: a claim of a link of one of them fails with 'not_allowed', as the server does.
+    staffSchoolIds: [] as string[],
+    // Who the caller is: a re-send of a swimmer another user registered fails with 'not_allowed'.
+    userId: 'caller',
     async register(input: RegisterAthleteInput): Promise<AthleteClaimLink> {
       if (repository.rejectWith) throw new Error(repository.rejectWith);
       const existing = [...links.values()].find((link) => link.athleteId === input.athleteId);
-      if (existing) return { athleteId: existing.athleteId, token: existing.token, expiresAt: existing.expiresAt };
+      if (existing) {
+        // As the server: a re-send is only the same admin's own registration for the same school, with the same names.
+        if (existing.schoolId !== input.schoolId || existing.declaredBy !== repository.userId) throw new Error('not_allowed');
+        if (existing.firstName !== input.firstName || existing.lastName !== input.lastName) throw new Error('invalid');
+        return { athleteId: existing.athleteId, token: existing.token, expiresAt: existing.expiresAt };
+      }
       registered.push({ ...input });
       const link = {
         athleteId: input.athleteId,
         token: String(links.size + 1).padStart(32, '0'),
         expiresAt: new Date(now().getTime() + LINK_LIFETIME_MS).toISOString(),
+        schoolId: input.schoolId,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        declaredBy: repository.userId,
         used: false,
       };
       links.set(link.token, link);
@@ -108,6 +122,7 @@ export function createInMemoryAthleteRegistrationRepository(options: { now?: () 
       if (repository.rejectWith) throw new Error(repository.rejectWith);
       const link = links.get(input.token);
       if (!link || link.used || new Date(link.expiresAt) <= now()) throw new Error('link_not_found');
+      if (repository.staffSchoolIds.includes(link.schoolId)) throw new Error('not_allowed');
       link.used = true;
       claimed.push({ ...input });
       return link.athleteId;

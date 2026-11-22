@@ -97,6 +97,17 @@ describe('in-memory athlete registration repository', () => {
     expect(repository.registered).toHaveLength(1);
   });
 
+  it('refuses a re-send for another school or by another user, as the server does, and one with other names', async () => {
+    const repository = createInMemoryAthleteRegistrationRepository();
+    await repository.register(registration);
+
+    await expect(repository.register({ ...registration, schoolId: 's2' })).rejects.toThrow('not_allowed');
+    await expect(repository.register({ ...registration, firstName: 'Otro' })).rejects.toThrow('invalid');
+    repository.userId = 'another-admin';
+    await expect(repository.register(registration)).rejects.toThrow('not_allowed');
+    expect(repository.registered).toHaveLength(1);
+  });
+
   it('records the claim and answers with the swimmer of the link', async () => {
     const repository = createInMemoryAthleteRegistrationRepository();
     const { token } = await repository.register(registration);
@@ -123,6 +134,29 @@ describe('in-memory athlete registration repository', () => {
     now = new Date('2026-12-07T10:00:00.000Z');
 
     await expect(repository.claim({ ...claim, token })).rejects.toThrow('link_not_found');
+  });
+
+  it('refuses a claim by staff of the enrolling school, leaves the link unused and lets staff of another school claim', async () => {
+    const repository = createInMemoryAthleteRegistrationRepository();
+    const { token } = await repository.register(registration);
+
+    repository.staffSchoolIds = ['s1'];
+    await expect(repository.claim({ ...claim, token })).rejects.toThrow('not_allowed');
+    expect(repository.claimed).toEqual([]);
+
+    repository.staffSchoolIds = ['s2'];
+    await expect(repository.claim({ ...claim, token })).resolves.toBe('a1');
+  });
+
+  it('keeps the link usable by the family after a staff attempt', async () => {
+    const repository = createInMemoryAthleteRegistrationRepository();
+    const { token } = await repository.register(registration);
+
+    repository.staffSchoolIds = ['s1'];
+    await expect(repository.claim({ ...claim, token })).rejects.toThrow('not_allowed');
+    repository.staffSchoolIds = [];
+
+    await expect(repository.claim({ ...claim, token })).resolves.toBe('a1');
   });
 
   it('rejects every call with the error it is told to, and records nothing', async () => {
