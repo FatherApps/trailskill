@@ -1,5 +1,6 @@
-import type { WriteBatch } from '../../../core/sync';
+import { writeBatch, type WriteBatch } from '../../../core/sync';
 import type { ManagedAthleteRepository } from '../../accounts';
+import { cleanAthleteNames } from './athleteName';
 import type { SchoolAthlete, SchoolAthleteRepository } from './schoolAthletes';
 
 export type AthleteProfileInput = { firstName: string; lastName: string };
@@ -10,6 +11,11 @@ export interface AthleteRepository {
    * and must go in the same batch, after this row, so both reach the server together.
    */
   createProfile(batch: WriteBatch, input: AthleteProfileInput): Promise<string>;
+  /**
+   * Changes the first and last name (trimmed, 1 to 100 characters each: anything else throws) of an athlete that is on the device.
+   * Local-first: the row changes here and the edit waits in the upload queue; the server decides who may do it (issue 1364).
+   */
+  renameProfile(athleteId: string, input: AthleteProfileInput): Promise<void>;
   /** The athletes the user manages that are on the device. Never document number or birth date: they do not exist. */
   listManaged(userId: string): Promise<SchoolAthlete[]>;
   /** Every athlete on the device. */
@@ -23,6 +29,14 @@ export function createPowerSyncAthleteRepository(
   return {
     createProfile: (batch, { firstName, lastName }) =>
       batch.write('athletes', { first_name: firstName.trim(), last_name: lastName.trim() }),
+    renameProfile: async (athleteId, input) => {
+      const names = cleanAthleteNames(input);
+      await writeBatch(async (batch) => {
+        // writeRecord-style writes insert a row that is missing: an edit must never create a nameless athlete.
+        if ((await batch.getAll('SELECT id FROM athletes WHERE id = ?', [athleteId])).length === 0) throw new Error(`Athlete ${athleteId} is not on this device`);
+        await batch.write('athletes', { id: athleteId, first_name: names.firstName, last_name: names.lastName });
+      });
+    },
     listManaged: async (userId) => athletes.listByIds(await managed.listManagedAthleteIds(userId)),
     listOnDevice: () => athletes.listAll(),
   };
@@ -40,6 +54,12 @@ export function createInMemoryAthleteRepository(
       const id = `athlete-${rows.length + 1}`;
       rows.push({ id, firstName: firstName.trim(), lastName: lastName.trim(), categoryId: null, groupIds: [] });
       return id;
+    },
+    async renameProfile(athleteId, input) {
+      const names = cleanAthleteNames(input);
+      const row = rows.find((candidate) => candidate.id === athleteId);
+      if (!row) throw new Error(`Athlete ${athleteId} is not on this device`);
+      Object.assign(row, names);
     },
     async listManaged(userId) {
       const ids = await managed.listManagedAthleteIds(userId);

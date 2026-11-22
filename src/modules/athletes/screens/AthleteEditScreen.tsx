@@ -13,6 +13,8 @@ export type AthleteEditScreenProps = {
   lastName: string;
   // The sections of other modules, passed by the route (athletes cannot import accounts: a cycle). Order on screen: photo, data (identity inside it), health, share code.
   photo?: ReactNode;
+  // The editable first and last name, inside "Datos del nadador" (the route passes who may edit it).
+  name: ReactNode;
   // The identity document, inside "Datos del nadador" (a later issue fills it).
   identity?: ReactNode;
   // "Salud y emergencias": reserved and empty today.
@@ -23,15 +25,9 @@ export type AthleteEditScreenProps = {
 };
 
 // Presentational: no network, database or repository. Only who manages the swimmer reaches it (the route decides).
-export function AthleteEditScreen({ athleteId, firstName, lastName, photo, identity, health, shareCode, onBack, onDone }: AthleteEditScreenProps) {
+export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name, identity, health, shareCode, onBack, onDone }: AthleteEditScreenProps) {
   const { colors, space, radius, typography } = useTheme();
   const title = t('athletes.edit.title', { name: `${firstName} ${lastName}`.trim() });
-  const field = (label: string, value: string) => (
-    <View style={{ gap: space[1] }}>
-      <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{label}</Text>
-      <Text style={[typography.body, { color: colors.ink }]}>{value}</Text>
-    </View>
-  );
 
   return (
     <View style={{ alignSelf: 'stretch', flex: 1, backgroundColor: colors['surface-0'] }}>
@@ -51,9 +47,7 @@ export function AthleteEditScreen({ athleteId, firstName, lastName, photo, ident
           <Text accessibilityRole="header" style={[typography['body-strong'], { color: colors.ink }]}>
             {t('athletes.edit.details')}
           </Text>
-          {field(t('athletes.edit.first_name'), firstName)}
-          {field(t('athletes.edit.last_name'), lastName)}
-          <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{t('athletes.edit.name_locked')}</Text>
+          {name}
           {identity}
         </View>
         {health}

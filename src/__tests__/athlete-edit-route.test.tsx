@@ -30,6 +30,12 @@ jest.mock('../modules/athletes', () => {
     ...jest.requireActual('../modules/athletes/screens/AthleteEditScreen'),
     athleteDisplay: jest.requireActual('../modules/athletes/athleteDisplay').athleteDisplay,
     createPowerSyncSchoolAthleteRepository: () => ({}),
+    createPowerSyncAthleteRepository: () => ({}),
+    useAthleteNamesVersion: () => 0,
+    AthleteNameContainer: ({ athleteId, firstName, lastName }: { athleteId: string; firstName: string; lastName: string }) => {
+      const { Text } = jest.requireActual('react-native');
+      return <Text>{`name editor of ${athleteId}: ${firstName} ${lastName}`}</Text>;
+    },
     getAthletePhotoService: () => ({}),
     createExpoPhotoPicker: () => ({}),
     useManagedAthletes: () => mockManaged,
@@ -54,13 +60,14 @@ describe('athlete edit route', () => {
     jest.clearAllMocks();
   });
 
-  it('composes the photo, the read-only name and the share code of the swimmer the user manages', async () => {
+  it('composes the photo, the editable name and the share code of the swimmer the user manages', async () => {
     mockUserId = 'user-1';
     mockManaged = managedAna;
     await render(<EditRoute />);
 
     expect(await screen.findByRole('header', { name: 'Editar a Ana Marin' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'photo of a1 authorized' })).toBeOnTheScreen();
+    expect(screen.getByText('name editor of a1: Ana Marin')).toBeOnTheScreen();
     expect(screen.getByText('share code of a1 for Ana')).toBeOnTheScreen();
   });
 

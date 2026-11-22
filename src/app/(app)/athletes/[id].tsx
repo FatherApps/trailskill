@@ -13,6 +13,7 @@ import {
   createPowerSyncHistoryRepository,
   createPowerSyncSchoolAthleteRepository,
   createSupabaseOtherSchoolResultsRepository,
+  useAthleteNamesVersion,
   useAthleteProfileRoute,
   useManagedAthletes,
 } from '../../../modules/athletes';
@@ -67,7 +68,9 @@ export default function AthleteProfileRoute() {
   const syncedAt = lastSyncedAt?.getTime();
   // Only school staff can be entitled to another school's results; the server decides which.
   const staff = useStaffSchool(staffSchools, session?.user.id, syncedAt);
-  const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, syncedAt);
+  // A rename saved on the Editar screen is a local write: the version makes the name here read it right away.
+  const namesVersion = useAthleteNamesVersion();
+  const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, `${syncedAt}:${namesVersion}`);
   const sources = useImportSources(importSources, summary.connection === 'connected');
   // The import button of the official-results update is pinned to the bottom of the screen, outside the list.
   const importFooter = useImportFooterStore();

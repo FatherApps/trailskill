@@ -18,6 +18,7 @@ const show = (props: Partial<AthleteEditScreenProps> = {}) =>
         onBack={jest.fn()}
         onDone={jest.fn()}
         photo={<Text>Foto del deportista</Text>}
+        name={<Text>Nombre y apellido editables</Text>}
         shareCode={<Text>Código para compartir tiempos</Text>}
         {...props}
       />
@@ -25,15 +26,14 @@ const show = (props: Partial<AthleteEditScreenProps> = {}) =>
   );
 
 describe('AthleteEditScreen', () => {
-  it('titles the screen with the swimmer and shows the photo, the read-only data and the share code in order', async () => {
+  it('titles the screen with the swimmer and shows the photo, the editable name and the share code in order', async () => {
     await show();
 
     expect(screen.getByRole('header', { name: 'Editar a Ana Marin' })).toBeOnTheScreen();
     const texts = screen.getAllByText(/^(Foto del deportista|Datos del nadador|Código para compartir tiempos)$/).map((node) => node.props.children);
     expect(texts).toEqual(['Foto del deportista', 'Datos del nadador', 'Código para compartir tiempos']);
-    expect(screen.getByText('Ana')).toBeOnTheScreen();
-    expect(screen.getByText('Marin')).toBeOnTheScreen();
-    expect(screen.getByText('Por ahora el nombre no se puede cambiar desde la app.')).toBeOnTheScreen();
+    expect(screen.getByText('Nombre y apellido editables')).toBeOnTheScreen();
+    expect(screen.queryByText('Por ahora el nombre no se puede cambiar desde la app.')).toBeNull();
   });
 
   it('puts the identity slot inside the data and the health slot between it and the share code', async () => {
