@@ -12,7 +12,7 @@
 # training-plans_coach_reads_fulfillments_assignment_school,
 # training-plans_admin_reads_fulfillments_assignment_school,
 # athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school,
-# athletes_photos, athletes_health, athletes_birth_date_and_gender, athletes_athlete_schools_end, accounts_saved_share_codes, accounts_saved_share_codes_expired, results-import_tournaments):
+# athletes_photos, athletes_birth_date_and_gender, athletes_athlete_schools_end, accounts_saved_share_codes, accounts_saved_share_codes_expired, results-import_tournaments):
 # a row syncs only if the signed-in user could read it through RLS.
 # An ended link (athlete_schools.ended_at, #1243) gives its school's coaches and admins nothing of that swimmer, one
 # (swimmer, school) pair at a time. Every staff query keeps ended_at IS NULL on athlete_schools. PowerSync 1.21 builds the
@@ -270,14 +270,6 @@ streams:
     auto_subscribe: true
     queries:
       - SELECT * FROM athlete_private_details WHERE athlete_id IN managed_athlete_ids
-
-  # Health data of a swimmer (issue #1369): only the devices of the family (guardians and the adult athlete). There is no staff stream on
-  # purpose: a coach never sees it, and a school admin only through the audited reveal online (#1370). Explicit columns: updated_by is
-  # the server's stamp and stays there. The row leaves the devices when store_health_data is withdrawn (the server purges it).
-  athletes_health:
-    auto_subscribe: true
-    queries:
-      - SELECT id, athlete_id, blood_type, weight_kg, height_cm, measured_on, allergies, updated_at FROM athlete_health WHERE athlete_id IN managed_athlete_ids
 
   accounts_school_invitations:
     auto_subscribe: true

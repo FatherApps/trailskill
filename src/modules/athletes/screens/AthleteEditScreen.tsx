@@ -11,7 +11,7 @@ export type AthleteEditScreenProps = {
   athleteId: string;
   firstName: string;
   lastName: string;
-  // The sections of other modules, passed by the route (athletes cannot import accounts: a cycle). Order on screen: photo, data (identity inside it), health, share code.
+  // The sections of other modules, passed by the route (athletes cannot import accounts: a cycle). Order on screen: photo, data (identity inside it), share code.
   photo?: ReactNode;
   // The editable first and last name, inside "Datos del nadador" (the route passes who may edit it).
   name: ReactNode;
@@ -19,15 +19,13 @@ export type AthleteEditScreenProps = {
   privateDetails?: ReactNode;
   // The identity document, inside "Datos del nadador".
   identity?: ReactNode;
-  // "Salud y emergencias": reserved and empty today.
-  health?: ReactNode;
   shareCode?: ReactNode;
   onBack: () => void;
   onDone: () => void;
 };
 
 // Presentational: no network, database or repository. Only who manages the swimmer reaches it (the route decides).
-export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name, privateDetails, identity, health, shareCode, onBack, onDone }: AthleteEditScreenProps) {
+export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name, privateDetails, identity, shareCode, onBack, onDone }: AthleteEditScreenProps) {
   const { colors, space, radius, typography } = useTheme();
   const title = t('athletes.edit.title', { name: `${firstName} ${lastName}`.trim() });
 
@@ -53,7 +51,6 @@ export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name,
           {privateDetails}
           {identity}
         </View>
-        {health}
         {shareCode}
         <Button variant="primary" label={t('athletes.edit.done')} onPress={onDone} />
       </ScrollView>
