@@ -18,7 +18,7 @@ jest.mock('../../../core/sync', () => ({
   writeBatch: jest.requireActual('../../../core/sync/writes').writeBatch,
 }));
 
-type AthleteSchool = { id: string; athleteId: string; schoolId: string; categoryId: string | null };
+type AthleteSchool = { id: string; athleteId: string; schoolId: string; categoryId: string | null; endedAt?: string };
 
 const category = (id: string, schoolId: string, name: string, sortOrder: number, active = true): Category => ({
   id,
@@ -43,6 +43,8 @@ const athleteSchools: AthleteSchool[] = [
   { id: 'as1', athleteId: 'athlete-1', schoolId: 'school-1', categoryId: null },
   { id: 'as2', athleteId: 'athlete-1', schoolId: 'school-2', categoryId: null },
   { id: 'as3', athleteId: 'athlete-2', schoolId: 'school-1', categoryId: 'c3' },
+  // Ended by the school (issue 1436): its read window is open, so nothing can be written about it.
+  { id: 'as4', athleteId: 'athlete-3', schoolId: 'school-1', categoryId: 'c1', endedAt: '2026-11-01T10:00:00.000Z' },
 ];
 
 type Harness = { repository: CategoriesRepository; athleteCategory: (athleteId: string, schoolId: string) => string | null };
@@ -64,13 +66,13 @@ function createPowerSync(): Harness {
   const seed = new DatabaseSync(store.path);
   seed.exec(`
     CREATE TABLE categories (id TEXT PRIMARY KEY, school_id TEXT, name TEXT, sort_order INTEGER, active INTEGER);
-    CREATE TABLE athlete_schools (id TEXT PRIMARY KEY, athlete_id TEXT, school_id TEXT, category_id TEXT);
+    CREATE TABLE athlete_schools (id TEXT PRIMARY KEY, athlete_id TEXT, school_id TEXT, category_id TEXT, ended_at TEXT);
   `);
   for (const c of categories) {
     seed.prepare('INSERT INTO categories (id, school_id, name, sort_order, active) VALUES (?, ?, ?, ?, ?)').run(c.id, c.schoolId, c.name, c.sortOrder, c.active ? 1 : 0);
   }
   for (const a of athleteSchools) {
-    seed.prepare('INSERT INTO athlete_schools (id, athlete_id, school_id, category_id) VALUES (?, ?, ?, ?)').run(a.id, a.athleteId, a.schoolId, a.categoryId);
+    seed.prepare('INSERT INTO athlete_schools (id, athlete_id, school_id, category_id, ended_at) VALUES (?, ?, ?, ?, ?)').run(a.id, a.athleteId, a.schoolId, a.categoryId, a.endedAt ?? null);
   }
   seed.close();
   mockDb = openDatabase(store.path);
@@ -221,6 +223,13 @@ describe.each(factories)('%s categories repository', (_name, create) => {
       const { repository, athleteCategory } = create();
       await repository.assignAthlete('athlete-2', 'school-1', null);
       expect(athleteCategory('athlete-2', 'school-1')).toBeNull();
+    });
+
+    it('rejects a swimmer the school ended and changes nothing, even to clear the category', async () => {
+      const { repository, athleteCategory } = create();
+      await expect(repository.assignAthlete('athlete-3', 'school-1', 'c2')).rejects.toThrow('athlete_school_ended');
+      await expect(repository.assignAthlete('athlete-3', 'school-1', null)).rejects.toThrow('athlete_school_ended');
+      expect(athleteCategory('athlete-3', 'school-1')).toBe('c1');
     });
 
     it('rejects an athlete without a row in that school', async () => {

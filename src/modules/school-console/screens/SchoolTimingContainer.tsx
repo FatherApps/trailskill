@@ -56,7 +56,7 @@ function powerSyncRepositories(): SchoolTimingRepositories {
 
 // The athletes of the school being timed and who allowed recording times. Only that school's: the backend rejects for good a time
 // whose athlete is not in the time's school. Without a granted record_times the flow skips the athlete for the same reason, and so it does
-// with a swimmer the school ended (#1436): the backend still lets the staff read them for 30 days but rejects every write.
+// with a swimmer the school ended (issue 1436): the backend still lets the staff read them for 30 days but rejects every write.
 async function loadSchoolRoster({ schoolAthletes, authorizations }: SchoolTimingRepositories, schoolId: string): Promise<RosterAthlete[]> {
   const [athletes, granted] = await Promise.all([schoolAthletes.listBySchool(schoolId), authorizations.listGrantedAthleteIds('record_times')]);
   return athletes.map((athlete) => ({

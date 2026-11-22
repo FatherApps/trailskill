@@ -79,7 +79,7 @@ const endError = (error: unknown) => {
   return t(`schoolConsole.detail.end_error.${code}`);
 };
 
-const ASSIGN_ERRORS = ['category_inactive', 'category_wrong_school', 'category_missing', 'athlete_school_missing'];
+const ASSIGN_ERRORS = ['category_inactive', 'category_wrong_school', 'category_missing', 'athlete_school_missing', 'athlete_school_ended'];
 // The message of a failed assignment: the repository's own error code when it has a text, a generic one otherwise.
 const assignError = (error: unknown) => {
   const code = error instanceof Error && ASSIGN_ERRORS.includes(error.message) ? error.message : 'other';
@@ -111,6 +111,7 @@ function toRow(athlete: ConsoleAthlete, Avatar: AthleteAvatarSlot | undefined): 
     // The coach column is not filled from the profiles yet.
     coach: null,
     authorization: athlete.authorization,
+    ended: athlete.endedAt !== null,
     bestTime: athlete.bestTime,
     avatar: avatarOf(Avatar, athlete),
   };
@@ -247,11 +248,13 @@ export function AthletesSection({
             avatar: avatarOf(Avatar, selected),
             category: selected.category ?? t('schoolConsole.common.no_data'),
             authorization: selected.authorization,
+            ended: selected.endedAt !== null,
             guardian: guardianDetail(guardianNow, t('schoolConsole.common.no_data')),
             // Until the athlete's own bests arrive the list is empty, never another athlete's.
             bests: bests?.athleteId === selected.id ? bests.bests : [],
             bestsError: bests?.athleteId === selected.id && bests.failed,
-            guardianSharing: sharing && (
+            // A swimmer the school ended is read, never changed: the server rejects every write, so these controls are not offered.
+            guardianSharing: sharing && selected.endedAt === null && (
               <SwimmerSharingSection
                 // A new swimmer remounts it, so the switch and the records of the previous one never show.
                 key={selected.id}
@@ -263,7 +266,7 @@ export function AthletesSection({
                 refreshKey={refreshKey}
               />
             ),
-            endLink: swimmerEnd && {
+            endLink: swimmerEnd && selected.endedAt === null ? {
               error: endFailure?.athleteId === selected.id ? endFailure.message : null,
               onConfirm: () => {
                 if (ending.current) return;
@@ -283,8 +286,8 @@ export function AthletesSection({
                     ending.current = false;
                   });
               },
-            },
-            categoryChoice: categories && {
+            } : undefined,
+            categoryChoice: categories && selected.endedAt === null ? {
               options: categoryOptions(categoryList, selected.categoryId),
               selectedId: selected.categoryId,
               error: assignFailure?.athleteId === selected.id ? assignFailure.message : null,
@@ -296,7 +299,7 @@ export function AthletesSection({
                   },
                   (error) => setAssignFailure({ athleteId: selected.id, message: assignError(error) }),
                 ),
-            },
+            } : undefined,
           }
         : null,
     };

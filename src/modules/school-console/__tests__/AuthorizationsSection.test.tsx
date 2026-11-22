@@ -23,6 +23,7 @@ const athlete = (id: string, name: string, groupIds: string[]): ConsoleAthlete =
   categoryId: null,
   category: null,
   categorySortOrder: null,
+    endedAt: null,
   groupIds,
   groups: groupIds,
   coachIds: [],

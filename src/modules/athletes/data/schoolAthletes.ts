@@ -6,7 +6,7 @@ export type SchoolAthlete = { id: string; firstName: string; lastName: string; c
 const ENDED_AT_SQL = 'CASE WHEN COUNT(s.athlete_id) = 0 OR SUM(s.ended_at IS NULL) > 0 THEN NULL ELSE MAX(s.ended_at) END';
 
 export interface SchoolAthleteRepository {
-  /** Athletes linked to the school through athlete_schools, by last name, first name, id; groupIds are every athlete_groups row of the athlete, sorted, no duplicates; endedAt is the end of the link with that school (the read window of #1418), null while active. Local database only. */
+  /** Athletes linked to the school through athlete_schools, by last name, first name, id; groupIds are every athlete_groups row of the athlete, sorted, no duplicates; endedAt is the end of the link with that school (the read window of issue 1418), null while active. Local database only. */
   listBySchool(schoolId: string): Promise<SchoolAthlete[]>;
   /** Every athlete on the device, with or without a school, in the same order; with several schools the smallest category id; endedAt is null unless every link ended. The sync streams already limit what reaches the device. */
   listAll(): Promise<SchoolAthlete[]>;
