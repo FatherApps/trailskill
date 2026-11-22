@@ -53,7 +53,9 @@ FUNCIONA SIN CONEXIÓN
 Lo que registras se guarda en el teléfono o la tableta y se sincroniza cuando vuelve la conexión. Un tiempo que falta nunca se muestra como cero.
 
 TU INFORMACIÓN, BAJO TU CONTROL
-Cada persona ve solo lo que su rol permite. Los datos de los deportistas se usan únicamente para los fines que la familia o el deportista autorizó.
+Los datos de cada deportista son de su familia. Cada persona ve solo lo que su rol permite, y los datos se usan únicamente para los fines que la familia o el deportista adulto autorizó. Si el deportista se da de baja de una escuela, la escuela puede verlos 30 días y el deportista queda libre para ir a otra.
+
+Swimcro es para personas de 18 años o más.
 
 Esta versión está en prueba. Si tienes una invitación, ingresa con tu correo (te enviaremos un código) o con tu cuenta de Google.
 ```
@@ -89,7 +91,8 @@ Revisado el 2026-11-16 contra la app y [`docs/RELEASING.md`](../RELEASING.md#wha
 ## Declaraciones que Play pide además de la ficha
 
 - **Cuestionario de clasificación de contenido:** PENDIENTE. No hay publicidad ni compras dentro de la app en el código actual; el maintainer confirma antes de responder.
-- **Público objetivo:** PENDIENTE de la decisión del maintainer y asesoría legal (la app guarda datos de menores, aunque quienes la usan son adultos). Ver «Open decisions» en [`docs/RELEASING.md`](../RELEASING.md#open-decisions).
+- **Público objetivo: 18 años o más** (decidido el 2026-11-22, #1415). Quienes usan la app son adultos (acudientes, deportistas adultos, entrenadores y administradores); los datos de menores los registra y autoriza su acudiente. PENDIENTE de revisión legal si aplica la política de Familias de Play porque la app guarda datos de menores. Ver «Open decisions» en [`docs/RELEASING.md`](../RELEASING.md#open-decisions).
+- **Roles de los datos:** la familia es dueña de los datos del deportista; la escuela es la Responsable mientras el deportista está inscrito y 30 días después de la baja, y Swimcro es su Encargado; Swimcro es el Responsable del uso independiente. Ver [`privacy-policy.es.md`](privacy-policy.es.md) y [`transmission-contract.es.md`](transmission-contract.es.md) (PENDIENTE de revisión legal).
 - **Anuncios:** la app no incluye SDK de publicidad (revisar `package.json` antes de declararlo).
 - **Data safety:** ver [`data-safety.md`](data-safety.md).
 - **Ingreso con Microsoft:** a confirmar por Mario si funciona en producción. Los textos de arriba solo mencionan el correo y Google; no agregar Microsoft hasta que él lo confirme.

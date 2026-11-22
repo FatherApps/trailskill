@@ -48,6 +48,14 @@ Two answers kept on the phone so the app opens without waiting for the server (i
 
 ## Proposed answers
 
+### Target audience and roles
+
+Decided by the maintainer on 2026-11-22 ([`docs/product/swimmer-data-lifecycle.md`](../product/swimmer-data-lifecycle.md), issue #1415); **PENDIENTE de revisión legal** (#106).
+
+- **Target audience: 18+.** The people who use the app are adults: guardians, adult athletes, coaches and school administrators. A minor never signs in; the data of minors is registered and authorized by their guardian. Answer «18 and over» only in the target audience declaration, and re-check with the legal review whether Play's Families Policy still applies because the app stores minors' data.
+- **Who owns and who answers for the data.** The family owns a swimmer's data. The school is the controller (Responsable) of what it collects while the swimmer is enrolled and for 30 days after the baja, with Swimcro as its processor (Encargado) under a transmission contract ([`transmission-contract.es.md`](transmission-contract.es.md), Decreto 1377 de 2013, art. 25). Swimcro is the controller of independent use (registration without a school, «Mis tiempos», times sent between families). For the form, a school reading a swimmer's data is the same in-platform sharing as before; nothing new is collected by this change.
+- **What stays the same in the form.** This change adds no data type and no sync stream. The 30-day reading window, the transfer to a new school and the school's anonymous copy (the swimmer's code only, no identity) are rules the code issues of the same batch enforce; when they ship, re-check the rows above in the same pull request.
+
 ### Data collection and security
 
 | Question | Proposed answer | Reason |
@@ -160,7 +168,7 @@ Not declared, on purpose (#1169): `READ_MEDIA_VIDEO`, `READ_MEDIA_IMAGES`, `READ
 The camera and microphone permissions are not data types in the form; what matters is whether the data they produce leaves the phone. If a future change uploads, syncs, or shares a video, this answer becomes **Yes** and the form and the privacy policy change in the same pull request. Two things stay for the maintainer, not decided here:
 
 - **Permissions in Play Console.** Compare the permissions the uploaded bundle shows with the list above, and answer whatever declaration Play asks for them. A storage permission for photos and videos is the one Play reviews most closely; the list above is meant to have none for reading them.
-- **Target audience.** The video can show minors, so it adds weight to the pending decision about the target audience and Families ([`docs/RELEASING.md`](../RELEASING.md#open-decisions), #107). This document does not decide it.
+- **Target audience.** The video can show minors, so it adds weight to the Families Policy question ([`docs/RELEASING.md`](../RELEASING.md#open-decisions), #107). The audience itself is 18+ (see [Target audience and roles](#target-audience-and-roles)); whether Families applies stays with the legal review.
 
 ### Scanning the swimmer's code QR
 
@@ -185,6 +193,6 @@ Since #1322 the send step of "Mis tiempos" can read the share code of another sw
 
 - Video of minors: the legal review decides how the policy describes it (section 7 of [`privacy-policy.es.md`](privacy-policy.es.md)) and whether it changes the target-audience answer. **PENDIENTE de revisión legal.**
 - Does the video need a way to be deleted from the app? Today the person deletes it from the gallery and discarding a time keeps its video (decision 8 of #1088). Not decided here.
-- Does Play treat minors' data held on behalf of a guardian as "data of children"? Depends on the target audience declaration in [`docs/RELEASING.md`](../RELEASING.md#open-decisions).
+- Does Play treat minors' data held on behalf of a guardian as "data of children"? The target audience is 18+ (see [Target audience and roles](#target-audience-and-roles)); the legal review confirms whether Play's Families Policy still applies ([`docs/RELEASING.md`](../RELEASING.md#open-decisions)).
 - Retention: account deletion removes the account and its data after 30 days (see [Account deletion](#account-deletion)); no other deletion or expiry rule exists for `measurements`, `authorizations`, or `athletes`. `results_import_pending.expires_at` is the only expiry in the schema.
 - Backups of the server database are out of scope of this draft; they belong to the privacy policy once the hosting decision (ADR 0002) fixes where they live.
