@@ -49,6 +49,14 @@ insert into public.athlete_share_codes (athlete_id, code, created_by) values (pg
 insert into public.athlete_private_details (athlete_id, birth_date, gender) values
   (pg_temp.u('d1'), '2012-03-04', 'F'), (pg_temp.u('d2'), '2013-05-06', 'undisclosed'), (pg_temp.u('d3'), '2014-07-08', 'M');
 -- #1369 and #1366 both replace erase_account: the last one in the migration order must keep the delete of the other.
+-- Since #1391 an athlete_health insert needs store_health_data in force; the purpose has no text yet, so the test adds one (as athlete_health.test.sql).
+-- S3 is granted by M, who stays: the grant of the erased E would be deleted with E and purge the row.
+insert into public.authorization_texts (purpose, version, language, body)
+values ('store_health_data', 1, 'es-CO', 'Texto de prueba para guardar los datos de salud del deportista.');
+insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at)
+select pg_temp.u(x.u), pg_temp.u(x.a), 'store_health_data', t.id, now() - interval '1 hour'
+from (values ('e1', 'd1'), ('e1', 'd2'), ('e2', 'd3')) x(u, a)
+join public.authorization_texts t on t.purpose = 'store_health_data' and t.version = 1 and t.language = 'es-CO';
 insert into public.athlete_health (athlete_id, blood_type) values (pg_temp.u('d1'), 'O+'), (pg_temp.u('d2'), 'A-'), (pg_temp.u('d3'), 'B+');
 insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at)
 select pg_temp.u(x.u), pg_temp.u(x.a), 'record_times', t.id, now() from (values ('e1', 'd1'), ('e1', 'd3'), ('e2', 'd3')) x(u, a),
