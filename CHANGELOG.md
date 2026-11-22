@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/FatherApps/trailskill/compare/v0.11.0...v0.12.0) (2026-11-21)
+
+
+### Features
+
+* **athletes:** athlete health data, family only (table, RLS, stream) ([#1388](https://github.com/FatherApps/trailskill/issues/1388)) ([d82b53d](https://github.com/FatherApps/trailskill/commit/d82b53dea0187210cf1a540f926887857dd02e11)), closes [#1369](https://github.com/FatherApps/trailskill/issues/1369)
+* **results-import:** answer reason no_file when the tournament has no file ([#1385](https://github.com/FatherApps/trailskill/issues/1385)) ([89e0dbf](https://github.com/FatherApps/trailskill/commit/89e0dbfc782f1271f0c448f4c1ec5468fb27fe38)), closes [#1382](https://github.com/FatherApps/trailskill/issues/1382)
+
+
+### Bug Fixes
+
+* **ci:** skip the OTA check on closed PRs and read the current base and head ([#1386](https://github.com/FatherApps/trailskill/issues/1386)) ([bac4d52](https://github.com/FatherApps/trailskill/commit/bac4d527ad5d9ceea4ed24f3a6dcc1e72e3bbdd9)), closes [#1384](https://github.com/FatherApps/trailskill/issues/1384)
+
 ## [0.11.0](https://github.com/FatherApps/trailskill/compare/v0.10.0...v0.11.0) (2026-11-21)
 
 
