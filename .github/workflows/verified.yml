@@ -7,10 +7,12 @@ on:
 permissions:
   pull-requests: write
 
-# The last event decides the final status of the check.
+# Runs of one pull request queue up and never cancel each other: cancelling the synchronize run
+# could leave a stale label. Only the newest queued run is kept, and every run reads the live
+# state, so the last event decides the final status of the check.
 concurrency:
   group: verified-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   verified:
@@ -26,8 +28,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_ACTION: ${{ github.event.action }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_DRAFT: ${{ github.event.pull_request.draft }}
-          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
           # Only a branch of this repository can be the release PR (a fork could use the same branch name).
           PR_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref || '' }}
         run: |
@@ -39,6 +39,11 @@ jobs:
             echo "Dependabot PR: exempt."
             exit 0
           fi
+          # Draft state and labels come from the API, not from the event payload, which can be stale
+          # when runs queue. A failed call fails the step (set -e): never read as «verified».
+          live=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '[.draft, ([.labels[].name] | join(","))] | @tsv')
+          PR_DRAFT=${live%%"$(printf '\t')"*}
+          PR_LABELS=${live#*"$(printf '\t')"}
           has_label=false
           case ",$PR_LABELS," in
             *,verificado,*) has_label=true ;;
