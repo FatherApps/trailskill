@@ -59,6 +59,31 @@ describe('AthleteIdentityNumberContainer', () => {
     expect(screen.getByLabelText('Número nuevo').props.value).toBe('');
   });
 
+  it('never cuts a number written with many separators: it saves all of it, or rejects it', async () => {
+    const { repository } = await show();
+    await screen.findByText('Todavía no hay un número de identificación guardado.');
+    // 20 characters and 19 hyphens: far longer than the 20 a number may have, yet valid once the separators go.
+    await typeNumber('1-2-3-4-5-6-7-8-9-0-A-B-C-D-E-F-G-H-I-J');
+    expect(screen.getByLabelText('Número nuevo').props.value).toBe('1-2-3-4-5-6-7-8-9-0-A-B-C-D-E-F-G-H-I-J');
+    await fireEvent.press(screen.getByText('Guardar número'));
+    expect(repository.saved).toEqual([{ athleteId: 'a1', identityNumber: '1234567890ABCDEFGHIJ' }]);
+    // A number really too long is rejected, never saved cut to 20.
+    await typeNumber('1-2-3-4-5-6-7-8-9-0-A-B-C-D-E-F-G-H-I-J-K');
+    await fireEvent.press(screen.getByText('Guardar número'));
+    expect(screen.getByText('Usa solo letras y números, hasta 20.')).toBeTruthy();
+    expect(repository.saved).toHaveLength(1);
+  });
+
+  it('turns autofill off for the identity field', async () => {
+    await show();
+    await screen.findByText('Todavía no hay un número de identificación guardado.');
+    const field = screen.getByLabelText('Número nuevo');
+    expect(field.props.autoComplete).toBe('off');
+    expect(field.props.importantForAutofill).toBe('no');
+    // A cap on the raw text would silently cut a number written with separators.
+    expect(field.props.maxLength).toBeUndefined();
+  });
+
   it('shows the error for an invalid number and does not save', async () => {
     const { repository } = await show();
     await screen.findByText('Todavía no hay un número de identificación guardado.');

@@ -5,7 +5,6 @@ import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
 import { Button, StateView, TextField } from '../../../core/ui';
 import {
-  IDENTITY_NUMBER_MAX_LENGTH,
   isValidIdentityNumber,
   normalizeIdentityNumber,
   type IdentityDocumentRepository,
@@ -80,8 +79,8 @@ export function AthleteIdentityNumberContainer({ athleteId, repository, authoriz
       <StateView
         kind="error"
         title={t('accounts.identity_number.error_title')}
-        message={t('accounts.identity_number.error_message')}
-        action={{ label: t('accounts.identity_number.retry'), onPress: () => setAttempt((n) => n + 1) }}
+        message={t('accounts.share_code.error_message')}
+        action={{ label: t('accounts.share_code.retry'), onPress: () => setAttempt((n) => n + 1) }}
       />
     );
   else {
@@ -106,9 +105,11 @@ export function AthleteIdentityNumberContainer({ athleteId, repository, authoriz
                 setInvalid(false);
                 setSaveFailed(false);
               }}
-              maxLength={IDENTITY_NUMBER_MAX_LENGTH + 6}
+              // No maxLength: a cap on the raw text would silently cut a number written with separators; the validation rejects a long one instead.
               autoCapitalize="characters"
               autoCorrect={false}
+              autoComplete="off"
+              importantForAutofill="no"
             />
             {saveFailed && <Text style={[typography.caption, { color: colors['danger-text'] }]}>{t('accounts.identity_number.save_failed')}</Text>}
             <Button label={t('accounts.identity_number.save')} loading={saving} onPress={() => void save()} />
