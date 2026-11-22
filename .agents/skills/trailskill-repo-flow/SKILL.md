@@ -21,6 +21,7 @@ Load for any Swimcro repository-process task: setting up the repository, working
 - Synthetic data only. Never stage or print secrets.
 - Conventional Commits in English (AI attribution is allowed, not required). Issues and pull request descriptions in Spanish, using the templates in `.github/` (keep `Closes #N` in English).
 - Before opening a pull request, classify the change with `sh .github/scripts/check-ota.sh classify origin/main HEAD` and tick exactly one box in the template's `## Entrega` section: «Apto para OTA» only when it exits 0, «Requiere build de Play» when it exits 1; exit 2 is an error to fix first, never OTA (`CONTRIBUTING.md`, Required checks).
+- The «Verificado» check passes only with the `verificado` label. Workers never add it, not even to their own pull request. Only the orchestrator adds it, after the verifier, the cross review, the fixes and the emulator check, when it marks the pull request ready. Every new push removes it (`CONTRIBUTING.md`, Required checks).
 
 ## Decision Gates
 
