@@ -3,7 +3,7 @@
 -- other author columns, so erase_account lists it with them and the link stays ended (ended_at is kept).
 -- The check athlete_schools_ended_both_or_neither forced ended_at and ended_by to be null together, which made that update
 -- fail. It is replaced by one that only forbids ended_by without ended_at. The trigger athlete_schools_ended_guard needs no
--- change: it blocks client roles only, and erase_account runs as its owner with the user triggers of the table off.
+-- change: it blocks client roles only (it checks current_user), and erase_account, a security definer function, runs as its owner.
 -- The body of erase_account is the one in 20261122100000_athletes_relink_requests.sql; the only change is athlete_schools.ended_by
 -- in the list of author columns.
 -- Revert: recreate erase_account from 20261122100000, drop athlete_schools_ended_by_needs_ended_at and re-add
