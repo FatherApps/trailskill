@@ -2,17 +2,17 @@ name: Verified
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
 
 permissions:
   pull-requests: write
 
-# Runs of one pull request queue up and never cancel each other: cancelling the synchronize run
-# could leave a stale label. Only the newest queued run is kept, and every run reads the live
-# state, so the last event decides the final status of the check.
+# The last event decides the final status. Every run decides from the live state (draft, labels, and
+# whether the label is older than the head commit), never from its own event, so a cancelled run
+# cannot leave a stale label counting.
 concurrency:
   group: verified-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   verified:
@@ -30,29 +30,41 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           # Only a branch of this repository can be the release PR (a fork could use the same branch name).
           PR_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref || '' }}
+        shell: bash
         run: |
-          set -eu
+          set -euo pipefail
           case "$PR_HEAD_REF" in
-            release-please--*) echo "Release PR: exempt."; exit 0 ;;
+            release-please--branches--main--components--trailskill) echo "Release PR: exempt."; exit 0 ;;
           esac
           if [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
             echo "Dependabot PR: exempt."
             exit 0
           fi
-          # Draft state and labels come from the API, not from the event payload, which can be stale
-          # when runs queue. A failed call fails the step (set -e): never read as «verified».
-          live=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '[.draft, ([.labels[].name] | join(","))] | @tsv')
-          PR_DRAFT=${live%%"$(printf '\t')"*}
-          PR_LABELS=${live#*"$(printf '\t')"}
+          # Draft state, head commit and labels come from the API, not from the event payload, which can
+          # be stale. A failed call fails the step (set -e): never read as «verified».
+          tab=$(printf '\t')
+          live=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '[.draft, .head.sha, ([.labels[].name] | join(","))] | @tsv')
+          PR_DRAFT=${live%%"$tab"*}
+          rest=${live#*"$tab"}
+          HEAD_SHA=${rest%%"$tab"*}
+          PR_LABELS=${rest#*"$tab"}
           has_label=false
           case ",$PR_LABELS," in
             *,verificado,*) has_label=true ;;
           esac
-          if [ "$PR_ACTION" = synchronize ]; then
-            if [ "$has_label" = true ]; then
-              gh api -X DELETE "repos/$GH_REPO/issues/$PR_NUMBER/labels/verificado" --silent
+          stale=false
+          if [ "$has_label" = true ] && [ "$PR_ACTION" != synchronize ]; then
+            # The label counts only if it was added after the head commit arrived. ISO 8601 UTC strings
+            # compare as text. A missing timestamp reads as stale (fail closed).
+            labeled_at=$(gh api --paginate "repos/$GH_REPO/issues/$PR_NUMBER/events" --jq '.[] | select(.event == "labeled" and .label.name == "verificado") | .created_at' | tail -n 1)
+            head_at=$(gh api "repos/$GH_REPO/commits/$HEAD_SHA/check-suites" --jq '[.check_suites[].created_at] | sort | first // empty')
+            if [ -z "$labeled_at" ] || [ -z "$head_at" ] || [[ ! "$labeled_at" > "$head_at" ]]; then
+              stale=true
             fi
-            echo "::error::A new commit was pushed: the pull request must be verified again and the verificado label added again."
+          fi
+          if [ "$has_label" = true ] && { [ "$PR_ACTION" = synchronize ] || [ "$stale" = true ]; }; then
+            gh api -X DELETE "repos/$GH_REPO/issues/$PR_NUMBER/labels/verificado" --silent
+            echo "::error::The head commit is newer than the verificado label: the pull request must be verified again and the label added again."
             exit 1
           fi
           if [ "$PR_DRAFT" = true ]; then
