@@ -66,8 +66,9 @@ These come from the maintainer's decisions of 2026-11-22 for the code issues of 
 ## 6. What this changes in the texts
 
 - The privacy policy, the Play Data safety draft and the Play listing say the roles above and a **18+** target audience (the users are adults who manage swimmers' data).
-- Version 2 of the authorization texts names the school as controller with generic wording («la escuela en la que inscribes al nadador») and adds three purposes: the school reading for 30 days after the baja (`school_read_after_end`), the transfer of the data to a new school (`school_transfer`) and the school's anonymous copy (`school_anonymous_copy`). Version 1 rows never change.
-- The app does not ask for the new acceptance yet; that is a later issue.
+- Version 2 of the authorization texts of the four existing purposes names the school as controller with generic wording («la escuela en la que inscribes al nadador»). Version 1 rows never change.
+- Three new purposes are planned: the school reading for 30 days after the baja (`school_read_after_end`), the transfer of the data to a new school (`school_transfer`) and the school's anonymous copy (`school_anonymous_copy`). They are **not in the database yet**: the app lists the latest text of every purpose, and builds already in the field have no title for a new one, so they are inserted with the issue that shows them, together with their translation keys. Their draft wording is in the body of the pull request of #1415.
+- The app does not ask for the new acceptance yet; that is a later issue. A family that accepted version 1 still shows as accepted: the app decides by athlete and purpose, not by version.
 
 ## 7. Open
 
