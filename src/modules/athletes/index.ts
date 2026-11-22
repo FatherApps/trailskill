@@ -127,3 +127,22 @@ export { PhotoCard, type PhotoCardNotice, type PhotoCardProps, type PhotoCardSta
 export { PhotoRemoveSheet, type PhotoRemoveSheetProps } from './components/PhotoRemoveSheet';
 export { AthletePhotoContainer, type AthletePhotoContainerProps } from './screens/AthletePhotoContainer';
 export { useAthletePhotoUploads } from './data/useAthletePhotoUploads';
+export {
+  createInMemoryAthleteRelinkRepository,
+  createSupabaseAthleteRelinkRepository,
+  type AthleteRelinkRepository,
+  type InMemoryRelinkMarker,
+  type InMemoryRelinkWorld,
+  type RelinkRequest,
+  type RelinkRequestResult,
+  type RelinkResolution,
+  type RelinkStatus,
+  type SchoolRelinkRequest,
+} from './data/athleteRelink';
+export { RelinkRequestContainer, type RelinkRequestContainerProps } from './screens/RelinkRequestContainer';
+export {
+  RelinkRequestScreen,
+  type RelinkRequestScreenProps,
+  type RelinkRequestState,
+  type RelinkRequestsView,
+} from './screens/RelinkRequestScreen';

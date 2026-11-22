@@ -13,6 +13,7 @@ import {
   progressChartTwoResults,
   progressChartWithoutTime,
 } from './__fixtures__/progressChart';
+import { relinkRequestsFixture, relinkRequestsLongTextFixture } from './__fixtures__/relink';
 import { myAthletesFixture, myAthletesLongTextFixture } from './__fixtures__/myAthletes';
 import { profileContentFixture, storedOnFixture } from './__fixtures__/screen';
 import { photoCardFixture as pc, syntheticPhotoUri } from './__fixtures__/photoCard';
@@ -31,12 +32,25 @@ import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHead
 import { AthleteEditScreen } from './screens/AthleteEditScreen';
 import { AthleteProfileScreen, type AthleteProfileContent, type AthleteProfileView } from './screens/AthleteProfileScreen';
 import { MarksScreen, type MarksView } from './screens/MarksScreen';
+import { RelinkRequestScreen, type RelinkRequestScreenProps } from './screens/RelinkRequestScreen';
 import { MyAthletesScreen, type MyAthletesView } from './screens/MyAthletesScreen';
 
 // The preview box shrinks its children to their content; these components need the full width.
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
 
 const noop = () => {};
+
+// The relink request: the key is never part of a fixture (a made-up shape stands in for what the person types).
+const relinkBase: RelinkRequestScreenProps = {
+  athleteId: 'a1',
+  athleteName: 'Ana M.',
+  keyValue: '',
+  onChangeKey: noop,
+  state: 'idle',
+  requests: { kind: 'ready', requests: [] },
+  onSubmit: noop,
+  onBack: noop,
+};
 
 // The photo card as the profile shows it; the avatar is the one the container builds (the photo, or the initials).
 const nameFormBase: AthleteNameFormProps = { firstName: 'Ana', lastName: 'Marin', onSave: noop };
@@ -321,6 +335,7 @@ export const galleryEntries: GalleryEntry[] = [
         privateDetails={<AthletePrivateDetailsForm {...detailsFormSaved} />}
       />
     ),
+    'with-relink': () => <AthleteEditScreen athleteId="a1" firstName="Ana" lastName="Marin" onBack={noop} onDone={noop} onRelink={noop} name={<AthleteNameForm {...nameFormBase} />} />,
     'long-text': () => (
       <AthleteEditScreen
         athleteId="a2"
@@ -332,6 +347,21 @@ export const galleryEntries: GalleryEntry[] = [
         photo={<PhotoCard {...photoCardBase} state="ready" avatar={withPhoto} />}
       />
     ),
+  }),
+  entry('relinkRequestScreen', 'RelinkRequestScreen', {
+    empty: () => <RelinkRequestScreen {...relinkBase} />,
+    'key-typed': () => <RelinkRequestScreen {...relinkBase} keyValue="AAAA-BBBB-CCCC-DDDD-EEEE" />,
+    sending: () => <RelinkRequestScreen {...relinkBase} keyValue="AAAA-BBBB-CCCC-DDDD-EEEE" state="sending" />,
+    requested: () => <RelinkRequestScreen {...relinkBase} state="requested" requests={{ kind: 'ready', requests: relinkRequestsFixture.slice(0, 1) }} />,
+    'already-requested': () => <RelinkRequestScreen {...relinkBase} state="already_requested" requests={{ kind: 'ready', requests: relinkRequestsFixture.slice(0, 1) }} />,
+    'nothing-to-relink': () => <RelinkRequestScreen {...relinkBase} state="nothing_to_relink" />,
+    'invalid-key': () => <RelinkRequestScreen {...relinkBase} keyValue="FFFF-FFFF" state="invalid_key" />,
+    'rate-limited': () => <RelinkRequestScreen {...relinkBase} state="rate_limited" />,
+    'send-failed': () => <RelinkRequestScreen {...relinkBase} keyValue="AAAA-BBBB-CCCC-DDDD-EEEE" state="error" />,
+    'with-requests': () => <RelinkRequestScreen {...relinkBase} requests={{ kind: 'ready', requests: relinkRequestsFixture }} />,
+    'long-text': () => <RelinkRequestScreen {...relinkBase} athleteName="María Fernanda R." requests={{ kind: 'ready', requests: relinkRequestsLongTextFixture }} />,
+    'requests-loading': () => <RelinkRequestScreen {...relinkBase} requests={{ kind: 'loading' }} />,
+    'requests-error': () => <RelinkRequestScreen {...relinkBase} requests={{ kind: 'error', onRetry: noop }} />,
   }),
   entry('marksScreen', 'MarksScreen', {
     'with-data': marksPreview(marksFixture),
