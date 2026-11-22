@@ -15,6 +15,8 @@ export type AthleteEditScreenProps = {
   photo?: ReactNode;
   // The editable first and last name, inside "Datos del nadador" (the route passes who may edit it).
   name: ReactNode;
+  // The birth date and gender, a flat section inside "Datos del nadador" after the name.
+  privateDetails?: ReactNode;
   // The identity document, inside "Datos del nadador".
   identity?: ReactNode;
   // "Salud y emergencias": reserved and empty today.
@@ -25,7 +27,7 @@ export type AthleteEditScreenProps = {
 };
 
 // Presentational: no network, database or repository. Only who manages the swimmer reaches it (the route decides).
-export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name, identity, health, shareCode, onBack, onDone }: AthleteEditScreenProps) {
+export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name, privateDetails, identity, health, shareCode, onBack, onDone }: AthleteEditScreenProps) {
   const { colors, space, radius, typography } = useTheme();
   const title = t('athletes.edit.title', { name: `${firstName} ${lastName}`.trim() });
 
@@ -48,6 +50,7 @@ export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name,
             {t('athletes.edit.details')}
           </Text>
           {name}
+          {privateDetails}
           {identity}
         </View>
         {health}

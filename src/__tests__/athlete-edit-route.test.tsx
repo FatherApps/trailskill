@@ -37,10 +37,15 @@ jest.mock('../modules/athletes', () => {
     athleteDisplay: jest.requireActual('../modules/athletes/athleteDisplay').athleteDisplay,
     createPowerSyncSchoolAthleteRepository: () => ({}),
     createPowerSyncAthleteRepository: () => ({}),
+    createPowerSyncPrivateDetailsRepository: () => ({}),
     useAthleteNamesVersion: () => 0,
     AthleteNameContainer: ({ athleteId, firstName, lastName }: { athleteId: string; firstName: string; lastName: string }) => {
       const { Text } = jest.requireActual('react-native');
       return <Text>{`name editor of ${athleteId}: ${firstName} ${lastName}`}</Text>;
+    },
+    AthletePrivateDetailsContainer: ({ athleteId }: { athleteId: string }) => {
+      const { Text } = jest.requireActual('react-native');
+      return <Text>{`birth date and gender of ${athleteId}`}</Text>;
     },
     getAthletePhotoService: () => ({}),
     createExpoPhotoPicker: () => ({}),
@@ -75,6 +80,7 @@ describe('athlete edit route', () => {
     expect(await screen.findByRole('header', { name: 'Editar a Ana Marin' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'photo of a1 authorized' })).toBeOnTheScreen();
     expect(screen.getByText('name editor of a1: Ana Marin')).toBeOnTheScreen();
+    expect(screen.getByText('birth date and gender of a1')).toBeOnTheScreen();
     expect(screen.getByText('share code of a1 for Ana')).toBeOnTheScreen();
   });
 
@@ -129,6 +135,7 @@ describe('athlete edit route', () => {
 
     expect(screen.getByText('No encontramos al deportista')).toBeOnTheScreen();
     expect(screen.queryByText(/share code/)).toBeNull();
+    expect(screen.queryByText(/birth date and gender/)).toBeNull();
     expect(screen.queryByRole('button', { name: /photo of/ })).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
     expect(mockBack).toHaveBeenCalledTimes(1);

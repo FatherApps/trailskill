@@ -61,6 +61,15 @@ export type { ImportedHistoryResult } from './achievements';
 export { MyAthletesScreen, type MyAthleteCard, type MyAthletesScreenProps, type MyAthletesView } from './screens/MyAthletesScreen';
 export { AthleteEditScreen, type AthleteEditScreenProps } from './screens/AthleteEditScreen';
 export { AthleteNameContainer, type AthleteNameContainerProps } from './screens/AthleteNameContainer';
+export { AthletePrivateDetailsContainer, type AthletePrivateDetailsContainerProps } from './screens/AthletePrivateDetailsContainer';
+export {
+  createInMemoryPrivateDetailsRepository,
+  createPowerSyncPrivateDetailsRepository,
+  type Gender,
+  type PrivateDetails,
+  type PrivateDetailsInput,
+  type PrivateDetailsRepository,
+} from './data/athletePrivateDetails';
 export { useAthleteNamesVersion } from './data/athleteNamesVersion';
 export { MarksScreen, type MarkCard, type MarkSectionView, type MarksScreenProps, type MarksView } from './screens/MarksScreen';
 export { MarksContainer, type MarksContainerProps } from './screens/MarksContainer';
