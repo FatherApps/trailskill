@@ -3,7 +3,7 @@
 -- All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(64);
+select plan(109);
 
 -- Users: guardian G (owns e1), adult athlete X (owns e2, relation 'self'), guardian G2 (owns e3), coach A, school admin S, stranger N,
 -- platform admin P.
@@ -28,7 +28,9 @@ values ('14160000-0000-4000-8000-0000000000a1', '14160000-0000-4000-8000-0000000
 insert into public.athletes (id, first_name, last_name) values
   ('14160000-0000-4000-8000-0000000000e1', 'Athlete', 'One'),
   ('14160000-0000-4000-8000-0000000000e2', 'Athlete', 'Two'),
-  ('14160000-0000-4000-8000-0000000000e3', 'Athlete', 'Three');
+  ('14160000-0000-4000-8000-0000000000e3', 'Athlete', 'Three'),
+  ('14160000-0000-4000-8000-0000000000e4', 'Athlete', 'Four'),
+  ('14160000-0000-4000-8000-0000000000e5', 'Athlete', 'Five');
 insert into public.athlete_schools (athlete_id, school_id) values
   ('14160000-0000-4000-8000-0000000000e1', '14160000-0000-4000-8000-0000000000b1');
 insert into public.athlete_groups (athlete_id, group_id) values
@@ -36,7 +38,9 @@ insert into public.athlete_groups (athlete_id, group_id) values
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   ('14160000-0000-4000-8000-0000000000a2', '14160000-0000-4000-8000-0000000000e1', 'guardian'),
   ('14160000-0000-4000-8000-0000000000a3', '14160000-0000-4000-8000-0000000000e2', 'self'),
-  ('14160000-0000-4000-8000-0000000000a6', '14160000-0000-4000-8000-0000000000e3', 'guardian');
+  ('14160000-0000-4000-8000-0000000000a6', '14160000-0000-4000-8000-0000000000e3', 'guardian'),
+  ('14160000-0000-4000-8000-0000000000a2', '14160000-0000-4000-8000-0000000000e4', 'guardian'),
+  ('14160000-0000-4000-8000-0000000000a3', '14160000-0000-4000-8000-0000000000e5', 'guardian');
 
 -- Structure: row level security on, no grants for any client role, no policies, and not in the sync rules.
 select is(
@@ -63,18 +67,20 @@ set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a2", 
 create temp table issued as select * from public.issue_athlete_recovery_code('14160000-0000-4000-8000-0000000000e1');
 grant select on issued to public;
 select is((select count(*)::int from issued), 1, 'the owner gets the codes the first time');
-select matches((select main_code from issued), '^TR-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{12}$', 'the permanent code has the provisional format');
+select matches((select main_code from issued), '^TR-([ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}-){3}[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$', 'the permanent code has the provisional format: TR- and 4 groups of 4');
+select is((select length(main_code) from issued), 22, 'of 16 characters (22 with the prefix and the dashes)');
 select is((select cardinality(recovery_codes) from issued), 8, 'with 8 recovery codes');
 select is(
-  (select count(*)::int from issued, unnest(recovery_codes) c where c ~ '^RC-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{12}$'),
+  (select count(*)::int from issued, unnest(recovery_codes) c where c ~ '^RC-([ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}-){3}[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$'),
   8, 'all with the recovery format'
 );
 select is(
   (select count(distinct c)::int from issued, unnest(recovery_codes) c), 8, 'and different from each other'
 );
+select lives_ok($$select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e1')$$, 'the owner confirms they saved the codes');
 select is(
   (select count(*)::int from public.issue_athlete_recovery_code('14160000-0000-4000-8000-0000000000e1')),
-  0, 'the second call returns nothing'
+  0, 'after the confirmation the second call returns nothing'
 );
 
 -- As the table owner: only hashes are stored, never the text.
@@ -147,6 +153,22 @@ select throws_ok($$select * from public.athlete_recovery_identities$$, '42501', 
 select throws_ok($$select app.redeem_athlete_recovery_code('TR-AAAAAAAAAAAA')$$, '42501', null,
   'nor redeem a code: the function has no grant for clients');
 
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select throws_ok($$select * from public.athlete_recovery_identities$$, '42501', null, 'a coach cannot read the identities');
+select throws_ok($$select * from public.athlete_recovery_codes$$, '42501', null, 'a coach cannot read the codes');
+select throws_ok($$select * from public.athlete_recovery_code_failures$$, '42501', null, 'a coach cannot read the failed attempts');
+select throws_ok($$select app.redeem_athlete_recovery_code('TR-AAAAAAAAAAAA')$$, '42501', null, 'a coach cannot execute redeem');
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a4", "role": "authenticated"}';
+select throws_ok($$select * from public.athlete_recovery_identities$$, '42501', null, 'a school admin cannot read the identities');
+select throws_ok($$select * from public.athlete_recovery_codes$$, '42501', null, 'a school admin cannot read the codes');
+select throws_ok($$select * from public.athlete_recovery_code_failures$$, '42501', null, 'a school admin cannot read the failed attempts');
+select throws_ok($$select app.redeem_athlete_recovery_code('TR-AAAAAAAAAAAA')$$, '42501', null, 'a school admin cannot execute redeem');
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
+select throws_ok($$select * from public.athlete_recovery_identities$$, '42501', null, 'a stranger cannot read the identities');
+select throws_ok($$select * from public.athlete_recovery_codes$$, '42501', null, 'a stranger cannot read the codes');
+select throws_ok($$select * from public.athlete_recovery_code_failures$$, '42501', null, 'a stranger cannot read the failed attempts');
+select throws_ok($$select app.redeem_athlete_recovery_code('TR-AAAAAAAAAAAA')$$, '42501', null, 'a stranger cannot execute redeem');
+
 set local role anon;
 set local request.jwt.claims = '{"role": "anon"}';
 select throws_ok($$select * from public.issue_athlete_recovery_code('14160000-0000-4000-8000-0000000000e1')$$, '42501', null,
@@ -163,6 +185,11 @@ select is(
   app.redeem_athlete_recovery_code((select main_code from issued)),
   (select id from public.athlete_recovery_identities where athlete_id = '14160000-0000-4000-8000-0000000000e1'),
   'the permanent code resolves the identity of the swimmer'
+);
+select is(
+  app.redeem_athlete_recovery_code(replace((select main_code from issued), '-', '')),
+  (select id from public.athlete_recovery_identities where athlete_id = '14160000-0000-4000-8000-0000000000e1'),
+  'the ungrouped form (no dashes) resolves the same identity as the grouped one'
 );
 select is(
   app.redeem_athlete_recovery_code(lower(replace((select main_code from issued), '-', ' '))),
@@ -253,6 +280,67 @@ select throws_ok(
   '23505', null, 'and a swimmer has one identity only'
 );
 
+-- Confirm step: until the owner confirms they saved the texts, issuing again replaces the whole set (swimmer e4, owner G).
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+create temp table first_issue as select * from public.issue_athlete_recovery_code('14160000-0000-4000-8000-0000000000e4');
+create temp table second_issue as select * from public.issue_athlete_recovery_code('14160000-0000-4000-8000-0000000000e4');
+grant select on first_issue, second_issue to public;
+select is((select count(*)::int from second_issue), 1, 'before the confirmation the owner can issue the codes again');
+select isnt((select main_code from second_issue), (select main_code from first_issue), 'with a new permanent code');
+select is((select count(*)::int from first_issue f, second_issue s, unnest(f.recovery_codes) a where a = any(s.recovery_codes)), 0,
+  'and new recovery codes');
+reset role;
+select is((select count(*)::int from public.athlete_recovery_identities where athlete_id = '14160000-0000-4000-8000-0000000000e4'), 1,
+  'still one identity');
+select is((select count(*)::int from public.athlete_recovery_codes c join public.athlete_recovery_identities i on i.id = c.identity_id
+  where i.athlete_id = '14160000-0000-4000-8000-0000000000e4'), 8, 'and 8 codes: the first set was replaced, not added to');
+delete from public.athlete_recovery_code_failures;
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
+select is(app.redeem_athlete_recovery_code((select main_code from first_issue)), null, 'the replaced permanent code no longer works');
+select is(app.redeem_athlete_recovery_code((select recovery_codes[1] from first_issue)), null, 'nor a replaced recovery code');
+select is(
+  app.redeem_athlete_recovery_code((select main_code from second_issue)),
+  (select id from public.athlete_recovery_identities where athlete_id = '14160000-0000-4000-8000-0000000000e4'),
+  'the new permanent code works'
+);
+-- Confirm: the owner only; a swimmer without codes has nothing to confirm.
+set local role authenticated;
+select throws_ok($$select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e4')$$, '42501', null,
+  'a stranger cannot confirm');
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a1", "role": "authenticated"}';
+select throws_ok($$select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e4')$$, '42501', null,
+  'nor a coach of the swimmer');
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a7", "role": "authenticated"}';
+select throws_ok($$select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e4')$$, '42501', null,
+  'nor a platform admin');
+set local role anon;
+set local request.jwt.claims = '{"role": "anon"}';
+select throws_ok($$select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e4')$$, '42501', null,
+  'nor a user without a session');
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a6", "role": "authenticated"}';
+select throws_ok($$select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e3')$$, 'P0001', 'no_recovery_identity',
+  'confirming fails when the swimmer has no codes yet');
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select lives_ok($$select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e4')$$, 'the owner confirms');
+select is((select count(*)::int from public.issue_athlete_recovery_code('14160000-0000-4000-8000-0000000000e4')), 0,
+  'after the confirmation issuing returns nothing: lost means lost');
+reset role;
+select is(
+  (select code_hash from public.athlete_recovery_identities where athlete_id = '14160000-0000-4000-8000-0000000000e4'),
+  encode(sha256(convert_to(replace((select main_code from second_issue), '-', ''), 'UTF8')), 'hex'),
+  'and changes nothing'
+);
+create temp table confirmed_at_1 as select confirmed_at from public.athlete_recovery_identities where athlete_id = '14160000-0000-4000-8000-0000000000e4';
+select isnt((select confirmed_at from confirmed_at_1), null, 'the confirmation is recorded');
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a2", "role": "authenticated"}';
+select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e4');
+reset role;
+select is((select confirmed_at from public.athlete_recovery_identities where athlete_id = '14160000-0000-4000-8000-0000000000e4'),
+  (select confirmed_at from confirmed_at_1), 'confirming again is harmless and keeps the first date');
+
 -- Limit of failed attempts (PROVISIONAL: 5 in 15 minutes), also for a correct code.
 delete from public.athlete_recovery_code_failures;
 set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
@@ -283,13 +371,49 @@ select is(app.redeem_athlete_recovery_code('TR-BBBBBBBBBBBB'), null, 'after 15 m
 set local request.jwt.claims = '{"role": "service_role"}';
 select throws_ok($$select app.redeem_athlete_recovery_code('TR-BBBBBBBBBBBB')$$, '42501', null, 'redeeming needs a signed-in user');
 
--- Erasing a swimmer removes their codes.
+-- A swimmer that is deleted detaches the identity instead of deleting it: only hashes stay, with no athlete (PROVISIONAL for a swimmer
+-- without school times; the case with times is in recovery_code_erasure.test.sql).
+reset role;
 delete from public.athlete_managers where athlete_id = '14160000-0000-4000-8000-0000000000e2';
 delete from public.athletes where id = '14160000-0000-4000-8000-0000000000e2';
 select is(
-  (select count(*)::int from public.athlete_recovery_identities where athlete_id = '14160000-0000-4000-8000-0000000000e2'),
-  0, 'deleting the swimmer deletes their identity and codes'
-);
+  (select count(*)::int from public.athlete_recovery_identities where athlete_id is null), 1,
+  'deleting the swimmer keeps their identity, detached from any swimmer');
+select is(
+  (select count(*)::int from public.athlete_recovery_codes where identity_id = (select id from public.athlete_recovery_identities where athlete_id is null)),
+  8, 'and its recovery codes');
+update public.athlete_recovery_identities set code_hash = app.athlete_recovery_code_hash('TR-ORPHANORPHAN') where athlete_id is null;
+create temp table orphan as select id from public.athlete_recovery_identities where athlete_id is null;
+create temp table others_before as select id, code_hash, confirmed_at from public.athlete_recovery_identities where athlete_id is not null;
+
+-- An orphan identity never crashes anything and never touches another swimmer.
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a5", "role": "authenticated"}';
+select is(app.redeem_athlete_recovery_code('TR-ORPHANORPHAN'), (select id from orphan),
+  'redeeming the code of an orphan identity answers it, with no swimmer behind it');
+select is(app.redeem_athlete_recovery_code('TR-ORPHANORPHAX'), null, 'and a wrong code still matches nothing');
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "14160000-0000-4000-8000-0000000000a3", "role": "authenticated"}';
+select throws_ok($$select public.regenerate_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e2')$$, '42501', null,
+  'regenerating for the deleted swimmer is refused: nobody manages them any more');
+select throws_ok($$select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e2')$$, '42501', null,
+  'and so is confirming');
+select throws_ok($$select * from public.issue_athlete_recovery_code('14160000-0000-4000-8000-0000000000e2')$$, '42501', null,
+  'and issuing');
+select throws_ok($$select public.regenerate_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e5')$$, 'P0001', 'no_recovery_identity',
+  'a new swimmer without codes does not get the orphan identity on regenerate');
+select throws_ok($$select public.confirm_athlete_recovery_codes('14160000-0000-4000-8000-0000000000e5')$$, 'P0001', 'no_recovery_identity',
+  'nor on confirm');
+select is((select count(*)::int from public.issue_athlete_recovery_code('14160000-0000-4000-8000-0000000000e5')), 1,
+  'issuing for a new swimmer creates a new identity');
+reset role;
+select is((select athlete_id from public.athlete_recovery_identities where id = (select id from orphan)), null::uuid,
+  'the orphan identity was not reused: it is still detached');
+select is((select code_hash from public.athlete_recovery_identities where id = (select id from orphan)),
+  app.athlete_recovery_code_hash('TR-ORPHANORPHAN'), 'and unchanged');
+select is(
+  (select count(*)::int from public.athlete_recovery_identities i join others_before o on o.id = i.id
+    where i.code_hash is distinct from o.code_hash or i.confirmed_at is distinct from o.confirmed_at),
+  0, 'no other swimmer identity was touched');
 
 select * from finish();
 rollback;

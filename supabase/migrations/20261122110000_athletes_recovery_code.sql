@@ -7,9 +7,15 @@
 
 create table public.athlete_recovery_identities (
   id uuid primary key default gen_random_uuid(),
-  athlete_id uuid not null unique references public.athletes (id) on delete cascade,
+  -- Deleting the swimmer (or their account) detaches the identity instead of deleting it (maintainer decision, #1416): only hashes stay,
+  -- no personal data. A swimmer that kept school times stays as an anonymous marker, so the identity keeps pointing at it and still
+  -- resolves to the school's anonymous copy (public.former_athlete_keys). PROVISIONAL: a swimmer without school times is deleted,
+  -- the identity keeps athlete_id null and resolves to nothing.
+  athlete_id uuid unique references public.athletes (id) on delete set null,
   created_at timestamptz not null default now(),
   created_by uuid default auth.uid() references auth.users (id) on delete set null,
+  -- When the owner confirmed they saved the codes; until then issue_athlete_recovery_code may issue them again.
+  confirmed_at timestamptz,
   -- sha256 (hex) of the normalized permanent code; two swimmers can never share it.
   code_hash text not null unique check (code_hash ~ '^[0-9a-f]{64}$')
 );
@@ -47,9 +53,9 @@ select app.guard_marked_account_writes('public.athlete_recovery_identities');
 select app.guard_marked_account_writes('public.athlete_recovery_codes');
 select app.guard_marked_account_writes('public.athlete_recovery_code_failures');
 
--- A new random code: PROVISIONAL format, for Mario to confirm in the PR. 'TR-' (permanent) or 'RC-' (recovery), then 12 characters
--- without the ones that read alike (0 O 1 I L), as app.new_athlete_share_code() but longer (about 59 bits) and with another prefix, so
--- it is not mistaken for the share code. The bytes come from pgcrypto, random in every bit.
+-- A new random code: PROVISIONAL format, for Mario to confirm in the PR. 'TR-' (permanent) or 'RC-' (recovery), then 16 characters
+-- in 4 groups of 4 (TR-XXXX-XXXX-XXXX-XXXX) without the ones that read alike (0 O 1 I L), as app.new_athlete_share_code() but longer
+-- (about 79 bits) and with another prefix, so it is not mistaken for the share code. The bytes come from pgcrypto, random in every bit.
 create function app.new_athlete_recovery_code(prefix text)
 returns text
 language sql
@@ -57,11 +63,14 @@ volatile
 security definer
 set search_path = ''
 as $$
-  select prefix || '-' || string_agg(substr('ABCDEFGHJKMNPQRSTUVWXYZ23456789', get_byte(bytes, i) % 31 + 1, 1), '' order by i)
-  from (select extensions.gen_random_bytes(12) as bytes) b, generate_series(0, 11) i;
+  select prefix || '-' || string_agg(
+    substr('ABCDEFGHJKMNPQRSTUVWXYZ23456789', get_byte(bytes, i) % 31 + 1, 1) || case when i % 4 = 3 and i < 15 then '-' else '' end,
+    '' order by i)
+  from (select extensions.gen_random_bytes(16) as bytes) b, generate_series(0, 15) i;
 $$;
 
--- The hash of a code as the user may type it: any case, with or without the dash, spaces or dashes in between.
+-- The hash of a code as the user may type it: any case, with or without the group dashes, spaces or dashes in between (everything but
+-- letters and digits is dropped, so TR-ABCD-EFGH-JKMN-PQRS and trabcdefghjkmnpqrs hash the same). Plain sha256: no pepper, no secret.
 create function app.athlete_recovery_code_hash(code text)
 returns text
 language sql
@@ -117,7 +126,8 @@ revoke execute on function app.new_athlete_recovery_code(text), app.athlete_reco
   from public, anon, authenticated;
 
 -- First call for a swimmer: creates their identity, the permanent code and the first 8 recovery codes, stores only their hashes and
--- returns the texts, this one time. When the swimmer already has an identity it returns no rows and changes nothing.
+-- returns the texts. While the owner has not confirmed they saved them (confirm_athlete_recovery_codes), calling it again replaces the
+-- whole unconfirmed set with new texts (the old ones stop working). Once confirmed it returns no rows and changes nothing.
 create function public.issue_athlete_recovery_code(athlete uuid)
 returns table (main_code text, recovery_codes text[])
 language plpgsql
@@ -127,32 +137,65 @@ as $$
 declare
   new_main text;
   new_identity uuid;
+  is_confirmed boolean;
+  taken text;
   codes text[] := '{}';
 begin
   perform app.athlete_recovery_caller_manages(athlete);
   -- One call at a time per swimmer: two overlapping first calls cannot both create the identity.
   perform pg_advisory_xact_lock(hashtextextended(athlete::text || ':athlete-recovery-codes', 0));
 
-  if exists (select 1 from public.athlete_recovery_identities i where i.athlete_id = athlete) then
+  select i.id, i.confirmed_at is not null into new_identity, is_confirmed
+  from public.athlete_recovery_identities i where i.athlete_id = athlete;
+  if is_confirmed then
     return;
   end if;
 
   loop
     new_main := app.new_athlete_recovery_code('TR');
     begin
-      insert into public.athlete_recovery_identities (athlete_id, code_hash)
-      values (athlete, app.athlete_recovery_code_hash(new_main))
-      returning id into new_identity;
+      if new_identity is null then
+        insert into public.athlete_recovery_identities (athlete_id, code_hash)
+        values (athlete, app.athlete_recovery_code_hash(new_main))
+        returning id into new_identity;
+      else
+        update public.athlete_recovery_identities i set code_hash = app.athlete_recovery_code_hash(new_main) where i.id = new_identity;
+      end if;
       exit;
     exception when unique_violation then
-      null;
+      -- Only a taken hash is tried again with another code. Another unique key (one identity per swimmer) means a concurrent call
+      -- created the identity first (possible under repeatable read, where the lock does not show its row): answer as when it exists.
+      get stacked diagnostics taken = constraint_name;
+      if taken is distinct from 'athlete_recovery_identities_code_hash_key' then
+        return;
+      end if;
     end;
   end loop;
 
+  -- Unconfirmed: nothing of the previous set was ever safely in the owner's hands.
+  delete from public.athlete_recovery_codes c where c.identity_id = new_identity;
   for n in 1..8 loop
     codes := codes || app.add_athlete_recovery_code(new_identity, 1);
   end loop;
   return query select new_main, codes;
+end;
+$$;
+
+-- The owner confirms they saved the texts: from now on they cannot be issued again. Idempotent. Raises 'no_recovery_identity' (P0001)
+-- when the swimmer has no codes yet.
+create function public.confirm_athlete_recovery_codes(athlete uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform app.athlete_recovery_caller_manages(athlete);
+  perform pg_advisory_xact_lock(hashtextextended(athlete::text || ':athlete-recovery-codes', 0));
+  update public.athlete_recovery_identities i set confirmed_at = coalesce(i.confirmed_at, now()) where i.athlete_id = athlete;
+  if not found then
+    raise exception 'no_recovery_identity' using errcode = 'P0001';
+  end if;
 end;
 $$;
 
@@ -195,7 +238,9 @@ $$;
 -- For the functions of T156, never for a client: the identity (not the swimmer) of the code, or null when it matches nothing. The
 -- permanent code and an unused recovery code both resolve the same identity; a recovery code is consumed (used_at) under a row lock,
 -- so it works once. After 5 failed attempts in 15 minutes the caller is refused with 'too_many_attempts' (P0001), a correct code too.
--- The failed attempt is recorded, not raised, so it is not rolled back.
+-- The failed attempt is recorded, not raised, so a null answer does not roll it back. Contract for the caller (T156): the failure row
+-- lives in the caller's own transaction, so a caller that raises after a null result rolls the counter back and the limit never
+-- trips: report an invalid code to the client by return value, never by raising.
 create function app.redeem_athlete_recovery_code(code text)
 returns uuid
 language plpgsql
@@ -244,5 +289,7 @@ end;
 $$;
 
 revoke execute on function app.redeem_athlete_recovery_code(text) from public, anon, authenticated;
-revoke execute on function public.issue_athlete_recovery_code(uuid), public.regenerate_athlete_recovery_codes(uuid) from public, anon;
-grant execute on function public.issue_athlete_recovery_code(uuid), public.regenerate_athlete_recovery_codes(uuid) to authenticated;
+revoke execute on function public.issue_athlete_recovery_code(uuid), public.regenerate_athlete_recovery_codes(uuid),
+  public.confirm_athlete_recovery_codes(uuid) from public, anon;
+grant execute on function public.issue_athlete_recovery_code(uuid), public.regenerate_athlete_recovery_codes(uuid),
+  public.confirm_athlete_recovery_codes(uuid) to authenticated;
