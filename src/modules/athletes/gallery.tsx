@@ -18,6 +18,7 @@ import { profileContentFixture, storedOnFixture } from './__fixtures__/screen';
 import { photoCardFixture as pc, syntheticPhotoUri } from './__fixtures__/photoCard';
 import { eventFixture as ev, personalBestFixture as pb, profileFixture as pf } from './__fixtures__/profile';
 import { EventSelector, type EventValue } from './components/EventSelector';
+import { AthleteNameForm, type AthleteNameFormProps } from './components/AthleteNameForm';
 import { HistoryList } from './components/HistoryList';
 import { ImportPrompt } from './components/ImportPrompt';
 import { PersonalBest, type PersonalBestProps } from './components/PersonalBest';
@@ -37,6 +38,7 @@ const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alig
 const noop = () => {};
 
 // The photo card as the profile shows it; the avatar is the one the container builds (the photo, or the initials).
+const nameFormBase: AthleteNameFormProps = { firstName: 'Ana', lastName: 'Marin', onSave: noop };
 const photoCardBase: PhotoCardProps = {
   state: 'none',
   avatar: <AthleteAvatar initials={pc.initials} colorIndex={3} size="lg" authorized />,
@@ -282,11 +284,28 @@ export const galleryEntries: GalleryEntry[] = [
     empty: myAthletesPreview({ kind: 'empty' }),
     loading: myAthletesPreview({ kind: 'loading' }),
   }),
+  entry('athleteNameForm', 'AthleteNameForm', {
+    unchanged: () => <AthleteNameForm {...nameFormBase} />,
+    edited: () => <AthleteNameForm {...nameFormBase} draft={{ firstName: 'Lucía', lastName: 'Gómez' }} />,
+    'empty-name': () => <AthleteNameForm {...nameFormBase} draft={{ firstName: '', lastName: 'Marin' }} />,
+    'saved-offline': () => <AthleteNameForm {...nameFormBase} status={<SyncStatus state="on_device" />} />,
+    'not-sent': () => <AthleteNameForm {...nameFormBase} status={<SyncStatus state="not_sent" onRetry={noop} />} />,
+    'save-failed': () => <AthleteNameForm {...nameFormBase} draft={{ firstName: 'Lucía', lastName: 'Gómez' }} failed />,
+    'long-text': () => <AthleteNameForm {...nameFormBase} firstName="María Fernanda del Carmen" lastName="Rodríguez de la Hoz Santamaría" />,
+  }),
   entry('athleteEditScreen', 'AthleteEditScreen', {
     // The share code lives in accounts, which athletes cannot import: a plain slot stands in for it here.
-    'with-photo': () => <AthleteEditScreen athleteId="a1" firstName="Ana" lastName="Marin" onBack={noop} onDone={noop} photo={<PhotoCard {...photoCardBase} />} />,
+    'with-photo': () => <AthleteEditScreen athleteId="a1" firstName="Ana" lastName="Marin" onBack={noop} onDone={noop} name={<AthleteNameForm {...nameFormBase} />} photo={<PhotoCard {...photoCardBase} />} />,
     'long-text': () => (
-      <AthleteEditScreen athleteId="a2" firstName="María Fernanda del Carmen" lastName="Rodríguez de la Hoz Santamaría" onBack={noop} onDone={noop} photo={<PhotoCard {...photoCardBase} state="ready" avatar={withPhoto} />} />
+      <AthleteEditScreen
+        athleteId="a2"
+        firstName="María Fernanda del Carmen"
+        lastName="Rodríguez de la Hoz Santamaría"
+        onBack={noop}
+        onDone={noop}
+        name={<AthleteNameForm {...nameFormBase} firstName="María Fernanda del Carmen" lastName="Rodríguez de la Hoz Santamaría" />}
+        photo={<PhotoCard {...photoCardBase} state="ready" avatar={withPhoto} />}
+      />
     ),
   }),
   entry('marksScreen', 'MarksScreen', {

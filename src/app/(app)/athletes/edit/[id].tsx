@@ -20,17 +20,21 @@ import {
 } from '../../../../modules/accounts';
 import {
   AthleteEditScreen,
+  AthleteNameContainer,
   AthletePhotoContainer,
   athleteDisplay,
   createExpoPhotoPicker,
+  createPowerSyncAthleteRepository,
   createPowerSyncSchoolAthleteRepository,
   getAthletePhotoService,
+  useAthleteNamesVersion,
   useManagedAthletes,
 } from '../../../../modules/athletes';
 
 const athletes = createPowerSyncSchoolAthleteRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const identityDocuments = createSupabaseIdentityDocumentRepository();
+const athleteProfiles = createPowerSyncAthleteRepository(managedAthletes, athletes);
 const shareCodes = createSupabaseAthleteShareCodeRepository();
 const shareCodeCache = createSecureStoreShareCodeCache();
 const photoService = getAthletePhotoService();
@@ -45,7 +49,9 @@ export default function AthleteEditRoute() {
   const { session } = useSession();
   const summary = useGlobalSyncSummary();
   const online = summary.connection === 'connected';
-  const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, summary.lastSyncedAt?.getTime());
+  // A rename is a local write: the version makes this list, and so the title, read the database again right after the save.
+  const namesVersion = useAthleteNamesVersion();
+  const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, `${summary.lastSyncedAt?.getTime()}:${namesVersion}`);
   // The athletes module cannot read the authorization (a cycle with accounts), so the route does and passes it down.
   const showPhoto = useHasValidAuthorization(id, 'show_photo');
   const importOfficialResults = useHasValidAuthorization(id, 'import_official_results');
@@ -75,6 +81,7 @@ export default function AthleteEditRoute() {
       lastName={athlete.lastName}
       onBack={goBack}
       onDone={goBack}
+      name={<AthleteNameContainer key={`name-${id}`} athleteId={id} firstName={athlete.firstName} lastName={athlete.lastName} repository={athleteProfiles} />}
       photo={
         <AthletePhotoContainer
           key={`photo-${id}`}
