@@ -6,7 +6,7 @@
 -- Times of the marker: f1 and f3 of school A, f2 of school B. The key of M is AAAA-BBBB-CCCC-DDDD-EEEE (a made-up value). All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(46);
+select plan(50);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('12510000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -153,6 +153,25 @@ select is(pg_temp.owner_of('f2'), 'e1', 'the time of B is on the swimmer of the 
 select is(pg_temp.gv('f2'), 't', 'and it is visible to the guardian because X shares with B (it was not before)');
 reset role;
 select is((select count(*)::int from pg_trigger where tgrelid = 'public.measurements'::regclass and tgenabled <> 'O'), 0, 'the triggers of measurements are back on');
+
+-- 10. An admin who decided a request erases their account: erase_account empties resolved_by (a personal identifier) and the request stays.
+-- A8 decided a request while an admin of school A and has since left it: an account with a membership cannot be erased (the blockers).
+insert into auth.users (id, email) values (pg_temp.u('a8'), 'admin-a7@example.test');
+insert into public.athlete_relink_requests (id, athlete_id, former_athlete_id, school_id, requested_by, status, resolved_by, resolved_at, moved_count)
+values (pg_temp.u('d1'), pg_temp.u('e3'), pg_temp.u('e4'), pg_temp.u('b1'), pg_temp.u('a6'), 'rejected', pg_temp.u('a8'), now(), 0);
+create function pg_temp.mark(uuid) returns uuid language plpgsql as $$
+declare rid uuid;
+begin
+  perform public.confirm_account_deletion($1, public.request_account_deletion($1) ->> 'code');
+  update public.account_deletion_requests set delete_after = now() - interval '1 day' where user_id = $1 returning id into rid;
+  return rid;
+end;
+$$;
+select is((public.erase_account(pg_temp.mark(pg_temp.u('a8'))) ->> 'status'), 'deleted',
+  'the admin who decided a request erases their account');
+select is((select resolved_by from public.athlete_relink_requests where id = pg_temp.u('d1')), null, 'resolved_by of the request they decided is emptied');
+select is((select status from public.athlete_relink_requests where id = pg_temp.u('d1')), 'rejected', 'and the request stays, with its decision');
+select is((select resolved_by from public.athlete_relink_requests where id = pg_temp.rid('b1', 'e4')), pg_temp.u('a1'), 'the requests decided by another admin keep theirs');
 
 select * from finish();
 rollback;
