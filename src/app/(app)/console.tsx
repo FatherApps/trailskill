@@ -15,7 +15,7 @@ import {
   createSupabaseInvitationRepository,
   SignOutContainer,
 } from '../../modules/accounts';
-import { createSupabaseAthleteSchoolEndRepository } from '../../modules/athletes';
+import { createSupabaseAthleteRelinkRepository, createSupabaseAthleteSchoolEndRepository } from '../../modules/athletes';
 import { createPowerSyncMeasurementRepository } from '../../modules/timing';
 import {
   AthletesSection,
@@ -56,6 +56,8 @@ const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 const pendingInvitations = createSecureStorePendingInvitationRepository();
 // This console is the school admin's: the baja is offered here and nowhere else, and the server checks the role again.
 const athleteSchoolEnds = createSupabaseAthleteSchoolEndRepository();
+// The families' requests for the times the school kept of an erased swimmer: read and decided online; the server checks the admin role.
+const athleteRelinks = createSupabaseAthleteRelinkRepository();
 const guardianSharing = { repository: createSupabaseGuardianSharingRepository(), records: createGuardianRecordsRepository(createPowerSyncMeasurementRepository()) };
 
 export default function ConsoleRoute() {
@@ -127,7 +129,7 @@ export default function ConsoleRoute() {
           <MeasurementsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={measurementLog} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         authorizations: (props) => (
-          <AuthorizationsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={authorizations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AuthorizationsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={authorizations} relink={athleteRelinks} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         settings: (props) => (
           <CategoriesSection

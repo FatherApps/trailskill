@@ -20,12 +20,14 @@ export type AthleteEditScreenProps = {
   // The identity document, inside "Datos del nadador".
   identity?: ReactNode;
   shareCode?: ReactNode;
+  // Opens the request to relink the times a school kept of an erased swimmer (issue 1251). Absent: the entry is not shown.
+  onRelink?: () => void;
   onBack: () => void;
   onDone: () => void;
 };
 
 // Presentational: no network, database or repository. Only who manages the swimmer reaches it (the route decides).
-export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name, privateDetails, identity, shareCode, onBack, onDone }: AthleteEditScreenProps) {
+export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name, privateDetails, identity, shareCode, onRelink, onBack, onDone }: AthleteEditScreenProps) {
   const { colors, space, radius, typography } = useTheme();
   const title = t('athletes.edit.title', { name: `${firstName} ${lastName}`.trim() });
 
@@ -52,6 +54,20 @@ export function AthleteEditScreen({ athleteId, firstName, lastName, photo, name,
           {identity}
         </View>
         {shareCode}
+        {onRelink ? (
+          <View
+            testID="relink-entry"
+            style={{ gap: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'], borderWidth: 1, borderColor: colors.border }}
+          >
+            <Text accessibilityRole="header" style={[typography['body-strong'], { color: colors.ink }]}>
+              {t('athletes.edit.relink_title')}
+            </Text>
+            <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{t('athletes.edit.relink_text')}</Text>
+            <View style={{ alignItems: 'flex-start' }}>
+              <Button variant="secondary" label={t('athletes.edit.relink_action')} onPress={onRelink} />
+            </View>
+          </View>
+        ) : null}
         <Button variant="primary" label={t('athletes.edit.done')} onPress={onDone} />
       </ScrollView>
     </View>

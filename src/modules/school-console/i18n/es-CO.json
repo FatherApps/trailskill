@@ -341,7 +341,38 @@
     "resend_error": "No pudimos crear la invitación. Revisa la conexión e inténtalo de nuevo.",
     "sharing_error": "No pudimos actualizar la solicitud. Revisa la conexión e inténtalo de nuevo.",
     "share_message": "{{school}} te invita a Swimcro para responder las autorizaciones de tu deportista. Código de invitación: {{token}}. Vence el {{date}}.",
-    "share_message_no_date": "{{school}} te invita a Swimcro para responder las autorizaciones de tu deportista. Código de invitación: {{token}}."
+    "share_message_no_date": "{{school}} te invita a Swimcro para responder las autorizaciones de tu deportista. Código de invitación: {{token}}.",
+    "relink": {
+      "title": "Solicitudes para recuperar tiempos",
+      "pending_detail_one": "Pide {{count}} tiempo de tu escuela",
+      "pending_detail_other": "Pide {{count}} tiempos de tu escuela",
+      "approved_detail_one": "Se pasó {{count}} tiempo",
+      "approved_detail_other": "Se pasaron {{count}} tiempos",
+      "rejected_detail": "Rechazada, no se pasó ningún tiempo",
+      "approve": "Aprobar",
+      "approve_hint": "Pasar a {{athlete}} los tiempos que tu escuela conservó",
+      "reject": "Rechazar",
+      "reject_hint": "Rechazar la solicitud de {{athlete}}",
+      "status": {
+        "approved": "Aprobada",
+        "rejected": "Rechazada"
+      },
+      "offline": "Las solicitudes para recuperar tiempos se ven solo con conexión.",
+      "error": "No pudimos cargar las solicitudes para recuperar tiempos.",
+      "action_error": "No pudimos guardar tu decisión. Revisa tu conexión e inténtalo de nuevo.",
+      "approve_confirm": {
+        "title": "¿Pasar los tiempos a {{athlete}}?",
+        "message": "Los tiempos que tu escuela conservó de un nadador borrado pasarán a {{athlete}}. Aprueba solo si sabes que es el mismo nadador. No se puede deshacer.",
+        "confirm": "Pasar los tiempos"
+      },
+      "reject_confirm": {
+        "title": "¿Rechazar la solicitud de {{athlete}}?",
+        "message": "No se pasará ningún tiempo y la familia verá que la solicitud fue rechazada.",
+        "confirm": "Rechazar solicitud"
+      },
+      "resolved_elsewhere": "Esta solicitud ya estaba resuelta.",
+      "no_longer_valid": "La familia ya no administra a este nadador: la solicitud se cerró sin pasar tiempos."
+    }
   },
   "date": {
     "short": "{{day}} {{month}} {{year}}",
