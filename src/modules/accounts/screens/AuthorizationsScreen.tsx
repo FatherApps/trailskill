@@ -79,6 +79,9 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
 
   const save = () => submit(onSave);
 
+  // Withdrawing store_health_data deletes the stored health data, so its notice says so; every other purpose keeps the ordinary one.
+  const withdrawingPurpose = athletes.flatMap(({ id }) => Object.values(inForce[id] ?? {})).find((row) => row?.id === withdrawing)?.purpose;
+
   function confirmWithdrawal() {
     if (withdrawing) onWithdraw(withdrawing);
     setWithdrawing(null);
@@ -147,7 +150,7 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
       <ConfirmSheet
         visible={withdrawing !== null}
         title={t('accounts.authorizations.withdraw_title')}
-        message={t('accounts.authorizations.withdraw_message')}
+        message={t(withdrawingPurpose === 'store_health_data' ? 'accounts.authorizations.withdraw_health_message' : 'accounts.authorizations.withdraw_message')}
         confirmLabel={t('accounts.authorizations.withdraw_confirm')}
         cancelLabel={t('accounts.authorizations.withdraw_cancel')}
         destructive

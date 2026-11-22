@@ -30,7 +30,15 @@ export interface AuthorizationRepository {
   isInForce(athleteId: string, purpose: AuthorizationPurpose): Promise<boolean>;
 }
 
-const PURPOSE_ORDER: AuthorizationPurpose[] = ['record_times', 'import_official_results', 'share_results_with_school', 'show_photo'];
+// store_health_data and share_health_with_school are optional and separate: they are never part of JOIN_PURPOSES (joining a school, issue 1328).
+const PURPOSE_ORDER: AuthorizationPurpose[] = [
+  'record_times',
+  'import_official_results',
+  'share_results_with_school',
+  'show_photo',
+  'store_health_data',
+  'share_health_with_school',
+];
 
 const byPurpose = (a: { purpose: AuthorizationPurpose }, b: { purpose: AuthorizationPurpose }) =>
   PURPOSE_ORDER.indexOf(a.purpose) - PURPOSE_ORDER.indexOf(b.purpose);

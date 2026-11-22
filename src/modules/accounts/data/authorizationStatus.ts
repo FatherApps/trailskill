@@ -1,6 +1,12 @@
 import { db } from '../../../core/sync';
 
-export type AuthorizationPurpose = 'record_times' | 'import_official_results' | 'share_results_with_school' | 'show_photo';
+export type AuthorizationPurpose =
+  | 'record_times'
+  | 'import_official_results'
+  | 'share_results_with_school'
+  | 'show_photo'
+  | 'store_health_data'
+  | 'share_health_with_school';
 
 export interface AuthorizationStatusRepository {
   /** Ids of the athletes whose authorization_status row for the purpose has is_granted = 1. No row or 0 is not granted. Local database only. */

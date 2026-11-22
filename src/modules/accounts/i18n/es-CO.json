@@ -92,6 +92,7 @@
       "save_failed": "No pudimos guardar en el teléfono. Inténtalo de nuevo.",
       "withdraw_title": "¿Retirar esta autorización?",
       "withdraw_message": "Queda retirada desde ahora. Lo que aceptaste antes se conserva como evidencia.",
+      "withdraw_health_message": "Queda retirada desde ahora y los datos de salud del deportista guardados en Swimcro se borran. Lo que aceptaste antes se conserva como evidencia.",
       "withdraw_confirm": "Retirar",
       "withdraw_cancel": "Cancelar"
     },
@@ -100,7 +101,9 @@
         "record_times": "Registrar tiempos y resultados",
         "import_official_results": "Importar resultados oficiales",
         "share_results_with_school": "Compartir resultados con otra escuela",
-        "show_photo": "Mostrar la foto del deportista"
+        "show_photo": "Mostrar la foto del deportista",
+        "store_health_data": "Guardar los datos de salud del deportista",
+        "share_health_with_school": "Dejar que la escuela consulte los datos de salud en una emergencia"
       },
       "version": "Versión {{version}}",
       "accepted": "Autorizado el {{date}}",

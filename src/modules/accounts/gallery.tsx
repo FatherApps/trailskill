@@ -163,6 +163,8 @@ const authorizationTexts: AuthorizationText[] = [
   { id: 'gallery-text-results', purpose: 'import_official_results', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
   { id: 'gallery-text-school', purpose: 'share_results_with_school', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
   { id: 'gallery-text-photo', purpose: 'show_photo', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
+  { id: 'gallery-text-health', purpose: 'store_health_data', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
+  { id: 'gallery-text-health-school', purpose: 'share_health_with_school', version: 1, body: 'Texto sintético de ejemplo, no es un texto legal.' },
 ];
 
 // The real avatar reads the photo from the local database; the gallery has no database, so it shows the initials.
