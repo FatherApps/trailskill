@@ -286,7 +286,7 @@
   },
   "relink": {
     "title": "Recuperar tiempos de la escuela",
-    "intro": "Si antes borraste una cuenta, la escuela conservó los tiempos de ese nadador sin su nombre. Escribe la clave que te enviamos por correo y la escuela decide si los pasa a {{name}}.",
+    "intro": "Si antes borraste una cuenta, la escuela conservó los tiempos de ese nadador sin su nombre. Escribe la clave que te enviamos por correo y la escuela decide si los pasa a este nadador ({{name}}).",
     "key_label": "Clave del deportista anterior",
     "key_help": "Son 20 letras y números en grupos de cuatro, como AAAA-BBBB-CCCC-DDDD-EEEE.",
     "submit": "Pedir los tiempos",
@@ -315,6 +315,6 @@
       "approved_detail_one": "Se pasó {{count}} tiempo a {{name}}",
       "approved_detail_other": "Se pasaron {{count}} tiempos a {{name}}"
     },
-    "key_required": "Escribe la clave para pedir los tiempos."
+    "key_required": "Escribe la clave."
   }
 }
