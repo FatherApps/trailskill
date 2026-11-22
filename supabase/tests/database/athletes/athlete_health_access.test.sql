@@ -47,9 +47,7 @@ insert into public.athlete_managers (user_id, athlete_id, relation) values
   (pg_temp.u('a1'), pg_temp.u('e3'), 'guardian'), (pg_temp.u('a1'), pg_temp.u('e4'), 'guardian'),
   (pg_temp.u('a7'), pg_temp.u('e5'), 'guardian'), (pg_temp.u('a8'), pg_temp.u('e6'), 'guardian');
 
--- The purpose has no text yet (task 4.3): the test adds one, inside this transaction, to be able to grant it.
-insert into public.authorization_texts (purpose, version, language, body)
-values ('share_health_with_school', 1, 'es-CO', 'Texto de prueba para compartir los datos de salud con la escuela en una emergencia.');
+-- The version 1 es-CO text comes from 20261121230000_athletes_health_authorization_texts.sql (#1371).
 insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at)
 select v.u, v.a, 'share_health_with_school', t.id, now() - interval '1 hour'
 from (values (pg_temp.u('a1'), pg_temp.u('e1')), (pg_temp.u('a1'), pg_temp.u('e3')), (pg_temp.u('a1'), pg_temp.u('e4')),
