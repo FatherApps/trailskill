@@ -418,7 +418,7 @@ describe.each(factories)('%s measurement repository', (_name, create) => {
       expect(listed.find((m) => m.id === 's3')?.meters ?? null).toBeNull();
     });
 
-    it.each([0, -25, Number.NaN])('refuses %s meters, writing nothing', async (meters) => {
+    it.each([0, -25, Number.NaN, Number.POSITIVE_INFINITY, 100000])('refuses %s meters, writing nothing', async (meters) => {
       const repository = create();
 
       await expect(repository.add(split('s1', meters))).rejects.toBeInstanceOf(InvalidMeasurementMetersError);
