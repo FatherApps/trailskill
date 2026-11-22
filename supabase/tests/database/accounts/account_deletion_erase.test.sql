@@ -7,7 +7,7 @@
 -- S5 (R only), S6 (FL only).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(55);
+select plan(59);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('12450000-0000-4000-8000-0000000000' || $1)::uuid $$;
 -- Marks a user: the code goes through the real functions, then the day is moved to the past (or where asked).
@@ -46,6 +46,10 @@ values (pg_temp.u('f2'), pg_temp.u('c1'), 'repetition', pg_temp.u('d2'), 3150, '
 insert into public.athlete_photos (athlete_id, storage_path, created_by)
 values (pg_temp.u('d1'), pg_temp.u('d1')::text || '/' || pg_temp.u('f1')::text || '.jpg', pg_temp.u('e1'));
 insert into public.athlete_share_codes (athlete_id, code, created_by) values (pg_temp.u('d1'), 'TS-ABCDEF', pg_temp.u('e1'));
+insert into public.athlete_private_details (athlete_id, birth_date, gender) values
+  (pg_temp.u('d1'), '2012-03-04', 'F'), (pg_temp.u('d2'), '2013-05-06', 'undisclosed'), (pg_temp.u('d3'), '2014-07-08', 'M');
+-- #1369 and #1366 both replace erase_account: the last one in the migration order must keep the delete of the other.
+insert into public.athlete_health (athlete_id, blood_type) values (pg_temp.u('d1'), 'O+'), (pg_temp.u('d2'), 'A-'), (pg_temp.u('d3'), 'B+');
 insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at)
 select pg_temp.u(x.u), pg_temp.u(x.a), 'record_times', t.id, now() from (values ('e1', 'd1'), ('e1', 'd3'), ('e2', 'd3')) x(u, a),
   lateral (select id from public.authorization_texts where purpose = 'record_times' limit 1) t;
@@ -110,6 +114,10 @@ select is((select count(*) from public.athlete_managers where athlete_id = pg_te
 select is((select count(*) from public.athlete_photos where athlete_id = pg_temp.u('d2')) + (select count(*) from public.athlete_identity_documents where athlete_id = pg_temp.u('d2')), 0::bigint, 'S2: no photo, no document');
 select is((select created_by from public.athletes where id = pg_temp.u('d2')), null::uuid, 'S2: no creator');
 select matches((select key_hash from public.former_athlete_keys where athlete_id = pg_temp.u('d2')), '^[0-9a-f]{64}$', 'S2: the server keeps only the hash of the former_athlete_key');
+select is((select count(*) from public.athlete_private_details where athlete_id in (pg_temp.u('d1'), pg_temp.u('d2'))), 0::bigint, '#1366: the birth date and gender of S1 (deleted) and S2 (anonymized) go');
+select is((select count(*) from public.athlete_private_details where athlete_id = pg_temp.u('d3')), 1::bigint, '#1366: those of S3, still managed by M, stay');
+select is((select count(*) from public.athlete_health where athlete_id in (pg_temp.u('d1'), pg_temp.u('d2'))), 0::bigint, '#1369: the health row of S1 (deleted) and S2 (anonymized) goes, with the private details');
+select is((select count(*) from public.athlete_health where athlete_id = pg_temp.u('d3')), 1::bigint, '#1369: the one of S3, still managed by M, stays');
 -- The swimmer another guardian also manages stays.
 select is((select count(*) from public.athletes where id = pg_temp.u('d3') and first_name = 'Shared'), 1::bigint, 'S3: the shared swimmer stays, with their name');
 select is((select array_agg(user_id) from public.athlete_managers where athlete_id = pg_temp.u('d3')), array[pg_temp.u('e2')], 'S3: only the other guardian is left');
