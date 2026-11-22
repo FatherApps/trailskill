@@ -86,7 +86,10 @@ export class InvalidMeasurementTimeError extends Error {
   override name = 'InvalidMeasurementTimeError';
 }
 
-/** Meters are above zero and only a split carries them: the server refuses anything else for good. */
+// The server's bound (measurements_meters_positive); the distance check lives in the review step.
+const MAX_METERS = 100000;
+
+/** Meters are above zero and below 100000, and only a split carries them: the server refuses anything else for good. */
 export class InvalidMeasurementMetersError extends Error {
   override name = 'InvalidMeasurementMetersError';
 }
@@ -96,7 +99,7 @@ export function assertMeters(measurement: Pick<Measurement, 'kind' | 'meters'>):
   const { kind, meters } = measurement;
   if (meters === undefined || meters === null) return;
   if (kind !== 'split') throw new InvalidMeasurementMetersError('Only a split has meters');
-  if (!Number.isFinite(meters) || meters <= 0) throw new InvalidMeasurementMetersError('Meters must be greater than 0');
+  if (!Number.isFinite(meters) || meters <= 0 || meters >= MAX_METERS) throw new InvalidMeasurementMetersError('Meters must be above 0 and below 100000');
 }
 
 /** Rejects a time the server would turn into a permanent upload failure (zero, negative or non-integer), so the change is refused before anything is written. */

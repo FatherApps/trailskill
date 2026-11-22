@@ -2,7 +2,7 @@
 -- before it keep null, and it never changes once written. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(13);
 
 insert into auth.users (id, email) values ('21000000-0000-4000-8000-0000000000a1', 'coach-m@example.test');
 insert into public.schools (id, name) values ('21000000-0000-4000-8000-0000000000b1', 'Meters School');
@@ -72,6 +72,31 @@ select throws_ok(
        ('21000000-0000-4000-8000-0000000000b1', 'split', '21000000-0000-4000-8000-0000000000e1', 3100,
         'FR', '100m', 'SCM', 'training', 'screen_stopwatch', 'device-m', '2026-11-22 08:00:00+00', '21000000-0000-4000-8000-0000000000f1', -25) $$,
   '23514', null, 'a split with negative meters is rejected'
+);
+
+select throws_ok(
+  $$ insert into public.measurements
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id, meters)
+     values
+       ('21000000-0000-4000-8000-0000000000b1', 'split', '21000000-0000-4000-8000-0000000000e1', 3100,
+        'FR', '100m', 'SCM', 'training', 'screen_stopwatch', 'device-m', '2026-11-22 08:00:00+00', '21000000-0000-4000-8000-0000000000f1', 'NaN') $$,
+  '23514', null, 'a split with NaN as meters is rejected'
+);
+select throws_ok(
+  $$ insert into public.measurements
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id, meters)
+     values
+       ('21000000-0000-4000-8000-0000000000b1', 'split', '21000000-0000-4000-8000-0000000000e1', 3100,
+        'FR', '100m', 'SCM', 'training', 'screen_stopwatch', 'device-m', '2026-11-22 08:00:00+00', '21000000-0000-4000-8000-0000000000f1', 'Infinity') $$,
+  '23514', null, 'a split with Infinity as meters is rejected'
+);
+select throws_ok(
+  $$ insert into public.measurements
+       (school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at, parent_id, meters)
+     values
+       ('21000000-0000-4000-8000-0000000000b1', 'split', '21000000-0000-4000-8000-0000000000e1', 3100,
+        'FR', '100m', 'SCM', 'training', 'screen_stopwatch', 'device-m', '2026-11-22 08:00:00+00', '21000000-0000-4000-8000-0000000000f1', 100000) $$,
+  '23514', null, 'a split with 100000 meters, the upper bound as meters is rejected'
 );
 
 -- Meters do not change after saving (out of scope for this delivery): the update guard refuses it.
