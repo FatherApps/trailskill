@@ -1,0 +1,61 @@
+name: Verified
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+
+permissions:
+  pull-requests: write
+
+# The last event decides the final status of the check.
+concurrency:
+  group: verified-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verified:
+    name: Verificado
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the verificado label
+        # Branch, author, labels and draft state go through env, never inline in the script, to avoid injection.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_ACTION: ${{ github.event.action }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          # Only a branch of this repository can be the release PR (a fork could use the same branch name).
+          PR_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref || '' }}
+        run: |
+          set -eu
+          case "$PR_HEAD_REF" in
+            release-please--*) echo "Release PR: exempt."; exit 0 ;;
+          esac
+          if [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
+            echo "Dependabot PR: exempt."
+            exit 0
+          fi
+          has_label=false
+          case ",$PR_LABELS," in
+            *,verificado,*) has_label=true ;;
+          esac
+          if [ "$PR_ACTION" = synchronize ]; then
+            if [ "$has_label" = true ]; then
+              gh api -X DELETE "repos/$GH_REPO/issues/$PR_NUMBER/labels/verificado" --silent
+            fi
+            echo "::error::A new commit was pushed: the pull request must be verified again and the verificado label added again."
+            exit 1
+          fi
+          if [ "$PR_DRAFT" = true ]; then
+            echo "::error::The pull request is a draft: finish it, mark it ready and add the verificado label."
+            exit 1
+          fi
+          if [ "$has_label" != true ]; then
+            echo "::error::Missing the verificado label: the orchestrator adds it after the verifier, the cross review, the fixes and the emulator check."
+            exit 1
+          fi
+          echo "Verified."

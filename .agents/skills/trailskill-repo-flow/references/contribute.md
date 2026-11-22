@@ -18,7 +18,7 @@ Rulebook: `CONTRIBUTING.md`, including its Definition of Done.
 5. Run every check listed under Commands in `AGENTS.md`; all must pass.
 6. Commit in small Conventional Commits ending with `Refs #<n>`.
 7. `git push -u origin <branch>`, fill the pull request body, run `PR_TITLE="<conventional title>" PR_BODY="$(cat body.md)" sh .github/scripts/check-pr.sh` (it must pass), then `gh pr create --draft --title "<conventional title>" --body-file <filled copy of ../../../../.github/pull_request_template.md, written in Spanish>`.
-8. Wait for the PR checks (`gh pr checks <n> --watch`); fix any failure. Walk the Definition of Done. Run `gh pr ready` only when every item holds.
+8. Wait for the PR checks (`gh pr checks <n> --watch`); fix any failure. Walk the Definition of Done. Run `gh pr ready` only when every item holds. Never add the `verificado` label: the orchestrator adds it when it marks the pull request ready, and the «Verificado» check stays red until then.
 9. After the maintainer merges: `git worktree remove ../trailskill-worktrees/<n>-<slug>`, `git branch -D <branch>` (squash merges look unmerged locally), and confirm the issue is closed.
 
 For an agent, done means the pull request is open; step 8 still follows.
