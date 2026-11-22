@@ -19,6 +19,7 @@ import { photoCardFixture as pc, syntheticPhotoUri } from './__fixtures__/photoC
 import { eventFixture as ev, personalBestFixture as pb, profileFixture as pf } from './__fixtures__/profile';
 import { EventSelector, type EventValue } from './components/EventSelector';
 import { AthleteNameForm, type AthleteNameFormProps } from './components/AthleteNameForm';
+import { AthletePrivateDetailsForm, type AthletePrivateDetailsFormProps } from './components/AthletePrivateDetailsForm';
 import { HistoryList } from './components/HistoryList';
 import { ImportPrompt } from './components/ImportPrompt';
 import { PersonalBest, type PersonalBestProps } from './components/PersonalBest';
@@ -39,6 +40,9 @@ const noop = () => {};
 
 // The photo card as the profile shows it; the avatar is the one the container builds (the photo, or the initials).
 const nameFormBase: AthleteNameFormProps = { firstName: 'Ana', lastName: 'Marin', onSave: noop };
+// A fixed day, so the future-date state does not depend on the phone clock.
+const detailsFormBase: AthletePrivateDetailsFormProps = { birthDate: null, gender: null, today: '2026-11-21', onSave: noop };
+const detailsFormSaved: AthletePrivateDetailsFormProps = { ...detailsFormBase, birthDate: '2014-05-03', gender: 'F' };
 const photoCardBase: PhotoCardProps = {
   state: 'none',
   avatar: <AthleteAvatar initials={pc.initials} colorIndex={3} size="lg" authorized />,
@@ -293,9 +297,30 @@ export const galleryEntries: GalleryEntry[] = [
     'save-failed': () => <AthleteNameForm {...nameFormBase} draft={{ firstName: 'Lucía', lastName: 'Gómez' }} failed />,
     'long-text': () => <AthleteNameForm {...nameFormBase} firstName="María Fernanda del Carmen" lastName="Rodríguez de la Hoz Santamaría" />,
   }),
+  entry('athletePrivateDetailsForm', 'AthletePrivateDetailsForm', {
+    empty: () => <AthletePrivateDetailsForm {...detailsFormBase} />,
+    saved: () => <AthletePrivateDetailsForm {...detailsFormSaved} />,
+    edited: () => <AthletePrivateDetailsForm {...detailsFormSaved} draft={{ birthDate: '2014-06-04', gender: 'M' }} />,
+    'future-date': () => <AthletePrivateDetailsForm {...detailsFormBase} draft={{ birthDate: '2026-11-22', gender: '' }} />,
+    'before-1900': () => <AthletePrivateDetailsForm {...detailsFormBase} draft={{ birthDate: '1899-12-31', gender: '' }} />,
+    'saved-offline': () => <AthletePrivateDetailsForm {...detailsFormSaved} status={<SyncStatus state="on_device" />} />,
+    'not-sent': () => <AthletePrivateDetailsForm {...detailsFormSaved} status={<SyncStatus state="not_sent" onRetry={noop} />} />,
+    'save-failed': () => <AthletePrivateDetailsForm {...detailsFormBase} draft={{ birthDate: '2014-05-03', gender: 'undisclosed' }} failed />,
+  }),
   entry('athleteEditScreen', 'AthleteEditScreen', {
     // The share code lives in accounts, which athletes cannot import: a plain slot stands in for it here.
     'with-photo': () => <AthleteEditScreen athleteId="a1" firstName="Ana" lastName="Marin" onBack={noop} onDone={noop} name={<AthleteNameForm {...nameFormBase} />} photo={<PhotoCard {...photoCardBase} />} />,
+    'with-birth-date-gender': () => (
+      <AthleteEditScreen
+        athleteId="a1"
+        firstName="Ana"
+        lastName="Marin"
+        onBack={noop}
+        onDone={noop}
+        name={<AthleteNameForm {...nameFormBase} />}
+        privateDetails={<AthletePrivateDetailsForm {...detailsFormSaved} />}
+      />
+    ),
     'long-text': () => (
       <AthleteEditScreen
         athleteId="a2"

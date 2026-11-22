@@ -43,6 +43,13 @@ describe('AthleteEditScreen', () => {
     expect(order).toEqual(['Datos del nadador', 'Documento', 'Salud y emergencias', 'Código para compartir tiempos']);
   });
 
+  it('puts the birth date and gender slot inside the data, after the name and before the identity', async () => {
+    await show({ privateDetails: <Text>Nacimiento y género</Text>, identity: <Text>Documento</Text> });
+
+    const order = screen.getAllByText(/^(Datos del nadador|Nombre y apellido editables|Nacimiento y género|Documento)$/).map((node) => node.props.children);
+    expect(order).toEqual(['Datos del nadador', 'Nombre y apellido editables', 'Nacimiento y género', 'Documento']);
+  });
+
   it('shows nothing for the identity and health slots when they are empty', async () => {
     await show();
 

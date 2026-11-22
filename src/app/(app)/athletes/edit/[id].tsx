@@ -22,9 +22,11 @@ import {
   AthleteEditScreen,
   AthleteNameContainer,
   AthletePhotoContainer,
+  AthletePrivateDetailsContainer,
   athleteDisplay,
   createExpoPhotoPicker,
   createPowerSyncAthleteRepository,
+  createPowerSyncPrivateDetailsRepository,
   createPowerSyncSchoolAthleteRepository,
   getAthletePhotoService,
   useAthleteNamesVersion,
@@ -34,13 +36,14 @@ import {
 const athletes = createPowerSyncSchoolAthleteRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const identityDocuments = createSupabaseIdentityDocumentRepository();
+const privateDetails = createPowerSyncPrivateDetailsRepository();
 const athleteProfiles = createPowerSyncAthleteRepository(managedAthletes, athletes);
 const shareCodes = createSupabaseAthleteShareCodeRepository();
 const shareCodeCache = createSecureStoreShareCodeCache();
 const photoService = getAthletePhotoService();
 const photoPicker = createExpoPhotoPicker();
 
-// "Editar a <nombre>": the photo, the swimmer's data (identity number included) and the share code, for who manages the swimmer (a guardian or the adult athlete); the server decides the permissions.
+// "Editar a <nombre>": the photo, the swimmer's data (birth date, gender and identity number included) and the share code, for who manages the swimmer (a guardian or the adult athlete); the server decides the permissions.
 export default function AthleteEditRoute() {
   const { space, colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -95,6 +98,7 @@ export default function AthleteEditRoute() {
           onAuthorize={() => router.push('/authorizations')}
         />
       }
+      privateDetails={<AthletePrivateDetailsContainer key={`private-details-${id}`} athleteId={id} repository={privateDetails} />}
       identity={
         <AthleteIdentityNumberContainer
           key={`identity-${id}`}
