@@ -53,7 +53,7 @@ FUNCIONA SIN CONEXIÓN
 Lo que registras se guarda en el teléfono o la tableta y se sincroniza cuando vuelve la conexión. Un tiempo que falta nunca se muestra como cero.
 
 TU INFORMACIÓN, BAJO TU CONTROL
-Los datos de cada deportista son de su familia. Cada persona ve solo lo que su rol permite, y los datos se usan únicamente para los fines que la familia o el deportista adulto autorizó. Si el deportista se da de baja de una escuela, la escuela puede verlos 30 días y el deportista queda libre para ir a otra.
+Los datos de cada deportista son de su familia. Cada persona ve solo lo que su rol permite, y los datos se usan únicamente para los fines que la familia o el deportista adulto autorizó. El deportista que se da de baja de una escuela queda libre para ir a otra; cuando la aplicación lo habilite, la escuela podrá verlos 30 días más (hasta entonces, deja de verlos el día de la baja).
 
 Swimcro es para personas de 18 años o más.
 
