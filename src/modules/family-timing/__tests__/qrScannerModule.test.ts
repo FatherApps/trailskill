@@ -10,10 +10,15 @@ const missing = () => {
 
 type ExpoCamera = ReturnType<Parameters<typeof loadQrScanner>[1]>;
 
-const camera = (available: boolean) =>
+// CameraView.isAvailableAsync is web-only: on Android and iOS expo-camera throws UnavailabilityError (issue 1411).
+const camera = (granted: boolean) =>
   ({
-    Camera: { requestCameraPermissionsAsync: async () => ({ granted: true }) },
-    CameraView: Object.assign(() => null, { isAvailableAsync: async () => available }),
+    Camera: { requestCameraPermissionsAsync: async () => ({ granted }) },
+    CameraView: Object.assign(() => null, {
+      isAvailableAsync: async () => {
+        throw new Error('The method or property CameraView.isAvailableAsync is not available on android');
+      },
+    }),
   }) as unknown as ExpoCamera;
 
 describe('the QR scanner of a build without the camera module (issue 1322)', () => {
@@ -36,11 +41,11 @@ describe('the QR scanner of a build without the camera module (issue 1322)', () 
     expect(loadQrScanner(true, missing)).toBeNull();
   });
 
-  it('offers the scanner when the module is there', async () => {
+  it('asks for the permission and resolves true when it is granted, even though isAvailableAsync throws (issue 1411)', async () => {
     expect(await loadQrScanner(true, () => camera(true))!.requestPermission()).toBe(true);
   });
 
-  it('says no permission when the phone has no camera', async () => {
+  it('resolves false when the person denies the camera permission', async () => {
     expect(await loadQrScanner(true, () => camera(false))!.requestPermission()).toBe(false);
   });
 });

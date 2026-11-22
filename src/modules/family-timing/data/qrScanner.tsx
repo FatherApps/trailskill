@@ -29,8 +29,8 @@ export function qrScannerFor(camera: ExpoCamera | null): QrScanner | null {
   return {
     async requestPermission() {
       try {
-        // The camera is optional hardware (issue 1292): without one the person types the code.
-        if (!(await CameraView.isAvailableAsync())) return false;
+        // CameraView.isAvailableAsync is web-only (it throws UnavailabilityError on Android and iOS), so it must not gate the permission.
+        // A phone without a camera ends in onMountError, and the person types the code (issue 1292).
         return (await Camera.requestCameraPermissionsAsync()).granted;
       } catch {
         return false;
