@@ -10,7 +10,7 @@
 -- The days are simulated by moving ended_at back, as the table owner. All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(63);
+select plan(74);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('14180000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -22,6 +22,13 @@ create function pg_temp.seen() returns text language sql as $$
     || '|schools=' || coalesce((select string_agg(right(athlete_id::text, 2) || ':' || right(school_id::text, 2), ',' order by athlete_id, school_id) from public.athlete_schools where athlete_id in (pg_temp.u('e1'), pg_temp.u('e3'))), '')
     || '|groups=' || coalesce((select string_agg(right(athlete_id::text, 2) || ':' || right(group_id::text, 2), ',' order by athlete_id, group_id) from public.athlete_groups where athlete_id in (pg_temp.u('e1'), pg_temp.u('e3'))), '')
     || '|marks=' || coalesce((select string_agg(right(id::text, 2), ',' order by id) from public.measurements where id in (pg_temp.u('f1'), pg_temp.u('f2'), pg_temp.u('f3'))), '') $$;
+-- What the current user reads of the other tables the helpers reach, for X (e1): authorizations, authorization_status, the
+-- photo and the fulfillments of X and W (81 is X's, 82 is W's, both in a plan of A).
+create function pg_temp.seen_more() returns text language sql as $$
+  select 'auth=' || (select count(*) from public.authorizations where athlete_id = pg_temp.u('e1'))
+    || '|status=' || (select count(*) from public.authorization_status where athlete_id = pg_temp.u('e1'))
+    || '|photo=' || (select count(*) from public.athlete_photos where athlete_id = pg_temp.u('e1'))
+    || '|fulf=' || coalesce((select string_agg(right(id::text, 2), ',' order by id) from public.training_plan_fulfillments where id in (pg_temp.u('81'), pg_temp.u('82'))), '') $$;
 -- Rows a write statement changes under the current role (RLS filters silently on update and delete).
 create function pg_temp.rows_changed(stmt text) returns int language plpgsql as $$
 declare n int;
@@ -71,6 +78,22 @@ values
   (pg_temp.u('f1'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('e1'), 3100, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 08:00:00+00'),
   (pg_temp.u('f2'), pg_temp.u('aa'), pg_temp.u('b2'), 'repetition', pg_temp.u('e1'), 3200, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-e', '2026-11-01 09:00:00+00'),
   (pg_temp.u('f3'), pg_temp.u('a4'), pg_temp.u('b1'), 'repetition', pg_temp.u('e3'), 3300, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 10:00:00+00');
+
+insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at)
+  select pg_temp.u('a7'), pg_temp.u('e1'), t.purpose, t.id, now() - interval '1 day'
+  from public.authorization_texts t where t.purpose = 'show_photo' limit 1;
+insert into public.athlete_photos (athlete_id, storage_path, created_by)
+  values (pg_temp.u('e1'), pg_temp.u('e1')::text || '/' || gen_random_uuid()::text || '.jpg', pg_temp.u('a7'));
+insert into public.training_plans (id, created_by, school_id, name) values (pg_temp.u('71'), pg_temp.u('a2'), pg_temp.u('b1'), 'Plan A');
+insert into public.training_plan_versions (id, created_by, plan_id, version) values (pg_temp.u('72'), pg_temp.u('a2'), pg_temp.u('71'), 1);
+insert into public.training_plan_blocks (id, created_by, version_id, position, repetitions, distance, stroke, phase, recording)
+  values (pg_temp.u('73'), pg_temp.u('a2'), pg_temp.u('72'), 1, 4, '50m', 'FR', 'warm_up', 'completion');
+insert into public.training_plan_assignments (id, created_by, school_id, plan_id, version_id, session_date, target)
+  values (pg_temp.u('74'), pg_temp.u('a2'), pg_temp.u('b1'), pg_temp.u('71'), pg_temp.u('72'), '2026-11-02', 'school');
+insert into public.training_plan_fulfillments (id, created_by, device_id, assignment_id, version_id, block_id, athlete_id, captured_at) values
+  (pg_temp.u('81'), pg_temp.u('a4'), 'dev-k', pg_temp.u('74'), pg_temp.u('72'), pg_temp.u('73'), pg_temp.u('e1'), '2026-11-02 08:00:00+00'),
+  (pg_temp.u('82'), pg_temp.u('a4'), 'dev-k', pg_temp.u('74'), pg_temp.u('72'), pg_temp.u('73'), pg_temp.u('e3'), '2026-11-02 08:01:00+00');
+
 
 select has_column('public', 'athlete_schools', 'read_window_closed_at', 'athlete_schools has read_window_closed_at');
 select is(app.athlete_school_read_window(), interval '30 days', 'the read window is 30 days, in one place');
@@ -138,6 +161,20 @@ select is(pg_temp.rows_changed($$delete from public.athlete_schools where athlet
 select is(pg_temp.rows_changed($$delete from public.athlete_groups where athlete_id = pg_temp.u('e1') and group_id = pg_temp.u('c1')$$), 0, 'day 29: the admin of A cannot take X out of a group');
 select throws_ok($$insert into public.athlete_groups (athlete_id, group_id) values (pg_temp.u('e1'), pg_temp.u('c3'))$$, '42501', null, 'day 29: the admin of A cannot put X in a group');
 select lives_ok($$insert into public.athlete_groups (athlete_id, group_id) values (pg_temp.u('e3'), pg_temp.u('c3'))$$, 'day 29: the admin of A still puts W in a group');
+select pg_temp.as_user('a2');
+select is(pg_temp.seen_more(), 'auth=1|status=1|photo=1|fulf=81,82', 'day 29: the admin of A reads the authorization, the photo and the fulfillments of X');
+select pg_temp.as_user('a4');
+select is(pg_temp.seen_more(), 'auth=0|status=1|photo=1|fulf=81,82', 'day 29: coach K reads the status, the photo and the fulfillments of X');
+select pg_temp.as_user('a5');
+select is(pg_temp.seen_more(), 'auth=0|status=1|photo=1|fulf=81,82', 'day 29: coach C reads the status, the photo and the fulfillments of X');
+select pg_temp.as_user('ab');
+select is(pg_temp.seen_more(), 'auth=1|status=1|photo=1|fulf=81,82', 'day 29: the admin of A and B reads all of it');
+select pg_temp.as_user('a2');
+-- An admin cannot give a NEW coach a read of a swimmer the school already ended: the insert needs an active link.
+select throws_ok($$insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values (pg_temp.u('a5'), pg_temp.u('e1'), pg_temp.u('b1'))$$,
+  '42501', null, 'day 29: the admin of A cannot assign a coach to X, whose link is ended');
+select lives_ok($$insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values (pg_temp.u('a5'), pg_temp.u('e3'), pg_temp.u('b1'))$$,
+  'day 29: the admin of A still assigns a coach to W, active in A');
 select pg_temp.as_user('a4');
 select is(app.can_assign_training_plan(pg_temp.u('b1'), 'athlete', pg_temp.u('e1'), null), false, 'day 29: coach K cannot assign a plan to X');
 select is(app.coach_has_athlete_in_school_active(pg_temp.u('e1'), pg_temp.u('b1')), false, 'day 29: coach K is no active coach of X in A');
@@ -173,6 +210,16 @@ select pg_temp.as_user('aa');
 select is(pg_temp.seen(), 'athletes=e1|schools=e1:b2|groups=e1:c2|marks=f2', 'day 31: coach E of B is unchanged');
 select pg_temp.as_user('a7');
 select is(pg_temp.seen(), 'athletes=e1|schools=e1:b1,e1:b2|groups=e1:c1,e1:c2|marks=', 'day 31: the guardian still reads X, the ended link included');
+select pg_temp.as_user('a2');
+select is(pg_temp.seen_more(), 'auth=0|status=0|photo=0|fulf=82', 'day 31: the admin of A reads no authorization, photo or fulfillment of X, only W''s fulfillment');
+select pg_temp.as_user('a4');
+select is(pg_temp.seen_more(), 'auth=0|status=0|photo=0|fulf=82', 'day 31: coach K reads no status, photo or fulfillment of X');
+select pg_temp.as_user('a5');
+select is(pg_temp.seen_more(), 'auth=0|status=0|photo=0|fulf=82', 'day 31: coach C reads no status, photo or fulfillment of X');
+select pg_temp.as_user('ab');
+select is(pg_temp.seen_more(), 'auth=1|status=1|photo=1|fulf=82', 'day 31: the admin of A and B reads X''s authorization and photo through B, not its fulfillment of A');
+select pg_temp.as_user('a7');
+select is(pg_temp.seen_more(), 'auth=1|status=1|photo=1|fulf=81', 'day 31: the guardian still reads all of X');
 
 -- 6. The stored column that closes the window on the device.
 reset role;

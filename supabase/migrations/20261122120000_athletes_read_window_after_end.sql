@@ -23,7 +23,7 @@
 -- Revert: recreate the seven read helpers from 20261120100000 (ended_at is null / not ended) and make can_assign_training_plan,
 -- request_result_sharing and measurements_check_update call the old names again (bodies in 20261120100000 and 20261116040000);
 -- restore measurements_insert, measurements_update, training_plan_fulfillments_insert, athlete_groups_write and
--- athlete_schools_write with the old names; recreate app.schedule_family_timing_jobs() from 20261120120300 and
+-- athlete_schools_write with the old names; recreate coach_athlete_assignments_insert from 20261026010000; recreate app.schedule_family_timing_jobs() from 20261120120300 and
 -- athlete_schools_ended_guard() from 20261120100000; select cron.unschedule('athlete-school-read-window-close') if it was
 -- scheduled; drop the functions app.close_athlete_school_read_windows, app.schedule_athlete_school_read_window_job,
 -- app.athlete_school_window_closed, app.athlete_school_read_window and the four *_active helpers; drop the check
@@ -580,4 +580,15 @@ $$;
 
 revoke execute on function app.schedule_family_timing_jobs() from public, anon, authenticated;
 
+-- During the window an admin must not give a NEW coach read access to a swimmer the school already ended: before this
+-- migration that insert granted nothing (the helpers saw only active links), now a direct assignment would read until day 30.
+-- The trigger coach_athlete_assignments_check_school only requires a link of any age, so the policy requires an active one.
+drop policy coach_athlete_assignments_insert on public.coach_athlete_assignments;
+create policy coach_athlete_assignments_insert on public.coach_athlete_assignments for insert to authenticated
+  with check ((select app.is_platform_admin()) or (select app.admin_has_athlete_in_school_active(athlete_id, school_id)));
+
 select app.schedule_athlete_school_read_window_job();
+
+-- Safety net: closes at once the windows that already ran out (rows ended more than 30 days ago), so the sync streams
+-- do not wait for the first run of the daily job after this migration.
+select app.close_athlete_school_read_windows();
