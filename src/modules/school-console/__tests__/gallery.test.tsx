@@ -94,7 +94,7 @@ describe('school console gallery entries', () => {
     expect(stateKeys('athleteIndicators')).toEqual(['default', 'large-numbers']);
     expect(stateKeys('athleteFilters')).toEqual(['empty', 'with-filter', 'all-filters']);
     expect(stateKeys('athleteTable')).toEqual(['default', 'selected', 'long-text', 'compact']);
-    expect(stateKeys('athleteDetail')).toEqual(['default', 'pending-no-bests', 'category-selector', 'long-text']);
+    expect(stateKeys('athleteDetail')).toEqual(['default', 'pending-no-bests', 'category-selector', 'claim-link-open', 'claim-link-expired', 'long-text']);
     expect(stateKeys('athletesScreen')).toEqual([
       'with-data',
       'loading',

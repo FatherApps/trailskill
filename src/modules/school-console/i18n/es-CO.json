@@ -79,6 +79,31 @@
       "athlete_school_missing": "El deportista no está en esta escuela.",
       "other": "No pudimos guardar la categoría. Inténtalo de nuevo."
     },
+    "claim_link": {
+      "title": "Enlace de reclamo",
+      "open_until": "Vigente hasta el {{date}}",
+      "open": "Vigente",
+      "expired": "Vencido",
+      "revoked": "Revocado",
+      "open_help": "La familia aún no lo ha abierto. Renovarlo deja sin efecto el enlace anterior.",
+      "expired_help": "El enlace venció y ya no sirve. Renuévalo para enviar uno nuevo a la familia.",
+      "revoked_help": "El enlace está revocado y ya no sirve. Renuévalo para enviar uno nuevo a la familia.",
+      "share": "Compartir enlace",
+      "renew": "Renovar enlace",
+      "renew_and_share": "Renovar y compartir",
+      "revoke": "Revocar enlace",
+      "revoke_confirm": {
+        "title": "¿Revocar el enlace de {{name}}?",
+        "message": "Nadie podrá usar el enlace actual. Puedes renovarlo después para enviar uno nuevo.",
+        "confirm": "Revocar enlace",
+        "cancel": "Cancelar"
+      },
+      "error": {
+        "not_allowed": "Solo un administrador activo de la escuela puede cambiar el enlace.",
+        "not_open": "La familia ya reclamó a este nadador o la escuela lo dio de baja: no hay enlace que cambiar.",
+        "other": "No pudimos cambiar el enlace. Revisa la conexión e inténtalo de nuevo."
+      }
+    },
     "end_link": "Dar de baja a un nadador",
     "end_confirm": {
       "title": "¿Dar de baja a {{name}}?",

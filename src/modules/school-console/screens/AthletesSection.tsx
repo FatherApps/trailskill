@@ -8,7 +8,7 @@ import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
 import { avatarOf } from '../components/athleteAvatar';
 import type { AdultDirectoryRepository, Guardian, InvitationRepository } from '../../accounts';
-import type { AthleteRegistrationRepository, AthleteSchoolEndRepository } from '../../athletes';
+import type { AthleteClaimLinkState, AthleteRegistrationRepository, AthleteSchoolEndRepository } from '../../athletes';
 import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
 import { formatDate, localDate } from '../components/formatDate';
@@ -40,7 +40,7 @@ export type AthletesSectionProps = ConsoleSectionProps & {
   invitations?: Pick<InvitationRepository, 'create'>;
   // Registering a swimmer who has no account: without it the header has no «Dar de alta». Only the school admin console passes it; the server checks the role anyway.
   // `newId` makes the id of the swimmer on the device (one per opening of the sheet, so a retry never creates a second swimmer).
-  registration?: { repository: Pick<AthleteRegistrationRepository, 'register'>; newId: () => string };
+  registration?: { repository: Pick<AthleteRegistrationRepository, 'register' | 'renew' | 'revoke' | 'findLink'>; newId: () => string };
   // Opens the system share sheet with the invitation message; replaced in tests.
   share?: (message: string) => Promise<unknown>;
   // The list is read again when this changes (a sync completed).
@@ -212,6 +212,23 @@ export function AthletesSection({
     };
   }, [guardians, selectedId, refreshKey]);
 
+  // The claim link of the open swimmer, read online (the table is not synced): offline or with no link there is simply no panel.
+  const [link, setLink] = useState<{ athleteId: string; state: AthleteClaimLinkState | null }>();
+  const [linkFailure, setLinkFailure] = useState<{ athleteId: string; message: string }>();
+  const [linkBusy, setLinkBusy] = useState(false);
+  const linkWorking = useRef(false);
+  useEffect(() => {
+    if (selectedId === null || !registration) return;
+    let active = true;
+    registration.repository.findLink(selectedId).then(
+      (state) => active && setLink({ athleteId: selectedId, state }),
+      () => active && setLink({ athleteId: selectedId, state: null }),
+    );
+    return () => {
+      active = false;
+    };
+  }, [registration, selectedId, refreshKey]);
+
   const loaded = answer?.schoolId === schoolId && answer.attempt === attempt ? answer.result : undefined;
   const athletes = loaded === 'error' || loaded === undefined ? undefined : loaded.athletes;
   const options = useMemo(() => (athletes ? filterOptions(athletes) : undefined), [athletes]);
@@ -235,6 +252,8 @@ export function AthletesSection({
     const selected = loaded.athletes.find((a) => a.id === selectedId);
     // Until the athlete's own guardians arrive there are none, never another athlete's.
     const guardianNow = selected && guardianList?.athleteId === selected.id ? guardianList.guardians : [];
+    // Until the swimmer's own link is read there is none, never another swimmer's.
+    const linkNow = selected && link?.athleteId === selected.id ? link.state : null;
     const content: AthletesContent = {
       updatedMinutesAgo: lastSyncedAt ? Math.max(0, Math.floor((now().getTime() - lastSyncedAt.getTime()) / MINUTE_MS)) : null,
       indicators: athleteIndicators(loaded.athletes, loaded.measurementsThisWeek),
@@ -292,6 +311,18 @@ export function AthletesSection({
                   });
               },
             },
+            claimLink:
+              registration && linkNow && linkNow.status !== 'claimed'
+                ? {
+                    status: linkNow.status,
+                    expiresOn: formatDate(localDate(new Date(linkNow.expiresAt)), 'long'),
+                    busy: linkBusy,
+                    error: linkFailure?.athleteId === selected.id ? linkFailure.message : null,
+                    onShare: () => void shareClaim(selected.name, linkNow),
+                    onRenew: () => void changeLink(selected.id, selected.name, (repo) => repo.renew(selected.id).then(() => undefined), true),
+                    onRevoke: () => void changeLink(selected.id, selected.name, (repo) => repo.revoke(selected.id), false),
+                  }
+                : undefined,
             categoryChoice: categories && {
               options: categoryOptions(categoryList, selected.categoryId),
               selectedId: selected.categoryId,
@@ -311,6 +342,39 @@ export function AthletesSection({
     // Without a connection the list is what the device stored; with no sync date the banner leaves the date out.
     view = connection !== 'offline' ? { kind: 'data', content } : { kind: 'offline', storedOn: lastSyncedAt ? localDate(lastSyncedAt) : '', content };
   }
+
+  const CLAIM_ERRORS = ['not_allowed', 'not_open'];
+  // The text a family gets with the link; the same as the one shared when the swimmer is registered.
+  const shareClaim = (name: string, state: AthleteClaimLinkState) => {
+    const date = formatDate(localDate(new Date(state.expiresAt)), 'long');
+    return share(
+      t(date === null ? 'schoolConsole.register_sheet.share_text_no_date' : 'schoolConsole.register_sheet.share_text', {
+        school: schoolName,
+        name,
+        link: Linking.createURL(`claim/${state.token}`),
+        date: date ?? '',
+      }),
+    ).catch(() => undefined);
+  };
+  // One call at a time (a ref, because a second press can arrive before the next render); an error says what it means, a success clears it.
+  const changeLink = async (athleteId: string, name: string, change: (repo: NonNullable<typeof registration>['repository']) => Promise<void>, thenShare: boolean) => {
+    if (!registration || linkWorking.current) return;
+    linkWorking.current = true;
+    setLinkBusy(true);
+    setLinkFailure(undefined);
+    try {
+      await change(registration.repository);
+      const state = await registration.repository.findLink(athleteId);
+      setLink({ athleteId, state });
+      if (thenShare && state?.status === 'open') await shareClaim(name, state);
+    } catch (error) {
+      const code = error instanceof Error && CLAIM_ERRORS.includes(error.message) ? error.message : 'other';
+      setLinkFailure({ athleteId, message: t(`schoolConsole.detail.claim_link.error.${code}`) });
+    } finally {
+      linkWorking.current = false;
+      setLinkBusy(false);
+    }
+  };
 
   // The school invites, the family creates the profile. The invitation needs a group: the only one of the school, or the one the admin picks.
   const invite = async (chosenGroupId?: string) => {

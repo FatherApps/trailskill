@@ -34,7 +34,9 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
   const noData = t('schoolConsole.common.no_data');
   const choice = athlete.categoryChoice;
   const endLink = athlete.endLink;
+  const claimLink = athlete.claimLink;
   const [confirmingEnd, setConfirmingEnd] = useState(false);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
 
   return (
     <View style={{ gap: space[4] }}>
@@ -123,6 +125,44 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
           ))
         )}
       </View>
+      {claimLink && (
+        <View style={{ gap: space[2] }}>
+          <Text accessibilityRole="header" style={[typography.label, { color: colors[athleteDetailColors.title] }]}>
+            {t('schoolConsole.detail.claim_link.title')}
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
+            <Tag
+              label={claimLink.status === 'open' && claimLink.expiresOn ? t('schoolConsole.detail.claim_link.open_until', { date: claimLink.expiresOn }) : t(`schoolConsole.detail.claim_link.${claimLink.status}`)}
+              variant={claimLink.status === 'open' ? 'ok' : 'warn'}
+              icon={claimLink.status === 'open' ? 'link' : claimLink.status === 'expired' ? 'schedule' : 'error'}
+            />
+          </View>
+          <Text style={[typography.caption, { color: colors[athleteDetailColors.caption] }]}>{t(`schoolConsole.detail.claim_link.${claimLink.status}_help`)}</Text>
+          {claimLink.error && <Banner variant="warn" icon="error">{claimLink.error}</Banner>}
+          {claimLink.status === 'open' ? (
+            <>
+              <Button variant="secondary" label={t('schoolConsole.detail.claim_link.share')} loading={claimLink.busy} onPress={claimLink.onShare} />
+              <Button variant="secondary" label={t('schoolConsole.detail.claim_link.renew')} loading={claimLink.busy} onPress={claimLink.onRenew} />
+              <Button variant="stop" label={t('schoolConsole.detail.claim_link.revoke')} loading={claimLink.busy} onPress={() => setConfirmingRevoke(true)} />
+            </>
+          ) : (
+            <Button label={t('schoolConsole.detail.claim_link.renew_and_share')} loading={claimLink.busy} onPress={claimLink.onRenew} />
+          )}
+          <ConfirmSheet
+            visible={confirmingRevoke}
+            title={t('schoolConsole.detail.claim_link.revoke_confirm.title', { name: athlete.name })}
+            message={t('schoolConsole.detail.claim_link.revoke_confirm.message')}
+            confirmLabel={t('schoolConsole.detail.claim_link.revoke_confirm.confirm')}
+            cancelLabel={t('schoolConsole.detail.claim_link.revoke_confirm.cancel')}
+            destructive
+            onConfirm={() => {
+              setConfirmingRevoke(false);
+              claimLink.onRevoke();
+            }}
+            onCancel={() => setConfirmingRevoke(false)}
+          />
+        </View>
+      )}
       {onViewProfile && <Button variant="secondary" label={t('schoolConsole.detail.view_profile')} onPress={onViewProfile} />}
       {endLink && (
         <View style={{ gap: space[2] }}>
