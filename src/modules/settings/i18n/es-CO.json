@@ -3,8 +3,6 @@
     "title": "Ajustes",
     "open": "Ajustes",
     "account": "Mi cuenta",
-    "account_section": "Cuenta",
-    "authorizations": "Autorizaciones",
     "theme": {
       "label": "Tema",
       "hint": "Sol sube el contraste para leer el teléfono al aire libre.",
@@ -41,8 +39,13 @@
       "vibrate_label": "Vibrar al marcar",
       "vibrate_hint": "Una vibración corta cada vez que un botón inicia, marca un parcial o detiene."
     },
+    "stopwatch": {
+      "title": "Cronómetro avanzado",
+      "intro": "Personaliza el funcionamiento del cronómetro con los botones."
+    },
     "video": {
-      "title": "Grabación de video",
+      "title": "Configuración de video",
+      "intro": "Ajustes de grabación, audio y comportamiento del video del cronómetro individual.",
       "on": "Sí",
       "off": "No",
       "quality_label": "Calidad del video",

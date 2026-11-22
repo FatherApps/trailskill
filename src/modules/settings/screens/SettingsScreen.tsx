@@ -1,22 +1,12 @@
-import type { ReactNode } from 'react';
-import { ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
-import {
-  lockoutSeconds,
-  themeModes,
-  timePrecisions,
-  type ThemeMode,
-  type TimePrecision,
-  type TimingButtonPreferences,
-  videoQualities,
-  videoStopAfterSeconds,
-  type VideoRecordingPreferences,
-} from '../../../core/preferences';
+import { themeModes, timePrecisions, videoQualities, type ThemeMode, type TimePrecision, type VideoQuality } from '../../../core/preferences';
 import { useTheme } from '../../../core/theme';
 import { formatMillis } from '../../../core/time';
-import { BackButton, Banner, Button, Segmented } from '../../../core/ui';
+import { Button, Icon, Segmented, type IconName } from '../../../core/ui';
+import { SettingsFrame } from '../components/SettingsFrame';
+import { SettingsSection } from '../components/SettingsSection';
 import '../i18n';
 
 export type SettingsScreenProps = {
@@ -24,268 +14,87 @@ export type SettingsScreenProps = {
   timePrecision: TimePrecision;
   onThemeModeChange: (mode: ThemeMode) => void;
   onTimePrecisionChange: (precision: TimePrecision) => void;
-  onBack: () => void;
-  /** Opens "Mi cuenta" (sign out, delete the account); the entry is not shown without it. */
+  /** Vibrating when a button marks; null where the buttons are not used (the phone cannot, or they are off). */
+  vibrate: { value: boolean; onChange: (vibrate: boolean) => void } | null;
+  videoQuality: VideoQuality;
+  onVideoQualityChange: (quality: VideoQuality) => void;
+  /** Opens "Cronómetro avanzado"; absent where the phone cannot use the buttons, and so is the entry. */
+  onOpenStopwatch?: () => void;
+  onOpenVideo: () => void;
+  /** Opens "Mi cuenta" (authorizations, sign out, delete the account); the entry is not shown without it. */
   onOpenAccount?: () => void;
-  /** Opens "Autorizaciones"; only a person who manages athletes gets it, and the entry is not shown without it. */
-  onOpenAuthorizations?: () => void;
-  /** The sign-out button with its warning sheet, built by the accounts module; it is laid out last. */
-  signOut?: ReactNode;
-  /** The headset or volume keys; null where the phone cannot use them (iOS, or a build without the module). */
-  buttons: SettingsButtonsView | null;
-  /** Recording the individual stopwatch on video. */
-  video: SettingsVideoView;
-};
-
-export type SettingsVideoView = {
-  settings: VideoRecordingPreferences;
-  onChange: (changes: Partial<VideoRecordingPreferences>) => void;
-  /** "No molestar" while recording (#1090); null where the phone cannot change it (iOS, or a build without the module). */
-  doNotDisturb?: { hasAccess: boolean; onOpenAccess: () => void } | null;
-};
-
-export type ButtonKey = 'start' | 'split';
-
-export type SettingsButtonsView = {
-  settings: TimingButtonPreferences;
-  /** Names of the keys, as people know them. */
-  startKeyName: string;
-  splitKeyName: string;
-  /** The external key devices connected now, by name. */
-  keyboards: string[];
-  /** The key being chosen: the next key pressed becomes it. */
-  learning: ButtonKey | null;
-  onChange: (changes: Partial<TimingButtonPreferences>) => void;
-  onLearn: (key: ButtonKey) => void;
-  onCancelLearn: () => void;
+  onBack: () => void;
 };
 
 // A fixed synthetic time for the example under the precision choice.
 const EXAMPLE_MILLIS = 65_372;
 
-function Section({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
-  const { colors, space, typography } = useTheme();
-  return (
-    <View style={{ gap: space[2] }}>
-      <Text accessibilityRole="header" style={[typography.subtitle, { color: colors.ink }]}>
-        {label}
-      </Text>
-      {children}
-      <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{hint}</Text>
-    </View>
-  );
+function Entry({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  return <Button variant="secondary" icon={<Icon name={icon} />} trailingIcon={<Icon name="chevron_right" />} label={label} onPress={onPress} />;
 }
 
-function KeyRow({ label, keyName, learning, onLearn, onCancel }: { label: string; keyName: string; learning: boolean; onLearn: () => void; onCancel: () => void }) {
-  const { colors, space, typography } = useTheme();
-  return (
-    <View style={{ gap: space[2] }}>
-      <Text style={[typography.body, { color: colors.ink }]}>{t('settings.buttons.key_row', { action: label, key: keyName })}</Text>
-      {learning ? (
-        <>
-          <Banner variant="info">{t('settings.buttons.learning')}</Banner>
-          <Button variant="ghost" label={t('settings.buttons.cancel')} onPress={onCancel} />
-        </>
-      ) : (
-        <Button variant="secondary" label={t('settings.buttons.change', { action: label })} onPress={onLearn} />
-      )}
-    </View>
-  );
-}
-
-function ButtonsSettings({ view }: { view: SettingsButtonsView }) {
-  const { colors, space, typography } = useTheme();
-  const { settings } = view;
-  const onOff = [
-    { value: 'on', label: t('settings.buttons.on') },
-    { value: 'off', label: t('settings.buttons.off') },
-  ];
-  return (
-    <>
-      <Section label={t('settings.buttons.label')} hint={t('settings.buttons.hint')}>
-        <Segmented
-          accessibilityLabel={t('settings.buttons.label')}
-          value={settings.enabled ? 'on' : 'off'}
-          onChange={(value) => view.onChange({ enabled: value === 'on' })}
-          options={onOff}
-        />
-        <Text style={[typography.caption, { color: colors.ink }]}>
-          {view.keyboards.length > 0
-            ? t('settings.buttons.connected', { devices: view.keyboards.join(', ') })
-            : t('settings.buttons.not_connected')}
-        </Text>
-      </Section>
-      {settings.enabled && (
-        <>
-          <Section label={t('settings.buttons.keys_label')} hint={t('settings.buttons.keys_hint')}>
-            <View style={{ gap: space[4] }}>
-              <KeyRow
-                label={t('settings.buttons.start')}
-                keyName={view.startKeyName}
-                learning={view.learning === 'start'}
-                onLearn={() => view.onLearn('start')}
-                onCancel={view.onCancelLearn}
-              />
-              <KeyRow
-                label={t('settings.buttons.split')}
-                keyName={view.splitKeyName}
-                learning={view.learning === 'split'}
-                onLearn={() => view.onLearn('split')}
-                onCancel={view.onCancelLearn}
-              />
-            </View>
-          </Section>
-          <Section label={t('settings.buttons.lockout_label')} hint={t('settings.buttons.lockout_hint')}>
-            <Segmented
-              accessibilityLabel={t('settings.buttons.lockout_label')}
-              value={String(settings.lockoutSeconds)}
-              onChange={(value) => view.onChange({ lockoutSeconds: Number(value) })}
-              options={lockoutSeconds.map((seconds) => ({ value: String(seconds), label: t('settings.buttons.seconds', { count: seconds }) }))}
-            />
-          </Section>
-          <Section label={t('settings.buttons.vibrate_label')} hint={t('settings.buttons.vibrate_hint')}>
-            <Segmented
-              accessibilityLabel={t('settings.buttons.vibrate_label')}
-              value={settings.vibrate ? 'on' : 'off'}
-              onChange={(value) => view.onChange({ vibrate: value === 'on' })}
-              options={onOff}
-            />
-          </Section>
-        </>
-      )}
-    </>
-  );
-}
-
-function VideoSettings({ view }: { view: SettingsVideoView }) {
-  const { settings } = view;
-  const onOff = [
-    { value: 'on', label: t('settings.video.on') },
-    { value: 'off', label: t('settings.video.off') },
-  ];
-  return (
-    <>
-      <Section label={t('settings.video.quality_label')} hint={t('settings.video.quality_hint')}>
-        <Segmented
-          accessibilityLabel={t('settings.video.quality_label')}
-          value={settings.quality}
-          onChange={(quality) => view.onChange({ quality })}
-          options={videoQualities.map((quality) => ({ value: quality, label: t(`settings.video.quality.${quality}`) }))}
-        />
-      </Section>
-      <Section label={t('settings.video.audio_label')} hint={t('settings.video.audio_hint')}>
-        <Segmented
-          accessibilityLabel={t('settings.video.audio_label')}
-          value={settings.audio ? 'on' : 'off'}
-          onChange={(value) => view.onChange({ audio: value === 'on' })}
-          options={onOff}
-        />
-      </Section>
-      <Section label={t('settings.video.show_stopwatch_label')} hint={t('settings.video.show_stopwatch_hint')}>
-        <Segmented
-          accessibilityLabel={t('settings.video.show_stopwatch_label')}
-          value={settings.showStopwatch ? 'on' : 'off'}
-          onChange={(value) => view.onChange({ showStopwatch: value === 'on' })}
-          options={onOff}
-        />
-      </Section>
-      <Section label={t('settings.video.start_with_time_label')} hint={t('settings.video.start_with_time_hint')}>
-        <Segmented
-          accessibilityLabel={t('settings.video.start_with_time_label')}
-          value={settings.startWithTime ? 'on' : 'off'}
-          onChange={(value) => view.onChange({ startWithTime: value === 'on' })}
-          options={onOff}
-        />
-      </Section>
-      {view.doNotDisturb && (
-        <Section label={t('settings.video.dnd_label')} hint={t('settings.video.dnd_hint')}>
-          <Segmented
-            accessibilityLabel={t('settings.video.dnd_label')}
-            value={settings.doNotDisturb ? 'on' : 'off'}
-            onChange={(value) => view.onChange({ doNotDisturb: value === 'on' })}
-            options={onOff}
-          />
-          {settings.doNotDisturb && !view.doNotDisturb.hasAccess && (
-            <>
-              <Banner variant="warn" icon="lock">
-                {t('settings.video.dnd_no_access')}
-              </Banner>
-              <Button variant="secondary" label={t('settings.video.dnd_open')} onPress={view.doNotDisturb.onOpenAccess} />
-            </>
-          )}
-        </Section>
-      )}
-      <Section label={t('settings.video.stop_after_label')} hint={t('settings.video.stop_after_hint')}>
-        <Segmented
-          accessibilityLabel={t('settings.video.stop_after_label')}
-          value={String(settings.stopAfterSeconds)}
-          onChange={(value) => view.onChange({ stopAfterSeconds: Number(value) })}
-          options={videoStopAfterSeconds.map((seconds) => ({ value: String(seconds), label: t('settings.video.seconds', { count: seconds }) }))}
-        />
-      </Section>
-    </>
-  );
-}
-
-// Presentational: the caller reads and saves the preferences.
+// "Ajustes": the everyday choices first, then the entries to the screens that hold the rest. Presentational: the caller reads and saves.
 export function SettingsScreen({
   themeMode,
   timePrecision,
   onThemeModeChange,
   onTimePrecisionChange,
-  onBack,
+  vibrate,
+  videoQuality,
+  onVideoQualityChange,
+  onOpenStopwatch,
+  onOpenVideo,
   onOpenAccount,
-  onOpenAuthorizations,
-  signOut,
-  buttons,
-  video,
+  onBack,
 }: SettingsScreenProps) {
   const { colors, space, typography } = useTheme();
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors['surface-0'] }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], paddingHorizontal: space[4], paddingTop: space[2] }}>
-        <BackButton onPress={onBack} />
-        <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
-          {t('settings.title')}
+    <SettingsFrame title={t('settings.title')} onBack={onBack}>
+      <SettingsSection label={t('settings.theme.label')} hint={t('settings.theme.hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.theme.label')}
+          value={themeMode}
+          onChange={onThemeModeChange}
+          options={themeModes.map((mode) => ({ value: mode, label: t(`settings.theme.${mode}`) }))}
+        />
+      </SettingsSection>
+      <SettingsSection label={t('settings.precision.label')} hint={t('settings.precision.hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.precision.label')}
+          value={timePrecision}
+          onChange={onTimePrecisionChange}
+          options={timePrecisions.map((precision) => ({ value: precision, label: t(`settings.precision.${precision}`) }))}
+        />
+        <Text style={[typography['time-md'], { color: colors.ink }]}>
+          {t('settings.precision.example', { time: formatMillis(EXAMPLE_MILLIS, { precision: timePrecision }) })}
         </Text>
+      </SettingsSection>
+      {vibrate && (
+        <SettingsSection label={t('settings.buttons.vibrate_label')} hint={t('settings.buttons.vibrate_hint')}>
+          <Segmented
+            accessibilityLabel={t('settings.buttons.vibrate_label')}
+            value={vibrate.value ? 'on' : 'off'}
+            onChange={(value) => vibrate.onChange(value === 'on')}
+            options={[
+              { value: 'on', label: t('settings.buttons.on') },
+              { value: 'off', label: t('settings.buttons.off') },
+            ]}
+          />
+        </SettingsSection>
+      )}
+      <SettingsSection label={t('settings.video.quality_label')} hint={t('settings.video.quality_hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.video.quality_label')}
+          value={videoQuality}
+          onChange={onVideoQualityChange}
+          options={videoQualities.map((quality) => ({ value: quality, label: t(`settings.video.quality.${quality}`) }))}
+        />
+      </SettingsSection>
+      <View style={{ gap: space[3] }}>
+        {onOpenStopwatch && <Entry icon="timer" label={t('settings.stopwatch.title')} onPress={onOpenStopwatch} />}
+        <Entry icon="videocam" label={t('settings.video.title')} onPress={onOpenVideo} />
+        {onOpenAccount && <Entry icon="person" label={t('settings.account')} onPress={onOpenAccount} />}
       </View>
-      <ScrollView contentContainerStyle={{ gap: space[6], padding: space[4], paddingBottom: space[12] * 2 }}>
-        <Section label={t('settings.theme.label')} hint={t('settings.theme.hint')}>
-          <Segmented
-            accessibilityLabel={t('settings.theme.label')}
-            value={themeMode}
-            onChange={onThemeModeChange}
-            options={themeModes.map((mode) => ({ value: mode, label: t(`settings.theme.${mode}`) }))}
-          />
-        </Section>
-        <Section label={t('settings.precision.label')} hint={t('settings.precision.hint')}>
-          <Segmented
-            accessibilityLabel={t('settings.precision.label')}
-            value={timePrecision}
-            onChange={onTimePrecisionChange}
-            options={timePrecisions.map((precision) => ({ value: precision, label: t(`settings.precision.${precision}`) }))}
-          />
-          <Text style={[typography['time-md'], { color: colors.ink }]}>
-            {t('settings.precision.example', { time: formatMillis(EXAMPLE_MILLIS, { precision: timePrecision }) })}
-          </Text>
-        </Section>
-        {buttons && <ButtonsSettings view={buttons} />}
-        <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
-          {t('settings.video.title')}
-        </Text>
-        <VideoSettings view={video} />
-        {(onOpenAuthorizations || onOpenAccount || signOut) && (
-          // The account entries close the screen: they left the foot of "Mis deportistas" for here (#778).
-          <View style={{ gap: space[3] }}>
-            <Text accessibilityRole="header" style={[typography.title, { color: colors.ink }]}>
-              {t('settings.account_section')}
-            </Text>
-            {onOpenAuthorizations && <Button variant="secondary" label={t('settings.authorizations')} onPress={onOpenAuthorizations} />}
-            {onOpenAccount && <Button variant="secondary" label={t('settings.account')} onPress={onOpenAccount} />}
-            {signOut}
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+    </SettingsFrame>
   );
 }

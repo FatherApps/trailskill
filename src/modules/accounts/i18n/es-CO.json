@@ -196,6 +196,7 @@
     },
     "account": {
       "title": "Mi cuenta",
+      "authorizations": "Autorizaciones",
       "delete": "Eliminar mis datos",
       "delete_hint": "Marca tu cuenta para borrarla a los 30 días. Antes de ese plazo puedes cancelarlo."
     },
