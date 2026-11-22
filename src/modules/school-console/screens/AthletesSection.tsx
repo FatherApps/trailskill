@@ -8,7 +8,7 @@ import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
 import { avatarOf } from '../components/athleteAvatar';
 import type { AdultDirectoryRepository, Guardian, InvitationRepository } from '../../accounts';
-import type { AthleteSchoolEndRepository } from '../../athletes';
+import type { AthleteRegistrationRepository, AthleteSchoolEndRepository } from '../../athletes';
 import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
 import { formatDate, localDate } from '../components/formatDate';
@@ -17,6 +17,7 @@ import type { GuardianRecordsRepository, GuardianSharingRepository } from '../da
 import { athleteIndicators, filterAthletes, filterOptions, startOfWeek } from '../data/athletesList';
 import type { SchoolGroup, SchoolStructureRepository } from '../data/schoolStructure';
 import { CONSOLE_BEST_EVENT, type ConsoleAthlete, type ConsoleAthletesRepository } from '../data/consoleAthletes';
+import { RegisterAthleteForm } from '../components/RegisterAthleteForm';
 import { AthletesScreen, type AthletesContent, type AthletesView } from './AthletesScreen';
 import type { ConsoleSectionProps } from './ConsoleScreen';
 import { SwimmerSharingSection } from './GuardianSharingSection';
@@ -37,6 +38,9 @@ export type AthletesSectionProps = ConsoleSectionProps & {
   // Inviting a family needs both: the school's groups (an invitation belongs to one) and the invitations. Without either the button is not shown.
   structure?: Pick<SchoolStructureRepository, 'listGroups'>;
   invitations?: Pick<InvitationRepository, 'create'>;
+  // Registering a swimmer who has no account: without it the header has no «Dar de alta». Only the school admin console passes it; the server checks the role anyway.
+  // `newId` makes the id of the swimmer on the device (one per opening of the sheet, so a retry never creates a second swimmer).
+  registration?: { repository: Pick<AthleteRegistrationRepository, 'register'>; newId: () => string };
   // Opens the system share sheet with the invitation message; replaced in tests.
   share?: (message: string) => Promise<unknown>;
   // The list is read again when this changes (a sync completed).
@@ -130,6 +134,7 @@ export function AthletesSection({
   swimmerEnd,
   structure,
   invitations,
+  registration,
   share = defaultShare,
   refreshKey,
   lastSyncedAt,
@@ -160,6 +165,9 @@ export function AthletesSection({
   const setInviteError = (message: string | null) => setFailure(message === null ? null : { schoolId, message });
   // A ref, not state: a second press can arrive before a re-render shows the first is running.
   const inviting = useRef(false);
+  // The swimmer id of the open «Dar de alta» sheet, made when it opens; the school it belongs to is kept so another school never inherits it.
+  const [registering, setRegistering] = useState<{ schoolId: string; athleteId: string } | null>(null);
+  const registeringHere = registering?.schoolId === schoolId ? registering : null;
 
   useEffect(() => {
     let active = true;
@@ -350,6 +358,33 @@ export function AthletesSection({
       view={view}
       onNavigate={onNavigate}
       onInvite={structure && invitations ? () => void invite() : undefined}
+      onRegister={registration ? () => setRegistering({ schoolId, athleteId: registration.newId() }) : undefined}
+      registerSheet={
+        registration && registeringHere
+          ? {
+              content: (
+                <RegisterAthleteForm
+                  schoolName={schoolName}
+                  offline={connection === 'offline'}
+                  share={share}
+                  onSubmit={async ({ firstName, lastName }) => {
+                    const claim = await registration.repository.register({
+                      athleteId: registeringHere.athleteId,
+                      schoolId,
+                      firstName,
+                      lastName,
+                      guardianAuthorizationCollected: true,
+                    });
+                    // The list shows the swimmer once the sync brings it.
+                    return { link: Linking.createURL(`claim/${claim.token}`), expiresAt: claim.expiresAt };
+                  }}
+                  onClose={() => setRegistering(null)}
+                />
+              ),
+              onClose: () => setRegistering(null),
+            }
+          : undefined
+      }
       inviteError={inviteError}
       inviteGroupSheet={
         pickingGroup

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAdultDirectoryRepository, createInMemoryAuthorizationStatusRepository, createInMemoryInvitationRepository } from '../../accounts';
-import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository, type AthleteSchoolEndRepository, type HistoryMeasurement } from '../../athletes';
+import { createInMemoryAthleteRegistrationRepository, createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository, type AthleteSchoolEndRepository, type HistoryMeasurement } from '../../athletes';
 import { ThemeProvider } from '../../../core/theme';
 import { startOfWeek } from '../data/athletesList';
 import { createInMemoryCategoriesRepository, type CategoriesRepository } from '../data/categories';
@@ -728,6 +728,69 @@ describe('AthletesSection', () => {
 
       expect(await screen.findByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
       expect(screen.queryByRole('radio', { name: 'Compartir todos' })).not.toBeOnTheScreen();
+    });
+  });
+
+  describe('registering a swimmer without an account', () => {
+    const open = async (extra: Extra = {}) => {
+      const repository = createInMemoryAthleteRegistrationRepository({ now });
+      const share = jest.fn().mockResolvedValue(undefined);
+      await show(setup().repository, { registration: { repository, newId: () => 'athlete-new' }, share, ...extra });
+      await athleteRow(/^Lucía Ramírez/);
+      await fireEvent.press(screen.getByRole('button', { name: 'Dar de alta' }));
+      return { repository, share };
+    };
+    const fillAndDeclare = async () => {
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Ana');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Prueba');
+      await fireEvent.press(screen.getByRole('checkbox'));
+    };
+
+    it('has no «Dar de alta» button unless the console passes the registration', async () => {
+      await show(setup().repository);
+      await athleteRow(/^Lucía Ramírez/);
+
+      expect(screen.queryByRole('button', { name: 'Dar de alta' })).toBeNull();
+    });
+
+    it('registers with the declaration, a device-made id and this school, then shares the claim link with its token', async () => {
+      const { repository, share } = await open();
+      await fillAndDeclare();
+
+      await fireEvent.press(screen.getByRole('button', { name: /^Dar de alta/ }));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Compartir enlace' }));
+
+      expect(repository.registered).toEqual([
+        { athleteId: 'athlete-new', schoolId: 'school-a', firstName: 'Ana', lastName: 'Prueba', guardianAuthorizationCollected: true },
+      ]);
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      expect(share.mock.calls[0][0]).toContain(`swimcro://claim/${'1'.padStart(32, '0')}`);
+    });
+
+    it('registers nothing while the declaration is not checked', async () => {
+      const { repository } = await open();
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Ana');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Prueba');
+
+      await fireEvent.press(screen.getByRole('button', { name: /^Dar de alta ·/ }));
+
+      expect(repository.registered).toEqual([]);
+    });
+
+    it('shows the refusal of the server and a retry registers a single swimmer with the same id', async () => {
+      const { repository } = await open();
+      repository.rejectWith = 'not_allowed';
+      await fillAndDeclare();
+      await fireEvent.press(screen.getByRole('button', { name: /^Dar de alta/ }));
+      expect(await screen.findByText(/Solo un administrador activo/)).toBeOnTheScreen();
+
+      repository.rejectWith = undefined;
+      await fireEvent.press(screen.getByRole('button', { name: /^Dar de alta/ }));
+      await screen.findByText('Ana Prueba quedó registrado.');
+      await fireEvent.press(screen.getByRole('button', { name: 'Listo' }));
+
+      expect(repository.registered.map((r) => r.athleteId)).toEqual(['athlete-new']);
+      expect(screen.queryByLabelText('Nombre')).toBeNull();
     });
   });
 

@@ -109,6 +109,7 @@
     },
     "invite_message": "{{school}} te invita a Swimcro para crear el perfil de tu deportista. Abre este enlace: {{link}}. Vence el {{date}}.",
     "invite_message_no_date": "{{school}} te invita a Swimcro para crear el perfil de tu deportista. Abre este enlace: {{link}}.",
+    "register": "Dar de alta",
     "retry": "Intentar de nuevo",
     "empty": {
       "title": "Aún no hay deportistas",
@@ -199,6 +200,29 @@
     },
     "offline_empty": "No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión.",
     "connecting_empty": "Todavía no hay entrenadores guardados en este dispositivo. Aparecerán cuando termine la primera sincronización."
+  },
+  "register_sheet": {
+    "label": "Dar de alta un nadador",
+    "title": "Dar de alta un nadador",
+    "first_name": "Nombre",
+    "last_name": "Apellido",
+    "declaration": "Declaro que la escuela conserva la autorización firmada del acudiente para registrar a este nadador.",
+    "submit": "Dar de alta",
+    "incomplete": "Escribe el nombre y el apellido",
+    "declaration_missing": "Marca la declaración",
+    "offline": "Necesita conexión",
+    "created": "{{name}} quedó registrado.",
+    "link_help": "Comparte este enlace con la familia: al abrirlo en su teléfono acepta las autorizaciones y administra el perfil.",
+    "share": "Compartir enlace",
+    "share_failed": "No pudimos compartir el enlace. Inténtalo de nuevo.",
+    "share_text": "{{school}} registró a {{name}} en Swimcro. Abre este enlace en tu teléfono para administrar su perfil: {{link}}. Vence el {{date}}.",
+    "share_text_no_date": "{{school}} registró a {{name}} en Swimcro. Abre este enlace en tu teléfono para administrar su perfil: {{link}}.",
+    "done": "Listo",
+    "error": {
+      "not_allowed": "Solo un administrador activo de la escuela puede dar de alta a un nadador.",
+      "invalid": "Revisa los nombres: cada uno puede tener hasta 100 caracteres.",
+      "other": "No pudimos dar de alta al nadador. Inténtalo de nuevo."
+    }
   },
   "records": {
     "title": "Marcas de la escuela",
