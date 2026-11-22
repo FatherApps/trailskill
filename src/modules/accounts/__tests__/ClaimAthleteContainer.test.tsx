@@ -100,7 +100,7 @@ describe('ClaimAthleteContainer', () => {
     const { registrations, link } = await schoolRegistersSwimmer();
     await open({ token: link.token, repository: registrations });
 
-    await fireEvent.press(await screen.findByRole('radio', { name: 'Soy el nadador (adulto)' }));
+    await fireEvent.press(await screen.findByRole('radio', { name: /^Soy el nadador/ }));
     await accept();
 
     await waitFor(() => expect(registrations.claimed[0]?.relation).toBe('self'));

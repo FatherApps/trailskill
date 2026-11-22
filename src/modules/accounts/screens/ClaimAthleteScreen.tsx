@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, Segmented } from '../../../core/ui';
+import { Banner, Button } from '../../../core/ui';
+import { ChoiceCard } from '../components/ChoiceCard';
 import { JoinTextCard } from '../components/JoinTextCard';
 import { ScreenFrame } from '../components/ScreenFrame';
 import type { AuthorizationText } from '../data/authorizations';
@@ -31,7 +32,7 @@ export type ClaimAthleteScreenProps = {
 // Presentational: the container reads the texts and sends the claim. Never pre-selects the swimmer's side for an adult: the guardian
 // is the default because claiming as the swimmer is the exception (PROVISIONAL, issue 1423).
 export function ClaimAthleteScreen({ texts, busy, failure, onAccept, onRetryTexts, onCancel }: ClaimAthleteScreenProps) {
-  const { colors, typography } = useTheme();
+  const { colors, space, typography } = useTheme();
   const [relation, setRelation] = useState<ClaimRelation>('guardian');
   const ready = Array.isArray(texts);
 
@@ -51,15 +52,27 @@ export function ClaimAthleteScreen({ texts, busy, failure, onAccept, onRetryText
         </Banner>
       )}
       <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.claim.intro')}</Text>
-      <Segmented
-        accessibilityLabel={t('accounts.claim.relation_label')}
-        value={relation}
-        onChange={(value) => !busy && setRelation(value)}
-        options={[
-          { value: 'guardian', label: t('accounts.claim.relation_guardian') },
-          { value: 'self', label: t('accounts.claim.relation_self') },
-        ]}
-      />
+      {/* Stacked cards, not a segmented control: at large text two long options never fit in one row, and a clipped option hides a choice. */}
+      <View accessibilityRole="radiogroup" accessibilityLabel={t('accounts.claim.relation_label')} style={{ gap: space[2] }}>
+        <ChoiceCard
+          title={t('accounts.claim.relation_guardian')}
+          detail={t('accounts.claim.relation_guardian_detail')}
+          icon="family_restroom"
+          color="sky"
+          selected={relation === 'guardian'}
+          stacked
+          onPress={() => !busy && setRelation('guardian')}
+        />
+        <ChoiceCard
+          title={t('accounts.claim.relation_self')}
+          detail={t('accounts.claim.relation_self_detail')}
+          icon="person"
+          color="lilac"
+          selected={relation === 'self'}
+          stacked
+          onPress={() => !busy && setRelation('self')}
+        />
+      </View>
       {texts === 'loading' && <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.claim.loading')}</Text>}
       {texts === 'missing' && (
         <>
