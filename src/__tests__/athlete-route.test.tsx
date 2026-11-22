@@ -49,6 +49,7 @@ jest.mock('../modules/results-import', () => ({
 jest.mock('../modules/athletes', () => {
   const { Pressable, Text, View } = jest.requireActual('react-native');
   return {
+    useAthleteNamesVersion: () => 0,
     createPowerSyncSchoolAthleteRepository: () => ({}),
     createPowerSyncHistoryRepository: () => ({}),
     createPowerSyncAthleteSchoolRepository: () => ({ listByAthlete: async () => mockSwimmerSchoolIds.map((schoolId) => ({ schoolId, categoryId: null })) }),

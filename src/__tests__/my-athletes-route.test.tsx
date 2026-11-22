@@ -17,6 +17,7 @@ jest.mock('../modules/accounts', () => ({
 }));
 let mockContainerProps: { onAdd: () => void } | undefined;
 jest.mock('../modules/athletes', () => ({
+  useAthleteNamesVersion: () => 0,
   // The list itself is tested in the athletes module.
   MyAthletesContainer: (props: { onAdd: () => void }) => {
     const { Text } = jest.requireActual('react-native');
