@@ -98,6 +98,7 @@
         "confirm": "Revocar enlace",
         "cancel": "Cancelar"
       },
+      "share_failed": "No pudimos compartir el enlace. Inténtalo de nuevo.",
       "error": {
         "not_allowed": "Solo un administrador activo de la escuela puede cambiar el enlace.",
         "not_open": "La familia ya reclamó a este nadador o la escuela lo dio de baja: no hay enlace que cambiar.",

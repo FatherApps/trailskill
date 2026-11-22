@@ -765,6 +765,36 @@ describe('AthletesSection', () => {
       await expect(repository.claim({ token: first.token, relation: 'guardian', acceptedAt: '2026-10-24T12:00:00.000Z', authorizations: [] })).rejects.toThrow('link_not_found');
     });
 
+    it('keeps the new token and shares it when the read after a renew fails: the old token is already dead', async () => {
+      const { repository, share, first } = await open();
+      await screen.findByRole('button', { name: 'Renovar enlace' });
+      jest.spyOn(repository, 'findLink').mockRejectedValue(new Error('Failed to fetch'));
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Renovar enlace' }));
+
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Renovar enlace' })).not.toBeBusy());
+      expect(share.mock.calls[0][0]).not.toContain(first.token);
+      expect(screen.queryByText(/No pudimos cambiar el enlace/)).toBeNull();
+      // The panel now shares the new token, not the old one.
+      await fireEvent.press(screen.getByRole('button', { name: 'Compartir enlace' }));
+      expect(share.mock.calls[1][0]).toBe(share.mock.calls[0][0]);
+    });
+
+    it('says so when the system share sheet fails, from Compartir enlace and after a renew, and keeps the link', async () => {
+      const { share } = await open();
+      share.mockRejectedValue(new Error('no share'));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Compartir enlace' }));
+      expect(await screen.findByText('No pudimos compartir el enlace. Inténtalo de nuevo.')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Renovar enlace' }));
+
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(2));
+      expect(await screen.findByText('No pudimos compartir el enlace. Inténtalo de nuevo.')).toBeOnTheScreen();
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Renovar enlace' })).not.toBeBusy());
+      expect(screen.queryByText(/No pudimos cambiar el enlace/)).toBeNull();
+    });
+
     it('revokes after the confirmation, then only offers a new link', async () => {
       const { repository } = await open();
       await fireEvent.press(await screen.findByRole('button', { name: 'Revocar enlace' }));

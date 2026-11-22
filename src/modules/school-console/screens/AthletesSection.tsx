@@ -318,9 +318,9 @@ export function AthletesSection({
                     expiresOn: formatDate(localDate(new Date(linkNow.expiresAt)), 'long'),
                     busy: linkBusy,
                     error: linkFailure?.athleteId === selected.id ? linkFailure.message : null,
-                    onShare: () => void shareClaim(selected.name, linkNow),
-                    onRenew: () => void changeLink(selected.id, selected.name, (repo) => repo.renew(selected.id).then(() => undefined), true),
-                    onRevoke: () => void changeLink(selected.id, selected.name, (repo) => repo.revoke(selected.id), false),
+                    onShare: () => void shareClaim(selected.id, selected.name, linkNow),
+                    onRenew: () => void changeLink(selected.id, selected.name, (repo) => repo.renew(selected.id).then(({ token, expiresAt }) => ({ status: 'open', token, expiresAt })), true),
+                    onRevoke: () => void changeLink(selected.id, selected.name, (repo) => repo.revoke(selected.id).then(() => ({ ...linkNow, status: 'revoked' })), false),
                   }
                 : undefined,
             categoryChoice: categories && {
@@ -344,29 +344,36 @@ export function AthletesSection({
   }
 
   const CLAIM_ERRORS = ['not_allowed', 'not_open'];
-  // The text a family gets with the link; the same as the one shared when the swimmer is registered.
-  const shareClaim = (name: string, state: AthleteClaimLinkState) => {
+  // The text a family gets with the link; the same as the one shared when the swimmer is registered. Closing the system sheet without
+  // choosing resolves, which is the admin's choice and no error; a sheet that fails says so, as the registration sheet does.
+  const shareClaim = async (athleteId: string, name: string, state: AthleteClaimLinkState) => {
+    setLinkFailure(undefined);
     const date = formatDate(localDate(new Date(state.expiresAt)), 'long');
-    return share(
-      t(date === null ? 'schoolConsole.register_sheet.share_text_no_date' : 'schoolConsole.register_sheet.share_text', {
-        school: schoolName,
-        name,
-        link: Linking.createURL(`claim/${state.token}`),
-        date: date ?? '',
-      }),
-    ).catch(() => undefined);
+    try {
+      await share(
+        t(date === null ? 'schoolConsole.register_sheet.share_text_no_date' : 'schoolConsole.register_sheet.share_text', {
+          school: schoolName,
+          name,
+          link: Linking.createURL(`claim/${state.token}`),
+          date: date ?? '',
+        }),
+      );
+    } catch {
+      setLinkFailure({ athleteId, message: t('schoolConsole.detail.claim_link.share_failed') });
+    }
   };
   // One call at a time (a ref, because a second press can arrive before the next render); an error says what it means, a success clears it.
-  const changeLink = async (athleteId: string, name: string, change: (repo: NonNullable<typeof registration>['repository']) => Promise<void>, thenShare: boolean) => {
+  // The new state comes from the call itself, never from a second read: after a renew the old token is already dead, so a read that fails
+  // must not leave the panel offering it.
+  const changeLink = async (athleteId: string, name: string, change: (repo: NonNullable<typeof registration>['repository']) => Promise<AthleteClaimLinkState>, thenShare: boolean) => {
     if (!registration || linkWorking.current) return;
     linkWorking.current = true;
     setLinkBusy(true);
     setLinkFailure(undefined);
     try {
-      await change(registration.repository);
-      const state = await registration.repository.findLink(athleteId);
+      const state = await change(registration.repository);
       setLink({ athleteId, state });
-      if (thenShare && state?.status === 'open') await shareClaim(name, state);
+      if (thenShare) await shareClaim(athleteId, name, state);
     } catch (error) {
       const code = error instanceof Error && CLAIM_ERRORS.includes(error.message) ? error.message : 'other';
       setLinkFailure({ athleteId, message: t(`schoolConsole.detail.claim_link.error.${code}`) });
