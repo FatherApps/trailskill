@@ -32,8 +32,8 @@ const today: FamilyMeasurement = {
 const lastDays: FamilyMeasurement = { ...today, id: 'm2', stroke: 'FR', sessionType: 'competition', competition: 'Festival', capturedAt: at(3), millis: 51_230, splits: [] };
 const older: FamilyMeasurement = { ...today, id: 'm3', stroke: 'BR', capturedAt: at(20), millis: 60_100, splits: [] };
 
-const lucia = { id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] };
-const tomas = { id: 'a2', firstName: 'Tomás', lastName: 'Rey', categoryId: null, groupIds: [] };
+const lucia = { id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null };
+const tomas = { id: 'a2', firstName: 'Tomás', lastName: 'Rey', categoryId: null, groupIds: [], endedAt: null };
 
 async function setup({ athletes = [lucia], times = [today, lastDays, older] }: { athletes?: (typeof lucia)[]; times?: FamilyMeasurement[] } = {}) {
   const repository = createInMemoryFamilyMeasurementRepository(times);

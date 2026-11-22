@@ -13,7 +13,7 @@ function Probe() {
   return <Text>{useFamilyTimingAtList() ? 'at list' : 'away'}</Text>;
 }
 
-const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }];
+const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null }];
 
 // The phone bar reads this to show only on the list of "Mis tiempos" (issue #999).
 describe('whether Mis tiempos is on its list', () => {
