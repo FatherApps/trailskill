@@ -179,6 +179,21 @@
       "error_message": "Revisa la señal e inténtalo de nuevo.",
       "retry": "Intentar de nuevo"
     },
+    "identity_number": {
+      "title": "Número de identificación",
+      "none": "Todavía no hay un número de identificación guardado.",
+      "saved": "Hay un número de identificación guardado.",
+      "saved_ending": "Hay un número de identificación guardado, termina en {{ending}}.",
+      "new_label": "Número nuevo",
+      "help": "Se guarda cifrado en el servidor y nunca se muestra completo.",
+      "invalid": "Usa solo letras y números, hasta 20.",
+      "save": "Guardar número",
+      "save_failed": "No pudimos guardar el número. Revisa la señal e inténtalo de nuevo.",
+      "unauthorized": "El número de identificación solo se guarda para la importación de resultados oficiales. Para cambiarlo, primero acepta esa autorización.",
+      "go_to_authorizations": "Ir a Autorizaciones",
+      "offline": "Sin conexión: con señal podrás ver y cambiar el número de identificación.",
+      "error_title": "No pudimos leer el número de identificación."
+    },
     "account": {
       "title": "Mi cuenta",
       "delete": "Eliminar mis datos",

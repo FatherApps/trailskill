@@ -4,6 +4,7 @@ import EditRoute from '../app/(app)/athletes/edit/[id]';
 
 let mockUserId: string | undefined;
 let mockShowPhoto = true;
+let mockImportAuthorized = true;
 let mockManaged: { status: string; athletes?: object[] } = { status: 'loading' };
 const mockPush = jest.fn();
 const mockBack = jest.fn();
@@ -16,9 +17,14 @@ jest.mock('../modules/accounts', () => {
   return {
     createPowerSyncManagedAthleteRepository: () => ({}),
     createSupabaseAthleteShareCodeRepository: () => ({}),
+    createSupabaseIdentityDocumentRepository: () => ({}),
     createSecureStoreShareCodeCache: () => ({}),
-    useHasValidAuthorization: (athleteId: string, purpose: string) => mockShowPhoto && purpose === 'show_photo' && athleteId.length > 0,
+    useHasValidAuthorization: (athleteId: string, purpose: string) =>
+      athleteId.length > 0 && ((purpose === 'show_photo' && mockShowPhoto) || (purpose === 'import_official_results' && mockImportAuthorized)),
     AthleteAvatarWithPhoto: () => <Text>avatar</Text>,
+    AthleteIdentityNumberContainer: ({ athleteId, authorized, online, onGoToAuthorizations }: { athleteId: string; authorized: boolean; online: boolean; onGoToAuthorizations: () => void }) => (
+      <Text onPress={onGoToAuthorizations}>{`identity of ${athleteId} ${authorized ? 'authorized' : 'needs authorization'} ${online ? 'online' : 'offline'}`}</Text>
+    ),
     AthleteShareCodeContainer: ({ athleteId, athleteName }: { athleteId: string; athleteName: string }) => (
       <Text>{`share code of ${athleteId} for ${athleteName}`}</Text>
     ),
@@ -56,6 +62,7 @@ describe('athlete edit route', () => {
   afterEach(() => {
     mockUserId = undefined;
     mockShowPhoto = true;
+    mockImportAuthorized = true;
     mockManaged = { status: 'loading' };
     jest.clearAllMocks();
   });
@@ -69,6 +76,17 @@ describe('athlete edit route', () => {
     expect(screen.getByRole('button', { name: 'photo of a1 authorized' })).toBeOnTheScreen();
     expect(screen.getByText('name editor of a1: Ana Marin')).toBeOnTheScreen();
     expect(screen.getByText('share code of a1 for Ana')).toBeOnTheScreen();
+  });
+
+  it('hands the identity number section the import authorization and the connection, and its link opens Autorizaciones', async () => {
+    mockUserId = 'user-1';
+    mockManaged = managedAna;
+    mockImportAuthorized = false;
+    await render(<EditRoute />);
+
+    await fireEvent.press(await screen.findByText('identity of a1 needs authorization online'));
+
+    expect(mockPush).toHaveBeenCalledWith('/authorizations');
   });
 
   it('without show_photo the photo card opens the authorization flow of accounts first', async () => {

@@ -10,10 +10,12 @@ import { useTheme } from '../../../../core/theme';
 import { BackButton, StateView } from '../../../../core/ui';
 import {
   AthleteAvatarWithPhoto,
+  AthleteIdentityNumberContainer,
   AthleteShareCodeContainer,
   createPowerSyncManagedAthleteRepository,
   createSecureStoreShareCodeCache,
   createSupabaseAthleteShareCodeRepository,
+  createSupabaseIdentityDocumentRepository,
   useHasValidAuthorization,
 } from '../../../../modules/accounts';
 import {
@@ -31,13 +33,14 @@ import {
 
 const athletes = createPowerSyncSchoolAthleteRepository();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
+const identityDocuments = createSupabaseIdentityDocumentRepository();
 const athleteProfiles = createPowerSyncAthleteRepository(managedAthletes, athletes);
 const shareCodes = createSupabaseAthleteShareCodeRepository();
 const shareCodeCache = createSecureStoreShareCodeCache();
 const photoService = getAthletePhotoService();
 const photoPicker = createExpoPhotoPicker();
 
-// "Editar a <nombre>": the photo, the swimmer's data and the share code, for who manages the swimmer (a guardian or the adult athlete); the server decides the permissions.
+// "Editar a <nombre>": the photo, the swimmer's data (identity number included) and the share code, for who manages the swimmer (a guardian or the adult athlete); the server decides the permissions.
 export default function AthleteEditRoute() {
   const { space, colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,6 +54,7 @@ export default function AthleteEditRoute() {
   const managed = useManagedAthletes(managedAthletes, athletes, session?.user.id, `${summary.lastSyncedAt?.getTime()}:${namesVersion}`);
   // The athletes module cannot read the authorization (a cycle with accounts), so the route does and passes it down.
   const showPhoto = useHasValidAuthorization(id, 'show_photo');
+  const importOfficialResults = useHasValidAuthorization(id, 'import_official_results');
   const athlete = managed.status === 'ready' ? managed.athletes.find((candidate) => candidate.id === id) : undefined;
 
   if (!session) return null;
@@ -89,6 +93,16 @@ export default function AthleteEditRoute() {
           picker={photoPicker}
           avatar={<AthleteAvatarWithPhoto athleteId={id} initials={initials} color={color} size="lg" />}
           onAuthorize={() => router.push('/authorizations')}
+        />
+      }
+      identity={
+        <AthleteIdentityNumberContainer
+          key={`identity-${id}`}
+          athleteId={id}
+          repository={identityDocuments}
+          authorized={importOfficialResults}
+          online={online}
+          onGoToAuthorizations={() => router.push('/authorizations')}
         />
       }
       shareCode={

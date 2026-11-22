@@ -15,7 +15,7 @@ export type AthleteEditScreenProps = {
   photo?: ReactNode;
   // The editable first and last name, inside "Datos del nadador" (the route passes who may edit it).
   name: ReactNode;
-  // The identity document, inside "Datos del nadador" (a later issue fills it).
+  // The identity document, inside "Datos del nadador".
   identity?: ReactNode;
   // "Salud y emergencias": reserved and empty today.
   health?: ReactNode;
