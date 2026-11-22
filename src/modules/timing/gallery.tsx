@@ -73,6 +73,7 @@ function FreeMarksPreview({ state }: { state: 'running' | 'stopped' }) {
       state={state}
       elapsedHundredths={state === 'running' ? elapsed : 9340}
       bestTime={null}
+      eventSubtitle="Libre 100 m · Entrenamiento"
       splits={fixture.freeMarks}
       onReviewMeters={state === 'stopped' ? noop : undefined}
     />
