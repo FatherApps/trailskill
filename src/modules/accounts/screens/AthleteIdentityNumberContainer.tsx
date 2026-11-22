@@ -27,7 +27,7 @@ type Loaded = { key: string; result: { status: 'ready'; hint: IdentityNumberHint
 
 // "Número de identificación" on the Editar screen: shows how the saved number ends and, with the authorization and signal, replaces it. The full number never comes back to the app.
 export function AthleteIdentityNumberContainer({ athleteId, repository, authorized, online, onGoToAuthorizations }: AthleteIdentityNumberContainerProps) {
-  const { colors, space, radius, typography } = useTheme();
+  const { colors, space, typography } = useTheme();
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<Loaded>();
   const [number, setNumber] = useState('');
@@ -124,7 +124,8 @@ export function AthleteIdentityNumberContainer({ athleteId, repository, authoriz
   }
 
   return (
-    <View style={{ gap: space[2], padding: space[4], borderRadius: radius.md, backgroundColor: colors['surface-1'], borderWidth: 1, borderColor: colors.border }}>
+    // A flat section of the card it sits in (the route puts it inside "Datos del nadador"): a divider and a subtitle, no card of its own.
+    <View style={{ gap: space[2], paddingTop: space[4], borderTopWidth: 1, borderTopColor: colors.border }}>
       <Text accessibilityRole="header" style={[typography['body-strong'], { color: colors.ink }]}>
         {t('accounts.identity_number.title')}
       </Text>
