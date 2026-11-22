@@ -4,9 +4,11 @@ import { Share } from 'react-native';
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
 import type { AthleteAvatarSlot } from '../../../core/ui';
+import type { AthleteRelinkRepository } from '../../athletes';
 import '../i18n';
 import { avatarOf } from '../components/athleteAvatar';
 import type { SharingRequest, SharingRequestsState } from '../components/AuthorizationList';
+import type { RelinkRequestsState } from '../components/RelinkRequestList';
 import { formatDate, localDate } from '../components/formatDate';
 import type { AuthorizationsRepository, ConsoleAuthorizationRow } from '../data/authorizations';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -17,6 +19,8 @@ export type AuthorizationsSectionProps = ConsoleSectionProps & {
   Avatar?: AthleteAvatarSlot;
   schoolId: string;
   repository: AuthorizationsRepository;
+  // The relink requests of families (issue 1251), read and decided online through the athletes module. Absent: no inbox.
+  relink?: AthleteRelinkRepository;
   // The list is read again when this changes (a sync completed).
   refreshKey?: unknown;
   // When the local database last finished a sync; `null` when it never did.
@@ -37,6 +41,7 @@ type Answer = {
 
 // The sharing requests are read online, apart from the athletes: a failure here never breaks the list.
 type RequestsAnswer = { schoolId: string; result: SharingRequest[] | 'error' };
+type RelinkAnswer = { schoolId: string; result: Exclude<RelinkRequestsState, 'loading' | 'offline'> };
 
 const defaultNow = () => new Date();
 const defaultShare = (message: string) => Share.share({ message });
@@ -50,6 +55,7 @@ export function AuthorizationsSection({
   onNavigate,
   schoolId,
   repository,
+  relink,
   refreshKey,
   lastSyncedAt,
   connection,
@@ -62,6 +68,8 @@ export function AuthorizationsSection({
   const [requestsAnswer, setRequestsAnswer] = useState<RequestsAnswer>();
   // Bumped after an approval or a withdrawal to read the requests again.
   const [requestsReload, setRequestsReload] = useState(0);
+  const [relinkAnswer, setRelinkAnswer] = useState<RelinkAnswer>();
+  const [relinkReload, setRelinkReload] = useState(0);
   // A ref, not state: a second confirmation can arrive before a re-render shows the first is running.
   const resending = useRef(false);
   const offline = connection === 'offline';
@@ -85,9 +93,22 @@ export function AuthorizationsSection({
     };
   }, [repository, schoolId, refreshKey, requestsReload, offline]);
 
+  useEffect(() => {
+    if (offline || !relink) return;
+    let active = true;
+    const settle = (result: RelinkAnswer['result']) => active && setRelinkAnswer({ schoolId, result });
+    relink.listForSchool(schoolId).then(settle, () => settle('error'));
+    return () => {
+      active = false;
+    };
+  }, [relink, schoolId, refreshKey, relinkReload, offline]);
+
   // Never an empty list when the requests are not known: offline, another school's answer or still unread (loading), or a failed read.
   const answered = requestsAnswer?.schoolId === schoolId ? requestsAnswer.result : 'loading';
   const sharingRequests: SharingRequestsState = offline ? 'offline' : answered;
+
+  const relinkAnswered = relinkAnswer?.schoolId === schoolId ? relinkAnswer.result : 'loading';
+  const relinkRequests: RelinkRequestsState | undefined = !relink ? undefined : offline ? 'offline' : relinkAnswered;
 
   const loaded = answer?.schoolId === schoolId && answer.attempt === attempt ? answer.result : undefined;
   const rows = loaded === undefined || loaded === 'error' ? undefined : loaded;
@@ -117,6 +138,7 @@ export function AuthorizationsSection({
         canResend: groupId !== null,
       })),
       sharingRequests,
+      relinkRequests,
     };
     view =
       connection !== 'offline'
@@ -165,6 +187,19 @@ export function AuthorizationsSection({
     setRequestsReload((n) => n + 1);
   };
 
+  const resolveRelink = async (requestId: string, approve: boolean) => {
+    setResendError(null);
+    try {
+      const status = (await relink?.resolve(requestId, approve))?.status;
+      if (status === 'already_resolved') setResendError(t('schoolConsole.authorizations.relink.resolved_elsewhere'));
+      if (status === 'no_longer_valid') setResendError(t('schoolConsole.authorizations.relink.no_longer_valid'));
+    } catch {
+      setResendError(t('schoolConsole.authorizations.relink.action_error'));
+    }
+    // Also after a failure: the request may have changed on the server.
+    setRelinkReload((n) => n + 1);
+  };
+
   return (
     <AuthorizationsScreen
       width={width}
@@ -177,6 +212,11 @@ export function AuthorizationsSection({
       onRetrySharingRequests={() => {
         setRequestsAnswer(undefined);
         setRequestsReload((n) => n + 1);
+      }}
+      onResolveRelink={(requestId, approve) => void resolveRelink(requestId, approve)}
+      onRetryRelink={() => {
+        setRelinkAnswer(undefined);
+        setRelinkReload((n) => n + 1);
       }}
       resendError={resendError}
     />

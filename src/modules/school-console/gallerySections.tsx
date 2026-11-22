@@ -4,12 +4,19 @@ import { View } from 'react-native';
 import type { PoolCode } from '../../core/sport';
 import type { GalleryEntry } from '../../core/ui';
 import { schoolNameFixture, storedOnFixture } from './__fixtures__/athletes';
-import { authorizationsFixture, longTextAuthorizationFixture, sharingRequestsFixture } from './__fixtures__/authorizations';
+import {
+  authorizationsFixture,
+  longTextAuthorizationFixture,
+  relinkRequestsFixture,
+  relinkRequestsLongTextFixture,
+  sharingRequestsFixture,
+} from './__fixtures__/authorizations';
 import { coachesFixture, deactivatedCoachFixture, inviteGroupsFixture, longTextCoachFixture, pendingCoachFixture } from './__fixtures__/coaches';
 import { longTextMySwimmerFixture, mySwimmersBestLabelFixture, mySwimmersFixture } from './__fixtures__/mySwimmers';
 import { longTextMeasurementFixture, measurementsFixture, measurementsUpdatedMinutesAgo } from './__fixtures__/measurements';
 import { longTextRecordFixture, recordCategoryFixture, recordsFixture, recordsUpdatedMinutesAgo } from './__fixtures__/records';
 import { AuthorizationList, SharingRequestList } from './components/AuthorizationList';
+import { RelinkRequestList } from './components/RelinkRequestList';
 import { CoachList } from './components/CoachList';
 import { GuardianSharingPanel, type SharingRecordRow, type SharingRecordsView, type SharingSwitchView } from './components/GuardianSharingPanel';
 import { InviteCoachSheet } from './components/InviteCoachSheet';
@@ -159,6 +166,7 @@ const authorizationsContent: AuthorizationsContent = {
   updatedMinutesAgo: 2,
   athletes: authorizationsFixture,
   sharingRequests: sharingRequestsFixture,
+  relinkRequests: relinkRequestsFixture,
 };
 
 // The coach's one screen: the content, the view states, the three layouts at a fixed width, and a name that does not fit.
@@ -304,6 +312,26 @@ export const gallerySectionEntries: GalleryEntry[] = [
         <SharingRequestList requests="error" onApprove={noop} onWithdraw={noop} onReject={noop} onRetry={noop} />
       </FullWidth>
     ),
+    'relink-requests': () => (
+      <FullWidth>
+        <RelinkRequestList requests={relinkRequestsFixture} onApprove={noop} onReject={noop} onRetry={noop} />
+      </FullWidth>
+    ),
+    'relink-long-text': () => (
+      <FullWidth>
+        <RelinkRequestList requests={relinkRequestsLongTextFixture} onApprove={noop} onReject={noop} onRetry={noop} />
+      </FullWidth>
+    ),
+    'relink-offline': () => (
+      <FullWidth>
+        <RelinkRequestList requests="offline" onApprove={noop} onReject={noop} onRetry={noop} />
+      </FullWidth>
+    ),
+    'relink-read-error': () => (
+      <FullWidth>
+        <RelinkRequestList requests="error" onApprove={noop} onReject={noop} onRetry={noop} />
+      </FullWidth>
+    ),
   }),
   entry(
     'authorizationsScreen',
@@ -319,6 +347,8 @@ export const gallerySectionEntries: GalleryEntry[] = [
         onApproveSharing={noop}
         onWithdrawSharing={noop}
         onRetrySharingRequests={noop}
+        onResolveRelink={noop}
+        onRetryRelink={noop}
       />
     )),
   ),
