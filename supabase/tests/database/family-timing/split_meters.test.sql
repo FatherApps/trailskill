@@ -2,7 +2,7 @@
 -- time is sent, and null on the times saved before free laps. All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(14);
 
 insert into auth.users (id, email) values
   ('14300000-0000-4000-8000-0000000000a1', 'sender-meters@example.test'),
@@ -46,6 +46,11 @@ select throws_ok(
   $$ insert into public.family_timing_measurements (stroke, distance, pool, session_type, captured_at, millis, splits, split_meters)
      values ('FR', '100m', 'SCM', 'training', now(), 70000, '[17000]', '["25"]') $$,
   '23514', null, 'a meters entry that is neither a number nor null is refused'
+);
+select throws_ok(
+  $$ insert into public.family_timing_measurements (stroke, distance, pool, session_type, captured_at, millis, splits, split_meters)
+     values ('FR', '100m', 'SCM', 'training', now(), 70000, '[17000]', '[[25]]') $$,
+  '23514', null, 'a nested array as a meters entry is refused'
 );
 select throws_ok(
   $$ insert into public.family_timing_measurements (stroke, distance, pool, session_type, captured_at, millis, splits, split_meters)

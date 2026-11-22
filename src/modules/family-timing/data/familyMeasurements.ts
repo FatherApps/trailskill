@@ -103,6 +103,18 @@ export class UnknownMeasurementError extends Error {
   override name = 'UnknownMeasurementError';
 }
 
+/** The server's rule on split_meters: one entry per split, each a number or null. */
+export class InvalidSplitMetersError extends Error {
+  override name = 'InvalidSplitMetersError';
+}
+
+const checkSplitMeters = (m: FamilyMeasurement) => {
+  if (m.splitMeters == null) return;
+  if (m.splitMeters.length !== m.splits.length || m.splitMeters.some((v) => v !== null && typeof v !== 'number')) {
+    throw new InvalidSplitMetersError(m.id);
+  }
+};
+
 const newestFirst = (a: FamilyMeasurement, b: FamilyMeasurement) => b.capturedAt.localeCompare(a.capturedAt) || b.id.localeCompare(a.id);
 
 // The server's rule: only a time without a swimmer keeps a note.
@@ -117,9 +129,11 @@ export function createInMemoryFamilyMeasurementRepository(
   const refused = new Map(rejected.map((m) => [m.id, m]));
   return {
     async add(measurement) {
+      checkSplitMeters(measurement);
       rows.set(measurement.id, withNoteRule(measurement));
     },
     async addMany(measurements) {
+      measurements.forEach(checkSplitMeters); // all or none, like the server
       for (const m of measurements) rows.set(m.id, withNoteRule(m));
     },
     async listByAthlete(athleteId) {

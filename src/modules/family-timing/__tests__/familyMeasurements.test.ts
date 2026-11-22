@@ -1,4 +1,4 @@
-import { createInMemoryFamilyMeasurementRepository, NotCompetitionError, parseSplitMeters, type FamilyMeasurement } from '../data/familyMeasurements';
+import { createInMemoryFamilyMeasurementRepository, InvalidSplitMetersError, NotCompetitionError, parseSplitMeters, type FamilyMeasurement } from '../data/familyMeasurements';
 
 const base: FamilyMeasurement = {
   id: 'm1',
@@ -62,5 +62,24 @@ describe('parseSplitMeters', () => {
     const repo = createInMemoryFamilyMeasurementRepository();
     await repo.add({ ...base, splits: [17_000, 35_000], splitMeters: [25, null] });
     expect((await repo.listByAthlete('a1'))[0].splitMeters).toEqual([25, null]);
+  });
+});
+
+describe('the fake refuses the meters the server refuses', () => {
+  const withMeters = (splitMeters: unknown): FamilyMeasurement => ({ ...base, splits: [17_000, 35_000], splitMeters: splitMeters as (number | null)[] });
+
+  it('needs one entry per split, each a number or null', async () => {
+    const repo = createInMemoryFamilyMeasurementRepository();
+    await expect(repo.add(withMeters([25]))).rejects.toBeInstanceOf(InvalidSplitMetersError);
+    await expect(repo.add(withMeters([25, '50']))).rejects.toBeInstanceOf(InvalidSplitMetersError);
+    await expect(repo.add(withMeters([25, [50]]))).rejects.toBeInstanceOf(InvalidSplitMetersError);
+    await expect(repo.add(withMeters([25, null]))).resolves.toBeUndefined();
+    await expect(repo.add({ ...base, id: 'old', splitMeters: null })).resolves.toBeUndefined();
+  });
+
+  it('saves a series all or none', async () => {
+    const repo = createInMemoryFamilyMeasurementRepository();
+    await expect(repo.addMany([{ ...base, id: 'ok' }, { ...withMeters([25]), id: 'bad' }])).rejects.toBeInstanceOf(InvalidSplitMetersError);
+    expect(await repo.listByAthlete('a1')).toEqual([]);
   });
 });

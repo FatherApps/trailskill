@@ -10,7 +10,7 @@ alter table public.family_timing_measurements add constraint family_timing_measu
   or case
     when jsonb_typeof(split_meters::jsonb) = 'array' and jsonb_typeof(splits::jsonb) = 'array'
       then jsonb_array_length(split_meters::jsonb) = jsonb_array_length(splits::jsonb)
-        and not jsonb_path_exists(split_meters::jsonb, '$[*] ? (@.type() != "number" && @.type() != "null")')
+        and not jsonb_path_exists(split_meters::jsonb, 'strict $[*] ? (@.type() != "number" && @.type() != "null")')
     else false
   end
 );
