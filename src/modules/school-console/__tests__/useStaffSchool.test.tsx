@@ -56,7 +56,9 @@ describe('useStaffSchool', () => {
   });
 
   it('looks again on retry, going back to loading so the old error does not stay, and shows the new answer', async () => {
-    const list = jest.fn().mockRejectedValueOnce(new Error('db')).mockImplementationOnce(() => new Promise((resolve) => setTimeout(() => resolve([]), 0)));
+    // The second lookup answers only when the test says so: a timer could fire inside the act below and skip the loading state.
+    let answer!: (schools: unknown[]) => void;
+    const list = jest.fn().mockRejectedValueOnce(new Error('db')).mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
     const flaky: StaffSchoolRepository = { ...repository, listStaffSchools: list };
     const { result } = await renderHook(() => useStaffSchool(flaky, 'coach-1'));
     await waitFor(() => expect(result.current.status).toBe('error'));
@@ -66,6 +68,7 @@ describe('useStaffSchool', () => {
     });
 
     expect(result.current).toEqual({ status: 'loading' });
+    await act(async () => answer([]));
     await waitFor(() => expect(result.current).toEqual({ status: 'denied' }));
     expect(list).toHaveBeenCalledTimes(2);
   });
