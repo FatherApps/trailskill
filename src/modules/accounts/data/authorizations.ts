@@ -79,7 +79,8 @@ export function createPowerSyncAuthorizationRepository(): AuthorizationRepositor
          WHERE t.language = ? AND t.version = (SELECT MAX(version) FROM authorization_texts WHERE purpose = t.purpose AND language = t.language)`,
         [language],
       );
-      return rows.sort(byPurpose);
+      // Only the purposes this build knows: a purpose a later build adds has no label here and would show as a raw translation key.
+      return rows.filter(({ purpose }) => PURPOSE_ORDER.includes(purpose)).sort(byPurpose);
     },
     async listAuthorizations(userId, athleteIds) {
       const rows = await db.getAll<RecordRow>(

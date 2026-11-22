@@ -7,6 +7,7 @@ import {
   type AuthorizationRepository,
   type AuthorizationText,
 } from '../data/authorizations';
+import type { AuthorizationPurpose } from '../data/authorizationStatus';
 
 let mockDb: FakeDatabase;
 jest.mock('../../../core/sync/db', () => ({
@@ -31,6 +32,8 @@ const texts: AuthorizationText[] = [
   { id: 't-record-2', purpose: 'record_times', version: 2, body: 'Synthetic record text v2' },
   { id: 't-import-1', purpose: 'import_official_results', version: 1, body: 'Synthetic import text v1' },
   { id: 't-share-1', purpose: 'share_results_with_school', version: 1, body: 'Synthetic share text v1' },
+  // A purpose a later build adds: this build has no label for it, so it must never be listed.
+  { id: 't-future-1', purpose: 'future_purpose' as AuthorizationPurpose, version: 1, body: 'Synthetic future text v1' },
 ];
 const recordV2 = texts[1]!;
 const now = new Date('2026-10-25T12:00:00.000Z');
@@ -75,6 +78,11 @@ describe.each(factories)('%s authorization repository', (_name, create) => {
   it('offers the latest version of each purpose text', async () => {
     const current = await create().listCurrentTexts('es-CO');
     expect(current.map((text) => text.id)).toEqual(['t-record-2', 't-import-1', 't-share-1']);
+  });
+
+  it('does not list a text whose purpose this build does not know', async () => {
+    const current = await create().listCurrentTexts('es-CO');
+    expect(current.map((text) => text.purpose)).not.toContain('future_purpose');
   });
 
   it('accepting one purpose stores exactly one row, with all its evidence', async () => {
