@@ -27,6 +27,9 @@ export type FamilyMeasurement = {
   millis: Millis | null;
   // Cumulative splits since the start.
   splits: Millis[];
+  // The meters of each mark, one entry per split (null where unknown, e.g. the mark that reaches the distance). Null or missing: a time
+  // saved before free laps, whose meters come from the lap length.
+  splitMeters?: (number | null)[] | null;
   // Competition only: the event's official time typed by the guardian, and when.
   officialMillis: Millis | null;
   officialSetAt: string | null;
@@ -169,4 +172,15 @@ export function createInMemoryFamilyMeasurementRepository(
       refused.delete(id);
     },
   };
+}
+
+/** The meters of the marks as the server stores them (a JSON array, items numbers or null); null for a time saved before free laps or anything unreadable. */
+export function parseSplitMeters(raw: string | null | undefined): (number | null)[] | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((v) => (typeof v === 'number' ? v : null)) : null;
+  } catch {
+    return null;
+  }
 }
