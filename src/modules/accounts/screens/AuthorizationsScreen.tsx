@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
 
 import { useTheme } from '../../../core/theme';
 import { BackButton, Banner, Button, ConfirmSheet, StepHeader, type AthleteAvatarSlot } from '../../../core/ui';
 import { athleteColor } from '../../athletes';
 import { AthleteAvatarWithPhoto } from '../components/AthleteAvatarWithPhoto';
-import { ConsentCard, consentCardColors } from '../components/ConsentCard';
+import { ConsentCard } from '../components/ConsentCard';
+import { JoinTextCard } from '../components/JoinTextCard';
 import { ScreenFrame } from '../components/ScreenFrame';
 import type { AuthorizationPurpose } from '../data/authorizationStatus';
 import type { AuthorizationRecord, AuthorizationText } from '../data/authorizations';
@@ -43,7 +44,7 @@ const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 
 
 // Nothing is ever pre-checked: the selection is local and starts empty every time the screen opens.
 export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onSave, onWithdraw, join, failed, onBack, Avatar = AthleteAvatarWithPhoto }: AuthorizationsScreenProps) {
-  const { colors, radius, space, typography } = useTheme();
+  const { colors, typography } = useTheme();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -117,11 +118,7 @@ export function AuthorizationsScreen({ mode, step, athletes, texts, inForce, onS
           <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.authorizations.join_intro')}</Text>
           <Text style={[typography.subtitle, { color: colors.ink }]}>{t('accounts.authorizations.join_athletes', { names: athletes.filter(({ id }) => join.athleteIds.includes(id)).map(({ name }) => name).join(', ') })}</Text>
           {JOIN_PURPOSES.flatMap((purpose) => texts.filter((text) => text.purpose === purpose)).map((text) => (
-            <View key={text.purpose} style={{ gap: space[1], padding: space[4], borderRadius: radius.md, backgroundColor: colors[consentCardColors.background] }}>
-              <Text style={[typography.subtitle, { color: colors[consentCardColors.title] }]}>{t(`accounts.consent.purpose.${text.purpose}`)}</Text>
-              <Text style={[typography.body, { color: colors[consentCardColors.text] }]}>{text.body}</Text>
-              <Text style={[typography.caption, { color: colors[consentCardColors.text] }]}>{t('accounts.consent.version', { version: text.version })}</Text>
-            </View>
+            <JoinTextCard key={text.purpose} text={text} />
           ))}
           <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('accounts.authorizations.join_photo')}</Text>
         </>

@@ -75,6 +75,29 @@
       "after": ". Revisa tus datos y confirma.",
       "invalid": "Este enlace de invitación no es válido o ya venció. Puedes registrarte igual; pídele a la escuela un enlace nuevo."
     },
+    "claim": {
+      "title": "Reclamar a un nadador",
+      "intro": "La escuela de tu nadador te envió este enlace. Al aceptar quedas como administrador de su perfil y la escuela puede registrar y ver sus tiempos.",
+      "relation_label": "¿Quién eres?",
+      "relation_guardian": "Soy su acudiente",
+      "relation_self": "Soy el nadador (adulto)",
+      "texts_intro": "Aceptas juntas estas tres autorizaciones, como al unirte a la escuela.",
+      "loading": "Cargando las autorizaciones…",
+      "texts_missing": "Todavía no llegaron los textos de las autorizaciones a este teléfono. Conéctate a internet y vuelve a intentarlo.",
+      "retry": "Intentar de nuevo",
+      "accept": "Aceptar y administrar",
+      "accept_wait": "Esperando los textos",
+      "cancel": "Ahora no",
+      "failure": {
+        "link_not_found": "Este enlace ya no sirve: venció, ya se usó o la escuela dio de baja al nadador. Pide a la escuela un enlace nuevo.",
+        "not_allowed": "Tu cuenta es del personal de la escuela que registró al nadador, y la escuela no puede reclamar a su propio nadador. Pide a la familia que abra el enlace.",
+        "invalid": "No pudimos aceptar las autorizaciones. Vuelve a abrir el enlace.",
+        "other": "No pudimos aceptar. Si ya aceptaste, revisa Mis deportistas; si no, inténtalo de nuevo."
+      },
+      "signed_out_title": "Inicia sesión para reclamar",
+      "signed_out_message": "Entra a tu cuenta o crea una, y después vuelve a abrir el enlace que te envió la escuela.",
+      "signed_out_action": "Iniciar sesión"
+    },
     "authorizations": {
       "title": "Autorizaciones",
       "intro": "Cada autorización es independiente. Puedes continuar sin autorizar y hacerlo después.",
