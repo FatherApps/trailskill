@@ -690,6 +690,7 @@ describe('AthletesSection', () => {
         categoryId: null,
         category: null,
         categorySortOrder: null,
+        endedAt: null,
         groupIds: [],
         groups: [],
         coachIds: [],

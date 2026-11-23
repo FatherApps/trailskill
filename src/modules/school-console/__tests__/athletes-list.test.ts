@@ -14,6 +14,7 @@ function athlete(id: string, name: string, over: Partial<ConsoleAthlete> = {}): 
     categoryId: null,
     category: null,
     categorySortOrder: null,
+    endedAt: null,
     groupIds: [],
     groups: [],
     coachIds: [],

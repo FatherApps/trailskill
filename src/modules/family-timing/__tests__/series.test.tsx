@@ -56,8 +56,8 @@ describe('familySeries', () => {
 });
 
 const athletes = [
-  { id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] },
-  { id: 'a2', firstName: 'Tomás', lastName: 'Rojas', categoryId: null, groupIds: [] },
+  { id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null },
+  { id: 'a2', firstName: 'Tomás', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null },
 ];
 
 async function openSeries(swimmers: string, timingButtons = { ...defaultPreferences.timingButtons, enabled: false }) {

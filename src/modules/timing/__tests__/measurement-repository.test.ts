@@ -6,6 +6,7 @@ import {
   createInMemoryMeasurementRepository,
   DiscardedMeasurementError,
   createPowerSyncMeasurementRepository,
+  InvalidMeasurementMetersError,
   InvalidMeasurementTimeError,
   type Measurement,
   type MeasurementRepository,
@@ -62,7 +63,7 @@ function completed(id: string): Measurement {
 const MEASUREMENTS_TABLE = `CREATE TABLE measurements (
   id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, device_id TEXT, kind TEXT, athlete_id TEXT,
   series_id TEXT, arrival_position INTEGER, hundredths INTEGER, stroke TEXT, distance TEXT, pool TEXT,
-  session_type TEXT, source TEXT, school_id TEXT, captured_at TEXT, parent_id TEXT, version INTEGER, base_version INTEGER,
+  session_type TEXT, source TEXT, school_id TEXT, captured_at TEXT, parent_id TEXT, meters REAL, version INTEGER, base_version INTEGER,
   edited_by TEXT, edited_at TEXT, edited_device_id TEXT, edit_reason TEXT, discarded_at TEXT, discarded_by TEXT
 )`;
 
@@ -400,6 +401,38 @@ describe.each(factories)('%s measurement repository', (_name, create) => {
     });
   });
 
+  describe('meters of a free mark', () => {
+    const split = (id: string, meters?: number | null): Measurement =>
+      ({ ...arrival(id, 'S', 1, 'athlete-1'), kind: 'split', parentId: 'race', ...(meters !== undefined && { meters }) }) as Measurement;
+
+    it('keeps the meters of a split and reads a split without them as absent', async () => {
+      const repository = create();
+      await repository.add(split('s1', 37.5));
+      await repository.add(split('s2', null));
+      await repository.add(split('s3'));
+
+      const listed = await repository.listByAthlete('athlete-1');
+
+      expect(listed.find((m) => m.id === 's1')?.meters).toBe(37.5);
+      expect(listed.find((m) => m.id === 's2')?.meters ?? null).toBeNull();
+      expect(listed.find((m) => m.id === 's3')?.meters ?? null).toBeNull();
+    });
+
+    it.each([0, -25, Number.NaN, Number.POSITIVE_INFINITY, 100000])('refuses %s meters, writing nothing', async (meters) => {
+      const repository = create();
+
+      await expect(repository.add(split('s1', meters))).rejects.toBeInstanceOf(InvalidMeasurementMetersError);
+      expect(await repository.listByAthlete('athlete-1')).toEqual([]);
+    });
+
+    it('refuses meters on a measurement that is not a split, writing nothing', async () => {
+      const repository = create();
+
+      await expect(repository.add({ ...arrival('r1', 'S', 1, 'athlete-1'), meters: 50 })).rejects.toBeInstanceOf(InvalidMeasurementMetersError);
+      expect(await repository.listByAthlete('athlete-1')).toEqual([]);
+    });
+  });
+
   it('reads back exactly what was added', async () => {
     const repository = create();
     const measurement = arrival('m1', 'S', 1, 'athlete-1');
@@ -417,6 +450,21 @@ describe('PowerSync measurement repository', () => {
     expect(mockDb.getAll('SELECT table_name, record_id FROM pending_writes')).toEqual([
       { table_name: 'measurements', record_id: 'm1' },
     ]);
+  });
+});
+
+describe('PowerSync measurement repository meters', () => {
+  it('writes the meters of a split in its row and leaves the column out when unknown', async () => {
+    const repository = factories[1]![1]();
+    const base = { ...arrival('s1', 'S', 1, 'athlete-1'), kind: 'split', parentId: 'race' } as Measurement;
+    await repository.add({ ...base, meters: 25 });
+    await repository.add({ ...base, id: 's2', meters: null });
+
+    expect(mockDb.getAll('SELECT id, meters FROM measurements ORDER BY id')).toEqual([
+      { id: 's1', meters: 25 },
+      { id: 's2', meters: null },
+    ]);
+    expect(mockDb.getAll('SELECT record_id FROM pending_writes ORDER BY record_id')).toEqual([{ record_id: 's1' }, { record_id: 's2' }]);
   });
 });
 

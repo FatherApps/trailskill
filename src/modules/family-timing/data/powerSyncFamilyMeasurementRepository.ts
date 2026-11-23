@@ -4,6 +4,7 @@ import {
   FAMILY_MEASUREMENTS_TABLE,
   NotCompetitionError,
   NotTrainingError,
+  parseSplitMeters,
   UnknownMeasurementError,
   type FamilyMeasurement,
   type FamilyMeasurementRepository,
@@ -27,6 +28,8 @@ type Row = {
   captured_at: string;
   millis: number | null;
   splits: string | null;
+  // Absent on the phone-only table of #967.
+  split_meters?: string | null;
   official_millis: number | null;
   official_set_at: string | null;
   official_result_key?: string | null;
@@ -72,6 +75,7 @@ const toMeasurement = (row: Row): FamilyMeasurement => ({
   capturedAt: row.captured_at,
   millis: row.millis,
   splits: parseSplits(row.splits),
+  splitMeters: parseSplitMeters(row.split_meters),
   officialMillis: row.official_millis,
   officialSetAt: row.official_set_at,
   officialResultKey: row.official_result_key ?? null,
@@ -94,6 +98,7 @@ const newRow = (m: FamilyMeasurement) => ({
   captured_at: m.capturedAt,
   millis: m.millis,
   splits: JSON.stringify(m.splits),
+  split_meters: m.splitMeters ? JSON.stringify(m.splitMeters) : null,
   official_millis: m.officialMillis,
   official_set_at: m.officialSetAt,
   official_result_key: m.officialResultKey ?? null,

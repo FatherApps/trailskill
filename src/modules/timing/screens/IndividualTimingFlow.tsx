@@ -91,6 +91,8 @@ function IndividualSession({
   const [step, setStep] = useState<Step>({ kind: 'setup' });
   const [stopwatch, setStopwatch] = useState<Stopwatch>(idleStopwatch);
   const [exitConfirm, setExitConfirm] = useState(false);
+  // A stopped time whose athlete was given up by the school (issue 1436) is never written: the server would reject it for good.
+  const [endedBlock, setEndedBlock] = useState(false);
   const [, setTick] = useState(0);
 
   // A key press acts on the stopwatch as it is at that instant, not as it was at the last render.
@@ -135,6 +137,14 @@ function IndividualSession({
     };
   }, [loadBestTime, timedId, choice.stroke, choice.distance, choice.pool]);
 
+  const endedIds = new Set(roster.filter((a) => a.skipReason === 'ended').map((a) => a.id));
+  // What follows a turn: the next athlete who was not ended since the queue was made, or the summary.
+  const afterTurn = (current: Extract<Step, { kind: 'timing' }>, saved: Saved[]): Step => {
+    let position = current.position + 1;
+    while (position < current.queue.length && endedIds.has(current.queue[position]!.id)) position += 1;
+    return position < current.queue.length ? { ...current, position, saved } : { kind: 'summary', saved };
+  };
+
   const savedIds = step.kind === 'setup' ? [] : step.saved.map((s) => s.id);
   const syncStates = useRecordSyncStates('measurements', savedIds);
 
@@ -175,6 +185,8 @@ function IndividualSession({
       const total = totalTime(stopwatch);
       // A time of zero would be rejected by the server for good: it is not saved.
       if (total === null || total <= 0 || step.kind !== 'timing') return;
+      // The time stays on screen with its message: the coach discards it, and the next athlete follows.
+      if (endedIds.has(athlete.id)) return setEndedBlock(true);
       const base = {
         athleteId: athlete.id,
         seriesId: null,
@@ -211,7 +223,7 @@ function IndividualSession({
       }
       const saved = [...step.saved, { id, athlete, time: total }];
       setStopwatch(reset());
-      setStep(step.position + 1 < step.queue.length ? { ...step, position: step.position + 1, saved } : { kind: 'summary', saved });
+      setStep(afterTurn(step, saved));
     }
 
     return (
@@ -229,7 +241,13 @@ function IndividualSession({
         onSplit={markedAt(split)}
         onStop={markedAt(stop)}
         onSave={save}
-        onDiscard={() => setStopwatch(reset())}
+        notice={endedBlock ? t('timing.ended.blocked') : undefined}
+        onDiscard={() => {
+          setStopwatch(reset());
+          if (!endedIds.has(athlete.id)) return;
+          setEndedBlock(false);
+          setStep(afterTurn(step, step.saved));
+        }}
         // Leaving with a running or stopped time would lose it: the container asks first.
         onBack={() => (stopwatch.status === 'idle' ? toSetup() : setExitConfirm(true))}
         exitConfirmVisible={exitConfirm}
