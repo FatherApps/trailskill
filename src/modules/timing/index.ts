@@ -1,7 +1,7 @@
 import type { GalleryEntry } from '../../core/ui';
 
 export { createInMemoryMeasurementRepository } from './data/inMemoryMeasurementRepository';
-export { CompletedMeasurementTimeError, DiscardedMeasurementError, InvalidMeasurementTimeError } from './data/measurements';
+export { CompletedMeasurementTimeError, DiscardedMeasurementError, InvalidMeasurementMetersError, InvalidMeasurementTimeError } from './data/measurements';
 export type {
   Measurement,
   MeasurementEvent,

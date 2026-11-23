@@ -6,7 +6,7 @@ import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
 jest.mock('../../../core/sync', () => ({ db: {}, useRecordSyncStates: () => new Map() }));
 
-const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }];
+const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null }];
 
 // Noon UTC stays the same calendar day in every time zone the tests run in.
 const withLaps: FamilyMeasurement = {

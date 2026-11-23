@@ -47,6 +47,9 @@ const MIN_TABLE_WIDTH = 540;
 
 const authorizationVariant: Record<AthleteAuthorization, 'ok' | 'warn'> = { valid: 'ok', pending: 'warn' };
 const authorizationLabel = (value: AthleteAuthorization) => t(`schoolConsole.table.${value === 'valid' ? 'valid' : 'pending'}`);
+// An ended swimmer shows «Dado de baja» where the authorization goes.
+const statusOf = (athlete: Pick<AthleteRow, 'authorization' | 'ended'>) =>
+  athlete.ended ? { label: t('schoolConsole.table.ended'), variant: 'neutral' as const } : { label: authorizationLabel(athlete.authorization), variant: authorizationVariant[athlete.authorization] };
 
 const hidden = { importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true } as const;
 
@@ -184,7 +187,7 @@ export function AthleteTableRow({
           detail={[athlete.category, athlete.group, coach].join(' · ')}
           bestTime={athlete.bestTime}
           bestTimeLabel={bestLabel}
-          tag={{ label: authorizationLabel(athlete.authorization), variant: authorizationVariant[athlete.authorization] }}
+          tag={statusOf(athlete)}
           selected={selected}
           onPress={() => onSelect(athlete.id)}
         />
@@ -207,7 +210,7 @@ export function AthleteTableRow({
         athlete.category,
         athlete.group,
         coach,
-        authorizationLabel(athlete.authorization),
+        statusOf(athlete).label,
         t('schoolConsole.table.best_spoken', { label: bestLabel, time: best }),
       ].join(', ')}
       style={[
@@ -230,7 +233,7 @@ export function AthleteTableRow({
         <Text style={[typography.body, cell, text, { flex: textFlex[1] }]}>{athlete.category}</Text>
         <Text style={[typography.body, cell, text, { flex: textFlex[2] }]}>{`${athlete.group} · ${coach}`}</Text>
         <View style={[cell, tagColumn]}>
-          <Tag label={authorizationLabel(athlete.authorization)} variant={authorizationVariant[athlete.authorization]} />
+          <Tag {...statusOf(athlete)} />
         </View>
         <View style={[cell, timeColumn, { alignItems: 'flex-end' }]}>
           <TimeValue value={athlete.bestTime} size="time-sm" />
