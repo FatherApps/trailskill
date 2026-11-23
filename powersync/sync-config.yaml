@@ -20,7 +20,7 @@
 # change replicates and the device drops the pair. Every staff query keeps read_window_closed_at IS NULL on athlete_schools (an
 # active link and a link inside the window both have it null; ended_at itself is never filtered). A transfer to another school
 # (#1419, accept_invitation) stamps the same column with now() before the day 30, so the same filters drop the pair at once: no
-# query changes, and the history B reads of A is online only (other_school_results), never synced. PowerSync 1.21 builds the
+# query changes, and the history B reads of A is online only (the function of #68), never synced. PowerSync 1.21 builds the
 # buckets of a join from separate lookups and combines their values as a cross product, so the pair survives only in three
 # shapes (#1260, checked against a real PowerSync with an admin and a coach of two schools):
 #   admin          school_memberships joined to the row by its school first, athlete_schools last by that same school
