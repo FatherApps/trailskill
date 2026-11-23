@@ -5,12 +5,7 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 async function setup(overrides: Partial<Parameters<typeof SettingsScreen>[0]> = {}) {
   const props = {
     themeMode: 'system' as const,
-    timePrecision: 'hundredths' as const,
     onThemeModeChange: jest.fn(),
-    onTimePrecisionChange: jest.fn(),
-    vibrate: null,
-    videoQuality: 'medium' as const,
-    onVideoQualityChange: jest.fn(),
     onOpenVideo: jest.fn(),
     onBack: jest.fn(),
     ...overrides,
@@ -20,39 +15,20 @@ async function setup(overrides: Partial<Parameters<typeof SettingsScreen>[0]> = 
 }
 
 describe('SettingsScreen', () => {
-  it('offers the four themes and the two precisions', async () => {
-    await setup();
-    for (const label of ['Sistema', 'Claro', 'Oscuro', 'Sol', 'Centésimas', 'Milésimas']) expect(screen.getByText(label)).toBeTruthy();
-  });
-
-  it('reports the chosen theme and precision', async () => {
+  it('offers the four themes and reports the chosen one', async () => {
     const props = await setup();
+    for (const label of ['Sistema', 'Claro', 'Oscuro', 'Sol']) expect(screen.getByText(label)).toBeTruthy();
     await fireEvent.press(screen.getByText('Sol'));
-    await fireEvent.press(screen.getByText('Milésimas'));
     expect(props.onThemeModeChange).toHaveBeenCalledWith('sun');
-    expect(props.onTimePrecisionChange).toHaveBeenCalledWith('thousandths');
   });
 
-  it('shows the example time in the chosen precision', async () => {
-    await setup({ timePrecision: 'thousandths' });
-    expect(screen.getByText('Ejemplo: 1:05,372')).toBeTruthy();
-  });
-
-  it('offers the three video qualities and reports the chosen one', async () => {
-    const props = await setup();
-    for (const label of ['Baja 480p', 'Media 720p', 'Alta 1080p']) expect(screen.getByText(label)).toBeTruthy();
-    await fireEvent.press(screen.getByText('Alta 1080p'));
-    expect(props.onVideoQualityChange).toHaveBeenCalledWith('high');
-  });
-
-  it('shows the vibration only where the buttons are used, and reports it', async () => {
-    await setup();
+  it('shows only the theme: the precision, the vibration and the video quality live in their own screens', async () => {
+    await setup({ onOpenStopwatch: jest.fn() });
+    expect(screen.queryByText('Precisión de los tiempos')).toBeNull();
+    expect(screen.queryByText('Milésimas')).toBeNull();
     expect(screen.queryByText('Vibrar al marcar')).toBeNull();
-
-    const onChange = jest.fn();
-    await setup({ vibrate: { value: true, onChange } });
-    await fireEvent.press(screen.getByText('No'));
-    expect(onChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByText('Calidad del video')).toBeNull();
+    expect(screen.queryByText('Alta 1080p')).toBeNull();
   });
 
   it('goes back', async () => {

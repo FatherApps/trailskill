@@ -1,34 +1,33 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
-import { createInMemoryPreferencesRepository, defaultPreferences, defaultTimingButtons, PreferencesProvider } from '../../../core/preferences';
-import { createFakeTimingButton, unavailableTimingButton } from '../../timing';
+import { createInMemoryPreferencesRepository, defaultPreferences, PreferencesProvider } from '../../../core/preferences';
 import { SettingsContainer } from '../screens/SettingsContainer';
 
 jest.mock('../../../core/sync', () => ({ db: {} }));
 
-async function setup(buttons = createFakeTimingButton().port, repository = createInMemoryPreferencesRepository()) {
+async function setup(repository = createInMemoryPreferencesRepository()) {
   const handlers = { onBack: jest.fn(), onOpenStopwatch: jest.fn(), onOpenVideo: jest.fn() };
   await render(
     <PreferencesProvider repository={repository}>
-      <SettingsContainer {...handlers} buttons={buttons} />
+      <SettingsContainer {...handlers} />
     </PreferencesProvider>,
   );
   return { repository, ...handlers };
 }
 
 describe('SettingsContainer', () => {
-  it('saves the video quality, keeping the other video settings', async () => {
+  it('saves the theme, keeping the other preferences', async () => {
     const { repository } = await setup();
-    await fireEvent.press(screen.getByText('Alta 1080p'));
-    await waitFor(async () =>
-      expect((await repository.load()).videoRecording).toEqual({ quality: 'high', audio: true, showStopwatch: true, startWithTime: false, stopAfterSeconds: 5, doNotDisturb: false }),
-    );
+    await fireEvent.press(screen.getByText('Sol'));
+    await waitFor(async () => expect(await repository.load()).toEqual({ ...defaultPreferences, themeMode: 'sun' }));
   });
 
-  it('saves the vibration, keeping the other button settings', async () => {
-    const { repository } = await setup();
-    await fireEvent.press(screen.getByText('No'));
-    await waitFor(async () => expect((await repository.load()).timingButtons).toEqual({ ...defaultTimingButtons, vibrate: false }));
+  it('shows only the theme and the entries', async () => {
+    await setup();
+    expect(await screen.findByRole('button', { name: 'Cronómetro avanzado' })).toBeOnTheScreen();
+    expect(screen.queryByText('Precisión de los tiempos')).toBeNull();
+    expect(screen.queryByText('Vibrar al marcar')).toBeNull();
+    expect(screen.queryByText('Calidad del video')).toBeNull();
   });
 
   it('opens "Cronómetro avanzado" and "Configuración de video"', async () => {
@@ -37,19 +36,5 @@ describe('SettingsContainer', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Configuración de video' }));
     expect(onOpenStopwatch).toHaveBeenCalledTimes(1);
     expect(onOpenVideo).toHaveBeenCalledTimes(1);
-  });
-
-  it('hides the vibration where the phone cannot use the buttons, but still offers "Cronómetro avanzado"', async () => {
-    const { onOpenStopwatch } = await setup(unavailableTimingButton);
-    expect(screen.queryByText('Vibrar al marcar')).toBeNull();
-    await fireEvent.press(screen.getByRole('button', { name: 'Cronómetro avanzado' }));
-    expect(onOpenStopwatch).toHaveBeenCalledTimes(1);
-  });
-
-  it('hides the vibration while the buttons are off, as it did beside them', async () => {
-    const repository = createInMemoryPreferencesRepository({ ...defaultPreferences, timingButtons: { ...defaultTimingButtons, enabled: false } });
-    await setup(undefined, repository);
-    expect(await screen.findByRole('button', { name: 'Cronómetro avanzado' })).toBeOnTheScreen();
-    await waitFor(() => expect(screen.queryByText('Vibrar al marcar')).toBeNull());
   });
 });

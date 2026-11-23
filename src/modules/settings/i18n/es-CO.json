@@ -41,7 +41,7 @@
     },
     "stopwatch": {
       "title": "Cronómetro avanzado",
-      "intro": "Personaliza el cronómetro: los laps libres y, si tu teléfono puede, los botones.",
+      "intro": "Personaliza el cronómetro: la precisión de los tiempos, los laps libres y, si tu teléfono puede, los botones.",
       "free_laps_label": "Laps libres",
       "free_laps_hint": "Con Sí, el cronómetro no tiene tope ni se detiene solo: marcas todos los laps que quieras y lo detienes tú. Al detenerlo puedes revisar los metros de cada parcial. Con No, se detiene en el último lap de la prueba."
     },
