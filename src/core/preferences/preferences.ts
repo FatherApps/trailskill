@@ -24,7 +24,14 @@ export type VideoRecordingPreferences = {
   doNotDisturb: boolean;
 };
 
-export type Preferences = { themeMode: ThemeMode; timePrecision: TimePrecision; timingButtons: TimingButtonPreferences; videoRecording: VideoRecordingPreferences };
+export type Preferences = {
+  themeMode: ThemeMode;
+  timePrecision: TimePrecision;
+  timingButtons: TimingButtonPreferences;
+  videoRecording: VideoRecordingPreferences;
+  /** «Cronómetro avanzado» (rule 8): the family stopwatch marks free laps, with no cap and no automatic stop. Local to this phone, never synced. */
+  freeLaps: boolean;
+};
 
 // Volume up (24) starts and stops, volume down (25) marks a split: the headset's "+" and "−", and the phone's own keys.
 export const defaultTimingButtons: TimingButtonPreferences = { enabled: true, startKey: 24, splitKey: 25, lockoutSeconds: 3, vibrate: true };
@@ -44,6 +51,7 @@ export const defaultPreferences: Preferences = {
   timePrecision: 'hundredths',
   timingButtons: defaultTimingButtons,
   videoRecording: defaultVideoRecording,
+  freeLaps: false,
 };
 
 /** The start lockouts offered, in seconds. */
@@ -66,7 +74,13 @@ export function parsePreferences(raw: unknown): Preferences {
   const value = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const themeMode = themeModes.find((m) => m === value.themeMode) ?? defaultPreferences.themeMode;
   const timePrecision = timePrecisions.find((p) => p === value.timePrecision) ?? defaultPreferences.timePrecision;
-  return { themeMode, timePrecision, timingButtons: parseTimingButtons(value.timingButtons), videoRecording: parseVideoRecording(value.videoRecording) };
+  return {
+    themeMode,
+    timePrecision,
+    timingButtons: parseTimingButtons(value.timingButtons),
+    videoRecording: parseVideoRecording(value.videoRecording),
+    freeLaps: typeof value.freeLaps === 'boolean' ? value.freeLaps : defaultPreferences.freeLaps,
+  };
 }
 
 const isKeyCode = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0 && v < 1000;

@@ -137,5 +137,5 @@ The coach always times with free laps, with no setting (derived from «cronometr
 
 Open:
 
-- The exact interface labels not quoted above are defined by deliveries 3 to 5.
+- The exact interface labels not quoted above are defined by deliveries 3 to 5. Delivery 3 (#1431) **proposes** these texts, pending Mario's confirmation: the Settings toggle «Laps libres» (Sí / No) with its explanation, and «Revisar metros» for the optional review step, whose fields read «Metros hasta Lap 2 · 0:35,12».
 - Projection across distances, critical swim speed, a projection from the personal ratio, editing meters after saving, meters on the video overlay and free laps in series mode are out of scope for now.

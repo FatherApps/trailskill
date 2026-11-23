@@ -39,10 +39,11 @@ describe('SettingsContainer', () => {
     expect(onOpenVideo).toHaveBeenCalledTimes(1);
   });
 
-  it('shows neither the vibration nor "Cronómetro avanzado" where the phone cannot use the buttons', async () => {
-    await setup(unavailableTimingButton);
+  it('hides the vibration where the phone cannot use the buttons, but still offers "Cronómetro avanzado"', async () => {
+    const { onOpenStopwatch } = await setup(unavailableTimingButton);
     expect(screen.queryByText('Vibrar al marcar')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Cronómetro avanzado' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cronómetro avanzado' }));
+    expect(onOpenStopwatch).toHaveBeenCalledTimes(1);
   });
 
   it('hides the vibration while the buttons are off, as it did beside them', async () => {

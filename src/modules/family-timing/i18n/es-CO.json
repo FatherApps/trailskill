@@ -39,6 +39,8 @@
       "split": "Lap",
       "stop": "Detener",
       "save": "Guardar",
+      "review_meters": "Revisar metros",
+      "meters_label": "Lap {{number}} · {{total}}",
       "discard": "Descartar",
       "split_row": "Lap {{number}} · {{time}} · total {{total}}",
       "lap_progress": "Lap {{current}} de {{total}}",
