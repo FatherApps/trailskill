@@ -1,7 +1,7 @@
 # Rules of «Mis tiempos»
 
-- Status: the six rules below are **confirmed** by Mario on 2026-11-15 (relayed by the maintainer in the comment on #1017).
-- Issue: #1017.
+- Status: rules 1 to 6 are **confirmed** by Mario on 2026-11-15 (relayed by the maintainer in the comment on #1017); each later rule carries its own status and date.
+- Issues: #1017, #1354 (rule 7), #1429 (rule 8).
 - «Mis tiempos» is the family stopwatch module (`family-timing`): a guardian or an adult athlete times their own swimmers on the phone.
 
 How to read this page: each rule lists the **details stated** in the implementation issues, which record the plan "Mis tiempos con series, compartir y sincronización" (section "Decisiones tomadas", numbered decisions) approved in the 2026-11-14 meeting. Anything those issues do not say is listed as **open**: do not implement it and do not infer it. Mario's own words for these rules were not available when this page was written; if his text differs from the stated details, his text wins and this page is corrected.
@@ -113,3 +113,29 @@ Details:
 - Marks, the personal best and the history take the date and the tournament from the result shown.
 - The joining rule does not change: same stroke, distance, pool and hundredths, and the same source on the same date or two sources up to 3 days apart. The source names line lists every source.
 - Only the reading changes: nothing is merged or deleted in storage.
+
+## 8. Advanced stopwatch (free laps)
+
+Status: **confirmed** by Mario on 2026-11-22 (issue #1429; first of five deliveries of free laps).
+
+Mario's words: «queremos agregar una opcion que permita poder hacer laps libres osea el fin es poder medir puntos intermedios, y asi calcula posible ritmo, tiempo en que termimina or ejemplo la proyeccion para el final de la prueba», «Seria bueno entonces en las opciones darle la posibilidad de que el familiar pueda usar cronometro de entrenador osea como usar opciones avanzadas si el desea de lo contrario el cronometro restringido», «Marcar libre, poner metros después» and «se toma los datos incialmente normal y si quieres se complementan al final y la proyeccion se hace sobre el metraje inicial informado que seria el total del largo de la piscina».
+
+The details below that are not in these quotes are **derived** from them by the issue and marked as such.
+
+Details:
+
+- By default the family stopwatch stays the restricted one of rule 1 (laps from the pool length, it stops by itself on the last lap). The local preference «Cronómetro avanzado» in Settings turns on free laps; it is not synced. (derived)
+- Before starting, the distance, the pool and the stroke are chosen, as today.
+- Free laps have no cap and no automatic stop: the start key stops the stopwatch. Each mark gets by default meters = k × the pool length; a mark whose k × pool length reaches the distance has no meters (null). The final mark counts as the whole distance. (derived)
+- After stopping and before saving there is an **optional** review step: any intermediate mark can get its meters corrected or completed (increasing, greater than 0 and less than the distance). Without corrections, the per-pool values are saved. Marks without meters stay out of the pace maths. After saving, the meters do not change, like the laps of rule 1. (derived from «se toma los datos incialmente normal y si quieres se complementan al final»)
+- The projection «if the pace is kept» always targets the distance chosen at the start, labelled «Estimación optimista; la mayoría pierde ritmo al final». It is not the projection zone of the athlete profile, which stays open in pilot-design §10. (derived)
+- The calculations (`src/modules/timing/domain/pace.ts`) work on one measurement only, never mixing strokes or pools: time per segment, pace per 100 m and speed per segment, the difference between the first and the second half, the consistency (coefficient of variation of the pace per segment, without the start segment), and the projection `T = t_k + (D − d_k) · pace after the start segment`, only with at least two marks with meters. (derived)
+
+### Coach
+
+The coach always times with free laps, with no setting (derived from «cronometro de entrenador»). Everything above applies to the school timing the same way, with the same status and quotes; there is no separate school timing rules document yet, so this section is where it lives.
+
+Open:
+
+- The exact interface labels not quoted above are defined by deliveries 3 to 5.
+- Projection across distances, critical swim speed, a projection from the personal ratio, editing meters after saving, meters on the video overlay and free laps in series mode are out of scope for now.
