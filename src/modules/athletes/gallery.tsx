@@ -34,6 +34,7 @@ import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHead
 import { AthleteEditScreen } from './screens/AthleteEditScreen';
 import { AthleteProfileScreen, type AthleteProfileContent, type AthleteProfileView } from './screens/AthleteProfileScreen';
 import { MarksScreen, type MarksView } from './screens/MarksScreen';
+import { RecoveryCodesReplacedScreen } from './screens/RecoveryCodesReplacedScreen';
 import { RecoveryCodesScreen, type RecoveryCodesScreenProps } from './screens/RecoveryCodesScreen';
 import { RelinkRequestScreen, type RelinkRequestScreenProps } from './screens/RelinkRequestScreen';
 import { MyAthletesScreen, type MyAthletesView } from './screens/MyAthletesScreen';
@@ -407,6 +408,11 @@ export const galleryEntries: GalleryEntry[] = [
         <RecoveryCodesScreen {...recoveryScreenBase} replacing />
       </ScreenFrame>
     ),
+    'replaced-elsewhere': () => (
+      <ScreenFrame>
+        <RecoveryCodesReplacedScreen athleteName="Ana" onDone={noop} />
+      </ScreenFrame>
+    ),
     'new-set': () => (
       <ScreenFrame>
         <RecoveryCodesScreen {...recoveryScreenBase} mainCode={undefined} />
@@ -447,6 +453,11 @@ export const galleryEntries: GalleryEntry[] = [
     'regenerate-failed': () => (
       <FullWidth>
         <AthleteRecoveryCodeRow {...recoveryRowBase} problem="error" />
+      </FullWidth>
+    ),
+    'replaced-elsewhere': () => (
+      <FullWidth>
+        <AthleteRecoveryCodeRow {...recoveryRowBase} code={null} revealed problem="replaced" />
       </FullWidth>
     ),
   }),

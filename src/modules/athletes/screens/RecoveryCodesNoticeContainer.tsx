@@ -7,6 +7,7 @@ import type { RecoveryCodeVault } from '../data/recoveryCodeVault';
 import type { SchoolAthleteRepository } from '../data/schoolAthletes';
 import { useManagedAthletes } from '../data/useManagedAthletes';
 import { useRecoveryCodeNotices } from '../data/useRecoveryCodeNotices';
+import { RecoveryCodesReplacedScreen } from './RecoveryCodesReplacedScreen';
 import { RecoveryCodesScreen, recoveryCodesText } from './RecoveryCodesScreen';
 
 export type RecoveryCodesNoticeContainerProps = {
@@ -44,6 +45,9 @@ export function RecoveryCodesNoticeContainer({ repository, vault, userId, athlet
   return (
     // The hardware back button does nothing: leaving without saving the codes would lose them.
     <Modal visible animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => {}}>
+      {notice.kind === 'replaced_elsewhere' ? (
+        <RecoveryCodesReplacedScreen athleteName={notice.athleteName} onDone={done} />
+      ) : (
       <RecoveryCodesScreen
         athleteName={notice.athleteName}
         mainCode={notice.mainCode}
@@ -54,6 +58,7 @@ export function RecoveryCodesNoticeContainer({ repository, vault, userId, athlet
         onCopy={() => share(recoveryCodesText({ athleteName: notice.athleteName, mainCode: notice.mainCode, recoveryCodes: notice.recoveryCodes })).catch(() => {})}
         onDone={done}
       />
+      )}
     </Modal>
   );
 }

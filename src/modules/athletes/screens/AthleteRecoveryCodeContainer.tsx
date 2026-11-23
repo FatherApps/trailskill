@@ -7,6 +7,7 @@ import { AthleteRecoveryCodeRow } from '../components/AthleteRecoveryCodeRow';
 import type { AthleteRecoveryCodeRepository } from '../data/athleteRecoveryCodes';
 import type { RecoveryCodeVault } from '../data/recoveryCodeVault';
 import '../i18n';
+import { retryPendingConfirm } from '../data/retryPendingConfirm';
 import { RecoveryCodesScreen, recoveryCodesText } from './RecoveryCodesScreen';
 
 export type AthleteRecoveryCodeContainerProps = {
@@ -33,20 +34,29 @@ export function AthleteRecoveryCodeContainer({ athleteId, athleteName, userId, r
   const [revealed, setRevealed] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [newSet, setNewSet] = useState<string[]>();
-  const [problem, setProblem] = useState<'unused' | 'error'>();
+  const [problem, setProblem] = useState<'unused' | 'error' | 'replaced'>();
 
   useEffect(() => {
     let active = true;
     if (userId) {
-      vault.get(userId, athleteId).then(
-        (code) => active && setSaved({ key, code }),
-        () => active && setSaved({ key, code: null }),
-      );
+      vault
+        .get(userId, athleteId)
+        .then(async (code) => {
+          if (!active) return;
+          setSaved({ key, code });
+          // A confirmation that failed earlier is tried again whenever the profile opens with signal. The server may answer that the set
+          // was replaced: the code is forgotten and the row says so.
+          if (code && online && (await retryPendingConfirm({ repository, vault, userId, athleteId, code })) === 'gone' && active) {
+            setSaved({ key, code: null });
+            setProblem('replaced');
+          }
+        })
+        .catch(() => active && setSaved((current) => current ?? { key, code: null }));
     }
     return () => {
       active = false;
     };
-  }, [vault, userId, athleteId, key]);
+  }, [vault, repository, userId, athleteId, key, online]);
 
   // Only this swimmer's own answer counts: a read of another one never shows here.
   const code = saved?.key === key ? saved.code : undefined;

@@ -325,6 +325,9 @@
     "intro": "Solo tú puedes ver estos códigos. Si los pierdes, nadie puede recuperarlos.",
     "intro_new_set": "Los códigos de recuperación anteriores ya no sirven. Estos no volverán a mostrarse.",
     "replaced": "Los códigos que guardaste antes ya no sirven: se pidieron otros nuevos. Estos son los vigentes, guárdalos ahora.",
+    "replaced_elsewhere_title": "Estos códigos ya no sirven",
+    "replaced_elsewhere_message": "Se pidieron códigos nuevos en otro dispositivo o cuenta y ya están guardados allí. Los que anotaste dejaron de funcionar. Generar códigos de recuperación nuevos no trae de vuelta el código principal: pídelo a quien lo guardó.",
+    "replaced_elsewhere_done": "Entendido",
     "main_title": "Código principal",
     "main_help": "Queda guardado en este teléfono y lo ves en el perfil de {{name}}.",
     "main_help_no_name": "Queda guardado en este teléfono y lo ves en el perfil del deportista.",
@@ -357,6 +360,7 @@
     "regenerate_confirm": "Generar",
     "regenerate_cancel": "Cancelar",
     "regenerate_unused": "Aún no has usado ningún código de recuperación. Podrás generar un juego nuevo cuando uses uno.",
-    "regenerate_error": "No pudimos generar los códigos. Revisa tu conexión e inténtalo de nuevo."
+    "regenerate_error": "No pudimos generar los códigos. Revisa tu conexión e inténtalo de nuevo.",
+    "replaced": "Este código ya no sirve: se pidieron códigos nuevos en otro dispositivo o cuenta y ya están guardados allí."
   }
 }

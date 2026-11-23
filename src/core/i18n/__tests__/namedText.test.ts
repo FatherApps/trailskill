@@ -44,6 +44,7 @@ describe('namedText keys', () => {
       'athletes.recovery_code.copy_message',
       'athletes.recovery_codes.copy_message',
       'athletes.recovery_codes.main_help',
+      'athletes.recovery_codes.title_new_set',
       'athletes.screen.denied.message',
       'athletes.screen.empty.message',
       'athletes.screen.offline.message',

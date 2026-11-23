@@ -10,14 +10,15 @@ jest.mock('../../../core/sync/db', () => ({ db: {} }));
 // Synthetic data only.
 const show = () => t('athletes.recovery_code.show');
 
-async function setup(options: { saved?: boolean; used?: boolean } & Partial<ComponentProps<typeof AthleteRecoveryCodeContainer>> = {}) {
-  const { saved = true, used = false, ...overrides } = options;
+async function setup(options: { saved?: boolean | string; used?: boolean; pending?: boolean } & Partial<ComponentProps<typeof AthleteRecoveryCodeContainer>> = {}) {
+  const { saved = true, used = false, pending = false, ...overrides } = options;
   const repository = createInMemoryAthleteRecoveryCodeRepository(['a1']);
   const issued = await repository.issue('a1');
   await repository.confirm('a1', issued!.mainCode);
   if (used) repository.used.add('a1');
   const vault = createInMemoryRecoveryCodeVault();
-  if (saved) await vault.set('u1', 'a1', 'TR-TEST-AAAA');
+  if (saved) await vault.set('u1', 'a1', typeof saved === 'string' ? saved : 'TR-TEST-AAAA');
+  if (pending) await vault.setConfirmPending('u1', 'a1', true);
   const share = jest.fn().mockResolvedValue(undefined);
   const view = await render(
     <AthleteRecoveryCodeContainer athleteId="a1" athleteName="Ana" userId="u1" repository={repository} vault={vault} online share={share} {...overrides} />,
@@ -54,6 +55,49 @@ describe('AthleteRecoveryCodeContainer', () => {
     await fireEvent.press(await screen.findByText(show()));
 
     expect(screen.getByText(t('athletes.recovery_code.missing'))).toBeTruthy();
+  });
+
+  it('tells the server again, on opening the profile, which set was saved when an earlier confirmation failed, and clears the marker', async () => {
+    const confirm = jest.fn().mockResolvedValue(undefined);
+    const repository = createInMemoryAthleteRecoveryCodeRepository(['a1']);
+    const issued = await repository.issue('a1');
+    jest.spyOn(repository, 'confirm').mockImplementation(confirm);
+    const { vault } = await setup({ repository, saved: issued!.mainCode, pending: true });
+
+    await waitFor(() => expect(vault.pending.size).toBe(0));
+    expect(confirm).toHaveBeenCalledWith('a1', issued!.mainCode);
+  });
+
+  it('keeps the marker and says nothing while the server cannot be reached on opening the profile', async () => {
+    const repository = createInMemoryAthleteRecoveryCodeRepository(['a1']);
+    const issued = await repository.issue('a1');
+    jest.spyOn(repository, 'confirm').mockRejectedValue(new Error('Failed to fetch'));
+    const { vault } = await setup({ repository, saved: issued!.mainCode, pending: true });
+
+    await fireEvent.press(await screen.findByText(show()));
+    expect(await screen.findByText(issued!.mainCode)).toBeTruthy();
+    expect(vault.pending.size).toBe(1);
+  });
+
+  it('says so when, on opening the profile, the server answers that the saved set was replaced: the code is forgotten', async () => {
+    const { vault } = await setup({ saved: 'TR-TEST-OLD', pending: true });
+
+    expect(await screen.findByText(t('athletes.recovery_code.replaced'))).toBeTruthy();
+    expect(vault.entries.size).toBe(0);
+    expect(vault.pending.size).toBe(0);
+    await fireEvent.press(screen.getByText(show()));
+    expect(screen.queryByText('TR-TEST-OLD')).toBeNull();
+  });
+
+  it('does not ask the server on opening the profile when there is no marker, or offline', async () => {
+    const repository = createInMemoryAthleteRecoveryCodeRepository(['a1']);
+    const issued = await repository.issue('a1');
+    const confirm = jest.spyOn(repository, 'confirm');
+    await setup({ repository, saved: issued!.mainCode });
+    await setup({ repository, saved: issued!.mainCode, pending: true, online: false });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(confirm).not.toHaveBeenCalled();
   });
 
   it('tells the owner when this phone has no code saved', async () => {

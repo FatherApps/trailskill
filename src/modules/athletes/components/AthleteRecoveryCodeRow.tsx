@@ -11,8 +11,8 @@ export type AthleteRecoveryCodeRowProps = {
   revealed: boolean;
   // A new set of recovery codes comes from the server: without signal it is not offered.
   online: boolean;
-  // Why the last attempt at a new set did not give one.
-  problem?: 'unused' | 'error';
+  // Why the last attempt at a new set did not give one, or `replaced`: the set this phone held no longer works.
+  problem?: 'unused' | 'error' | 'replaced';
   onToggle: () => void;
   onCopy: () => void;
   onRegenerate: () => void;
@@ -37,7 +37,7 @@ export function AthleteRecoveryCodeRow({ code, revealed, online, problem, onTogg
       {revealed && code && <Button variant="secondary" label={t('athletes.recovery_code.copy')} onPress={onCopy} />}
       {problem && (
         <Banner variant="warn" icon="error">
-          {t(problem === 'unused' ? 'athletes.recovery_code.regenerate_unused' : 'athletes.recovery_code.regenerate_error')}
+          {t(`athletes.recovery_code.${{ unused: 'regenerate_unused', error: 'regenerate_error', replaced: 'replaced' }[problem]}`)}
         </Banner>
       )}
       <Button

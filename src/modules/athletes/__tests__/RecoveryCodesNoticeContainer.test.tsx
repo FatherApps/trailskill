@@ -174,6 +174,62 @@ describe('RecoveryCodesNoticeContainer', () => {
     expect(repository.confirmed.has('a1')).toBe(false);
   });
 
+  it('does not close in silence when another device already confirmed a newer set: it says the written codes no longer work', async () => {
+    const { repository, vault } = await setup();
+    await screen.findByText('TR-TEST-a1');
+    // Another device (or another guardian) asked for codes and confirmed them: the server has no codes left to give.
+    const other = await repository.issue('a1');
+    await repository.confirm('a1', other!.mainCode);
+
+    await fireEvent.press(screen.getByText(done()));
+
+    expect(await screen.findByText(t('athletes.recovery_codes.replaced_elsewhere_title'))).toBeTruthy();
+    expect(screen.getByText(t('athletes.recovery_codes.replaced_elsewhere_message'))).toBeTruthy();
+    expect(screen.queryByText('RC-TEST-1-0001')).toBeNull();
+    expect(vault.entries.size).toBe(0);
+    expect(vault.pending.size).toBe(0);
+
+    await fireEvent.press(screen.getByText(t('athletes.recovery_codes.replaced_elsewhere_done')));
+    await waitFor(() => expect(screen.queryByText(t('athletes.recovery_codes.replaced_elsewhere_title'))).toBeNull());
+  });
+
+  it('says it too at the next start when the pending confirmation finds a newer set confirmed elsewhere', async () => {
+    const { repository, vault, props, view } = await setup();
+    jest.spyOn(repository, 'confirm').mockRejectedValueOnce(new Error('Failed to fetch'));
+    await fireEvent.press(await screen.findByText(done()));
+    await screen.findByText(t('athletes.recovery_codes.error'));
+    await view.unmount();
+    const other = await repository.issue('a1');
+    await repository.confirm('a1', other!.mainCode);
+
+    const second = await render(<RecoveryCodesNoticeContainer {...props} />);
+
+    expect(await screen.findByText(t('athletes.recovery_codes.replaced_elsewhere_title'))).toBeTruthy();
+    expect(vault.entries.size).toBe(0);
+    await second.unmount();
+  });
+
+  it('writes the pending marker before the code, and drops the marker when the code cannot be saved', async () => {
+    const { vault } = await setup();
+    const marker = jest.spyOn(vault, 'setConfirmPending');
+    const save = jest.spyOn(vault, 'set');
+    await fireEvent.press(await screen.findByText(done()));
+    await waitFor(() => expect(vault.pending.size).toBe(0));
+    expect(marker.mock.invocationCallOrder[0]).toBeLessThan(save.mock.invocationCallOrder[0]!);
+    expect(vault.entries.size).toBe(1);
+  });
+
+  it('shows the error and leaves no marker when saving the code fails', async () => {
+    const { vault } = await setup();
+    jest.spyOn(vault, 'set').mockRejectedValueOnce(new Error('recovery_code_conflict'));
+
+    await fireEvent.press(await screen.findByText(done()));
+
+    expect(await screen.findByText(t('athletes.recovery_codes.error'))).toBeTruthy();
+    expect(vault.pending.size).toBe(0);
+    expect(vault.entries.size).toBe(0);
+  });
+
   it('does not ask the server for codes when what the phone holds cannot be read: it must not be written over', async () => {
     const repository = createInMemoryAthleteRecoveryCodeRepository(['a1']);
     const vault = { ...createInMemoryRecoveryCodeVault(), get: jest.fn().mockRejectedValue(new Error('recovery_code_unreadable')) };
