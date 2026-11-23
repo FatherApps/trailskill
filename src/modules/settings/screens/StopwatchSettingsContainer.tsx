@@ -27,6 +27,7 @@ export function StopwatchSettingsContainer({ onBack, buttons = timingButton }: {
 
   return (
     <StopwatchSettingsScreen
+      freeLaps={{ value: preferences.freeLaps, onChange: (freeLaps) => update({ freeLaps }) }}
       onBack={() => {
         cancel();
         onBack();

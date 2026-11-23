@@ -32,7 +32,7 @@ export function SettingsContainer({
       }
       videoQuality={videoRecording.quality}
       onVideoQualityChange={(quality) => update({ videoRecording: { ...videoRecording, quality } })}
-      onOpenStopwatch={buttons.available ? onOpenStopwatch : undefined}
+      onOpenStopwatch={onOpenStopwatch}
       onOpenVideo={onOpenVideo}
       onOpenAccount={onOpenAccount}
       onBack={onBack}
