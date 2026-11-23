@@ -33,6 +33,7 @@ describe('AppSchema', () => {
         'athlete_managers',
         'athlete_photos',
         'athlete_private_details',
+        'athlete_result_sharing',
         'athlete_schools',
         'athletes',
         'authorization_status',
@@ -106,6 +107,6 @@ describe('AppSchema', () => {
     expect(byName.get('family_timing_videos')?.localOnly).toBe(true);
     expect(byName.get('family_timing_notes')?.localOnly).toBe(true);
     expect(byName.get('athlete_photo_uploads')?.localOnly).toBe(true);
-    expect(AppSchema.tables).toHaveLength(40);
+    expect(AppSchema.tables).toHaveLength(41);
   });
 });

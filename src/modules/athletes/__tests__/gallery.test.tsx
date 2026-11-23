@@ -29,7 +29,7 @@ const sourceFiles = filesIn(moduleDir).filter((file) => !file.includes('__tests_
 
 describe('athletes gallery entries', () => {
   it('have unique ids and the expected states', () => {
-    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'progressChart', 'importPrompt', 'photoCard', 'photoRemoveSheet', 'athleteProfileScreen', 'myAthletesScreen', 'athleteNameForm', 'athletePrivateDetailsForm', 'athleteEditScreen', 'relinkRequestScreen', 'marksScreen', 'recoveryCodesScreen', 'athleteRecoveryCodeRow']);
+    expect(galleryEntries.map((entry) => entry.id)).toEqual(['profileHeader', 'eventSelector', 'personalBest', 'historyList', 'progressChart', 'importPrompt', 'photoCard', 'photoRemoveSheet', 'athleteProfileScreen', 'myAthletesScreen', 'athleteNameForm', 'athletePrivateDetailsForm', 'athleteEditScreen', 'relinkRequestScreen', 'marksScreen', 'recoveryCodesScreen', 'athleteRecoveryCodeRow', 'athleteResultSharingRow']);
     expect(stateKeys('athleteNameForm')).toEqual(['unchanged', 'edited', 'empty-name', 'saved-offline', 'not-sent', 'save-failed', 'long-text']);
     expect(stateKeys('athletePrivateDetailsForm')).toEqual(['empty', 'saved', 'edited', 'future-date', 'before-1900', 'saved-offline', 'not-sent', 'save-failed']);
     expect(stateKeys('athleteEditScreen')).toEqual(['with-photo', 'with-birth-date-gender', 'with-relink', 'long-text']);
@@ -38,6 +38,7 @@ describe('athletes gallery entries', () => {
     expect(stateKeys('profileHeader')).toEqual(['one-school', 'with-avatar', 'several-schools', 'pending-authorization', 'with-event-chips', 'no-sync-info', 'long-text', 'long-text-with-event-chips']);
     expect(stateKeys('recoveryCodesScreen')).toEqual(['first-time', 'saving', 'save-failed', 'replaces-previous', 'replaced-elsewhere', 'new-set', 'long-text']);
     expect(stateKeys('athleteRecoveryCodeRow')).toEqual(['hidden', 'revealed', 'not-on-this-phone', 'offline', 'no-code-used', 'regenerate-failed', 'replaced-elsewhere']);
+    expect(stateKeys('athleteResultSharingRow')).toEqual(['one-on', 'all-off', 'save-failed', 'long-text']);
     expect(stateKeys('eventSelector')).toEqual(['one-pool', 'two-pools']);
     expect(stateKeys('personalBest')).toEqual(['with-improvement', 'no-improvement', 'missing', 'training']);
     expect(stateKeys('historyList')).toEqual(['mixed', 'long-text']);
@@ -55,6 +56,7 @@ describe('athletes gallery entries', () => {
       'denied',
       'other-school-offline',
       'with-import-prompt',
+      'with-result-sharing',
     ]);
   });
 

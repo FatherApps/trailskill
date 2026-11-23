@@ -362,5 +362,8 @@
     "regenerate_unused": "Aún no has usado ningún código de recuperación. Podrás generar un juego nuevo cuando uses uno.",
     "regenerate_error": "No pudimos generar los códigos. Revisa tu conexión e inténtalo de nuevo.",
     "replaced": "Este código ya no sirve: se generaron códigos nuevos en otro teléfono o cuenta."
+  },
+  "result_sharing": {
+    "label": "Compartir mis marcas de otras escuelas con {{school}}"
   }
 }

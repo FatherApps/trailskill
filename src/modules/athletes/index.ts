@@ -176,3 +176,11 @@ export {
 } from './screens/RecoveryCodesNoticeContainer';
 export { RecoveryCodesScreen, type RecoveryCodesScreenProps } from './screens/RecoveryCodesScreen';
 export { AthleteRecoveryCodeContainer, type AthleteRecoveryCodeContainerProps } from './screens/AthleteRecoveryCodeContainer';
+export {
+  createInMemoryAthleteResultSharingRepository,
+  createPowerSyncAthleteResultSharingRepository,
+  type AthleteResultSharingRepository,
+  type AthleteResultSharingEntry,
+} from './data/athleteResultSharing';
+export { AthleteResultSharingContainer, type AthleteResultSharingContainerProps } from './screens/AthleteResultSharingContainer';
+export { AthleteResultSharingRow, type AthleteResultSharingRowProps } from './components/AthleteResultSharingRow';

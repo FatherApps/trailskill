@@ -10,6 +10,8 @@ import {
 import {
   AthleteProfileContainer,
   AthleteRecoveryCodeContainer,
+  AthleteResultSharingContainer,
+  createPowerSyncAthleteResultSharingRepository,
   createSecureStoreRecoveryCodeVault,
   createSupabaseAthleteRecoveryCodeRepository,
   createPowerSyncAthleteSchoolRepository,
@@ -59,6 +61,7 @@ const changeResolver = createSupabasePendingChangeResolver();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const importSources = createSupabaseImportSourcesRepository();
 const guardianSharing = createSupabaseGuardianSharingRepository();
+const resultSharing = createPowerSyncAthleteResultSharingRepository();
 const recoveryCodes = createSupabaseAthleteRecoveryCodeRepository();
 const recoveryCodeVault = createSecureStoreRecoveryCodeVault();
 const guardianRecords = createGuardianRecordsRepository(createPowerSyncMeasurementRepository());
@@ -154,6 +157,20 @@ export default function AthleteProfileRoute() {
             repository={recoveryCodes}
             vault={recoveryCodeVault}
             online={summary.connection === 'connected'}
+          />
+        ) : undefined
+      }
+      // Only who manages the swimmer (the owner) chooses which schools see the swimmer's results: the row hides itself without two active schools or the authorization.
+      resultSharing={
+        managedAthlete ? (
+          <AthleteResultSharingContainer
+            key={`result-sharing-${id}`}
+            athleteId={id}
+            schoolLinks={schoolLinks}
+            schoolNames={schoolNames}
+            authorizations={authorizations}
+            sharing={resultSharing}
+            syncKey={syncedAt}
           />
         ) : undefined
       }
