@@ -51,8 +51,9 @@ export function filterOptions(athletes: readonly ConsoleAthlete[]): Record<Athle
 /** Computed over the whole school list, not the filtered one. */
 export function athleteIndicators(athletes: readonly ConsoleAthlete[], measurementsThisWeek: number): ConsoleIndicators {
   return {
-    active: athletes.length,
-    pendingAuthorization: athletes.filter((a) => a.authorization === 'pending').length,
+    // A swimmer the school ended is no longer active, and has no authorization left to ask for.
+    active: athletes.filter((a) => a.endedAt === null).length,
+    pendingAuthorization: athletes.filter((a) => a.endedAt === null && a.authorization === 'pending').length,
     measurementsThisWeek,
     toReview: null,
   };

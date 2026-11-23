@@ -12,7 +12,7 @@ import { AthletePickerScreen } from './AthletePickerScreen';
 import { TimingSetupScreen, type SetupAthlete, type TimingSetupScreenProps } from './TimingSetupScreen';
 
 // An athlete of the roster as the flows need it. The container of the app builds it, so this module never reads another module's tables.
-export type RosterAthlete = Pick<SetupAthlete, 'id' | 'shortName' | 'initials' | 'color' | 'authorized'>;
+export type RosterAthlete = Pick<SetupAthlete, 'id' | 'shortName' | 'initials' | 'color' | 'authorized' | 'skipReason'>;
 
 const option = ({ code, nameKey }: { code: string; nameKey: string }) => ({ value: code, label: t(nameKey) });
 const nameOf = (catalog: readonly { code: string; nameKey: string }[], code: string) => t(catalog.find((c) => c.code === code)?.nameKey ?? code);

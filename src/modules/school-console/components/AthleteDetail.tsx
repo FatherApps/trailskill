@@ -46,6 +46,7 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
         <Tag label={athlete.category} />
+        {athlete.ended && <Tag label={t('schoolConsole.table.ended')} variant="warn" icon="schedule" />}
         <Tag
           label={t(valid ? 'schoolConsole.detail.authorized' : 'schoolConsole.detail.pending')}
           variant={valid ? 'ok' : 'warn'}

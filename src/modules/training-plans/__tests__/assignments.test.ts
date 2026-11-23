@@ -16,6 +16,7 @@ import {
   type AssignmentTarget,
 } from '..';
 import { setSessionUser } from '../../../core/sync';
+import { createInMemorySchoolAthleteRepository } from '../../athletes';
 import { athletes, plan, sources } from '../__fixtures__/assignments';
 
 let mockDb: FakeDatabase;
@@ -285,6 +286,41 @@ describe('assignPlan', () => {
     }
 
     expect(await repository.list('s1', '2026-11-02')).toHaveLength(4);
+  });
+
+  describe('a swimmer the school ended (issue 1436)', () => {
+    // The fixture school with a2 ended: still in the school for reading, not assignable.
+    const withA2Ended = {
+      ...sources,
+      athletes: createInMemorySchoolAthleteRepository({
+        athletes: ['a1', 'a2', 'a4'].map((id) => ({ id, firstName: id.toUpperCase(), lastName: 'Sintético' })),
+        athleteSchools: [
+          { athleteId: 'a1', schoolId: 's1', categoryId: 'c1' },
+          { athleteId: 'a2', schoolId: 's1', categoryId: 'c1', endedAt: '2026-11-01T10:00:00.000Z' },
+          { athleteId: 'a4', schoolId: 's1', categoryId: null },
+        ],
+        athleteGroups: [
+          { athleteId: 'a1', groupId: 'g1' },
+          { athleteId: 'a2', groupId: 'g1' },
+        ],
+      }),
+    };
+
+    it.each(['admin', 'k1'])('leaves him out of what %s may assign, but inside the school', async (user) => {
+      const scope = await loadAssignScope(withA2Ended, user, 's1');
+
+      expect(scope.athletes.map((a) => a.id)).not.toContain('a2');
+      expect(scope.inSchool.athletes.map((a) => a.id)).toContain('a2');
+      expect(scope.athletes.map((a) => a.id)).toContain('a1');
+    });
+
+    it('does not let anyone assign a plan to him directly, and writes nothing', async () => {
+      const repository = await inMemory();
+      const scope = await loadAssignScope(withA2Ended, 'admin', 's1');
+
+      await expect(assignPlan(repository, scope, input({ kind: 'athlete', athleteId: 'a2' }))).rejects.toBeInstanceOf(TargetNotInChargeError);
+      expect(await repository.list('s1', '2026-11-02')).toEqual([]);
+    });
   });
 
   it('limits a coach to the athletes and groups in charge, directly or by group', async () => {

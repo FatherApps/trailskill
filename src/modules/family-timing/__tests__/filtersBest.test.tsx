@@ -41,7 +41,7 @@ const times: FamilyMeasurement[] = [
   { ...base, id: 'm4', capturedAt: '2026-11-04T14:00:00.000Z', stroke: 'BK', millis: 41_000 },
 ];
 
-const lucia = { id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] };
+const lucia = { id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null };
 
 async function setup(athletes = [lucia], all = times) {
   await render(
@@ -93,7 +93,7 @@ describe('filters and best time in Mis tiempos', () => {
   });
 
   it('does not keep a stroke filter the next swimmer has no time for', async () => {
-    const mateo = { id: 'a2', firstName: 'Mateo', lastName: 'Gil', categoryId: null, groupIds: [] };
+    const mateo = { id: 'a2', firstName: 'Mateo', lastName: 'Gil', categoryId: null, groupIds: [], endedAt: null };
     await setup([lucia, mateo], [...times, { ...base, id: 'm5', athleteId: 'a2', millis: 38_000 }]);
     await filterBy('Espalda');
     await fireEvent.press(screen.getByLabelText('Mateo G.'));
