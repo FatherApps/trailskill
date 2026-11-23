@@ -17,7 +17,7 @@ jest.mock('../../../core/sync', () => ({
 }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
-const rows = (): SchoolAthlete[] => [{ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] }];
+const rows = (): SchoolAthlete[] => [{ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [], endedAt: null }];
 
 async function setup(options: { repository?: AthleteRepository; onRenamed?: () => void } = {}) {
   const repository = options.repository ?? createInMemoryAthleteRepository(createInMemoryManagedAthleteRepository([]), rows());
@@ -117,7 +117,7 @@ describe('AthleteNameContainer', () => {
 describe('the edit screen after a rename', () => {
   // What the route does: after the save it reads the local database again and hands the screen the names it finds.
   function Route({ repository }: { repository: AthleteRepository }) {
-    const [athlete, setAthlete] = useState<SchoolAthlete>({ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] });
+    const [athlete, setAthlete] = useState<SchoolAthlete>({ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [], endedAt: null });
     return (
       <AthleteEditScreen
         athleteId="a1"

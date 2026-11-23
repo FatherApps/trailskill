@@ -17,6 +17,8 @@ export type AthleteRow = {
   // `null` when the coach's name is not known: the console shows "Sin dato", never a guess.
   coach: string | null;
   authorization: AthleteAuthorization;
+  // The school ended the link: the row shows «Dado de baja» in place of the authorization.
+  ended?: boolean;
   // The personal best of the event the list shows, `null` when there is none (never zero).
   bestTime: Hundredths | null;
   // The athlete's avatar with their photo, at the size the row asks for; absent: the initials.
@@ -57,6 +59,8 @@ export type AthleteDetailData = {
   avatar?: AthleteAvatarRenderer;
   category: string;
   authorization: AthleteAuthorization;
+  // The school ended the link: the detail reads, with «Dado de baja», and has no control that writes.
+  ended?: boolean;
   // `null` for each part that is not known: the console shows "Sin dato".
   guardian: { name: string | null; contact: string | null };
   bests: AthleteBest[];

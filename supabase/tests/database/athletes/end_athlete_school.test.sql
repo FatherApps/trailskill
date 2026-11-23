@@ -130,11 +130,15 @@ select throws_ok($$insert into public.athlete_schools (athlete_id, school_id, en
   '42501', null, 'a link cannot be inserted already ended');
 reset role;
 
--- 4. Y, the adult athlete, is ended too. What each role reads: staff of A lose X and Y; the staff of B and the admin of
--- both schools keep X through B; guardian and adult athlete keep theirs.
+-- 4. Y, the adult athlete, is ended too. The links are then moved 31 days back: the 30-day read window of #1418 (its own test,
+-- read_window_after_end.test.sql) is over, so what each role reads is what the baja leaves: staff of A lose X and Y; the staff
+-- of B and the admin of both schools keep X through B; guardian and adult athlete keep theirs.
 select pg_temp.as_user('a2');
 set local role authenticated;
 select public.end_athlete_school(pg_temp.u('e2'), pg_temp.u('b1'));
+reset role;
+update public.athlete_schools set ended_at = now() - interval '31 days' where school_id = pg_temp.u('b1') and ended_at is not null;
+set local role authenticated;
 select is(pg_temp.seen(), 'athletes=e3|schools=e3:b1|groups=e3:c1|marks=f3', 'the admin of A reads only W');
 select pg_temp.as_user('a4');
 select is(pg_temp.seen(), 'athletes=e3|schools=e3:b1|groups=e3:c1|marks=f3', 'coach K (direct) reads only W');
