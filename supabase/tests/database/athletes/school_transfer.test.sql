@@ -7,7 +7,7 @@
 -- guardian G of X, Z, Y and U (a5), coach KB2 of B, not assigned (a6), admin SC of C (a7). All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(42);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('14190000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -78,7 +78,11 @@ do $$ begin
 end $$;
 
 select has_column('public', 'athlete_schools', 'transferred_to_school_id', 'athlete_schools has transferred_to_school_id');
-select hasnt_function('app', 'athlete_school_window_closed', array['timestamp with time zone'], 'the one-argument window rule of #1418 is gone');
+select has_function('app', 'athlete_school_window_closed', array['timestamp with time zone'], 'the one-argument window rule of #1418 still exists: other changes call it');
+-- It answers from the clock alone, as before: an active link, a link ended 10 days ago and one ended 40 days ago.
+select is(app.athlete_school_window_closed(null::timestamptz), false, 'one-argument rule: an active link is not closed');
+select is(app.athlete_school_window_closed(now() - interval '10 days'), false, 'one-argument rule: a link ended 10 days ago is not closed');
+select is(app.athlete_school_window_closed(now() - interval '40 days'), true, 'one-argument rule: a link ended 40 days ago is closed');
 
 -- A ends X, Z, V and U (the real flow); C ends U. Z is then moved 40 days back and its window is closed by the job.
 set local role authenticated;
@@ -109,7 +113,10 @@ select is(
   (select transferred_to_school_id = pg_temp.u('b2') and read_window_closed_at is not null and read_window_closed_at <= now()
    from public.athlete_schools where athlete_id = pg_temp.u('e1') and school_id = pg_temp.u('b1')),
   true, 'the link of X in A points to B and its window is closed at once, without waiting for 30 days');
-select set_config('test.closed_at', (select read_window_closed_at::text from public.athlete_schools where athlete_id = pg_temp.u('e1') and school_id = pg_temp.u('b1')), true);
+-- Every link of the test as <id>:<destination>:<stamped?>, to compare after the repetition (ids and counts, not a timestamp of this transaction).
+create function pg_temp.links() returns text language sql as $$
+  select count(*) || '|' || coalesce(string_agg(id::text || ':' || coalesce(transferred_to_school_id::text, '-') || ':' || (read_window_closed_at is not null)::text, ',' order by id), '')
+  from public.athlete_schools where athlete_id in (pg_temp.u('e1'), pg_temp.u('e2'), pg_temp.u('e3'), pg_temp.u('e4'), pg_temp.u('e5'), pg_temp.u('e6')) $$;
 -- The owner does the fixture work without a signed-in user (the trigger of the assignment only lets an admin write when there is one).
 select set_config('request.jwt.claims', '', true);
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values (pg_temp.u('a4'), pg_temp.u('e1'), pg_temp.u('b2'));
@@ -184,13 +191,15 @@ select pg_temp.as_user('a7');
 select is((select count(*)::int from public.athletes where id = pg_temp.u('e5')), 0, 'the admin of C stops reading U');
 
 -- A retry of the acceptance changes nothing.
+reset role;
+select set_config('test.links', pg_temp.links(), true);
+set local role authenticated;
 select pg_temp.as_user('a5');
 select lives_ok(
   format($$ select public.accept_invitation(%L, %L, null, pg_temp.at(), pg_temp.auths('x')) $$, current_setting('test.token'), pg_temp.u('e1')),
   'the family repeats the acceptance for X');
 reset role;
-select is((select read_window_closed_at::text from public.athlete_schools where athlete_id = pg_temp.u('e1') and school_id = pg_temp.u('b1')),
-  current_setting('test.closed_at'), 'the repetition keeps the moment the window closed');
+select is(pg_temp.links(), current_setting('test.links'), 'the repetition leaves the same links, destinations and stamps');
 select is(app.transfer_athlete_school_history(pg_temp.u('e1'), pg_temp.u('b2')), 0, 'the transfer is idempotent');
 
 -- No client role writes the transfer.

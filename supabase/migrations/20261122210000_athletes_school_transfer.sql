@@ -23,13 +23,17 @@
 -- not receive what B received from A.
 --
 -- Revert: restore accept_invitation (20261121120000), other_school_results (20261026010000), athlete_schools_ended_guard and the seven read
--- helpers (20261122120000), drop app.transfer_athlete_school_history and app.school_transfer_in_force, drop the new overload
--- app.athlete_school_window_closed(timestamptz, timestamptz) and recreate the one-argument one of 20261122120000, drop the two checks
--- and the column transferred_to_school_id and recreate athlete_schools_read_window_closed_after_end as in 20261122120000. Links already
--- transferred keep their closed window (read_window_closed_at is not null) unless that column is cleared; nothing is lost.
+-- helpers (20261122120000), drop app.transfer_athlete_school_history and app.school_transfer_in_force. Then, in this order (the
+-- recreated check of #1418 requires a stamp of at least ended_at + 30 days, so it fails while a transfer stamp exists):
+--   1. as the table owner: update public.athlete_schools set read_window_closed_at = null where transferred_to_school_id is not null;
+--      (the schools that handed a swimmer over read them again until their own day 30; the daily job stamps them afterwards);
+--   2. drop the checks athlete_schools_transferred_closes_window and athlete_schools_read_window_closed_after_end, drop the column
+--      transferred_to_school_id, recreate athlete_schools_read_window_closed_after_end as in 20261122120000;
+--   3. drop the overload app.athlete_school_window_closed(timestamptz, timestamptz).
+-- The one-argument app.athlete_school_window_closed(timestamptz) of #1418 stays as it is: other changes call it. Nothing is lost.
 
 -- A window is closed when it was stamped (by the job at day 30 or by a transfer) or when its 30 days have passed. The one-argument
--- version of #1418 cannot see a stamp, so it goes away once the read helpers below use this one.
+-- version of #1418 cannot see a stamp, so the read helpers below use this one; the one-argument version stays for its other callers.
 create function app.athlete_school_window_closed(ended timestamptz, closed_at timestamptz)
 returns boolean
 language sql
@@ -225,8 +229,6 @@ as $$
       )
     );
 $$;
-
-drop function app.athlete_school_window_closed(timestamptz);
 
 -- The transfer: the links of the swimmer that other schools ended and whose window is still open close now and point to the new school.
 -- Rows already stamped (by the job, or by an earlier transfer) and rows still active are left alone, so it is safe to repeat. A row
