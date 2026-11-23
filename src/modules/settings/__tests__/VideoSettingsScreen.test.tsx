@@ -29,9 +29,9 @@ describe('VideoSettingsScreen', () => {
     const onChange = jest.fn();
     await render(<VideoSettingsScreen video={{ settings: defaultVideoRecording, onChange }} onBack={jest.fn()} />);
     await fireEvent.press(within(screen.getByLabelText('Parar el video después de detener el reloj')).getByText('10 s'));
-    await fireEvent.press(within(screen.getByLabelText('Grabar con audio')).getByText('No'));
-    await fireEvent.press(within(screen.getByLabelText('Mostrar el cronómetro en el video')).getByText('No'));
-    await fireEvent.press(within(screen.getByLabelText('Iniciar grabación y tiempo con el mismo botón')).getByText('Sí'));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Grabar con audio' }));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Mostrar el cronómetro en el video' }));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Iniciar grabación y tiempo con el mismo botón' }));
     expect(onChange).toHaveBeenCalledWith({ audio: false });
     expect(onChange).toHaveBeenCalledWith({ showStopwatch: false });
     expect(onChange).toHaveBeenCalledWith({ startWithTime: true });

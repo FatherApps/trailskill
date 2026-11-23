@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryPreferencesRepository, defaultPreferences, defaultTimingButtons, PreferencesProvider } from '../../../core/preferences';
 import { createFakeTimingButton, unavailableTimingButton } from '../../timing';
@@ -20,7 +20,7 @@ async function setup(buttons = createFakeTimingButton().port) {
 describe('StopwatchSettingsContainer', () => {
   it('saves the free laps on this phone, keeping the other preferences, even without the buttons', async () => {
     const { repository } = await setup(unavailableTimingButton);
-    await fireEvent.press(within(screen.getByLabelText('Laps libres')).getByText('Sí'));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Laps libres' }));
     await waitFor(async () => expect(await repository.load()).toEqual({ ...defaultPreferences, freeLaps: true }));
   });
 
@@ -32,7 +32,7 @@ describe('StopwatchSettingsContainer', () => {
 
   it('saves the vibration, keeping the other button settings', async () => {
     const { repository } = await setup();
-    await fireEvent.press(within(screen.getByLabelText('Vibrar al marcar')).getByText('No'));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Vibrar al marcar' }));
     await waitFor(async () => expect((await repository.load()).timingButtons).toEqual({ ...defaultTimingButtons, vibrate: false }));
   });
 
@@ -83,7 +83,7 @@ describe('StopwatchSettingsContainer', () => {
 
   it('saves turning the buttons off', async () => {
     const { repository } = await setup();
-    await fireEvent.press(within(screen.getByLabelText('Botones para cronometrar')).getByText('No'));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Botones para cronometrar' }));
     await waitFor(async () => expect((await repository.load()).timingButtons.enabled).toBe(false));
   });
 });

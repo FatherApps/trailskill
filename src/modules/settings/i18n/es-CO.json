@@ -21,8 +21,6 @@
     "buttons": {
       "label": "Botones para cronometrar",
       "hint": "Usa los botones de la diadema o los de volumen del teléfono para cronometrar. Solo funcionan con el cronómetro abierto; el resto del tiempo el volumen funciona como siempre.",
-      "on": "Sí",
-      "off": "No",
       "connected": "Conectado: {{devices}}",
       "not_connected": "No hay diadema conectada: se usan los botones de volumen del teléfono.",
       "keys_label": "Teclas",
@@ -48,8 +46,6 @@
     "video": {
       "title": "Configuración de video",
       "intro": "Ajustes de grabación, audio y comportamiento del video del cronómetro individual.",
-      "on": "Sí",
-      "off": "No",
       "quality_label": "Calidad del video",
       "quality_hint": "Alta ocupa más del doble de espacio que Media: unos 130 MB por minuto frente a 60 MB.",
       "quality": {

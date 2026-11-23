@@ -55,7 +55,7 @@ describe('StopwatchSettingsScreen', () => {
   it('reports the vibration', async () => {
     const buttons = buttonsView();
     await setup(buttons);
-    await fireEvent.press(within(screen.getByLabelText('Vibrar al marcar')).getByText('No'));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Vibrar al marcar' }));
     expect(buttons.onChange).toHaveBeenCalledWith({ vibrate: false });
   });
 
@@ -74,11 +74,13 @@ describe('StopwatchSettingsScreen', () => {
 
   it('turns the free laps on and off', async () => {
     const { freeLaps } = await setup();
-    const choice = within(screen.getByLabelText('Laps libres'));
-    await fireEvent.press(choice.getByText('Sí'));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Laps libres' }));
     expect(freeLaps.onChange).toHaveBeenLastCalledWith(true);
-    await fireEvent.press(choice.getByText('No'));
-    expect(freeLaps.onChange).toHaveBeenLastCalledWith(false);
+
+    const on = { value: true, onChange: jest.fn() };
+    await setup(buttonsView(), on);
+    await fireEvent.press(screen.getByRole('switch', { name: 'Laps libres' }));
+    expect(on.onChange).toHaveBeenLastCalledWith(false);
   });
 
   it('shows the keys and the lockout, and the phone keys when no headset is connected', async () => {
@@ -100,7 +102,7 @@ describe('StopwatchSettingsScreen', () => {
     await setup(buttons);
     await fireEvent.press(within(screen.getByLabelText('Bloqueo después de iniciar')).getByText('5 s'));
     expect(buttons.onChange).toHaveBeenCalledWith({ lockoutSeconds: 5 });
-    await fireEvent.press(within(screen.getByLabelText('Botones para cronometrar')).getByText('No'));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Botones para cronometrar' }));
     expect(buttons.onChange).toHaveBeenCalledWith({ enabled: false });
   });
 
