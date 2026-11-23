@@ -14,6 +14,7 @@ import { CompletedScreen } from './screens/CompletedScreen';
 import { ReviewConflictsScreen, type ReviewConflictsScreenProps } from './screens/ReviewConflictsScreen';
 import { SeriesAssignmentScreen, type AssignmentAthlete } from './screens/SeriesAssignmentScreen';
 import { SeriesTimingScreen } from './screens/SeriesTimingScreen';
+import { SplitMetersScreen } from './screens/SplitMetersScreen';
 import { t } from '../../core/i18n';
 import { useFakeClock } from './__fixtures__/fakeClock';
 import { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
@@ -60,6 +61,21 @@ function RunningPreview({ withSplits, offline }: { withSplits: boolean; offline?
       elapsedHundredths={elapsed}
       splits={withSplits ? fixture.splits : undefined}
       offline={offline}
+    />
+  );
+}
+
+// A 100 m with five free marks: the stopped state offers the optional review of the meters.
+function FreeMarksPreview({ state }: { state: 'running' | 'stopped' }) {
+  const elapsed = useFakeClock(state === 'running', fixture.times.running);
+  return (
+    <StopwatchPreview
+      state={state}
+      elapsedHundredths={state === 'running' ? elapsed : 9340}
+      bestTime={null}
+      eventSubtitle="Libre 100 m · Entrenamiento"
+      splits={fixture.freeMarks}
+      onReviewMeters={state === 'stopped' ? noop : undefined}
     />
   );
 }
@@ -313,9 +329,22 @@ export const galleryEntries: GalleryEntry[] = [
         <StopwatchPreview {...stopped} elapsedHundredths={fixture.times.slower} bestTime={fixture.times.bestTime} />
       ),
       'stopped-no-pb': () => <StopwatchPreview {...stopped} bestTime={null} />,
+      'running-free-marks': () => <FreeMarksPreview state="running" />,
+      'stopped-free-marks': () => <FreeMarksPreview state="stopped" />,
       'exit-confirm': () => <ExitConfirmPreview />,
       offline: () => <RunningPreview withSplits={false} offline />,
       'pending-count': () => <StopwatchPreview syncState="on_device" pendingCount={3} />,
+    },
+  },
+  {
+    id: 'splitMeters',
+    title: 'SplitMetersScreen',
+    states: {
+      review: () => (
+        <ScreenFrame>
+          <SplitMetersScreen subtitle="Libre 100 m · Entrenamiento" distance={100} splits={fixture.meterFields} onSave={noop} onBack={noop} />
+        </ScreenFrame>
+      ),
     },
   },
   {
