@@ -35,6 +35,7 @@ describe('accounts gallery entries', () => {
       'existingAccountSheet',
       'deleteAccount',
       'deletionGrace',
+      'claimAthlete',
     ]);
     expect(statesOf('whoSwims')).toEqual(['initial', 'child', 'adult', 'invitation', 'invalidInvitation']);
     expect(statesOf('accountDetails')).toEqual([
@@ -53,6 +54,7 @@ describe('accounts gallery entries', () => {
     ]);
     expect(statesOf('signIn')).toEqual(['initial', 'codeSent', 'codeMismatch', 'sending', 'offline']);
     expect(statesOf('authorizations')).toEqual(['initial']);
+    expect(statesOf('claimAthlete')).toEqual(['ready', 'loading', 'texts-missing', 'link-not-found', 'school-staff', 'not-sent', 'signed-out']);
     expect(statesOf('consentCard')).toEqual(['unchecked', 'accepted']);
     expect(statesOf('addAthletes')).toEqual(['empty', 'withData', 'error', 'withCategories']);
     expect(statesOf('providerRegistration')).toEqual(['google', 'email']);

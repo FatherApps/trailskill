@@ -43,6 +43,9 @@ export {
   type AuthorizationsContainerProps,
 } from './screens/AuthorizationsContainer';
 export { AuthorizationsScreen, type AuthorizationsScreenProps } from './screens/AuthorizationsScreen';
+export { ClaimAthleteContainer, type ClaimAthleteContainerProps } from './screens/ClaimAthleteContainer';
+export { ClaimAthleteScreen, type ClaimAthleteScreenProps, type ClaimFailure, type ClaimRelation } from './screens/ClaimAthleteScreen';
+export { ClaimSignedOutScreen, type ClaimSignedOutScreenProps } from './screens/ClaimSignedOutScreen';
 export { ConsentCard, type ConsentCardProps } from './components/ConsentCard';
 export { ResumeRegistration, type ResumeRegistrationProps } from './components/ResumeRegistration';
 export { ExistingAccountSheet, type ExistingAccountSheetProps } from './components/ExistingAccountSheet';
