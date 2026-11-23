@@ -42,7 +42,7 @@ function createPowerSync(): Setup {
     listBySchool: async () => [],
     listAll: async () => [],
     listByIds: async (ids) =>
-      mockDb.getAll<{ id: string; first_name: string; last_name: string }>('SELECT * FROM athletes ORDER BY last_name, first_name').filter((a) => ids.includes(a.id)).map((a) => ({ id: a.id, firstName: a.first_name, lastName: a.last_name, categoryId: null, groupIds: [] })),
+      mockDb.getAll<{ id: string; first_name: string; last_name: string }>('SELECT * FROM athletes ORDER BY last_name, first_name').filter((a) => ids.includes(a.id)).map((a) => ({ id: a.id, firstName: a.first_name, lastName: a.last_name, categoryId: null, groupIds: [], endedAt: null })),
   });
   return { athletes, profiles: createPowerSyncManagedAthleteProfileRepository(athletes) };
 }

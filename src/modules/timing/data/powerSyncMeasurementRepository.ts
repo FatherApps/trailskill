@@ -1,5 +1,5 @@
 import { db, editRecord, writeBatch, writeRecord } from '../../../core/sync';
-import { assertEditableTime, DiscardedMeasurementError, type Measurement, type MeasurementRepository } from './measurements';
+import { assertEditableTime, assertMeters, DiscardedMeasurementError, type Measurement, type MeasurementRepository } from './measurements';
 
 type MeasurementRow = {
   id: string;
@@ -18,6 +18,8 @@ type MeasurementRow = {
   device_id: string;
   captured_at: string;
   parent_id: string | null;
+  // Absent on a device whose schema predates the column; null is no meters.
+  meters?: number | null;
   version: number | null;
   edited_by: string | null;
   edited_at: string | null;
@@ -47,6 +49,8 @@ function toMeasurement(row: MeasurementRow): Measurement {
     deviceId: row.device_id,
     capturedAt: row.captured_at,
     parentId: row.parent_id,
+    // Only a number is meters; null and absent both read back as absent.
+    ...(row.meters != null && { meters: row.meters }),
     // A row not uploaded yet has no server version: the server starts every measurement at 1.
     version: row.version ?? 1,
     editedBy: row.edited_by,
@@ -76,12 +80,15 @@ export function measurementRow(m: Measurement) {
     device_id: m.deviceId,
     captured_at: m.capturedAt,
     parent_id: m.parentId,
+    // Left out when unknown, so a build that writes no meters never names a column the server may not have yet.
+    ...(m.meters != null && { meters: m.meters }),
   };
 }
 
 export function createPowerSyncMeasurementRepository(): MeasurementRepository {
   return {
     async add(m) {
+      assertMeters(m);
       await writeRecord('measurements', measurementRow(m));
     },
     async discard(id, discardedBy) {

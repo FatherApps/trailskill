@@ -40,7 +40,7 @@ describe('splitAt with laps', () => {
   });
 });
 
-const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }];
+const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null }];
 
 async function open() {
   const repository = createInMemoryFamilyMeasurementRepository();

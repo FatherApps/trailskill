@@ -32,7 +32,9 @@ export async function loadAssignScope({ schools, athletes, structure }: ScopeSou
     structure.listCategories(schoolId),
   ]);
   const inSchool = { athletes: schoolAthletes, groups, categories };
-  if (admins.some((school) => school.id === schoolId)) return { schoolId, inSchool, ...inSchool, school: true };
+  // A swimmer the school ended is read for 30 days and never assigned: the server rejects every write about them (issue 1436).
+  const assignable = (list: SchoolAthlete[]) => list.filter((a) => a.endedAt === null);
+  if (admins.some((school) => school.id === schoolId)) return { schoolId, inSchool, ...inSchool, athletes: assignable(schoolAthletes), school: true };
 
   const mine = (await structure.listCoachAssignments(schoolId, schoolAthletes.map((a) => a.id))).filter((a) => a.coachId === userId);
   const groupIds = new Set(mine.flatMap((a) => (a.groupId ? [a.groupId] : [])));
@@ -40,7 +42,7 @@ export async function loadAssignScope({ schools, athletes, structure }: ScopeSou
   return {
     schoolId,
     inSchool,
-    athletes: schoolAthletes.filter((a) => directIds.has(a.id) || a.groupIds.some((id) => groupIds.has(id))),
+    athletes: assignable(schoolAthletes.filter((a) => directIds.has(a.id) || a.groupIds.some((id) => groupIds.has(id)))),
     groups: groups.filter((g) => groupIds.has(g.id)),
     categories: [],
     school: false,

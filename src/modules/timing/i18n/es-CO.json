@@ -14,6 +14,7 @@
       "error_title": "No pudimos cargar los nadadores",
       "error_message": "Revisa que el teléfono ya sincronizó e inténtalo de nuevo.",
       "skipped": "Falta autorización — se omitirá",
+      "ended": "Dado de baja",
       "athlete_name": "{{order}} · {{name}}",
       "empty_title": "Aún no hay nadadores",
       "empty_message": "Elige a quienes vas a medir para empezar la toma.",
@@ -89,6 +90,9 @@
     "offline": {
       "title": "Sin conexión.",
       "message": "Se guarda en el teléfono."
+    },
+    "ended": {
+      "blocked": "Este nadador fue dado de baja: el tiempo no se puede guardar. Asígnalo a otro nadador o descártalo."
     },
     "series": {
       "position": "{{position}}.º",

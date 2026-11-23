@@ -14,7 +14,7 @@ beforeEach(() => {
   mockStates = {};
 });
 
-const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }];
+const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null }];
 
 const time = (id: string, distance: FamilyMeasurement['distance'], createdBy = 'u1'): FamilyMeasurement => ({
   id,

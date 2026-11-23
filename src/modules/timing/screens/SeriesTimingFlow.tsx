@@ -367,6 +367,7 @@ function SeriesSession({
       series={repository}
       seriesId={step.seriesId}
       athletes={step.queue}
+      endedIds={new Set(roster.filter((a) => a.skipReason === 'ended').map((a) => a.id))}
       heading={step.heading}
       event={step.event}
       loadBestTime={loadBestTime}
