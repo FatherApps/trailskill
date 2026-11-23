@@ -4,11 +4,11 @@
 -- guardian P of P (a6), guardian Q of Q (a7).
 -- Schools: A (b1), B (b2). Swimmers: X (e1, managed by G, active in A and B, has a recovery identity), Y (e2, active in A, no code),
 -- Z (e3, link with A ended 10 days ago, has a code), W (e4, link with A ended 40 days ago), V (e5, only in B), P (e6, managed by a6, no code),
--- Q (e7, managed by a7, no code), R (e8, no marks, no code).
+-- Q (e7, managed by a7, link with A ended 5 days ago so its account can be erased, no code), R (e8, no marks, no code).
 -- Marks of X in A: f1 (3100), f2 (split of f1, 1500), f3 (discarded), f4 (hidden), f10 (split of the discarded f3); f5 is of X in B. All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(43);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('14200000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -43,7 +43,7 @@ insert into public.athlete_schools (athlete_id, school_id, ended_at, ended_by) v
   (pg_temp.u('e3'), pg_temp.u('b1'), now() - interval '10 days', pg_temp.u('a1')),
   (pg_temp.u('e4'), pg_temp.u('b1'), now() - interval '40 days', pg_temp.u('a1')),
   (pg_temp.u('e5'), pg_temp.u('b2'), null, null), (pg_temp.u('e6'), pg_temp.u('b1'), null, null),
-  (pg_temp.u('e7'), pg_temp.u('b1'), null, null), (pg_temp.u('e8'), pg_temp.u('b1'), null, null);
+  (pg_temp.u('e7'), pg_temp.u('b1'), now() - interval '5 days', pg_temp.u('a1')), (pg_temp.u('e8'), pg_temp.u('b1'), null, null);
 -- The recovery identities of #1416 (only a hash): X and Z have one, Y does not yet.
 insert into public.athlete_recovery_identities (athlete_id, code_hash) values
   (pg_temp.u('e1'), repeat('a', 64)), (pg_temp.u('e3'), repeat('b', 64));
@@ -60,10 +60,11 @@ values
   (pg_temp.u('f8'), pg_temp.u('a3'), pg_temp.u('b1'), 'repetition', pg_temp.u('e6'), null, 4200, 'FL', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-02 08:30:00+00'),
   (pg_temp.u('f9'), pg_temp.u('a3'), pg_temp.u('b1'), 'repetition', pg_temp.u('e7'), null, 4300, 'FL', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-02 09:30:00+00'),
   (pg_temp.u('fa'), pg_temp.u('a3'), pg_temp.u('b1'), 'split', pg_temp.u('e1'), pg_temp.u('f3'), 1600, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 09:00:01+00');
--- f3 discarded and f4 hidden: set as the owner with the triggers off (they recompute hidden and check the discarder).
+-- f2 has 25 meters (a free split, #1432). f3 discarded and f4 hidden: set as the owner with the triggers off (they recompute hidden and check the discarder).
 alter table public.measurements disable trigger user;
 update public.measurements set discarded_at = now(), discarded_by = pg_temp.u('a3') where id = pg_temp.u('f3');
 update public.measurements set hidden = true where id = pg_temp.u('f4');
+update public.measurements set meters = 25 where id = pg_temp.u('f2');
 alter table public.measurements enable trigger user;
 
 select has_table('public', 'athlete_anonymous_copies', 'the copies table exists');
@@ -113,6 +114,9 @@ select ok(
     where s.athlete_id = pg_temp.anon_of('e1') and s.kind = 'split' and p.athlete_id = pg_temp.anon_of('e1') and p.id <> pg_temp.u('f1')
   ),
   'the copied split hangs from the copied mark, not from the original');
+select is(
+  (select meters from public.measurements where athlete_id = pg_temp.anon_of('e1') and kind = 'split'), 25::numeric,
+  'the copied split keeps its meters');
 reset role;
 select is(
   (select count(*)::int from public.measurements where athlete_id = pg_temp.anon_of('e1')), 2,
@@ -197,10 +201,13 @@ select pg_temp.as_user('a1');
 select is(
   public.create_anonymous_school_copy(pg_temp.u('e7'), pg_temp.u('b1')) - 'athlete_id',
   '{"status": "created", "linkable": false, "copied": 1}'::jsonb, 'the copy of Q is made before Q has a code');
--- The account of Q is erased: the manager row goes and the swimmer stays as a marker, as erase_account leaves it.
+-- The account of Q is erased for real (its link with the school is ended, so nothing blocks it): the swimmer stays as a marker.
 reset role;
-delete from public.athlete_managers where athlete_id = pg_temp.u('e7');
-update public.athletes set first_name = 'Nadador', last_name = 'anterior', created_by = null where id = pg_temp.u('e7');
+create temp table req on commit drop as select public.request_account_deletion(pg_temp.u('a7')) ->> 'code' as code;
+select public.confirm_account_deletion(pg_temp.u('a7'), (select code from req));
+update public.account_deletion_requests set delete_after = now() - interval '1 day' where user_id = pg_temp.u('a7');
+select is((public.erase_account((select id from public.account_deletion_requests where user_id = pg_temp.u('a7'))) ->> 'status'), 'deleted',
+  'the account of Q is erased by erase_account');
 set local role authenticated;
 select pg_temp.as_user('a7');
 select throws_ok($$select * from public.issue_athlete_recovery_code(pg_temp.u('e7'))$$, '42501', null, 'nobody can issue a code for Q after the erasure');

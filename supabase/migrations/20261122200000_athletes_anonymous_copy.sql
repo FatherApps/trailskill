@@ -103,23 +103,26 @@ begin
       'linkable', v_copy.identity_id is not null, 'copied', 0);
   end if;
 
+  -- Measurements first, then the swimmer rows: the table-level lock of the guard goes before the row inserts, like erase_account, so a
+  -- copy and an erasure never wait for each other in opposite order (deadlock). The triggers of measurements check an editor and
+  -- recompute hidden for an authorization the copy does not have, none of which is the rule here, so they are off for the insert of the
+  -- marks below and back on after it.
+  perform app.erasure_guard_off('public.measurements'::regclass);
   -- No author on any of the rows: the defaults that stamp auth.uid() are overridden with null.
   insert into public.athletes (id, first_name, last_name, created_by) values (v_anonymous, 'Nadador', 'anónimo', null);
   insert into public.athlete_schools (athlete_id, school_id, created_by)
   values (v_anonymous, create_anonymous_school_copy.p_school, null);
 
-  -- The marks, the way resolve_athlete_relink moves them: the triggers of measurements check an editor and recompute hidden for an
-  -- authorization the copy does not have, none of which is the rule here, so they are off for this statement and back on after it.
-  -- Only marks the school reads (not hidden, not discarded); a split goes only with its parent.
-  perform app.erasure_guard_off('public.measurements'::regclass);
+  -- The marks, as resolve_athlete_relink moves them. Only marks the school reads (not hidden, not discarded); a split goes only with
+  -- its parent. Every column of the mark that is not an identity is listed here: add the new ones (meters, #1432) when they appear.
   with src as (
     select m.*, gen_random_uuid() as new_id from public.measurements m
     where m.athlete_id = create_anonymous_school_copy.p_athlete and m.school_id = create_anonymous_school_copy.p_school
       and not m.hidden and m.discarded_at is null
   )
   insert into public.measurements
-    (id, created_by, device_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, captured_at, parent_id, school_id)
-  select s.new_id, null, 'anonymous-copy', s.kind, v_anonymous, s.hundredths, s.stroke, s.distance, s.pool, s.session_type, s.source,
+    (id, created_by, device_id, kind, athlete_id, hundredths, meters, stroke, distance, pool, session_type, source, captured_at, parent_id, school_id)
+  select s.new_id, null, 'anonymous-copy', s.kind, v_anonymous, s.hundredths, s.meters, s.stroke, s.distance, s.pool, s.session_type, s.source,
     s.captured_at, p.new_id, s.school_id
   from src s left join src p on p.id = s.parent_id
   where s.parent_id is null or p.id is not null;
