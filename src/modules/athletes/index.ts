@@ -154,3 +154,10 @@ export {
   type RelinkRequestState,
   type RelinkRequestsView,
 } from './screens/RelinkRequestScreen';
+export {
+  createInMemoryAthleteRecoveryCodeRepository,
+  createSupabaseAthleteRecoveryCodeRepository,
+  type AthleteRecoveryCodeRepository,
+  type RecoveryCodes,
+} from './data/athleteRecoveryCodes';
+export { createInMemoryRecoveryCodeVault, createSecureStoreRecoveryCodeVault, type RecoveryCodeVault } from './data/recoveryCodeVault';
