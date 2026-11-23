@@ -8,6 +8,7 @@ import { seriesFixture } from './__fixtures__/series';
 import { fixture } from './__fixtures__/timing';
 import { ArrivalList } from './components/ArrivalList';
 import { NameCard } from './components/NameCard';
+import { PaceSummary } from './components/PaceSummary';
 import { arrivalClockTime, formatClockTime } from './domain/clockTime';
 import { arrivals as arrivalsOf, assignHighlighted, press, readySeries, reopen, type Series } from './domain/series';
 import { CompletedScreen } from './screens/CompletedScreen';
@@ -16,12 +17,20 @@ import { SeriesAssignmentScreen, type AssignmentAthlete } from './screens/Series
 import { SeriesTimingScreen } from './screens/SeriesTimingScreen';
 import { SplitMetersScreen } from './screens/SplitMetersScreen';
 import { t } from '../../core/i18n';
+import { formatTime } from '../../core/time';
 import { useFakeClock } from './__fixtures__/fakeClock';
 import { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
 import { TimingSetupScreen, type SetupAthlete } from './screens/TimingSetupScreen';
 import { TimingSummaryScreen, type TimingSummaryScreenProps } from './screens/TimingSummaryScreen';
 
 const noop = () => {};
+
+// Synthetic 100 m, in hundredths: marks at 25/50/75 m.
+const paceMarks = [
+  { t: 1500, meters: 25 },
+  { t: 3100, meters: 50 },
+  { t: 4800, meters: 75 },
+];
 
 // The preview box shrinks its children; a screen fills a phone-like area instead.
 function ScreenFrame({ children }: { children: ReactNode }) {
@@ -353,6 +362,17 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       arrivals: () => <ArrivalList arrivals={seriesFixture.arrivals} />,
       'many-arrivals': () => <ArrivalList arrivals={seriesFixture.manyArrivals} />,
+    },
+  },
+  {
+    id: 'paceSummary',
+    title: 'PaceSummary',
+    states: {
+      projection: () => <PaceSummary marks={paceMarks} finalTime={6600} distance={100} formatTime={(v) => formatTime(v)} />,
+      'no-projection': () => <PaceSummary marks={[{ t: 3100, meters: 50 }]} finalTime={6600} distance={100} formatTime={(v) => formatTime(v)} />,
+      'no-halves': () => (
+        <PaceSummary marks={[{ t: 1500, meters: 25 }, { t: 4800, meters: 75 }]} finalTime={6600} distance={100} formatTime={(v) => formatTime(v)} />
+      ),
     },
   },
   {

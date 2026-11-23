@@ -39,6 +39,14 @@
       "phone": "Este teléfono",
       "external": "Cronómetro externo"
     },
+    "pace": {
+      "title": "Ritmo y proyección",
+      "segment": "{{from}}–{{to}} m · {{time}} · {{pace}} / 100 m",
+      "halves": "1.ª mitad {{first}} · 2.ª mitad {{second}} · {{difference}}",
+      "consistency": "Consistencia {{value}} %",
+      "projection": "Si mantiene este ritmo: {{time}}",
+      "projection_note": "Estimación optimista; la mayoría pierde ritmo al final"
+    },
     "stopwatch": {
       "title": "{{name}} · {{current}} de {{total}}",
       "start": "Iniciar",
