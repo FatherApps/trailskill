@@ -8,19 +8,29 @@ import { seriesFixture } from './__fixtures__/series';
 import { fixture } from './__fixtures__/timing';
 import { ArrivalList } from './components/ArrivalList';
 import { NameCard } from './components/NameCard';
+import { PaceSummary } from './components/PaceSummary';
 import { arrivalClockTime, formatClockTime } from './domain/clockTime';
 import { arrivals as arrivalsOf, assignHighlighted, press, readySeries, reopen, type Series } from './domain/series';
 import { CompletedScreen } from './screens/CompletedScreen';
 import { ReviewConflictsScreen, type ReviewConflictsScreenProps } from './screens/ReviewConflictsScreen';
 import { SeriesAssignmentScreen, type AssignmentAthlete } from './screens/SeriesAssignmentScreen';
 import { SeriesTimingScreen } from './screens/SeriesTimingScreen';
+import { SplitMetersScreen } from './screens/SplitMetersScreen';
 import { t } from '../../core/i18n';
+import { formatTime } from '../../core/time';
 import { useFakeClock } from './__fixtures__/fakeClock';
 import { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
 import { TimingSetupScreen, type SetupAthlete } from './screens/TimingSetupScreen';
 import { TimingSummaryScreen, type TimingSummaryScreenProps } from './screens/TimingSummaryScreen';
 
 const noop = () => {};
+
+// Synthetic 100 m, in hundredths: marks at 25/50/75 m.
+const paceMarks = [
+  { t: 1500, meters: 25 },
+  { t: 3100, meters: 50 },
+  { t: 4800, meters: 75 },
+];
 
 // The preview box shrinks its children; a screen fills a phone-like area instead.
 function ScreenFrame({ children }: { children: ReactNode }) {
@@ -60,6 +70,21 @@ function RunningPreview({ withSplits, offline }: { withSplits: boolean; offline?
       elapsedHundredths={elapsed}
       splits={withSplits ? fixture.splits : undefined}
       offline={offline}
+    />
+  );
+}
+
+// A 100 m with five free marks: the stopped state offers the optional review of the meters.
+function FreeMarksPreview({ state }: { state: 'running' | 'stopped' }) {
+  const elapsed = useFakeClock(state === 'running', fixture.times.running);
+  return (
+    <StopwatchPreview
+      state={state}
+      elapsedHundredths={state === 'running' ? elapsed : 9340}
+      bestTime={null}
+      eventSubtitle="Libre 100 m · Entrenamiento"
+      splits={fixture.freeMarks}
+      onReviewMeters={state === 'stopped' ? noop : undefined}
     />
   );
 }
@@ -286,6 +311,7 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       setup: () => <SetupPreview athletes={fixture.setupScreen.athletes} selectedCount={3} />,
       'setup-skipped': () => <SetupPreview athletes={fixture.athletesWithSkipped} selectedCount={2} />,
+      'setup-ended': () => <SetupPreview athletes={fixture.athletesWithEnded} selectedCount={2} />,
       'setup-empty': () => <SetupPreview athletes={[]} selectedCount={0} />,
     },
   },
@@ -312,9 +338,22 @@ export const galleryEntries: GalleryEntry[] = [
         <StopwatchPreview {...stopped} elapsedHundredths={fixture.times.slower} bestTime={fixture.times.bestTime} />
       ),
       'stopped-no-pb': () => <StopwatchPreview {...stopped} bestTime={null} />,
+      'running-free-marks': () => <FreeMarksPreview state="running" />,
+      'stopped-free-marks': () => <FreeMarksPreview state="stopped" />,
       'exit-confirm': () => <ExitConfirmPreview />,
       offline: () => <RunningPreview withSplits={false} offline />,
       'pending-count': () => <StopwatchPreview syncState="on_device" pendingCount={3} />,
+    },
+  },
+  {
+    id: 'splitMeters',
+    title: 'SplitMetersScreen',
+    states: {
+      review: () => (
+        <ScreenFrame>
+          <SplitMetersScreen subtitle="Libre 100 m · Entrenamiento" distance={100} splits={fixture.meterFields} onSave={noop} onBack={noop} />
+        </ScreenFrame>
+      ),
     },
   },
   {
@@ -323,6 +362,17 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       arrivals: () => <ArrivalList arrivals={seriesFixture.arrivals} />,
       'many-arrivals': () => <ArrivalList arrivals={seriesFixture.manyArrivals} />,
+    },
+  },
+  {
+    id: 'paceSummary',
+    title: 'PaceSummary',
+    states: {
+      projection: () => <PaceSummary marks={paceMarks} finalTime={6600} distance={100} formatTime={(v) => formatTime(v)} />,
+      'no-projection': () => <PaceSummary marks={[{ t: 3100, meters: 50 }]} finalTime={6600} distance={100} formatTime={(v) => formatTime(v)} />,
+      'no-halves': () => (
+        <PaceSummary marks={[{ t: 1500, meters: 25 }, { t: 4800, meters: 75 }]} finalTime={6600} distance={100} formatTime={(v) => formatTime(v)} />
+      ),
     },
   },
   {

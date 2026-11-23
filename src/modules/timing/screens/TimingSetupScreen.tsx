@@ -19,6 +19,8 @@ export type SetupAthlete = {
   color: 'athlete-1' | 'athlete-2' | 'athlete-3' | 'athlete-4';
   bestTime: Hundredths | null;
   authorized: boolean;
+  // Why a not authorized athlete is skipped: `ended` is a swimmer the school gave up (issue 1436); absent, the authorization is missing.
+  skipReason?: 'ended';
 };
 
 export type TimingSetupScreenProps = {
@@ -118,7 +120,7 @@ export function TimingSetupScreen({
                 tag={
                   athlete.authorized
                     ? undefined
-                    : { variant: 'warn', icon: 'schedule', label: t('timing.setup.skipped') }
+                    : { variant: 'warn', icon: 'schedule', label: t(athlete.skipReason === 'ended' ? 'timing.setup.ended' : 'timing.setup.skipped') }
                 }
               />
             ))}

@@ -21,6 +21,7 @@ const athlete: ConsoleAthlete = {
   categoryId: null,
   category: null,
   categorySortOrder: null,
+    endedAt: null,
   groupIds: ['g1'],
   groups: ['g1'],
   coachIds: [],

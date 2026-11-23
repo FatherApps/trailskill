@@ -77,6 +77,7 @@ describe('school console gallery entries', () => {
       'consoleScreen',
       'coachList',
       'inviteCoachSheet',
+      'registerAthleteSheet',
       'coachesScreen',
       'recordTable',
       'recordsScreen',
@@ -92,8 +93,8 @@ describe('school console gallery entries', () => {
     expect(stateKeys('sideSheet')).toEqual(['open', 'titled']);
     expect(stateKeys('athleteIndicators')).toEqual(['default', 'large-numbers']);
     expect(stateKeys('athleteFilters')).toEqual(['empty', 'with-filter', 'all-filters']);
-    expect(stateKeys('athleteTable')).toEqual(['default', 'selected', 'long-text', 'compact']);
-    expect(stateKeys('athleteDetail')).toEqual(['default', 'pending-no-bests', 'category-selector', 'long-text']);
+    expect(stateKeys('athleteTable')).toEqual(['default', 'selected', 'ended', 'long-text', 'compact']);
+    expect(stateKeys('athleteDetail')).toEqual(['default', 'pending-no-bests', 'category-selector', 'claim-link-open', 'claim-link-expired', 'long-text']);
     expect(stateKeys('athletesScreen')).toEqual([
       'with-data',
       'loading',
@@ -113,6 +114,7 @@ describe('school console gallery entries', () => {
     ]);
     expect(stateKeys('coachList')).toEqual(['default', 'with-pending-invitation', 'with-deactivated', 'deactivate-available', 'long-text']);
     expect(stateKeys('inviteCoachSheet')).toEqual(['default', 'group-from-context', 'email-not-sent']);
+    expect(stateKeys('registerAthleteSheet')).toEqual(['default', 'offline']);
     expect(stateKeys('recordTable')).toEqual(['default', 'other-pool', 'long-text', 'compact', 'pool-empty']);
     expect(stateKeys('measurementLog')).toEqual(['default', 'long-text', 'no-results']);
     expect(stateKeys('authorizationList')).toEqual(['default', 'long-text', 'sharing-requests', 'read-error', 'relink-requests', 'relink-long-text', 'relink-offline', 'relink-read-error']);

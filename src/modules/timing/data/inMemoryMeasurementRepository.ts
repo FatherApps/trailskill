@@ -1,4 +1,4 @@
-import { assertEditableTime, DiscardedMeasurementError, type Measurement, type MeasurementRepository } from './measurements';
+import { assertEditableTime, assertMeters, DiscardedMeasurementError, type Measurement, type MeasurementRepository } from './measurements';
 
 const newestFirst = (a: Measurement, b: Measurement) =>
   a.capturedAt === b.capturedAt ? a.id.localeCompare(b.id) : b.capturedAt.localeCompare(a.capturedAt);
@@ -22,6 +22,7 @@ export function createInMemoryMeasurementRepository(): InMemoryMeasurementReposi
   }
   return {
     async add(measurement) {
+      assertMeters(measurement);
       byId.set(measurement.id, measurement);
     },
     // The row stays stored, like the real repository: no read returns it. Who discarded it is not kept here.

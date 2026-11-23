@@ -1,6 +1,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { View } from 'react-native';
 
+import { t } from '../../core/i18n';
 import type { PoolCode } from '../../core/sport';
 import type { GalleryEntry } from '../../core/ui';
 import { schoolNameFixture, storedOnFixture } from './__fixtures__/athletes';
@@ -21,6 +22,8 @@ import { CoachList } from './components/CoachList';
 import { GuardianSharingPanel, type SharingRecordRow, type SharingRecordsView, type SharingSwitchView } from './components/GuardianSharingPanel';
 import { InviteCoachSheet } from './components/InviteCoachSheet';
 import { MeasurementLog } from './components/MeasurementLog';
+import { RegisterAthleteForm } from './components/RegisterAthleteForm';
+import { SideSheet } from './components/SideSheet';
 import { RecordTable } from './components/RecordTable';
 import type { SectionView } from './components/SectionFrame';
 import { ConsolePreview, FullWidth, noop, toggleFilter } from './gallerySupport';
@@ -55,6 +58,21 @@ function sectionStates<Content>(
     'medium-800': preview(data, 800),
     'compact-360': preview(data, 360),
   };
+}
+
+// Fill the form, check the declaration and press «Dar de alta»: the sheet then shows the claim link to share.
+function RegisterAthleteSheetPreview({ offline = false }: { offline?: boolean }) {
+  return (
+    <SideSheet label={t('schoolConsole.register_sheet.label')} titleKey="schoolConsole.register_sheet.title" onClose={noop}>
+      <RegisterAthleteForm
+        schoolName={schoolNameFixture}
+        offline={offline}
+        onSubmit={async () => ({ link: 'swimcro://claim/0123456789abcdef0123456789abcdef', expiresAt: '2026-11-08T12:00:00.000Z' })}
+        share={async () => undefined}
+        onClose={noop}
+      />
+    </SideSheet>
+  );
 }
 
 const coachesScreen = (view: SectionView<CoachesContent>, width: number, inviteAvailable = true) => (
@@ -223,6 +241,19 @@ export const gallerySectionEntries: GalleryEntry[] = [
     'email-not-sent': () => (
       <SheetStage>
         <InviteCoachSheet schoolName={schoolNameFixture} groups={inviteGroupsFixture} onSubmit={async () => ({ emailSent: false })} onClose={noop} />
+      </SheetStage>
+    ),
+  }),
+  entry('registerAthleteSheet', 'RegisterAthleteForm', {
+    default: () => (
+      <SheetStage>
+        <RegisterAthleteSheetPreview />
+      </SheetStage>
+    ),
+    // Registering needs a connection: the button says so.
+    offline: () => (
+      <SheetStage>
+        <RegisterAthleteSheetPreview offline />
       </SheetStage>
     ),
   }),

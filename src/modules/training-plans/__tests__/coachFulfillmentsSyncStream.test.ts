@@ -31,13 +31,13 @@ test("every coach query of training_plans_fulfillments binds the swimmer and the
   // The direct coach is bound like the admin (#1260): the active membership by the school of the assignment, then athlete_schools
   // by that school and the swimmer of the fulfillment, and the coach assignment last as a filter on the same pair.
   expect(direct[0]).toContain("JOIN school_memberships ON training_plan_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON training_plan_fulfillments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id");
-  expect(direct[0]).toContain("WHERE school_memberships.user_id = auth.user_id() AND school_memberships.deactivated_at IS NULL AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()");
-  expect(direct[0]).toContain("athlete_schools.ended_at IS NULL");
+  expect(direct[0]).toContain("WHERE school_memberships.user_id = auth.user_id() AND school_memberships.deactivated_at IS NULL AND athlete_schools.read_window_closed_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()");
+  expect(direct[0]).toContain("athlete_schools.read_window_closed_at IS NULL");
   expect(group[0]).toContain("JOIN training_plan_assignments ON training_plan_fulfillments.assignment_id = training_plan_assignments.id");
   // By group the chain starts at the coach's active groups and ends at athlete_schools, with no school condition of its own
   // (#1260): beside those joins a school set splits the swimmer from the school again in PowerSync.
   expect(group[0]).toContain("JOIN training_groups ON training_plan_assignments.school_id = training_groups.school_id JOIN athlete_groups ON training_plan_fulfillments.athlete_id = athlete_groups.athlete_id AND training_groups.id = athlete_groups.group_id JOIN athlete_schools ON athlete_groups.athlete_id = athlete_schools.athlete_id AND training_groups.school_id = athlete_schools.school_id");
-  expect(group[0]).toContain("WHERE training_groups.id IN coach_group_ids AND athlete_schools.ended_at IS NULL");
+  expect(group[0]).toContain("WHERE training_groups.id IN coach_group_ids AND athlete_schools.read_window_closed_at IS NULL");
 });
 
 test("no query of training_plans_fulfillments uses the coach ids that carry no school", () => {
@@ -59,7 +59,7 @@ test("the guardian and adult athlete query is unchanged", () => {
 // A school admin gets a fulfillment only for a swimmer of their school and an assignment of that same school (#1132).
 test("the admin query binds the swimmer's school to the school of the assignment", () => {
   expect(streamQueries.filter((query) => query.includes("school_memberships.role = 'school_admin'"))).toEqual([
-    "SELECT training_plan_fulfillments.* FROM training_plan_fulfillments JOIN training_plan_assignments ON training_plan_fulfillments.assignment_id = training_plan_assignments.id JOIN school_memberships ON training_plan_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON training_plan_fulfillments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.ended_at IS NULL AND training_plan_fulfillments.hidden = false",
+    "SELECT training_plan_fulfillments.* FROM training_plan_fulfillments JOIN training_plan_assignments ON training_plan_fulfillments.assignment_id = training_plan_assignments.id JOIN school_memberships ON training_plan_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON training_plan_fulfillments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.read_window_closed_at IS NULL AND training_plan_fulfillments.hidden = false",
   ]);
 });
 

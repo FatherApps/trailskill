@@ -1,7 +1,7 @@
 import type { GalleryEntry } from '../../core/ui';
 
 export { createInMemoryMeasurementRepository } from './data/inMemoryMeasurementRepository';
-export { CompletedMeasurementTimeError, DiscardedMeasurementError, InvalidMeasurementTimeError } from './data/measurements';
+export { CompletedMeasurementTimeError, DiscardedMeasurementError, InvalidMeasurementMetersError, InvalidMeasurementTimeError } from './data/measurements';
 export type {
   Measurement,
   MeasurementEvent,
@@ -17,6 +17,7 @@ export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as
 export { ArrivalButton, type ArrivalButtonProps } from './components/ArrivalButton';
 export { ArrivalList, type ArrivalListProps } from './components/ArrivalList';
 export { NameCard, type NameCardProps } from './components/NameCard';
+export { PaceSummary, type PaceSummaryProps } from './components/PaceSummary';
 export { Stopwatch, type StopwatchProps, type StopwatchState } from './components/Stopwatch';
 export { TimingHeader, type TimingHeaderProps } from './components/TimingHeader';
 export { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';
@@ -35,6 +36,9 @@ export {
 } from './screens/SeriesAssignmentScreen';
 export { SeriesTimingScreen, type SeriesTimingScreenProps } from './screens/SeriesTimingScreen';
 export { IndividualTimingFlow, type IndividualTimingFlowProps } from './screens/IndividualTimingFlow';
+// The optional step that corrects the meters of free marks, and the meters a mark gets from the pool: shared with family-timing.
+export { SplitMetersScreen, type SplitMetersScreenProps } from './screens/SplitMetersScreen';
+export { defaultSplitMeters } from './domain/splitMeters';
 export type { RosterAthlete } from './screens/timingSession';
 export {
   createInMemorySeriesRepository,
@@ -99,3 +103,12 @@ export {
   type UseTimingButtonsOptions,
 } from './data/useTimingButtons';
 export { arrivalButtonsHint, keyName, stopwatchButtonsHint } from './data/keyName';
+export {
+  consistency,
+  defaultMarkMeters,
+  halfSplit,
+  paceSegments,
+  projectFinish,
+  type PaceMark,
+  type PaceSegment,
+} from './domain/pace';

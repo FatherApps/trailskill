@@ -19,7 +19,14 @@ describe('parsePreferences', () => {
       timePrecision: 'thousandths',
       timingButtons: defaultTimingButtons,
       videoRecording: defaultVideoRecording,
+      freeLaps: false,
     });
+  });
+
+  it('keeps freeLaps and turns a missing or non-boolean value back into false', () => {
+    expect(parsePreferences({ freeLaps: true }).freeLaps).toBe(true);
+    expect(parsePreferences({ themeMode: 'sun' }).freeLaps).toBe(false);
+    for (const bad of ['true', 1, null, {}]) expect(parsePreferences({ freeLaps: bad }).freeLaps).toBe(false);
   });
 
   it('keeps valid video recording settings and replaces invalid ones', () => {
@@ -32,7 +39,7 @@ describe('parsePreferences', () => {
 
   it('loads preferences saved before video recording existed with its defaults', () => {
     const saved = { themeMode: 'dark', timePrecision: 'thousandths', timingButtons: { ...defaultTimingButtons, vibrate: false } };
-    expect(parsePreferences(saved)).toEqual({ ...saved, videoRecording: defaultVideoRecording });
+    expect(parsePreferences(saved)).toEqual({ ...saved, videoRecording: defaultVideoRecording, freeLaps: false });
   });
 
   it('keeps valid timing button settings and replaces invalid ones', () => {

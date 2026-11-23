@@ -8,7 +8,7 @@ jest.mock('../../../core/sync/db', () => ({ db: {} }));
 // Synthetic data only.
 const federation = { name: 'Synthetic Federation', kind: 'federation' as const, provider: 'xx-demo' };
 const platform = { name: 'Synthetic Platform', kind: 'platform' as const, provider: 'xx-torneo' };
-const ana = { id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] };
+const ana = { id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [], endedAt: null };
 const staffOf = (...ids: string[]) => ({ status: 'staff' as const, schools: ids.map((id) => ({ id })) });
 
 function setup(overrides: Partial<AthleteProfileRouteInput> = {}) {

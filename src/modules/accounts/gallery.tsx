@@ -13,6 +13,8 @@ import { ConsentCard } from './components/ConsentCard';
 import { ExistingAccountSheet } from './components/ExistingAccountSheet';
 import { ResumeRegistration } from './components/ResumeRegistration';
 import type { AuthorizationRecord, AuthorizationText } from './data/authorizations';
+import { ClaimAthleteScreen, type ClaimFailure } from './screens/ClaimAthleteScreen';
+import { ClaimSignedOutScreen } from './screens/ClaimSignedOutScreen';
 import { DeleteAccountScreen, type DeleteAccountScreenProps } from './screens/DeleteAccountScreen';
 import { DeletionGraceScreen } from './screens/DeletionGraceScreen';
 import { WhoSwimsScreen, type WhoSwimsScreenProps } from './screens/WhoSwimsScreen';
@@ -167,6 +169,14 @@ const authorizationTexts: AuthorizationText[] = [
 
 // The real avatar reads the photo from the local database; the gallery has no database, so it shows the initials.
 const GalleryAvatar: AthleteAvatarSlot = ({ initials, size }) => <AthleteAvatar initials={initials} size={size} authorized={false} />;
+
+function ClaimPreview({ texts, failure = null }: { texts: AuthorizationText[] | 'loading' | 'missing'; failure?: ClaimFailure | null }) {
+  return (
+    <FullScreen>
+      <ClaimAthleteScreen texts={texts} busy={false} failure={failure} onAccept={noop} onRetryTexts={noop} onCancel={noop} />
+    </FullScreen>
+  );
+}
 
 export const galleryEntries: GalleryEntry[] = [
   {
@@ -360,6 +370,25 @@ export const galleryEntries: GalleryEntry[] = [
       offline: () => (
         <FullScreen>
           <DeletionGraceScreen deleteAfter={fx.deleteAfter} online={false} onCancel={noop} />
+        </FullScreen>
+      ),
+    },
+  },
+  {
+    id: 'claimAthlete',
+    title: 'ClaimAthleteScreen',
+    states: {
+      // The family opened the link of a swimmer the school registered: the three authorizations with their text, accepted together.
+      ready: () => <ClaimPreview texts={authorizationTexts.slice(0, 3)} />,
+      loading: () => <ClaimPreview texts="loading" />,
+      // The texts have not reached the phone yet: nothing can be accepted.
+      'texts-missing': () => <ClaimPreview texts="missing" />,
+      'link-not-found': () => <ClaimPreview texts={authorizationTexts.slice(0, 3)} failure="link_not_found" />,
+      'school-staff': () => <ClaimPreview texts={authorizationTexts.slice(0, 3)} failure="not_allowed" />,
+      'not-sent': () => <ClaimPreview texts={authorizationTexts.slice(0, 3)} failure="other" />,
+      'signed-out': () => (
+        <FullScreen>
+          <ClaimSignedOutScreen onSignIn={noop} />
         </FullScreen>
       ),
     },

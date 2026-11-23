@@ -5,6 +5,7 @@ import {
   createInMemoryMeasurementRepository,
   createInMemorySessionSetupRepository,
   IndividualTimingFlow,
+  InvalidMeasurementMetersError,
   type IndividualTimingFlowProps,
 } from '..';
 
@@ -222,6 +223,175 @@ describe('individual timing flow', () => {
     const split = saved.find((m) => m.kind === 'split');
 
     expect(split).toMatchObject({ hundredths: 1700, parentId: final?.id });
+  });
+
+  describe('free laps with meters', () => {
+    const event = { stroke: 'FR', distance: '100m', pool: 'SCM' } as const;
+
+    // A 100 m race in a 25 m pool, five marks and then the stop. The marks sit 10 s apart.
+    async function swimFiveMarks() {
+      const result = await setup();
+      await screen.findByText('Nadadores (2 de 3)');
+      await fireEvent.press(screen.getByRole('radio', { name: '100 m' }));
+      await press('Empezar toma');
+      await screen.findByText('Ana M. · 1 de 2');
+      await press('Iniciar');
+      for (let mark = 1; mark <= 5; mark++) {
+        clock += 10n * second;
+        await press('Parcial');
+      }
+      return result;
+    }
+
+    const splitsOf = async (measurements: ReturnType<typeof createInMemoryMeasurementRepository>) =>
+      (await measurements.listByAthleteEvent('a1', event))
+        .filter((m) => m.kind === 'split')
+        .sort((a, b) => (a.hundredths ?? 0) - (b.hundredths ?? 0))
+        .map((m) => m.meters ?? null);
+
+    it('takes more marks than the event has laps and never stops by itself', async () => {
+      await swimFiveMarks();
+
+      expect(screen.getByRole('button', { name: 'Detener' })).toBeOnTheScreen();
+      expect(screen.getByText(/^Parcial 5 · 50,00$/)).toBeOnTheScreen();
+    });
+
+    it('labels a mark with its meters, and one without meters only with its number', async () => {
+      await swimFiveMarks();
+      await press('Detener');
+
+      expect(screen.getByText(/^Parcial 2 · 50 m · 20,00$/)).toBeOnTheScreen();
+      expect(screen.getByText(/^Parcial 3 · 75 m · 30,00$/)).toBeOnTheScreen();
+      // 4 x 25 m reaches the distance: no meters.
+      expect(screen.getByText(/^Parcial 4 · 40,00$/)).toBeOnTheScreen();
+      expect(screen.getByText(/^Parcial 5 · 50,00$/)).toBeOnTheScreen();
+    });
+
+    it('shows the pace and the projection of the stopped time with the meters of its marks', async () => {
+      await swimFiveMarks();
+      expect(screen.queryByText('Ritmo y proyección')).not.toBeOnTheScreen();
+      await press('Detener');
+
+      expect(screen.getByText('Ritmo y proyección')).toBeOnTheScreen();
+      expect(screen.getByText('0–25 m · 10,00 · 40,00 / 100 m')).toBeOnTheScreen();
+      expect(screen.getByText('75–100 m · 20,00 · 1:20,00 / 100 m')).toBeOnTheScreen();
+      expect(screen.getByText('1.ª mitad 20,00 · 2.ª mitad 30,00 · +10,00')).toBeOnTheScreen();
+      // 3 marks with meters: 30 s at 75 m, then 25 m at (30 - 10) s / 50 m.
+      expect(screen.getByText('Si mantiene este ritmo: 40,00')).toBeOnTheScreen();
+      expect(screen.getByText('Estimación optimista; la mayoría pierde ritmo al final')).toBeOnTheScreen();
+    });
+
+    it('shows no projection when only one mark has meters', async () => {
+      await setup();
+      await screen.findByText('Nadadores (2 de 3)');
+      await fireEvent.press(screen.getByRole('radio', { name: '100 m' }));
+      await press('Empezar toma');
+      await screen.findByText('Ana M. · 1 de 2');
+      await press('Iniciar');
+      clock += 10n * second;
+      await press('Parcial');
+      clock += 20n * second;
+      await press('Detener');
+
+      expect(screen.getByText('Ritmo y proyección')).toBeOnTheScreen();
+      expect(screen.queryByText(/Si mantiene este ritmo/)).not.toBeOnTheScreen();
+    });
+
+    it('saves the meters of the pool when the review is not opened', async () => {
+      const { measurements } = await swimFiveMarks();
+      await press('Detener');
+      await press('Guardar');
+
+      expect(await splitsOf(measurements)).toEqual([25, 50, 75, null, null]);
+    });
+
+    it('saves the meters that were corrected or completed in the review', async () => {
+      const { measurements } = await swimFiveMarks();
+      await press('Detener');
+      await press('Revisar metros');
+      await fireEvent.changeText(screen.getByLabelText(/^Metros hasta Parcial 2/), '40,5');
+      await fireEvent.changeText(screen.getByLabelText(/^Metros hasta Parcial 4/), '90');
+      await press('Listo');
+
+      expect(await screen.findByText(/^Parcial 2 · 40,5 m · 20,00$/)).toBeOnTheScreen();
+      expect(screen.getByText(/^Parcial 4 · 90 m · 40,00$/)).toBeOnTheScreen();
+      await press('Guardar');
+
+      expect(await splitsOf(measurements)).toEqual([25, 40.5, 75, 90, null]);
+    });
+
+    it.each([
+      ['100', 'Los metros deben ser más de 0 y menos de 100 m.'],
+      ['0', 'Los metros deben ser más de 0 y menos de 100 m.'],
+      ['20', 'Los metros deben ir en aumento de un parcial al siguiente.'],
+      ['mucho', 'Escribe los metros con números, por ejemplo 37,5.'],
+    ])('does not accept %s as the meters of the second mark', async (text, message) => {
+      await swimFiveMarks();
+      await press('Detener');
+      await press('Revisar metros');
+      await fireEvent.changeText(screen.getByLabelText(/^Metros hasta Parcial 2/), text);
+      await press('Listo');
+
+      expect(await screen.findByText(message)).toBeOnTheScreen();
+      expect(screen.getByText('Metros de los parciales')).toBeOnTheScreen();
+    });
+
+    it('sends the person back to the review with the reason when the meters are refused on saving', async () => {
+      const inner = createInMemoryMeasurementRepository();
+      const refusing = {
+        ...inner,
+        add: async (m: Parameters<typeof inner.add>[0]) => {
+          if (m.kind === 'split') throw new InvalidMeasurementMetersError('Meters must be above 0 and below 100000');
+          return inner.add(m);
+        },
+      };
+      await setup({ measurements: refusing });
+      await screen.findByText('Nadadores (2 de 3)');
+      await fireEvent.press(screen.getByRole('radio', { name: '100 m' }));
+      await press('Empezar toma');
+      await screen.findByText('Ana M. · 1 de 2');
+      await press('Iniciar');
+      clock += 10n * second;
+      await press('Parcial');
+      clock += 10n * second;
+      await press('Detener');
+      await press('Guardar');
+
+      expect(await screen.findByText('No pudimos guardar los metros. Revísalos e inténtalo de nuevo.')).toBeOnTheScreen();
+      expect(screen.getByText('Metros de los parciales')).toBeOnTheScreen();
+    });
+
+    it('keeps the stopped time and the pool meters when the review is left with back', async () => {
+      const { measurements } = await swimFiveMarks();
+      await press('Detener');
+      await press('Revisar metros');
+      await fireEvent.changeText(screen.getByLabelText(/^Metros hasta Parcial 2/), '40');
+      await press('Volver');
+      await press('Guardar');
+
+      expect(await splitsOf(measurements)).toEqual([25, 50, 75, null, null]);
+    });
+
+    it('offers no review when there are no marks, and does not carry the meters to the next athlete', async () => {
+      const { measurements } = await swimFiveMarks();
+      await press('Detener');
+      await press('Revisar metros');
+      await fireEvent.changeText(screen.getByLabelText(/^Metros hasta Parcial 2/), '40');
+      await press('Listo');
+      await press('Guardar');
+      await screen.findByText('Cleo O. · 2 de 2');
+      await press('Iniciar');
+      clock += 10n * second;
+      await press('Parcial');
+      await press('Detener');
+
+      expect(screen.getByText(/^Parcial 1 · 25 m · 10,00$/)).toBeOnTheScreen();
+      expect(await measurements.listByAthleteEvent('a3', event)).toEqual([]);
+      await press('Descartar');
+      await press('Iniciar');
+      await press('Detener');
+      expect(screen.queryByRole('button', { name: 'Revisar metros' })).toBeNull();
+    });
   });
 
   it('saves nothing when the stopped time is discarded', async () => {

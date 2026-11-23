@@ -15,9 +15,9 @@ Mario's words (2026-11-22, kept as written, with his spelling):
 
 1. **Three ways in.** A swimmer enrolls on their own (independent use), a school enrolls the swimmer, or a school registers the swimmer even though nobody has signed up in the app yet.
 2. **The family owns the data.** The swimmer (through the guardian who manages them, or the adult swimmer) is always the owner of their data. A school is not.
-3. **Leaving a school.** When the swimmer leaves (la baja), the school keeps reading the swimmer's data for **30 days**. The swimmer is free to join another school meanwhile. *Today, until the issue that builds the window ships (#1418), the baja cuts the school's access the same day; the policy says so.*
-4. **Joining another school.** If another school takes the swimmer in, the first school stops reading the data at that moment and the data moves to the new school. The 30 days are a limit, not a right to read until they end.
-5. **The school's own copy.** The school may keep a copy of the data, but as an **anonymous swimmer** that carries only the swimmer's code (paraphrasing Mario; his words are «con el codigo del nadador»): no name, no document, no way to tell who it is. Derived: the copy carries the technical key of that copy (`former_athlete_key`), not the public share code of [`my-times-rules.md`](my-times-rules.md) and not the permanent code of section 3 in clear.
+3. **Leaving a school.** When the swimmer leaves (la baja), the school keeps reading the swimmer's data for **30 days**. The swimmer is free to join another school meanwhile. *In `main` with #1418: the school reads, read-only, until the window ends.*
+4. **Joining another school.** If another school takes the swimmer in, the first school stops reading the data at that moment and the data moves to the new school. The 30 days are a limit, not a right to read until they end. In `main` (#1419): the move happens with the family's acceptance, and the new school then reads the marks of the previous schools whose link has **ended**. While the swimmer is active in two schools, each school sees only its own marks. The owner can also open a swimmer's marks of other schools to one school (#1446); withdrawing that grant, or ending a link, stops it.
+5. **The school's own copy.** The school may keep a copy of the data, but as an **anonymous swimmer** that carries only the swimmer's code (paraphrasing Mario; his words are «con el codigo del nadador»): no name, no document, no way to tell who it is from the copy alone. Legally it is **pseudonymization, not anonymization** (#1420; the note on #106): whoever holds the permanent code or a recovery code can claim the copy. Derived: the copy carries the technical key of that copy (`former_athlete_key`), not the public share code of [`my-times-rules.md`](my-times-rules.md) and not the permanent code of section 3 in clear.
 6. **A permanent code per swimmer.** Each swimmer needs a unique code.
 
 ### Roles (derived)
@@ -38,7 +38,7 @@ Mario's words on the code (2026-11-22):
 
 > «nosotros tampoco lo conocemos se cifra como un token»
 
-Derived rule: the server keeps only a one-way hash of the permanent code. The plain text is held only by the owner of the data (the guardian who manages the swimmer, or the adult swimmer). The share code of [`my-times-rules.md`](my-times-rules.md) (rule 3) is a different thing: it stays the public, revocable code used to send times between families.
+Derived rule: the server keeps only a one-way hash of the permanent code. The plain text is held only by the owner of the data (the guardian who manages the swimmer, or the adult swimmer), on that user's phone. The share code of [`my-times-rules.md`](my-times-rules.md) (rule 3) is a different thing: it stays the public, revocable code used to send times between families.
 
 ## 4. Losing the code
 

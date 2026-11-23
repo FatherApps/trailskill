@@ -60,6 +60,21 @@ export const fixture = {
   athleteNames: ['Mateo C.', 'Lucía R.', 'Sara P.'],
   times,
   splits: [{ label: t('sport.distance.25m'), value: times.firstSplit }],
+  // A 100 m in a 25 m pool with free marks: the last two have no meters, the way the coach left them.
+  freeMarks: [
+    { label: t('timing.stopwatch.split_meters', { label: 'Parcial 1', meters: 25 }), value: 1650 },
+    { label: t('timing.stopwatch.split_meters', { label: 'Parcial 2', meters: 50 }), value: 3420 },
+    { label: t('timing.stopwatch.split_meters', { label: 'Parcial 3', meters: 75 }), value: 5260 },
+    { label: 'Parcial 4', value: 6980 },
+    { label: 'Parcial 5', value: 8120 },
+  ],
+  meterFields: [
+    { label: 'Parcial 1 · 16,50', meters: 25 },
+    { label: 'Parcial 2 · 34,20', meters: 50 },
+    { label: 'Parcial 3 · 52,60', meters: 75 },
+    { label: 'Parcial 4 · 1:09,80', meters: null },
+    { label: 'Parcial 5 · 1:21,20', meters: null },
+  ],
   setupScreen: {
     ...setupOptions,
     subtitle: 'Grupo B · Martes 7:00',
@@ -69,6 +84,10 @@ export const fixture = {
   },
   athletesWithSkipped: athletes.map((athlete) =>
     athlete.id === 'a3' ? { ...athlete, authorized: false } : athlete,
+  ),
+  // A swimmer the school ended: listed as «Dado de baja», not chosen (issue 1436).
+  athletesWithEnded: athletes.map((athlete) =>
+    athlete.id === 'a3' ? { ...athlete, authorized: false, skipReason: 'ended' as const } : athlete,
   ),
   summaryScreen: { subtitle: 'Grupo B · Libre 50 m', records: [...records] },
   stopwatchScreen: {

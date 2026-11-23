@@ -17,10 +17,10 @@ function buttonsView(overrides: Partial<SettingsButtonsView> = {}): SettingsButt
   };
 }
 
-async function setup(buttons: SettingsButtonsView | null = buttonsView()) {
+async function setup(buttons: SettingsButtonsView | null = buttonsView(), freeLaps = { value: false, onChange: jest.fn() }) {
   const onBack = jest.fn();
-  await render(<StopwatchSettingsScreen buttons={buttons} onBack={onBack} />);
-  return { onBack };
+  await render(<StopwatchSettingsScreen buttons={buttons} freeLaps={freeLaps} onBack={onBack} />);
+  return { onBack, freeLaps };
 }
 
 describe('StopwatchSettingsScreen', () => {
@@ -31,9 +31,19 @@ describe('StopwatchSettingsScreen', () => {
     expect(onBack).toHaveBeenCalled();
   });
 
-  it('hides the buttons where the phone cannot use them', async () => {
+  it('hides the buttons where the phone cannot use them, and still offers the free laps', async () => {
     await setup(null);
     expect(screen.queryByText('Botones para cronometrar')).toBeNull();
+    expect(screen.getByLabelText('Laps libres')).toBeOnTheScreen();
+  });
+
+  it('turns the free laps on and off', async () => {
+    const { freeLaps } = await setup();
+    const choice = within(screen.getByLabelText('Laps libres'));
+    await fireEvent.press(choice.getByText('Sí'));
+    expect(freeLaps.onChange).toHaveBeenLastCalledWith(true);
+    await fireEvent.press(choice.getByText('No'));
+    expect(freeLaps.onChange).toHaveBeenLastCalledWith(false);
   });
 
   it('shows the keys and the lockout, and the phone keys when no headset is connected', async () => {

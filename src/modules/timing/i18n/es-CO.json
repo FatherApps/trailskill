@@ -14,6 +14,7 @@
       "error_title": "No pudimos cargar los nadadores",
       "error_message": "Revisa que el teléfono ya sincronizó e inténtalo de nuevo.",
       "skipped": "Falta autorización — se omitirá",
+      "ended": "Dado de baja",
       "athlete_name": "{{order}} · {{name}}",
       "empty_title": "Aún no hay nadadores",
       "empty_message": "Elige a quienes vas a medir para empezar la toma.",
@@ -38,6 +39,14 @@
       "phone": "Este teléfono",
       "external": "Cronómetro externo"
     },
+    "pace": {
+      "title": "Ritmo y proyección",
+      "segment": "{{from}}–{{to}} m · {{time}} · {{pace}} / 100 m",
+      "halves": "1.ª mitad {{first}} · 2.ª mitad {{second}} · {{difference}}",
+      "consistency": "Consistencia {{value}} %",
+      "projection": "Si mantiene este ritmo: {{time}}",
+      "projection_note": "Estimación optimista; la mayoría pierde ritmo al final"
+    },
     "stopwatch": {
       "title": "{{name}} · {{current}} de {{total}}",
       "start": "Iniciar",
@@ -47,6 +56,8 @@
       "save": "Guardar",
       "personal_best": "MP {{time}}",
       "split_row": "{{label}} · {{time}}",
+      "split_meters": "{{label}} · {{meters}} m",
+      "review_meters": "Revisar metros",
       "announce_running": "Cronómetro en marcha",
       "announce_stopped": "Tiempo detenido: {{time}}",
       "exit_title": "¿Descartar este tiempo?",
@@ -75,6 +86,17 @@
       "finish": "Terminar",
       "error": "No pudimos guardar el cambio en este teléfono. Inténtalo de nuevo."
     },
+    "meters": {
+      "title": "Metros de los parciales",
+      "help": "Opcional. Corrige o completa los metros de cada parcial. Si no cambias nada, se guardan los de la piscina.",
+      "field_label": "Metros hasta {{label}}",
+      "field_help": "Déjalo vacío si no los sabes.",
+      "save": "Listo",
+      "error_format": "Escribe los metros con números, por ejemplo 37,5.",
+      "error_range": "Los metros deben ser más de 0 y menos de {{distance}} m.",
+      "error_order": "Los metros deben ir en aumento de un parcial al siguiente.",
+      "error_save": "No pudimos guardar los metros. Revísalos e inténtalo de nuevo."
+    },
     "correct": {
       "title": "Corregir un tiempo",
       "current": "Tiempo guardado",
@@ -89,6 +111,9 @@
     "offline": {
       "title": "Sin conexión.",
       "message": "Se guarda en el teléfono."
+    },
+    "ended": {
+      "blocked": "Este nadador fue dado de baja: el tiempo no se puede guardar. Asígnalo a otro nadador o descártalo."
     },
     "series": {
       "position": "{{position}}.º",

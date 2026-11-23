@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { t } from '../../../core/i18n';
 import { isStroke } from '../../../core/sport';
+import { PaceSummary, type PaceSummaryProps } from '../../timing';
 import { useTheme, type ColorToken } from '../../../core/theme';
 import {
   BackButton,
@@ -85,6 +86,8 @@ export type FamilyDetailView = {
   session?: string;
   lapsSummary?: string | null;
   slowest?: string | null;
+  // Pace and projection from the laps and their meters; absent without them.
+  pace?: PaceSummaryProps;
   athleteId?: string | null;
 };
 
@@ -146,6 +149,10 @@ export type FamilyStopwatchView = {
   lapProgress: string | null;
   // False when the event is one lap: the stopwatch only starts and stops.
   hasLaps: boolean;
+  // Free laps, stopped with marks: the optional step that corrects or completes their meters is offered.
+  canReviewMeters?: boolean;
+  // Pace and projection of the stopped time (free laps with meters); absent otherwise.
+  pace?: PaceSummaryProps;
   event: string;
   noTime: boolean;
   /** Which keys time, while the headset or volume keys are on; null otherwise. */
@@ -238,6 +245,8 @@ export type FamilyTimingScreenProps = {
   onStop: () => void;
   onSave: () => void;
   onDiscard: () => void;
+  // Opens the optional review of the meters of the marks (free laps).
+  onReviewMeters?: () => void;
   onOpenOfficial: (id: string) => void;
   onOpenDetail?: (id: string) => void;
   // Plays the time's video (#1089).
@@ -671,6 +680,9 @@ function StopwatchBody(props: FamilyTimingScreenProps & { stopwatch: FamilyStopw
       {stopwatch.status === 'stopped' && (
         <View style={{ gap: space[3] }}>
           <Button label={t('family_timing.stopwatch.save')} onPress={props.onSave} />
+          {stopwatch.canReviewMeters && props.onReviewMeters && (
+            <Button variant="secondary" label={t('family_timing.stopwatch.review_meters')} onPress={props.onReviewMeters} />
+          )}
           <Button variant="ghost" label={t('family_timing.stopwatch.discard')} onPress={props.onDiscard} />
         </View>
       )}
@@ -679,6 +691,7 @@ function StopwatchBody(props: FamilyTimingScreenProps & { stopwatch: FamilyStopw
           {t('family_timing.stopwatch.split_row', { number: index + 1, time: row.lap, total: row.total })}
         </Text>
       ))}
+      {stopwatch.status === 'stopped' && stopwatch.pace && <PaceSummary {...stopwatch.pace} />}
     </View>
   );
 }
@@ -958,6 +971,7 @@ export function FamilyTimingScreen(props: FamilyTimingScreenProps) {
               )}
             </View>
           )}
+          {detail.pace && <PaceSummary {...detail.pace} />}
           {card.officialChoice && props.onOpenChooseOfficial && (
             <Button
               variant="secondary"

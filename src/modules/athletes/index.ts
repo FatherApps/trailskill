@@ -42,6 +42,15 @@ export {
   type AthleteSchoolRow,
 } from './data/athleteSchools';
 export {
+  createInMemoryAthleteRegistrationRepository,
+  createSupabaseAthleteRegistrationRepository,
+  type AthleteClaimLink,
+  type AthleteClaimLinkState,
+  type AthleteRegistrationRepository,
+  type ClaimAthleteInput,
+  type RegisterAthleteInput,
+} from './data/athleteRegistration';
+export {
   createInMemoryAthleteSchoolEndRepository,
   createSupabaseAthleteSchoolEndRepository,
   type AthleteSchoolEndRepository,
@@ -146,3 +155,18 @@ export {
   type RelinkRequestState,
   type RelinkRequestsView,
 } from './screens/RelinkRequestScreen';
+export {
+  createInMemoryAthleteRecoveryCodeRepository,
+  createSupabaseAthleteRecoveryCodeRepository,
+  type AthleteRecoveryCodeRepository,
+  type RecoveryCodes,
+} from './data/athleteRecoveryCodes';
+export { createInMemoryRecoveryCodeVault, createSecureStoreRecoveryCodeVault, type RecoveryCodeVault } from './data/recoveryCodeVault';
+export {
+  ManagedRecoveryCodesNotice,
+  RecoveryCodesNoticeContainer,
+  type ManagedRecoveryCodesNoticeProps,
+  type RecoveryCodesNoticeContainerProps,
+} from './screens/RecoveryCodesNoticeContainer';
+export { RecoveryCodesScreen, type RecoveryCodesScreenProps } from './screens/RecoveryCodesScreen';
+export { AthleteRecoveryCodeContainer, type AthleteRecoveryCodeContainerProps } from './screens/AthleteRecoveryCodeContainer';

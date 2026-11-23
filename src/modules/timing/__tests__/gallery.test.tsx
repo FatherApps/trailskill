@@ -16,14 +16,17 @@ describe('timing gallery entries', () => {
       'timingSetup',
       'timingSummary',
       'stopwatch',
+      'splitMeters',
       'arrivalList',
+      'paceSummary',
       'nameCard',
       'seriesTiming',
       'seriesAssignment',
       'completed',
       'reviewConflicts',
     ]);
-    expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-empty']);
+    expect(Object.keys(entry('paceSummary').states)).toEqual(['projection', 'no-projection', 'no-halves']);
+    expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-ended', 'setup-empty']);
     expect(Object.keys(entry('timingSummary').states)).toEqual([
       'summary',
       'summary-loading',
@@ -38,10 +41,13 @@ describe('timing gallery entries', () => {
       'stopped',
       'stopped-slower',
       'stopped-no-pb',
+      'running-free-marks',
+      'stopped-free-marks',
       'exit-confirm',
       'offline',
       'pending-count',
     ]);
+    expect(Object.keys(entry('splitMeters').states)).toEqual(['review']);
     expect(Object.keys(entry('arrivalList').states)).toEqual(['arrivals', 'many-arrivals']);
     expect(Object.keys(entry('nameCard').states)).toEqual(['unassigned', 'assigned', 'all-colours']);
     expect(Object.keys(entry('seriesTiming').states)).toEqual([
@@ -102,6 +108,7 @@ describe('timing gallery entries', () => {
   it.each([
     ['timingSetup', 'setup', '1 · Mateo C.'],
     ['timingSetup', 'setup-skipped', 'Falta autorización — se omitirá'],
+    ['timingSetup', 'setup-ended', 'Dado de baja'],
     ['timingSetup', 'setup-empty', 'Aún no hay nadadores'],
     ['timingSummary', 'summary', 'Resumen de la toma'],
     ['timingSummary', 'summary-error', 'No pudimos cargar el resumen'],

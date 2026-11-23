@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAdultDirectoryRepository, createInMemoryAuthorizationStatusRepository, createInMemoryInvitationRepository } from '../../accounts';
-import { createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository, type AthleteSchoolEndRepository, type HistoryMeasurement } from '../../athletes';
+import { createInMemoryAthleteRegistrationRepository, createInMemoryHistoryRepository, createInMemorySchoolAthleteRepository, type AthleteSchoolEndRepository, type HistoryMeasurement } from '../../athletes';
 import { ThemeProvider } from '../../../core/theme';
 import { startOfWeek } from '../data/athletesList';
 import { createInMemoryCategoriesRepository, type CategoriesRepository } from '../data/categories';
@@ -690,6 +690,7 @@ describe('AthletesSection', () => {
         categoryId: null,
         category: null,
         categorySortOrder: null,
+        endedAt: null,
         groupIds: [],
         groups: [],
         coachIds: [],
@@ -728,6 +729,174 @@ describe('AthletesSection', () => {
 
       expect(await screen.findByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
       expect(screen.queryByRole('radio', { name: 'Compartir todos' })).not.toBeOnTheScreen();
+    });
+  });
+
+  describe('the claim link of a registered swimmer', () => {
+    // Registers swimmer a1 (Lucía Ramírez, who the console lists) as the signed-in admin, then opens her detail.
+    const open = async (extra: Extra = {}) => {
+      const repository = createInMemoryAthleteRegistrationRepository({ now });
+      repository.adminSchoolIds = ['school-a'];
+      const first = await repository.register({ athleteId: 'a1', schoolId: 'school-a', firstName: 'Lucía', lastName: 'Ramírez', guardianAuthorizationCollected: true });
+      const share = jest.fn().mockResolvedValue(undefined);
+      await show(setup().repository, { registration: { repository, newId: () => 'athlete-new' }, share, ...extra });
+      await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+      return { repository, share, first };
+    };
+
+    it('shows the open link of the swimmer nobody claimed yet and shares the same token again', async () => {
+      const { share, first } = await open();
+
+      expect(await screen.findByLabelText(/Vigente hasta el 7 de noviembre de 2026/, { includeHiddenElements: true })).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Compartir enlace' }));
+
+      expect(share.mock.calls[0][0]).toContain(`swimcro://claim/${first.token}`);
+    });
+
+    it('renews the link and shares the new token; the old one no longer works', async () => {
+      const { repository, share, first } = await open();
+      await fireEvent.press(await screen.findByRole('button', { name: 'Renovar enlace' }));
+
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      // The call is over when the button is not busy any more: no update lands after the test.
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Renovar enlace' })).not.toBeBusy());
+      const message = share.mock.calls[0][0] as string;
+      expect(message).not.toContain(first.token);
+      expect(message).toContain('swimcro://claim/');
+      await expect(repository.findLink('a1')).resolves.toMatchObject({ status: 'open' });
+      await expect(repository.claim({ token: first.token, relation: 'guardian', acceptedAt: '2026-10-24T12:00:00.000Z', authorizations: [] })).rejects.toThrow('link_not_found');
+    });
+
+    it('keeps the new token and shares it when the read after a renew fails: the old token is already dead', async () => {
+      const { repository, share, first } = await open();
+      await screen.findByRole('button', { name: 'Renovar enlace' });
+      jest.spyOn(repository, 'findLink').mockRejectedValue(new Error('Failed to fetch'));
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Renovar enlace' }));
+
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Renovar enlace' })).not.toBeBusy());
+      expect(share.mock.calls[0][0]).not.toContain(first.token);
+      expect(screen.queryByText(/No pudimos cambiar el enlace/)).toBeNull();
+      // The panel now shares the new token, not the old one.
+      await fireEvent.press(screen.getByRole('button', { name: 'Compartir enlace' }));
+      expect(share.mock.calls[1][0]).toBe(share.mock.calls[0][0]);
+    });
+
+    it('says so when the system share sheet fails, from Compartir enlace and after a renew, and keeps the link', async () => {
+      const { share } = await open();
+      share.mockRejectedValue(new Error('no share'));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Compartir enlace' }));
+      expect(await screen.findByText('No pudimos compartir el enlace. Inténtalo de nuevo.')).toBeOnTheScreen();
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Renovar enlace' }));
+
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(2));
+      expect(await screen.findByText('No pudimos compartir el enlace. Inténtalo de nuevo.')).toBeOnTheScreen();
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Renovar enlace' })).not.toBeBusy());
+      expect(screen.queryByText(/No pudimos cambiar el enlace/)).toBeNull();
+    });
+
+    it('revokes after the confirmation, then only offers a new link', async () => {
+      const { repository } = await open();
+      await fireEvent.press(await screen.findByRole('button', { name: 'Revocar enlace' }));
+      await fireEvent.press(screen.getAllByRole('button', { name: 'Revocar enlace' }).at(-1)!);
+
+      expect(await screen.findByLabelText('Revocado', { includeHiddenElements: true })).toBeOnTheScreen();
+      await expect(repository.findLink('a1')).resolves.toMatchObject({ status: 'revoked' });
+      expect(screen.getByRole('button', { name: 'Renovar y compartir' })).toBeOnTheScreen();
+    });
+
+    it('says what a refusal means and keeps the panel', async () => {
+      const { repository } = await open();
+      repository.endedAthleteIds = ['a1'];
+      await fireEvent.press(await screen.findByRole('button', { name: 'Renovar enlace' }));
+
+      expect(await screen.findByText(/ya reclamó a este nadador o la escuela lo dio de baja/)).toBeOnTheScreen();
+    });
+
+    it('shows no panel for a claimed link', async () => {
+      const repository = createInMemoryAthleteRegistrationRepository({ now });
+      const { token } = await repository.register({ athleteId: 'a1', schoolId: 'school-a', firstName: 'Lucía', lastName: 'Ramírez', guardianAuthorizationCollected: true });
+      await repository.claim({ token, relation: 'guardian', acceptedAt: '2026-10-24T12:00:00.000Z', authorizations: [] });
+      await show(setup().repository, { registration: { repository, newId: () => 'athlete-new' } });
+
+      await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+
+      expect(await screen.findByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
+      expect(screen.queryByText('Enlace de reclamo')).toBeNull();
+    });
+
+    it('shows no panel for a swimmer that has no link', async () => {
+      await show(setup().repository, { registration: { repository: createInMemoryAthleteRegistrationRepository({ now }), newId: () => 'athlete-new' } });
+
+      await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+
+      expect(await screen.findByRole('header', { name: 'Lucía Ramírez' })).toBeOnTheScreen();
+      expect(screen.queryByText('Enlace de reclamo')).toBeNull();
+    });
+  });
+
+  describe('registering a swimmer without an account', () => {
+    const open = async (extra: Extra = {}) => {
+      const repository = createInMemoryAthleteRegistrationRepository({ now });
+      const share = jest.fn().mockResolvedValue(undefined);
+      await show(setup().repository, { registration: { repository, newId: () => 'athlete-new' }, share, ...extra });
+      await athleteRow(/^Lucía Ramírez/);
+      await fireEvent.press(screen.getByRole('button', { name: 'Dar de alta' }));
+      return { repository, share };
+    };
+    const fillAndDeclare = async () => {
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Ana');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Prueba');
+      await fireEvent.press(screen.getByRole('checkbox'));
+    };
+
+    it('has no «Dar de alta» button unless the console passes the registration', async () => {
+      await show(setup().repository);
+      await athleteRow(/^Lucía Ramírez/);
+
+      expect(screen.queryByRole('button', { name: 'Dar de alta' })).toBeNull();
+    });
+
+    it('registers with the declaration, a device-made id and this school, then shares the claim link with its token', async () => {
+      const { repository, share } = await open();
+      await fillAndDeclare();
+
+      await fireEvent.press(screen.getByRole('button', { name: /^Dar de alta/ }));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Compartir enlace' }));
+
+      expect(repository.registered).toEqual([
+        { athleteId: 'athlete-new', schoolId: 'school-a', firstName: 'Ana', lastName: 'Prueba', guardianAuthorizationCollected: true },
+      ]);
+      await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+      expect(share.mock.calls[0][0]).toContain(`swimcro://claim/${'1'.padStart(32, '0')}`);
+    });
+
+    it('registers nothing while the declaration is not checked', async () => {
+      const { repository } = await open();
+      await fireEvent.changeText(screen.getByLabelText('Nombre'), 'Ana');
+      await fireEvent.changeText(screen.getByLabelText('Apellido'), 'Prueba');
+
+      await fireEvent.press(screen.getByRole('button', { name: /^Dar de alta ·/ }));
+
+      expect(repository.registered).toEqual([]);
+    });
+
+    it('shows the refusal of the server and a retry registers a single swimmer with the same id', async () => {
+      const { repository } = await open();
+      repository.rejectWith = 'not_allowed';
+      await fillAndDeclare();
+      await fireEvent.press(screen.getByRole('button', { name: /^Dar de alta/ }));
+      expect(await screen.findByText(/Solo un administrador activo/)).toBeOnTheScreen();
+
+      repository.rejectWith = undefined;
+      await fireEvent.press(screen.getByRole('button', { name: /^Dar de alta/ }));
+      await screen.findByText('Ana Prueba quedó registrado.');
+      await fireEvent.press(screen.getByRole('button', { name: 'Listo' }));
+
+      expect(repository.registered.map((r) => r.athleteId)).toEqual(['athlete-new']);
+      expect(screen.queryByLabelText('Nombre')).toBeNull();
     });
   });
 
