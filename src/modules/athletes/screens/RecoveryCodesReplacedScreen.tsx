@@ -21,7 +21,7 @@ export function RecoveryCodesReplacedScreen({ athleteName, onDone }: RecoveryCod
         <Text accessibilityRole="header" style={[typography['title-lg'], { color: colors.ink }]}>
           {t('athletes.recovery_codes.replaced_elsewhere_title')}
         </Text>
-        <Text style={[typography.body, { color: colors['ink-muted'] }]}>{namedText('athletes.recovery_codes.title_new_set', athleteName)}</Text>
+        <Text style={[typography.body, { color: colors['ink-muted'] }]}>{namedText('athletes.recovery_codes.copy_message', athleteName)}</Text>
         <Banner variant="warn" icon="error">
           {t('athletes.recovery_codes.replaced_elsewhere_message')}
         </Banner>
