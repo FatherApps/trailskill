@@ -57,6 +57,11 @@ jest.mock('../modules/athletes', () => {
     useManagedAthletes: () => mockManaged,
     createSupabaseAthleteRecoveryCodeRepository: () => ({}),
     createSecureStoreRecoveryCodeVault: () => ({}),
+    createPowerSyncAthleteResultSharingRepository: () => ({}),
+    AthleteResultSharingContainer: ({ athleteId }: { athleteId: string }) => {
+      const { Text: Label } = jest.requireActual('react-native');
+      return <Label>{`result sharing of ${athleteId}`}</Label>;
+    },
     AthleteRecoveryCodeContainer: ({ athleteId, athleteName }: { athleteId: string; athleteName: string }) => {
       const { Text: Label } = jest.requireActual('react-native');
       return <Label>{`recovery code of ${athleteId} for ${athleteName}`}</Label>;
@@ -74,6 +79,7 @@ jest.mock('../modules/athletes', () => {
       bottomBar,
       guardianSharing,
       recoveryCode,
+      resultSharing,
       onBack,
     }: {
       athleteId: string;
@@ -86,6 +92,7 @@ jest.mock('../modules/athletes', () => {
       bottomBar?: import('react').ReactNode;
       guardianSharing?: import('react').ReactNode;
       recoveryCode?: import('react').ReactNode;
+      resultSharing?: import('react').ReactNode;
       onBack?: () => void;
     }) => (
       <View>
@@ -95,6 +102,7 @@ jest.mock('../modules/athletes', () => {
         {bottomBar}
         {guardianSharing}
         {recoveryCode}
+        {resultSharing}
       </View>
     ),
   };
@@ -223,6 +231,34 @@ describe('athlete profile route', () => {
       mockManaged = { status: 'loading' };
       await screen.rerender(<AthleteRoute />);
       expect(screen.queryByText(/recovery code of/)).not.toBeOnTheScreen();
+    });
+  });
+
+  describe('result sharing switch', () => {
+    afterEach(() => {
+      mockManaged = { status: 'loading' };
+      mockStaff = false;
+    });
+
+    it('is given to the user who manages the swimmer', async () => {
+      mockUserId = 'user-1';
+      mockManaged = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('result sharing of a1')).toBeOnTheScreen();
+    });
+
+    it('is not given to school staff or a coach who do not manage the swimmer, nor while the managed swimmers are unknown', async () => {
+      mockUserId = 'user-1';
+      mockStaff = true;
+      mockManaged = { status: 'ready', athletes: [{ id: 'other', firstName: 'Bea' }] };
+      await render(<AthleteRoute />);
+      expect(await screen.findByText(/^profile of a1/)).toBeOnTheScreen();
+      expect(screen.queryByText(/result sharing of/)).not.toBeOnTheScreen();
+
+      mockManaged = { status: 'loading' };
+      await screen.rerender(<AthleteRoute />);
+      expect(screen.queryByText(/result sharing of/)).not.toBeOnTheScreen();
     });
   });
 

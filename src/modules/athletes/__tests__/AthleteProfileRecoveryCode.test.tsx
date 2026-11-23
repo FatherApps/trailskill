@@ -22,3 +22,18 @@ describe('AthleteProfileScreen recovery code slot', () => {
     expect(screen.queryByText('Código principal')).toBeNull();
   });
 });
+
+// Same rule for the owner's switch per school: only the route decides who gets it, so staff, coaches and other families never see it.
+describe('AthleteProfileScreen result sharing slot', () => {
+  it('shows the switch where the route puts it', async () => {
+    await render(<AthleteProfileScreen name="Ana" view={{ kind: 'data', content: { ...content, resultSharing: <Text>sharing row</Text> } }} />);
+
+    expect(screen.getByText('sharing row')).toBeTruthy();
+  });
+
+  it('shows nothing when the route passes none', async () => {
+    await render(<AthleteProfileScreen name="Ana" view={{ kind: 'data', content }} />);
+
+    expect(screen.queryByText('sharing row')).toBeNull();
+  });
+});

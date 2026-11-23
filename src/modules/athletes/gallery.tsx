@@ -30,6 +30,7 @@ import { PhotoRemoveSheet, type PhotoRemoveSheetProps } from './components/Photo
 import { ProgressChart } from './components/ProgressChart';
 import type { HistoryResult } from './components/HistoryList';
 import { AthleteRecoveryCodeRow, type AthleteRecoveryCodeRowProps } from './components/AthleteRecoveryCodeRow';
+import { AthleteResultSharingRow, type AthleteResultSharingRowProps } from './components/AthleteResultSharingRow';
 import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHeader';
 import { AthleteEditScreen } from './screens/AthleteEditScreen';
 import { AthleteProfileScreen, type AthleteProfileContent, type AthleteProfileView } from './screens/AthleteProfileScreen';
@@ -55,6 +56,15 @@ const recoveryScreenBase: RecoveryCodesScreenProps = {
   onDone: noop,
 };
 const recoveryRowBase: AthleteRecoveryCodeRowProps = { code: recoveryMainCodeFixture, revealed: false, online: true, onToggle: noop, onCopy: noop, onRegenerate: noop };
+
+// Synthetic school names only.
+const sharingRowBase: AthleteResultSharingRowProps = {
+  schools: [
+    { id: 'gallery-school-1', name: 'Escuela Uno', shared: true },
+    { id: 'gallery-school-2', name: 'Escuela Dos', shared: false },
+  ],
+  onToggle: noop,
+};
 
 // The relink request: the key is never part of a fixture (a made-up shape stands in for what the person types).
 const relinkBase: RelinkRequestScreenProps = {
@@ -304,6 +314,8 @@ export const galleryEntries: GalleryEntry[] = [
       kind: 'data',
       content: { ...content, importPrompt: { ...prompt, sourceName: h.sourceName, imported: false } },
     })),
+    // The owner's switch per school at the foot of the profile; without it (one school, no authorization, not the owner) the profile is 'with-data'.
+    'with-result-sharing': screenPreview((content) => ({ kind: 'data', content: { ...content, resultSharing: <AthleteResultSharingRow {...sharingRowBase} /> } })),
   }),
   entry('myAthletesScreen', 'MyAthletesScreen', {
     'with-data': myAthletesPreview({ kind: 'data', athletes: myAthletesFixture }),
@@ -458,6 +470,31 @@ export const galleryEntries: GalleryEntry[] = [
     'replaced-elsewhere': () => (
       <FullWidth>
         <AthleteRecoveryCodeRow {...recoveryRowBase} code={null} revealed problem="replaced" />
+      </FullWidth>
+    ),
+  }),
+  entry('athleteResultSharingRow', 'AthleteResultSharingRow', {
+    'one-on': () => (
+      <FullWidth>
+        <AthleteResultSharingRow {...sharingRowBase} />
+      </FullWidth>
+    ),
+    'all-off': () => (
+      <FullWidth>
+        <AthleteResultSharingRow {...sharingRowBase} schools={sharingRowBase.schools.map((school) => ({ ...school, shared: false }))} />
+      </FullWidth>
+    ),
+    'save-failed': () => (
+      <FullWidth>
+        <AthleteResultSharingRow {...sharingRowBase} failed />
+      </FullWidth>
+    ),
+    'long-text': () => (
+      <FullWidth>
+        <AthleteResultSharingRow
+          {...sharingRowBase}
+          schools={[{ id: 'gallery-school-1', name: 'Escuela de Natación y Deportes Acuáticos de la Región Norte', shared: true }, ...sharingRowBase.schools.slice(1)]}
+        />
       </FullWidth>
     ),
   }),
