@@ -85,6 +85,10 @@ export const fixture = {
   athletesWithSkipped: athletes.map((athlete) =>
     athlete.id === 'a3' ? { ...athlete, authorized: false } : athlete,
   ),
+  // A swimmer the school ended: listed as «Dado de baja», not chosen (issue 1436).
+  athletesWithEnded: athletes.map((athlete) =>
+    athlete.id === 'a3' ? { ...athlete, authorized: false, skipReason: 'ended' as const } : athlete,
+  ),
   summaryScreen: { subtitle: 'Grupo B · Libre 50 m', records: [...records] },
   stopwatchScreen: {
     athleteName: 'Mateo C.',

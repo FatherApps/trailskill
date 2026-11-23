@@ -52,6 +52,7 @@
     "athlete": "Deportista",
     "category": "Categoría",
     "authorization": "Autorización",
+    "ended": "Dado de baja",
     "valid": "Vigente",
     "pending": "Pendiente",
     "personal_best": "MP {{event}}",
@@ -77,7 +78,34 @@
       "category_wrong_school": "Esa categoría es de otra escuela.",
       "category_missing": "Esa categoría ya no existe.",
       "athlete_school_missing": "El deportista no está en esta escuela.",
+      "athlete_school_ended": "Este nadador fue dado de baja: su categoría ya no se puede cambiar.",
       "other": "No pudimos guardar la categoría. Inténtalo de nuevo."
+    },
+    "claim_link": {
+      "title": "Enlace de reclamo",
+      "open_until": "Vigente hasta el {{date}}",
+      "open": "Vigente",
+      "expired": "Vencido",
+      "revoked": "Revocado",
+      "open_help": "La familia aún no lo ha abierto. Renovarlo deja sin efecto el enlace anterior.",
+      "expired_help": "El enlace venció y ya no sirve. Renuévalo para enviar uno nuevo a la familia.",
+      "revoked_help": "El enlace está revocado y ya no sirve. Renuévalo para enviar uno nuevo a la familia.",
+      "share": "Compartir enlace",
+      "renew": "Renovar enlace",
+      "renew_and_share": "Renovar y compartir",
+      "revoke": "Revocar enlace",
+      "revoke_confirm": {
+        "title": "¿Revocar el enlace de {{name}}?",
+        "message": "Nadie podrá usar el enlace actual. Puedes renovarlo después para enviar uno nuevo.",
+        "confirm": "Revocar enlace",
+        "cancel": "Cancelar"
+      },
+      "share_failed": "No pudimos compartir el enlace. Inténtalo de nuevo.",
+      "error": {
+        "not_allowed": "Solo un administrador activo de la escuela puede cambiar el enlace.",
+        "not_open": "La familia ya reclamó a este nadador o la escuela lo dio de baja: no hay enlace que cambiar.",
+        "other": "No pudimos cambiar el enlace. Revisa la conexión e inténtalo de nuevo."
+      }
     },
     "end_link": "Dar de baja a un nadador",
     "end_confirm": {
@@ -109,6 +137,7 @@
     },
     "invite_message": "{{school}} te invita a Swimcro para crear el perfil de tu deportista. Abre este enlace: {{link}}. Vence el {{date}}.",
     "invite_message_no_date": "{{school}} te invita a Swimcro para crear el perfil de tu deportista. Abre este enlace: {{link}}.",
+    "register": "Dar de alta",
     "retry": "Intentar de nuevo",
     "empty": {
       "title": "Aún no hay deportistas",
@@ -199,6 +228,29 @@
     },
     "offline_empty": "No hay entrenadores guardados en este dispositivo. Aparecerán cuando vuelva la conexión.",
     "connecting_empty": "Todavía no hay entrenadores guardados en este dispositivo. Aparecerán cuando termine la primera sincronización."
+  },
+  "register_sheet": {
+    "label": "Dar de alta un nadador",
+    "title": "Dar de alta un nadador",
+    "first_name": "Nombre",
+    "last_name": "Apellido",
+    "declaration": "Declaro que la escuela conserva la autorización firmada del acudiente para registrar a este nadador.",
+    "submit": "Dar de alta",
+    "incomplete": "Escribe el nombre y el apellido",
+    "declaration_missing": "Marca la declaración",
+    "offline": "Necesita conexión",
+    "created": "{{name}} quedó registrado.",
+    "link_help": "Comparte este enlace con la familia: al abrirlo en su teléfono acepta las autorizaciones y administra el perfil.",
+    "share": "Compartir enlace",
+    "share_failed": "No pudimos compartir el enlace. Inténtalo de nuevo.",
+    "share_text": "{{school}} registró a {{name}} en Swimcro. Abre este enlace en tu teléfono para administrar su perfil: {{link}}. Vence el {{date}}.",
+    "share_text_no_date": "{{school}} registró a {{name}} en Swimcro. Abre este enlace en tu teléfono para administrar su perfil: {{link}}.",
+    "done": "Listo",
+    "error": {
+      "not_allowed": "Solo un administrador activo de la escuela puede dar de alta a un nadador.",
+      "invalid": "Revisa los nombres: cada uno puede tener hasta 100 caracteres.",
+      "other": "No pudimos dar de alta al nadador. Inténtalo de nuevo."
+    }
   },
   "records": {
     "title": "Marcas de la escuela",

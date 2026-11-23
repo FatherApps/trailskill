@@ -24,7 +24,7 @@ describe('timing gallery entries', () => {
       'completed',
       'reviewConflicts',
     ]);
-    expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-empty']);
+    expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-ended', 'setup-empty']);
     expect(Object.keys(entry('timingSummary').states)).toEqual([
       'summary',
       'summary-loading',
@@ -106,6 +106,7 @@ describe('timing gallery entries', () => {
   it.each([
     ['timingSetup', 'setup', '1 · Mateo C.'],
     ['timingSetup', 'setup-skipped', 'Falta autorización — se omitirá'],
+    ['timingSetup', 'setup-ended', 'Dado de baja'],
     ['timingSetup', 'setup-empty', 'Aún no hay nadadores'],
     ['timingSummary', 'summary', 'Resumen de la toma'],
     ['timingSummary', 'summary-error', 'No pudimos cargar el resumen'],

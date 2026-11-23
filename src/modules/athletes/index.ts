@@ -45,6 +45,7 @@ export {
   createInMemoryAthleteRegistrationRepository,
   createSupabaseAthleteRegistrationRepository,
   type AthleteClaimLink,
+  type AthleteClaimLinkState,
   type AthleteRegistrationRepository,
   type ClaimAthleteInput,
   type RegisterAthleteInput,

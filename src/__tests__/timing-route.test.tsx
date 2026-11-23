@@ -134,6 +134,21 @@ describe('timing route', () => {
     expect(mockListGranted).toHaveBeenCalledWith('record_times');
   });
 
+  it('marks a swimmer the school ended as not authorized for the reason ended, even with record_times granted', async () => {
+    mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }]);
+    mockListBySchool.mockResolvedValue([
+      { id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [], endedAt: null },
+      { id: 'a2', firstName: 'Ben', lastName: 'Arce', categoryId: null, groupIds: [], endedAt: '2026-11-01T10:00:00.000Z' },
+    ]);
+    mockListGranted.mockResolvedValue(['a1', 'a2']);
+    await render(<TimingRoute />);
+    await screen.findByText(/timing flow/);
+
+    const roster = await mockLoadRoster();
+
+    expect(roster.map((a) => [a.id, a.authorized, (a as { skipReason?: string }).skipReason])).toEqual([['a1', true, undefined], ['a2', false, 'ended']]);
+  });
+
   it('lists only the athletes of the active school, so no time is written for an athlete of another one', async () => {
     mockListStaffSchools.mockResolvedValue([{ id: 's1', name: 'Escuela Delfines' }, { id: 's2', name: 'Escuela Tiburones' }]);
     mockListBySchool.mockResolvedValue([{ id: 'a9', firstName: 'Eli', lastName: 'Sol', categoryId: null, groupIds: [] }]);

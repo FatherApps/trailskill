@@ -27,6 +27,9 @@ export type FamilyMeasurement = {
   millis: Millis | null;
   // Cumulative splits since the start.
   splits: Millis[];
+  // The meters of each mark, one entry per split (null where unknown, e.g. the mark that reaches the distance). Null or missing: a time
+  // saved before free laps, whose meters come from the lap length.
+  splitMeters?: (number | null)[] | null;
   // Competition only: the event's official time typed by the guardian, and when.
   officialMillis: Millis | null;
   officialSetAt: string | null;
@@ -100,6 +103,18 @@ export class UnknownMeasurementError extends Error {
   override name = 'UnknownMeasurementError';
 }
 
+/** The server's rule on split_meters: one entry per split, each a number or null. */
+export class InvalidSplitMetersError extends Error {
+  override name = 'InvalidSplitMetersError';
+}
+
+const checkSplitMeters = (m: FamilyMeasurement) => {
+  if (m.splitMeters == null) return;
+  if (m.splitMeters.length !== m.splits.length || m.splitMeters.some((v) => v !== null && typeof v !== 'number')) {
+    throw new InvalidSplitMetersError(m.id);
+  }
+};
+
 const newestFirst = (a: FamilyMeasurement, b: FamilyMeasurement) => b.capturedAt.localeCompare(a.capturedAt) || b.id.localeCompare(a.id);
 
 // The server's rule: only a time without a swimmer keeps a note.
@@ -114,9 +129,11 @@ export function createInMemoryFamilyMeasurementRepository(
   const refused = new Map(rejected.map((m) => [m.id, m]));
   return {
     async add(measurement) {
+      checkSplitMeters(measurement);
       rows.set(measurement.id, withNoteRule(measurement));
     },
     async addMany(measurements) {
+      measurements.forEach(checkSplitMeters); // all or none, like the server
       for (const m of measurements) rows.set(m.id, withNoteRule(m));
     },
     async listByAthlete(athleteId) {
@@ -169,4 +186,15 @@ export function createInMemoryFamilyMeasurementRepository(
       refused.delete(id);
     },
   };
+}
+
+/** The meters of the marks as the server stores them (a JSON array, items numbers or null); null for a time saved before free laps or anything unreadable. */
+export function parseSplitMeters(raw: string | null | undefined): (number | null)[] | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((v) => (typeof v === 'number' ? v : null)) : null;
+  } catch {
+    return null;
+  }
 }

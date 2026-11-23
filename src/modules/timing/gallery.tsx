@@ -302,6 +302,7 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       setup: () => <SetupPreview athletes={fixture.setupScreen.athletes} selectedCount={3} />,
       'setup-skipped': () => <SetupPreview athletes={fixture.athletesWithSkipped} selectedCount={2} />,
+      'setup-ended': () => <SetupPreview athletes={fixture.athletesWithEnded} selectedCount={2} />,
       'setup-empty': () => <SetupPreview athletes={[]} selectedCount={0} />,
     },
   },

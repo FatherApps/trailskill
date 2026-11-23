@@ -17,7 +17,7 @@ const streamQueries = (name: string) =>
 // athletes/__tests__/endedLinkSyncStreams.test.ts for the query shapes).
 test("an admin gets the coach assignments of a swimmer only in a school where the swimmer is still linked", () => {
   expect(streamQueries("school_console_staff")).toContain(
-    "SELECT coach_athlete_assignments.* FROM coach_athlete_assignments JOIN school_memberships ON coach_athlete_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON coach_athlete_assignments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.ended_at IS NULL",
+    "SELECT coach_athlete_assignments.* FROM coach_athlete_assignments JOIN school_memberships ON coach_athlete_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON coach_athlete_assignments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.read_window_closed_at IS NULL",
   );
 });
 
@@ -25,7 +25,7 @@ test("an admin gets the coach assignments of a swimmer only in a school where th
 // into athlete_schools.
 test("a coach gets their own assignments only for the pairs not ended", () => {
   expect(streamQueries("school_console_staff")).toContain(
-    "SELECT coach_athlete_assignments.* FROM coach_athlete_assignments JOIN school_memberships ON coach_athlete_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON coach_athlete_assignments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.deactivated_at IS NULL AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()",
+    "SELECT coach_athlete_assignments.* FROM coach_athlete_assignments JOIN school_memberships ON coach_athlete_assignments.school_id = school_memberships.school_id JOIN athlete_schools ON coach_athlete_assignments.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.deactivated_at IS NULL AND athlete_schools.read_window_closed_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()",
   );
 });
 
@@ -33,7 +33,7 @@ test("no coach assignment query is left that ignores the link", () => {
   const assignments = streamQueries("school_console_staff").filter((query) => query.includes("FROM coach_athlete_assignments"));
 
   expect(assignments).toHaveLength(2);
-  for (const query of assignments) expect(query).toContain("athlete_schools.ended_at IS NULL");
+  for (const query of assignments) expect(query).toContain("athlete_schools.read_window_closed_at IS NULL");
 });
 
 // A group assignment names a group of the school, not a swimmer: the link of one swimmer does not decide it.

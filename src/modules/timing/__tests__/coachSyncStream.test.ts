@@ -32,12 +32,12 @@ test("every coach query of timing_measurements binds the swimmer and the school 
   // The direct coach is bound like the admin (#1260): the active membership by the school of the mark, then athlete_schools by that
   // school and the swimmer of the mark, and the assignment last as a filter on the same pair.
   expect(direct[0]).toContain("JOIN school_memberships ON measurements.school_id = school_memberships.school_id JOIN athlete_schools ON measurements.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id JOIN coach_athlete_assignments ON athlete_schools.athlete_id = coach_athlete_assignments.athlete_id AND athlete_schools.school_id = coach_athlete_assignments.school_id");
-  expect(direct[0]).toContain("WHERE school_memberships.user_id = auth.user_id() AND school_memberships.deactivated_at IS NULL AND athlete_schools.ended_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()");
-  expect(direct[0]).toContain("athlete_schools.ended_at IS NULL");
+  expect(direct[0]).toContain("WHERE school_memberships.user_id = auth.user_id() AND school_memberships.deactivated_at IS NULL AND athlete_schools.read_window_closed_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()");
+  expect(direct[0]).toContain("athlete_schools.read_window_closed_at IS NULL");
   // By group the chain starts at the coach's active groups and ends at athlete_schools, with no school condition of its own
   // (#1260): beside those joins a school set splits the swimmer from the school again in PowerSync.
   expect(group[0]).toContain("JOIN training_groups ON measurements.school_id = training_groups.school_id JOIN athlete_groups ON measurements.athlete_id = athlete_groups.athlete_id AND training_groups.id = athlete_groups.group_id JOIN athlete_schools ON athlete_groups.athlete_id = athlete_schools.athlete_id AND training_groups.school_id = athlete_schools.school_id");
-  expect(group[0]).toContain("WHERE training_groups.id IN coach_group_ids AND athlete_schools.ended_at IS NULL");
+  expect(group[0]).toContain("WHERE training_groups.id IN coach_group_ids AND athlete_schools.read_window_closed_at IS NULL");
 });
 
 test("no query of timing_measurements uses the coach ids that carry no school", () => {
@@ -54,7 +54,7 @@ test("the admin query binds the school to the admin schools, not to the member o
   const admin = streamQueries.filter((query) => query.includes("school_memberships.role = 'school_admin'"));
 
   expect(admin).toEqual([
-    "SELECT measurements.* FROM measurements JOIN school_memberships ON measurements.school_id = school_memberships.school_id JOIN athlete_schools ON measurements.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.ended_at IS NULL AND measurements.hidden = false",
+    "SELECT measurements.* FROM measurements JOIN school_memberships ON measurements.school_id = school_memberships.school_id JOIN athlete_schools ON measurements.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.read_window_closed_at IS NULL AND measurements.hidden = false",
   ]);
   expect(admin[0]).not.toMatch(/member_school_ids/);
 });

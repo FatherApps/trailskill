@@ -25,11 +25,16 @@ const athletes = [
   { id: 'a5', firstName: 'Dan', lastName: 'Marin' },
   { id: 'a6', firstName: 'Eli', lastName: 'Nobody' },
 ];
-const athleteSchools = [
+const ENDED = '2026-11-01T10:00:00.000Z';
+const LATER = '2026-11-10T10:00:00.000Z';
+const athleteSchools: { athleteId: string; schoolId: string; categoryId: string | null; endedAt?: string }[] = [
   { athleteId: 'a3', schoolId: 'school-a', categoryId: 'cat-1' },
   { athleteId: 'a1', schoolId: 'school-a', categoryId: null },
   { athleteId: 'a2', schoolId: 'school-a', categoryId: 'cat-2' },
-  { athleteId: 'a5', schoolId: 'school-a', categoryId: 'cat-1' },
+  { athleteId: 'a5', schoolId: 'school-a', categoryId: 'cat-1', endedAt: ENDED },
+  { athleteId: 'a2', schoolId: 'school-b', categoryId: null },
+  { athleteId: 'a6', schoolId: 'school-a', categoryId: null, endedAt: ENDED },
+  { athleteId: 'a6', schoolId: 'school-b', categoryId: null, endedAt: LATER },
   { athleteId: 'a4', schoolId: 'school-b', categoryId: 'cat-9' },
 ];
 const athleteGroups = [
@@ -51,12 +56,12 @@ function createPowerSync(): SchoolAthleteRepository {
   removeStore = store.remove;
   const seed = new DatabaseSync(store.path);
   seed.exec(`
-    CREATE TABLE athlete_schools (id TEXT PRIMARY KEY, athlete_id TEXT, school_id TEXT, category_id TEXT);
+    CREATE TABLE athlete_schools (id TEXT PRIMARY KEY, athlete_id TEXT, school_id TEXT, category_id TEXT, ended_at TEXT);
     CREATE TABLE athlete_groups (id TEXT PRIMARY KEY, athlete_id TEXT, group_id TEXT);
   `);
   for (const a of athletes) seed.prepare('INSERT INTO athletes (id, first_name, last_name) VALUES (?, ?, ?)').run(a.id, a.firstName, a.lastName);
   athleteSchools.forEach((r, i) =>
-    seed.prepare('INSERT INTO athlete_schools (id, athlete_id, school_id, category_id) VALUES (?, ?, ?, ?)').run(`s${i}`, r.athleteId, r.schoolId, r.categoryId),
+    seed.prepare('INSERT INTO athlete_schools (id, athlete_id, school_id, category_id, ended_at) VALUES (?, ?, ?, ?, ?)').run(`s${i}`, r.athleteId, r.schoolId, r.categoryId, r.endedAt ?? null),
   );
   athleteGroups.forEach((r, i) => seed.prepare('INSERT INTO athlete_groups (id, athlete_id, group_id) VALUES (?, ?, ?)').run(`g${i}`, r.athleteId, r.groupId));
   seed.close();
@@ -73,14 +78,14 @@ describe.each(factories)('%s school athlete repository', (_name, create) => {
   it('lists the athletes of the school by last name, first name and id, and none of another school', async () => {
     const listed = await create().listBySchool('school-a');
 
-    expect(listed.map((a) => a.id)).toEqual(['a2', 'a1', 'a5', 'a3']);
+    expect(listed.map((a) => a.id)).toEqual(['a2', 'a1', 'a5', 'a3', 'a6']);
   });
 
   it('returns the name, the category and the groups of each athlete', async () => {
     const listed = await create().listBySchool('school-a');
 
-    expect(listed[0]).toEqual({ id: 'a2', firstName: 'Ben', lastName: 'Arce', categoryId: 'cat-2', groupIds: ['g-1', 'g-2'] });
-    expect(listed[1]).toEqual({ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] });
+    expect(listed[0]).toEqual({ id: 'a2', firstName: 'Ben', lastName: 'Arce', categoryId: 'cat-2', endedAt: null, groupIds: ['g-1', 'g-2'] });
+    expect(listed[1]).toEqual({ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, endedAt: null, groupIds: [] });
   });
 
   it('sorts the groups and lists each once, even when the athlete has a repeated row', async () => {
@@ -95,6 +100,31 @@ describe.each(factories)('%s school athlete repository', (_name, create) => {
     expect(listed.flatMap((a) => a.groupIds)).not.toContain('g-9');
   });
 
+  it('returns the end of the link with that school, null while it is active (#1436)', async () => {
+    const byId = Object.fromEntries((await create().listBySchool('school-a')).map((a) => [a.id, a.endedAt]));
+
+    expect(byId).toEqual({ a1: null, a2: null, a3: null, a5: ENDED, a6: ENDED });
+  });
+
+  it('an athlete ended here and active in another school is ended in this one and null in the other (#1436)', async () => {
+    const repo = create();
+    const [a5Here] = (await repo.listBySchool('school-a')).filter((a) => a.id === 'a5');
+    const a2Other = (await repo.listBySchool('school-b')).find((a) => a.id === 'a2');
+
+    expect(a5Here!.endedAt).toBe(ENDED);
+    expect(a2Other!.endedAt).toBeNull();
+  });
+
+  it('listAll and listByIds: null while any link is active, else the latest end (#1436)', async () => {
+    const repo = create();
+    const all = Object.fromEntries((await repo.listAll()).map((a) => [a.id, a.endedAt]));
+    const some = await repo.listByIds(['a5', 'a6', 'a2']);
+
+    // a5: only link ended; a6: both ended, the later one; a2: active links; a1: no end.
+    expect(all).toMatchObject({ a1: null, a2: null, a5: ENDED, a6: LATER });
+    expect(some.map((a) => [a.id, a.endedAt])).toEqual(expect.arrayContaining([['a5', ENDED], ['a6', LATER], ['a2', null]]));
+  });
+
   it('returns an empty list for a school without athletes', async () => {
     await expect(create().listBySchool('nowhere')).resolves.toEqual([]);
   });
@@ -102,6 +132,6 @@ describe.each(factories)('%s school athlete repository', (_name, create) => {
   it('exposes only id, names, category and groups: no other athlete data', async () => {
     const [first] = await create().listBySchool('school-a');
 
-    expect(Object.keys(first!).sort()).toEqual(['categoryId', 'firstName', 'groupIds', 'id', 'lastName']);
+    expect(Object.keys(first!).sort()).toEqual(['categoryId', 'endedAt', 'firstName', 'groupIds', 'id', 'lastName']);
   });
 });

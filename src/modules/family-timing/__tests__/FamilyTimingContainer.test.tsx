@@ -17,7 +17,7 @@ jest.mock('expo-crypto', () => {
 
 const ms = (n: number) => BigInt(n) * 1_000_000n;
 
-const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }];
+const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null }];
 
 const competition: FamilyMeasurement = {
   id: 'm1',
