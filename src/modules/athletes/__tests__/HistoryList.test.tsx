@@ -334,6 +334,48 @@ describe('HistoryList', () => {
       expect(head.props.accessibilityElementsHidden).toBe(true);
     });
 
+    // Issue 1459: beside the time the text column was left too narrow and words broke mid-word.
+    it('keeps the time beside the text only if the text keeps its minimum width, else wraps the time below', async () => {
+      await render(<HistoryList results={[byId('other-school')]} />);
+
+      const row = screen.getByLabelText(rowLabel('Espalda 50 m'));
+      const { head, trailing } = partsOf(row, 'Espalda 50 m');
+      expect(flat(row.props.style).flexWrap).toBe('wrap');
+      // The head starts from dot + stroke icon + gaps + room for the longest word, then grows and shrinks.
+      const { flexBasis, flexGrow, minWidth } = flat(head.props.style);
+      expect(flexBasis).toBeGreaterThan(2 * 32 + 2 * 12 + 13 * 6);
+      expect(flexGrow).toBe(1);
+      expect(minWidth).toBe(0);
+      // Wrapped onto its own row, the time stays at the right edge.
+      expect(flat(trailing.props.style).marginLeft).toBe('auto');
+      expect(row.props.accessibilityLabel).toMatch(/Espalda 50 m, 15 de agosto de 2026, Competencia, Otra escuela: Club Acuático Norte, .*Enviado$/);
+    });
+
+    it('asks the text column for more width as the system font grows (150 % is still beside the time)', async () => {
+      jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1.3);
+      await render(<HistoryList results={[byId('race-pb')]} />);
+      const wide = flat(partsOf(screen.getByLabelText(raceRow), raceTitle).head.props.style).flexBasis as number;
+      await screen.unmount();
+      jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(1);
+      await render(<HistoryList results={[byId('race-pb')]} />);
+
+      expect(wide).toBeGreaterThan(flat(partsOf(screen.getByLabelText(raceRow), raceTitle).head.props.style).flexBasis as number);
+    });
+
+    it('keeps the 200 % layout: no wrapping row, the time below, left aligned', async () => {
+      await render(
+        <ThemeProvider fontScale={2}>
+          <HistoryList results={[byId('race-pb')]} />
+        </ThemeProvider>,
+      );
+
+      const row = screen.getByLabelText(raceRow);
+      const { head, trailing } = partsOf(row, raceTitle);
+      expect(flat(row.props.style).flexWrap).toBe('nowrap');
+      expect(flat(head.props.style).flexBasis).toBeUndefined();
+      expect(flat(trailing.props.style).marginLeft).toBe(0);
+    });
+
     it('keeps the time beside the text at normal size', async () => {
       await render(<HistoryList results={[byId('race-pb')]} />);
 
