@@ -165,8 +165,9 @@ export function AthletesSection({
   const [endFailure, setEndFailure] = useState<{ athleteId: string; message: string }>();
   // A ref, not state: a second confirmation can arrive before a re-render shows the first is running.
   const ending = useRef(false);
-  const copying = useRef(false);
-  const [copyBusy, setCopyBusy] = useState(false);
+  // The swimmers whose copy is running: one call per swimmer, and another swimmer's detail never shows this one as busy.
+  const copying = useRef(new Set<string>());
+  const [copyBusy, setCopyBusy] = useState<string[]>([]);
   // What the last copy did or why it failed, kept with the swimmer it belongs to so another swimmer never shows it.
   const [copyResult, setCopyResult] = useState<{ athleteId: string; error: string | null; notice: string | null }>();
   const [bests, setBests] = useState<{ athleteId: string; bests: AthleteBest[]; failed: boolean }>();
@@ -330,13 +331,13 @@ export function AthletesSection({
             } : undefined,
             anonymousCopy: anonymousCopies
               ? {
-                  busy: copyBusy,
+                  busy: copyBusy.includes(selected.id),
                   error: copyResult?.athleteId === selected.id ? copyResult.error : null,
                   notice: copyResult?.athleteId === selected.id ? copyResult.notice : null,
                   onConfirm: () => {
-                    if (copying.current) return;
-                    copying.current = true;
-                    setCopyBusy(true);
+                    if (copying.current.has(selected.id)) return;
+                    copying.current.add(selected.id);
+                    setCopyBusy((ids) => [...ids, selected.id]);
                     anonymousCopies
                       .create(selected.id, schoolId)
                       .then(
@@ -357,8 +358,8 @@ export function AthletesSection({
                         (error) => setCopyResult({ athleteId: selected.id, error: copyError(error), notice: null }),
                       )
                       .finally(() => {
-                        copying.current = false;
-                        setCopyBusy(false);
+                        copying.current.delete(selected.id);
+                        setCopyBusy((ids) => ids.filter((id) => id !== selected.id));
                       });
                   },
                 }

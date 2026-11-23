@@ -476,6 +476,20 @@ describe('AthletesSection', () => {
       expect(screen.getByText(/La familia aún no emitió su código/)).toBeOnTheScreen();
     });
 
+    it('shows the copy as running only for the swimmer it belongs to', async () => {
+      const anonymousCopies = { create: jest.fn().mockReturnValue(new Promise(() => {})) };
+      await open(anonymousCopies);
+
+      await copy();
+      await waitFor(() => expect(screen.getByRole('button', { name: /Crear copia anónima/ }).props.accessibilityState?.busy).toBe(true));
+      await fireEvent.press(await athleteRow(/^Mateo Castro/));
+
+      await waitFor(() => expect(screen.getByRole('button', { name: /Crear copia anónima/ }).props.accessibilityState?.busy).toBe(false));
+      await fireEvent.press(screen.getByRole('button', { name: 'Crear copia anónima' }));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Crear copia' }));
+      await waitFor(() => expect(anonymousCopies.create).toHaveBeenCalledWith('a2', 'school-a'));
+    });
+
     it('says when the school already had a copy', async () => {
       await open({ create: jest.fn().mockResolvedValue({ status: 'already_copied', athleteId: 'anon-1', linkable: true, copied: 0 }) });
 

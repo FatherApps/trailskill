@@ -189,8 +189,18 @@ describe('the anonymous swimmers in the authorizations section', () => {
     expect(screen.queryByText(/TR-|RC-/)).toBeNull();
   });
 
-  it('shows nothing when the school made no copy, and no area without the repository', async () => {
-    await setup({ copies: jest.fn().mockResolvedValue([]) });
+  it('shows nothing when the school made no copy, once the list was read', async () => {
+    const list = jest.fn().mockResolvedValue([]);
+    await setup({ copies: list });
+    await screen.findByText('Solicitudes para recuperar tiempos');
+
+    await waitFor(() => expect(list).toHaveBeenCalledWith('school-1'));
+    await waitFor(() => expect(screen.queryByText('Nadadores anónimos')).toBeNull());
+    expect(screen.queryByText('Nadador anónimo')).toBeNull();
+  });
+
+  it('shows no area without the repository', async () => {
+    await setup();
     await screen.findByText('Solicitudes para recuperar tiempos');
 
     expect(screen.queryByText('Nadadores anónimos')).toBeNull();
