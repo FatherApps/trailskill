@@ -286,8 +286,10 @@ begin
     and s.school_id <> transfer_athlete_school_history.new_school
   on conflict do nothing;
 
+  -- greatest(): a baja of that school can commit after this transaction started, with an ended_at later than this now(); the stamp
+  -- may never fall below ended_at (check athlete_schools_read_window_closed_after_end).
   update public.athlete_schools s
-  set read_window_closed_at = now(), transferred_to_school_id = transfer_athlete_school_history.new_school
+  set read_window_closed_at = greatest(now(), s.ended_at), transferred_to_school_id = transfer_athlete_school_history.new_school
   where s.athlete_id = transfer_athlete_school_history.athlete
     and s.school_id <> transfer_athlete_school_history.new_school
     and s.ended_at is not null

@@ -7,12 +7,13 @@
 -- Swimmers: X (e1) ended in A, family accepts B. Z (e2) ended in A 40 days ago (window already closed), family accepts B.
 -- Y (e3) active in A, family accepts B, then A ends Y. V (e4) ended in A, B links V without the family. U (e5) ended in A and in C,
 -- family accepts B. T (e6) ended in A, family accepts B, B ends T, the family erases the account. S (e7) chain: A, then B, then C.
+-- R (e9) ended in A with an ended_at later than the clock of the acceptance (a baja of A that committed after the accept started), family accepts B.
 -- W (e8) active in A, B links W without the family: the approved sharing of #68 works, no grant, A ends W and keeps its window.
 -- Users: admin SA of A (a1), coach KA of A with X, Y and V direct (a2), admin SB of B (a3), coach KB of B with X assigned in B (a4),
 -- guardian G of X, Z, Y, U, S and W (a5), coach KB2 of B, not assigned (a6), admin SC of C (a7). All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(64);
+select plan(66);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('14190000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -51,15 +52,15 @@ insert into public.school_memberships (school_id, user_id, role) values
 insert into public.athletes (id, first_name, last_name) values
   (pg_temp.u('e1'), 'Athlete', 'X'), (pg_temp.u('e2'), 'Athlete', 'Z'), (pg_temp.u('e3'), 'Athlete', 'Y'),
   (pg_temp.u('e4'), 'Athlete', 'V'), (pg_temp.u('e5'), 'Athlete', 'U'), (pg_temp.u('e6'), 'Athlete', 'T'),
-  (pg_temp.u('e7'), 'Athlete', 'S'), (pg_temp.u('e8'), 'Athlete', 'W');
+  (pg_temp.u('e7'), 'Athlete', 'S'), (pg_temp.u('e8'), 'Athlete', 'W'), (pg_temp.u('e9'), 'Athlete', 'R');
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   (pg_temp.u('a5'), pg_temp.u('e1'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e2'), 'guardian'),
-  (pg_temp.u('a5'), pg_temp.u('e3'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e5'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e8'), 'guardian'),
+  (pg_temp.u('a5'), pg_temp.u('e3'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e5'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e8'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e9'), 'guardian'),
   (pg_temp.u('a8'), pg_temp.u('e6'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e7'), 'guardian');
 insert into public.athlete_schools (athlete_id, school_id) values
   (pg_temp.u('e1'), pg_temp.u('b1')), (pg_temp.u('e2'), pg_temp.u('b1')), (pg_temp.u('e3'), pg_temp.u('b1')),
   (pg_temp.u('e4'), pg_temp.u('b1')), (pg_temp.u('e5'), pg_temp.u('b1')), (pg_temp.u('e5'), pg_temp.u('b3')),
-  (pg_temp.u('e6'), pg_temp.u('b1')), (pg_temp.u('e7'), pg_temp.u('b1')), (pg_temp.u('e8'), pg_temp.u('b1'));
+  (pg_temp.u('e6'), pg_temp.u('b1')), (pg_temp.u('e7'), pg_temp.u('b1')), (pg_temp.u('e8'), pg_temp.u('b1')), (pg_temp.u('e9'), pg_temp.u('b1'));
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
   (pg_temp.u('a2'), pg_temp.u('e1'), pg_temp.u('b1')), (pg_temp.u('a2'), pg_temp.u('e3'), pg_temp.u('b1')),
   (pg_temp.u('a2'), pg_temp.u('e4'), pg_temp.u('b1'));
@@ -341,6 +342,19 @@ select is((select count(*)::int from public.athletes where id = pg_temp.u('e8'))
 reset role;
 select is((select transferred_to_school_id is null and read_window_closed_at is null from public.athlete_schools where athlete_id = pg_temp.u('e8') and school_id = pg_temp.u('b1')),
   true, 'without a grant the baja of A does not stamp its window');
+
+-- R: the baja of A committed after the acceptance transaction started, so ended_at is later than the now() of the acceptance (simulated
+-- with an ended_at in the future). The stamp may not fall below ended_at: the acceptance succeeds and the stamp is greatest(now(), ended_at).
+select set_config('request.jwt.claims', '', true);
+update public.athlete_schools set ended_at = now() + interval '5 minutes' where athlete_id = pg_temp.u('e9') and school_id = pg_temp.u('b1');
+set local role authenticated;
+select pg_temp.as_user('a5');
+select lives_ok(
+  format($$ select public.accept_invitation(%L, %L, null, pg_temp.at(), pg_temp.auths('r')) $$, current_setting('test.token'), pg_temp.u('e9')),
+  'the family accepts B for R although the baja of A is later than the clock of the acceptance');
+reset role;
+select is((select read_window_closed_at = ended_at and transferred_to_school_id = pg_temp.u('b2') from public.athlete_schools where athlete_id = pg_temp.u('e9') and school_id = pg_temp.u('b1')),
+  true, 'the stamp of the transfer is the later ended_at, never below it');
 
 -- The family withdraws the sharing authorization: B stops reading the history of A.
 set local role authenticated;
