@@ -2,7 +2,7 @@
 -- stale confirmation never confirms a set the person did not see. All users and data are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(12);
 
 insert into auth.users (id, email) values
   ('14170000-0000-4000-8000-0000000000a1', 'rcb-guardian@example.test'),
