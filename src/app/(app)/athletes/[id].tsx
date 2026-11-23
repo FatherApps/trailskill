@@ -9,6 +9,9 @@ import {
 } from '../../../modules/accounts';
 import {
   AthleteProfileContainer,
+  AthleteRecoveryCodeContainer,
+  createSecureStoreRecoveryCodeVault,
+  createSupabaseAthleteRecoveryCodeRepository,
   createPowerSyncAthleteSchoolRepository,
   createPowerSyncHistoryRepository,
   createPowerSyncSchoolAthleteRepository,
@@ -56,6 +59,8 @@ const changeResolver = createSupabasePendingChangeResolver();
 const managedAthletes = createPowerSyncManagedAthleteRepository();
 const importSources = createSupabaseImportSourcesRepository();
 const guardianSharing = createSupabaseGuardianSharingRepository();
+const recoveryCodes = createSupabaseAthleteRecoveryCodeRepository();
+const recoveryCodeVault = createSecureStoreRecoveryCodeVault();
 const guardianRecords = createGuardianRecordsRepository(createPowerSyncMeasurementRepository());
 
 export default function AthleteProfileRoute() {
@@ -135,6 +140,20 @@ export default function AthleteProfileRoute() {
             schoolId={sharingSchoolId}
             connection={summary.connection}
             refreshKey={syncedAt}
+          />
+        ) : undefined
+      }
+      // Only who manages the swimmer (the owner) gets the row: never school staff or another family.
+      recoveryCode={
+        managedAthlete ? (
+          <AthleteRecoveryCodeContainer
+            key={`recovery-code-${id}`}
+            athleteId={id}
+            athleteName={managedAthlete.firstName}
+            userId={session.user.id}
+            repository={recoveryCodes}
+            vault={recoveryCodeVault}
+            online={summary.connection === 'connected'}
           />
         ) : undefined
       }
