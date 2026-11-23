@@ -24,7 +24,11 @@ export type SettingsButtonsView = {
   onCancelLearn: () => void;
 };
 
+export type SettingsFreeLapsView = { value: boolean; onChange: (value: boolean) => void };
+
 export type StopwatchSettingsScreenProps = {
+  /** Free laps: always offered, with or without the buttons. */
+  freeLaps: SettingsFreeLapsView;
   /** The headset or volume keys; null where the phone cannot use them (iOS, or a build without the module). */
   buttons: SettingsButtonsView | null;
   onBack: () => void;
@@ -103,10 +107,21 @@ function ButtonsSettings({ view }: { view: SettingsButtonsView }) {
   );
 }
 
-// "Cronómetro avanzado": the headset or volume keys, which key does what, and the lockout after starting. Presentational.
-export function StopwatchSettingsScreen({ buttons, onBack }: StopwatchSettingsScreenProps) {
+// "Cronómetro avanzado": free laps, and where the phone can use them the headset or volume keys, which key does what, and the lockout. Presentational.
+export function StopwatchSettingsScreen({ freeLaps, buttons, onBack }: StopwatchSettingsScreenProps) {
   return (
     <SettingsFrame title={t('settings.stopwatch.title')} intro={t('settings.stopwatch.intro')} onBack={onBack}>
+      <SettingsSection label={t('settings.stopwatch.free_laps_label')} hint={t('settings.stopwatch.free_laps_hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.stopwatch.free_laps_label')}
+          value={freeLaps.value ? 'on' : 'off'}
+          onChange={(value) => freeLaps.onChange(value === 'on')}
+          options={[
+            { value: 'on', label: t('settings.buttons.on') },
+            { value: 'off', label: t('settings.buttons.off') },
+          ]}
+        />
+      </SettingsSection>
       {buttons && <ButtonsSettings view={buttons} />}
     </SettingsFrame>
   );
