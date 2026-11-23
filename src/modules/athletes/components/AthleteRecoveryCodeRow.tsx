@@ -28,7 +28,7 @@ export function AthleteRecoveryCodeRow({ code, revealed, online, problem, onTogg
       </Text>
       <Text style={[typography.caption, { color: colors['ink-muted'] }]}>{t('athletes.recovery_code.help')}</Text>
       {revealed && code && (
-        <Text selectable accessibilityLabel={t('athletes.recovery_code.code_label', { code })} style={[typography['time-md'], { color: colors.ink }]}>
+        <Text selectable accessibilityLabel={t('athletes.recovery_code.code_label', { code })} style={[typography['time-sm'], { color: colors.ink }]}>
           {code}
         </Text>
       )}

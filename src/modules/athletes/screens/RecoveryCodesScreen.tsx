@@ -34,7 +34,7 @@ export function recoveryCodesText({ athleteName, mainCode, recoveryCodes }: Pick
 export function RecoveryCodesScreen({ athleteName, mainCode, recoveryCodes, replacing = false, saving = false, error = false, onCopy, onDone }: RecoveryCodesScreenProps) {
   const { colors, space, radius, typography } = useTheme();
   const code = (text: string) => (
-    <Text key={text} selectable accessibilityLabel={t('athletes.recovery_codes.code_label', { code: text })} style={[typography['time-md'], { color: colors.ink }]}>
+    <Text key={text} selectable accessibilityLabel={t('athletes.recovery_codes.code_label', { code: text })} style={[typography['time-sm'], { color: colors.ink }]}>
       {text}
     </Text>
   );
