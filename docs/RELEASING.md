@@ -407,7 +407,7 @@ Closed testing is the track that counts for production access. Before moving the
 - Everything marked "Closed testing" in the table above.
 - Open decisions settled and closed, because each one changes what the forms must say:
   - **Data deletion.** The app has no way to delete an account or its data. The answer today is a request by email, stated in section 11 of the privacy policy (anchor `#eliminar-datos`); building it in the app stays a later decision.
-  - **Target audience** and Families Policy applicability (the app stores minors' data while its users are adults; see [Open decisions](#open-decisions)).
+  - **Target audience** (18+ decided, #1415) and Families Policy applicability (the app stores minors' data while its users are adults; see [Open decisions](#open-decisions)).
   - **Legal review** of the authorization texts and the privacy policy (issue #106).
   - **Backend.** The closed test must not run against QA data by accident: decide with the planner whether the pilot build points to PROD, and rebuild if so.
 
@@ -480,6 +480,6 @@ A build without the three variables still opens, but sign-in and sync report a m
 To be settled by the maintainer before the first Play release:
 
 - Final application ID.
-- Target audience declaration and Families Policy applicability (needs legal advice: the app stores minors' data while its users are adults).
-- Owner of the privacy policy: it names «Swimcro» and soporte@fatherapps.com until the company exists (Decreto 1377 de 2013, art. 13, asks for the controller's name and address).
+- Target audience: **18+ decided** on 2026-11-22 (#1415; the users are adults who manage minors' data). Still open: whether Play's Families Policy applies because the app stores minors' data (needs legal advice, #106).
+- Owner of the privacy policy: it names «Swimcro» and soporte@fatherapps.com. The legal identity of Swimcro (name, NIT, address; Decreto 1377 de 2013, art. 13) is **PENDIENTE de revisión legal**: nobody fills it in until the review (#106). Schools are controllers of their enrolled swimmers' data and sign a transmission contract with Swimcro ([`docs/release/transmission-contract.es.md`](release/transmission-contract.es.md)).
 - Staged-rollout percentages and the metrics that gate each step.
