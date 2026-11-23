@@ -1,15 +1,18 @@
--- Transfer to another school (issue #1419), "todo el historial siempre". When the family accepts the invitation of a school for a swimmer
--- that other schools had, the new school reads, read only, through other_school_results, the marks of ALL the previous schools, whatever
--- their age, along the chain (A, B, C: C reads A and B). A school that ended the swimmer (#1243) inside its 30-day read window (#1418)
--- stops reading them at that moment (athlete_schools.read_window_closed_at, the column the helpers and the sync streams read).
+-- Transfer to another school (issue #1419), "todo el historial siempre" and "a swimmer can be in both schools, but A's data is seen by A and
+-- B's by B". When the family accepts the invitation of a school for a swimmer that other schools had, the new school reads, read only,
+-- through other_school_results, the marks of the previous schools whose link has ENDED, whatever their age, along the chain (A, B, C: C
+-- reads A and B). While the swimmer is active in both schools each reads only its own marks. A school that ended the swimmer (#1243)
+-- inside its 30-day read window (#1418) stops reading them at that moment when the other school already holds them with a grant
+-- (athlete_schools.read_window_closed_at, the column the helpers and the sync streams read).
 -- Swimmers: X (e1) ended in A, family accepts B. Z (e2) ended in A 40 days ago (window already closed), family accepts B.
--- Y (e3) active in A, family accepts B. V (e4) ended in A, B links V without the family. U (e5) ended in A and in C, family accepts B.
--- T (e6) ended in A, family accepts B, B ends T, the family erases the account. S (e7) chain: A, then B, then C.
+-- Y (e3) active in A, family accepts B, then A ends Y. V (e4) ended in A, B links V without the family. U (e5) ended in A and in C,
+-- family accepts B. T (e6) ended in A, family accepts B, B ends T, the family erases the account. S (e7) chain: A, then B, then C.
+-- W (e8) active in A, B links W without the family: the approved sharing of #68 works, no grant, A ends W and keeps its window.
 -- Users: admin SA of A (a1), coach KA of A with X, Y and V direct (a2), admin SB of B (a3), coach KB of B with X assigned in B (a4),
--- guardian G of X, Z, Y, U and S (a5), coach KB2 of B, not assigned (a6), admin SC of C (a7). All users and data here are synthetic.
+-- guardian G of X, Z, Y, U, S and W (a5), coach KB2 of B, not assigned (a6), admin SC of C (a7). All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(54);
+select plan(64);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('14190000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -48,15 +51,15 @@ insert into public.school_memberships (school_id, user_id, role) values
 insert into public.athletes (id, first_name, last_name) values
   (pg_temp.u('e1'), 'Athlete', 'X'), (pg_temp.u('e2'), 'Athlete', 'Z'), (pg_temp.u('e3'), 'Athlete', 'Y'),
   (pg_temp.u('e4'), 'Athlete', 'V'), (pg_temp.u('e5'), 'Athlete', 'U'), (pg_temp.u('e6'), 'Athlete', 'T'),
-  (pg_temp.u('e7'), 'Athlete', 'S');
+  (pg_temp.u('e7'), 'Athlete', 'S'), (pg_temp.u('e8'), 'Athlete', 'W');
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   (pg_temp.u('a5'), pg_temp.u('e1'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e2'), 'guardian'),
-  (pg_temp.u('a5'), pg_temp.u('e3'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e5'), 'guardian'),
+  (pg_temp.u('a5'), pg_temp.u('e3'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e5'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e8'), 'guardian'),
   (pg_temp.u('a8'), pg_temp.u('e6'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e7'), 'guardian');
 insert into public.athlete_schools (athlete_id, school_id) values
   (pg_temp.u('e1'), pg_temp.u('b1')), (pg_temp.u('e2'), pg_temp.u('b1')), (pg_temp.u('e3'), pg_temp.u('b1')),
   (pg_temp.u('e4'), pg_temp.u('b1')), (pg_temp.u('e5'), pg_temp.u('b1')), (pg_temp.u('e5'), pg_temp.u('b3')),
-  (pg_temp.u('e6'), pg_temp.u('b1')), (pg_temp.u('e7'), pg_temp.u('b1'));
+  (pg_temp.u('e6'), pg_temp.u('b1')), (pg_temp.u('e7'), pg_temp.u('b1')), (pg_temp.u('e8'), pg_temp.u('b1'));
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
   (pg_temp.u('a2'), pg_temp.u('e1'), pg_temp.u('b1')), (pg_temp.u('a2'), pg_temp.u('e3'), pg_temp.u('b1')),
   (pg_temp.u('a2'), pg_temp.u('e4'), pg_temp.u('b1'));
@@ -71,7 +74,8 @@ values
   (pg_temp.u('f5'), pg_temp.u('a7'), pg_temp.u('b3'), 'repetition', pg_temp.u('e5'), 3500, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-sc', '2026-10-01 12:00:00+00'),
   (pg_temp.u('f6'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e2'), 3600, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 13:00:00+00'),
   (pg_temp.u('f8'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e6'), 3700, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 14:00:00+00'),
-  (pg_temp.u('f9'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e7'), 3800, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 15:00:00+00');
+  (pg_temp.u('f9'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e7'), 3800, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 15:00:00+00'),
+  (pg_temp.u('fc'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e8'), 3950, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 16:00:00+00');
 
 -- The invitations of B and C, made by their admins.
 set local role authenticated;
@@ -173,27 +177,39 @@ set local role authenticated;
 select pg_temp.as_user('a3');
 select is(pg_temp.history('e2'), 'f6', 'B reads the mark of Z recorded in A even though A ended Z 40 days ago');
 
--- Y is active in A: nothing is lost there.
+-- Y is active in A and in B at once (the family accepts B while A still has Y). Each school reads only its own: B reads nothing of A and A
+-- nothing of B, and A keeps its access. The grant of A to B is dormant until A ends Y.
 select pg_temp.as_user('a5');
 select lives_ok(
   format($$ select public.accept_invitation(%L, %L, null, pg_temp.at(), pg_temp.auths('y')) $$, current_setting('test.token'), pg_temp.u('e3')),
   'the family accepts the invitation of B for Y');
+reset role;
+select set_config('request.jwt.claims', '', true);
+insert into public.measurements
+  (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+values
+  (pg_temp.u('fb'), pg_temp.u('a4'), pg_temp.u('b2'), 'repetition', pg_temp.u('e3'), 3250, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-kb', '2026-11-02 10:00:00+00');
+set local role authenticated;
 select pg_temp.as_user('a1');
 select is((select count(*)::int from public.athletes where id = pg_temp.u('e3')) + (select count(*)::int from public.measurements where id = pg_temp.u('f2')), 2,
   'Y, active in A and in B at once, keeps the access of A');
+select is(pg_temp.history('e3'), '', 'A reads nothing of what B recorded for Y while both have Y active');
 select pg_temp.as_user('a3');
-select is(pg_temp.history('e3'), 'f2', 'B reads the history of A for Y although A still has Y active: all the history, always');
+select is(pg_temp.history('e3'), '', 'B reads nothing of what A recorded for Y while both have Y active: no 30-day or active-link shortcut');
 reset role;
 select is((select transferred_to_school_id is null and read_window_closed_at is null from public.athlete_schools where athlete_id = pg_temp.u('e3') and school_id = pg_temp.u('b1')),
   true, 'the active link of Y in A is untouched');
--- Today's behavior for a swimmer still ACTIVE in A who joined B (a product question for the maintainer, not changed here): A keeps the
--- access, and if A ends Y later A gets the full 30-day read window, as for any baja.
+-- A ends Y while B already holds them (the family accepted B): A stops reading at once, without 30 days, and B gains the history of A.
 set local role authenticated;
 select pg_temp.as_user('a1');
 select public.end_athlete_school(pg_temp.u('e3'), pg_temp.u('b1'));
-select is((select count(*)::int from public.athletes where id = pg_temp.u('e3')) + (select count(*)::int from public.measurements where id = pg_temp.u('f2')), 2,
-  'A ends Y after the acceptance: A still reads Y and the marks during its full 30-day window');
+select is((select count(*)::int from public.athletes where id = pg_temp.u('e3')) + (select count(*)::int from public.measurements where id = pg_temp.u('f2')), 0,
+  'A ends Y while B holds Y: A stops reading Y and the marks at once, not after 30 days');
+select pg_temp.as_user('a3');
+select is(pg_temp.history('e3'), 'f2', 'B reads the history of A from the moment A ended Y');
 reset role;
+select is((select transferred_to_school_id = pg_temp.u('b2') and read_window_closed_at is not null from public.athlete_schools where athlete_id = pg_temp.u('e3') and school_id = pg_temp.u('b1')),
+  true, 'the link of Y in A points to B and its window is stamped closed by the baja itself');
 
 -- V: B links V without the family. V has a manager and the sharing authorization, so the only thing missing is the acceptance: B gets
 -- no grant and reads nothing of A.
@@ -300,6 +316,31 @@ set local role authenticated;
 select pg_temp.as_user('a3');
 select is(pg_temp.history('e6'), '', 'after the erasure B no longer reads what A recorded for T');
 reset role;
+
+-- W: active in A; B links W without the family (no acceptance, no grant) and has them active too. Each school reads only its own. The
+-- approved sharing of #68 (A approves B, the family's authorization in force) keeps working with both links active. A then ends W:
+-- without a grant A keeps its 30-day window.
+select set_config('request.jwt.claims', '', true);
+insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at)
+  values (pg_temp.u('a5'), pg_temp.u('e8'), 'share_results_with_school', pg_temp.text_of('share_results_with_school'), now() - interval '1 day');
+insert into public.athlete_schools (athlete_id, school_id) values (pg_temp.u('e8'), pg_temp.u('b2'));
+set local role authenticated;
+select pg_temp.as_user('a3');
+select is(pg_temp.history('e8'), '', 'W active in A and in B: before any sharing B reads nothing of A');
+select is(public.request_result_sharing(pg_temp.u('e8'), pg_temp.u('b2')), 1, 'admin B asks A for W');
+select pg_temp.as_user('a1');
+select lives_ok(
+  $$ select public.approve_result_sharing((select id from public.school_result_sharing where school_id = pg_temp.u('b1') and target_school_id = pg_temp.u('b2') and withdrawn_at is null)) $$,
+  'admin A approves B');
+select pg_temp.as_user('a3');
+select is(pg_temp.history('e8'), 'fc', 'the approved sharing of #68 still works while W is active in A and in B');
+select pg_temp.as_user('a1');
+select is(pg_temp.history('e8'), '', 'A reads nothing of B for W: the sharing goes one way');
+select public.end_athlete_school(pg_temp.u('e8'), pg_temp.u('b1'));
+select is((select count(*)::int from public.athletes where id = pg_temp.u('e8')), 1, 'A ends W, whom B linked without the family: A keeps reading W in its window');
+reset role;
+select is((select transferred_to_school_id is null and read_window_closed_at is null from public.athlete_schools where athlete_id = pg_temp.u('e8') and school_id = pg_temp.u('b1')),
+  true, 'without a grant the baja of A does not stamp its window');
 
 -- The family withdraws the sharing authorization: B stops reading the history of A.
 set local role authenticated;

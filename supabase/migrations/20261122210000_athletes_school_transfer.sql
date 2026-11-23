@@ -1,30 +1,39 @@
--- Module athletes: transfer to another school (issue #1419). Rule confirmed by the maintainer (2026-11-22): "if another school takes the
--- swimmer in, the first school stops seeing their data and the data goes to the other school". The acceptance of the family of the
+-- Module athletes: transfer to another school (issue #1419). Rules confirmed by the maintainer (2026-11-22): "if another school takes the
+-- swimmer in, the first school stops seeing their data and the data goes to the other school", "todo el historial siempre" and "a swimmer
+-- can be in both schools, but A's data is seen by A, B's data by B, and the user (family) sees both". The acceptance of the family of the
 -- new enrollment (public.accept_invitation, #1328) is what authorizes the transfer.
 --
--- Decision of the maintainer (2026-11-22): "todo el historial siempre". What happens when the family accepts the invitation of a
--- school C (a NEW athlete_schools row for C, made by that call) for a swimmer that other schools had:
---   1. C reads the swimmer's marks of EVERY school the swimmer was linked to before, with no 30-day condition and along the whole chain
---      (A, then B, then C: C reads what A and B recorded). The acceptance is stored as one row per previous school in
---      public.athlete_history_grants (swimmer, source school, target school); C reads through public.other_school_results (the function
---      of #68, fixed result columns only: time, stroke, distance, pool, session type, date, never hidden, discarded or split marks, no
---      photos, authorizations, groups, plan fulfillments or health data). The history is read in place: nothing is copied or synced and C
---      cannot write it.
+-- Concurrent enrollments are isolated. While the swimmer has an ACTIVE link in A and in C, A reads only what A recorded and C only what
+-- C recorded; neither reads the other's marks (the approved sharing of #68, school pair plus the family's share_results_with_school, keeps
+-- working as it did: this migration does not touch it). The history carries over only on a REAL transfer, that is, from a school whose
+-- link has ENDED (#1243). What happens when the family accepts the invitation of a school C (a NEW athlete_schools row for C, made by
+-- that call) for a swimmer that other schools had:
+--   1. The acceptance is stored as one row per previous school, in any state, in public.athlete_history_grants (swimmer, source school,
+--      target school). A grant is dormant while the link of its source school is active; it works from the moment that link is ended, for
+--      any age and along the whole chain (A, then B, then C: C reads what A and B recorded). C reads through public.other_school_results
+--      (the function of #68, fixed result columns only: time, stroke, distance, pool, session type, date, never hidden, discarded or split
+--      marks, no photos, authorizations, groups, plan fulfillments or health data). The history is read in place: nothing is copied or
+--      synced and C cannot write it.
 --   2. The school that ended the swimmer (#1243) stops reading them at that moment, without waiting for the day 30 of its window (#1418):
 --      the stored column that the helpers and the sync streams of powersync/sync-config.yaml already read,
 --      athlete_schools.read_window_closed_at, is stamped with now(), and athlete_schools.transferred_to_school_id keeps where the
---      swimmer went. Only ended links still inside their window move; the first school that accepts is the destination. No stream
---      changes: every staff stream already filters on athlete_schools.read_window_closed_at IS NULL.
--- A swimmer with an ACTIVE link in A and in C at once loses nothing in A. Without the family's acceptance (any other way of linking a
--- swimmer) C reads nothing of the other schools. The acceptance is recorded as today, with the evidence accept_invitation already stores
--- (the three authorizations written in the same transaction): the purpose school_transfer of T150 does not exist in the database yet, so it
--- is not used. C's read also needs the swimmer's share_results_with_school authorization in force, as the sharing of #68: withdrawing it,
--- or erasing the account of the family (erase_account deletes the authorizations), cuts what C reads, and C must still read the swimmer.
+--      swimmer went. It is stamped in both orders: when C accepts and the link of A is already ended inside its window
+--      (app.transfer_athlete_school_history), and when A ends the swimmer while C already holds them and holds a grant from A
+--      (public.end_athlete_school). Only ended links still inside their window move; the first school that holds the swimmer is the
+--      destination. No stream changes: every staff stream already filters on athlete_schools.read_window_closed_at IS NULL.
+--      The transfer locks the other links of the swimmer first, so an acceptance and a simultaneous end of A are serialized: whichever
+--      commits second sees the other and stamps.
+-- Without the family's acceptance (any other way of linking a swimmer) C reads nothing of the other schools and A keeps its 30 days. The
+-- acceptance is recorded as today, with the evidence accept_invitation already stores (the three authorizations written in the same
+-- transaction): the purpose school_transfer of T150 does not exist in the database yet, so it is not used. C's read also needs the
+-- swimmer's share_results_with_school authorization in force, as the sharing of #68: withdrawing it, or erasing the account of the family
+-- (erase_account deletes the authorizations), cuts what C reads, and C must still read the swimmer.
 --
--- Revert: restore accept_invitation (20261121120000), other_school_results (20261026010000), athlete_schools_ended_guard and the seven read
--- helpers (20261122120000), drop app.transfer_athlete_school_history and app.school_transfer_in_force, drop the table
--- athlete_history_grants. Then, in this order (the recreated check of #1418 requires a stamp of at least ended_at + 30 days, so it fails
--- while a transfer stamp exists, and the check athlete_schools_transferred_closes_window fails if only the stamp is cleared):
+-- Revert: restore accept_invitation (20261121120000), end_athlete_school (20261120100000), other_school_results (20261026010000),
+-- athlete_schools_ended_guard and the seven read helpers (20261122120000), drop app.transfer_athlete_school_history and
+-- app.school_transfer_in_force, drop the table athlete_history_grants. Then, in this order (the recreated check of #1418 requires a stamp
+-- of at least ended_at + 30 days, so it fails while a transfer stamp exists, and the check athlete_schools_transferred_closes_window
+-- fails if only the stamp is cleared):
 --   1. as the table owner, in ONE transaction (begin; ... commit;, so no replica or device ever sees the windows reopened without the
 --      re-stamp): update public.athlete_schools set read_window_closed_at = null, transferred_to_school_id = null
 --      where transferred_to_school_id is not null; then select app.close_athlete_school_read_windows(); (the schools that handed a swimmer
@@ -250,11 +259,13 @@ as $$
     );
 $$;
 
--- The transfer, in two parts. 1. The new school may read what every school the swimmer is linked to (any state, any age) recorded: one
--- grant per previous school, so the chain A, B, C gives C the history of both. 2. The links of the swimmer that other schools ended and
--- whose window is still open close now and point to the new school. Rows already stamped (by the job, or by an earlier transfer) and
--- rows still active are left alone, and the grants ignore a repeat, so it is safe to repeat. A row the job or another transfer is
--- changing at this moment is re-read after its lock: the second writer finds the stamp and skips it. It returns the windows it closed.
+-- The transfer, in two parts. 1. The new school gets one grant per school the swimmer is linked to (any state, any age), so the chain
+-- A, B, C gives C the history of both; a grant is dormant while the link of its source school is active (see school_transfer_in_force).
+-- 2. The links of the swimmer that other schools ended and whose window is still open close now and point to the new school. Rows
+-- already stamped (by the job, or by an earlier transfer) and rows still active are left alone, and the grants ignore a repeat, so it is
+-- safe to repeat. The other links are locked first: a simultaneous end_athlete_school of one of them waits for this transaction and then
+-- finds the new link and the grant, or this one waits for it and then finds the link ended (the second writer re-reads the locked row).
+-- It returns the windows it closed.
 create function app.transfer_athlete_school_history(athlete uuid, new_school uuid)
 returns integer
 language plpgsql
@@ -264,6 +275,10 @@ as $$
 declare
   moved integer;
 begin
+  perform 1 from public.athlete_schools s
+  where s.athlete_id = transfer_athlete_school_history.athlete and s.school_id <> transfer_athlete_school_history.new_school
+  for update;
+
   insert into public.athlete_history_grants (athlete_id, source_school_id, target_school_id)
   select s.athlete_id, s.school_id, transfer_athlete_school_history.new_school
   from public.athlete_schools s
@@ -287,8 +302,9 @@ $$;
 revoke execute on function app.transfer_athlete_school_history(uuid, uuid) from public, anon, authenticated;
 
 -- Whether school C reads the marks school A recorded for the swimmer because the family accepted C's invitation (a grant from A to C).
--- C must still read the swimmer itself (active, or inside its own window) and the family's share_results_with_school authorization
--- must be in force, like the sharing of #68. No time condition on A's side: all the history, always.
+-- The link of A must be ENDED: while the swimmer is active in A and in C each school reads only its own marks, and the grant works from
+-- the moment A ends them. C must still read the swimmer itself (active, or inside its own window) and the family's
+-- share_results_with_school authorization must be in force, like the sharing of #68. No time condition on A's side: all the history.
 create function app.school_transfer_in_force(source_school uuid, target_school uuid, athlete uuid)
 returns boolean
 language sql
@@ -301,6 +317,12 @@ as $$
       where g.athlete_id = school_transfer_in_force.athlete
         and g.source_school_id = school_transfer_in_force.source_school
         and g.target_school_id = school_transfer_in_force.target_school
+    )
+    and exists (
+      select 1 from public.athlete_schools a
+      where a.athlete_id = school_transfer_in_force.athlete
+        and a.school_id = school_transfer_in_force.source_school
+        and a.ended_at is not null
     )
     and exists (
       select 1 from public.athlete_schools b
@@ -344,6 +366,65 @@ as $$
         )
     )
   order by m.captured_at desc, m.id desc;
+$$;
+
+-- end_athlete_school of 20261120100000, the same body, plus the stamp of a transfer: when this call ends the link and another school
+-- already holds the swimmer (an active link) with a grant from this school (the family accepted its invitation), the window of this
+-- school closes at once instead of at day 30 and the swimmer's history is read by that school from now on. Without such a grant (the
+-- other school linked the swimmer another way) nothing changes: the school keeps its window. A repeated call ended nothing and stamps
+-- nothing.
+create or replace function public.end_athlete_school(athlete uuid, school uuid)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  stamp timestamptz;
+begin
+  if not exists (
+    select 1 from public.school_memberships m
+    where m.user_id = (select auth.uid())
+      and m.school_id = end_athlete_school.school
+      and m.role = 'school_admin'
+      and m.deactivated_at is null
+  ) then
+    raise exception 'only an active admin of the school can end a swimmer''s link' using errcode = '42501';
+  end if;
+
+  update public.athlete_schools s
+  set ended_at = now(), ended_by = (select auth.uid())
+  where s.athlete_id = end_athlete_school.athlete
+    and s.school_id = end_athlete_school.school
+    and s.ended_at is null
+  returning s.ended_at into stamp;
+
+  if stamp is not null then
+    update public.athlete_schools s
+    set read_window_closed_at = now(), transferred_to_school_id = d.target
+    from (
+      select g.target_school_id as target
+      from public.athlete_history_grants g
+      join public.athlete_schools t on t.athlete_id = g.athlete_id and t.school_id = g.target_school_id and t.ended_at is null
+      where g.athlete_id = end_athlete_school.athlete and g.source_school_id = end_athlete_school.school
+      order by t.created_at, t.school_id
+      limit 1
+    ) d
+    where s.athlete_id = end_athlete_school.athlete
+      and s.school_id = end_athlete_school.school
+      and s.read_window_closed_at is null
+      and s.transferred_to_school_id is null;
+  end if;
+
+  if stamp is null then
+    select s.ended_at into stamp from public.athlete_schools s
+    where s.athlete_id = end_athlete_school.athlete and s.school_id = end_athlete_school.school;
+    if not found then
+      raise exception 'the swimmer is not enrolled in that school' using errcode = 'P0002';
+    end if;
+  end if;
+  return stamp;
+end;
 $$;
 
 -- accept_invitation of 20261121120000, the same body, plus the transfer at the end (the variable linked and the lines that use it).
@@ -446,7 +527,8 @@ begin
     raise exception 'an authorization id already belongs to another record' using errcode = '42501';
   end if;
 
-  -- Joining a new school takes the swimmer over from the schools that ended them inside their read window (issue #1419).
+  -- Joining a new school opens the history of the previous schools once they end the swimmer, and takes the swimmer over now from
+  -- the ones that already ended them inside their read window (issue #1419).
   -- The acceptance of the family is what authorizes it: this same call has just recorded its three authorizations. Only a link
   -- created by this call counts, so a retry or an already existing link changes nothing.
   if linked = 1 then
