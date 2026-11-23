@@ -20,3 +20,16 @@ describe('recovery codes stay out of PowerSync', () => {
     expect(source).not.toMatch(/writeRecord|powersync|\.execute\(/i);
   });
 });
+
+// The permanent code cannot be asked from the server again, so signing out must not wipe it (the maintainer's decision for #1417).
+describe('sign-out keeps the recovery code on the phone', () => {
+  it('the session provider deletes no secure store entry: it only clears the local database and the auth session', () => {
+    const source = read('src', 'core', 'session', 'SessionProvider.tsx');
+    expect(source).not.toMatch(/deleteItemAsync|SecureStore\.(clear|delete)/);
+  });
+
+  it('the only secure store deletions in the sync layer are the auth session\'s own key', () => {
+    expect(read('src', 'core', 'sync', 'supabase.ts')).toMatch(/storageKey: 'trailskill-auth'/);
+    expect(read('src', 'core', 'sync', 'db.ts')).not.toMatch(/deleteItemAsync/);
+  });
+});

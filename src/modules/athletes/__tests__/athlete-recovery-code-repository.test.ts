@@ -123,4 +123,11 @@ describe('recovery code vault', () => {
     await expect(vault.get('u2', 'a1')).resolves.toBeNull();
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith('trailskill-recovery-codes.u1', expect.any(String));
   });
+
+  it('keeps the code when the user signs out and signs back in: sign-out leaves this entry alone, a new vault over the same store reads it', async () => {
+    await createSecureStoreRecoveryCodeVault().set('u3', 'a1', 'TR-TEST-CCCC');
+
+    // Signing back in builds everything again (a restart of the app, for the vault): the store is what keeps the code.
+    await expect(createSecureStoreRecoveryCodeVault().get('u3', 'a1')).resolves.toBe('TR-TEST-CCCC');
+  });
 });
