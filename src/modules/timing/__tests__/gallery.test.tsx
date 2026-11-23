@@ -16,6 +16,7 @@ describe('timing gallery entries', () => {
       'timingSetup',
       'timingSummary',
       'stopwatch',
+      'splitMeters',
       'arrivalList',
       'nameCard',
       'seriesTiming',
@@ -38,10 +39,13 @@ describe('timing gallery entries', () => {
       'stopped',
       'stopped-slower',
       'stopped-no-pb',
+      'running-free-marks',
+      'stopped-free-marks',
       'exit-confirm',
       'offline',
       'pending-count',
     ]);
+    expect(Object.keys(entry('splitMeters').states)).toEqual(['review']);
     expect(Object.keys(entry('arrivalList').states)).toEqual(['arrivals', 'many-arrivals']);
     expect(Object.keys(entry('nameCard').states)).toEqual(['unassigned', 'assigned', 'all-colours']);
     expect(Object.keys(entry('seriesTiming').states)).toEqual([
