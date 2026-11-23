@@ -35,6 +35,9 @@ export {
 } from './screens/SeriesAssignmentScreen';
 export { SeriesTimingScreen, type SeriesTimingScreenProps } from './screens/SeriesTimingScreen';
 export { IndividualTimingFlow, type IndividualTimingFlowProps } from './screens/IndividualTimingFlow';
+// The optional step that corrects the meters of free marks, and the meters a mark gets from the pool: shared with family-timing.
+export { SplitMetersScreen, type SplitMetersScreenProps } from './screens/SplitMetersScreen';
+export { defaultSplitMeters } from './domain/splitMeters';
 export type { RosterAthlete } from './screens/timingSession';
 export {
   createInMemorySeriesRepository,
