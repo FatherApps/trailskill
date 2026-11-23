@@ -42,6 +42,7 @@ const toRow = (athlete: ConsoleAthlete, Avatar: AthleteAvatarSlot | undefined): 
   color: athlete.color,
   detail: [athlete.category, ...(athlete.groups.length > 0 ? [athlete.groups.join(', ')] : [])].join(' · ') || t('schoolConsole.common.no_data'),
   bestTime: athlete.bestTime,
+  ended: athlete.endedAt !== null,
   avatar: avatarOf(Avatar, athlete),
 });
 

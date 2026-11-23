@@ -21,7 +21,7 @@ export interface CategoriesRepository {
   assignAthlete(athleteId: string, schoolId: string, categoryId: string | null): Promise<void>;
 }
 
-export type AthleteSchoolRow = { id: string; athleteId: string; schoolId: string; categoryId: string | null };
+export type AthleteSchoolRow = { id: string; athleteId: string; schoolId: string; categoryId: string | null; endedAt?: string | null };
 
 const cleanName = (name: string) => {
   const trimmed = name.trim();
@@ -82,11 +82,13 @@ export function createPowerSyncCategoriesRepository(): CategoriesRepository {
     setActive: async (id, active) => update(id, { active: active ? 1 : 0 }),
     async assignAthlete(athleteId, schoolId, categoryId) {
       await writeBatch(async (batch) => {
-        const [row] = await batch.getAll<{ id: string; category_id: string | null }>(
-          'SELECT id, category_id FROM athlete_schools WHERE athlete_id = ? AND school_id = ?',
+        const [row] = await batch.getAll<{ id: string; category_id: string | null; ended_at: string | null }>(
+          'SELECT id, category_id, ended_at FROM athlete_schools WHERE athlete_id = ? AND school_id = ?',
           [athleteId, schoolId],
         );
         if (!row) throw new Error('athlete_school_missing');
+        // The read window after the baja is read-only: the server would reject this write for good.
+        if (row.ended_at) throw new Error('athlete_school_ended');
         if (categoryId !== null) {
           const [found] = await batch.getAll<CategoryRow>(`SELECT ${COLUMNS} FROM categories WHERE id = ?`, [categoryId]);
           if (!found) throw new Error('category_missing');
@@ -147,6 +149,7 @@ export function createInMemoryCategoriesRepository(
     async assignAthlete(athleteId, schoolId, categoryId) {
       const row = athleteSchools.find((candidate) => candidate.athleteId === athleteId && candidate.schoolId === schoolId);
       if (!row) throw new Error('athlete_school_missing');
+      if (row.endedAt) throw new Error('athlete_school_ended');
       if (categoryId !== null) {
         const found = find(categoryId);
         if (found.schoolId !== schoolId) throw new Error('category_wrong_school');

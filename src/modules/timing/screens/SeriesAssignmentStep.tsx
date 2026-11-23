@@ -17,6 +17,8 @@ export type SeriesAssignmentStepProps = {
   seriesId: string;
   // The cards: the athletes who can be given a position.
   athletes: RosterAthlete[];
+  // Cards of athletes the school gave up since the series began (issue 1436): tapping one writes nothing and says why.
+  endedIds?: ReadonlySet<string>;
   // The series heading, for example "Serie 2 · Libre 50 m".
   heading: string;
   // The event of the series; with `loadBestTime` the cards show each athlete's personal best for it.
@@ -29,12 +31,13 @@ export type SeriesAssignmentStepProps = {
 };
 
 // Names the arrivals of a series saved on the phone. Each card is written the moment it is tapped, so leaving at any time keeps the work.
-export function SeriesAssignmentStep({ series: repository, seriesId, athletes, heading, event, loadBestTime, deviceId, offline, onDone }: SeriesAssignmentStepProps) {
+export function SeriesAssignmentStep({ series: repository, seriesId, athletes, endedIds, heading, event, loadBestTime, deviceId, offline, onDone }: SeriesAssignmentStepProps) {
   const [rows, setRows] = useState<AssignmentRow[] | 'error'>();
   // A position the user tapped to choose another card for it.
   const [reopened, setReopened] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [endedTapped, setEndedTapped] = useState(false);
   const writing = useRef(false);
 
   useEffect(() => {
@@ -82,6 +85,9 @@ export function SeriesAssignmentStep({ series: repository, seriesId, athletes, h
   async function onAssign(athleteId: string) {
     // One write at a time: a second tap meanwhile would pick the same position from rows that are about to change.
     if (writing.current || rows === 'error' || rows === undefined) return;
+    // The arrival stays on screen with its time; the coach picks another card or leaves it unassigned. It is never written for the server to reject.
+    if (endedIds?.has(athleteId)) return setEndedTapped(true);
+    setEndedTapped(false);
     const result = assign(rows, reopened, athleteId);
     if (!result.ok) return;
     const { row } = result;
@@ -110,7 +116,7 @@ export function SeriesAssignmentStep({ series: repository, seriesId, athletes, h
       athletes={athletes.map((a) => ({ ...a, bestTime: bests[a.id] ?? null }))}
       heading={heading}
       offline={offline}
-      error={failed ? t('timing.series.assign_error') : undefined}
+      error={endedTapped ? t('timing.ended.blocked') : failed ? t('timing.series.assign_error') : undefined}
       onAssign={onAssign}
       onReopen={(position) => setReopened((current) => reopen(rows, current, position))}
       onSave={onDone}

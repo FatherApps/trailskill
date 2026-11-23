@@ -118,8 +118,12 @@ insert into public.training_plan_notices (id, created_by, athlete_id, assignment
 commit;
 `);
   psql(`
--- The baja: X leaves school A (the guard blocks client roles only; this runs as postgres).
-update public.athlete_schools set ended_at = now(), ended_by = '${u("adm2")}' where athlete_id = '${u("X")}' and school_id = '${u("sA")}' and ended_at is null;
+-- The baja: X leaves school A (the guard blocks client roles only; this runs as postgres). Since #1418 the school keeps reading
+-- for 30 days, so the baja is dated 31 days ago and the job that closes the window runs: the staff then get nothing of X in A.
+-- To see the window itself, set ended_at = now() and read_window_closed_at = null on that row: staff receive X in A until the job
+-- (select app.close_athlete_school_read_windows()) runs on a link ended 30 days ago, and the expectations below hold again.
+update public.athlete_schools set ended_at = now() - interval '31 days', ended_by = '${u("adm2")}' where athlete_id = '${u("X")}' and school_id = '${u("sA")}' and ended_at is null;
+select app.close_athlete_school_read_windows();
 `);
   console.log("setup done");
 }
