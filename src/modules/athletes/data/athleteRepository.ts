@@ -52,7 +52,7 @@ export function createInMemoryAthleteRepository(
   return {
     async createProfile(_batch, { firstName, lastName }) {
       const id = `athlete-${rows.length + 1}`;
-      rows.push({ id, firstName: firstName.trim(), lastName: lastName.trim(), categoryId: null, groupIds: [] });
+      rows.push({ id, firstName: firstName.trim(), lastName: lastName.trim(), categoryId: null, groupIds: [], endedAt: null });
       return id;
     },
     async renameProfile(athleteId, input) {

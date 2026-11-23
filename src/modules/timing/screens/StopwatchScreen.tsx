@@ -28,6 +28,8 @@ export type StopwatchScreenProps = StopwatchProps & {
   // Records of the session still on the phone, shown next to the pill ("En el teléfono · 3").
   // Only used while `syncState` is 'on_device': the count means records still on the phone.
   pendingCount?: number;
+  // A warning above the stopwatch, for example that the stopped time cannot be saved for this athlete.
+  notice?: string;
   onBack: () => void;
   // Controlled: the container shows the sheet when leaving would lose a running time.
   exitConfirmVisible: boolean;
@@ -48,6 +50,7 @@ export function StopwatchScreen({
   offline = false,
   syncState,
   pendingCount,
+  notice,
   onBack,
   exitConfirmVisible,
   onConfirmExit,
@@ -75,6 +78,13 @@ export function StopwatchScreen({
       {offline && (
         <View style={{ paddingHorizontal: space[4] }}>
           <OfflineBanner />
+        </View>
+      )}
+      {notice && (
+        <View testID="stopwatch-notice" accessibilityLiveRegion="polite" style={{ paddingHorizontal: space[4] }}>
+          <Banner variant="warn" icon="error">
+            {notice}
+          </Banner>
         </View>
       )}
       {externalTimerDisconnected && (

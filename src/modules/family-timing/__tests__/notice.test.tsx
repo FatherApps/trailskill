@@ -14,6 +14,7 @@ const athletes = [
     lastName: 'Rojas',
     categoryId: null,
     groupIds: [],
+    endedAt: null,
   },
 ];
 const NOTICE = /^Estos tiempos son tuyos/;

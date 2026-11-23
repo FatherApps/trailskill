@@ -7,7 +7,7 @@ import { FamilyTimingContainer } from '../screens/FamilyTimingContainer';
 
 jest.mock('../../../core/sync', () => ({ db: {}, supabase: {}, useRecordSyncStates: () => new Map() }));
 
-const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }];
+const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null }];
 
 const time: FamilyMeasurement = {
   id: 'm1',

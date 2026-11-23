@@ -10,7 +10,7 @@ jest.mock('expo-crypto', () => {
   return { randomUUID: () => `id-${++n}` };
 });
 
-const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [] }];
+const athletes = [{ id: 'a1', firstName: 'Lucía', lastName: 'Rojas', categoryId: null, groupIds: [], endedAt: null }];
 
 const training: FamilyMeasurement = {
   id: 'm1',

@@ -256,6 +256,8 @@ export const AppSchema = new Schema({
       millis: column.integer,
       // JSON array of cumulative split milliseconds.
       splits: column.text,
+      // JSON array of the meters of each mark, same length as splits; numbers or null. Null column: a time saved before free laps (#1430).
+      split_meters: column.text,
       official_millis: column.integer,
       official_set_at: column.text,
       // The imported official result chosen for this time when several could go with it (#974).
@@ -298,6 +300,7 @@ export const AppSchema = new Schema({
       // Milliseconds; null is a missing time, never 0.
       millis: column.integer,
       splits: column.text,
+      split_meters: column.text,
     },
     { indexes: { measurement: ['measurement_id'], athlete: ['athlete_id'] } },
   ),

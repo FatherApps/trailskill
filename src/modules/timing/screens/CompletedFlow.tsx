@@ -70,6 +70,8 @@ function CompletedSession({ subtitle, schoolId, roster, measurements, setups, us
 
   async function toggle(athleteId: string) {
     if (saving.current.has(athleteId)) return;
+    // An athlete the school gave up (issue 1436) cannot be written to: the switch stays as it is and the coach is told.
+    if (roster.some((a) => a.id === athleteId && a.skipReason === 'ended')) return setError(t('timing.ended.blocked'));
     saving.current.add(athleteId);
     try {
       const markId = live.current.get(athleteId);
