@@ -286,17 +286,17 @@
   },
   "relink": {
     "title": "Recuperar tiempos de la escuela",
-    "intro": "Si antes borraste una cuenta, la escuela conservó los tiempos de ese nadador sin su nombre. Escribe la clave que te enviamos por correo y la escuela decide si los pasa a este nadador ({{name}}).",
-    "key_label": "Clave del deportista anterior",
-    "key_help": "Son 20 letras y números en grupos de cuatro, como AAAA-BBBB-CCCC-DDDD-EEEE.",
+    "intro": "Si antes borraste una cuenta, la escuela conservó los tiempos de ese nadador sin su nombre. Escribe la clave que te enviamos por correo, o el código permanente o de recuperación que guardaste, y la escuela decide si los pasa a este nadador ({{name}}).",
+    "key_label": "Clave o código del deportista anterior",
+    "key_help": "La clave son 20 letras y números en grupos de cuatro, como AAAA-BBBB-CCCC-DDDD-EEEE. Un código empieza con TR- o RC-, como TR-AAAA-BBBB-CCCC-DDDD. Escríbelo a mano.",
     "submit": "Pedir los tiempos",
     "sending": "Enviando…",
     "result": {
       "requested": "Listo: pedimos los tiempos a la escuela. Aquí verás qué responde.",
       "already_requested": "Ya habías pedido estos tiempos. Esperamos la respuesta de la escuela.",
-      "nothing_to_relink": "Esa clave es válida, pero ya no quedan tiempos por pasar.",
-      "invalid_key": "No reconocemos esa clave. Revísala e inténtalo de nuevo.",
-      "rate_limited": "Hiciste demasiados intentos. Espera 24 horas e inténtalo de nuevo.",
+      "nothing_to_relink": "Esa clave o ese código es válido, pero ya no quedan tiempos por pasar.",
+      "invalid_key": "No reconocemos esa clave o ese código. Revísalo e inténtalo de nuevo.",
+      "rate_limited": "Hiciste demasiados intentos. Espera un rato (hasta 24 horas) e inténtalo de nuevo.",
       "error": "No pudimos enviar la solicitud. Revisa tu conexión e inténtalo de nuevo."
     },
     "requests": {
@@ -315,7 +315,7 @@
       "approved_detail_one": "Se pasó {{count}} tiempo a {{name}}",
       "approved_detail_other": "Se pasaron {{count}} tiempos a {{name}}"
     },
-    "key_required": "Escribe la clave."
+    "key_required": "Escribe la clave o el código."
   },
   "recovery_codes": {
     "title": "Guarda los códigos de {{name}}",

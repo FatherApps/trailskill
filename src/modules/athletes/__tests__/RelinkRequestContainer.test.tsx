@@ -14,9 +14,11 @@ jest.mock('../../../core/sync', () => ({ supabase: {}, db: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 const KEY = 'AAAA-BBBB-CCCC-DDDD-EEEE';
+const MAIN_CODE = 'TR-AAAA-BBBB-CCCC-DDDD';
+const RECOVERY_CODE = 'RC-EEEE-FFFF-GGGG-HHHH';
 
 const world = (): InMemoryRelinkWorld => ({
-  markers: [{ key: KEY, schools: [{ schoolId: 's1', schoolName: 'Escuela Norte', times: 3 }] }],
+  markers: [{ key: KEY, codes: [MAIN_CODE, RECOVERY_CODE], schools: [{ schoolId: 's1', schoolName: 'Escuela Norte', times: 3 }] }],
   managed: [{ athleteId: 'a1', firstName: 'Ana', lastName: 'Marin' }],
   adminSchoolIds: ['s1'],
 });
@@ -31,7 +33,7 @@ async function setup(repository: AthleteRelinkRepository = createInMemoryAthlete
   return { repository, onBack };
 }
 
-const field = () => screen.getByLabelText('Clave del deportista anterior');
+const field = () => screen.getByLabelText('Clave o código del deportista anterior');
 const submit = () => screen.getByRole('button', { name: /^Pedir los tiempos/ });
 const type = async (value: string) => fireEvent.changeText(field(), value);
 
@@ -58,13 +60,34 @@ describe('RelinkRequestContainer', () => {
     expect(screen.getByLabelText('Pendiente')).toBeOnTheScreen();
   });
 
+  it('sends a recovery code typed by hand, a used one is not recognized again, and the screen never offers a saved code', async () => {
+    const { repository } = await setup();
+    const request = jest.spyOn(repository, 'request');
+
+    expect(field().props.value).toBe('');
+    await type(RECOVERY_CODE);
+    await act(async () => fireEvent.press(submit()));
+
+    expect(request).toHaveBeenCalledWith('a1', RECOVERY_CODE);
+    expect(await screen.findByText('Listo: pedimos los tiempos a la escuela. Aquí verás qué responde.')).toBeOnTheScreen();
+    expect(await screen.findByText('Escuela Norte')).toBeOnTheScreen();
+
+    await type(RECOVERY_CODE);
+    await act(async () => fireEvent.press(submit()));
+    expect(await screen.findByText('No reconocemos esa clave o ese código. Revísalo e inténtalo de nuevo.')).toBeOnTheScreen();
+    // The permanent code is not spent by asking.
+    await type(MAIN_CODE);
+    await act(async () => fireEvent.press(submit()));
+    expect(await screen.findByText('Ya habías pedido estos tiempos. Esperamos la respuesta de la escuela.')).toBeOnTheScreen();
+  });
+
   it('says a wrong key is not recognized and creates no request', async () => {
     await setup();
 
     await type('FFFF-FFFF-FFFF-FFFF-FFFF');
     await act(async () => fireEvent.press(submit()));
 
-    expect(await screen.findByText('No reconocemos esa clave. Revísala e inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(await screen.findByText('No reconocemos esa clave o ese código. Revísalo e inténtalo de nuevo.')).toBeOnTheScreen();
     expect(screen.queryByText('Escuela Norte')).toBeNull();
   });
 
@@ -78,7 +101,7 @@ describe('RelinkRequestContainer', () => {
     await type(KEY);
     await act(async () => fireEvent.press(submit()));
 
-    expect(await screen.findByText('Hiciste demasiados intentos. Espera 24 horas e inténtalo de nuevo.')).toBeOnTheScreen();
+    expect(await screen.findByText('Hiciste demasiados intentos. Espera un rato (hasta 24 horas) e inténtalo de nuevo.')).toBeOnTheScreen();
   });
 
   it('shows a connection error and keeps working after it', async () => {
