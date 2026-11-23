@@ -19,10 +19,10 @@ La escuela (Responsable) transmite a Swimcro (Encargado) los datos personales qu
 
 ## 2. Roles y alcance (artículo 25 del Decreto 1377 de 2013)
 
-1. La escuela es Responsable de los datos que recoge del deportista **mientras está inscrito y durante los 30 días siguientes a su baja**. Pasado ese plazo, o antes si otra escuela acoge al deportista, la escuela deja de leerlos.
+1. La escuela es Responsable de los datos que recoge del deportista **mientras está inscrito y durante los 30 días siguientes a su baja**. Pasado ese plazo, o antes si otra escuela lo acoge y la familia lo acepta al inscribirlo, la escuela deja de leerlos.
 2. Los datos del deportista son de su familia: el deportista, a través de su acudiente o él mismo si es adulto, es siempre el dueño de sus datos.
 3. Swimcro es Responsable, y no Encargado, del uso independiente (registro sin escuela, «Mis tiempos», envíos entre familias). Este contrato no lo cubre.
-4. Las actividades que Swimcro realiza por cuenta de la escuela son: alojar y sincronizar los datos, mostrarlos al personal de la escuela según su rol, mostrar a la escuela nueva, solo para leerlos y sin copiarlos, los tiempos de las escuelas anteriores cuyo vínculo terminó, cuando el deportista se inscribe en ella y la familia lo acepta y producir la copia seudonimizada de la escuela (sección 4).
+4. Las actividades que Swimcro realiza por cuenta de la escuela son: alojar y sincronizar los datos, mostrarlos al personal de la escuela según su rol, mostrar a la escuela nueva, solo para leerlos y sin copiarlos, los tiempos de las escuelas anteriores cuyo vínculo terminó, cuando el deportista se inscribe en ella y la familia lo acepta y producir la copia seudonimizada de la escuela (sección 4), que la escuela puede pedir mientras el deportista sigue inscrito y que queda sin fecha de fin.
 
 ## 3. Obligaciones del Encargado
 
@@ -43,7 +43,7 @@ La escuela se obliga a:
 1. Contar con la autorización previa, expresa e informada de los titulares, o de sus acudientes si son menores, para los datos que recoge y transmite.
 2. Tener su propia política de tratamiento y ponerla a disposición de los titulares.
 3. Dar de alta a un deportista sin cuenta solo si **conserva la autorización firmada del acudiente** desde la inscripción, y declararlo así al registrarlo.
-4. Leer los datos de un deportista dado de baja solo durante los 30 días siguientes, y dejar de leerlos si otra escuela lo acoge.
+4. Leer los datos de un deportista dado de baja solo durante los 30 días siguientes, y dejar de leerlos pasado ese plazo, o antes si otra escuela lo acoge y la familia lo acepta al inscribirlo.
 5. Usar la copia que conserve de los datos como **deportista seudonimizado**, con solo la clave técnica de esa copia, sin intentar identificar al deportista ni recuperar su nombre, documento u otro dato que lo identifique.
 6. Atender las consultas y reclamos de los titulares dentro de los plazos de la Ley 1581 de 2012 (artículos 14 y 15).
 
