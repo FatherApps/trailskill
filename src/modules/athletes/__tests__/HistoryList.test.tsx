@@ -341,11 +341,13 @@ describe('HistoryList', () => {
       const row = screen.getByLabelText(rowLabel('Espalda 50 m'));
       const { head, trailing } = partsOf(row, 'Espalda 50 m');
       expect(flat(row.props.style).flexWrap).toBe('wrap');
-      // The head starts from dot + stroke icon + gaps + room for the longest word, then grows and shrinks.
-      const { flexBasis, flexGrow, minWidth } = flat(head.props.style);
+      // The head starts from dot + stroke icon + gaps + room for the longest word, then grows.
+      const { flexBasis, flexGrow, flexShrink, maxWidth } = flat(head.props.style);
       expect(flexBasis).toBeGreaterThan(2 * 32 + 2 * 12 + 13 * 6);
       expect(flexGrow).toBe(1);
-      expect(minWidth).toBe(0);
+      // It never shrinks below that basis (it wraps the time instead) and never exceeds its own row.
+      expect(flexShrink).toBe(0);
+      expect(maxWidth).toBe('100%');
       // Wrapped onto its own row, the time stays at the right edge.
       expect(flat(trailing.props.style).marginLeft).toBe('auto');
       expect(row.props.accessibilityLabel).toMatch(/Espalda 50 m, 15 de agosto de 2026, Competencia, Otra escuela: Club Acuático Norte, .*Enviado$/);

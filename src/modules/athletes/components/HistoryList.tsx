@@ -88,9 +88,9 @@ const styles = StyleSheet.create({
   rowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
   // The dot and the text share one row at every size, so the origin dot never adds a row of its own.
   head: { flexDirection: 'row', alignItems: 'center' },
-  // Beside the time the head grows from its minimum width (`headBasis`) and shrinks (minWidth 0), and the time keeps
-  // its own width, so the two never overlap.
-  headFill: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  // The head keeps at least its minimum width (`headBasis`, flexShrink 0): when that does not fit beside the time, the row
+  // wraps and the time goes below, so the text is never squeezed. maxWidth keeps a head alone on its row within it.
+  headFill: { flexGrow: 1, flexShrink: 0, maxWidth: '100%' },
   text: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   dot: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   // marginLeft auto keeps the time at the right edge when it wraps onto a row of its own.
