@@ -72,8 +72,8 @@ describe('RecoveryCodesNoticeContainer', () => {
 
   it('shows nothing when the server has no codes to give (confirmed before) and does not store anything', async () => {
     const repository = createInMemoryAthleteRecoveryCodeRepository(['a1']);
-    await repository.issue('a1');
-    await repository.confirm('a1');
+    const issued = await repository.issue('a1');
+    await repository.confirm('a1', issued!.mainCode);
     const { vault } = await setup({ repository });
 
     await waitFor(() => expect(repository.calls.issue).toBe(2));
@@ -99,6 +99,88 @@ describe('RecoveryCodesNoticeContainer', () => {
     await fireEvent.press(screen.getByText(done()));
     await waitFor(() => expect(screen.queryByText('RC-TEST-1-0001')).toBeNull());
     expect(confirm).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a marker when confirming fails and tells the server on the next start, without showing the codes again', async () => {
+    const { repository, vault, props, view } = await setup();
+    jest.spyOn(repository, 'confirm').mockRejectedValueOnce(new Error('Failed to fetch'));
+
+    await fireEvent.press(await screen.findByText(done()));
+    expect(await screen.findByText(t('athletes.recovery_codes.error'))).toBeTruthy();
+    // The code is saved here, the server does not know yet: the marker says so.
+    expect([...vault.entries.values()]).toEqual(['TR-TEST-a1']);
+    expect(vault.pending.size).toBe(1);
+    await view.unmount();
+
+    const second = await render(<RecoveryCodesNoticeContainer {...props} />);
+    await waitFor(() => expect(repository.confirmed.has('a1')).toBe(true));
+    await waitFor(() => expect(vault.pending.size).toBe(0));
+    expect(repository.calls.issue).toBe(1);
+    expect(screen.queryByText('RC-TEST-1-0001')).toBeNull();
+    await second.unmount();
+  });
+
+  it('keeps retrying on later starts while the server cannot be reached', async () => {
+    const { repository, vault, props, view } = await setup();
+    const confirm = jest.spyOn(repository, 'confirm').mockRejectedValue(new Error('Failed to fetch'));
+    await fireEvent.press(await screen.findByText(done()));
+    await screen.findByText(t('athletes.recovery_codes.error'));
+    await view.unmount();
+
+    const second = await render(<RecoveryCodesNoticeContainer {...props} />);
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2));
+    expect(vault.pending.size).toBe(1);
+    await second.unmount();
+
+    confirm.mockRestore();
+    const third = await render(<RecoveryCodesNoticeContainer {...props} />);
+    await waitFor(() => expect(vault.pending.size).toBe(0));
+    expect(repository.confirmed.has('a1')).toBe(true);
+    await third.unmount();
+  });
+
+  it('tells the owner when, at the next start, the server says the saved set was replaced: the old code is forgotten and the current set shows', async () => {
+    const { repository, vault, props, view } = await setup();
+    jest.spyOn(repository, 'confirm').mockRejectedValueOnce(new Error('Failed to fetch'));
+    await fireEvent.press(await screen.findByText(done()));
+    await screen.findByText(t('athletes.recovery_codes.error'));
+    await view.unmount();
+    // Another phone asked for the codes before this one could confirm: its set replaced the saved one.
+    await repository.issue('a1');
+
+    const second = await render(<RecoveryCodesNoticeContainer {...props} />);
+
+    expect(await screen.findByText(t('athletes.recovery_codes.replaced'))).toBeTruthy();
+    expect(screen.getByText('TR-TEST-a1-3')).toBeTruthy();
+    expect(vault.entries.size).toBe(0);
+    await fireEvent.press(screen.getByText(done()));
+    await waitFor(() => expect(repository.confirmed.has('a1')).toBe(true));
+    expect([...vault.entries.values()]).toEqual(['TR-TEST-a1-3']);
+    expect(vault.pending.size).toBe(0);
+    await second.unmount();
+  });
+
+  it('shows the current set as a replacement when the server says, on «Ya los guardé», that another phone replaced the one on screen', async () => {
+    const { repository, vault } = await setup();
+    await screen.findByText('TR-TEST-a1');
+    await repository.issue('a1');
+
+    await fireEvent.press(screen.getByText(done()));
+
+    expect(await screen.findByText(t('athletes.recovery_codes.replaced'))).toBeTruthy();
+    expect(screen.getByText('TR-TEST-a1-3')).toBeTruthy();
+    expect(screen.queryByText('TR-TEST-a1')).toBeNull();
+    expect(vault.entries.size).toBe(0);
+    expect(repository.confirmed.has('a1')).toBe(false);
+  });
+
+  it('does not ask the server for codes when what the phone holds cannot be read: it must not be written over', async () => {
+    const repository = createInMemoryAthleteRecoveryCodeRepository(['a1']);
+    const vault = { ...createInMemoryRecoveryCodeVault(), get: jest.fn().mockRejectedValue(new Error('recovery_code_unreadable')) };
+    await setup({ repository, vault });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(repository.calls.issue).toBe(0);
   });
 
   it('copies the main code and the recovery codes with the share sheet', async () => {

@@ -402,6 +402,11 @@ export const galleryEntries: GalleryEntry[] = [
         <RecoveryCodesScreen {...recoveryScreenBase} error />
       </ScreenFrame>
     ),
+    'replaces-previous': () => (
+      <ScreenFrame>
+        <RecoveryCodesScreen {...recoveryScreenBase} replacing />
+      </ScreenFrame>
+    ),
     'new-set': () => (
       <ScreenFrame>
         <RecoveryCodesScreen {...recoveryScreenBase} mainCode={undefined} />

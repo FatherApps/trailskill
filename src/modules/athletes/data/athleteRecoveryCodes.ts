@@ -10,8 +10,12 @@ export interface AthleteRecoveryCodeRepository {
    * Rejects with `not_allowed` (the caller does not manage the swimmer) or the original error, offline included.
    */
   issue(athleteId: string): Promise<RecoveryCodes | null>;
-  /** The owner saved the texts: from now on they cannot be issued again. Repeating it is harmless. Rejects with `no_recovery_identity` or the original error. */
-  confirm(athleteId: string): Promise<void>;
+  /**
+   * The owner saved the set whose permanent code is `mainCode`: from now on it cannot be issued again. Repeating it is harmless. The
+   * server confirms only the set that code belongs to. Rejects with `recovery_set_superseded` (a newer set replaced that one: the
+   * person's texts no longer work), `no_recovery_identity` (the server has no codes for the swimmer) or the original error.
+   */
+  confirm(athleteId: string, mainCode: string): Promise<void>;
   /** A new set of 8 recovery codes, once one of the current set was used. Rejects with `no_recovery_code_used`, `no_recovery_identity`, `not_allowed` or the original error. */
   regenerate(athleteId: string): Promise<string[]>;
 }
@@ -22,7 +26,8 @@ type RpcClient = { rpc(fn: string, args: Record<string, unknown>): PromiseLike<{
 // 42501: the database refused the caller; P0001 carries the reason in its message (see the recovery code functions).
 function failure(error: Error & { code?: string }): Error {
   if (error.code === '42501') return new Error('not_allowed');
-  if (error.code === 'P0001' && (error.message === 'no_recovery_identity' || error.message === 'no_recovery_code_used')) return new Error(error.message);
+  const known = ['no_recovery_identity', 'no_recovery_code_used', 'recovery_set_superseded'];
+  if (error.code === 'P0001' && known.includes(error.message)) return new Error(error.message);
   return error;
 }
 
@@ -38,8 +43,8 @@ export function createSupabaseAthleteRecoveryCodeRepository(client: RpcClient = 
       if (typeof row.main_code !== 'string' || !isTexts(row.recovery_codes)) throw new Error('unexpected_recovery_codes_answer');
       return { mainCode: row.main_code, recoveryCodes: row.recovery_codes };
     },
-    async confirm(athleteId) {
-      const { error } = await client.rpc('confirm_athlete_recovery_codes', { athlete: athleteId });
+    async confirm(athleteId, mainCode) {
+      const { error } = await client.rpc('confirm_athlete_recovery_codes', { athlete: athleteId, main_code: mainCode });
       if (error) throw failure(error);
     },
     async regenerate(athleteId) {
@@ -61,7 +66,8 @@ export function createInMemoryAthleteRecoveryCodeRepository(managedIds: string[]
   const calls = { issue: 0, confirm: 0, regenerate: 0 };
   const used = new Set<string>();
   const confirmed = new Set<string>();
-  const issued = new Set<string>();
+  // The permanent code of the current set of each swimmer.
+  const issued = new Map<string, string>();
   let sets = 0;
   const allowed = (athleteId: string) => {
     if (!managedIds.includes(athleteId)) throw new Error('not_allowed');
@@ -78,13 +84,16 @@ export function createInMemoryAthleteRecoveryCodeRepository(managedIds: string[]
       calls.issue += 1;
       allowed(athleteId);
       if (confirmed.has(athleteId)) return null;
-      issued.add(athleteId);
-      return { mainCode: `TR-TEST-${athleteId}`, recoveryCodes: set() };
+      // A second call before the owner confirmed replaces the set, as the server does.
+      const main = `TR-TEST-${athleteId}${issued.has(athleteId) ? `-${sets + 1}` : ''}`;
+      issued.set(athleteId, main);
+      return { mainCode: main, recoveryCodes: set() };
     },
-    async confirm(athleteId) {
+    async confirm(athleteId, mainCode) {
       calls.confirm += 1;
       allowed(athleteId);
       if (!issued.has(athleteId)) throw new Error('no_recovery_identity');
+      if (issued.get(athleteId) !== mainCode) throw new Error('recovery_set_superseded');
       confirmed.add(athleteId);
     },
     async regenerate(athleteId) {

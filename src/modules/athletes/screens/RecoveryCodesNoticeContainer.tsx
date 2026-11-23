@@ -48,6 +48,7 @@ export function RecoveryCodesNoticeContainer({ repository, vault, userId, athlet
         athleteName={notice.athleteName}
         mainCode={notice.mainCode}
         recoveryCodes={notice.recoveryCodes}
+        replacing={notice.replacesPrevious}
         saving={status === 'saving'}
         error={status === 'error'}
         onCopy={() => share(recoveryCodesText({ athleteName: notice.athleteName, mainCode: notice.mainCode, recoveryCodes: notice.recoveryCodes })).catch(() => {})}

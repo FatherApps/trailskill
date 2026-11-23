@@ -324,6 +324,7 @@
     "title_new_set_no_name": "Códigos de recuperación nuevos",
     "intro": "Solo tú puedes ver estos códigos. Si los pierdes, nadie puede recuperarlos.",
     "intro_new_set": "Los códigos de recuperación anteriores ya no sirven. Estos no volverán a mostrarse.",
+    "replaced": "Los códigos que guardaste antes ya no sirven: se pidieron otros nuevos. Estos son los vigentes, guárdalos ahora.",
     "main_title": "Código principal",
     "main_help": "Queda guardado en este teléfono y lo ves en el perfil de {{name}}.",
     "main_help_no_name": "Queda guardado en este teléfono y lo ves en el perfil del deportista.",

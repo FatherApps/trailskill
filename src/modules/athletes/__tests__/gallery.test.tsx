@@ -36,7 +36,7 @@ describe('athletes gallery entries', () => {
     expect(stateKeys('myAthletesScreen')).toEqual(['with-data', 'with-avatar', 'long-text', 'empty', 'loading']);
     expect(stateKeys('marksScreen')).toEqual(['with-data', 'long-pool', 'long-text', 'empty', 'loading', 'error']);
     expect(stateKeys('profileHeader')).toEqual(['one-school', 'with-avatar', 'several-schools', 'pending-authorization', 'with-event-chips', 'no-sync-info', 'long-text', 'long-text-with-event-chips']);
-    expect(stateKeys('recoveryCodesScreen')).toEqual(['first-time', 'saving', 'save-failed', 'new-set', 'long-text']);
+    expect(stateKeys('recoveryCodesScreen')).toEqual(['first-time', 'saving', 'save-failed', 'replaces-previous', 'new-set', 'long-text']);
     expect(stateKeys('athleteRecoveryCodeRow')).toEqual(['hidden', 'revealed', 'not-on-this-phone', 'offline', 'no-code-used', 'regenerate-failed']);
     expect(stateKeys('eventSelector')).toEqual(['one-pool', 'two-pools']);
     expect(stateKeys('personalBest')).toEqual(['with-improvement', 'no-improvement', 'missing', 'training']);

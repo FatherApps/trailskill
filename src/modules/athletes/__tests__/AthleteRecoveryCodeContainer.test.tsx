@@ -13,8 +13,8 @@ const show = () => t('athletes.recovery_code.show');
 async function setup(options: { saved?: boolean; used?: boolean } & Partial<ComponentProps<typeof AthleteRecoveryCodeContainer>> = {}) {
   const { saved = true, used = false, ...overrides } = options;
   const repository = createInMemoryAthleteRecoveryCodeRepository(['a1']);
-  await repository.issue('a1');
-  await repository.confirm('a1');
+  const issued = await repository.issue('a1');
+  await repository.confirm('a1', issued!.mainCode);
   if (used) repository.used.add('a1');
   const vault = createInMemoryRecoveryCodeVault();
   if (saved) await vault.set('u1', 'a1', 'TR-TEST-AAAA');
@@ -44,6 +44,15 @@ describe('AthleteRecoveryCodeContainer', () => {
     await fireEvent.press(await screen.findByText(show()));
 
     expect(screen.queryByText('TR-TEST-AAAA')).toBeNull();
+    expect(screen.getByText(t('athletes.recovery_code.missing'))).toBeTruthy();
+  });
+
+  it('shows «no está en este teléfono» when what is stored cannot be read, and never offers it as a code', async () => {
+    const vault = { ...createInMemoryRecoveryCodeVault(), get: jest.fn().mockRejectedValue(new Error('recovery_code_unreadable')) };
+    await setup({ vault });
+
+    await fireEvent.press(await screen.findByText(show()));
+
     expect(screen.getByText(t('athletes.recovery_code.missing'))).toBeTruthy();
   });
 
