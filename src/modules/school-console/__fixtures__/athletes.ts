@@ -1,4 +1,4 @@
-import type { AthleteDetailData, AthleteRow, CategoryChoice } from '../components/athleteTypes';
+import type { AthleteDetailData, AthleteRow, CategoryChoice, ClaimLinkPanel } from '../components/athleteTypes';
 
 // Synthetic data for the development gallery and the tests: fictional people and school, no real organizations.
 export const schoolNameFixture = 'Escuela Delfines';
@@ -68,6 +68,17 @@ export const detailFor = (athlete: AthleteRow): AthleteDetailData =>
     guardian: { name: 'Camila Torres', contact: 'camila.torres@example.com' },
     bests: [{ id: `${athlete.id}-best`, event: 'Libre 50', time: athlete.bestTime }],
   };
+
+// The claim link of a swimmer the school registered and no family has claimed yet (synthetic).
+export const claimLinkFixture: ClaimLinkPanel = {
+  status: 'open',
+  expiresOn: '6 de diciembre de 2026',
+  busy: false,
+  error: null,
+  onShare: () => {},
+  onRenew: () => {},
+  onRevoke: () => {},
+};
 
 // The category selector of the detail: two active categories, the athlete's own inactive one, and none.
 export const categoryChoiceFixture: CategoryChoice = {

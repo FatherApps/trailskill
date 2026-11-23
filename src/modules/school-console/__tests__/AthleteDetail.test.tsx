@@ -207,3 +207,70 @@ describe('AthleteDetail end of the link', () => {
     expect(screen.getByText('No pudimos dar de baja al nadador.')).toBeOnTheScreen();
   });
 });
+
+describe('AthleteDetail claim link', () => {
+  const panel = (over: Partial<NonNullable<React.ComponentProps<typeof AthleteDetail>['athlete']['claimLink']>> = {}) => ({
+    status: 'open' as const,
+    expiresOn: '6 de diciembre de 2026',
+    busy: false,
+    error: null,
+    onShare: jest.fn(),
+    onRenew: jest.fn(),
+    onRevoke: jest.fn(),
+    ...over,
+  });
+  const show = (claimLink?: ReturnType<typeof panel>) => render(<AthleteDetail athlete={{ ...detailFixture, claimLink }} />);
+
+  it('has no claim link section when the swimmer has none', async () => {
+    await show();
+
+    expect(screen.queryByText('Enlace de reclamo')).toBeNull();
+  });
+
+  it('an open link shows until when it works and offers to share, renew and revoke it', async () => {
+    const link = panel();
+    await show(link);
+
+    expect(screen.getByLabelText('Vigente hasta el 6 de diciembre de 2026', hidden)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Compartir enlace' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Renovar enlace' }));
+    expect(link.onShare).toHaveBeenCalledTimes(1);
+    expect(link.onRenew).toHaveBeenCalledTimes(1);
+    expect(link.onRevoke).not.toHaveBeenCalled();
+  });
+
+  it('revokes only when the confirmation is accepted', async () => {
+    const link = panel();
+    await show(link);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Revocar enlace' }));
+    expect(screen.getByText('¿Revocar el enlace de Lucía Ramírez?')).toBeOnTheScreen();
+    expect(link.onRevoke).not.toHaveBeenCalled();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Cancelar' }));
+    expect(link.onRevoke).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Revocar enlace' }));
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Revocar enlace' }).at(-1)!);
+    expect(link.onRevoke).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['expired', 'Vencido'],
+    ['revoked', 'Revocado'],
+  ] as const)('a %s link only offers a new one', async (status, label) => {
+    const link = panel({ status, expiresOn: null });
+    await show(link);
+
+    expect(screen.getByLabelText(label, hidden)).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Compartir enlace' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Revocar enlace' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Renovar y compartir' }));
+    expect(link.onRenew).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows why the last change failed', async () => {
+    await show(panel({ error: 'No pudimos cambiar el enlace.' }));
+
+    expect(screen.getByText('No pudimos cambiar el enlace.')).toBeOnTheScreen();
+  });
+});
