@@ -41,13 +41,13 @@ export function createPowerSyncAthleteResultSharingRepository(client: RpcClient 
 }
 
 // One row of the local table; `revokedAt` is set when the owner withdrew it, `null` while it is in force.
-export type AthleteResultSharingRow = { athleteId: string; schoolId: string; revokedAt: string | null };
+export type AthleteResultSharingEntry = { athleteId: string; schoolId: string; revokedAt: string | null };
 
 const bySchool = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 // Works on the rows it is given, so a test sees at once what the sync would bring. `managedIds` are the swimmers the caller manages, as the
 // server decides it; without it every swimmer is managed.
-export function createInMemoryAthleteResultSharingRepository(rows: AthleteResultSharingRow[], options: { managedIds?: string[] } = {}): AthleteResultSharingRepository {
+export function createInMemoryAthleteResultSharingRepository(rows: AthleteResultSharingEntry[], options: { managedIds?: string[] } = {}): AthleteResultSharingRepository {
   const check = (athleteId: string) => {
     if (options.managedIds && !options.managedIds.includes(athleteId)) throw new Error('not_allowed');
   };

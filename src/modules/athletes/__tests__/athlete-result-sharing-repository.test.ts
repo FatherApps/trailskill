@@ -1,11 +1,11 @@
-import { createInMemoryAthleteResultSharingRepository, createPowerSyncAthleteResultSharingRepository, type AthleteResultSharingRow } from '..';
+import { createInMemoryAthleteResultSharingRepository, createPowerSyncAthleteResultSharingRepository, type AthleteResultSharingEntry } from '..';
 
 const mockGetAll = jest.fn();
 // The Supabase client and the local database are never reached: the repository takes a fake client, and the database is a spy.
 jest.mock('../../../core/sync', () => ({ supabase: {}, db: { getAll: (...args: unknown[]) => mockGetAll(...args) } }));
 
 // Synthetic data only.
-const row = (athleteId: string, schoolId: string, revokedAt: string | null = null): AthleteResultSharingRow => ({ athleteId, schoolId, revokedAt });
+const row = (athleteId: string, schoolId: string, revokedAt: string | null = null): AthleteResultSharingEntry => ({ athleteId, schoolId, revokedAt });
 
 describe('PowerSync athlete result sharing repository', () => {
   beforeEach(() => mockGetAll.mockReset());
@@ -63,7 +63,7 @@ describe('in-memory athlete result sharing repository', () => {
   });
 
   it('a grant adds the row once and a revoke withdraws it, as the local table would show after the sync', async () => {
-    const rows: AthleteResultSharingRow[] = [];
+    const rows: AthleteResultSharingEntry[] = [];
     const repository = createInMemoryAthleteResultSharingRepository(rows);
 
     await repository.grant('a1', 's2');
