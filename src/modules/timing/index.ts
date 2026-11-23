@@ -17,6 +17,7 @@ export const galleryEntries: GalleryEntry[] = __DEV__ ? (require('./gallery') as
 export { ArrivalButton, type ArrivalButtonProps } from './components/ArrivalButton';
 export { ArrivalList, type ArrivalListProps } from './components/ArrivalList';
 export { NameCard, type NameCardProps } from './components/NameCard';
+export { PaceSummary, type PaceSummaryProps } from './components/PaceSummary';
 export { Stopwatch, type StopwatchProps, type StopwatchState } from './components/Stopwatch';
 export { TimingHeader, type TimingHeaderProps } from './components/TimingHeader';
 export { StopwatchScreen, type StopwatchScreenProps } from './screens/StopwatchScreen';

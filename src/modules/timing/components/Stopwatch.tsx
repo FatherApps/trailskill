@@ -8,6 +8,7 @@ import { Button, TimeValue } from '../../../core/ui';
 import '../i18n';
 import { ActionRow, useLargeText } from './ActionRow';
 import { Clock, clockFormat } from './Clock';
+import { PaceSummary, type PaceSummaryProps } from './PaceSummary';
 
 export type StopwatchState = 'ready' | 'running' | 'stopped';
 
@@ -23,6 +24,8 @@ export type StopwatchProps = {
   onStop: () => void;
   onSave: () => void;
   onDiscard: () => void;
+  // The pace of the stopped time: shown under the marks once stopped. Absent: nothing.
+  pace?: PaceSummaryProps;
   // Offered once stopped, to correct or complete the meters of the marks. Absent: no such step.
   onReviewMeters?: () => void;
 };
@@ -38,6 +41,7 @@ export function Stopwatch({
   onSave,
   onDiscard,
   onReviewMeters,
+  pace,
 }: StopwatchProps) {
   const { colors, space, typography } = useTheme();
   const running = state === 'running';
@@ -104,6 +108,7 @@ export function Stopwatch({
             ))}
           </View>
         )}
+        {stopped && pace && <PaceSummary {...pace} />}
       </ScrollView>
       {state === 'ready' && (
         <Button size="timing" label={t('timing.stopwatch.start')} onPress={onStart} />
