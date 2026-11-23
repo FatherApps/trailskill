@@ -22,7 +22,7 @@ La escuela (Responsable) transmite a Swimcro (Encargado) los datos personales qu
 1. La escuela es Responsable de los datos que recoge del deportista **mientras está inscrito y durante los 30 días siguientes a su baja**. Pasado ese plazo, o antes si otra escuela acoge al deportista, la escuela deja de leerlos.
 2. Los datos del deportista son de su familia: el deportista, a través de su acudiente o él mismo si es adulto, es siempre el dueño de sus datos.
 3. Swimcro es Responsable, y no Encargado, del uso independiente (registro sin escuela, «Mis tiempos», envíos entre familias). Este contrato no lo cubre.
-4. Las actividades que Swimcro realiza por cuenta de la escuela son: alojar y sincronizar los datos, mostrarlos al personal de la escuela según su rol, trasladarlos a otra escuela cuando el deportista se inscribe en ella y producir la copia seudonimizada de la escuela (sección 4).
+4. Las actividades que Swimcro realiza por cuenta de la escuela son: alojar y sincronizar los datos, mostrarlos al personal de la escuela según su rol, mostrar a la escuela nueva, solo para leerlos y sin copiarlos, los tiempos de las escuelas anteriores cuyo vínculo terminó, cuando el deportista se inscribe en ella y la familia lo acepta y producir la copia seudonimizada de la escuela (sección 4).
 
 ## 3. Obligaciones del Encargado
 
