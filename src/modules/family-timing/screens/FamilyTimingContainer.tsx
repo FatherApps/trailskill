@@ -21,6 +21,7 @@ import {
   type ButtonConfig,
   type ButtonPress,
   type ButtonTarget,
+  type PaceSummaryProps,
   type TimingButtonPort,
 } from '../../timing';
 import {
@@ -674,10 +675,18 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
           ? t('family_timing.detail.slowest', { number: index + 1, diff: ((max - min) / 1000).toFixed(digits).replace('.', ',') })
           : null;
     }
+    // The meters of the marks: the ones saved with the time, or (an older time) k x the pool's length from `lapMeters`.
+    const markMeters = m.splitMeters?.length === m.splits.length ? m.splitMeters : (lapMeters(m.distance, m.pool, m.splits.length + 1)?.slice(0, m.splits.length) ?? null);
+    const distanceMeters = distances.find((d) => d.code === m.distance)?.meters ?? 0;
+    const pace =
+      m.millis !== null && m.splits.length > 0 && markMeters && distanceMeters > 0
+        ? { marks: m.splits.map((time, i) => ({ t: time, meters: markMeters[i] ?? null })), finalTime: m.millis, distance: distanceMeters, formatTime: (v: number) => formatLap(v) }
+        : undefined;
     return {
       card,
       rows,
       laps,
+      pace,
       when: `${formatDate(day, 'short') ?? day} · ${clock}`,
       session: t(`family_timing.session_type.${m.sessionType}`),
       lapsSummary: raw.length > 0 ? t('family_timing.detail.laps_summary', { count: raw.length, distance: t(`sport.distance.${m.distance}`) }) : null,
@@ -887,6 +896,16 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
     return defaultSplitMeters(count, poolLength, distance);
   };
 
+  // Pace and projection of a stopped free-laps time, with the meters of its marks (reviewed or the pool's). Without the final time
+  // or the meters there is nothing to compute.
+  const stoppedPace = (): PaceSummaryProps | undefined => {
+    const final = finalMillis(stopwatch);
+    const meters = metersOf(stopwatch, freeLaps);
+    const distanceMeters = distances.find((d) => d.code === setup.distance)?.meters ?? 0;
+    if (stopwatch.status !== 'stopped' || final === null || !meters || distanceMeters === 0) return undefined;
+    return { marks: splitMillis(stopwatch).map((time, i) => ({ t: time, meters: meters[i] ?? null })), finalTime: final, distance: distanceMeters, formatTime: (v) => formatLap(v) };
+  };
+
   // The time as the stopwatch measured it, ready for Mis tiempos; the same with or without video. The video keeps the restricted
   // stopwatch (free laps in the video are out of scope), so it passes `free = false`.
   const measurementOf = (sw: FamilyStopwatch, free = freeLaps): FamilyMeasurement | null =>
@@ -1004,6 +1023,7 @@ export function FamilyTimingContainer(props: FamilyTimingContainerProps) {
             : null,
         hasLaps: freeLaps || laps > 1,
         canReviewMeters: freeLaps && stopwatch.status === 'stopped' && stopwatch.splitMarks.length > 0,
+        pace: stoppedPace(),
         event: eventLabel({ ...setup, pool: setup.pool ?? '' }),
         noTime: stopwatch.status === 'stopped' && finalMillis(stopwatch) === null,
         buttonsHint: keys.active ? buttonsHint(buttonPrefs.startKey, buttonPrefs.splitKey, keys.keyboards[0]?.name) : null,

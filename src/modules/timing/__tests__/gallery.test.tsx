@@ -18,12 +18,14 @@ describe('timing gallery entries', () => {
       'stopwatch',
       'splitMeters',
       'arrivalList',
+      'paceSummary',
       'nameCard',
       'seriesTiming',
       'seriesAssignment',
       'completed',
       'reviewConflicts',
     ]);
+    expect(Object.keys(entry('paceSummary').states)).toEqual(['projection', 'no-projection', 'no-halves']);
     expect(Object.keys(entry('timingSetup').states)).toEqual(['setup', 'setup-skipped', 'setup-ended', 'setup-empty']);
     expect(Object.keys(entry('timingSummary').states)).toEqual([
       'summary',
