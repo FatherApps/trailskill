@@ -215,7 +215,7 @@ describe('console athletes repository', () => {
 
   it('exposes no guardian, coach name or private field', async () => {
     expect(Object.keys(await byId('a1')).sort()).toEqual(
-      ['authorization', 'bestTime', 'categoryId', 'category', 'categorySortOrder', 'coachIds', 'color', 'groupIds', 'groups', 'id', 'initials', 'name'].sort(),
+      ['authorization', 'bestTime', 'categoryId', 'category', 'categorySortOrder', 'coachIds', 'color', 'endedAt', 'groupIds', 'groups', 'id', 'initials', 'name'].sort(),
     );
   });
 

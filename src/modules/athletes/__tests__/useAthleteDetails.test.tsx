@@ -8,8 +8,8 @@ jest.mock('../../../core/sync', () => ({ db: {} }));
 jest.mock('../../../core/sync/db', () => ({ db: {} }));
 
 // Synthetic data only.
-const ana: SchoolAthlete = { id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: 'c1', groupIds: ['g1'] };
-const ben: SchoolAthlete = { id: 'a2', firstName: 'Ben', lastName: 'Arce', categoryId: 'c1', groupIds: ['g1'] };
+const ana: SchoolAthlete = { id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: 'c1', groupIds: ['g1'], endedAt: null };
+const ben: SchoolAthlete = { id: 'a2', firstName: 'Ben', lastName: 'Arce', categoryId: 'c1', groupIds: ['g1'], endedAt: null };
 const structure: AthleteStructure = {
   listCategories: async () => [{ id: 'c1', name: 'Under 12' }],
   listGroups: async () => [

@@ -37,7 +37,7 @@ describe('cleanAthleteName', () => {
 
 describe('in-memory athlete repository: renameProfile', () => {
   const setup = () => {
-    const rows = [{ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [] }];
+    const rows = [{ id: 'a1', firstName: 'Ana', lastName: 'Marin', categoryId: null, groupIds: [], endedAt: null }];
     return createInMemoryAthleteRepository(createInMemoryManagedAthleteRepository([]), rows);
   };
 

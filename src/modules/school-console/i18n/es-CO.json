@@ -52,6 +52,7 @@
     "athlete": "Deportista",
     "category": "Categoría",
     "authorization": "Autorización",
+    "ended": "Dado de baja",
     "valid": "Vigente",
     "pending": "Pendiente",
     "personal_best": "MP {{event}}",
@@ -77,6 +78,7 @@
       "category_wrong_school": "Esa categoría es de otra escuela.",
       "category_missing": "Esa categoría ya no existe.",
       "athlete_school_missing": "El deportista no está en esta escuela.",
+      "athlete_school_ended": "Este nadador fue dado de baja: su categoría ya no se puede cambiar.",
       "other": "No pudimos guardar la categoría. Inténtalo de nuevo."
     },
     "end_link": "Dar de baja a un nadador",

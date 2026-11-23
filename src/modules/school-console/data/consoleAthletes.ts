@@ -30,6 +30,8 @@ export type ConsoleAthlete = {
   // Name of the category; null when the athlete has none or it is not one of the school's.
   category: string | null;
   categorySortOrder: number | null;
+  // When the school ended the link (the «baja»): the staff still read the swimmer for 30 days, but nothing can be written about them. Null while active.
+  endedAt: string | null;
   groupIds: string[];
   // Names of the school's groups, in the order of groupIds (sorted by name).
   groups: string[];
@@ -127,6 +129,7 @@ export function createConsoleAthletesRepository({ athletes, authorizations, hist
           categoryId: category?.id ?? null,
           category: category?.name ?? null,
           categorySortOrder: category?.sortOrder ?? null,
+          endedAt: athlete.endedAt,
           groupIds: schoolGroups.map((g) => g.id),
           groups: schoolGroups.map((g) => g.name),
           coachIds: coachIdsOf(athlete, schoolGroupIds, assignments),

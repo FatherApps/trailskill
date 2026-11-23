@@ -47,12 +47,12 @@ function createPowerSync(): SchoolAthleteRepository {
   removeStore = store.remove;
   const seed = new DatabaseSync(store.path);
   seed.exec(`
-    CREATE TABLE athlete_schools (id TEXT PRIMARY KEY, athlete_id TEXT, school_id TEXT, category_id TEXT);
+    CREATE TABLE athlete_schools (id TEXT PRIMARY KEY, athlete_id TEXT, school_id TEXT, category_id TEXT, ended_at TEXT);
     CREATE TABLE athlete_groups (id TEXT PRIMARY KEY, athlete_id TEXT, group_id TEXT);
   `);
   for (const a of athletes) seed.prepare('INSERT INTO athletes (id, first_name, last_name) VALUES (?, ?, ?)').run(a.id, a.firstName, a.lastName);
   athleteSchools.forEach((r, i) =>
-    seed.prepare('INSERT INTO athlete_schools (id, athlete_id, school_id, category_id) VALUES (?, ?, ?, ?)').run(`s${i}`, r.athleteId, r.schoolId, r.categoryId),
+    seed.prepare('INSERT INTO athlete_schools (id, athlete_id, school_id, category_id, ended_at) VALUES (?, ?, ?, ?, ?)').run(`s${i}`, r.athleteId, r.schoolId, r.categoryId, null),
   );
   athleteGroups.forEach((r, i) => seed.prepare('INSERT INTO athlete_groups (id, athlete_id, group_id) VALUES (?, ?, ?)').run(`g${i}`, r.athleteId, r.groupId));
   seed.close();
@@ -75,8 +75,8 @@ describe.each(factories)('%s repository: athletes on the device', (_name, create
   it('takes the smallest category when the athlete has several schools, and none without a school', async () => {
     const listed = await create().listAll();
 
-    expect(listed.find((a) => a.id === 'a2')).toEqual({ id: 'a2', firstName: 'Ben', lastName: 'Arce', categoryId: 'cat-1', groupIds: ['g-1', 'g-2'] });
-    expect(listed.find((a) => a.id === 'a6')).toEqual({ id: 'a6', firstName: 'Eli', lastName: 'Nobody', categoryId: null, groupIds: [] });
+    expect(listed.find((a) => a.id === 'a2')).toEqual({ id: 'a2', firstName: 'Ben', lastName: 'Arce', categoryId: 'cat-1', endedAt: null, groupIds: ['g-1', 'g-2'] });
+    expect(listed.find((a) => a.id === 'a6')).toEqual({ id: 'a6', firstName: 'Eli', lastName: 'Nobody', categoryId: null, endedAt: null, groupIds: [] });
   });
 
   it('lists only the requested athletes, in the usual order, and ignores unknown ids', async () => {

@@ -19,6 +19,8 @@ export type MySwimmerRow = {
   detail: string;
   // Never 0: null when the swimmer has no eligible time in the event of `bestLabel`.
   bestTime: Hundredths | null;
+  // The school ended the link: the row says «Dado de baja».
+  ended?: boolean;
 };
 
 // Which of the view states the caller is in. Only the state that shows the swimmers carries them.
@@ -96,6 +98,7 @@ export function MySwimmersScreen({ width, schoolName, view, onOpen, onBack, scro
                 detail={swimmer.detail}
                 bestTime={swimmer.bestTime}
                 bestTimeLabel={view.bestLabel}
+                tag={swimmer.ended ? { label: t('schoolConsole.table.ended'), variant: 'neutral' } : undefined}
                 chevron
                 onPress={() => onOpen(swimmer.id, swimmer.name)}
               />

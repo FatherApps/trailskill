@@ -299,6 +299,8 @@ export const galleryEntries: GalleryEntry[] = [
   entry('athleteTable', 'AthleteTable', {
     default: () => <TablePreview athletes={athletesFixture} />,
     selected: () => <TablePreview athletes={athletesFixture} initial="a1" />,
+    // A swimmer the school ended (issue 1436): «Dado de baja» in place of the authorization.
+    ended: () => <TablePreview athletes={athletesFixture.map((row) => (row.id === 'a3' ? { ...row, ended: true } : row))} />,
     'long-text': () => <TablePreview athletes={[...athletesFixture.slice(0, 2), longTextAthleteFixture]} />,
     compact: () => <TablePreview athletes={athletesFixture} compact initial="a1" />,
   }),
