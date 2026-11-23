@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.15.0](https://github.com/FatherApps/trailskill/compare/v0.14.0...v0.15.0) (2026-11-23)
+
+
+### Features
+
+* **athletes:** owner receives, keeps and reveals the recovery codes ([#1444](https://github.com/FatherApps/trailskill/issues/1444)) ([efb9506](https://github.com/FatherApps/trailskill/commit/efb95063065d16009ddcf912020b81a3fb5b5c27)), closes [#1417](https://github.com/FatherApps/trailskill/issues/1417)
+* **athletes:** school anonymous copy keyed by the permanent recovery identity ([#1443](https://github.com/FatherApps/trailskill/issues/1443)) ([72b3743](https://github.com/FatherApps/trailskill/commit/72b3743e67cdd7fb1abe8a3e725d18c8b75aa57c)), closes [#1420](https://github.com/FatherApps/trailskill/issues/1420)
+* **athletes:** school transfer closes the previous read window and opens the history ([#1445](https://github.com/FatherApps/trailskill/issues/1445)) ([e6fb05b](https://github.com/FatherApps/trailskill/commit/e6fb05be5417f4502cc27f9d3e7258f267937ca6)), closes [#1419](https://github.com/FatherApps/trailskill/issues/1419)
+* **family-timing:** free laps with meters and an optional review step ([#1448](https://github.com/FatherApps/trailskill/issues/1448)) ([557a74c](https://github.com/FatherApps/trailskill/commit/557a74c84e2a656684c626822c93168aeb78671c)), closes [#1431](https://github.com/FatherApps/trailskill/issues/1431)
+* **timing:** show pace and projection after the test ([#1450](https://github.com/FatherApps/trailskill/issues/1450)) ([a6659e2](https://github.com/FatherApps/trailskill/commit/a6659e2e52a49b7a3b494340c7bca466c3ee521e)), closes [#1433](https://github.com/FatherApps/trailskill/issues/1433)
+
 ## [0.14.0](https://github.com/FatherApps/trailskill/compare/v0.13.0...v0.14.0) (2026-11-23)
 
 
