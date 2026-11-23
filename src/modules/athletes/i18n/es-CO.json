@@ -361,6 +361,6 @@
     "regenerate_cancel": "Cancelar",
     "regenerate_unused": "Aún no has usado ningún código de recuperación. Podrás generar un juego nuevo cuando uses uno.",
     "regenerate_error": "No pudimos generar los códigos. Revisa tu conexión e inténtalo de nuevo.",
-    "replaced": "Este código ya no sirve: se pidieron códigos nuevos en otro dispositivo o cuenta y ya están guardados allí."
+    "replaced": "Este código ya no sirve: se generaron códigos nuevos en otro teléfono o cuenta."
   }
 }
