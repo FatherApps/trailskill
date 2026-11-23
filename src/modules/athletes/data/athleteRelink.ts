@@ -116,8 +116,11 @@ export function createSupabaseAthleteRelinkRepository(client: RpcClient = supaba
   };
 }
 
-/** What the in-memory repository knows of one erased swimmer: the key and, per school, the times it kept. */
-export type InMemoryRelinkMarker = { key: string; schools: { schoolId: string; schoolName: string; times: number }[] };
+/**
+ * What the in-memory repository knows of one erased swimmer: the key (unique per marker) and, per school, the times it kept. `codes` are the
+ * permanent code and the recovery codes of its identity (issue 1421): a permanent one works as often as needed, an RC- one works once.
+ */
+export type InMemoryRelinkMarker = { key: string; codes?: string[]; schools: { schoolId: string; schoolName: string; times: number }[] };
 
 export type InMemoryRelinkWorld = {
   markers: InMemoryRelinkMarker[];
@@ -131,6 +134,8 @@ export type InMemoryRelinkWorld = {
 const IN_MEMORY_ATTEMPT_LIMIT = 5;
 
 const normalizeKey = (key: string) => key.replace(/[\s-]/g, '').toUpperCase();
+const KEY_SHAPE = /^[0-9A-F]{20}$/;
+const CODE_SHAPE = /^(TR|RC)[A-Z0-9]{16}$/;
 
 // The same rules as the server functions, over plain arrays, so screens and containers can be tested without a database.
 export function createInMemoryAthleteRelinkRepository(world: InMemoryRelinkWorld): AthleteRelinkRepository {
@@ -144,13 +149,21 @@ export function createInMemoryAthleteRelinkRepository(world: InMemoryRelinkWorld
     async request(athleteId, key) {
       if (!manages(athleteId)) throw new Error('not_allowed');
       if ((failed.get(athleteId) ?? 0) >= IN_MEMORY_ATTEMPT_LIMIT) return 'rate_limited';
-      const marker = world.markers.find((m) => normalizeKey(m.key) === normalizeKey(key) && /^[0-9A-F]{20}$/.test(normalizeKey(key)));
+      const typed = normalizeKey(key);
+      // The two kinds of text never match each other, like the two hashes on the server.
+      const marker = KEY_SHAPE.test(typed)
+        ? world.markers.find((m) => normalizeKey(m.key) === typed)
+        : CODE_SHAPE.test(typed)
+          ? world.markers.find((m) => m.codes?.some((c) => normalizeKey(c) === typed))
+          : undefined;
       if (!marker) {
         failed.set(athleteId, (failed.get(athleteId) ?? 0) + 1);
         return 'invalid_key';
       }
       const owners = marker.schools.filter((s) => s.times > 0);
       if (owners.length === 0) return 'nothing_to_relink';
+      // A recovery code is spent once it has something to relink; the permanent one is not.
+      if (typed.startsWith('RC') && CODE_SHAPE.test(typed)) marker.codes = marker.codes?.filter((c) => normalizeKey(c) !== typed);
       let created = 0;
       for (const s of owners) {
         if (rows.some((r) => r.athleteId === athleteId && r.markerKey === marker.key && r.schoolId === s.schoolId && r.status === 'pending')) continue;

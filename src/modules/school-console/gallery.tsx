@@ -5,6 +5,7 @@ import type { GalleryEntry } from '../../core/ui';
 import {
   athletesFixture,
   categoryChoiceFixture,
+  anonymousCopyFixture,
   claimLinkFixture,
   detailFixture,
   detailFor,
@@ -331,6 +332,20 @@ export const galleryEntries: GalleryEntry[] = [
     'claim-link-expired': () => (
       <FullWidth>
         <AthleteDetail athlete={{ ...detailFixture, claimLink: { ...claimLinkFixture, status: 'expired', expiresOn: null } }} onViewProfile={noop} />
+      </FullWidth>
+    ),
+    // The school admin can keep an anonymous copy of the swimmer's marks; after it, what it copied.
+    'anonymous-copy': () => (
+      <FullWidth>
+        <AthleteDetail athlete={{ ...detailFixture, anonymousCopy: anonymousCopyFixture }} onViewProfile={noop} />
+      </FullWidth>
+    ),
+    'anonymous-copy-done': () => (
+      <FullWidth>
+        <AthleteDetail
+          athlete={{ ...detailFixture, anonymousCopy: { ...anonymousCopyFixture, notice: 'Copia creada con 12 tiempos. La familia aún no emitió su código: la copia se enlazará cuando lo haga.' } }}
+          onViewProfile={noop}
+        />
       </FullWidth>
     ),
     'long-text': () => (

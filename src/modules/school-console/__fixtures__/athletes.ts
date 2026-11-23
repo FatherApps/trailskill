@@ -1,4 +1,4 @@
-import type { AthleteDetailData, AthleteRow, CategoryChoice, ClaimLinkPanel } from '../components/athleteTypes';
+import type { AnonymousCopyPanel, AthleteDetailData, AthleteRow, CategoryChoice, ClaimLinkPanel } from '../components/athleteTypes';
 
 // Synthetic data for the development gallery and the tests: fictional people and school, no real organizations.
 export const schoolNameFixture = 'Escuela Delfines';
@@ -79,6 +79,9 @@ export const claimLinkFixture: ClaimLinkPanel = {
   onRenew: () => {},
   onRevoke: () => {},
 };
+
+// The anonymous copy panel of the detail (synthetic): ready to copy, and after a copy that has no code yet.
+export const anonymousCopyFixture: AnonymousCopyPanel = { busy: false, error: null, notice: null, onConfirm: () => {} };
 
 // The category selector of the detail: two active categories, the athlete's own inactive one, and none.
 export const categoryChoiceFixture: CategoryChoice = {

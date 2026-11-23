@@ -16,7 +16,7 @@ import {
   createSupabaseInvitationRepository,
   SignOutContainer,
 } from '../../modules/accounts';
-import { createSupabaseAthleteRegistrationRepository, createSupabaseAthleteRelinkRepository, createSupabaseAthleteSchoolEndRepository } from '../../modules/athletes';
+import { createSupabaseAthleteAnonymousCopyRepository, createSupabaseAthleteRegistrationRepository, createSupabaseAthleteRelinkRepository, createSupabaseAthleteSchoolEndRepository } from '../../modules/athletes';
 import { createPowerSyncMeasurementRepository } from '../../modules/timing';
 import {
   AthletesSection,
@@ -61,6 +61,7 @@ const athleteSchoolEnds = createSupabaseAthleteSchoolEndRepository();
 const athleteRegistration = { repository: createSupabaseAthleteRegistrationRepository(), newId: randomUUID };
 // The families' requests for the times the school kept of an erased swimmer: read and decided online; the server checks the admin role.
 const athleteRelinks = createSupabaseAthleteRelinkRepository();
+const anonymousCopies = createSupabaseAthleteAnonymousCopyRepository();
 const guardianSharing = { repository: createSupabaseGuardianSharingRepository(), records: createGuardianRecordsRepository(createPowerSyncMeasurementRepository()) };
 
 export default function ConsoleRoute() {
@@ -123,7 +124,7 @@ export default function ConsoleRoute() {
           <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} invitations={coachInvitations} />
         ),
         athletes: (props) => (
-          <AthletesSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} swimmerEnd={athleteSchoolEnds} structure={schoolStructure} invitations={familyInvitations} registration={athleteRegistration} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AthletesSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} swimmerEnd={athleteSchoolEnds} anonymousCopies={anonymousCopies} structure={schoolStructure} invitations={familyInvitations} registration={athleteRegistration} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         records: (props) => (
           <RecordsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={categoryRecords} categories={categories} structure={schoolStructure} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
@@ -132,7 +133,7 @@ export default function ConsoleRoute() {
           <MeasurementsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={measurementLog} categories={categories} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         authorizations: (props) => (
-          <AuthorizationsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={authorizations} relink={athleteRelinks} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AuthorizationsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={authorizations} relink={athleteRelinks} anonymousCopies={anonymousCopies} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         settings: (props) => (
           <CategoriesSection
