@@ -23,6 +23,8 @@ type MeasurementBase = {
   deviceId: string;
   capturedAt: string; // ISO 8601
   parentId: string | null;
+  // Meters from the start of a free mark (kind 'split'). Absent or null is "unknown", never 0; written once, never edited.
+  meters?: number | null;
   // Edit trail (issue #55). The server owns them: `version` starts at 1 and goes up with each applied edit.
   version: number;
   editedBy: string | null; // null while never edited
@@ -82,6 +84,22 @@ export class DiscardedMeasurementError extends Error {
 /** A time is above zero: a missing time is null, never 0. */
 export class InvalidMeasurementTimeError extends Error {
   override name = 'InvalidMeasurementTimeError';
+}
+
+// The server's bound (measurements_meters_positive); the distance check lives in the review step.
+const MAX_METERS = 100000;
+
+/** Meters are above zero and below 100000, and only a split carries them: the server refuses anything else for good. */
+export class InvalidMeasurementMetersError extends Error {
+  override name = 'InvalidMeasurementMetersError';
+}
+
+/** Rejects meters the server would turn into a permanent upload failure, so nothing is written. Absent and null are fine. */
+export function assertMeters(measurement: Pick<Measurement, 'kind' | 'meters'>): void {
+  const { kind, meters } = measurement;
+  if (meters === undefined || meters === null) return;
+  if (kind !== 'split') throw new InvalidMeasurementMetersError('Only a split has meters');
+  if (!Number.isFinite(meters) || meters <= 0 || meters >= MAX_METERS) throw new InvalidMeasurementMetersError('Meters must be above 0 and below 100000');
 }
 
 /** Rejects a time the server would turn into a permanent upload failure (zero, negative or non-integer), so the change is refused before anything is written. */
