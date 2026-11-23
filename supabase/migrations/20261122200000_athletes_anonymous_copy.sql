@@ -13,7 +13,8 @@
 --
 -- public.create_anonymous_school_copy(p_athlete, p_school) is the only way in. An active school_admin of p_school calls it while the
 -- school still reads the swimmer: an active link, or one ended less than 30 days ago (the window of #1418, through
--- app.athlete_school_window_closed, the only definition of it). It copies the marks of that school that the school reads now (not hidden by a withdrawn
+-- app.athlete_school_window_closed) and whose read_window_closed_at is still null: that column is stamped by the day-30 job and may be
+-- stamped earlier by another flow (a transfer of the swimmer), and a stamped window means the school no longer reads. It copies the marks of that school that the school reads now (not hidden by a withdrawn
 -- authorization, not discarded), with their splits, and nothing else: no name, photo, family or other school's data. The copy has no author.
 -- Answers (jsonb): status 'created' or 'already_copied', athlete_id (the anonymous swimmer), linkable (it has a key) and copied (marks).
 -- A swimmer whose owner never got a recovery code is copied without a key (linkable false). Decided by the maintainer on #1420: the key
@@ -86,6 +87,7 @@ begin
     select 1 from public.athlete_schools s
     where s.athlete_id = create_anonymous_school_copy.p_athlete and s.school_id = create_anonymous_school_copy.p_school
       and not app.athlete_school_window_closed(s.ended_at)
+      and s.read_window_closed_at is null
   ) then
     raise exception 'no_school_access' using errcode = 'P0001';
   end if;

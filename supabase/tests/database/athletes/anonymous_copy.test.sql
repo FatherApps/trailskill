@@ -4,11 +4,12 @@
 -- guardian P of P (a6), guardian Q of Q (a7).
 -- Schools: A (b1), B (b2). Swimmers: X (e1, managed by G, active in A and B, has a recovery identity), Y (e2, active in A, no code),
 -- Z (e3, link with A ended 10 days ago, has a code), W (e4, link with A ended 40 days ago), V (e5, only in B), P (e6, managed by a6, no code),
--- Q (e7, managed by a7, link with A ended 5 days ago so its account can be erased, no code), R (e8, no marks, no code).
+-- Q (e7, managed by a7, link with A ended 5 days ago so its account can be erased, no code), R (e8, no marks, no code),
+-- S (e9, link with A ended 10 days ago and its window stamped early, as a transfer does), T (ea, link with A ended 31 days ago, stamped by the day-30 job).
 -- Marks of X in A: f1 (3100), f2 (split of f1, 1500), f3 (discarded), f4 (hidden), f10 (split of the discarded f3); f5 is of X in B. All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(46);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('14200000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -34,7 +35,8 @@ update public.school_memberships set deactivated_at = now() where school_id = pg
 insert into public.athletes (id, first_name, last_name) values
   (pg_temp.u('e1'), 'Xavier', 'Origin'), (pg_temp.u('e2'), 'Yara', 'Nocode'), (pg_temp.u('e3'), 'Zoe', 'Ended'),
   (pg_temp.u('e4'), 'Wendy', 'Late'), (pg_temp.u('e5'), 'Vera', 'Other'), (pg_temp.u('e6'), 'Paula', 'Issues'),
-  (pg_temp.u('e7'), 'Quino', 'Erased'), (pg_temp.u('e8'), 'Rosa', 'Deleted');
+  (pg_temp.u('e7'), 'Quino', 'Erased'), (pg_temp.u('e8'), 'Rosa', 'Deleted'),
+  (pg_temp.u('e9'), 'Sara', 'Stamped'), (pg_temp.u('ea'), 'Tina', 'Job');
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   (pg_temp.u('a5'), pg_temp.u('e1'), 'guardian'), (pg_temp.u('a6'), pg_temp.u('e6'), 'guardian'), (pg_temp.u('a7'), pg_temp.u('e7'), 'guardian');
 insert into public.athlete_schools (athlete_id, school_id, ended_at, ended_by) values
@@ -43,7 +45,12 @@ insert into public.athlete_schools (athlete_id, school_id, ended_at, ended_by) v
   (pg_temp.u('e3'), pg_temp.u('b1'), now() - interval '10 days', pg_temp.u('a1')),
   (pg_temp.u('e4'), pg_temp.u('b1'), now() - interval '40 days', pg_temp.u('a1')),
   (pg_temp.u('e5'), pg_temp.u('b2'), null, null), (pg_temp.u('e6'), pg_temp.u('b1'), null, null),
-  (pg_temp.u('e7'), pg_temp.u('b1'), now() - interval '5 days', pg_temp.u('a1')), (pg_temp.u('e8'), pg_temp.u('b1'), null, null);
+  (pg_temp.u('e7'), pg_temp.u('b1'), now() - interval '5 days', pg_temp.u('a1')), (pg_temp.u('e8'), pg_temp.u('b1'), null, null),
+  (pg_temp.u('e9'), pg_temp.u('b1'), now() - interval '10 days', pg_temp.u('a1')),
+  (pg_temp.u('ea'), pg_temp.u('b1'), now() - interval '31 days', pg_temp.u('a1'));
+-- A transfer stamps the window before day 30, which the check of #1418 refuses: lifted here (rolled back with the transaction), the stamp set as the owner.
+alter table public.athlete_schools drop constraint athlete_schools_read_window_closed_after_end;
+update public.athlete_schools set read_window_closed_at = now() where athlete_id = pg_temp.u('e9') and school_id = pg_temp.u('b1');
 -- The recovery identities of #1416 (only a hash): X and Z have one, Y does not yet.
 insert into public.athlete_recovery_identities (athlete_id, code_hash) values
   (pg_temp.u('e1'), repeat('a', 64)), (pg_temp.u('e3'), repeat('b', 64));
@@ -179,6 +186,14 @@ select is(
   '{"status": "created", "linkable": true, "copied": 1}'::jsonb, 'a link ended 10 days ago is still inside the window');
 select throws_ok($$select public.create_anonymous_school_copy(pg_temp.u('e4'), pg_temp.u('b1'))$$, 'P0001', 'no_school_access',
   'a link ended 40 days ago is outside the window');
+select throws_ok($$select public.create_anonymous_school_copy(pg_temp.u('e9'), pg_temp.u('b1'))$$, 'P0001', 'no_school_access',
+  'a link ended 10 days ago whose window was stamped early (a transfer) fails');
+reset role;
+select is(app.close_athlete_school_read_windows() >= 1, true, 'the day-30 job stamps the link of T ended 31 days ago');
+set local role authenticated;
+select pg_temp.as_user('a1');
+select throws_ok($$select public.create_anonymous_school_copy(pg_temp.u('ea'), pg_temp.u('b1'))$$, 'P0001', 'no_school_access',
+  'a link ended 31 days ago and stamped by the job fails');
 select throws_ok($$select public.create_anonymous_school_copy(pg_temp.u('e5'), pg_temp.u('b1'))$$, 'P0001', 'no_school_access',
   'a swimmer the school never had fails');
 select throws_ok($$select public.create_anonymous_school_copy(gen_random_uuid(), pg_temp.u('b1'))$$, 'P0001', 'no_school_access',
