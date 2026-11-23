@@ -81,19 +81,26 @@ const dotOf = (result: HistoryResult): { color: ColorToken; ink: ColorToken; ico
 const dotSize = spaceTokens[8];
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
+  // The time wraps below the head when the head cannot get its minimum width beside it (see `headBasis`).
+  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   // Large text: the time goes below the head (dot and text), which takes the full row width. The text keeps sharing the
   // row with the dot, so it wraps at the row width minus the dot and no word is split.
-  rowLarge: { flexDirection: 'column', alignItems: 'stretch' },
+  rowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
   // The dot and the text share one row at every size, so the origin dot never adds a row of its own.
   head: { flexDirection: 'row', alignItems: 'center' },
-  // Beside the time the head shrinks (minWidth 0) and the time keeps its own width, so the two never overlap.
-  headFill: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+  // The head keeps at least its minimum width (`headBasis`, flexShrink 0): when that does not fit beside the time, the row
+  // wraps and the time goes below, so the text is never squeezed. maxWidth keeps a head alone on its row within it.
+  headFill: { flexGrow: 1, flexShrink: 0, maxWidth: '100%' },
   text: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   dot: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  trailing: { alignItems: 'flex-end', flexShrink: 0 },
-  trailingLarge: { alignItems: 'flex-start' },
+  // marginLeft auto keeps the time at the right edge when it wraps onto a row of its own.
+  trailing: { alignItems: 'flex-end', flexShrink: 0, marginLeft: 'auto' },
+  trailingLarge: { alignItems: 'flex-start', marginLeft: 0 },
 });
+
+// Characters of the longest word a row holds ("Entrenamiento") that the text column must fit unbroken, in caption widths:
+// a caption character is about half its font size wide, so 8 caption sizes hold it with room to spare.
+const textMinCaptions = 8;
 
 // From this text scale up the two columns no longer fit side by side.
 const largeTextScale = 1.5;
@@ -135,8 +142,11 @@ const valueLabel = (value: HistoryValue): string | null => {
 function HistoryRow({ result }: { result: HistoryResult }) {
   const { colors, space, size, radius, typography } = useTheme();
   // The gallery preview scale (theme) and the system scale both apply.
-  const large =
-    (typography.caption.fontSize / baseTypography.caption.fontSize) * PixelRatio.getFontScale() >= largeTextScale;
+  const textScale = (typography.caption.fontSize / baseTypography.caption.fontSize) * PixelRatio.getFontScale();
+  const large = textScale >= largeTextScale;
+  // Dot, stroke icon (a box as wide as the dot) and the gaps between them and the text, plus the width the text needs so
+  // no word is split: when that does not fit beside the time, the time goes below instead of squeezing the text.
+  const headBasis = 2 * dotSize + 2 * space[3] + baseTypography.caption.fontSize * textScale * textMinCaptions;
 
   const title = `${nameOf(strokes, result.stroke)} ${nameOf(distances, result.distance)}`;
   const context = t(`athletes.history.context.${result.context}`);
@@ -187,7 +197,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
       ]}
     >
       {/* testID: the head is hidden from screen readers and has no role, label or text of its own to query. */}
-      <View testID="history-head" {...hidden} style={[styles.head, !large && styles.headFill, { gap: space[3] }]}>
+      <View testID="history-head" {...hidden} style={[styles.head, !large && styles.headFill, !large && { flexBasis: headBasis }, { gap: space[3] }]}>
         {/* testID: the dot is hidden and carries colour only; tests read its token and icon from it. */}
         <View
           testID="history-dot"

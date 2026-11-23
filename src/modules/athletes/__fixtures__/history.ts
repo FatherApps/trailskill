@@ -167,4 +167,17 @@ export const historyLongTextResults: HistoryResult[] = [
     completed: true,
     syncState: 'not_sent',
   },
+  // Issue 1459, worst case beside the time: a long stroke and distance, a long meta line and a long source name.
+  {
+    id: 'long-combined',
+    stroke: 'IM',
+    distance: '200m',
+    date: '2026-10-24',
+    context: 'training',
+    origin: 'other_school',
+    sourceName: historyFixture.longSourceName,
+    value: { kind: 'series_total' },
+    time: 16210,
+    syncState: 'on_device',
+  },
 ];
