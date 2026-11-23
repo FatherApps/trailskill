@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { FlatList, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
@@ -69,6 +70,10 @@ export type AthletesScreenProps = {
   // Why the last invitation could not be made; shown under the header.
   inviteError?: string | null;
   inviteGroupSheet?: AthletesInviteGroupSheet;
+  // Absent while the school cannot register a swimmer without an account: the button is not shown.
+  onRegister?: () => void;
+  // The open «Dar de alta» sheet: its content (the form) and what closes it. It is shown over the whole console.
+  registerSheet?: { content: ReactNode; onClose: () => void };
   onQueryChange: (query: string) => void;
   onFilterPress: (id: AthleteFilterId) => void;
   onSelect: (id: string) => void;
@@ -98,6 +103,8 @@ export function AthletesScreen({
   onInvite,
   inviteError,
   inviteGroupSheet,
+  onRegister,
+  registerSheet,
   onQueryChange,
   onFilterPress,
   onSelect,
@@ -113,7 +120,9 @@ export function AthletesScreen({
   const form = useTableForm(compact);
 
   const content = view.kind === 'data' || view.kind === 'offline' ? view.content : null;
-  const canInvite = onInvite !== undefined && (content !== null || view.kind === 'empty');
+  const listed = content !== null || view.kind === 'empty';
+  const canInvite = onInvite !== undefined && listed;
+  const canRegister = onRegister !== undefined && listed;
 
   let caption: string | null = null;
   if (content) {
@@ -139,13 +148,25 @@ export function AthletesScreen({
         </Text>
         {caption ? <Text style={[typography.caption, { color: colors[athletesScreenColors.caption] }]}>{caption}</Text> : null}
       </View>
-      {canInvite && (
-        <Button
-          variant="secondary"
-          label={t('schoolConsole.screen.invite')}
-          icon={<Icon name="person_add" size="icon-sm" />}
-          onPress={onInvite}
-        />
+      {(canInvite || canRegister) && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
+          {canRegister && (
+            <Button
+              variant="secondary"
+              label={t('schoolConsole.screen.register')}
+              icon={<Icon name="person_add" size="icon-sm" />}
+              onPress={onRegister}
+            />
+          )}
+          {canInvite && (
+            <Button
+              variant="secondary"
+              label={t('schoolConsole.screen.invite')}
+              icon={<Icon name="person_add" size="icon-sm" />}
+              onPress={onInvite}
+            />
+          )}
+        </View>
       )}
       {inviteError ? (
         <View style={{ width: '100%' }}>
@@ -323,6 +344,13 @@ export function AthletesScreen({
                 </View>
               ),
               onClose: inviteGroupSheet.onClose,
+            }
+          : registerSheet
+          ? {
+              label: t('schoolConsole.register_sheet.label'),
+              titleKey: 'schoolConsole.register_sheet.title',
+              content: registerSheet.content,
+              onClose: registerSheet.onClose,
             }
           : filterSheet
           ? {

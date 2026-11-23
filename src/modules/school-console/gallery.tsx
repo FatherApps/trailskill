@@ -5,6 +5,7 @@ import type { GalleryEntry } from '../../core/ui';
 import {
   athletesFixture,
   categoryChoiceFixture,
+  claimLinkFixture,
   detailFixture,
   detailFor,
   detailsFixture,
@@ -318,6 +319,18 @@ export const galleryEntries: GalleryEntry[] = [
     'category-selector': () => (
       <FullWidth>
         <AthleteDetail athlete={{ ...detailFixture, categoryChoice: categoryChoiceFixture }} onViewProfile={noop} />
+      </FullWidth>
+    ),
+    // A swimmer the school registered and no family has claimed: share the link again, renew it or revoke it.
+    'claim-link-open': () => (
+      <FullWidth>
+        <AthleteDetail athlete={{ ...detailFixture, claimLink: claimLinkFixture }} onViewProfile={noop} />
+      </FullWidth>
+    ),
+    // Expired or revoked: only a new link is offered.
+    'claim-link-expired': () => (
+      <FullWidth>
+        <AthleteDetail athlete={{ ...detailFixture, claimLink: { ...claimLinkFixture, status: 'expired', expiresOn: null } }} onViewProfile={noop} />
       </FullWidth>
     ),
     'long-text': () => (

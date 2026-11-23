@@ -45,6 +45,23 @@ export type CategoryChoice = {
 };
 
 // Ending the swimmer's link with the school (the «baja»): the confirmation is part of the detail, the call belongs to the caller.
+// The claim link of a swimmer the school registered and no family has claimed yet: share it again, renew it (the old one stops working) or
+// revoke it. The calls belong to the caller; each one needs a connection.
+export type ClaimLinkPanel = {
+  // 'open' can still be used. 'expired' and 'revoked' only offer a new link.
+  status: 'open' | 'expired' | 'revoked';
+  // Until when an open link works, already formatted («6 de diciembre de 2026»); null when the date cannot be read.
+  expiresOn: string | null;
+  // A call is running: the buttons are not available.
+  busy: boolean;
+  // Already translated; `null` when there is nothing to say.
+  error: string | null;
+  onShare: () => void;
+  onRenew: () => void;
+  // Fires only after the admin confirmed.
+  onRevoke: () => void;
+};
+
 export type EndLink = {
   // Already translated; `null` when there is nothing to say (never tried, or the last try worked).
   error: string | null;
@@ -72,6 +89,8 @@ export type AthleteDetailData = {
   guardianSharing?: ReactNode;
   // Absent unless the caller can end the link (the school admin): the detail has no baja button.
   endLink?: EndLink;
+  // Absent unless the swimmer has a link nobody claimed yet and the caller is the school admin.
+  claimLink?: ClaimLinkPanel;
 };
 
 export type AthleteFilterId = 'category' | 'group' | 'coach';
