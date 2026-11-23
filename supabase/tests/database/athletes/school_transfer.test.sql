@@ -1,13 +1,15 @@
--- Transfer to another school (issue #1419). When the family accepts the invitation of school B for a swimmer that school A ended (#1243)
--- inside its 30-day read window (#1418), A's window closes at that moment (athlete_schools.read_window_closed_at, the column the
--- helpers and the sync streams read) and the staff of B read the swimmer's marks recorded in A, read only, through other_school_results.
+-- Transfer to another school (issue #1419), "todo el historial siempre". When the family accepts the invitation of a school for a swimmer
+-- that other schools had, the new school reads, read only, through other_school_results, the marks of ALL the previous schools, whatever
+-- their age, along the chain (A, B, C: C reads A and B). A school that ended the swimmer (#1243) inside its 30-day read window (#1418)
+-- stops reading them at that moment (athlete_schools.read_window_closed_at, the column the helpers and the sync streams read).
 -- Swimmers: X (e1) ended in A, family accepts B. Z (e2) ended in A 40 days ago (window already closed), family accepts B.
 -- Y (e3) active in A, family accepts B. V (e4) ended in A, B links V without the family. U (e5) ended in A and in C, family accepts B.
+-- T (e6) ended in A, family accepts B, B ends T, the family erases the account. S (e7) chain: A, then B, then C.
 -- Users: admin SA of A (a1), coach KA of A with X, Y and V direct (a2), admin SB of B (a3), coach KB of B with X assigned in B (a4),
--- guardian G of X, Z, Y and U (a5), coach KB2 of B, not assigned (a6), admin SC of C (a7). All users and data here are synthetic.
+-- guardian G of X, Z, Y, U and S (a5), coach KB2 of B, not assigned (a6), admin SC of C (a7). All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(42);
+select plan(50);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('14190000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -37,22 +39,24 @@ insert into auth.users (id, email) values
   (pg_temp.u('a7'), 'admin-sc@example.test'), (pg_temp.u('a8'), 'guardian-h@example.test');
 insert into public.schools (id, name) values
   (pg_temp.u('b1'), 'Transfer School A'), (pg_temp.u('b2'), 'Transfer School B'), (pg_temp.u('b3'), 'Transfer School C');
-insert into public.training_groups (id, school_id, name) values (pg_temp.u('c1'), pg_temp.u('b1'), 'Group A'), (pg_temp.u('c2'), pg_temp.u('b2'), 'Group B');
+insert into public.training_groups (id, school_id, name) values
+  (pg_temp.u('c1'), pg_temp.u('b1'), 'Group A'), (pg_temp.u('c2'), pg_temp.u('b2'), 'Group B'), (pg_temp.u('c3'), pg_temp.u('b3'), 'Group C');
 insert into public.school_memberships (school_id, user_id, role) values
   (pg_temp.u('b1'), pg_temp.u('a1'), 'school_admin'), (pg_temp.u('b1'), pg_temp.u('a2'), 'coach'),
   (pg_temp.u('b2'), pg_temp.u('a3'), 'school_admin'), (pg_temp.u('b2'), pg_temp.u('a4'), 'coach'), (pg_temp.u('b2'), pg_temp.u('a6'), 'coach'),
   (pg_temp.u('b3'), pg_temp.u('a7'), 'school_admin');
 insert into public.athletes (id, first_name, last_name) values
   (pg_temp.u('e1'), 'Athlete', 'X'), (pg_temp.u('e2'), 'Athlete', 'Z'), (pg_temp.u('e3'), 'Athlete', 'Y'),
-  (pg_temp.u('e4'), 'Athlete', 'V'), (pg_temp.u('e5'), 'Athlete', 'U'), (pg_temp.u('e6'), 'Athlete', 'T');
+  (pg_temp.u('e4'), 'Athlete', 'V'), (pg_temp.u('e5'), 'Athlete', 'U'), (pg_temp.u('e6'), 'Athlete', 'T'),
+  (pg_temp.u('e7'), 'Athlete', 'S');
 insert into public.athlete_managers (user_id, athlete_id, relation) values
   (pg_temp.u('a5'), pg_temp.u('e1'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e2'), 'guardian'),
   (pg_temp.u('a5'), pg_temp.u('e3'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e5'), 'guardian'),
-  (pg_temp.u('a8'), pg_temp.u('e6'), 'guardian');
+  (pg_temp.u('a8'), pg_temp.u('e6'), 'guardian'), (pg_temp.u('a5'), pg_temp.u('e7'), 'guardian');
 insert into public.athlete_schools (athlete_id, school_id) values
   (pg_temp.u('e1'), pg_temp.u('b1')), (pg_temp.u('e2'), pg_temp.u('b1')), (pg_temp.u('e3'), pg_temp.u('b1')),
   (pg_temp.u('e4'), pg_temp.u('b1')), (pg_temp.u('e5'), pg_temp.u('b1')), (pg_temp.u('e5'), pg_temp.u('b3')),
-  (pg_temp.u('e6'), pg_temp.u('b1'));
+  (pg_temp.u('e6'), pg_temp.u('b1')), (pg_temp.u('e7'), pg_temp.u('b1'));
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values
   (pg_temp.u('a2'), pg_temp.u('e1'), pg_temp.u('b1')), (pg_temp.u('a2'), pg_temp.u('e3'), pg_temp.u('b1')),
   (pg_temp.u('a2'), pg_temp.u('e4'), pg_temp.u('b1'));
@@ -66,18 +70,23 @@ values
   (pg_temp.u('f4'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e5'), 3400, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 11:00:00+00'),
   (pg_temp.u('f5'), pg_temp.u('a7'), pg_temp.u('b3'), 'repetition', pg_temp.u('e5'), 3500, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-sc', '2026-10-01 12:00:00+00'),
   (pg_temp.u('f6'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e2'), 3600, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 13:00:00+00'),
-  (pg_temp.u('f8'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e6'), 3700, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 14:00:00+00');
+  (pg_temp.u('f8'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e6'), 3700, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 14:00:00+00'),
+  (pg_temp.u('f9'), pg_temp.u('a2'), pg_temp.u('b1'), 'repetition', pg_temp.u('e7'), 3800, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-ka', '2026-10-01 15:00:00+00');
 
--- The invitation of B, made by its admin.
+-- The invitations of B and C, made by their admins.
 set local role authenticated;
 select pg_temp.as_user('a3');
 insert into public.school_invitations (id, school_id, group_id) values (pg_temp.u('01'), pg_temp.u('b2'), pg_temp.u('c2'));
+select pg_temp.as_user('a7');
+insert into public.school_invitations (id, school_id, group_id) values (pg_temp.u('02'), pg_temp.u('b3'), pg_temp.u('c3'));
 reset role;
 do $$ begin
   perform set_config('test.token', (select token from public.school_invitations where id = '14190000-0000-4000-8000-000000000001'), true);
+  perform set_config('test.token_c', (select token from public.school_invitations where id = '14190000-0000-4000-8000-000000000002'), true);
 end $$;
 
 select has_column('public', 'athlete_schools', 'transferred_to_school_id', 'athlete_schools has transferred_to_school_id');
+select has_table('public', 'athlete_history_grants', 'the grants of the history exist');
 select has_function('app', 'athlete_school_window_closed', array['timestamp with time zone'], 'the one-argument window rule of #1418 still exists: other changes call it');
 -- It answers from the clock alone, as before: an active link, a link ended 10 days ago and one ended 40 days ago.
 select is(app.athlete_school_window_closed(null::timestamptz), false, 'one-argument rule: an active link is not closed');
@@ -149,16 +158,16 @@ select pg_temp.as_user('a5');
 select is((select count(*)::int from public.athletes where id = pg_temp.u('e1')), 1, 'the guardian keeps reading X');
 select is((select count(*)::int from public.athlete_schools where athlete_id = pg_temp.u('e1')), 2, 'the guardian keeps reading both links of X');
 
--- Z: the window of A had already closed, so nothing moves. The family accepts B all the same.
+-- Z: the window of A had already closed (40 days), so no window moves, but B still reads all the history of A: no 30-day condition.
 select lives_ok(
   format($$ select public.accept_invitation(%L, %L, null, pg_temp.at(), pg_temp.auths('z')) $$, current_setting('test.token'), pg_temp.u('e2')),
   'the family accepts the invitation of B for Z');
 reset role;
 select is((select transferred_to_school_id from public.athlete_schools where athlete_id = pg_temp.u('e2') and school_id = pg_temp.u('b1')), null,
-  'a window that had already closed is not transferred');
+  'a window that had already closed is not stamped again');
 set local role authenticated;
 select pg_temp.as_user('a3');
-select is(pg_temp.history('e2'), '', 'B reads nothing of Z recorded in A');
+select is(pg_temp.history('e2'), 'f6', 'B reads the mark of Z recorded in A even though A ended Z 40 days ago');
 
 -- Y is active in A: nothing is lost there.
 select pg_temp.as_user('a5');
@@ -216,6 +225,37 @@ select is((select count(*)::int from public.athlete_schools
   where athlete_id in (pg_temp.u('e1'), pg_temp.u('e2'), pg_temp.u('e3'), pg_temp.u('e4'), pg_temp.u('e5'))
     and (read_window_closed_at is null) <> (not app.athlete_school_window_closed(ended_at, read_window_closed_at))), 0,
   'the stored column and the helpers give the same answer for every link');
+
+-- S: the chain. A ends S, the family accepts B, B records a mark and ends S, the family accepts C: C reads what A and B recorded.
+set local role authenticated;
+select pg_temp.as_user('a1');
+select public.end_athlete_school(pg_temp.u('e7'), pg_temp.u('b1'));
+select pg_temp.as_user('a5');
+select lives_ok(
+  format($$ select public.accept_invitation(%L, %L, null, pg_temp.at(), pg_temp.auths('s-b')) $$, current_setting('test.token'), pg_temp.u('e7')),
+  'the family accepts the invitation of B for S');
+select pg_temp.as_user('a3');
+select is(pg_temp.history('e7'), 'f9', 'B reads the mark of S recorded in A');
+reset role;
+select set_config('request.jwt.claims', '', true);
+insert into public.measurements
+  (id, created_by, school_id, kind, athlete_id, hundredths, stroke, distance, pool, session_type, source, device_id, captured_at)
+values
+  (pg_temp.u('fa'), pg_temp.u('a4'), pg_temp.u('b2'), 'repetition', pg_temp.u('e7'), 3900, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-kb', '2026-11-02 09:00:00+00');
+set local role authenticated;
+select pg_temp.as_user('a3');
+select public.end_athlete_school(pg_temp.u('e7'), pg_temp.u('b2'));
+select pg_temp.as_user('a5');
+select lives_ok(
+  format($$ select public.accept_invitation(%L, %L, null, pg_temp.at(), pg_temp.auths('s-c')) $$, current_setting('test.token_c'), pg_temp.u('e7')),
+  'the family accepts the invitation of C for S');
+select pg_temp.as_user('a7');
+select is(pg_temp.history('e7'), 'f9,fa', 'C reads what A and B recorded for S: the whole chain');
+select throws_ok($$ select * from public.athlete_history_grants $$, '42501', null, 'a client has no privilege on the grants table');
+reset role;
+select is((select count(*)::int from public.athlete_history_grants where athlete_id = pg_temp.u('e7')), 3, 'three grants: A to B, A to C and B to C');
+select is((select transferred_to_school_id from public.athlete_schools where athlete_id = pg_temp.u('e7') and school_id = pg_temp.u('b2')), pg_temp.u('b3'),
+  'the link of S that B ended points to C, and its window closes at once');
 
 -- T: the family accepts B, B ends T, and the family then erases their account. The authorizations are erased with it and T stays in A
 -- as a marker without identity, so B no longer reads what A recorded.
