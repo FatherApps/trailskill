@@ -23,6 +23,9 @@
 -- trap of #1434). Erasing the family deletes the authorization, so nothing is read through a row that is left behind, and a swimmer that
 -- is deleted takes the rows with it (on delete cascade).
 --
+-- If a flow that reopens an ended link is ever added, it must close the owner's open grants for that school (no flow reopens a link today:
+-- athlete_schools has one row per (swimmer, school) and the baja has no reactivation), or the old row would give C access again.
+--
 -- Revert: recreate public.other_school_results as in 20261122210000, drop app.owner_result_sharing_in_force, the two functions
 -- public.grant_athlete_result_sharing and public.revoke_athlete_result_sharing, then alter publication powersync drop table
 -- public.athlete_result_sharing and drop the table. Nothing else depends on them.

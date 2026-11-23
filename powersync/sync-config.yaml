@@ -12,7 +12,7 @@
 # training-plans_coach_reads_fulfillments_assignment_school,
 # training-plans_admin_reads_fulfillments_assignment_school,
 # athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school,
-# athletes_photos, athletes_birth_date_and_gender, athletes_athlete_schools_end, athletes_owner_result_sharing, accounts_saved_share_codes, accounts_saved_share_codes_expired, results-import_tournaments):
+# athletes_photos, athletes_birth_date_and_gender, athletes_athlete_schools_end, athletes_result_sharing, accounts_saved_share_codes, accounts_saved_share_codes_expired, results-import_tournaments):
 # a row syncs only if the signed-in user could read it through RLS.
 # An ended link (athlete_schools.ended_at, #1243) keeps giving its school's coaches and admins the swimmer for 30 days (#1418, read
 # only), one (swimmer, school) pair at a time. PowerSync does not re-evaluate time, so the window is closed by a stored column:
