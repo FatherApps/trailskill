@@ -12,7 +12,7 @@
 # training-plans_coach_reads_fulfillments_assignment_school,
 # training-plans_admin_reads_fulfillments_assignment_school,
 # athletes_coach_reads_enrollment_school, athletes_admin_reads_enrollment_school,
-# athletes_photos, athletes_birth_date_and_gender, athletes_athlete_schools_end, accounts_saved_share_codes, accounts_saved_share_codes_expired, results-import_tournaments):
+# athletes_photos, athletes_birth_date_and_gender, athletes_athlete_schools_end, athletes_owner_result_sharing, accounts_saved_share_codes, accounts_saved_share_codes_expired, results-import_tournaments):
 # a row syncs only if the signed-in user could read it through RLS.
 # An ended link (athlete_schools.ended_at, #1243) keeps giving its school's coaches and admins the swimmer for 30 days (#1418, read
 # only), one (swimmer, school) pair at a time. PowerSync does not re-evaluate time, so the window is closed by a stored column:
@@ -276,6 +276,14 @@ streams:
     auto_subscribe: true
     queries:
       - SELECT * FROM athlete_private_details WHERE athlete_id IN managed_athlete_ids
+
+  # The schools the owner opened the swimmer's results to (#1446, athlete_result_sharing_select): only the guardians and adult athletes who
+  # manage the swimmer, and only the rows in force. A withdrawn row (revoked_at set) leaves the stream and the device drops it. No staff
+  # query on purpose: a school never sees the owner's choices, and the marks themselves are read online (the function of #68), never synced.
+  athletes_result_sharing:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM athlete_result_sharing WHERE revoked_at IS NULL AND athlete_id IN managed_athlete_ids
 
   accounts_school_invitations:
     auto_subscribe: true
