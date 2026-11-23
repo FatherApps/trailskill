@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.0](https://github.com/FatherApps/trailskill/compare/v0.16.0...v0.17.0) (2026-11-23)
+
+
+### Features
+
+* **athletes:** per-school switch to share the swimmer's marks ([#1456](https://github.com/FatherApps/trailskill/issues/1456)) ([073e5f2](https://github.com/FatherApps/trailskill/commit/073e5f2cf1c46b299d93b45382b0bfd0720ba718)), closes [#1447](https://github.com/FatherApps/trailskill/issues/1447)
+
+
+### Bug Fixes
+
+* **athletes:** la lista de tiempos del perfil no parte palabras ([#1461](https://github.com/FatherApps/trailskill/issues/1461)) ([51d9024](https://github.com/FatherApps/trailskill/commit/51d9024186f2ad10c309b05e124e97f4c5f89387)), closes [#1459](https://github.com/FatherApps/trailskill/issues/1459)
+
 ## [0.16.0](https://github.com/FatherApps/trailskill/compare/v0.15.0...v0.16.0) (2026-11-23)
 
 
