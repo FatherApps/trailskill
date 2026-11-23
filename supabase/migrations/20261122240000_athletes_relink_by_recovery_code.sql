@@ -18,16 +18,21 @@
 --   'invalid_key'       the text matches no code (or is not shaped like one). A wrong code answers the same whether or not a copy
 --                       exists, and is recorded twice: by redeem (athlete_recovery_code_failures, 5 per 15 minutes per user) and in the
 --                       attempts of #1251 (5 per swimmer in 24 hours);
---   'rate_limited'      one of those limits is reached: nothing is checked, a right code too is refused.
+--   'rate_limited'      one of those limits is reached: nothing is checked, ANY code, right or wrong, is refused. For a code the redeem
+--                       limit is read first (the failures of the caller in the last 15 minutes, before the pre-check below), so a
+--                       locked-out caller cannot tell valid codes from wrong ones.
 -- app.redeem_athlete_recovery_code raises 'too_many_attempts' when its limit is reached, before it records anything, so catching it here
 -- loses no failure row; the failures it records for a wrong code stay because this function RETURNS 'invalid_key' (it never raises after
 -- a null result, the contract of #1416).
 -- Only a code of a recovery identity whose swimmer is not this one counts: the owner's own live swimmer already has those marks.
+-- PROVISIONAL (verifier, to confirm with the maintainer): a code relinks only when its identity belongs to an erased swimmer (athlete_id
+-- null), to a swimmer nobody manages (an anonymous marker), or to a swimmer the caller already manages. A code of a live swimmer that
+-- another family manages answers 'invalid_key', like a wrong code, and records the same failure, so it never reveals that the code is right.
 --
 -- public.school_anonymous_copies(p_school) lists the anonymous swimmers of a school for its active admins (the table is server-only).
 -- It never returns the identity or any code; linkable only says whether a code is attached.
 -- Revert: restore request_athlete_relink and resolve_athlete_relink from 20261122100000_athletes_relink_requests.sql, then drop function
--- public.school_anonymous_copies(uuid) and app.relink_copies(uuid, uuid). Requests already created stay valid as they are.
+-- public.school_anonymous_copies(uuid), app.relink_copies(uuid, uuid) and app.relink_identity_allowed(uuid, uuid). Requests already created stay valid as they are.
 
 -- The copies an identity can still recover for a swimmer: carrying the identity, not the swimmer's own, with marks of their school left.
 create function app.relink_copies(p_identity uuid, p_athlete uuid)
@@ -47,7 +52,26 @@ as $$
   order by c.school_id;
 $$;
 
-revoke execute on function app.relink_copies(uuid, uuid) from public, anon, authenticated;
+-- PROVISIONAL: may the caller relink the copies of this identity? Its swimmer is erased (no athlete), nobody manages it, or the caller does.
+create function app.relink_identity_allowed(p_identity uuid, p_caller uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.athlete_recovery_identities i
+    where i.id = p_identity
+      and (
+        i.athlete_id is null
+        or not exists (select 1 from public.athlete_managers m where m.athlete_id = i.athlete_id)
+        or exists (select 1 from public.athlete_managers m where m.athlete_id = i.athlete_id and m.user_id = p_caller)
+      )
+  );
+$$;
+
+revoke execute on function app.relink_copies(uuid, uuid), app.relink_identity_allowed(uuid, uuid) from public, anon, authenticated;
 
 create or replace function public.request_athlete_relink(p_athlete uuid, p_key text)
 returns text
@@ -61,6 +85,9 @@ declare
   caller_limit constant integer := 10;
   athlete_limit constant integer := 5;
   attempt_window constant interval := '24 hours';
+  -- The limit of app.redeem_athlete_recovery_code (#1416), read here before anything about a code is looked up.
+  redeem_limit constant integer := 5;
+  redeem_window constant interval := '15 minutes';
   v_caller uuid := (select auth.uid());
   v_hex text := upper(regexp_replace(coalesce(p_key, ''), '[\s-]', '', 'g'));
   v_code text := upper(regexp_replace(coalesce(p_key, ''), '[^A-Za-z0-9]', '', 'g'));
@@ -112,13 +139,25 @@ begin
       end if;
     end loop;
   elsif v_code ~ '^(TR|RC)[A-Z0-9]{16}$' then
-    -- A recovery code (#1416). First look, without spending it, whether the code is right and has anything to relink.
+    -- A recovery code (#1416). A caller that redeem would lock out gets 'rate_limited' for any code, before the code is looked up.
+    if (
+      select count(*) from public.athlete_recovery_code_failures f where f.user_id = v_caller and f.failed_at > now() - redeem_window
+    ) >= redeem_limit then
+      return 'rate_limited';
+    end if;
+    -- Then look, without spending it, whether the code is right, may be used by the caller and has anything to relink.
     v_hash := app.athlete_recovery_code_hash(p_key);
     select x.id into v_identity from (
       select i.id from public.athlete_recovery_identities i where i.code_hash = v_hash
       union all
       select c.identity_id from public.athlete_recovery_codes c where c.code_hash = v_hash and c.used_at is null
     ) x limit 1;
+    if v_identity is not null and not app.relink_identity_allowed(v_identity, v_caller) then
+      -- The same answer and the same failures as a wrong code; the code is not spent.
+      insert into public.athlete_recovery_code_failures (user_id) values (v_caller);
+      insert into public.athlete_relink_attempts (user_id, athlete_id) values (v_caller, request_athlete_relink.p_athlete);
+      return 'invalid_key';
+    end if;
     if v_identity is not null and not exists (select 1 from app.relink_copies(v_identity, request_athlete_relink.p_athlete)) then
       return 'nothing_to_relink';
     end if;
@@ -132,7 +171,7 @@ begin
       end if;
       raise;
     end;
-    if v_identity is null then
+    if v_identity is null or not app.relink_identity_allowed(v_identity, v_caller) then
       insert into public.athlete_relink_attempts (user_id, athlete_id) values (v_caller, request_athlete_relink.p_athlete);
       return 'invalid_key';
     end if;
