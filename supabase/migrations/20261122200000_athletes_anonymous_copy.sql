@@ -12,9 +12,9 @@
 -- to the identity lives in the new server-only table below, which is not in the PowerSync publication or in the sync config.
 --
 -- public.create_anonymous_school_copy(p_athlete, p_school) is the only way in. An active school_admin of p_school calls it while the
--- school still reads the swimmer: an active link, or one ended less than 30 days ago (the window of #1418; PROVISIONAL, the constant is
--- here until that issue lands). It copies the marks of that school that the school reads now (not hidden by a withdrawn authorization,
--- not discarded), with their splits, and nothing else: no name, photo, family or other school's data. The copy has no author.
+-- school still reads the swimmer: an active link, or one ended less than 30 days ago (the window of #1418, through
+-- app.athlete_school_window_closed, the only definition of it). It copies the marks of that school that the school reads now (not hidden by a withdrawn
+-- authorization, not discarded), with their splits, and nothing else: no name, photo, family or other school's data. The copy has no author.
 -- Answers (jsonb): status 'created' or 'already_copied', athlete_id (the anonymous swimmer), linkable (it has a key) and copied (marks).
 -- A swimmer whose owner never got a recovery code is copied without a key (linkable false). Decided by the maintainer on #1420: the key
 -- is attached later only on the server, when the OWNER issues the code (the trigger at the end of this file, on the identity that
@@ -58,8 +58,6 @@ set search_path = ''
 set lock_timeout = '10s'
 as $$
 declare
-  -- PROVISIONAL, as in #1418: how long the school keeps reading a swimmer after the baja.
-  read_window constant interval := '30 days';
   v_caller uuid := (select auth.uid());
   v_identity uuid;
   v_copy public.athlete_anonymous_copies;
@@ -87,7 +85,7 @@ begin
   if not exists (
     select 1 from public.athlete_schools s
     where s.athlete_id = create_anonymous_school_copy.p_athlete and s.school_id = create_anonymous_school_copy.p_school
-      and (s.ended_at is null or s.ended_at > now() - read_window)
+      and not app.athlete_school_window_closed(s.ended_at)
   ) then
     raise exception 'no_school_access' using errcode = 'P0001';
   end if;
