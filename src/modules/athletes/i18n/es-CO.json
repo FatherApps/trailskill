@@ -341,11 +341,11 @@
     "code_label": "Código {{code}}"
   },
   "recovery_code": {
-    "title": "Código de recuperación",
+    "title": "Código principal",
     "help": "Solo tú lo ves. Si se pierden este código y los códigos de recuperación, no se puede recuperar nada.",
     "show": "Ver código",
     "hide": "Ocultar código",
-    "code_label": "Código de recuperación {{code}}",
+    "code_label": "Código principal {{code}}",
     "copy": "Copiar",
     "copy_message": "Código principal de {{name}}: {{code}}",
     "copy_message_no_name": "Código principal del deportista: {{code}}",

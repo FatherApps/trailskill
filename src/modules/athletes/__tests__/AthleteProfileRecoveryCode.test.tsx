@@ -19,6 +19,6 @@ describe('AthleteProfileScreen recovery code slot', () => {
     await render(<AthleteProfileScreen name="Ana" view={{ kind: 'data', content }} />);
 
     expect(screen.queryByText('owner row')).toBeNull();
-    expect(screen.queryByText('Código de recuperación')).toBeNull();
+    expect(screen.queryByText('Código principal')).toBeNull();
   });
 });

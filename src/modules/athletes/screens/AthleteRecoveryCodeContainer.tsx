@@ -25,7 +25,7 @@ const defaultShare = (message: string) => Share.share({ message });
 
 type Saved = { key: string; code: string | null };
 
-// «Código de recuperación» on the swimmer's profile: the permanent code shows only when the owner taps, and only from this phone's vault
+// «Código principal» on the swimmer's profile: the permanent code shows only when the owner taps, and only from this phone's vault
 // (the server never knows the text). The route passes this only to who manages the swimmer, never to school staff or other families.
 export function AthleteRecoveryCodeContainer({ athleteId, athleteName, userId, repository, vault, online, share = defaultShare }: AthleteRecoveryCodeContainerProps) {
   const key = `${userId}:${athleteId}`;

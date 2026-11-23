@@ -18,7 +18,7 @@ export type AthleteRecoveryCodeRowProps = {
   onRegenerate: () => void;
 };
 
-// «Código de recuperación» of the owner on the swimmer's profile: the code shows only after a tap. No data here: the container reads it.
+// «Código principal» of the owner on the swimmer's profile: the code shows only after a tap. No data here: the container reads it.
 export function AthleteRecoveryCodeRow({ code, revealed, online, problem, onToggle, onCopy, onRegenerate }: AthleteRecoveryCodeRowProps) {
   const { colors, space, radius, typography } = useTheme();
   return (
