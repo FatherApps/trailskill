@@ -43,7 +43,8 @@ function requestDetail(request: RelinkRequest, athleteName: string): string {
   return t('athletes.relink.requests.pending_detail');
 }
 
-// Presentational: no network, database or repository. The family types the key of the swimmer who was erased and sees what the school answered.
+// Presentational: no network, database or repository. The family types the key of the swimmer who was erased, or a recovery code they saved
+// (always by hand: nothing stored on the phone is offered, issue 1421), and sees what the school answered.
 export function RelinkRequestScreen({ athleteId, athleteName, keyValue, onChangeKey, state, requests, onSubmit, onBack }: RelinkRequestScreenProps) {
   const { colors, space, radius, typography } = useTheme();
   const banner = STATE_BANNER[state];
