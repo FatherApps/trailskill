@@ -9,6 +9,8 @@ jest.mock('../../../core/sync', () => ({ supabase: {}, db: {} }));
 
 // Synthetic data only. The key is made up.
 const KEY = 'AAAA-BBBB-CCCC-DDDD-EEEE';
+const MAIN_CODE = 'TR-AAAA-BBBB-CCCC-DDDD';
+const RECOVERY_CODE = 'RC-EEEE-FFFF-GGGG-HHHH';
 
 describe('Supabase athlete relink repository', () => {
   const ok = (data: unknown) => ({ rpc: jest.fn().mockResolvedValue({ data, error: null }) });
@@ -148,5 +150,29 @@ describe('in-memory athlete relink repository', () => {
     for (const r of await repo.listForSchool('s2')) await repo.resolve(r.id, true);
 
     await expect(repo.request('a1', KEY)).resolves.toBe('nothing_to_relink');
+  });
+
+  it('takes a permanent code or a single-use recovery code, and never mixes them with the key of an erased swimmer', async () => {
+    const data = world();
+    data.markers[0].codes = [MAIN_CODE, RECOVERY_CODE];
+    const repo = createInMemoryAthleteRelinkRepository(data);
+
+    await expect(repo.request('a1', ' rc eeee-ffff-gggg-hhhh ')).resolves.toBe('requested');
+    await expect(repo.request('a1', RECOVERY_CODE)).resolves.toBe('invalid_key');
+    await expect(repo.request('a1', ' tr-aaaa-bbbb-cccc-dddd ')).resolves.toBe('already_requested');
+    // A key of the other kind is not a code, and a code is not a key.
+    data.markers[0].codes = ['TR-FFFF-FFFF-FFFF-FFFF'];
+    await expect(repo.request('a1', 'TR-FFFF-FFFF-FFFF-FFFF')).resolves.toBe('already_requested');
+    await expect(repo.request('a1', 'FFFFFFFFFFFFFFFFFFFF')).resolves.toBe('invalid_key');
+  });
+
+  it('does not spend a recovery code when there is nothing left to relink', async () => {
+    const data = world();
+    data.markers[0].codes = [RECOVERY_CODE];
+    data.markers[0].schools.forEach((s) => (s.times = 0));
+    const repo = createInMemoryAthleteRelinkRepository(data);
+
+    await expect(repo.request('a1', RECOVERY_CODE)).resolves.toBe('nothing_to_relink');
+    expect(data.markers[0].codes).toEqual([RECOVERY_CODE]);
   });
 });
