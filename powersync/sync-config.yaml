@@ -18,7 +18,9 @@
 # only), one (swimmer, school) pair at a time. PowerSync does not re-evaluate time, so the window is closed by a stored column:
 # app.close_athlete_school_read_windows() (a daily job) stamps athlete_schools.read_window_closed_at with ended_at + 30 days, the row
 # change replicates and the device drops the pair. Every staff query keeps read_window_closed_at IS NULL on athlete_schools (an
-# active link and a link inside the window both have it null; ended_at itself is never filtered). PowerSync 1.21 builds the
+# active link and a link inside the window both have it null; ended_at itself is never filtered). A transfer to another school
+# (#1419, accept_invitation) stamps the same column with now() before the day 30, so the same filters drop the pair at once: no
+# query changes, and the history B reads of A is online only (other_school_results), never synced. PowerSync 1.21 builds the
 # buckets of a join from separate lookups and combines their values as a cross product, so the pair survives only in three
 # shapes (#1260, checked against a real PowerSync with an admin and a coach of two schools):
 #   admin          school_memberships joined to the row by its school first, athlete_schools last by that same school

@@ -1,0 +1,425 @@
+-- Module athletes: transfer to another school (issue #1419). Rule confirmed by the maintainer (2026-11-22): "if another school takes the
+-- swimmer in, the first school stops seeing their data and the data goes to the other school". The acceptance of the family of the
+-- new enrollment (public.accept_invitation, #1328) is what authorizes the transfer.
+--
+-- What happens when the family accepts the invitation of school B (a NEW athlete_schools row for B, made by that call) for a swimmer
+-- that school A ended (#1243) and whose 30-day read window (#1418) is still open:
+--   1. A's window closes at that moment, without waiting for the day 30. The stored column that the helpers and the sync streams of
+--      powersync/sync-config.yaml already read, athlete_schools.read_window_closed_at, is stamped with now(): the staff of A stop
+--      reading the swimmer online (RLS) and the devices drop the pair when the row replicates. No stream changes: every staff stream
+--      already filters on athlete_schools.read_window_closed_at IS NULL.
+--   2. A's row remembers where the swimmer went (athlete_schools.transferred_to_school_id = B).
+--   3. The staff of B read the swimmer's marks recorded in A, read only, through public.other_school_results (the function of #68 that
+--      returns a fixed list of result columns). The history is read in place: nothing is copied, nothing is synced, B cannot write it.
+-- A swimmer with an ACTIVE link in A and in B at once loses nothing: only ended links move. A swimmer whose window already closed
+-- (30 days passed) is not transferred. Without the family's acceptance (any other way of linking a swimmer) B reads nothing of A.
+-- The acceptance is recorded as today, with the evidence accept_invitation already stores (the three authorizations written in the same
+-- transaction): the purpose school_transfer of T150 does not exist in the database yet, so it is not used. B's read also needs the
+-- swimmer's share_results_with_school authorization in force, as the sharing of #68: withdrawing it cuts B's access to A's history.
+--
+-- PROVISIONAL (the maintainer confirms in the pull request): B sees the marks and results of A (the columns of other_school_results), not
+-- photos, authorizations, groups, plan fulfillments or the swimmer's health data; only the links of A inside their window when the
+-- family accepts; the school that accepts first receives the history (a link has one destination); no chain: a later school C does
+-- not receive what B received from A.
+--
+-- Revert: restore accept_invitation (20261121120000), other_school_results (20261026010000), athlete_schools_ended_guard and the seven read
+-- helpers (20261122120000), drop app.transfer_athlete_school_history and app.school_transfer_in_force, drop the new overload
+-- app.athlete_school_window_closed(timestamptz, timestamptz) and recreate the one-argument one of 20261122120000, drop the two checks
+-- and the column transferred_to_school_id and recreate athlete_schools_read_window_closed_after_end as in 20261122120000. Links already
+-- transferred keep their closed window (read_window_closed_at is not null) unless that column is cleared; nothing is lost.
+
+-- A window is closed when it was stamped (by the job at day 30 or by a transfer) or when its 30 days have passed. The one-argument
+-- version of #1418 cannot see a stamp, so it goes away once the read helpers below use this one.
+create function app.athlete_school_window_closed(ended timestamptz, closed_at timestamptz)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$ select ended is not null and (closed_at is not null or ended + app.athlete_school_read_window() <= now()) $$;
+
+revoke execute on function app.athlete_school_window_closed(timestamptz, timestamptz) from public, anon, authenticated;
+
+alter table public.athlete_schools
+  add column transferred_to_school_id uuid references public.schools;
+
+-- The stamp of a transfer may fall before day 30. Any other stamp keeps the rule of #1418.
+alter table public.athlete_schools drop constraint athlete_schools_read_window_closed_after_end;
+alter table public.athlete_schools
+  add constraint athlete_schools_read_window_closed_after_end
+    check (
+      read_window_closed_at is null
+      or (
+        ended_at is not null
+        and read_window_closed_at >= ended_at
+        and (transferred_to_school_id is not null or read_window_closed_at >= ended_at + interval '30 days')
+      )
+    ),
+  add constraint athlete_schools_transferred_closes_window
+    check (transferred_to_school_id is null or (read_window_closed_at is not null and transferred_to_school_id <> school_id));
+
+-- A client role never writes the new column either: only app.transfer_athlete_school_history (the owner) does.
+create or replace function public.athlete_schools_ended_guard()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if current_user in ('anon', 'authenticated', 'service_role') then
+    if tg_op = 'INSERT' then
+      if new.ended_at is not null or new.ended_by is not null then
+        raise exception 'a link is ended only with end_athlete_school' using errcode = '42501';
+      end if;
+      if new.read_window_closed_at is not null then
+        raise exception 'the read window is closed only by the scheduled job' using errcode = '42501';
+      end if;
+      if new.transferred_to_school_id is not null then
+        raise exception 'a transfer is made only by accepting an invitation' using errcode = '42501';
+      end if;
+    elsif new.ended_at is distinct from old.ended_at or new.ended_by is distinct from old.ended_by then
+      raise exception 'a link is ended only with end_athlete_school' using errcode = '42501';
+    elsif new.read_window_closed_at is distinct from old.read_window_closed_at then
+      raise exception 'the read window is closed only by the scheduled job' using errcode = '42501';
+    elsif new.transferred_to_school_id is distinct from old.transferred_to_school_id then
+      raise exception 'a transfer is made only by accepting an invitation' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+-- The seven read helpers of #1418, the same bodies, now counting the stamp of the row besides the clock.
+create or replace function app.admin_athlete_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select athlete_id from public.athlete_schools
+  where school_id in (select app.admin_school_ids()) and not app.athlete_school_window_closed(ended_at, read_window_closed_at);
+$$;
+
+create or replace function app.admin_athlete_school_pairs()
+returns table (athlete_id uuid, school_id uuid)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.athlete_id, s.school_id
+  from public.athlete_schools s
+  where s.school_id in (select app.admin_school_ids()) and not app.athlete_school_window_closed(s.ended_at, s.read_window_closed_at);
+$$;
+
+create or replace function app.admin_athlete_schools()
+returns table (athlete_id uuid, school_id uuid)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select athlete_id, school_id from public.athlete_schools
+  where school_id in (select app.admin_school_ids()) and not app.athlete_school_window_closed(ended_at, read_window_closed_at);
+$$;
+
+create or replace function app.admin_has_athlete_in_school(athlete uuid, school uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select admin_has_athlete_in_school.school in (select app.admin_school_ids())
+    and exists (
+      select 1 from public.athlete_schools s
+      where s.athlete_id = admin_has_athlete_in_school.athlete
+        and s.school_id = admin_has_athlete_in_school.school
+        and not app.athlete_school_window_closed(s.ended_at, s.read_window_closed_at)
+    );
+$$;
+
+create or replace function app.coach_athlete_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select ag.athlete_id
+  from public.athlete_groups ag
+  join public.coach_group_assignments cga on cga.group_id = ag.group_id
+  join public.training_groups tg on tg.id = cga.group_id
+  where cga.coach_user_id = (select auth.uid())
+    and tg.school_id in (select app.staff_school_ids())
+    and not exists (
+      select 1 from public.athlete_schools s
+      where s.athlete_id = ag.athlete_id and s.school_id = tg.school_id and app.athlete_school_window_closed(s.ended_at, s.read_window_closed_at)
+    )
+  union
+  select ca.athlete_id from public.coach_athlete_assignments ca
+  where ca.coach_user_id = (select auth.uid())
+    and ca.school_id in (select app.staff_school_ids())
+    and not exists (
+      select 1 from public.athlete_schools s
+      where s.athlete_id = ca.athlete_id and s.school_id = ca.school_id and app.athlete_school_window_closed(s.ended_at, s.read_window_closed_at)
+    );
+$$;
+
+create or replace function app.coach_athlete_school_pairs()
+returns table (athlete_id uuid, school_id uuid)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select ca.athlete_id, ca.school_id
+  from public.coach_athlete_assignments ca
+  where ca.coach_user_id = (select auth.uid())
+    and ca.school_id in (select app.staff_school_ids())
+    and not exists (
+      select 1 from public.athlete_schools s
+      where s.athlete_id = ca.athlete_id and s.school_id = ca.school_id and app.athlete_school_window_closed(s.ended_at, s.read_window_closed_at)
+    )
+  union
+  select ag.athlete_id, tg.school_id
+  from public.athlete_groups ag
+  join public.coach_group_assignments cg on cg.group_id = ag.group_id
+  join public.training_groups tg on tg.id = ag.group_id
+  where cg.coach_user_id = (select auth.uid())
+    and tg.school_id in (select app.staff_school_ids())
+    and not exists (
+      select 1 from public.athlete_schools s
+      where s.athlete_id = ag.athlete_id and s.school_id = tg.school_id and app.athlete_school_window_closed(s.ended_at, s.read_window_closed_at)
+    );
+$$;
+
+create or replace function app.coach_has_athlete_in_school(athlete uuid, school uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coach_has_athlete_in_school.school in (select app.staff_school_ids())
+    and not exists (
+      select 1 from public.athlete_schools s
+      where s.athlete_id = coach_has_athlete_in_school.athlete
+        and s.school_id = coach_has_athlete_in_school.school
+        and app.athlete_school_window_closed(s.ended_at, s.read_window_closed_at)
+    )
+    and (
+      exists (
+        select 1 from public.coach_athlete_assignments ca
+        where ca.coach_user_id = (select auth.uid())
+          and ca.athlete_id = coach_has_athlete_in_school.athlete
+          and ca.school_id = coach_has_athlete_in_school.school
+      )
+      or exists (
+        select 1 from public.athlete_groups ag
+        join public.coach_group_assignments cg on cg.group_id = ag.group_id
+        join public.training_groups tg on tg.id = ag.group_id
+        where cg.coach_user_id = (select auth.uid())
+          and ag.athlete_id = coach_has_athlete_in_school.athlete
+          and tg.school_id = coach_has_athlete_in_school.school
+      )
+    );
+$$;
+
+drop function app.athlete_school_window_closed(timestamptz);
+
+-- The transfer: the links of the swimmer that other schools ended and whose window is still open close now and point to the new school.
+-- Rows already stamped (by the job, or by an earlier transfer) and rows still active are left alone, so it is safe to repeat. A row
+-- the job or another transfer is changing at this moment is re-read after its lock: the second writer finds the stamp and skips it.
+create function app.transfer_athlete_school_history(athlete uuid, new_school uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  moved integer;
+begin
+  update public.athlete_schools s
+  set read_window_closed_at = now(), transferred_to_school_id = transfer_athlete_school_history.new_school
+  where s.athlete_id = transfer_athlete_school_history.athlete
+    and s.school_id <> transfer_athlete_school_history.new_school
+    and s.ended_at is not null
+    and s.read_window_closed_at is null
+    and s.transferred_to_school_id is null
+    and s.ended_at + app.athlete_school_read_window() > now();
+  get diagnostics moved = row_count;
+  return moved;
+end;
+$$;
+
+revoke execute on function app.transfer_athlete_school_history(uuid, uuid) from public, anon, authenticated;
+
+-- Whether school B reads the marks school A recorded for the swimmer because the family accepted B's invitation after A ended them.
+-- B must still read the swimmer itself (active, or inside its own window) and the family's share_results_with_school authorization
+-- must be in force, like the sharing of #68.
+create function app.school_transfer_in_force(source_school uuid, target_school uuid, athlete uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+      select 1 from public.athlete_schools a
+      where a.athlete_id = school_transfer_in_force.athlete
+        and a.school_id = school_transfer_in_force.source_school
+        and a.transferred_to_school_id = school_transfer_in_force.target_school
+    )
+    and exists (
+      select 1 from public.athlete_schools b
+      where b.athlete_id = school_transfer_in_force.athlete
+        and b.school_id = school_transfer_in_force.target_school
+        and not app.athlete_school_window_closed(b.ended_at, b.read_window_closed_at)
+    )
+    and app.authorization_in_force_at(school_transfer_in_force.athlete, 'share_results_with_school', 'infinity', 'infinity');
+$$;
+
+revoke execute on function app.school_transfer_in_force(uuid, uuid, uuid) from public, anon, authenticated;
+
+-- Same as 20261026010000 (#68), except that the history a swimmer brings from the school that handed them over (the transfer) reads like
+-- an approved sharing. Same columns, same filters: not hidden, not discarded, no splits.
+create or replace function public.other_school_results(athlete uuid)
+returns table (
+  id uuid, kind text, hundredths int, stroke text, distance text, pool text,
+  session_type text, captured_at timestamptz, arrival_position int
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m.id, m.kind, m.hundredths, m.stroke, m.distance, m.pool,
+         m.session_type, m.captured_at, m.arrival_position
+  from public.measurements m
+  where m.athlete_id = other_school_results.athlete
+    and not m.hidden
+    and m.discarded_at is null
+    and m.kind <> 'split'
+    and exists (
+      select 1 from public.school_memberships sm
+      where sm.user_id = (select auth.uid())
+        and sm.school_id <> m.school_id
+        and (sm.role = 'school_admin'
+             or (sm.role = 'coach' and app.coach_has_athlete_in_school(other_school_results.athlete, sm.school_id)))
+        and (
+          app.result_sharing_in_force(m.school_id, sm.school_id, other_school_results.athlete)
+          or app.school_transfer_in_force(m.school_id, sm.school_id, other_school_results.athlete)
+        )
+    )
+  order by m.captured_at desc, m.id desc;
+$$;
+
+-- accept_invitation of 20261121120000, the same body, plus the transfer at the end (the variable linked and the lines that use it).
+create or replace function public.accept_invitation(token text, athlete_id uuid, category_id uuid, accepted_at timestamptz, authorizations jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  caller uuid := (select auth.uid());
+  inv public.school_invitations;
+  -- The three purposes that joining a school accepts, fixed here on purpose and sorted: a purpose added to the
+  -- platform later is never accepted by this function without a new migration and a new decision of the maintainer.
+  required constant text[] := array['import_official_results', 'record_times', 'share_results_with_school'];
+  sent text[];
+  incomplete boolean;
+  linked integer;
+begin
+  if caller is null then
+    raise exception 'accept_invitation needs a signed-in user' using errcode = '42501';
+  end if;
+
+  -- Before the token, so a stranger learns nothing about invitations.
+  if not exists (
+    select 1 from public.athlete_managers m
+    where m.user_id = caller and m.athlete_id = accept_invitation.athlete_id
+  ) then
+    raise exception 'athlete is not managed by the caller' using errcode = '42501';
+  end if;
+
+  if accept_invitation.accepted_at is null then
+    raise exception 'the device time of the acceptance is required' using errcode = '22023';
+  end if;
+
+  -- Exactly one {id, purpose, text_id} object for each of the three purposes: a missing, repeated or other purpose,
+  -- an object without a field, and a value that is not a uuid are all refused.
+  begin
+    select array_agg(a.purpose order by a.purpose), coalesce(bool_or(a.id is null or a.purpose is null or a.text_id is null), true)
+    into sent, incomplete
+    from jsonb_to_recordset(accept_invitation.authorizations) as a(id uuid, purpose text, text_id uuid);
+  exception when invalid_text_representation or invalid_parameter_value then
+    raise exception 'authorizations must be a list of {id, purpose, text_id} objects' using errcode = '22023';
+  end;
+  if incomplete or sent is distinct from required then
+    raise exception 'authorizations must have exactly one object for each of the three purposes' using errcode = '22023';
+  end if;
+
+  -- Any version of the text is accepted, but it must be a text of that same purpose.
+  if exists (
+    select 1 from jsonb_to_recordset(accept_invitation.authorizations) as a(id uuid, purpose text, text_id uuid)
+    where not exists (select 1 from public.authorization_texts t where t.id = a.text_id and t.purpose = a.purpose)
+  ) then
+    raise exception 'the text does not exist for that purpose' using errcode = '22023';
+  end if;
+
+  -- Unknown, expired and revoked look the same, like resolve_invitation.
+  select * into inv from public.school_invitations i
+  where i.token = accept_invitation.token
+    and i.revoked_at is null
+    and i.expires_at > now();
+  if not found then
+    raise exception 'invitation not found' using errcode = 'P0002';
+  end if;
+
+  if accept_invitation.category_id is not null and not exists (
+    select 1 from public.categories c
+    where c.id = accept_invitation.category_id and c.school_id = inv.school_id
+  ) then
+    raise exception 'category does not belong to the invitation school' using errcode = '22023';
+  end if;
+
+  -- An inactive category is rejected by the athlete_schools_guard_inactive_category trigger.
+  insert into public.athlete_schools (athlete_id, school_id, category_id, created_by)
+  values (accept_invitation.athlete_id, inv.school_id, accept_invitation.category_id, caller)
+  on conflict (athlete_id, school_id) do nothing;
+  get diagnostics linked = row_count;
+
+  insert into public.athlete_groups (athlete_id, group_id, created_by)
+  values (accept_invitation.athlete_id, inv.group_id, caller)
+  on conflict (athlete_id, group_id) do nothing;
+
+  -- A trigger clamps accepted_at to the reception time and sets received_at; another one keeps authorization_status.
+  insert into public.authorizations (id, user_id, athlete_id, purpose, text_id, accepted_at)
+  select a.id, caller, accept_invitation.athlete_id, a.purpose, a.text_id, accept_invitation.accepted_at
+  from jsonb_to_recordset(accept_invitation.authorizations) as a(id uuid, purpose text, text_id uuid)
+  on conflict (id) do nothing;
+
+  -- A retry finds its own rows. An id that already exists for another user, athlete, purpose or text is never
+  -- adopted: the whole call fails and nothing stays written.
+  if exists (
+    select 1 from jsonb_to_recordset(accept_invitation.authorizations) as a(id uuid, purpose text, text_id uuid)
+    join public.authorizations x on x.id = a.id
+    where x.user_id is distinct from caller
+       or x.athlete_id is distinct from accept_invitation.athlete_id
+       or x.purpose is distinct from a.purpose
+       or x.text_id is distinct from a.text_id
+  ) then
+    raise exception 'an authorization id already belongs to another record' using errcode = '42501';
+  end if;
+
+  -- Joining a new school takes the swimmer over from the schools that ended them inside their read window (issue #1419).
+  -- The acceptance of the family is what authorizes it: this same call has just recorded its three authorizations. Only a link
+  -- created by this call counts, so a retry or an already existing link changes nothing.
+  if linked = 1 then
+    perform app.transfer_athlete_school_history(accept_invitation.athlete_id, inv.school_id);
+  end if;
+end;
+$$;
