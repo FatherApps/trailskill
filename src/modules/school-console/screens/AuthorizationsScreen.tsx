@@ -11,6 +11,7 @@ import {
   type AuthorizationPurpose,
   type SharingRequestsState,
 } from '../components/AuthorizationList';
+import { AnonymousCopyList, type AnonymousCopiesState } from '../components/AnonymousCopyList';
 import { RelinkRequestList, relinkAthleteName, type RelinkRequestsState } from '../components/RelinkRequestList';
 import { SectionFrame, type SectionView } from '../components/SectionFrame';
 import type { ConsoleSectionProps } from './ConsoleScreen';
@@ -23,6 +24,8 @@ export type AuthorizationsContent = {
   sharingRequests: SharingRequestsState;
   // Families asking this school for the times it kept of an erased swimmer (issue 1251). Absent: the area is not shown.
   relinkRequests?: RelinkRequestsState;
+  // The anonymous swimmers of this school (issue 1420). Absent: the area is not shown.
+  anonymousCopies?: AnonymousCopiesState;
 };
 
 export type AuthorizationsView = SectionView<AuthorizationsContent>;
@@ -39,6 +42,7 @@ export type AuthorizationsScreenProps = ConsoleSectionProps & {
   // Approves or rejects a relink request; fires only after the ConfirmSheet is confirmed.
   onResolveRelink?: (requestId: string, approve: boolean) => void;
   onRetryRelink?: () => void;
+  onRetryAnonymousCopies?: () => void;
   // Why the last action failed, shown above the list; null or absent when nothing failed.
   resendError?: string | null;
   // Set to false when a parent ScrollView scrolls instead (the development gallery).
@@ -65,6 +69,7 @@ export function AuthorizationsScreen({
   onRetrySharingRequests,
   onResolveRelink,
   onRetryRelink,
+  onRetryAnonymousCopies,
   resendError,
   scrollEnabled,
 }: AuthorizationsScreenProps) {
@@ -161,7 +166,7 @@ export function AuthorizationsScreen({
       }}
       overlay={sheet}
     >
-      {({ athletes, sharingRequests, relinkRequests }) => (
+      {({ athletes, sharingRequests, relinkRequests, anonymousCopies }) => (
         <>
           {resendError ? <Banner variant="warn" icon="error">{resendError}</Banner> : null}
           {relinkRequests !== undefined && relinkRequests !== 'loading' && !(Array.isArray(relinkRequests) && relinkRequests.length === 0) && (
@@ -171,6 +176,9 @@ export function AuthorizationsScreen({
               onReject={(requestId) => setPending({ kind: 'relink_reject', requestId })}
               onRetry={() => onRetryRelink?.()}
             />
+          )}
+          {anonymousCopies !== undefined && anonymousCopies !== 'loading' && !(Array.isArray(anonymousCopies) && anonymousCopies.length === 0) && (
+            <AnonymousCopyList copies={anonymousCopies} onRetry={() => onRetryAnonymousCopies?.()} />
           )}
           {sharingRequests !== 'loading' && !(Array.isArray(sharingRequests) && sharingRequests.length === 0) && (
             <SharingRequestList

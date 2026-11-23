@@ -13,6 +13,7 @@ export { AthleteFilterOptions, type AthleteFilterOption, type AthleteFilterOptio
 export { CoachList, type CoachListProps, type CoachRow } from './components/CoachList';
 export { InviteCoachSheet, type CoachInvitation, type InviteCoachSheetProps, type InviteGroup, type InviteGroups } from './components/InviteCoachSheet';
 export { AuthorizationList, SharingRequestList, type AthleteAuthorizations, type AuthorizationListProps, type AuthorizationPurpose, type AuthorizationStatus, type SharingRequest, type SharingRequestListProps, type SharingRequestsState } from './components/AuthorizationList';
+export { AnonymousCopyList, type AnonymousCopiesState, type AnonymousCopyListProps } from './components/AnonymousCopyList';
 export { RelinkRequestList, type RelinkRequestListProps, type RelinkRequestsState } from './components/RelinkRequestList';
 export { MeasurementLog, type MeasurementEntry, type MeasurementLogProps, type MeasurementVersion } from './components/MeasurementLog';
 export { RecordTable, type RecordRow, type RecordTableProps } from './components/RecordTable';

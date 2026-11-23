@@ -51,6 +51,12 @@ export {
   type RegisterAthleteInput,
 } from './data/athleteRegistration';
 export {
+  createSupabaseAthleteAnonymousCopyRepository,
+  type AnonymousCopy,
+  type AnonymousCopyResult,
+  type AthleteAnonymousCopyRepository,
+} from './data/athleteAnonymousCopies';
+export {
   createInMemoryAthleteSchoolEndRepository,
   createSupabaseAthleteSchoolEndRepository,
   type AthleteSchoolEndRepository,
