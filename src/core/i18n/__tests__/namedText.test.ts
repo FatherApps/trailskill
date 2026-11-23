@@ -41,6 +41,9 @@ describe('namedText keys', () => {
     expect(calledKeys.sort()).toEqual([
       'athletes.import_prompt.imported',
       'athletes.import_prompt.question',
+      'athletes.recovery_code.copy_message',
+      'athletes.recovery_codes.copy_message',
+      'athletes.recovery_codes.main_help',
       'athletes.screen.denied.message',
       'athletes.screen.empty.message',
       'athletes.screen.offline.message',

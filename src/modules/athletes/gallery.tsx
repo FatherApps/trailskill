@@ -13,6 +13,7 @@ import {
   progressChartTwoResults,
   progressChartWithoutTime,
 } from './__fixtures__/progressChart';
+import { recoveryCodesFixture, recoveryMainCodeFixture } from './__fixtures__/recoveryCodes';
 import { relinkRequestsFixture, relinkRequestsLongTextFixture } from './__fixtures__/relink';
 import { myAthletesFixture, myAthletesLongTextFixture } from './__fixtures__/myAthletes';
 import { profileContentFixture, storedOnFixture } from './__fixtures__/screen';
@@ -28,10 +29,13 @@ import { PhotoCard, type PhotoCardProps } from './components/PhotoCard';
 import { PhotoRemoveSheet, type PhotoRemoveSheetProps } from './components/PhotoRemoveSheet';
 import { ProgressChart } from './components/ProgressChart';
 import type { HistoryResult } from './components/HistoryList';
+import { AthleteRecoveryCodeRow, type AthleteRecoveryCodeRowProps } from './components/AthleteRecoveryCodeRow';
 import { ProfileHeader, type ProfileHeaderProps } from './components/ProfileHeader';
 import { AthleteEditScreen } from './screens/AthleteEditScreen';
 import { AthleteProfileScreen, type AthleteProfileContent, type AthleteProfileView } from './screens/AthleteProfileScreen';
 import { MarksScreen, type MarksView } from './screens/MarksScreen';
+import { RecoveryCodesReplacedScreen } from './screens/RecoveryCodesReplacedScreen';
+import { RecoveryCodesScreen, type RecoveryCodesScreenProps } from './screens/RecoveryCodesScreen';
 import { RelinkRequestScreen, type RelinkRequestScreenProps } from './screens/RelinkRequestScreen';
 import { MyAthletesScreen, type MyAthletesView } from './screens/MyAthletesScreen';
 
@@ -39,6 +43,18 @@ import { MyAthletesScreen, type MyAthletesView } from './screens/MyAthletesScree
 const FullWidth = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch' }}>{children}</View>;
 
 const noop = () => {};
+
+// A full screen needs a height of its own inside the preview box.
+const ScreenFrame = ({ children }: { children: ReactNode }) => <View style={{ alignSelf: 'stretch', height: 760 }}>{children}</View>;
+
+const recoveryScreenBase: RecoveryCodesScreenProps = {
+  athleteName: 'Ana',
+  mainCode: recoveryMainCodeFixture,
+  recoveryCodes: recoveryCodesFixture,
+  onCopy: noop,
+  onDone: noop,
+};
+const recoveryRowBase: AthleteRecoveryCodeRowProps = { code: recoveryMainCodeFixture, revealed: false, online: true, onToggle: noop, onCopy: noop, onRegenerate: noop };
 
 // The relink request: the key is never part of a fixture (a made-up shape stands in for what the person types).
 const relinkBase: RelinkRequestScreenProps = {
@@ -370,5 +386,79 @@ export const galleryEntries: GalleryEntry[] = [
     empty: marksPreview({ kind: 'empty' }),
     loading: marksPreview({ kind: 'loading' }),
     error: marksPreview({ kind: 'error', onRetry: noop }),
+  }),
+  entry('recoveryCodesScreen', 'RecoveryCodesScreen', {
+    'first-time': () => (
+      <ScreenFrame>
+        <RecoveryCodesScreen {...recoveryScreenBase} />
+      </ScreenFrame>
+    ),
+    saving: () => (
+      <ScreenFrame>
+        <RecoveryCodesScreen {...recoveryScreenBase} saving />
+      </ScreenFrame>
+    ),
+    'save-failed': () => (
+      <ScreenFrame>
+        <RecoveryCodesScreen {...recoveryScreenBase} error />
+      </ScreenFrame>
+    ),
+    'replaces-previous': () => (
+      <ScreenFrame>
+        <RecoveryCodesScreen {...recoveryScreenBase} replacing />
+      </ScreenFrame>
+    ),
+    'replaced-elsewhere': () => (
+      <ScreenFrame>
+        <RecoveryCodesReplacedScreen athleteName="Ana" onDone={noop} />
+      </ScreenFrame>
+    ),
+    'new-set': () => (
+      <ScreenFrame>
+        <RecoveryCodesScreen {...recoveryScreenBase} mainCode={undefined} />
+      </ScreenFrame>
+    ),
+    'long-text': () => (
+      <ScreenFrame>
+        <RecoveryCodesScreen {...recoveryScreenBase} athleteName="María Fernanda del Carmen Rodríguez de la Hoz" />
+      </ScreenFrame>
+    ),
+  }),
+  entry('athleteRecoveryCodeRow', 'AthleteRecoveryCodeRow', {
+    hidden: () => (
+      <FullWidth>
+        <AthleteRecoveryCodeRow {...recoveryRowBase} />
+      </FullWidth>
+    ),
+    revealed: () => (
+      <FullWidth>
+        <AthleteRecoveryCodeRow {...recoveryRowBase} revealed />
+      </FullWidth>
+    ),
+    'not-on-this-phone': () => (
+      <FullWidth>
+        <AthleteRecoveryCodeRow {...recoveryRowBase} code={null} revealed />
+      </FullWidth>
+    ),
+    offline: () => (
+      <FullWidth>
+        <AthleteRecoveryCodeRow {...recoveryRowBase} online={false} />
+      </FullWidth>
+    ),
+    'no-code-used': () => (
+      <FullWidth>
+        <AthleteRecoveryCodeRow {...recoveryRowBase} problem="unused" />
+      </FullWidth>
+    ),
+    'regenerate-failed': () => (
+      <FullWidth>
+        <AthleteRecoveryCodeRow {...recoveryRowBase} problem="error" />
+      </FullWidth>
+    ),
+    'replaced-elsewhere': () => (
+      <FullWidth>
+        <AthleteRecoveryCodeRow {...recoveryRowBase} code={null} revealed problem="replaced" />
+      </FullWidth>
+    ),
   }),
 ];

@@ -55,6 +55,12 @@ jest.mock('../modules/athletes', () => {
     createPowerSyncAthleteSchoolRepository: () => ({ listByAthlete: async () => mockSwimmerSchoolIds.map((schoolId) => ({ schoolId, categoryId: null })) }),
     createSupabaseOtherSchoolResultsRepository: () => ({}),
     useManagedAthletes: () => mockManaged,
+    createSupabaseAthleteRecoveryCodeRepository: () => ({}),
+    createSecureStoreRecoveryCodeVault: () => ({}),
+    AthleteRecoveryCodeContainer: ({ athleteId, athleteName }: { athleteId: string; athleteName: string }) => {
+      const { Text: Label } = jest.requireActual('react-native');
+      return <Label>{`recovery code of ${athleteId} for ${athleteName}`}</Label>;
+    },
     // The real hook: the route test keeps checking what the route does with the state this hook owns.
     useAthleteProfileRoute: jest.requireActual('../modules/athletes/data/useAthleteProfileRoute').useAthleteProfileRoute,
     AthleteProfileContainer: ({
@@ -67,6 +73,7 @@ jest.mock('../modules/athletes', () => {
       officialUpdate,
       bottomBar,
       guardianSharing,
+      recoveryCode,
       onBack,
     }: {
       athleteId: string;
@@ -78,6 +85,7 @@ jest.mock('../modules/athletes', () => {
       officialUpdate?: import('react').ReactNode;
       bottomBar?: import('react').ReactNode;
       guardianSharing?: import('react').ReactNode;
+      recoveryCode?: import('react').ReactNode;
       onBack?: () => void;
     }) => (
       <View>
@@ -86,6 +94,7 @@ jest.mock('../modules/athletes', () => {
         {officialUpdate}
         {bottomBar}
         {guardianSharing}
+        {recoveryCode}
       </View>
     ),
   };
@@ -186,6 +195,34 @@ describe('athlete profile route', () => {
       await render(<AthleteRoute />);
       expect(await screen.findByText(/^profile of a1/)).toBeOnTheScreen();
       expect(screen.queryByText(/guardian sharing/)).not.toBeOnTheScreen();
+    });
+  });
+
+  describe('recovery code row', () => {
+    afterEach(() => {
+      mockManaged = { status: 'loading' };
+      mockStaff = false;
+    });
+
+    it('is given to the user who manages the swimmer', async () => {
+      mockUserId = 'user-1';
+      mockManaged = { status: 'ready', athletes: [{ id: 'a1', firstName: 'Ana' }] };
+      await render(<AthleteRoute />);
+
+      expect(await screen.findByText('recovery code of a1 for Ana')).toBeOnTheScreen();
+    });
+
+    it('is not given to school staff who do not manage the swimmer, nor while the managed swimmers are unknown', async () => {
+      mockUserId = 'user-1';
+      mockStaff = true;
+      mockManaged = { status: 'ready', athletes: [{ id: 'other', firstName: 'Bea' }] };
+      await render(<AthleteRoute />);
+      expect(await screen.findByText(/^profile of a1/)).toBeOnTheScreen();
+      expect(screen.queryByText(/recovery code of/)).not.toBeOnTheScreen();
+
+      mockManaged = { status: 'loading' };
+      await screen.rerender(<AthleteRoute />);
+      expect(screen.queryByText(/recovery code of/)).not.toBeOnTheScreen();
     });
   });
 
