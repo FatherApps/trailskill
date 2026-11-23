@@ -9,7 +9,7 @@
 -- guardian G of X, Z, Y, U and S (a5), coach KB2 of B, not assigned (a6), admin SC of C (a7). All users and data here are synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(50);
+select plan(54);
 
 create function pg_temp.u(text) returns uuid language sql as $$ select ('14190000-0000-4000-8000-0000000000' || $1)::uuid $$;
 create function pg_temp.as_user(text) returns void language sql as $$
@@ -123,9 +123,13 @@ select is(
    from public.athlete_schools where athlete_id = pg_temp.u('e1') and school_id = pg_temp.u('b1')),
   true, 'the link of X in A points to B and its window is closed at once, without waiting for 30 days');
 -- Every link of the test as <id>:<destination>:<stamped?>, to compare after the repetition (ids and counts, not a timestamp of this transaction).
+-- It also lists the grants (count and every source>target@swimmer), so a repetition that added or changed one shows.
 create function pg_temp.links() returns text language sql as $$
-  select count(*) || '|' || coalesce(string_agg(id::text || ':' || coalesce(transferred_to_school_id::text, '-') || ':' || (read_window_closed_at is not null)::text, ',' order by id), '')
-  from public.athlete_schools where athlete_id in (pg_temp.u('e1'), pg_temp.u('e2'), pg_temp.u('e3'), pg_temp.u('e4'), pg_temp.u('e5'), pg_temp.u('e6')) $$;
+  select (select count(*) || '|' || coalesce(string_agg(id::text || ':' || coalesce(transferred_to_school_id::text, '-') || ':' || (read_window_closed_at is not null)::text, ',' order by id), '')
+          from public.athlete_schools where athlete_id in (pg_temp.u('e1'), pg_temp.u('e2'), pg_temp.u('e3'), pg_temp.u('e4'), pg_temp.u('e5'), pg_temp.u('e6')))
+    || '#' ||
+         (select count(*) || '|' || coalesce(string_agg(source_school_id::text || '>' || target_school_id::text || '@' || athlete_id::text, ',' order by athlete_id, source_school_id, target_school_id), '')
+          from public.athlete_history_grants where athlete_id in (pg_temp.u('e1'), pg_temp.u('e2'), pg_temp.u('e3'), pg_temp.u('e4'), pg_temp.u('e5'), pg_temp.u('e6'))) $$;
 -- The owner does the fixture work without a signed-in user (the trigger of the assignment only lets an admin write when there is one).
 select set_config('request.jwt.claims', '', true);
 insert into public.coach_athlete_assignments (coach_user_id, athlete_id, school_id) values (pg_temp.u('a4'), pg_temp.u('e1'), pg_temp.u('b2'));
@@ -177,15 +181,31 @@ select lives_ok(
 select pg_temp.as_user('a1');
 select is((select count(*)::int from public.athletes where id = pg_temp.u('e3')) + (select count(*)::int from public.measurements where id = pg_temp.u('f2')), 2,
   'Y, active in A and in B at once, keeps the access of A');
+select pg_temp.as_user('a3');
+select is(pg_temp.history('e3'), 'f2', 'B reads the history of A for Y although A still has Y active: all the history, always');
 reset role;
 select is((select transferred_to_school_id is null and read_window_closed_at is null from public.athlete_schools where athlete_id = pg_temp.u('e3') and school_id = pg_temp.u('b1')),
   true, 'the active link of Y in A is untouched');
+-- Today's behavior for a swimmer still ACTIVE in A who joined B (a product question for the maintainer, not changed here): A keeps the
+-- access, and if A ends Y later A gets the full 30-day read window, as for any baja.
+set local role authenticated;
+select pg_temp.as_user('a1');
+select public.end_athlete_school(pg_temp.u('e3'), pg_temp.u('b1'));
+select is((select count(*)::int from public.athletes where id = pg_temp.u('e3')) + (select count(*)::int from public.measurements where id = pg_temp.u('f2')), 2,
+  'A ends Y after the acceptance: A still reads Y and the marks during its full 30-day window');
+reset role;
 
--- V: B links V without the family: B reads nothing of A.
+-- V: B links V without the family. V has a manager and the sharing authorization, so the only thing missing is the acceptance: B gets
+-- no grant and reads nothing of A.
+select set_config('request.jwt.claims', '', true);
+insert into public.athlete_managers (user_id, athlete_id, relation) values (pg_temp.u('a5'), pg_temp.u('e4'), 'guardian');
+insert into public.authorizations (user_id, athlete_id, purpose, text_id, accepted_at)
+  values (pg_temp.u('a5'), pg_temp.u('e4'), 'share_results_with_school', pg_temp.text_of('share_results_with_school'), now() - interval '1 day');
 insert into public.athlete_schools (athlete_id, school_id) values (pg_temp.u('e4'), pg_temp.u('b2'));
+select is((select count(*)::int from public.athlete_history_grants where athlete_id = pg_temp.u('e4')), 0, 'linking V without the family creates no grant');
 set local role authenticated;
 select pg_temp.as_user('a3');
-select is(pg_temp.history('e4'), '', 'without the acceptance of the family B reads nothing of A');
+select is(pg_temp.history('e4'), '', 'without the acceptance of the family B reads nothing of A, even with the sharing authorization in force');
 
 -- U: ended in A and in C, both inside their window: both move to B.
 select pg_temp.as_user('a5');
@@ -208,14 +228,16 @@ select lives_ok(
   format($$ select public.accept_invitation(%L, %L, null, pg_temp.at(), pg_temp.auths('x')) $$, current_setting('test.token'), pg_temp.u('e1')),
   'the family repeats the acceptance for X');
 reset role;
-select is(pg_temp.links(), current_setting('test.links'), 'the repetition leaves the same links, destinations and stamps');
-select is(app.transfer_athlete_school_history(pg_temp.u('e1'), pg_temp.u('b2')), 0, 'the transfer is idempotent');
+select is(pg_temp.links(), current_setting('test.links'), 'the repetition leaves the same links, destinations, stamps and grants');
+select is(app.transfer_athlete_school_history(pg_temp.u('e1'), pg_temp.u('b2')), 0, 'the transfer closes no window when repeated');
+select is(pg_temp.links(), current_setting('test.links'), 'a direct repeat of the transfer leaves the same links and grants');
 
 -- No client role writes the transfer.
 set local role authenticated;
-select pg_temp.as_user('a1');
+-- The admin of B stamps the ACTIVE link of Y in B (an ended link is hidden from client updates by RLS and would change nothing).
+select pg_temp.as_user('a3');
 select throws_ok(
-  $$ update public.athlete_schools set transferred_to_school_id = pg_temp.u('b2') where athlete_id = pg_temp.u('e3') and school_id = pg_temp.u('b1') $$,
+  $$ update public.athlete_schools set transferred_to_school_id = pg_temp.u('b1') where athlete_id = pg_temp.u('e3') and school_id = pg_temp.u('b2') $$,
   '42501', null, 'a client cannot stamp a transfer on a link');
 reset role;
 

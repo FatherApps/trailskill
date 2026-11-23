@@ -25,7 +25,8 @@
 -- helpers (20261122120000), drop app.transfer_athlete_school_history and app.school_transfer_in_force, drop the table
 -- athlete_history_grants. Then, in this order (the recreated check of #1418 requires a stamp of at least ended_at + 30 days, so it fails
 -- while a transfer stamp exists, and the check athlete_schools_transferred_closes_window fails if only the stamp is cleared):
---   1. as the table owner, in ONE statement: update public.athlete_schools set read_window_closed_at = null, transferred_to_school_id = null
+--   1. as the table owner, in ONE transaction (begin; ... commit;, so no replica or device ever sees the windows reopened without the
+--      re-stamp): update public.athlete_schools set read_window_closed_at = null, transferred_to_school_id = null
 --      where transferred_to_school_id is not null; then select app.close_athlete_school_read_windows(); (the schools that handed a swimmer
 --      over read them again until their own day 30, and the job re-stamps at once the ones whose day 30 already passed, so no device
 --      keeps a pair past its window);
