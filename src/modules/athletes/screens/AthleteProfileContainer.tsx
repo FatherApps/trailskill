@@ -59,6 +59,8 @@ export type AthleteProfileContainerProps = {
   bottomBar?: ReactNode;
   // What the school lets the guardian see of this swimmer, from the school-console module; the route passes it only to staff of the swimmer's school.
   guardianSharing?: ReactNode;
+  // The owner's recovery code row; the route passes it only when the signed-in user manages this swimmer, never to school staff.
+  recoveryCode?: ReactNode;
   // Only guardians and adults get it: the route decides by passing it or not.
   importPrompt?: ImportPromptProps;
   // Where the band's back button goes; the route decides (the module has no router). Left out when there is nowhere to go back to: no button.
@@ -187,6 +189,7 @@ export function AthleteProfileContainer({
   officialUpdate,
   bottomBar,
   guardianSharing,
+  recoveryCode,
   importPrompt,
   onBack,
 }: AthleteProfileContainerProps) {
@@ -377,6 +380,7 @@ export function AthleteProfileContainer({
     ...(officialUpdate ? { officialUpdate } : {}),
     ...(bottomBar ? { bottomBar } : {}),
     ...(guardianSharing ? { guardianSharing } : {}),
+    ...(recoveryCode ? { recoveryCode } : {}),
     ...(importPrompt ? { importPrompt } : {}),
     ...(otherSchoolResults && !online ? { otherSchoolOffline: true } : {}),
     // Connected but the server failed or did not answer: not the offline notice, a retry of this section only.
