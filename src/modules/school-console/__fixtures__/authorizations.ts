@@ -1,4 +1,4 @@
-import type { SchoolRelinkRequest } from '../../athletes';
+import type { AnonymousCopy, SchoolRelinkRequest } from '../../athletes';
 import type { AthleteAuthorizations, SharingRequest } from '../components/AuthorizationList';
 
 // Synthetic data for the development gallery and the tests: fictional people and schools.
@@ -61,6 +61,13 @@ export const relinkRequestsFixture: SchoolRelinkRequest[] = [
   { id: 'l1', createdAt: '2026-11-22T10:00:00Z', status: 'pending', athleteFirstName: 'Ana', athleteLastName: 'Marín', timesCount: 12, resolvedAt: null, movedCount: null },
   { id: 'l2', createdAt: '2026-11-21T15:30:00Z', status: 'approved', athleteFirstName: 'Luis', athleteLastName: 'Pérez', timesCount: 0, resolvedAt: '2026-11-21T18:00:00Z', movedCount: 7 },
   { id: 'l3', createdAt: '2026-11-19T08:15:00Z', status: 'rejected', athleteFirstName: 'Sara', athleteLastName: 'Gómez', timesCount: 0, resolvedAt: '2026-11-20T09:00:00Z', movedCount: 0 },
+];
+
+// Synthetic anonymous swimmers of a school: with a code, without one yet, and with no marks left (they moved to a family).
+export const anonymousCopiesFixture: AnonymousCopy[] = [
+  { athleteId: 'n1', createdAt: '2026-11-22T10:00:00Z', linkable: true, timesCount: 12 },
+  { athleteId: 'n2', createdAt: '2026-11-21T15:30:00Z', linkable: false, timesCount: 1 },
+  { athleteId: 'n3', createdAt: '2026-11-19T08:15:00Z', linkable: true, timesCount: 0 },
 ];
 
 export const relinkRequestsLongTextFixture: SchoolRelinkRequest[] = [

@@ -4,10 +4,11 @@ import { Share } from 'react-native';
 import { t } from '../../../core/i18n';
 import type { SyncConnection } from '../../../core/sync';
 import type { AthleteAvatarSlot } from '../../../core/ui';
-import type { AthleteRelinkRepository } from '../../athletes';
+import type { AthleteAnonymousCopyRepository, AthleteRelinkRepository } from '../../athletes';
 import '../i18n';
 import { avatarOf } from '../components/athleteAvatar';
 import type { SharingRequest, SharingRequestsState } from '../components/AuthorizationList';
+import type { AnonymousCopiesState } from '../components/AnonymousCopyList';
 import type { RelinkRequestsState } from '../components/RelinkRequestList';
 import { formatDate, localDate } from '../components/formatDate';
 import type { AuthorizationsRepository, ConsoleAuthorizationRow } from '../data/authorizations';
@@ -21,6 +22,8 @@ export type AuthorizationsSectionProps = ConsoleSectionProps & {
   repository: AuthorizationsRepository;
   // The relink requests of families (issue 1251), read and decided online through the athletes module. Absent: no inbox.
   relink?: AthleteRelinkRepository;
+  // The school's anonymous swimmers (issue 1420), read online through the athletes module. Absent: no list.
+  anonymousCopies?: Pick<AthleteAnonymousCopyRepository, 'list'>;
   // The list is read again when this changes (a sync completed).
   refreshKey?: unknown;
   // When the local database last finished a sync; `null` when it never did.
@@ -42,6 +45,7 @@ type Answer = {
 // The sharing requests are read online, apart from the athletes: a failure here never breaks the list.
 type RequestsAnswer = { schoolId: string; result: SharingRequest[] | 'error' };
 type RelinkAnswer = { schoolId: string; result: Exclude<RelinkRequestsState, 'loading' | 'offline'> };
+type CopiesAnswer = { schoolId: string; result: Exclude<AnonymousCopiesState, 'loading' | 'offline'> };
 
 const defaultNow = () => new Date();
 const defaultShare = (message: string) => Share.share({ message });
@@ -56,6 +60,7 @@ export function AuthorizationsSection({
   schoolId,
   repository,
   relink,
+  anonymousCopies,
   refreshKey,
   lastSyncedAt,
   connection,
@@ -70,6 +75,8 @@ export function AuthorizationsSection({
   const [requestsReload, setRequestsReload] = useState(0);
   const [relinkAnswer, setRelinkAnswer] = useState<RelinkAnswer>();
   const [relinkReload, setRelinkReload] = useState(0);
+  const [copiesAnswer, setCopiesAnswer] = useState<CopiesAnswer>();
+  const [copiesReload, setCopiesReload] = useState(0);
   // A ref, not state: a second confirmation can arrive before a re-render shows the first is running.
   const resending = useRef(false);
   const offline = connection === 'offline';
@@ -103,12 +110,25 @@ export function AuthorizationsSection({
     };
   }, [relink, schoolId, refreshKey, relinkReload, offline]);
 
+  useEffect(() => {
+    if (offline || !anonymousCopies) return;
+    let active = true;
+    const settle = (result: CopiesAnswer['result']) => active && setCopiesAnswer({ schoolId, result });
+    anonymousCopies.list(schoolId).then(settle, () => settle('error'));
+    return () => {
+      active = false;
+    };
+  }, [anonymousCopies, schoolId, refreshKey, copiesReload, offline]);
+
   // Never an empty list when the requests are not known: offline, another school's answer or still unread (loading), or a failed read.
   const answered = requestsAnswer?.schoolId === schoolId ? requestsAnswer.result : 'loading';
   const sharingRequests: SharingRequestsState = offline ? 'offline' : answered;
 
   const relinkAnswered = relinkAnswer?.schoolId === schoolId ? relinkAnswer.result : 'loading';
   const relinkRequests: RelinkRequestsState | undefined = !relink ? undefined : offline ? 'offline' : relinkAnswered;
+
+  const copiesAnswered = copiesAnswer?.schoolId === schoolId ? copiesAnswer.result : 'loading';
+  const copies: AnonymousCopiesState | undefined = !anonymousCopies ? undefined : offline ? 'offline' : copiesAnswered;
 
   const loaded = answer?.schoolId === schoolId && answer.attempt === attempt ? answer.result : undefined;
   const rows = loaded === undefined || loaded === 'error' ? undefined : loaded;
@@ -139,6 +159,7 @@ export function AuthorizationsSection({
       })),
       sharingRequests,
       relinkRequests,
+      anonymousCopies: copies,
     };
     view =
       connection !== 'offline'
@@ -217,6 +238,10 @@ export function AuthorizationsSection({
       onRetryRelink={() => {
         setRelinkAnswer(undefined);
         setRelinkReload((n) => n + 1);
+      }}
+      onRetryAnonymousCopies={() => {
+        setCopiesAnswer(undefined);
+        setCopiesReload((n) => n + 1);
       }}
       resendError={resendError}
     />

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.16.0](https://github.com/FatherApps/trailskill/compare/v0.15.0...v0.16.0) (2026-11-23)
+
+
+### Features
+
+* **accounts:** swimmer data lifecycle docs and authorization texts v2 ([#1428](https://github.com/FatherApps/trailskill/issues/1428)) ([4cbd784](https://github.com/FatherApps/trailskill/commit/4cbd78497cf47c457db1d9814dfc238966ed3a60)), closes [#1415](https://github.com/FatherApps/trailskill/issues/1415)
+* **athletes:** relink a school's anonymous copy with a recovery code ([#1452](https://github.com/FatherApps/trailskill/issues/1452)) ([15f4137](https://github.com/FatherApps/trailskill/commit/15f4137ddb86ba9ed81ff2d48a629dd6f45cc7e2)), closes [#1421](https://github.com/FatherApps/trailskill/issues/1421)
+* **athletes:** the owner opens a swimmer's marks of other schools to one school ([#1451](https://github.com/FatherApps/trailskill/issues/1451)) ([6868192](https://github.com/FatherApps/trailskill/commit/686819231a02f000c4276fc2600f914cb3798e89)), closes [#1446](https://github.com/FatherApps/trailskill/issues/1446)
+* **school-console:** create a swimmer's anonymous copy and list the anonymous swimmers ([#1454](https://github.com/FatherApps/trailskill/issues/1454)) ([f40a7eb](https://github.com/FatherApps/trailskill/commit/f40a7eb6a2f96a772ddfd8eb6452462d1f7e7bd3)), closes [#1421](https://github.com/FatherApps/trailskill/issues/1421)
+
 ## [0.15.0](https://github.com/FatherApps/trailskill/compare/v0.14.0...v0.15.0) (2026-11-23)
 
 

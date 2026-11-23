@@ -14,5 +14,6 @@ A missing rule is not permission, the same way a missing time is not zero.
 | [`my-times-rules.md`](my-times-rules.md) | Rules of the family stopwatch screen «Mis tiempos», including free laps | #1017, #1429 |
 | [`school-join-authorizations.md`](school-join-authorizations.md) | Joining a school accepts the three authorizations of data and times at once | #1328 |
 | [`role-landing-and-school-roles.md`](role-landing-and-school-roles.md) | Where each role lands, what «dar de alta nadadores» means, who creates schools and school administrators | #1093 |
+| [`swimmer-data-lifecycle.md`](swimmer-data-lifecycle.md) | Who owns a swimmer's data, 30 days of school reading after the baja, transfer to another school, anonymous copy, permanent code and recovery codes | #1415 |
 
 The pilot scope and the remaining product rules still live in [`PROJECT-HANDOFF-2026-10-24.md`](../../PROJECT-HANDOFF-2026-10-24.md); moving them here is a separate task.
