@@ -5,7 +5,7 @@
 -- Schools: A (b1), B (b2). Swimmers: X (e1, managed by G, active in A and B, has a recovery identity), Y (e2, active in A, no code),
 -- Z (e3, link with A ended 10 days ago, has a code), W (e4, link with A ended 40 days ago), V (e5, only in B), P (e6, managed by a6, no code),
 -- Q (e7, managed by a7, no code), R (e8, no marks, no code).
--- Marks of X in A: f1 (3100), f2 (split of f1, 1500), f3 (discarded), f4 (hidden); f5 is of X in B. All data is synthetic.
+-- Marks of X in A: f1 (3100), f2 (split of f1, 1500), f3 (discarded), f4 (hidden), f10 (split of the discarded f3); f5 is of X in B. All data is synthetic.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(41);
@@ -58,7 +58,8 @@ values
   (pg_temp.u('f6'), pg_temp.u('a3'), pg_temp.u('b1'), 'repetition', pg_temp.u('e2'), null, 4100, 'BK', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 08:30:00+00'),
   (pg_temp.u('f7'), pg_temp.u('a3'), pg_temp.u('b1'), 'repetition', pg_temp.u('e3'), null, 3900, 'BR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-10-01 08:30:00+00'),
   (pg_temp.u('f8'), pg_temp.u('a3'), pg_temp.u('b1'), 'repetition', pg_temp.u('e6'), null, 4200, 'FL', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-02 08:30:00+00'),
-  (pg_temp.u('f9'), pg_temp.u('a3'), pg_temp.u('b1'), 'repetition', pg_temp.u('e7'), null, 4300, 'FL', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-02 09:30:00+00');
+  (pg_temp.u('f9'), pg_temp.u('a3'), pg_temp.u('b1'), 'repetition', pg_temp.u('e7'), null, 4300, 'FL', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-02 09:30:00+00'),
+  (pg_temp.u('fa'), pg_temp.u('a3'), pg_temp.u('b1'), 'split', pg_temp.u('e1'), pg_temp.u('f3'), 1600, 'FR', '50m', 'SCM', 'training', 'screen_button', 'dev-k', '2026-11-01 09:00:01+00');
 -- f3 discarded and f4 hidden: set as the owner with the triggers off (they recompute hidden and check the discarder).
 alter table public.measurements disable trigger user;
 update public.measurements set discarded_at = now(), discarded_by = pg_temp.u('a3') where id = pg_temp.u('f3');
@@ -115,7 +116,7 @@ select ok(
 reset role;
 select is(
   (select count(*)::int from public.measurements where athlete_id = pg_temp.anon_of('e1')), 2,
-  'the discarded, the hidden and the other school''s marks were not copied');
+  'the discarded, the hidden, the orphan split of a discarded mark and the other school''s marks were not copied');
 select ok(
   (select bool_and(created_by is null) from public.measurements where athlete_id = pg_temp.anon_of('e1'))
   and (select created_by is null from public.athletes where id = pg_temp.anon_of('e1'))
@@ -128,7 +129,7 @@ select is(
     + (select count(*) from public.authorization_status where athlete_id = pg_temp.anon_of('e1')))::int, 0,
   'the copy has no manager, photo, private details or authorization');
 select is(
-  (select count(*)::int from public.measurements where athlete_id = pg_temp.u('e1') and school_id = pg_temp.u('b1')), 4,
+  (select count(*)::int from public.measurements where athlete_id = pg_temp.u('e1') and school_id = pg_temp.u('b1')), 5,
   'the marks of the swimmer stay where they were');
 select is(pg_temp.identity_of('e1'), (select id from public.athlete_recovery_identities where athlete_id = pg_temp.u('e1')),
   'the copy keeps the recovery identity of the swimmer, never a text');

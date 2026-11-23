@@ -80,6 +80,9 @@ begin
   perform 1 from public.athletes a where a.id = create_anonymous_school_copy.p_athlete for key share;
   perform pg_advisory_xact_lock(hashtextextended(
     create_anonymous_school_copy.p_athlete::text || ':' || create_anonymous_school_copy.p_school::text || ':anonymous-copy', 0));
+  -- The lock issue_athlete_recovery_code takes: a copy and the issue of the code cannot miss each other (a copy made while the identity
+  -- is being born would otherwise read no identity, and the trigger would find no copy).
+  perform pg_advisory_xact_lock(hashtextextended(create_anonymous_school_copy.p_athlete::text || ':athlete-recovery-codes', 0));
 
   if not exists (
     select 1 from public.athlete_schools s
