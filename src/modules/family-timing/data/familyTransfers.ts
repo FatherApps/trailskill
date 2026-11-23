@@ -1,7 +1,7 @@
 import type { DistanceCode, PoolCode, StrokeCode } from '../../../core/sport';
 import { db, supabase } from '../../../core/sync';
 import type { Millis } from '../../../core/time';
-import type { FamilySessionType } from './familyMeasurements';
+import { parseSplitMeters, type FamilySessionType } from './familyMeasurements';
 
 /**
  * A time a guardian sent to another swimmer's family with the swimmer's share code (#973). While it waits, the time stays the
@@ -25,6 +25,8 @@ export type FamilyTransfer = {
   capturedAt: string;
   millis: Millis | null;
   splits: Millis[];
+  // The meters of each mark as they were sent; null for a time saved before free laps.
+  splitMeters?: (number | null)[] | null;
 };
 
 export type FamilyTransferErrorCode =
@@ -90,6 +92,7 @@ type Row = {
   captured_at: string;
   millis: number | null;
   splits: string | null;
+  split_meters?: string | null;
 };
 
 function parseSplits(raw: string | null): number[] {
@@ -118,6 +121,7 @@ const toTransfer = (row: Row): FamilyTransfer => ({
   capturedAt: row.captured_at,
   millis: row.millis,
   splits: parseSplits(row.splits),
+  splitMeters: parseSplitMeters(row.split_meters),
 });
 
 // The answers go to the server functions; the requests reach the device by sync (family_timing_transfers).

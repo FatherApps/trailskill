@@ -25,7 +25,7 @@ const COLUMNS = `stroke TEXT, distance TEXT, pool TEXT, session_type TEXT, compe
   official_millis INTEGER, official_set_at TEXT`;
 const TABLES = `
   CREATE TABLE family_timing_measurements (
-    id TEXT PRIMARY KEY, created_at TEXT, owner_user_id TEXT, captured_by TEXT, athlete_id TEXT, ${COLUMNS}, official_result_key TEXT, source TEXT,
+    id TEXT PRIMARY KEY, created_at TEXT, owner_user_id TEXT, captured_by TEXT, athlete_id TEXT, ${COLUMNS}, official_result_key TEXT, split_meters TEXT, source TEXT,
     deleted_at TEXT
   );
   CREATE TABLE family_measurements (id TEXT PRIMARY KEY, created_at TEXT, created_by TEXT, athlete_id TEXT, ${COLUMNS});
@@ -84,10 +84,23 @@ const seedLocal = (...rows: [id: string, createdBy: string, millis: number | nul
 const localIds = () => mockDb.getAll<{ id: string }>('SELECT id FROM family_measurements ORDER BY id').map((r) => r.id);
 
 describe('PowerSync family measurements', () => {
+  it('saves the meters of each mark and reads them back; a time saved before free laps reads null', async () => {
+    const repo = createPowerSyncFamilyMeasurementRepository();
+    await repo.add({ ...base, id: 'free', distance: '100m', splits: [17_000, 35_000, 52_000], splitMeters: [25, 50, null] });
+    await repo.add({ ...base, id: 'old', capturedAt: '2026-11-07T14:00:00.000Z' });
+    const [stored] = mockDb.getAll<{ split_meters: string | null }>("SELECT split_meters FROM family_timing_measurements WHERE id = 'free'");
+    expect(stored.split_meters).toBe('[25,50,null]');
+    const rows = await repo.listByAthlete('a1');
+    expect(rows.find((m) => m.id === 'free')?.splitMeters).toEqual([25, 50, null]);
+    expect(rows.find((m) => m.id === 'old')?.splitMeters).toBeNull();
+    server((s) => s.exec("UPDATE family_timing_measurements SET split_meters = NULL WHERE id = 'old'"));
+    expect(mockDb.getAll<{ split_meters: string | null }>("SELECT split_meters FROM family_timing_measurements WHERE id = 'old'")[0].split_meters).toBeNull();
+  });
+
   it('saves a time in the synced table, queued for upload, owned by who captured it', async () => {
     const repo = createPowerSyncFamilyMeasurementRepository();
     await repo.add(base);
-    expect(await repo.listByAthlete('a1')).toEqual([{ ...base, officialResultKey: null, deletedAt: null, note: null }]);
+    expect(await repo.listByAthlete('a1')).toEqual([{ ...base, splitMeters: null, officialResultKey: null, deletedAt: null, note: null }]);
     expect(mockDb.getAll('SELECT owner_user_id, captured_by, splits FROM family_timing_measurements')).toEqual([
       { owner_user_id: 'u1', captured_by: 'u1', splits: '[23100]' },
     ]);
