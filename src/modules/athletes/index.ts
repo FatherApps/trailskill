@@ -174,5 +174,7 @@ export {
   createInMemoryAthleteResultSharingRepository,
   createPowerSyncAthleteResultSharingRepository,
   type AthleteResultSharingRepository,
-  type AthleteResultSharingRow,
+  type AthleteResultSharingEntry,
 } from './data/athleteResultSharing';
+export { AthleteResultSharingContainer, type AthleteResultSharingContainerProps } from './screens/AthleteResultSharingContainer';
+export { AthleteResultSharingRow, type AthleteResultSharingRowProps } from './components/AthleteResultSharingRow';
