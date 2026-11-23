@@ -19,7 +19,7 @@ test("an admin gets the conflicts of a mark only in a school where the swimmer i
   const admin = streamQueries("timing_measurement_conflicts").filter((query) => query.includes("JOIN school_memberships"));
 
   expect(admin).toEqual([
-    "SELECT record_conflicts.id, 'measurements' AS table_name, record_conflicts.measurement_id AS record_id, record_conflicts.status FROM measurement_conflicts AS record_conflicts JOIN measurements ON record_conflicts.measurement_id = measurements.id JOIN school_memberships ON measurements.school_id = school_memberships.school_id JOIN athlete_schools ON measurements.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.ended_at IS NULL AND measurements.hidden = false",
+    "SELECT record_conflicts.id, 'measurements' AS table_name, record_conflicts.measurement_id AS record_id, record_conflicts.status FROM measurement_conflicts AS record_conflicts JOIN measurements ON record_conflicts.measurement_id = measurements.id JOIN school_memberships ON measurements.school_id = school_memberships.school_id JOIN athlete_schools ON measurements.athlete_id = athlete_schools.athlete_id AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id() AND school_memberships.role = 'school_admin' AND athlete_schools.read_window_closed_at IS NULL AND measurements.hidden = false",
   ]);
 });
 
