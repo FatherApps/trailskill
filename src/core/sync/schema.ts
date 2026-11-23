@@ -53,6 +53,8 @@ export const AppSchema = new Schema({
       source: column.text,
       captured_at: column.text,
       parent_id: column.text,
+      // Meters of a free mark (kind 'split'); null is unknown (#1432). Written once with the row.
+      meters: column.real,
       // Edit versioning (issue #55): the server bumps `version`; the device sends `base_version`, `edited_device_id` and `edit_reason` with an edit.
       version: column.integer,
       base_version: column.integer,
