@@ -316,5 +316,46 @@
       "approved_detail_other": "Se pasaron {{count}} tiempos a {{name}}"
     },
     "key_required": "Escribe la clave."
+  },
+  "recovery_codes": {
+    "title": "Guarda los códigos de {{name}}",
+    "title_no_name": "Guarda los códigos",
+    "title_new_set": "Códigos de recuperación nuevos de {{name}}",
+    "title_new_set_no_name": "Códigos de recuperación nuevos",
+    "intro": "Solo tú puedes ver estos códigos. Si los pierdes, nadie puede recuperarlos.",
+    "intro_new_set": "Los códigos de recuperación anteriores ya no sirven. Estos no volverán a mostrarse.",
+    "main_title": "Código principal",
+    "main_help": "Queda guardado en este teléfono y lo ves en el perfil de {{name}}.",
+    "main_help_no_name": "Queda guardado en este teléfono y lo ves en el perfil del deportista.",
+    "recovery_title": "Códigos de recuperación",
+    "recovery_help": "Cada uno sirve una sola vez. No se guardan en el teléfono y no volverán a mostrarse: guárdalos ahora.",
+    "copy": "Copiar",
+    "copy_message": "Códigos de {{name}}",
+    "copy_message_no_name": "Códigos del deportista",
+    "copy_main": "Código principal: {{code}}",
+    "copy_recovery": "Códigos de recuperación:",
+    "done": "Ya los guardé",
+    "saving": "Guardando…",
+    "error": "No pudimos terminar. Revisa tu conexión e inténtalo de nuevo.",
+    "code_label": "Código {{code}}"
+  },
+  "recovery_code": {
+    "title": "Código de recuperación",
+    "help": "Solo tú lo ves. Si se pierden este código y los códigos de recuperación, no se puede recuperar nada.",
+    "show": "Ver código",
+    "hide": "Ocultar código",
+    "code_label": "Código de recuperación {{code}}",
+    "copy": "Copiar",
+    "copy_message": "Código principal de {{name}}: {{code}}",
+    "copy_message_no_name": "Código principal del deportista: {{code}}",
+    "missing": "Este teléfono no tiene guardado el código. Si no lo guardaste, no se puede recuperar.",
+    "regenerate": "Generar códigos de recuperación nuevos",
+    "regenerate_offline": "Necesitas conexión para generar códigos nuevos.",
+    "regenerate_title": "¿Generar códigos nuevos?",
+    "regenerate_message": "Los códigos de recuperación que no hayas usado dejarán de servir. El código principal no cambia.",
+    "regenerate_confirm": "Generar",
+    "regenerate_cancel": "Cancelar",
+    "regenerate_unused": "Aún no has usado ningún código de recuperación. Podrás generar un juego nuevo cuando uses uno.",
+    "regenerate_error": "No pudimos generar los códigos. Revisa tu conexión e inténtalo de nuevo."
   }
 }

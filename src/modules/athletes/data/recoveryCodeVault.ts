@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 /**
  * The permanent code of a swimmer, per user, on this phone only. The server never knows the text, so if it is lost nobody can read it
  * again: it is not cleared on sign-out. Another account on the same phone never reads it (the key carries the user). The recovery codes
- * are never saved here. It is local and encrypted, outside every PowerSync table, so it is never uploaded.
+ * are never saved here. It is local and encrypted, outside every synced table, so it is never uploaded.
  */
 export interface RecoveryCodeVault {
   get(userId: string, athleteId: string): Promise<string | null>;
