@@ -314,6 +314,8 @@ export const galleryEntries: GalleryEntry[] = [
       kind: 'data',
       content: { ...content, importPrompt: { ...prompt, sourceName: h.sourceName, imported: false } },
     })),
+    // The owner's switch per school at the foot of the profile; without it (one school, no authorization, not the owner) the profile is 'with-data'.
+    'with-result-sharing': screenPreview((content) => ({ kind: 'data', content: { ...content, resultSharing: <AthleteResultSharingRow {...sharingRowBase} /> } })),
   }),
   entry('myAthletesScreen', 'MyAthletesScreen', {
     'with-data': myAthletesPreview({ kind: 'data', athletes: myAthletesFixture }),

@@ -56,6 +56,7 @@ describe('athletes gallery entries', () => {
       'denied',
       'other-school-offline',
       'with-import-prompt',
+      'with-result-sharing',
     ]);
   });
 
