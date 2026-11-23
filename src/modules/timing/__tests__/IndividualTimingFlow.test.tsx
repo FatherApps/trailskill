@@ -267,6 +267,36 @@ describe('individual timing flow', () => {
       expect(screen.getByText(/^Parcial 5 · 50,00$/)).toBeOnTheScreen();
     });
 
+    it('shows the pace and the projection of the stopped time with the meters of its marks', async () => {
+      await swimFiveMarks();
+      expect(screen.queryByText('Ritmo y proyección')).not.toBeOnTheScreen();
+      await press('Detener');
+
+      expect(screen.getByText('Ritmo y proyección')).toBeOnTheScreen();
+      expect(screen.getByText('0–25 m · 10,00 · 40,00 / 100 m')).toBeOnTheScreen();
+      expect(screen.getByText('75–100 m · 20,00 · 1:20,00 / 100 m')).toBeOnTheScreen();
+      expect(screen.getByText('1.ª mitad 20,00 · 2.ª mitad 30,00 · +10,00')).toBeOnTheScreen();
+      // 3 marks with meters: 30 s at 75 m, then 25 m at (30 - 10) s / 50 m.
+      expect(screen.getByText('Si mantiene este ritmo: 40,00')).toBeOnTheScreen();
+      expect(screen.getByText('Estimación optimista; la mayoría pierde ritmo al final')).toBeOnTheScreen();
+    });
+
+    it('shows no projection when only one mark has meters', async () => {
+      await setup();
+      await screen.findByText('Nadadores (2 de 3)');
+      await fireEvent.press(screen.getByRole('radio', { name: '100 m' }));
+      await press('Empezar toma');
+      await screen.findByText('Ana M. · 1 de 2');
+      await press('Iniciar');
+      clock += 10n * second;
+      await press('Parcial');
+      clock += 20n * second;
+      await press('Detener');
+
+      expect(screen.getByText('Ritmo y proyección')).toBeOnTheScreen();
+      expect(screen.queryByText(/Si mantiene este ritmo/)).not.toBeOnTheScreen();
+    });
+
     it('saves the meters of the pool when the review is not opened', async () => {
       const { measurements } = await swimFiveMarks();
       await press('Detener');

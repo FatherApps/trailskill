@@ -261,6 +261,7 @@ function IndividualSession({
         elapsedHundredths={elapsed}
         bestTime={best?.athleteId === athlete.id ? best.value : null}
         splits={marks.map((value, i) => ({ label: splitLabel(i, meters[i] ?? null), value }))}
+        pace={{ marks: marks.map((time, i) => ({ t: time, meters: meters[i] ?? null })), finalTime: elapsed, distance, formatTime: (v) => formatTime(v) }}
         onStart={markedAt(start)}
         onSplit={markedAt(split)}
         onStop={markedAt(stop)}
