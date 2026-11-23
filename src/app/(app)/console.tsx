@@ -1,3 +1,4 @@
+import { randomUUID } from 'expo-crypto';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useWindowDimensions, View } from 'react-native';
 
@@ -15,7 +16,7 @@ import {
   createSupabaseInvitationRepository,
   SignOutContainer,
 } from '../../modules/accounts';
-import { createSupabaseAthleteRelinkRepository, createSupabaseAthleteSchoolEndRepository } from '../../modules/athletes';
+import { createSupabaseAthleteRegistrationRepository, createSupabaseAthleteRelinkRepository, createSupabaseAthleteSchoolEndRepository } from '../../modules/athletes';
 import { createPowerSyncMeasurementRepository } from '../../modules/timing';
 import {
   AthletesSection,
@@ -56,6 +57,8 @@ const registrationDrafts = createSecureStoreRegistrationDraftRepository();
 const pendingInvitations = createSecureStorePendingInvitationRepository();
 // This console is the school admin's: the baja is offered here and nowhere else, and the server checks the role again.
 const athleteSchoolEnds = createSupabaseAthleteSchoolEndRepository();
+// A swimmer with no account is registered here and nowhere else: online, the server makes the claim token and checks the admin role.
+const athleteRegistration = { repository: createSupabaseAthleteRegistrationRepository(), newId: randomUUID };
 // The families' requests for the times the school kept of an erased swimmer: read and decided online; the server checks the admin role.
 const athleteRelinks = createSupabaseAthleteRelinkRepository();
 const guardianSharing = { repository: createSupabaseGuardianSharingRepository(), records: createGuardianRecordsRepository(createPowerSyncMeasurementRepository()) };
@@ -120,7 +123,7 @@ export default function ConsoleRoute() {
           <CoachesSection {...props} schoolId={schoolId} repository={coaches} structure={schoolStructure} athletes={consoleAthletes} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} invitations={coachInvitations} />
         ),
         athletes: (props) => (
-          <AthletesSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} swimmerEnd={athleteSchoolEnds} structure={schoolStructure} invitations={familyInvitations} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
+          <AthletesSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={consoleAthletes} categories={categories} guardians={adults} sharing={guardianSharing} swimmerEnd={athleteSchoolEnds} structure={schoolStructure} invitations={familyInvitations} registration={athleteRegistration} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
         ),
         records: (props) => (
           <RecordsSection {...props} Avatar={AthleteAvatarWithPhoto} schoolId={schoolId} repository={categoryRecords} categories={categories} structure={schoolStructure} refreshKey={lastSyncedAt?.getTime()} lastSyncedAt={lastSyncedAt} connection={connection} />
