@@ -209,6 +209,11 @@ select is((select created_by::text from public.athlete_schools where athlete_id 
 set local role authenticated;
 select pg_temp.as_user('a6');
 select is(pg_temp.seen(), 'athletes=e0|schools=|claims=', 'another guardian still sees only their own swimmer');
+-- The school keeps reading e3 for 30 days after the baja (#1418): this test is about the claim, so the window is closed first.
+reset role;
+update public.athlete_schools set ended_at = now() - interval '31 days' where athlete_id = pg_temp.u('e3') and ended_at is not null;
+select app.close_athlete_school_read_windows();
+set local role authenticated;
 select pg_temp.as_user('a2');
 select is(pg_temp.seen(), 'athletes=e1,e2|schools=e1,e2|claims=e1,e2,e3', 'the school keeps the swimmer after the claim (and not e3, whose link it ended)');
 

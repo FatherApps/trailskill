@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// A school ends a swimmer's link with athlete_schools.ended_at (#1243): after that its coaches and admins get nothing of
-// that swimmer, one (swimmer, school) pair at a time; guardians and adult athletes (managed_athlete_ids) keep it all.
-// The pgTAP test supabase/tests/database/athletes/end_athlete_school.test.sql holds the RLS side and copies of the
-// enrollment queries: change both together.
+// A school ends a swimmer's link with athlete_schools.ended_at (#1243): its coaches and admins keep reading that swimmer for
+// 30 days and then get nothing of it (#1418), one (swimmer, school) pair at a time; guardians and adult athletes
+// (managed_athlete_ids) keep it all. PowerSync does not re-evaluate time, so the streams filter on the stored column
+// athlete_schools.read_window_closed_at, which the daily job app.close_athlete_school_read_windows() stamps at day 30.
+// The pgTAP tests supabase/tests/database/athletes/end_athlete_school.test.sql and read_window_after_end.test.sql hold the
+// RLS side and the job: change them together.
 // PowerSync 1.21 builds the buckets of a join from separate lookups and combines their values as a cross product, so the
 // pair (swimmer, school) survives only in three query shapes. #1260 found it against a real PowerSync with an admin and a
 // coach of two schools, one of them with the swimmer ended; the text of the query is the contract:
@@ -38,7 +40,15 @@ const athleteAssignments = () =>
     query.includes("training_plan_assignments.athlete_id = athlete_"),
   );
 
-test("every staff query that reads athlete_schools keeps only the links not ended", () => {
+test("no stream filters on the clock or on ended_at: the window is closed by the stored column (#1418)", () => {
+  // A stream cannot re-evaluate time, and a filter on ended_at would cut the read window at the baja again.
+  for (const query of queries) {
+    expect(query).not.toMatch(/\bended_at\b/);
+    expect(query).not.toMatch(/\bnow\(\)/i);
+  }
+});
+
+test("every staff query that reads athlete_schools keeps the links whose read window is open", () => {
   // The plan assignments of a category are school data, not the swimmer's: every member of the school reads them (RLS).
   const staff = queries.filter(
     (query) =>
@@ -48,7 +58,7 @@ test("every staff query that reads athlete_schools keeps only the links not ende
   );
 
   expect(staff.length).toBeGreaterThan(10);
-  for (const query of staff) expect(query).toContain("ended_at IS NULL");
+  for (const query of staff) expect(query).toContain("read_window_closed_at IS NULL");
 });
 
 test("the staff athlete ids of the athletes, managers, authorization and photo streams ignore ended links", () => {
@@ -62,7 +72,7 @@ test("the staff athlete ids of the athletes, managers, authorization and photo s
     "admin_guardian_user_ids",
   ];
 
-  for (const name of names) expect(withDefinitions(name)).toContain("ended_at IS NULL");
+  for (const name of names) expect(withDefinitions(name)).toContain("read_window_closed_at IS NULL");
 });
 
 test("the admin queries bind the row to a school they administer first and to the link last", () => {
@@ -76,7 +86,7 @@ test("the admin queries bind the row to a school they administer first and to th
   for (const query of admin) {
     expect(joinedTables(query).slice(-2)).toEqual(["school_memberships", "athlete_schools"]);
     expect(query).toContain("AND school_memberships.school_id = athlete_schools.school_id WHERE school_memberships.user_id = auth.user_id()");
-    expect(query).toContain("athlete_schools.ended_at IS NULL");
+    expect(query).toContain("athlete_schools.read_window_closed_at IS NULL");
     expect(query).not.toMatch(/\b(admin_school_ids|admin_athlete_ids|member_school_ids)\b/);
   }
 });
@@ -93,7 +103,7 @@ test("the direct coach queries take the active school from the membership and ke
   for (const query of direct) {
     expect(joinedTables(query).slice(-3)).toEqual(["school_memberships", "athlete_schools", "coach_athlete_assignments"]);
     expect(query).toContain("school_memberships.deactivated_at IS NULL");
-    expect(query).toContain("athlete_schools.ended_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()");
+    expect(query).toContain("athlete_schools.read_window_closed_at IS NULL AND coach_athlete_assignments.coach_user_id = auth.user_id()");
     expect(query).not.toMatch(/\b(member_school_ids|admin_school_ids)\b/);
   }
 });
@@ -110,7 +120,7 @@ test("the by-group coach queries start at the active groups of the coach and end
   for (const query of group) {
     expect(joinedTables(query).at(-1)).not.toBe("coach_group_assignments");
     expect(joinedTables(query)).toContain("athlete_schools");
-    expect(query).toMatch(/\b(training_groups|coached_groups)\.id IN coach_group_ids AND athlete_schools\.ended_at IS NULL/);
+    expect(query).toMatch(/\b(training_groups|coached_groups)\.id IN coach_group_ids AND athlete_schools\.read_window_closed_at IS NULL/);
     // The groups of coach_group_ids are the ones of the schools where the coach is active: no school condition of its own.
     expect(query).not.toMatch(/\b(member_school_ids|admin_school_ids)\b/);
     expect(query).not.toContain("JOIN school_memberships");
