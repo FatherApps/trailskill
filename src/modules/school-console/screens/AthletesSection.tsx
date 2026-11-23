@@ -8,7 +8,7 @@ import type { AthleteAvatarSlot } from '../../../core/ui';
 import '../i18n';
 import { avatarOf } from '../components/athleteAvatar';
 import type { AdultDirectoryRepository, Guardian, InvitationRepository } from '../../accounts';
-import type { AthleteClaimLinkState, AthleteRegistrationRepository, AthleteSchoolEndRepository } from '../../athletes';
+import type { AthleteAnonymousCopyRepository, AthleteClaimLinkState, AthleteRegistrationRepository, AthleteSchoolEndRepository } from '../../athletes';
 import type { AthleteBest, AthleteFilterId, AthleteRow, CategoryChoice } from '../components/athleteTypes';
 import { personalBestLabel } from '../components/eventLabel';
 import { formatDate, localDate } from '../components/formatDate';
@@ -35,6 +35,8 @@ export type AthletesSectionProps = ConsoleSectionProps & {
   sharing?: { repository: GuardianSharingRepository; records?: GuardianRecordsRepository };
   // Without it the detail has no «Dar de baja a un nadador». Only the school admin console passes it; the server checks the role anyway.
   swimmerEnd?: Pick<AthleteSchoolEndRepository, 'endLink'>;
+  // Without it the detail has no «Crear copia anónima». Only the school admin console passes it; the server checks the role anyway.
+  anonymousCopies?: Pick<AthleteAnonymousCopyRepository, 'create'>;
   // Inviting a family needs both: the school's groups (an invitation belongs to one) and the invitations. Without either the button is not shown.
   structure?: Pick<SchoolStructureRepository, 'listGroups'>;
   invitations?: Pick<InvitationRepository, 'create'>;
@@ -81,6 +83,13 @@ const END_ERRORS = ['not_allowed', 'not_enrolled'];
 const endError = (error: unknown) => {
   const code = error instanceof Error && END_ERRORS.includes(error.message) ? error.message : 'other';
   return t(`schoolConsole.detail.end_error.${code}`);
+};
+
+const COPY_ERRORS = ['not_allowed', 'no_school_access', 'already_anonymous'];
+// The message of a failed copy: the repository's own error code when it has a text, a generic one otherwise (offline included).
+const copyError = (error: unknown) => {
+  const code = error instanceof Error && COPY_ERRORS.includes(error.message) ? error.message : 'other';
+  return t(`schoolConsole.detail.anonymous_copy.error.${code}`);
 };
 
 const ASSIGN_ERRORS = ['category_inactive', 'category_wrong_school', 'category_missing', 'athlete_school_missing', 'athlete_school_ended'];
@@ -133,6 +142,7 @@ export function AthletesSection({
   guardians,
   sharing,
   swimmerEnd,
+  anonymousCopies,
   structure,
   invitations,
   registration,
@@ -155,6 +165,11 @@ export function AthletesSection({
   const [endFailure, setEndFailure] = useState<{ athleteId: string; message: string }>();
   // A ref, not state: a second confirmation can arrive before a re-render shows the first is running.
   const ending = useRef(false);
+  // The swimmers whose copy is running: one call per swimmer, and another swimmer's detail never shows this one as busy.
+  const copying = useRef(new Set<string>());
+  const [copyBusy, setCopyBusy] = useState<string[]>([]);
+  // What the last copy did or why it failed, kept with the swimmer it belongs to so another swimmer never shows it.
+  const [copyResult, setCopyResult] = useState<{ athleteId: string; error: string | null; notice: string | null }>();
   const [bests, setBests] = useState<{ athleteId: string; bests: AthleteBest[]; failed: boolean }>();
   const [guardianList, setGuardianList] = useState<{ athleteId: string; guardians: Guardian[] }>();
 
@@ -314,6 +329,41 @@ export function AthletesSection({
                   });
               },
             } : undefined,
+            anonymousCopy: anonymousCopies
+              ? {
+                  busy: copyBusy.includes(selected.id),
+                  error: copyResult?.athleteId === selected.id ? copyResult.error : null,
+                  notice: copyResult?.athleteId === selected.id ? copyResult.notice : null,
+                  onConfirm: () => {
+                    if (copying.current.has(selected.id)) return;
+                    copying.current.add(selected.id);
+                    setCopyBusy((ids) => [...ids, selected.id]);
+                    anonymousCopies
+                      .create(selected.id, schoolId)
+                      .then(
+                        (result) =>
+                          setCopyResult({
+                            athleteId: selected.id,
+                            error: null,
+                            notice:
+                              result.status === 'already_copied'
+                                ? t('schoolConsole.detail.anonymous_copy.already_copied')
+                                : [
+                                    t('schoolConsole.detail.anonymous_copy.created', { count: result.copied }),
+                                    result.linkable ? null : t('schoolConsole.detail.anonymous_copy.created_not_linkable'),
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' '),
+                          }),
+                        (error) => setCopyResult({ athleteId: selected.id, error: copyError(error), notice: null }),
+                      )
+                      .finally(() => {
+                        copying.current.delete(selected.id);
+                        setCopyBusy((ids) => ids.filter((id) => id !== selected.id));
+                      });
+                  },
+                }
+              : undefined,
             claimLink:
               registration && linkNow && linkNow.status !== 'claimed' && selected.endedAt === null
                 ? {

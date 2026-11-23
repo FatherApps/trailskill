@@ -37,6 +37,8 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
   const claimLink = athlete.claimLink;
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  const [confirmingCopy, setConfirmingCopy] = useState(false);
+  const copy = athlete.anonymousCopy;
 
   return (
     <View style={{ gap: space[4] }}>
@@ -161,6 +163,29 @@ export function AthleteDetail({ athlete, onViewProfile }: AthleteDetailProps) {
               claimLink.onRevoke();
             }}
             onCancel={() => setConfirmingRevoke(false)}
+          />
+        </View>
+      )}
+      {copy && (
+        <View style={{ gap: space[2] }}>
+          <Text accessibilityRole="header" style={[typography.label, { color: colors[athleteDetailColors.title] }]}>
+            {t('schoolConsole.detail.anonymous_copy.title')}
+          </Text>
+          <Text style={[typography.caption, { color: colors[athleteDetailColors.caption] }]}>{t('schoolConsole.detail.anonymous_copy.help')}</Text>
+          {copy.notice && <Banner variant="success" icon="check_circle">{copy.notice}</Banner>}
+          {copy.error && <Banner variant="warn" icon="error">{copy.error}</Banner>}
+          <Button variant="secondary" label={t('schoolConsole.detail.anonymous_copy.create')} loading={copy.busy} onPress={() => setConfirmingCopy(true)} />
+          <ConfirmSheet
+            visible={confirmingCopy}
+            title={t('schoolConsole.detail.anonymous_copy.confirm.title', { name: athlete.name })}
+            message={t('schoolConsole.detail.anonymous_copy.confirm.message')}
+            confirmLabel={t('schoolConsole.detail.anonymous_copy.confirm.confirm')}
+            cancelLabel={t('schoolConsole.detail.anonymous_copy.confirm.cancel')}
+            onConfirm={() => {
+              setConfirmingCopy(false);
+              copy.onConfirm();
+            }}
+            onCancel={() => setConfirmingCopy(false)}
           />
         </View>
       )}

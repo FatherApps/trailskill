@@ -6,6 +6,7 @@ import type { PoolCode } from '../../core/sport';
 import type { GalleryEntry } from '../../core/ui';
 import { schoolNameFixture, storedOnFixture } from './__fixtures__/athletes';
 import {
+  anonymousCopiesFixture,
   authorizationsFixture,
   longTextAuthorizationFixture,
   relinkRequestsFixture,
@@ -17,6 +18,7 @@ import { longTextMySwimmerFixture, mySwimmersBestLabelFixture, mySwimmersFixture
 import { longTextMeasurementFixture, measurementsFixture, measurementsUpdatedMinutesAgo } from './__fixtures__/measurements';
 import { longTextRecordFixture, recordCategoryFixture, recordsFixture, recordsUpdatedMinutesAgo } from './__fixtures__/records';
 import { AuthorizationList, SharingRequestList } from './components/AuthorizationList';
+import { AnonymousCopyList } from './components/AnonymousCopyList';
 import { RelinkRequestList } from './components/RelinkRequestList';
 import { CoachList } from './components/CoachList';
 import { GuardianSharingPanel, type SharingRecordRow, type SharingRecordsView, type SharingSwitchView } from './components/GuardianSharingPanel';
@@ -361,6 +363,22 @@ export const gallerySectionEntries: GalleryEntry[] = [
     'relink-read-error': () => (
       <FullWidth>
         <RelinkRequestList requests="error" onApprove={noop} onReject={noop} onRetry={noop} />
+      </FullWidth>
+    ),
+    // The school's anonymous swimmers: never a name, a family or a code.
+    'anonymous-copies': () => (
+      <FullWidth>
+        <AnonymousCopyList copies={anonymousCopiesFixture} onRetry={noop} />
+      </FullWidth>
+    ),
+    'anonymous-copies-offline': () => (
+      <FullWidth>
+        <AnonymousCopyList copies="offline" onRetry={noop} />
+      </FullWidth>
+    ),
+    'anonymous-copies-read-error': () => (
+      <FullWidth>
+        <AnonymousCopyList copies="error" onRetry={noop} />
       </FullWidth>
     ),
   }),

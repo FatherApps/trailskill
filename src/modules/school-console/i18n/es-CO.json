@@ -107,6 +107,27 @@
         "other": "No pudimos cambiar el enlace. Revisa la conexión e inténtalo de nuevo."
       }
     },
+    "anonymous_copy": {
+      "title": "Copia anónima",
+      "help": "Tu escuela puede guardar una copia de los tiempos que ve de este nadador, sin nombre ni familia. La familia podrá recuperarla con su código.",
+      "create": "Crear copia anónima",
+      "confirm": {
+        "title": "¿Crear una copia anónima de {{name}}?",
+        "message": "Se copian los tiempos que tu escuela ve hoy, sin nombre, foto ni familia. La copia queda como «Nadador anónimo» y no se puede deshacer desde la app.",
+        "confirm": "Crear copia",
+        "cancel": "Cancelar"
+      },
+      "created_one": "Copia creada con {{count}} tiempo.",
+      "created_other": "Copia creada con {{count}} tiempos.",
+      "created_not_linkable": "La familia aún no emitió su código: la copia se enlazará cuando lo haga.",
+      "already_copied": "Tu escuela ya tenía una copia de este nadador.",
+      "error": {
+        "not_allowed": "Solo un administrador de la escuela puede crear una copia anónima.",
+        "no_school_access": "Tu escuela ya no ve a este nadador: no se puede copiar.",
+        "already_anonymous": "Este nadador ya es una copia anónima.",
+        "other": "No pudimos crear la copia. Revisa la conexión e inténtalo de nuevo."
+      }
+    },
     "end_link": "Dar de baja a un nadador",
     "end_confirm": {
       "title": "¿Dar de baja a {{name}}?",
@@ -394,6 +415,16 @@
     "sharing_error": "No pudimos actualizar la solicitud. Revisa la conexión e inténtalo de nuevo.",
     "share_message": "{{school}} te invita a Swimcro para responder las autorizaciones de tu deportista. Código de invitación: {{token}}. Vence el {{date}}.",
     "share_message_no_date": "{{school}} te invita a Swimcro para responder las autorizaciones de tu deportista. Código de invitación: {{token}}.",
+    "anonymous": {
+      "title": "Nadadores anónimos",
+      "name": "Nadador anónimo",
+      "times_one": "{{count}} tiempo",
+      "times_other": "{{count}} tiempos",
+      "linkable": "Con código",
+      "not_linkable": "Sin código",
+      "offline": "Los nadadores anónimos se ven solo con conexión.",
+      "error": "No pudimos cargar los nadadores anónimos."
+    },
     "relink": {
       "title": "Solicitudes para recuperar tiempos",
       "pending_detail_one": "Pide {{count}} tiempo de tu escuela",

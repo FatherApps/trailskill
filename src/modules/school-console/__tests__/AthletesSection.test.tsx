@@ -445,6 +445,74 @@ describe('AthletesSection', () => {
     });
   });
 
+  describe('anonymous copy', () => {
+    const open = async (anonymousCopies?: { create: jest.Mock }) => {
+      await show(setup().repository, { anonymousCopies });
+      await fireEvent.press(await athleteRow(/^Lucía Ramírez/));
+    };
+    const copy = async () => {
+      await fireEvent.press(await screen.findByRole('button', { name: 'Crear copia anónima' }));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Crear copia' }));
+    };
+
+    it('has no copy button without the repository', async () => {
+      await open();
+
+      expect(screen.queryByRole('button', { name: 'Crear copia anónima' })).toBeNull();
+    });
+
+    it('asks for confirmation, creates the copy once for the open swimmer and says what it copied', async () => {
+      const anonymousCopies = { create: jest.fn().mockResolvedValue({ status: 'created', athleteId: 'anon-1', linkable: false, copied: 3 }) };
+      await open(anonymousCopies);
+
+      await fireEvent.press(await screen.findByRole('button', { name: 'Crear copia anónima' }));
+      expect(screen.getByText('¿Crear una copia anónima de Lucía Ramírez?')).toBeOnTheScreen();
+      expect(anonymousCopies.create).not.toHaveBeenCalled();
+      await fireEvent.press(await screen.findByRole('button', { name: 'Crear copia' }));
+
+      await waitFor(() => expect(anonymousCopies.create).toHaveBeenCalledWith('a1', 'school-a'));
+      expect(anonymousCopies.create).toHaveBeenCalledTimes(1);
+      expect(await screen.findByText(/Copia creada con 3 tiempos\./)).toBeOnTheScreen();
+      expect(screen.getByText(/La familia aún no emitió su código/)).toBeOnTheScreen();
+    });
+
+    it('shows the copy as running only for the swimmer it belongs to', async () => {
+      const anonymousCopies = { create: jest.fn().mockReturnValue(new Promise(() => {})) };
+      await open(anonymousCopies);
+
+      await copy();
+      await waitFor(() => expect(screen.getByRole('button', { name: /Crear copia anónima/ }).props.accessibilityState?.busy).toBe(true));
+      await fireEvent.press(await athleteRow(/^Mateo Castro/));
+
+      await waitFor(() => expect(screen.getByRole('button', { name: /Crear copia anónima/ }).props.accessibilityState?.busy).toBe(false));
+      await fireEvent.press(screen.getByRole('button', { name: 'Crear copia anónima' }));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Crear copia' }));
+      await waitFor(() => expect(anonymousCopies.create).toHaveBeenCalledWith('a2', 'school-a'));
+    });
+
+    it('says when the school already had a copy', async () => {
+      await open({ create: jest.fn().mockResolvedValue({ status: 'already_copied', athleteId: 'anon-1', linkable: true, copied: 0 }) });
+
+      await copy();
+
+      expect(await screen.findByText('Tu escuela ya tenía una copia de este nadador.')).toBeOnTheScreen();
+    });
+
+    it.each([
+      ['not_allowed', 'Solo un administrador de la escuela puede crear una copia anónima.'],
+      ['no_school_access', 'Tu escuela ya no ve a este nadador: no se puede copiar.'],
+      ['already_anonymous', 'Este nadador ya es una copia anónima.'],
+      ['Failed to fetch', 'No pudimos crear la copia. Revisa la conexión e inténtalo de nuevo.'],
+    ])('shows the failure %s and keeps the detail open', async (code, message) => {
+      await open({ create: jest.fn().mockRejectedValue(new Error(code)) });
+
+      await copy();
+
+      expect(await screen.findByText(message)).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Crear copia anónima' })).toBeOnTheScreen();
+    });
+  });
+
   describe('category selector', () => {
     // Synthetic categories of school-a; c3 is inactive and c9 belongs to another school.
     // The athletes list (setup) gives a1 the category c1 and a2 the category c2.

@@ -69,6 +69,18 @@ export type EndLink = {
   onConfirm: () => void;
 };
 
+// The school's anonymous copy of a swimmer (issue 1420): the confirmation is part of the detail, the call belongs to the caller.
+export type AnonymousCopyPanel = {
+  // A call is running: the button is not available.
+  busy: boolean;
+  // Already translated; `null` when there is nothing to say.
+  error: string | null;
+  // Already translated: what the last copy did («Copia creada con 3 tiempos»); `null` before any.
+  notice: string | null;
+  // Fires only after the admin confirmed.
+  onConfirm: () => void;
+};
+
 export type AthleteDetailData = {
   id: string;
   name: string;
@@ -91,6 +103,8 @@ export type AthleteDetailData = {
   endLink?: EndLink;
   // Absent unless the swimmer has a link nobody claimed yet and the caller is the school admin.
   claimLink?: ClaimLinkPanel;
+  // Absent unless the caller is the school admin and can copy the swimmer: the detail has no copy button.
+  anonymousCopy?: AnonymousCopyPanel;
 };
 
 export type AthleteFilterId = 'category' | 'group' | 'coach';

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { Dimensions } from 'react-native';
 
 import { createInMemoryAuthorizationStatusRepository, createInMemoryInvitationRepository } from '../../accounts';
-import { createInMemoryAthleteRelinkRepository, type AthleteRelinkRepository } from '../../athletes';
+import { createInMemoryAthleteRelinkRepository, type AnonymousCopy, type AthleteRelinkRepository } from '../../athletes';
 import { createAuthorizationsRepository } from '../data/authorizations';
 import type { ConsoleAthlete } from '../data/consoleAthletes';
 import { AuthorizationsSection } from '../screens/AuthorizationsSection';
@@ -46,7 +46,7 @@ async function seededRelink() {
   return relink;
 }
 
-async function setup(options: { relink?: AthleteRelinkRepository | 'none'; connection?: 'connected' | 'offline' } = {}) {
+async function setup(options: { relink?: AthleteRelinkRepository | 'none'; connection?: 'connected' | 'offline'; copies?: () => Promise<AnonymousCopy[]> } = {}) {
   const repository = createAuthorizationsRepository({
     athletes: { listAthletes: jest.fn().mockResolvedValue([athlete]) },
     statuses: createInMemoryAuthorizationStatusRepository([{ athleteId: 'a1', purpose: 'record_times', isGranted: true }]),
@@ -63,6 +63,7 @@ async function setup(options: { relink?: AthleteRelinkRepository | 'none'; conne
       schoolId="school-1"
       repository={repository}
       relink={relink}
+      anonymousCopies={options.copies ? { list: options.copies } : undefined}
       lastSyncedAt={new Date('2026-10-25T10:00:00')}
       connection={options.connection ?? 'connected'}
       now={() => new Date('2026-10-25T10:03:00')}
@@ -167,5 +168,59 @@ describe('the relink inbox in the authorizations section', () => {
 
     await screen.findByText('Lucía Ramírez, Acudiente: Sin dato', { exact: false }).catch(() => undefined);
     expect(screen.queryByText('Solicitudes para recuperar tiempos')).toBeNull();
+  });
+});
+
+describe('the anonymous swimmers in the authorizations section', () => {
+  const copies: AnonymousCopy[] = [
+    { athleteId: 'anon-1', createdAt: '2026-11-22T10:00:00Z', linkable: true, timesCount: 4 },
+    { athleteId: 'anon-2', createdAt: '2026-11-20T10:00:00Z', linkable: false, timesCount: 1 },
+  ];
+
+  it('lists each copy as «Nadador anónimo» with its marks and whether it has a code, never the code or a name', async () => {
+    await setup({ copies: jest.fn().mockResolvedValue(copies) });
+
+    expect(await screen.findByText('Nadadores anónimos')).toBeOnTheScreen();
+    expect(screen.getAllByText('Nadador anónimo')).toHaveLength(2);
+    expect(screen.getByText(/^4 tiempos/)).toBeOnTheScreen();
+    expect(screen.getByText(/^1 tiempo ·/)).toBeOnTheScreen();
+    expect(screen.getByLabelText('Con código')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Sin código')).toBeOnTheScreen();
+    expect(screen.queryByText(/TR-|RC-/)).toBeNull();
+  });
+
+  it('shows nothing when the school made no copy, once the list was read', async () => {
+    const list = jest.fn().mockResolvedValue([]);
+    await setup({ copies: list });
+    await screen.findByText('Solicitudes para recuperar tiempos');
+
+    await waitFor(() => expect(list).toHaveBeenCalledWith('school-1'));
+    await waitFor(() => expect(screen.queryByText('Nadadores anónimos')).toBeNull());
+    expect(screen.queryByText('Nadador anónimo')).toBeNull();
+  });
+
+  it('shows no area without the repository', async () => {
+    await setup();
+    await screen.findByText('Solicitudes para recuperar tiempos');
+
+    expect(screen.queryByText('Nadadores anónimos')).toBeNull();
+  });
+
+  it('says the list needs a connection when offline', async () => {
+    const list = jest.fn().mockResolvedValue(copies);
+    await setup({ copies: list, connection: 'offline' });
+
+    expect(await screen.findByText('Los nadadores anónimos se ven solo con conexión.')).toBeOnTheScreen();
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it('offers to read the list again when it failed', async () => {
+    const list = jest.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue(copies);
+    await setup({ copies: list });
+
+    expect(await screen.findByText('No pudimos cargar los nadadores anónimos.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Intentar de nuevo' })[0]);
+
+    expect(await screen.findAllByText('Nadador anónimo')).toHaveLength(2);
   });
 });
