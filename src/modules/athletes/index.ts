@@ -170,3 +170,9 @@ export {
 } from './screens/RecoveryCodesNoticeContainer';
 export { RecoveryCodesScreen, type RecoveryCodesScreenProps } from './screens/RecoveryCodesScreen';
 export { AthleteRecoveryCodeContainer, type AthleteRecoveryCodeContainerProps } from './screens/AthleteRecoveryCodeContainer';
+export {
+  createInMemoryAthleteResultSharingRepository,
+  createPowerSyncAthleteResultSharingRepository,
+  type AthleteResultSharingRepository,
+  type AthleteResultSharingRow,
+} from './data/athleteResultSharing';

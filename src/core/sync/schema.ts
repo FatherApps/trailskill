@@ -27,6 +27,8 @@ export const AppSchema = new Schema({
     { athlete_id: column.text, birth_date: column.text, gender: column.text, updated_at: column.text },
     { indexes: { athlete: ['athlete_id'] }, trackPrevious: { columns: ['athlete_id'] } },
   ),
+  // The schools the owner opened the swimmer's results to (#1446). Read-only on the device: it is written only by the grant and revoke functions, and a withdrawn row (revoked_at set) leaves the stream.
+  athlete_result_sharing: new Table({ athlete_id: column.text, target_school_id: column.text, granted_by: column.text, granted_at: column.text, revoked_by: column.text, revoked_at: column.text }),
   timing_series: new Table({
     ...audit,
     school_id: column.text,
