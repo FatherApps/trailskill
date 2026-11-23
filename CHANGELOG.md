@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.14.0](https://github.com/FatherApps/trailskill/compare/v0.13.0...v0.14.0) (2026-11-23)
+
+
+### Features
+
+* **athletes:** add permanent recovery code and single-use recovery codes ([#1424](https://github.com/FatherApps/trailskill/issues/1424)) ([4c4dcf9](https://github.com/FatherApps/trailskill/commit/4c4dcf947e64e24540a658e8e1a60b624f5f5d38)), closes [#1416](https://github.com/FatherApps/trailskill/issues/1416)
+* **athletes:** keep the school reading a swimmer for 30 days after the baja ([#1425](https://github.com/FatherApps/trailskill/issues/1425)) ([da07643](https://github.com/FatherApps/trailskill/commit/da0764362cc33e4aeb4e44bea510be23bf07a626)), closes [#1418](https://github.com/FatherApps/trailskill/issues/1418)
+* **athletes:** relink the school times of an erased swimmer ([#1414](https://github.com/FatherApps/trailskill/issues/1414)) ([bd1e39e](https://github.com/FatherApps/trailskill/commit/bd1e39e3cdf08c279ff4bd87a5706bde3233d012)), closes [#1251](https://github.com/FatherApps/trailskill/issues/1251)
+* **athletes:** school registers a swimmer without an account and the family claims it ([#1426](https://github.com/FatherApps/trailskill/issues/1426)) ([790d951](https://github.com/FatherApps/trailskill/commit/790d951e9bb5c4388dcb43c443574c72f7fe4a22)), closes [#1422](https://github.com/FatherApps/trailskill/issues/1422)
+* **family-timing:** store the meters of each mark in split_meters ([#1439](https://github.com/FatherApps/trailskill/issues/1439)) ([67b2bbc](https://github.com/FatherApps/trailskill/commit/67b2bbc75d4e0773542db27e8f1ac7209d19b51a)), closes [#1430](https://github.com/FatherApps/trailskill/issues/1430)
+* **school-console:** register a swimmer without an account and claim link ([#1435](https://github.com/FatherApps/trailskill/issues/1435)) ([2ef7ea0](https://github.com/FatherApps/trailskill/commit/2ef7ea0d0e90ae6db6f98e8f00fe989f369693ae)), closes [#1423](https://github.com/FatherApps/trailskill/issues/1423)
+* **timing:** free laps rule and pace maths (pace.ts) ([#1438](https://github.com/FatherApps/trailskill/issues/1438)) ([6db3a49](https://github.com/FatherApps/trailskill/commit/6db3a4905b174b09b8115b1f1b82fe0f0bc4619b)), closes [#1429](https://github.com/FatherApps/trailskill/issues/1429)
+* **timing:** free marks with meters and an optional review step ([#1442](https://github.com/FatherApps/trailskill/issues/1442)) ([5e332b7](https://github.com/FatherApps/trailskill/commit/5e332b7dd7404908ba39842941dec99ca35a657d)), closes [#1432](https://github.com/FatherApps/trailskill/issues/1432)
+* **timing:** meters column for the free marks of a measurement ([#1441](https://github.com/FatherApps/trailskill/issues/1441)) ([2184d60](https://github.com/FatherApps/trailskill/commit/2184d6079124d46cf14f60b89dd4ebccc87dbaf3)), closes [#1432](https://github.com/FatherApps/trailskill/issues/1432)
+
+
+### Bug Fixes
+
+* **accounts:** erase_account empties athlete_schools.ended_by of the erased admin ([#1440](https://github.com/FatherApps/trailskill/issues/1440)) ([82ef2e9](https://github.com/FatherApps/trailskill/commit/82ef2e981fd6cd1f7c9b3f81b9825f04fe3ff716)), closes [#1434](https://github.com/FatherApps/trailskill/issues/1434)
+* **timing:** read-only ended swimmer during the 30-day window ([#1437](https://github.com/FatherApps/trailskill/issues/1437)) ([7fe22b5](https://github.com/FatherApps/trailskill/commit/7fe22b5d2efaf68337559152cad36c1babc5a348)), closes [#1436](https://github.com/FatherApps/trailskill/issues/1436)
+
 ## [0.13.0](https://github.com/FatherApps/trailskill/compare/v0.12.0...v0.13.0) (2026-11-22)
 
 
