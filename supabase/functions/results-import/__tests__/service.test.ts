@@ -676,8 +676,6 @@ describe('confirmCandidate', () => {
 // Issue #836: search -> confirm -> results of the same person and athlete is one flow, one claim.
 describe('search, confirm and results as one flow', () => {
   const candidate = { sourceAthleteKey: 'k-1', name: 'Ana Example', affiliations: [], resultCount: 1 };
-  // Half the query window: a wait that is still inside it.
-  const HALF_WINDOW_MS = QUERY_INTERVAL_MS / 2;
   const THIRTY_SIX_SECONDS = 36_000;
 
   // The athlete's number is the candidate's key, so the refresh after confirming can read it.
