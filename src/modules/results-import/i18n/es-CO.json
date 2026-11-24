@@ -164,6 +164,10 @@
       "empty_title": "No encontramos torneos con ese filtro",
       "empty_message": "Prueba con otro nombre, ciudad, año o fecha.",
       "paste": "¿No está en la lista? Pegar la dirección",
+      "city_label_one": "{{city}}, {{count}} torneo",
+      "city_label_other": "{{city}}, {{count}} torneos",
+      "city_count_one": "{{count}} torneo",
+      "city_count_other": "{{count}} torneos",
       "chosen_label": "Torneo elegido",
       "change": "Elegir otro torneo",
       "no_file": {

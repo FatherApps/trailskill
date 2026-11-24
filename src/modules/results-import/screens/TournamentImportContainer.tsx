@@ -85,6 +85,15 @@ export function TournamentImportContainer({
   const [chosen, setChosen] = useState<TournamentCatalogEntry | null>(null);
   // The pasted address is the fallback: it opens only from the picker's link.
   const [pasting, setPasting] = useState(false);
+  // The cities the guardian opened by hand; they all start folded.
+  const [openCities, setOpenCities] = useState<string[]>([]);
+  const filtering = text.trim() !== '' || year !== null || dateKey !== null;
+  // Clearing the filters folds the cities again, including the ones opened by hand.
+  const [wasFiltering, setWasFiltering] = useState(false);
+  if (filtering !== wasFiltering) {
+    setWasFiltering(filtering);
+    if (!filtering) setOpenCities([]);
+  }
 
   const athleteName = athlete.firstName.trim();
   const requestKey = `${athlete.id}|${attempt}`;
@@ -158,6 +167,7 @@ export function TournamentImportContainer({
     if (entries === null) return <ConfirmPersonScreen view={{ kind: 'loading' }} onBack={onBack} />;
     const newest = entries.reduce((latest, entry) => (entry.dateKey > latest ? entry.dateKey : latest), '');
     const month = shownMonth ?? (newest ? { year: yearOfKey(newest), month: Number(newest.slice(4, 6)) } : { year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+    const groups = groupTournaments(entries, { text, year, dateKey });
     const pick: ConfirmPersonView = {
       kind: 'tournament_pick',
       athleteName,
@@ -184,7 +194,10 @@ export function TournamentImportContainer({
       onClearDay: () => setDateKey(null),
       onPreviousMonth: () => setShownMonth(shiftMonth(month, -1)),
       onNextMonth: () => setShownMonth(shiftMonth(month, 1)),
-      groups: groupTournaments(entries, { text, year, dateKey }),
+      groups,
+      // With a filter every section that has results is open: the guardian asked to see them.
+      openCities: filtering ? groups.map((group) => group.city) : openCities,
+      onToggleCity: (city) => setOpenCities((now) => (now.includes(city) ? now.filter((open) => open !== city) : [...now, city])),
       onPick: setChosen,
       onPasteUrl: () => setPasting(true),
     };
