@@ -94,7 +94,7 @@ describe('createQueryGate with a search time to live', () => {
     expect(fake.calls).toEqual([
       {
         fn: 'results_import_claim_results_query',
-        args: { athlete: ATHLETE, provider: PROVIDER, requested_by: USER, min_interval: '600 seconds', search_ttl: '900 seconds' },
+        args: { athlete: ATHLETE, provider: PROVIDER, requested_by: USER, min_interval: '60 seconds', search_ttl: '900 seconds' },
       },
     ]);
   });
@@ -118,7 +118,7 @@ describe('createQueryGate release', () => {
     const fake = createFakeDb([{ data: true }]);
     await release(fake);
     expect(fake.calls).toEqual([
-      { fn: 'results_import_release_claim', args: { athlete: ATHLETE, provider: PROVIDER, claimed_at: CLAIMED_AT, min_interval: '600 seconds', retry_after: '60 seconds' } },
+      { fn: 'results_import_release_claim', args: { athlete: ATHLETE, provider: PROVIDER, claimed_at: CLAIMED_AT, min_interval: '60 seconds', retry_after: '60 seconds' } },
     ]);
   });
 
