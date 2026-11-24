@@ -14,7 +14,7 @@ const fillOf = (token: keyof (typeof colors)['light']) => ({
 });
 
 describe('Icon', () => {
-  it('bundles exactly the design system subset plus the icons of Banner and the registration screens, the console screen, the phone navigation bar and the Mis tiempos video rows', () => {
+  it('bundles exactly the design system subset plus the icons of Banner and the registration screens, the console screen, the phone navigation bar, the Mis tiempos video rows and the yes/no rows of the settings', () => {
     expect([...names].sort()).toEqual(
       [
         'timer',
@@ -62,6 +62,10 @@ describe('Icon', () => {
         'fitness_center',
         'add',
         'videocam',
+        'notifications',
+        'vibration',
+        'headphones',
+        'all_inclusive',
       ].sort(),
     );
   });

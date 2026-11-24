@@ -7,6 +7,7 @@ import { formatMillis } from '../../../core/time';
 import { Banner, Button, Segmented } from '../../../core/ui';
 import { SettingsFrame } from '../components/SettingsFrame';
 import { SettingsSection } from '../components/SettingsSection';
+import { SettingsSwitchRow } from '../components/SettingsSwitchRow';
 import '../i18n';
 
 // A fixed synthetic time for the example under the precision choice.
@@ -62,25 +63,22 @@ function KeyRow({ label, keyName, learning, onLearn, onCancel }: { label: string
 function ButtonsSettings({ view }: { view: SettingsButtonsView }) {
   const { colors, space, typography } = useTheme();
   const { settings } = view;
-  const onOff = [
-    { value: 'on', label: t('settings.buttons.on') },
-    { value: 'off', label: t('settings.buttons.off') },
-  ];
   return (
     <>
-      <SettingsSection label={t('settings.buttons.label')} hint={t('settings.buttons.hint')}>
-        <Segmented
-          accessibilityLabel={t('settings.buttons.label')}
-          value={settings.enabled ? 'on' : 'off'}
-          onChange={(value) => view.onChange({ enabled: value === 'on' })}
-          options={onOff}
+      <View style={{ gap: space[2] }}>
+        <SettingsSwitchRow
+          icon="headphones"
+          label={t('settings.buttons.label')}
+          hint={t('settings.buttons.hint')}
+          value={settings.enabled}
+          onChange={(enabled) => view.onChange({ enabled })}
         />
         <Text style={[typography.caption, { color: colors.ink }]}>
           {view.keyboards.length > 0
             ? t('settings.buttons.connected', { devices: view.keyboards.join(', ') })
             : t('settings.buttons.not_connected')}
         </Text>
-      </SettingsSection>
+      </View>
       {settings.enabled && (
         <>
           <SettingsSection label={t('settings.buttons.keys_label')} hint={t('settings.buttons.keys_hint')}>
@@ -109,14 +107,13 @@ function ButtonsSettings({ view }: { view: SettingsButtonsView }) {
               options={lockoutSeconds.map((seconds) => ({ value: String(seconds), label: t('settings.buttons.seconds', { count: seconds }) }))}
             />
           </SettingsSection>
-          <SettingsSection label={t('settings.buttons.vibrate_label')} hint={t('settings.buttons.vibrate_hint')}>
-            <Segmented
-              accessibilityLabel={t('settings.buttons.vibrate_label')}
-              value={settings.vibrate ? 'on' : 'off'}
-              onChange={(value) => view.onChange({ vibrate: value === 'on' })}
-              options={onOff}
-            />
-          </SettingsSection>
+          <SettingsSwitchRow
+            icon="vibration"
+            label={t('settings.buttons.vibrate_label')}
+            hint={t('settings.buttons.vibrate_hint')}
+            value={settings.vibrate}
+            onChange={(vibrate) => view.onChange({ vibrate })}
+          />
         </>
       )}
     </>
@@ -139,17 +136,13 @@ export function StopwatchSettingsScreen({ precision, freeLaps, buttons, onBack }
           {t('settings.precision.example', { time: formatMillis(EXAMPLE_MILLIS, { precision: precision.value }) })}
         </Text>
       </SettingsSection>
-      <SettingsSection label={t('settings.stopwatch.free_laps_label')} hint={t('settings.stopwatch.free_laps_hint')}>
-        <Segmented
-          accessibilityLabel={t('settings.stopwatch.free_laps_label')}
-          value={freeLaps.value ? 'on' : 'off'}
-          onChange={(value) => freeLaps.onChange(value === 'on')}
-          options={[
-            { value: 'on', label: t('settings.buttons.on') },
-            { value: 'off', label: t('settings.buttons.off') },
-          ]}
-        />
-      </SettingsSection>
+      <SettingsSwitchRow
+        icon="all_inclusive"
+        label={t('settings.stopwatch.free_laps_label')}
+        hint={t('settings.stopwatch.free_laps_hint')}
+        value={freeLaps.value}
+        onChange={freeLaps.onChange}
+      />
       {buttons && <ButtonsSettings view={buttons} />}
     </SettingsFrame>
   );

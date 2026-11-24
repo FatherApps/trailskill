@@ -23,7 +23,7 @@ describe('VideoSettingsContainer', () => {
     const { repository } = await setup();
     await fireEvent.press(within(screen.getByLabelText('Parar el video después de detener el reloj')).getByText('10 s'));
     await waitFor(async () => expect((await repository.load()).videoRecording.stopAfterSeconds).toBe(10));
-    await fireEvent.press(within(screen.getByLabelText('Grabar con audio')).getByText('No'));
+    await fireEvent.press(screen.getByRole('switch', { name: 'Grabar con audio' }));
     await waitFor(async () =>
       expect((await repository.load()).videoRecording).toEqual({ quality: 'medium', audio: false, showStopwatch: true, startWithTime: false, stopAfterSeconds: 10, doNotDisturb: false }),
     );
@@ -40,13 +40,13 @@ describe('VideoSettingsContainer', () => {
 
 // Issue #1090.
 describe('VideoSettingsContainer No molestar while recording', () => {
-  const option = () => within(screen.getByLabelText('Activar No molestar mientras grabo'));
+  const option = () => screen.getByRole('switch', { name: 'Activar No molestar mientras grabo' });
 
   it('is off by default and saves Sí without asking when the access is there', async () => {
     const dnd = createFakeDoNotDisturb(true);
     const { repository } = await setup(dnd);
-    expect(option().getByText('No')).toBeTruthy();
-    await fireEvent.press(option().getByText('Sí'));
+    expect(option().props.accessibilityState).toMatchObject({ checked: false });
+    await fireEvent.press(option());
     await waitFor(async () => expect((await repository.load()).videoRecording.doNotDisturb).toBe(true));
     expect(dnd.opened).toBe(0);
     expect(screen.queryByText('Abrir ajustes de Android')).toBeNull();
@@ -66,7 +66,7 @@ describe('VideoSettingsContainer No molestar while recording', () => {
     });
     const dnd = createFakeDoNotDisturb(false);
     await setup(dnd);
-    await fireEvent.press(option().getByText('Sí'));
+    await fireEvent.press(option());
     expect(dnd.opened).toBe(1);
     expect(await screen.findByText(/^Para activarlo, Android pide/)).toBeTruthy();
     await fireEvent.press(screen.getByText('Abrir ajustes de Android'));
