@@ -75,6 +75,31 @@ describe('searchPdf', () => {
     expect(() => search(body)).toThrow(new ProviderUnavailableError('More than one person of the tournament PDF fits the athlete'));
   });
 
+  it('is unavailable when the same printed name and birth date appear in two clubs: they are two people and their results must not merge', () => {
+    const body = [
+      event(1, FREE_50, 'Women'), ageGroup('Open 30-34'),
+      row({ birth: '950811', ht: 1, ln: 1, team: 'ZZA/Club Sintetico', name: 'SINTETICA PRUEBA Ana Maria', time: '30.00' }),
+      row({ birth: '950811', ht: 2, ln: 1, team: 'ZZB/Club Ficticio', name: 'SINTETICA PRUEBA Ana Maria', time: '31.00' }),
+    ];
+    expect(() => search(body)).toThrow(new ProviderUnavailableError('More than one person of the tournament PDF fits the athlete'));
+    // The club is compared without accents, capitals or spacing differences: the same club written two ways is not a second person.
+    const sameClub = [
+      event(1, FREE_50, 'Women'), ageGroup('Open 30-34'),
+      row({ birth: '950811', ht: 1, ln: 1, team: 'ZZA/Club  Sintético', name: 'SINTETICA PRUEBA Ana Maria', time: '30.00' }),
+      row({ birth: '950811', ht: 2, ln: 1, team: 'ZZA/CLUB SINTETICO', name: 'SINTETICA PRUEBA Ana Maria', time: '31.00' }),
+    ];
+    expect(search(sameClub).found).toBe(true);
+  });
+
+  it('is unavailable for one club and no club of the same printed name and birth date', () => {
+    const body = [
+      event(1, FREE_50, 'Women'), ageGroup('Open 30-34'),
+      row({ birth: '950811', ht: 1, ln: 1, team: 'Club Sintetico', name: 'SINTETICA PRUEBA Ana Maria', time: '30.00' }),
+      row({ birth: '950811', ht: 2, ln: 1, team: 'ZZA/', name: 'SINTETICA PRUEBA Ana Maria', time: '31.00' }),
+    ];
+    expect(() => search(body)).toThrow(ProviderUnavailableError);
+  });
+
   it('is one person when the same printed name swims several events, and offers each row once', () => {
     const body = [
       event(1, FREE_50, 'Women'), ageGroup('Open 30-34'), row({ birth: '950811', ht: 6, ln: 3, name: 'SINTETICA PRUEBA Ana Maria', time: '35.87' }),

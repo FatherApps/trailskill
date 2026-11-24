@@ -14,7 +14,7 @@ const firstWord = (text: string) => plain(text).split(' ')[0] ?? '';
 /**
  * The athlete's rows in a PDF, found by what the PDF shows of a person: the birth date (YYMMDD) and the first name and first surname, no accents
  * or capitals, all among the words of the printed name «SURNAMES Names». The sex of the event narrows it when the athlete's is known.
- * Two different printed names for one birth date and those words are two people: it cannot be known which is the athlete, so it is
+ * Two different printed names, or the same name in two clubs, for one birth date and those words are two people: it cannot be known which is the athlete, so it is
  * `ProviderUnavailableError`, never a guess. Only the athlete's name, club and rows come out; every other row and every birth date stay here.
  * `athlete.birthDate` is `YYYY-MM-DD`.
  */
@@ -30,7 +30,8 @@ export function searchPdf(parsed: ParsedPdf, dateKey: string, athlete: Tournamen
     return [firstName, surname].every((wanted) => words.some((word) => sameWord(wanted, word)));
   });
   if (rows.length === 0) return { found: false };
-  if (new Set(rows.map((row) => plain(row.name))).size > 1) throw new ProviderUnavailableError('More than one person of the tournament PDF fits the athlete');
+  // One swimmer has one name and one club in a tournament's PDF: two pairs are two people, even with the same printed name (two swimmers with the same name and birth date in different clubs).
+  if (new Set(rows.map((row) => `${plain(row.name)}|${plain(row.club ?? '')}`)).size > 1) throw new ProviderUnavailableError('More than one person of the tournament PDF fits the athlete');
 
   const results = new Map<string, TournamentResult>();
   for (const row of rows) {
