@@ -5,7 +5,7 @@ The `results-import` Edge Function only serves a provider when the database hold
 - **Who:** the maintainer, as `postgres` (Supabase Studio SQL editor or `psql`). Nobody else can read the QA or PROD database, and agents never run this.
 - **When:** after the migrations and the function are delivered (see [Edge Functions](../../deploy/README.md#edge-functions)), before the first import. PROD: step «load the results providers (runbook)» of the cut to PROD (#1120), after the first `school_admin` ([runbook](../deploy/prod-first-admin-runbook.md)); it stays on HOLD with the rest of the series #1113-#1120.
 - **What it does not do:** it does not turn on tournament import (a maintainer decision, see `deploy/README.md`) and it does not change the schema or the function.
-- **Tournament years:** the tournament list refresh saves the tournaments of the current UTC year and of the year before, from one read of the platform each time, so when a new year's tournaments appear (for example 2027) they are saved by themselves, with nothing to load or configure here.
+- **Tournament years:** the tournament list refresh saves the tournaments of every year from 2021 to the current UTC year, from one read of the platform's results page and one of its calendar (swimming only, from 2021) each time, so when a new year's tournaments appear (for example 2027) they are saved by themselves, with nothing to load or configure here. A pool length the calendar's title states is kept once saved.
 - **Older tournaments:** the catalog of earlier years and of days the index misses is completed by the operator action `backfill_tournaments`, and `refresh_tournaments` probes the last 7 days by itself; see `deploy/README.md` (issue #1471).
 
 ## What the function needs
