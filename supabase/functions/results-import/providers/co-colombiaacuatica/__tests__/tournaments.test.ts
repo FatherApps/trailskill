@@ -10,7 +10,11 @@ const PDF = 'https://www.colombiaacuatica.com/backtun/torneos/resultados/pdf';
 // A real capture of the index, cut down to a few rows: tournament names, cities, dates and disciplines only.
 const FIXTURE = fs.readFileSync(path.join(__dirname, 'fixtures', 'index2026.html'), 'utf8');
 const ok = (body: BodyInit | null, init: ResponseInit = {}) => new Response(body, { status: 200, ...init });
-const list = (html: string, years = [2026]) => createCoColombiaacuatica(async () => ok(html)).listTournaments(years);
+// The calendar of the platform, quiet: one old swimming event that no test asks for, so the index is what these tests read.
+const CALENDAR_URL = 'https://www.colombiaacuatica.com/seccion/calendario';
+const QUIET_CALENDAR = `<script>$('#c').fullCalendar({ events: [ { id:'', title:'Liga | Torneo de 2019', start:'2019-01-01', url:'${PDF}/2019/20190101resultados.pdf' } ] });</script>`;
+const serve = (index: BodyInit | null, calendar: BodyInit | null = QUIET_CALENDAR) => async (url: string) => ok(url === CALENDAR_URL ? calendar : index);
+const list = (html: string, years = [2026]) => createCoColombiaacuatica(serve(html)).listTournaments(years);
 
 const row = (href: string, title = 'Torneo de prueba', city = 'VAL, Cali', discipline = 'SW') => `
   <tr><th scope="row">1</th>
@@ -21,9 +25,9 @@ const GOOD = row(`${PDF}/2026/20261120resultados.pdf`);
 
 describe('listTournaments', () => {
   it('returns one entry per row of the captured index, with the city normalized and no pool length', async () => {
-    const fetchImpl = jest.fn(async () => ok(FIXTURE));
+    const fetchImpl = jest.fn(serve(FIXTURE));
     const entries = await createCoColombiaacuatica(fetchImpl).listTournaments([2026]);
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([INDEX_URL, CALENDAR_URL]);
     expect(fetchImpl).toHaveBeenCalledWith(INDEX_URL, expect.objectContaining({ redirect: 'manual' }));
     expect(entries).toEqual([
       { dateKey: '20261120', year: 2026, name: 'I Máster de Natación Country Club 2026 - Edición Centenario', city: 'Barranquilla', discipline: 'SW', course: null, sourceUrl: `${PDF}/2026/20261120resultados.pdf` },
@@ -39,9 +43,9 @@ describe('listTournaments', () => {
 
   it('returns the tournaments of every year asked, each with its own year, from one read of the index', async () => {
     const html = page(GOOD, row(`${PDF}/2025/20251205resultados.pdf`), row(`${PDF}/2024/20241020resultados.pdf`));
-    const fetchImpl = jest.fn(async () => ok(html));
+    const fetchImpl = jest.fn(serve(html));
     const entries = await createCoColombiaacuatica(fetchImpl).listTournaments([2026, 2025]);
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(entries.map((entry) => [entry.dateKey, entry.year])).toEqual([['20261120', 2026], ['20251205', 2025]]);
   });
 

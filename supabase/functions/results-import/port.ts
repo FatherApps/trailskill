@@ -58,8 +58,8 @@ export type TournamentSearch = { found: false } | { found: true; athlete: { name
 
 /**
  * One tournament of a platform's list. `dateKey` is `YYYYMMDD`, the platform's own key for the tournament; `city` has the platform's
- * department prefix out and a consistent spelling; `discipline` is the platform's code (for example SW, PO or D). The list does not
- * say the pool length, so `course` is always null: a missing length is never a guess.
+ * department prefix out and a consistent spelling; `discipline` is the platform's code (for example SW, PO or D). `course` is the pool
+ * length only when the platform says it in so many words; otherwise it is null: a missing length is never a guess.
  */
 export type TournamentEntry = {
   dateKey: string;
@@ -67,7 +67,7 @@ export type TournamentEntry = {
   name: string;
   city: string;
   discipline: string;
-  course: null;
+  course: PoolCode | null;
   sourceUrl: string;
 };
 
