@@ -3,7 +3,7 @@ import { View } from 'react-native';
 
 import { useTheme } from '../../core/theme';
 import { AthleteAvatar, Button, SyncStatus, type GalleryEntry } from '../../core/ui';
-import { historyFixture as h, historyLongTextResults, historyResults } from './__fixtures__/history';
+import { historyFixture as h, historyLongTextResults, historyResults, historyValidatedResults } from './__fixtures__/history';
 import { marksFixture, marksLongPoolFixture, marksLongTextFixture } from './__fixtures__/marks';
 import {
   progressChartMinutes,
@@ -262,6 +262,7 @@ export const galleryEntries: GalleryEntry[] = [
     states: {
       mixed: () => <HistoryList scrollEnabled={false} results={historyResults} />,
       'long-text': () => <HistoryList scrollEnabled={false} results={historyLongTextResults} />,
+      validated: () => <HistoryList scrollEnabled={false} results={historyValidatedResults} />,
     },
   },
   {

@@ -680,6 +680,22 @@ describe('athlete profile container', () => {
       expect(screen.queryAllByText(/Copa sintética/, { includeHiddenElements: true })).toHaveLength(0);
     });
 
+    it('shows the validation tag of the federation on a swim both sources have, with the name from data, and none for a single source (issue 1470)', async () => {
+      await show({
+        importedResults: repo([
+          imported({ id: 'f1', provider: 'xx-fed', swumOn: '2026-09-03', hundredths: 2910, competition: 'Torneo de prueba' }),
+          imported({ id: 't1', provider: 'xx-tour', swumOn: '2026-09-05', hundredths: 2915 }),
+          imported({ id: 't2', provider: 'xx-tour', swumOn: '2026-09-05', hundredths: 4000 }),
+        ]),
+        sourceNames: { 'xx-fed': 'Federación Demo', 'xx-tour': 'Torneo Demo' },
+        sessionDated: ['xx-tour'],
+        federation: ['xx-fed'],
+      });
+
+      await screen.findByLabelText(/Torneo de prueba/);
+      expect(screen.getAllByText('Validado en Federación Demo', { includeHiddenElements: true })).toHaveLength(1);
+    });
+
     it('shows no competition name on an imported row whose result has none', async () => {
       await show({ importedResults: repo([imported({ competition: null })]), sourceNames: { 'xx-demo': 'Federación Demo' } });
 
