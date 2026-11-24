@@ -178,6 +178,28 @@ describe('tournament calls', () => {
     expect(await createSupabaseOfficialSearchRepository(client).confirmTournament({ athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1' })).toEqual({ ok: true, value: offered });
     expect(calls[0].body).toEqual({ action: 'confirm', athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1' });
   });
+
+  it.each(['SCM', 'LCM'] as const)('sends the pool length the guardian picked (%s) with the confirmation, and only then', async (course) => {
+    const { client, calls } = clientReplying({ data: { ok: true, value: { results: [] } } });
+    await createSupabaseOfficialSearchRepository(client).confirmTournament({ athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1', course });
+    expect(calls[0].body).toEqual({ action: 'confirm', athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1', course });
+  });
+
+  it('keeps the courseRequired of a candidate the server found in a PDF, and drops nothing else', async () => {
+    const found = { organizationId: 'org-platform', candidate: { id: 'c1', name: 'Ana Example', club: 'Synthetic Club', resultCount: 2, courseRequired: true } };
+    const { client } = clientReplying({ data: { ok: true, value: found } });
+    expect(await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', url })).toEqual({ ok: true, value: found });
+  });
+
+  it('reads the reason birth_date_required of an unavailable answer as its own failure', async () => {
+    const { client } = clientReplying(refusal({ ok: false, error: { code: 'unavailable', reason: 'birth_date_required' } }));
+    expect(await createSupabaseOfficialSearchRepository(client).tournament({ athleteId: 'athlete-1', url })).toEqual({ ok: false, error: { code: 'birth_date_required' } });
+  });
+
+  it('refuses a confirmation the server answers with bad_request as unexpected', async () => {
+    const { client } = clientReplying(refusal({ ok: false, error: { code: 'bad_request' } }));
+    expect(await createSupabaseOfficialSearchRepository(client).confirmTournament({ athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1' })).toEqual({ ok: false, error: { code: 'unexpected' } });
+  });
 });
 
 describe('tournament by tournamentKey', () => {

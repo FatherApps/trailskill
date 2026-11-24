@@ -80,6 +80,18 @@ const panel = (view: OfficialResultsView, rest: Partial<OfficialResultsScreenPro
   <OfficialResultsScreen view={view} changes={[]} onUseNew={noop} onKeepCurrent={noop} {...rest} />
 );
 
+// A person found in a tournament whose PDF does not say the pool length: the guardian picks it before confirming. Synthetic person and club.
+const courseView = (value: 'SCM' | 'LCM' | null): ConfirmPersonView => ({
+  kind: 'candidates',
+  athleteName: 'Ana',
+  sourceName: 'Plataforma Sintética',
+  candidates: [{ id: 'g-c1', name: 'Ana Ejemplo', affiliations: [{ club: 'Club Sintético', league: null, years: [] }], resultCount: 3 }],
+  confirmingId: null,
+  onConfirm: noop,
+  onNone: noop,
+  course: { value, onChange: noop },
+});
+
 export const galleryEntries: GalleryEntry[] = [
   {
     id: 'officialUpdateButton',
@@ -120,6 +132,15 @@ export const galleryEntries: GalleryEntry[] = [
       calendar: () => screenOf(pickView({ dateKey: '20260510', year: 2026 }, true)),
       'calendar-empty-day': () => screenOf(pickView({ dateKey: '20260511', year: 2026 }, true)),
       'no-file': () => screenOf({ kind: 'tournament_no_file', onChange: noop }),
+    },
+  },
+  {
+    id: 'confirmPersonCourse',
+    title: 'ConfirmPersonScreen · largo de la piscina',
+    states: {
+      'course-required': () => screenOf(courseView(null)),
+      'course-short': () => screenOf(courseView('SCM')),
+      'course-long': () => screenOf(courseView('LCM')),
     },
   },
 ];

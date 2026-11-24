@@ -25,6 +25,13 @@
     "confirming": "Confirmando…",
     "none": "No es ninguna de estas"
   },
+  "course": {
+    "label": "Largo de la piscina",
+    "help": "El torneo no dice el largo de la piscina. Elige el que corresponde: se guarda en cada tiempo importado.",
+    "scm": "25 m",
+    "lcm": "50 m",
+    "required": "elige el largo"
+  },
   "empty": {
     "title": "No encontramos a nadie",
     "message": "No hay un historial en {{source}} para {{name}}. Revisa el nombre o prueba con el número de identificación.",
@@ -65,7 +72,8 @@
     "number_conflict": "Este historial no coincide con el número que ya está guardado, así que no lo confirmamos.",
     "save_failed": "No pudimos guardar el número. Intenta de nuevo.",
     "tournament_unknown": "No reconocemos esa dirección de torneo. Revisa que esté completa.",
-    "number_required": "Escribe el número de identificación para buscar en el torneo."
+    "number_required": "Escribe el número de identificación para buscar en el torneo.",
+    "birth_date_required": "Este torneo solo publica un PDF y no encontramos la fecha de nacimiento de {{name}}. Guárdala en su perfil y vuelve a buscar."
   },
   "back": "Volver",
   "update": {
