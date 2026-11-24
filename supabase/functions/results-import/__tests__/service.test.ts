@@ -24,6 +24,8 @@ const NUMBER = '0000000000-synthetic';
 const PLATFORM_ORG = 'games';
 const PROVIDER = 'zz-test';
 const PLATFORM = 'zz-games';
+// Half the query window: a wait that is still inside it.
+const HALF_WINDOW_MS = QUERY_INTERVAL_MS / 2;
 const chain: OrganizationData[] = [
   { id: ORG, type: 'federation', countryCode: 'ZZ', parentId: null, provider: PROVIDER },
   { id: PLATFORM_ORG, type: 'results_platform', countryCode: 'ZZ', parentId: null, provider: PLATFORM },
@@ -281,7 +283,7 @@ describe('refreshResults', () => {
     const s = setup();
     const startedAt = s.fakeGate.now();
     await refresh(s);
-    s.fakeGate.advance(60_000);
+    s.fakeGate.advance(QUERY_INTERVAL_MS / 2);
     const second = await refresh(s);
     expect(second).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(startedAt + QUERY_INTERVAL_MS).toISOString() } });
     expect(s.provider.calls).toHaveLength(1);
@@ -783,7 +785,7 @@ describe('a source query that fails', () => {
     const startedAt = s.fakeGate.now();
     expect(await refresh(s)).toEqual(unavailable);
     expect(s.fakeGate.releases).toEqual([]);
-    s.fakeGate.advance(2 * 60_000);
+    s.fakeGate.advance(HALF_WINDOW_MS);
     expect(await refresh(s)).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
     expect(await search(s)).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
   });
@@ -800,9 +802,9 @@ describe('a source query that fails', () => {
     const s = setup();
     const startedAt = s.fakeGate.now();
     expect((await refresh(s)).ok).toBe(true);
-    s.fakeGate.advance(2 * 60_000);
+    s.fakeGate.advance(HALF_WINDOW_MS);
     expect(await refresh(s)).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
-    s.fakeGate.advance(QUERY_INTERVAL_MS - 2 * 60_000 - 1_000);
+    s.fakeGate.advance(QUERY_INTERVAL_MS - HALF_WINDOW_MS - 1_000);
     expect((await refresh(s)).ok).toBe(false);
     s.fakeGate.advance(1_000);
     expect((await refresh(s)).ok).toBe(true);
@@ -818,7 +820,7 @@ describe('a source query that fails', () => {
     const startedAt = s.fakeGate.now();
     expect(await (action === 'refresh' ? refresh(s) : search(s))).toEqual(unavailable);
     expect(s.fakeGate.releases).toEqual([]);
-    s.fakeGate.advance(RETRY_AFTER_FAILURE_MS);
+    s.fakeGate.advance(HALF_WINDOW_MS);
     expect(await (action === 'refresh' ? refresh(s) : search(s))).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
   });
 
@@ -857,7 +859,7 @@ describe('a source query that fails', () => {
     const startedAt = s.fakeGate.now();
     s.fakeGate.failRelease(new Error('database down'));
     expect(await refresh(s)).toEqual(unavailable);
-    s.fakeGate.advance(RETRY_AFTER_FAILURE_MS);
+    s.fakeGate.advance(HALF_WINDOW_MS);
     expect(await refresh(s)).toEqual(rateLimitedAt(startedAt + QUERY_INTERVAL_MS));
   });
 
@@ -903,7 +905,7 @@ describe('findInTournament', () => {
     const s = setup({ platformOptions: { search: found } });
     const startedAt = s.fakeGate.now();
     await tournament(s);
-    s.fakeGate.advance(60_000);
+    s.fakeGate.advance(QUERY_INTERVAL_MS / 2);
     expect(await tournament(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(startedAt + QUERY_INTERVAL_MS).toISOString() } });
     expect(s.platform.calls).toHaveLength(1);
   });
@@ -1059,7 +1061,7 @@ describe('findInTournament', () => {
     expect(outcome).toEqual(unavailable);
     expect(JSON.stringify(outcome)).not.toContain(NUMBER);
     expect(s.fakeGate.releases).toEqual([]);
-    s.fakeGate.advance(2 * 60_000);
+    s.fakeGate.advance(HALF_WINDOW_MS);
     expect(await tournament(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(startedAt + QUERY_INTERVAL_MS).toISOString() } });
   });
 
@@ -1070,7 +1072,7 @@ describe('findInTournament', () => {
     expect(outcome).toEqual({ ok: false, error: { code: 'unavailable', reason: 'no_file' } });
     expect(JSON.stringify(outcome)).not.toContain(NUMBER);
     expect(s.fakeGate.releases).toEqual([]);
-    s.fakeGate.advance(2 * 60_000);
+    s.fakeGate.advance(HALF_WINDOW_MS);
     expect(await tournament(s)).toEqual({ ok: false, error: { code: 'rate_limited', retryAt: new Date(startedAt + QUERY_INTERVAL_MS).toISOString() } });
   });
 
