@@ -33,6 +33,29 @@ For orientation only. If it disagrees with the design system, the design system 
 | Shapes | Radius 12 / 24 / 32; buttons, chips, tags, and navigation are pills |
 | Icons | Material Symbols Outlined, weight 400 |
 
+## Additions accepted after the snapshot
+
+Accepted by the maintainer on 2026-11-24 (decision a21 in #1464) and implemented in `SettingsSwitchRow` and `src/core/ui/icons.ts`. The maintainer adds them to the design system artifact (tracked in #1478); until then this section is the record, and the artifact wins if the two ever disagree.
+
+### Switch (settings row)
+
+A yes/no setting shown as one card. The whole card is tappable, not only the switch.
+
+- Layout: icon on the left, name and explanation in the middle, switch on the right.
+- On: track `primary`, thumb `on-primary`.
+- Off: track `surface-2` with a `border-strong` edge so the control keeps a 3:1 contrast against the card; the thumb's side also tells the state, not color alone.
+
+### Icons
+
+Material Symbols Outlined, weight 400, as for every other icon.
+
+| Icon | Use |
+| --- | --- |
+| `notifications` | Do Not Disturb while recording video (Configuración de video) |
+| `vibration` | Vibrate when a button marks (Cronómetro avanzado) |
+| `headphones` | External buttons and headset (Cronómetro avanzado) |
+| `all_inclusive` | Free laps (Cronómetro avanzado) |
+
 ## Logo files
 
 | File | Use |
