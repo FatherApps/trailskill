@@ -50,7 +50,9 @@
   },
   "rate_limited": {
     "title": "Espera un momento",
-    "message": "Ya consultamos el origen hace poco. Podrás volver a intentar a las {{time}}."
+    "message": "Ya consultamos el origen hace poco. Podrás volver a intentar en {{time}}.",
+    "ready": "Ya puedes volver a intentar.",
+    "action": "Volver a intentar"
   },
   "loading_error": {
     "title": "No pudimos cargar",
@@ -70,6 +72,7 @@
     "button": {
       "label": "Actualizar resultados oficiales",
       "checking": "Consultando…",
+      "waiting": "Espera un momento",
       "last_updated": "Última actualización: {{date}}"
     },
     "panel": {
@@ -86,7 +89,9 @@
     },
     "rate_limited": {
       "title": "Ya consultamos hace poco",
-      "message": "Podrás volver a intentarlo a las {{time}}."
+      "message": "Podrás volver a intentarlo en {{time}}.",
+      "ready": "Ya puedes volver a intentarlo.",
+      "action": "Volver a intentar"
     },
     "list": {
       "title": "Resultados nuevos",

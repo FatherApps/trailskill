@@ -15,7 +15,8 @@ export type ConfirmPersonView =
   | { kind: 'unauthorized'; athleteName: string; onGoToAuthorizations: () => void }
   | { kind: 'offline' }
   | { kind: 'unavailable' }
-  | { kind: 'rate_limited'; time: string }
+  // `time` is the countdown ("mm:ss"); `onRetry` appears only when it reaches zero.
+  | { kind: 'rate_limited'; time: string; onRetry?: () => void }
   | {
       kind: 'start';
       athleteName: string;
@@ -132,7 +133,8 @@ export function ConfirmPersonScreen({ view, onBack }: ConfirmPersonScreenProps) 
           kind="empty"
           icon="timer"
           title={t('results_import.rate_limited.title')}
-          message={t('results_import.rate_limited.message', { time: view.time })}
+          message={view.onRetry ? t('results_import.rate_limited.ready') : t('results_import.rate_limited.message', { time: view.time })}
+          action={view.onRetry ? { label: t('results_import.rate_limited.action'), onPress: view.onRetry } : undefined}
         />,
       );
     case 'empty':

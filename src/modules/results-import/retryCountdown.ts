@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { useLayoutEffect, useState } from 'react';
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
@@ -14,15 +14,19 @@ export function formatCountdown(ms: number): string {
  */
 export function useRetryCountdown(retryAt: string | null): { text: string; ready: boolean } {
   const target = retryAt === null ? Number.NaN : Date.parse(retryAt);
-  const [, tick] = useReducer((count: number) => count + 1, 0);
-  const remaining = target - Date.now();
+  const [now, setNow] = useState(() => Date.now());
+  const remaining = target - now;
   const ready = !(remaining > 0);
 
-  useEffect(() => {
+  // Layout effect: a new target reads the clock before the first paint, so a stale `now` is never drawn.
+  useLayoutEffect(() => {
     if (Number.isNaN(target)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs the state with the clock when the target changes, before paint
+    setNow(Date.now());
     const timer = setInterval(() => {
-      tick();
-      if (Date.now() >= target) clearInterval(timer);
+      const current = Date.now();
+      setNow(current);
+      if (current >= target) clearInterval(timer);
     }, 1000);
     return () => clearInterval(timer);
   }, [target]);

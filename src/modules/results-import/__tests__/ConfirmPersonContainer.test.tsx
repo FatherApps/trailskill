@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { createInMemoryIdentityDocumentRepository } from '../../accounts';
 import {
@@ -7,7 +7,7 @@ import {
   type ImportSourcesRepository,
   type SearchCandidate,
 } from '../data/officialSearch';
-import { ConfirmPersonContainer, formatRetryTime } from '../screens/ConfirmPersonContainer';
+import { ConfirmPersonContainer } from '../screens/ConfirmPersonContainer';
 
 // The accounts index reaches the PowerSync repositories; the sync layer is ESM-only for Jest.
 jest.mock('../../../core/sync', () => ({ db: {}, writeBatch: jest.fn(), supabase: {} }));
@@ -213,12 +213,59 @@ describe('ConfirmPersonContainer', () => {
   });
 
   describe('when the server refuses or the source fails', () => {
-    it('shows when the person can try again after the rate limit', async () => {
-      const retryAt = '2026-10-29T15:40:00.000Z';
-      await setup({ search: { searchFailure: { code: 'rate_limited', retryAt } } }).mount();
-      await press('Seguir por nombre');
-      expect(await screen.findByText('Espera un momento')).toBeOnTheScreen();
-      expect(screen.getByText(`Ya consultamos el origen hace poco. Podrás volver a intentar a las ${formatRetryTime(retryAt)}.`)).toBeOnTheScreen();
+    describe('after the rate limit', () => {
+      const NOW = new Date('2026-10-29T15:35:00.000Z');
+      const retryIn = (seconds: number) => new Date(NOW.getTime() + seconds * 1000).toISOString();
+      const limited = (seconds: number) => ({ searchFailure: { code: 'rate_limited', retryAt: retryIn(seconds) } }) as const;
+      const goOn = async (search: ReturnType<typeof limited>) => {
+        const s = setup({ search });
+        await s.mount();
+        await press('Seguir por nombre');
+        return s;
+      };
+      const retry = () => screen.queryByRole('button', { name: 'Volver a intentar' });
+      const tick = (ms: number) => act(async () => jest.advanceTimersByTime(ms));
+
+      beforeEach(() => {
+        jest.useFakeTimers();
+        jest.setSystemTime(NOW);
+      });
+      afterEach(() => jest.useRealTimers());
+
+      it('counts down in mm:ss, one second at a time, and offers no retry until it reaches zero', async () => {
+        await goOn(limited(300));
+        expect(await screen.findByText('Espera un momento')).toBeOnTheScreen();
+        expect(screen.getByText('Ya consultamos el origen hace poco. Podrás volver a intentar en 05:00.')).toBeOnTheScreen();
+        expect(retry()).toBeNull();
+        await tick(1000);
+        expect(screen.getByText('Ya consultamos el origen hace poco. Podrás volver a intentar en 04:59.')).toBeOnTheScreen();
+        await tick(298_000);
+        expect(screen.getByText(/en 00:01\./)).toBeOnTheScreen();
+        expect(retry()).toBeNull();
+        await tick(1000);
+        expect(screen.getByText('Ya puedes volver a intentar.')).toBeOnTheScreen();
+        expect(retry()).toBeOnTheScreen();
+      });
+
+      it('shows 00:00 and the retry for a time already past, never a negative number', async () => {
+        await goOn(limited(-60));
+        expect(await screen.findByText('Ya puedes volver a intentar.')).toBeOnTheScreen();
+        expect(retry()).toBeOnTheScreen();
+        expect(screen.queryByText(/-/)).toBeNull();
+      });
+
+      it('goes back to the search, and a second refusal counts down to its own new time', async () => {
+        const search = limited(2);
+        const s = await goOn(search);
+        await tick(2000);
+        (search as { searchFailure: unknown }).searchFailure = { code: 'rate_limited', retryAt: retryIn(2 + 90) };
+        await fireEvent.press(retry()!);
+        expect(await screen.findByRole('button', { name: 'Seguir por nombre' })).toBeOnTheScreen();
+        await fireEvent.press(screen.getByRole('button', { name: 'Seguir por nombre' }));
+        expect(await screen.findByText(/en 01:30\./)).toBeOnTheScreen();
+        expect(retry()).toBeNull();
+        expect(s.search.searches).toHaveLength(2);
+      });
     });
 
     it.each([['unavailable'], ['no_provider']] as const)('tells the source is not available for %s, and the person can leave', async (code) => {

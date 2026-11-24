@@ -5,7 +5,7 @@ import { t } from '../../../core/i18n';
 import type { OfficialResultsService } from '../data/officialResults';
 import type { ImportSource, ImportSourcesRepository, OfficialSearchRepository, SearchFailure, TournamentCandidate } from '../data/officialSearch';
 import '../i18n';
-import { formatRetryTime } from './ConfirmPersonContainer';
+import { useRetryCountdown } from '../retryCountdown';
 import { formatTournamentDate } from '../components/tournamentDates';
 import { catalogYears, countByDateKey, shiftMonth, yearOfKey, type CalendarMonth } from '../data/tournamentCalendar';
 import { groupTournaments, type TournamentCatalogEntry, type TournamentCatalogRepository } from '../data/tournamentCatalog';
@@ -74,6 +74,7 @@ export function TournamentImportContainer({
   const [busy, setBusy] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const countdown = useRetryCountdown(step.kind === 'rate_limited' ? step.retryAt : null);
   const [entries, setEntries] = useState<TournamentCatalogEntry[] | null>(null);
   // Counts the refreshes that finished: each one reads the list again.
   const [refreshes, setRefreshes] = useState(0);
@@ -322,7 +323,7 @@ export function TournamentImportContainer({
       case 'import_failed':
         return { kind: 'tournament_import_failed', onRetry: () => void guarded(() => importOffered(step.offered)) };
       case 'rate_limited':
-        return { kind: 'rate_limited', time: formatRetryTime(step.retryAt) };
+        return { kind: 'rate_limited', time: countdown.text, onRetry: countdown.ready ? goToStart : undefined };
       case 'unauthorized':
         return { kind: 'unauthorized', athleteName, onGoToAuthorizations };
       case 'unavailable':
