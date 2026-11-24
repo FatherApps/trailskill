@@ -1,4 +1,4 @@
-import { createAccess, createConfirmationReader, createConfirmations, createIdentityNumbers, createImportRecorder, createOrganizationChain, createPendingStore, createQueryGate, createTournamentCatalog, type Db, type DbError } from '../adapters.ts';
+import { createAccess, createAthleteProfiles, createConfirmationReader, createConfirmations, createIdentityNumbers, createImportRecorder, createOrganizationChain, createPendingStore, createQueryGate, createTournamentCatalog, type Db, type DbError } from '../adapters.ts';
 import { CANDIDATE_TTL_MS, InvalidSourceKeyError, NotAuthorizedError, QUERY_INTERVAL_MS, RETRY_AFTER_FAILURE_MS, TOURNAMENT_REFRESH_INTERVAL_MS } from '../service.ts';
 import { tournamentEntry } from './fakeProvider.ts';
 
@@ -411,11 +411,32 @@ describe('createTournamentCatalog', () => {
   it('finds the platforms that hold a day by asking the table for exactly that key', async () => {
     const fake = createFakeDb();
     fake.tables.results_import_tournaments = [
-      { organization_id: ORGANIZATION, year: 2026, date_key: '20261010' },
-      { organization_id: 'platform-2', year: 2026, date_key: '20261011' },
+      { organization_id: ORGANIZATION, year: 2026, date_key: '20261010', course: 'LCM' },
+      { organization_id: 'platform-2', year: 2026, date_key: '20261011', course: null },
     ];
-    expect(await createTournamentCatalog(fake.db).find('20261010')).toEqual([{ organizationId: ORGANIZATION, year: 2026 }]);
-    expect(fake.selects).toEqual([{ table: 'results_import_tournaments', columns: 'organization_id,year', equals: { date_key: '20261010' } }]);
+    expect(await createTournamentCatalog(fake.db).find('20261010')).toEqual([{ organizationId: ORGANIZATION, year: 2026, course: 'LCM' }]);
+    expect(fake.selects).toEqual([{ table: 'results_import_tournaments', columns: 'organization_id,year,course', equals: { date_key: '20261010' } }]);
+  });
+
+  it('answers a day without a pool length as null, and refuses a length that is not a pool', async () => {
+    const fake = createFakeDb();
+    fake.tables.results_import_tournaments = [{ organization_id: ORGANIZATION, year: 2026, date_key: '20261010', course: null }];
+    expect(await createTournamentCatalog(fake.db).find('20261010')).toEqual([{ organizationId: ORGANIZATION, year: 2026, course: null }]);
+    fake.tables.results_import_tournaments = [{ organization_id: ORGANIZATION, year: 2026, date_key: '20261010', course: '25m' }];
+    await expect(createTournamentCatalog(fake.db).find('20261010')).rejects.toThrow('Reading the tournaments failed');
+  });
+
+  it('sets the pool length through the RPC with bound arguments, and says whether it set one', async () => {
+    const fake = createFakeDb([{ data: true }, { data: false }]);
+    const catalog = createTournamentCatalog(fake.db);
+    expect(await catalog.setCourse(ORGANIZATION, '20261010', 'SCM')).toBe(true);
+    expect(await catalog.setCourse(ORGANIZATION, '20261010', 'LCM')).toBe(false);
+    expect(fake.calls[0]).toEqual({ fn: 'results_import_set_tournament_course', args: { platform: ORGANIZATION, date_key: '20261010', course: 'SCM' } });
+  });
+
+  it('throws when setting the pool length fails or answers something else than a boolean, with only the Postgres code', async () => {
+    await expect(createTournamentCatalog(createFakeDb([{ error: { code: '22023', message: 'leaked Synthetic Open' } }]).db).setCourse(ORGANIZATION, '20261010', 'SCM')).rejects.toThrow('Saving the tournament pool length failed (22023)');
+    await expect(createTournamentCatalog(createFakeDb([{ data: 1 }]).db).setCourse(ORGANIZATION, '20261010', 'SCM')).rejects.toThrow('Saving the tournament pool length failed');
   });
 
   it('lists the days a platform holds in one year by asking the table for exactly that platform and year', async () => {
@@ -445,5 +466,38 @@ describe('createTournamentCatalog', () => {
     const odd = createFakeDb();
     odd.tables.results_import_tournaments = [{ organization_id: ORGANIZATION, year: '2026', date_key: '20261010' }];
     await expect(createTournamentCatalog(odd.db).find('20261010')).rejects.toThrow('Reading the tournaments failed');
+  });
+});
+
+describe('createAthleteProfiles', () => {
+  const profiles = (athletes: Record<string, unknown>[], details: Record<string, unknown>[]) => {
+    const fake = createFakeDb();
+    fake.tables.athletes = athletes;
+    fake.tables.athlete_private_details = details;
+    return { fake, read: createAthleteProfiles(fake.db).read(ATHLETE) };
+  };
+
+  it('reads the names and the birth date and gender of exactly that athlete, each as a bound filter', async () => {
+    const { fake, read } = profiles(
+      [{ id: ATHLETE, first_name: 'Ana', last_name: 'Perez' }, { id: 'other', first_name: 'Otra', last_name: 'Persona' }],
+      [{ athlete_id: ATHLETE, birth_date: '2012-03-04', gender: 'F' }, { athlete_id: 'other', birth_date: '2011-01-01', gender: 'M' }],
+    );
+    expect(await read).toEqual({ firstName: 'Ana', lastName: 'Perez', birthDate: '2012-03-04', gender: 'F' });
+    expect(fake.selects).toEqual([
+      { table: 'athletes', columns: 'first_name,last_name', equals: { id: ATHLETE } },
+      { table: 'athlete_private_details', columns: 'birth_date,gender', equals: { athlete_id: ATHLETE } },
+    ]);
+  });
+
+  it('has no birth date and no gender when the details are missing, empty or not a gender', async () => {
+    expect(await profiles([{ id: ATHLETE, first_name: 'Ana', last_name: 'Perez' }], []).read).toEqual({ firstName: 'Ana', lastName: 'Perez', birthDate: null, gender: null });
+    expect(await profiles([{ id: ATHLETE, first_name: 'Ana', last_name: 'Perez' }], [{ athlete_id: ATHLETE, birth_date: null, gender: 'undisclosed' }]).read).toEqual({ firstName: 'Ana', lastName: 'Perez', birthDate: null, gender: null });
+  });
+
+  it('answers null for an athlete that does not exist, and throws with only the Postgres code when a read fails', async () => {
+    expect(await profiles([], []).read).toBeNull();
+    const fake = createFakeDb();
+    fake.failSelect({ code: '42501', message: 'leaked Ana' });
+    await expect(createAthleteProfiles(fake.db).read(ATHLETE)).rejects.toThrow('Reading the athlete failed (42501)');
   });
 });

@@ -1,6 +1,7 @@
+import { isPool } from '../../../src/core/sport/catalogs.ts';
 import type { ImportRecorder } from './actions.ts';
 import type { OrganizationData } from './registry.ts';
-import { InvalidSourceKeyError, NotAuthorizedError, type Claim, type Confirmations, type IdentityNumbers, type PendingStore, type QueryGate, type TournamentCatalog } from './service.ts';
+import { InvalidSourceKeyError, NotAuthorizedError, type AthleteProfiles, type Claim, type Confirmations, type IdentityNumbers, type PendingStore, type QueryGate, type TournamentCatalog } from './service.ts';
 
 // The message is typed so it can be seen and dropped: errors built here never repeat it.
 export type DbError = { code?: string; message?: string };
@@ -250,12 +251,44 @@ export function createTournamentCatalog(db: Db): TournamentCatalog {
       });
     },
     async find(dateKey) {
-      const { data, error } = await db.select('results_import_tournaments', 'organization_id,year', { date_key: dateKey });
+      const { data, error } = await db.select('results_import_tournaments', 'organization_id,year,course', { date_key: dateKey });
       if (error || !data) throw failure('Reading the tournaments', error);
-      return data.map(({ organization_id: organizationId, year }) => {
-        if (typeof organizationId !== 'string' || !Number.isInteger(year)) throw failure('Reading the tournaments', null);
-        return { organizationId, year: year as number };
+      return data.map(({ organization_id: organizationId, year, course }) => {
+        if (typeof organizationId !== 'string' || !Number.isInteger(year) || (course !== null && !isPool(course))) throw failure('Reading the tournaments', null);
+        return { organizationId, year: year as number, course };
       });
+    },
+    async setCourse(organizationId, dateKey, course) {
+      const { data, error } = await db.rpc('results_import_set_tournament_course', { platform: organizationId, date_key: dateKey, course });
+      if (error || typeof data !== 'boolean') throw failure('Saving the tournament pool length', error);
+      return data;
+    },
+  };
+}
+
+/**
+ * Service_role reads of `athletes` (first name and surname) and `athlete_private_details` (birth date and gender, when saved). Every filter value travels as a
+ * bound parameter. Only the athlete id selects the rows, so what is read is that athlete's alone. `undisclosed` and any other value are no gender.
+ */
+export function createAthleteProfiles(db: Db): AthleteProfiles {
+  return {
+    async read(athleteId) {
+      const [names, details] = await Promise.all([
+        db.select('athletes', 'first_name,last_name', { id: athleteId }),
+        db.select('athlete_private_details', 'birth_date,gender', { athlete_id: athleteId }),
+      ]);
+      if (names.error || !names.data) throw failure('Reading the athlete', names.error);
+      if (details.error || !details.data) throw failure('Reading the athlete details', details.error);
+      if (names.data.length === 0) return null;
+      const { first_name: firstName, last_name: lastName } = names.data[0];
+      const { birth_date: birthDate, gender } = details.data[0] ?? {};
+      if (typeof firstName !== 'string' || typeof lastName !== 'string') throw failure('Reading the athlete', null);
+      return {
+        firstName,
+        lastName,
+        birthDate: typeof birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? birthDate : null,
+        gender: gender === 'F' || gender === 'M' ? gender : null,
+      };
     },
   };
 }

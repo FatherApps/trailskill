@@ -1,4 +1,5 @@
 import type { ActionError, createOfficialResultsActions } from './actions.ts';
+import { isPool } from '../../../src/core/sport/catalogs.ts';
 import { normalizeNumber } from './identityNumber.ts';
 import type { createResultsImport, ImportError } from './service.ts';
 
@@ -85,6 +86,9 @@ type Action = (userId: string, body: Body) => Promise<Response> | Response;
  * `tournament` looks one tournament up on a results platform, by the stored identity number or the one typed (`identityNumber`, optional), and
  * answers `{ organizationId, candidate }`; `confirm` then answers `{ results }` for it (or `{}` for a federation). The tournament is given by
  * exactly one of `tournamentKey` (a `YYYYMMDD` day of the platform's list, see `refresh_tournaments`) or `url` (the address as pasted, the fallback).
+ * A tournament with only a results PDF is read by the athlete's name and birth date, which the server reads itself (never from the request); its candidate carries
+ * `courseRequired: true` when no source says the pool length, and `confirm` then takes `course` (`SCM` or `LCM`, optional, the guardian's pick) and answers
+ * the rows with it. A `course` that is not a pool is a bad request; an unavailable tournament may carry `reason` (`no_file`, `birth_date_required`).
  * `refresh_tournaments` fills that list from each platform, at most once a day each, and answers `{ refreshed, skipped }`.
  * `backfill_tournaments` is the operator's: it does not ask who the user is but whether the bearer token is the function's own service role key
  * (401 without a bearer, 403 for any other token), and answers `{ probed, found, saved, next, stoppedBy? }` for `{ year, month }`.
@@ -103,8 +107,10 @@ export function createHandler({ authenticate, service, official, isOperatorToken
     async confirm(userId, body) {
       const [athleteId, organizationId] = [id(body.athleteId), id(body.organizationId)];
       const candidateId = id(body.candidateId);
-      if (!athleteId || !organizationId || !candidateId) return refuse({ code: 'bad_request' });
-      return answer(await service.confirmCandidate({ userId, athleteId, organizationId, candidateId }), (value) => value ?? {});
+      // The pool length the guardian picked for a tournament read from a PDF: absent or null is "none"; anything else must be a pool of the catalog.
+      const course = body.course ?? undefined;
+      if (!athleteId || !organizationId || !candidateId || (course !== undefined && !isPool(course))) return refuse({ code: 'bad_request' });
+      return answer(await service.confirmCandidate({ userId, athleteId, organizationId, candidateId, ...(course === undefined ? {} : { course }) }), (value) => value ?? {});
     },
     async tournament(userId, body) {
       const [athleteId, target, identityNumber] = [id(body.athleteId), tournamentTarget(body), typedNumber(body.identityNumber)];

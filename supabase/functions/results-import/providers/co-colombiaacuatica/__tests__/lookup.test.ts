@@ -9,6 +9,8 @@ const HOST = 'www.colombiaacuatica.com';
 const FOLDER = `https://${HOST}/backtun/torneos/2025/20251018/`;
 const ZIP_URL = `https://${HOST}/backtun/torneos/2025/20251018/resultados20251018Lenex.zip`;
 const NUMBER = '1234567';
+// The athlete of a lookup: the Lenex file finds them by the number alone; the name, birth date and gender are for a PDF.
+const who = (identityNumber = NUMBER) => ({ identityNumber, name: { firstName: 'Ana', lastName: 'Perez' }, birthDate: null, gender: null });
 const bytes = (s: string) => new TextEncoder().encode(s);
 
 const zipOf = (xml: string) => buildZip([{ name: 'resultados20251018.lef', data: bytes(xml), method: 8 }]);
@@ -68,7 +70,7 @@ describe('createTournamentLookup', () => {
 
   it('rejects a wrong address before any request', async () => {
     const fetchImpl = jest.fn();
-    await expect(createTournamentLookup(fetchImpl)('http://example.invalid/', NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
+    await expect(createTournamentLookup(fetchImpl)('http://example.invalid/', who())).rejects.toBeInstanceOf(ProviderUnavailableError);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -76,7 +78,7 @@ describe('createTournamentLookup', () => {
     const writes = [jest.spyOn(fs, 'writeFileSync'), jest.spyOn(fs, 'writeFile'), jest.spyOn(fs, 'createWriteStream'), jest.spyOn(fs, 'appendFileSync')];
     const zip = await zipOf(lenex());
     const fetchImpl = jest.fn(async () => ok(zip));
-    const search = await createTournamentLookup(fetchImpl)(`${FOLDER}index.php`, NUMBER);
+    const search = await createTournamentLookup(fetchImpl)(`${FOLDER}index.php`, who());
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(fetchImpl).toHaveBeenCalledWith(ZIP_URL, expect.objectContaining({ redirect: 'manual' }));
     expect(search.found && search.results.map((r) => r.sourceResultKey)).toEqual(['20251018|1|101', '20251018|2|102', '20251018|3|103']);
@@ -86,84 +88,85 @@ describe('createTournamentLookup', () => {
 
   it('says "no matches" when the tournament has no one with that license', async () => {
     const zip = await zipOf(lenex({ athletes: [{ ...ME, license: '999' }] }));
-    expect(await createTournamentLookup(async () => ok(zip))(FOLDER, NUMBER)).toEqual({ found: false });
+    expect(await createTournamentLookup(async () => ok(zip))(FOLDER, who())).toEqual({ found: false });
   });
 
   it('keeps the birth date and the others out of the output (checked on the JSON)', async () => {
     const zip = await zipOf(lenex());
-    const json = JSON.stringify(await createTournamentLookup(async () => ok(zip))(FOLDER, NUMBER));
+    const json = JSON.stringify(await createTournamentLookup(async () => ok(zip))(FOLDER, who()));
     for (const secret of ['2012-03-04', '2011-09-09', 'Bruno', 'Otro Club', '7654321', NUMBER]) expect(json).not.toContain(secret);
   });
 
   it('is unavailable, with its message, when the zip does not exist (404)', async () => {
     const fetchImpl = jest.fn(async () => ok('not found', { status: 404 }));
-    await expect(createTournamentLookup(fetchImpl)(FOLDER, NUMBER)).rejects.toThrow(new ProviderUnavailableError('The tournament has no published results file'));
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await expect(createTournamentLookup(fetchImpl)(FOLDER, who())).rejects.toThrow(new ProviderUnavailableError('The tournament has no published results file'));
+    // Without a zip the results PDF is asked next (its own tests are in pdfLookup.test.ts); a 404 there too is the same answer.
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   it.each([301, 302, 307, 308])('is unavailable on a redirect (%i), and never follows it', async (status) => {
     const fetchImpl = jest.fn(async () => new Response(null, { status, headers: { location: 'https://example.invalid/' } }));
-    await expect(createTournamentLookup(fetchImpl)(FOLDER, NUMBER)).rejects.toThrow(new ProviderUnavailableError('The tournament address redirects'));
+    await expect(createTournamentLookup(fetchImpl)(FOLDER, who())).rejects.toThrow(new ProviderUnavailableError('The tournament address redirects'));
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('is unavailable on the opaque redirect a browser-like fetch gives', async () => {
     const opaque = { ok: false, status: 0, type: 'opaqueredirect', headers: new Headers(), body: null } as unknown as Response;
-    await expect(createTournamentLookup(async () => opaque)(FOLDER, NUMBER)).rejects.toThrow(new ProviderUnavailableError('The tournament address redirects'));
+    await expect(createTournamentLookup(async () => opaque)(FOLDER, who())).rejects.toThrow(new ProviderUnavailableError('The tournament address redirects'));
   });
 
   // Issue #888: only a platform that did not answer (network, timeout, 5xx) is `SourceUnreachableError`; the rest is plain unavailable.
   it.each([500, 503, 599])('is unreachable when the platform answers %i', async (status) => {
-    const error = await createTournamentLookup(async () => ok('x', { status }))(FOLDER, NUMBER).catch((e) => e);
+    const error = await createTournamentLookup(async () => ok('x', { status }))(FOLDER, who()).catch((e) => e);
     expect(error).toBeInstanceOf(SourceUnreachableError);
   });
 
   it.each([400, 403, 410])('is unavailable, but not unreachable, when the platform answers %i', async (status) => {
-    const error = await createTournamentLookup(async () => ok('x', { status }))(FOLDER, NUMBER).catch((e) => e);
+    const error = await createTournamentLookup(async () => ok('x', { status }))(FOLDER, who()).catch((e) => e);
     expect(error).toEqual(new ProviderUnavailableError('The platform did not answer'));
     expect(error).not.toBeInstanceOf(SourceUnreachableError);
   });
 
   it('is unreachable when the request fails, without the cause', async () => {
-    const error = await createTournamentLookup(async () => Promise.reject(new Error(`secret ${NUMBER}`)))(FOLDER, NUMBER).catch((e) => e);
+    const error = await createTournamentLookup(async () => Promise.reject(new Error(`secret ${NUMBER}`)))(FOLDER, who()).catch((e) => e);
     expect(error).toBeInstanceOf(SourceUnreachableError);
     expect(error.message).not.toContain(NUMBER);
     expect(error.cause).toBeUndefined();
   });
 
   it('throws the typed no-file error for a 404, and for nothing else', async () => {
-    expect(await createTournamentLookup(async () => new Response(null, { status: 404 }))(FOLDER, NUMBER).catch((e) => e)).toBeInstanceOf(NoFileError);
+    expect(await createTournamentLookup(async () => new Response(null, { status: 404 }))(FOLDER, who()).catch((e) => e)).toBeInstanceOf(NoFileError);
     for (const status of [301, 403, 500]) {
-      expect(await createTournamentLookup(async () => new Response(null, { status }))(FOLDER, NUMBER).catch((e) => e)).not.toBeInstanceOf(NoFileError);
+      expect(await createTournamentLookup(async () => new Response(null, { status }))(FOLDER, who()).catch((e) => e)).not.toBeInstanceOf(NoFileError);
     }
   });
 
   it.each([404, 301])('is not unreachable when the platform answered %i', async (status) => {
-    const error = await createTournamentLookup(async () => new Response(null, { status }))(FOLDER, NUMBER).catch((e) => e);
+    const error = await createTournamentLookup(async () => new Response(null, { status }))(FOLDER, who()).catch((e) => e);
     expect(error).toBeInstanceOf(ProviderUnavailableError);
     expect(error).not.toBeInstanceOf(SourceUnreachableError);
   });
 
   it('is unavailable, not unreachable, on a corrupt zip and on a LENEX of another shape: the platform answered', async () => {
-    const corrupt = await createTournamentLookup(async () => ok('<html>not a zip</html>'))(FOLDER, NUMBER).catch((e) => e);
+    const corrupt = await createTournamentLookup(async () => ok('<html>not a zip</html>'))(FOLDER, who()).catch((e) => e);
     expect(corrupt).toBeInstanceOf(ProviderUnavailableError);
     expect(corrupt).not.toBeInstanceOf(SourceUnreachableError);
     const zip = await zipOf('<html>not lenex</html>');
-    const other = await createTournamentLookup(async () => ok(zip))(FOLDER, NUMBER).catch((e) => e);
+    const other = await createTournamentLookup(async () => ok(zip))(FOLDER, who()).catch((e) => e);
     expect(other).toBeInstanceOf(ProviderUnavailableError);
     expect(other).not.toBeInstanceOf(SourceUnreachableError);
   });
 
   it('is unavailable on a LENEX that is not UTF-8', async () => {
     const zip = await buildZip([{ name: 'a.lef', data: Uint8Array.from([0x3c, 0xff, 0xfe, 0x3e]) }]);
-    await expect(createTournamentLookup(async () => ok(zip))(FOLDER, NUMBER)).rejects.toBeInstanceOf(ProviderUnavailableError);
+    await expect(createTournamentLookup(async () => ok(zip))(FOLDER, who())).rejects.toBeInstanceOf(ProviderUnavailableError);
   });
 
   it('refuses a zip that announces more than 10 MB, without reading it', async () => {
     const cancel = jest.fn();
     const body = new ReadableStream({ pull: (c) => c.enqueue(new Uint8Array(1024)), cancel });
     const response = ok(body, { headers: { 'content-length': String(MAX_ZIP_BYTES + 1) } });
-    await expect(createTournamentLookup(async () => response)(FOLDER, NUMBER)).rejects.toThrow(new ProviderUnavailableError('The tournament file is too large'));
+    await expect(createTournamentLookup(async () => response)(FOLDER, who())).rejects.toThrow(new ProviderUnavailableError('The tournament file is too large'));
     expect(cancel).toHaveBeenCalled();
   });
 
@@ -177,7 +180,7 @@ describe('createTournamentLookup', () => {
       },
       cancel,
     });
-    await expect(createTournamentLookup(async () => ok(body))(FOLDER, NUMBER)).rejects.toThrow(new ProviderUnavailableError('The tournament file is too large'));
+    await expect(createTournamentLookup(async () => ok(body))(FOLDER, who())).rejects.toThrow(new ProviderUnavailableError('The tournament file is too large'));
     expect(cancel).toHaveBeenCalled();
     expect(sent).toBeLessThanOrEqual(MAX_ZIP_BYTES + 4 * 1024 * 1024);
   });
@@ -193,7 +196,7 @@ describe('createTournamentLookup', () => {
       });
       return ok(body);
     });
-    const pending = createTournamentLookup(fetchImpl)(FOLDER, NUMBER).catch((e) => e);
+    const pending = createTournamentLookup(fetchImpl)(FOLDER, who()).catch((e) => e);
     await jest.advanceTimersByTimeAsync(TOTAL_TIMEOUT_MS + 1);
     expect(await pending).toBeInstanceOf(SourceUnreachableError);
   });
@@ -207,7 +210,7 @@ describe('createTournamentLookup', () => {
       await new Promise((resolve) => setTimeout(resolve, TOTAL_TIMEOUT_MS - 1));
       return ok(zip);
     });
-    const pending = createTournamentLookup(fetchImpl)(FOLDER, NUMBER);
+    const pending = createTournamentLookup(fetchImpl)(FOLDER, who());
     await jest.advanceTimersByTimeAsync(TOTAL_TIMEOUT_MS - 1);
     expect((await pending).found).toBe(true);
     expect(jest.getTimerCount()).toBe(0);
@@ -220,7 +223,7 @@ describe('createTournamentLookup by tournament key', () => {
   it('asks for exactly the zip of the key, on the adapter\'s host, and reads it like a pasted address', async () => {
     const zip = await zipOf(lenex());
     const fetchImpl = jest.fn(async () => ok(zip));
-    const search = await createTournamentLookup(fetchImpl)(2026, '20261120', NUMBER);
+    const search = await createTournamentLookup(fetchImpl)(2026, '20261120', who());
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(fetchImpl).toHaveBeenCalledWith(KEY_ZIP_URL, expect.objectContaining({ redirect: 'manual' }));
     expect(search.found && search.results.length).toBe(3);
@@ -243,7 +246,7 @@ describe('createTournamentLookup by tournament key', () => {
     ['empty text', 2026, ''],
   ])('rejects %s like an invalid address, before any request', async (_label, year, key) => {
     const fetchImpl = jest.fn();
-    await expect(createTournamentLookup(fetchImpl)(year, key, NUMBER)).rejects.toThrow(new ProviderUnavailableError('The tournament address is not one this provider accepts'));
+    await expect(createTournamentLookup(fetchImpl)(year, key, who())).rejects.toThrow(new ProviderUnavailableError('The tournament address is not one this provider accepts'));
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

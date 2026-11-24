@@ -1,6 +1,6 @@
-import { isDistance, isPool, isStroke } from '../../../src/core/sport/catalogs.ts';
+import { isDistance, isPool, isStroke, type PoolCode } from '../../../src/core/sport/catalogs.ts';
 import { keyHasNumber, normalizeNumber } from './identityNumber.ts';
-import { NoFileError, SourceUnreachableError, type Affiliation, type Candidate, type NormalizedResult, type ResultsProvider, type TournamentEntry, type TournamentProvider, type TournamentSearch } from './port.ts';
+import { BirthDateRequiredError, NoFileError, SourceUnreachableError, type Affiliation, type Candidate, type MatchedBy, type NormalizedResult, type ResultsProvider, type TournamentAthlete, type TournamentEntry, type TournamentProvider, type TournamentResult, type TournamentSearch } from './port.ts';
 import type { OrganizationData, ProviderRegistry } from './registry.ts';
 
 // Decided by the maintainer on 2026-11-23: one source query per athlete and provider every minute, search and refresh alike.
@@ -29,8 +29,19 @@ export interface TournamentCatalog {
   save(organizationId: string, entries: TournamentEntry[]): Promise<number>;
   /** The days (`YYYYMMDD`) of that year the platform's catalog already has. */
   held(organizationId: string, year: number): Promise<string[]>;
-  /** The platforms whose catalog has a tournament of this day (`YYYYMMDD`), with its year. */
-  find(dateKey: string): Promise<{ organizationId: string; year: number }[]>;
+  /** The platforms whose catalog has a tournament of this day (`YYYYMMDD`), with its year and the pool length the catalog knows for it (null when none). */
+  find(dateKey: string): Promise<{ organizationId: string; year: number; course: PoolCode | null }[]>;
+  /** Sets the pool length of a tournament only where the catalog has none (`public.results_import_set_tournament_course`); `true` when it did. */
+  setCourse(organizationId: string, dateKey: string, course: PoolCode): Promise<boolean>;
+}
+
+/**
+ * Implemented by service_role reads of `athletes` (names) and `athlete_private_details` (birth date and gender). It lives only in memory here and
+ * goes to the adapter that looks the athlete up in a tournament; it never reaches the device or a log. `read` must only be called after the
+ * gate confirmed `import_official_results` is in force, as for the identity number. Null when the athlete does not exist.
+ */
+export interface AthleteProfiles {
+  read(athleteId: string): Promise<{ firstName: string; lastName: string; birthDate: string | null; gender: 'F' | 'M' | null } | null>;
 }
 
 // `claimedAt` is the instant the database stored for the claim, an opaque token for `QueryGate.release`: never parse it.
@@ -153,8 +164,10 @@ export type ImportError =
   | { code: 'rate_limited'; retryAt: string }
   | { code: 'no_provider' }
   // `reason` only says why, for the tournament action; the code stays the same, so a client that does not know it treats it as any unavailable.
-  | { code: 'unavailable'; reason?: 'no_file' }
+  | { code: 'unavailable'; reason?: 'no_file' | 'birth_date_required' }
   | { code: 'unknown_id' }
+  // The confirmation of a tournament read from its PDF needs the pool length the guardian chose, or it was not one.
+  | { code: 'bad_request' }
   | { code: 'identity_number_conflict' }
   | { code: 'identity_number_required' };
 
@@ -181,14 +194,16 @@ function isRealDate(value: unknown): value is string {
 }
 
 // Trust boundary: rebuild each item with only the declared fields, so anything else an adapter returns (an idNumber, a birthDate) is dropped.
-function cleanResult(raw: unknown): NormalizedResult | null {
+// A tournament row may come without its pool length (a PDF that does not say it): `allowNoPool` lets that one through as null, and only there.
+function cleanRow(raw: unknown, allowNoPool: boolean): TournamentResult | null {
   if (!isRecord(raw)) return null;
   const { sourceResultKey, stroke, distance, pool, hundredths, swumOn, competition } = raw;
-  if (!isKey(sourceResultKey) || !isStroke(stroke) || !isDistance(distance) || !isPool(pool)) return null;
+  if (!isKey(sourceResultKey) || !isStroke(stroke) || !isDistance(distance) || !(isPool(pool) || (allowNoPool && pool === null))) return null;
   if (hundredths !== null && !(Number.isInteger(hundredths) && (hundredths as number) > 0)) return null;
   if (!isRealDate(swumOn) || !isTextOrNull(competition)) return null;
-  return { sourceResultKey, stroke, distance, pool, hundredths: hundredths as number | null, swumOn, competition };
+  return { sourceResultKey, stroke, distance, pool: pool as PoolCode | null, hundredths: hundredths as number | null, swumOn, competition };
 }
+const cleanResult = (raw: unknown) => cleanRow(raw, false) as NormalizedResult | null;
 
 function cleanAffiliation(raw: unknown): Affiliation | null {
   if (!isRecord(raw)) return null;
@@ -214,14 +229,21 @@ function cleanList<T>(raw: unknown, cleanItem: (item: unknown) => T | null): T[]
   return items.some((item) => item === null) ? null : (items as T[]);
 }
 
+// What the platform's lookup answers once cleaned: how the person was found, the pool length the tournament itself states, and the rows.
+type FoundSearch = { athlete: { name: string; club: string | null }; results: TournamentResult[]; matchedBy: MatchedBy; course: PoolCode | null };
+
 // The platform's whole answer, rebuilt with only the declared fields: the athlete's name and club, and cleaned rows.
-function cleanSearch(raw: unknown): TournamentSearch | null {
+function cleanSearch(raw: unknown): ({ found: false } | ({ found: true } & FoundSearch)) | null {
   if (!isRecord(raw)) return null;
   if (raw.found === false) return { found: false };
   if (raw.found !== true || !isRecord(raw.athlete)) return null;
   const { name, club } = raw.athlete;
-  const results = cleanList(raw.results, cleanResult);
-  return typeof name === 'string' && isTextOrNull(club) && results !== null ? { found: true, athlete: { name, club }, results } : null;
+  const matchedBy = raw.matchedBy === undefined ? 'identity_number' : raw.matchedBy;
+  const course = raw.course === undefined ? null : raw.course;
+  if (matchedBy !== 'identity_number' && matchedBy !== 'name_and_birth_date') return null;
+  if (course !== null && !isPool(course)) return null;
+  const results = cleanList(raw.results, (row) => cleanRow(row, true));
+  return typeof name === 'string' && isTextOrNull(club) && results !== null ? { found: true, athlete: { name, club }, results, matchedBy, course } : null;
 }
 
 // A tournament of the platform's list, rebuilt with only the declared fields: the key a real day of a year asked, text where text is
@@ -272,27 +294,29 @@ type Dependencies = {
   organizationChain: (organizationId?: string) => Promise<OrganizationData[]>;
   pending: PendingStore;
   tournaments: TournamentCatalog;
+  athletes: AthleteProfiles;
 };
 
 type Who = { userId: string; athleteId: string; organizationId: string };
 
-export function createResultsImport({ registry, gate, identityNumbers, confirmations, organizationChain, pending, tournaments, now = Date.now }: Dependencies & { now?: () => number }) {
+export function createResultsImport({ registry, gate, identityNumbers, confirmations, organizationChain, pending, tournaments, athletes, now = Date.now }: Dependencies & { now?: () => number }) {
   const providerFor = async (organizationId: string) => registry.resolve(await organizationChain(organizationId), organizationId);
 
   // What a pasted address or the key of a listed tournament picks: the platform, its organization, and how to ask it about one number.
-  type Found = { provider: TournamentProvider; organizationId: string; lookup: (identityNumber: string) => Promise<TournamentSearch> };
+  // `course` is the pool length the catalog holds for a tournament of the list (a pasted address names none).
+  type Found = { provider: TournamentProvider; organizationId: string; course: PoolCode | null; lookup: (athlete: TournamentAthlete) => Promise<TournamentSearch> };
   const resolveUrl = (organizations: OrganizationData[], url: string): Found | null => {
     const resolved = registry.resolveUrl(organizations, url);
-    return resolved && { ...resolved, lookup: (number) => resolved.provider.lookup(url, number) };
+    return resolved && { ...resolved, course: null, lookup: (athlete) => resolved.provider.lookup(url, athlete) };
   };
   // The key is a `date_key` of the catalog. Held by exactly one platform that is registered it picks that one; held by none or by more than
   // one it picks nothing (the same answer as an address no platform accepts), never a guess.
   const resolveKey = async (organizations: OrganizationData[], dateKey: string): Promise<Found | null> => {
     const held = await tournaments.find(dateKey);
     if (held.length !== 1) return null;
-    const [{ organizationId, year }] = held;
+    const [{ organizationId, year, course }] = held;
     const provider = registry.platformFor(organizations, organizationId);
-    return provider && { provider, organizationId, lookup: (number) => provider.lookup(year, dateKey, number) };
+    return provider && { provider, organizationId, course, lookup: (athlete) => provider.lookup(year, dateKey, athlete) };
   };
 
   // Returns the claim taken or the reason it was refused. The window is the athlete's with this provider only.
@@ -479,12 +503,14 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
     // its organization. The platform has its own window (`claim` is per provider), so asking it never spends the federation's.
     // The number is the stored one, else the typed one; a typed one that differs from the stored one is a conflict, found before
     // the platform is asked. Without either, the claim is already spent, as in `refreshResults`.
+    // A tournament that publishes only a PDF has no identity numbers: the athlete is found there by name and birth date, which the server reads
+    // (never the device, never logged) and only the adapter sees. `courseRequired` is true when no source says the pool length: the guardian picks it at `confirmCandidate`.
     async findInTournament({ userId, athleteId, identityNumber, ...target }: { userId: string; athleteId: string; identityNumber: string | null } & ({ url: string; tournamentKey?: undefined } | { tournamentKey: string; url?: undefined })): Promise<
-      Outcome<{ organizationId: string; candidate: { id: string; name: string; club: string | null; resultCount: number } | null }>
+      Outcome<{ organizationId: string; candidate: { id: string; name: string; club: string | null; resultCount: number; courseRequired?: true } | null }>
     > {
       const resolved = target.tournamentKey === undefined ? resolveUrl(await organizationChain(), target.url) : await resolveKey(await organizationChain(), target.tournamentKey);
       if (!resolved) return fail({ code: 'no_provider' });
-      const { provider, organizationId, lookup } = resolved;
+      const { provider, organizationId, lookup, course: catalogCourse } = resolved;
       const who = { userId, athleteId, organizationId };
       const claimed = await claim(who, provider.key);
       if ('denied' in claimed) return fail(claimed.denied);
@@ -492,38 +518,50 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
       if (identityNumber !== null && stored !== null && !sameNumber(identityNumber, stored)) return fail({ code: 'identity_number_conflict' });
       const number = stored ?? identityNumber;
       if (number === null) return fail({ code: 'identity_number_required' });
-      let noFile = false;
+      // Read only now, after the gate confirmed access: the athlete's name and birth date go to the adapter and nowhere else.
+      const profile = await athletes.read(athleteId);
+      if (profile === null) return UNAVAILABLE;
+      let reason: 'no_file' | 'birth_date_required' | undefined;
       const outcome = await query(
         who,
         provider.key,
         claimed.claimedAt,
         () =>
-          lookup(number).catch((error) => {
-            noFile = error instanceof NoFileError;
+          lookup({ identityNumber: number, name: { firstName: profile.firstName, lastName: profile.lastName }, birthDate: profile.birthDate, gender: profile.gender }).catch((error) => {
+            reason = error instanceof NoFileError ? 'no_file' : error instanceof BirthDateRequiredError ? 'birth_date_required' : undefined;
             throw error;
           }),
         cleanSearch,
       );
-      if (!outcome.ok) return noFile ? fail({ code: 'unavailable', reason: 'no_file' }) : outcome;
+      if (!outcome.ok) return reason ? fail({ code: 'unavailable', reason }) : outcome;
       const search = outcome.value;
       if (!search.found) return { ok: true, value: { organizationId, candidate: null } };
       // The result key syncs to the device: it must not carry the number.
       if (search.results.some((result) => keyHasNumber(result.sourceResultKey, number))) return UNAVAILABLE;
+      const byName = search.matchedBy === 'name_and_birth_date';
+      // A person found by name has no number to keep: the reference is the tournament's day, the first segment of every key. A person with no rows to offer is not a find.
+      const reference = byName ? search.results[0]?.sourceResultKey.split('|')[0] : number;
+      if (reference === undefined) return { ok: true, value: { organizationId, candidate: null } };
+      if (byName && !/^\d{8}$/.test(reference)) return UNAVAILABLE;
+      // The pool length, in order: what the tournament says itself, then what the catalog holds for it; else the guardian picks it.
+      const course = search.course ?? catalogCourse;
+      const results = search.results.map((result) => ({ ...result, pool: result.pool ?? course }));
+      const courseRequired = results.some((result) => result.pool === null);
       const { name, club } = search.athlete;
-      const resultCount = search.results.length;
+      const resultCount = results.length;
       try {
-        // The number is the reference, encrypted on the server; the rows wait there too, behind the one id the device gets.
+        // The number (or the day, for a PDF) is the reference, encrypted on the server; the rows wait there too, behind the one id the device gets.
         const id = await pending.put({
           kind: 'search',
           userId,
           athleteId,
           organizationId,
           provider: provider.key,
-          reference: number,
-          payload: { name, affiliations: [{ club, league: null, years: [] }], resultCount, results: search.results },
+          reference,
+          payload: { name, affiliations: [{ club, league: null, years: [] }], resultCount, results, matchedBy: search.matchedBy },
           ttlMs: CANDIDATE_TTL_MS,
         });
-        return { ok: true, value: { organizationId, candidate: { id, name, club, resultCount } } };
+        return { ok: true, value: { organizationId, candidate: { id, name, club, resultCount, ...(courseRequired ? { courseRequired: true as const } : {}) } } };
       } catch (error) {
         if (error instanceof NotAuthorizedError) return fail({ code: 'not_authorized' });
         throw error;
@@ -536,7 +574,10 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
     // Evidence and number are all or nothing: if the number cannot be kept, the evidence is removed again.
     // Any failure before the end puts the entry back with the time it had left, so a retry does not cost another source query.
     // A platform entry also carries the tournament rows: once confirmed they are offered behind opaque ids, as `results` does.
-    async confirmCandidate({ userId, athleteId, organizationId, candidateId }: Who & { candidateId: string }): Promise<Outcome<{ results: OfferedResult[] } | undefined>> {
+    // A tournament read from a PDF that does not say its pool length needs `course` (25 m or 50 m, the guardian's pick); it fills the rows' pool and is
+    // kept for the tournament only where none is known. A `course` that is not a pool, or none when it is needed, is refused with the entry put back.
+    async confirmCandidate({ userId, athleteId, organizationId, candidateId, course }: Who & { candidateId: string; course?: unknown }): Promise<Outcome<{ results: OfferedResult[] } | undefined>> {
+      if (course !== undefined && !isPool(course)) return fail({ code: 'bad_request' });
       const taken = await pending.take({ id: candidateId, kind: 'search', userId, athleteId });
       if (!taken) return fail({ code: 'unknown_id' });
 
@@ -550,7 +591,14 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
         if (!provider) return fail({ code: 'no_provider' });
         if (taken.provider !== provider.key) return fail({ code: 'unknown_id' });
 
-        const { name, affiliations, resultCount, results } = taken.payload as { name: string; affiliations: Affiliation[]; resultCount: number; results?: NormalizedResult[] };
+        const { name, affiliations, resultCount, results, matchedBy } = taken.payload as {
+          name: string;
+          affiliations: Affiliation[];
+          resultCount: number;
+          results?: TournamentResult[];
+          matchedBy?: MatchedBy;
+        };
+        if (results?.some((result) => result.pool === null) && course === undefined) return fail({ code: 'bad_request' });
         let evidenceId: string;
         try {
           evidenceId = await confirmations.record({ athleteId, organizationId, userId, evidence: { name, affiliations, resultCount } });
@@ -568,7 +616,8 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
         };
         try {
           // One database step: it saves a first number and never replaces another one, even when two confirmations race.
-          if (!(await identityNumbers.keep(athleteId, taken.reference))) {
+          // A person found by name and birth date has no number: the reference is the tournament's day, and nothing is kept.
+          if (matchedBy !== 'name_and_birth_date' && !(await identityNumbers.keep(athleteId, taken.reference))) {
             await undo();
             return fail({ code: 'identity_number_conflict' });
           }
@@ -586,8 +635,11 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
         confirmed = true;
         if (!results) return { ok: true, value: undefined };
         try {
+          // The guardian's pick also goes to the catalog, where the tournament has no length yet, so the next person is not asked. Only a shortcut: a failure here does not stop the import.
+          if (course !== undefined && results.some((result) => result.pool === null)) await tournaments.setCourse(organizationId, taken.reference, course as PoolCode).catch(() => undefined);
           const offered = await Promise.all(
-            results.map(async ({ sourceResultKey, ...values }) => {
+            results.map(async ({ sourceResultKey, pool, ...rest }) => {
+              const values = { ...rest, pool: pool ?? (course as PoolCode) };
               const id = await pending.put({ kind: 'results', userId, athleteId, organizationId, provider: provider.key, reference: sourceResultKey, payload: values, ttlMs: CANDIDATE_TTL_MS });
               return { id, ...values };
             }),

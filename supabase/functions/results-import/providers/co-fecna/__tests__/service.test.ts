@@ -35,6 +35,7 @@ function setup(roster = NUMBERS.map((key) => ({ key, value: key, name: 'PEREZ AN
     organizationChain: async () => chain,
     pending: { put: async () => `pending-${++stored}`, take: async () => null },
     tournaments: createFakeCatalog().catalog,
+    athletes: { read: async () => ({ firstName: 'Ana', lastName: 'Perez', birthDate: null, gender: null }) },
   });
   return { service, claims, releases };
 }

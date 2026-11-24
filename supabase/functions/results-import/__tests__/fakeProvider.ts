@@ -1,4 +1,4 @@
-import type { Candidate, CandidateQuery, NormalizedResult, ResultsProvider, TournamentEntry, TournamentProvider } from '../port.ts';
+import type { Candidate, CandidateQuery, NormalizedResult, ResultsProvider, TournamentAthlete, TournamentEntry, TournamentProvider } from '../port.ts';
 import type { TournamentCatalog } from '../service.ts';
 
 export type FakeCall =
@@ -41,6 +41,9 @@ export const TOURNAMENT_URL = 'https://games.example.test/tournament/1';
 // `url` is the pasted address; `year` and `dateKey` are the tournament of the list.
 export type PlatformCall = { url: string; identityNumber: string } | { year: number; dateKey: string; identityNumber: string };
 
+/** What the platform's `lookup` was given besides the number, in the order of the calls: the athlete as the server read them. */
+export type PlatformAthleteCall = Omit<TournamentAthlete, 'identityNumber'>;
+
 type PlatformOptions = {
   key?: string;
   accepts?: (url: string) => boolean;
@@ -68,14 +71,16 @@ export function probing(days: Record<string, Partial<TournamentEntry>>, stopAt?:
   };
 }
 
-export function createFakePlatform(options: PlatformOptions = {}): TournamentProvider & { calls: PlatformCall[]; listCalls: number[][]; probeCalls: string[][]; setFailure(error: Error | undefined): void } {
+export function createFakePlatform(options: PlatformOptions = {}): TournamentProvider & { calls: PlatformCall[]; athleteCalls: PlatformAthleteCall[]; listCalls: number[][]; probeCalls: string[][]; setFailure(error: Error | undefined): void } {
   const calls: PlatformCall[] = [];
+  const athleteCalls: PlatformAthleteCall[] = [];
   const listCalls: number[][] = [];
   const probeCalls: string[][] = [];
   let failWith = options.failWith;
   return {
     key: options.key ?? 'zz-games',
     calls,
+    athleteCalls,
     listCalls,
     probeCalls,
     probeTournaments: options.probe && (async (dateKeys) => {
@@ -89,8 +94,11 @@ export function createFakePlatform(options: PlatformOptions = {}): TournamentPro
       if (failWith) throw failWith;
       return (options.tournaments ?? []).filter((entry) => years.includes(entry.year));
     },
-    async lookup(...args: [string, string] | [number, string, string]) {
-      calls.push(typeof args[0] === 'number' ? { year: args[0], dateKey: args[1], identityNumber: args[2]! } : { url: args[0], identityNumber: args[1] });
+    async lookup(...args: [string, TournamentAthlete] | [number, string, TournamentAthlete]) {
+      const athlete = (typeof args[0] === 'number' ? args[2] : args[1]) as TournamentAthlete;
+      const { identityNumber, ...rest } = athlete;
+      athleteCalls.push(rest);
+      calls.push(typeof args[0] === 'number' ? { year: args[0], dateKey: args[1] as string, identityNumber } : { url: args[0], identityNumber });
       if (failWith) throw failWith;
       return (options.search ?? { found: false }) as Awaited<ReturnType<TournamentProvider['lookup']>>;
     },
@@ -107,6 +115,8 @@ export function createFakeCatalog(now: () => number = Date.now) {
   const claims: Parameters<TournamentCatalog['claim']>[0][] = [];
   const releases: Parameters<TournamentCatalog['release']>[0][] = [];
   let saveFailure: Error | undefined;
+  let courseFailure: Error | undefined;
+  const courseCalls: { organizationId: string; dateKey: string; course: string }[] = [];
   const catalog: TournamentCatalog = {
     async claim(request) {
       claims.push(request);
@@ -137,7 +147,16 @@ export function createFakeCatalog(now: () => number = Date.now) {
       return [...rows.values()].filter((row) => row.organizationId === organizationId && row.year === year).map((row) => row.dateKey);
     },
     async find(dateKey) {
-      return [...rows.values()].filter((row) => row.dateKey === dateKey).map(({ organizationId, year }) => ({ organizationId, year }));
+      return [...rows.values()].filter((row) => row.dateKey === dateKey).map(({ organizationId, year, course }) => ({ organizationId, year, course }));
+    },
+    async setCourse(organizationId, dateKey, course) {
+      courseCalls.push({ organizationId, dateKey, course });
+      if (courseFailure) throw courseFailure;
+      const row = rows.get(`${organizationId}|${dateKey}`);
+      // As the RPC does: only where the tournament has no length yet.
+      if (!row || row.course !== null) return false;
+      rows.set(`${organizationId}|${dateKey}`, { ...row, course });
+      return true;
     },
   };
   return {
@@ -146,6 +165,8 @@ export function createFakeCatalog(now: () => number = Date.now) {
     releases,
     rows: () => [...rows.values()],
     failSave: (error: Error | undefined) => void (saveFailure = error),
+    courseCalls,
+    failSetCourse: (error: Error | undefined) => void (courseFailure = error),
     // A tournament that is already in the catalog, as a refresh or a load of earlier years left it.
     seed: (organizationId: string, entry: TournamentEntry, refreshedAt = now()) => void rows.set(`${organizationId}|${entry.dateKey}`, { ...entry, organizationId, refreshedAt }),
   };

@@ -141,6 +141,38 @@ describe('results-import handler', () => {
     ]);
   });
 
+  it.each(['SCM', 'LCM'])('passes the pool length the guardian chose (%s) to the confirmation, and nothing else of the body', async (course) => {
+    const s = setup();
+    expect((await s.post({ ...confirmBody, course, extra: 'ignored' })).status).toBe(200);
+    expect(s.calls).toEqual([{ method: 'confirmCandidate', argument: { userId: USER, athleteId: ATHLETE, organizationId: ORG, candidateId: CANDIDATE, course } }]);
+  });
+
+  it('treats a null pool length as none, as an absent one', async () => {
+    const s = setup();
+    await s.post({ ...confirmBody, course: null });
+    expect(s.calls).toEqual([{ method: 'confirmCandidate', argument: { userId: USER, athleteId: ATHLETE, organizationId: ORG, candidateId: CANDIDATE } }]);
+  });
+
+  it.each([['25m'], ['scm'], [''], [25], [true], [['SCM']], [{}]])('refuses a pool length that is not one of the catalog (%j) without calling the service', async (course) => {
+    const s = setup();
+    const response = await s.post({ ...confirmBody, course });
+    expect(response.status).toBe(400);
+    expect(s.calls).toEqual([]);
+  });
+
+  it('answers a confirmation the service refuses for a missing pool length as a bad request', async () => {
+    const response = await setup({ confirm: { ok: false, error: { code: 'bad_request' } } }).post(confirmBody);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'bad_request' } });
+  });
+
+  it('answers the reason of an unavailable tournament as it comes, so the device can tell what to ask', async () => {
+    const error = { code: 'unavailable', reason: 'birth_date_required' } as const;
+    const response = await setup({ tournament: { ok: false, error } }).post({ action: 'tournament', athleteId: ATHLETE, tournamentKey: '20261120' });
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ ok: false, error });
+  });
+
   it.each<[ImportError, number]>([
     [{ code: 'not_authorized' }, 403],
     [{ code: 'rate_limited', retryAt: '2026-10-28T10:10:00.000Z' }, 429],

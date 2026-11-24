@@ -1,4 +1,4 @@
-import { NoFileError, ProviderUnavailableError, SourceUnreachableError, type NormalizedResult } from '../port.ts';
+import { BirthDateRequiredError, NoFileError, ProviderUnavailableError, SourceUnreachableError, type NormalizedResult } from '../port.ts';
 import { createProviderRegistry, type OrganizationData } from '../registry.ts';
 import {
   CANDIDATE_TTL_MS,
@@ -189,6 +189,8 @@ function setup(
     platformOptions?: Parameters<typeof createFakePlatform>[0];
     withProvider?: boolean;
     withPlatform?: boolean;
+    /** What the server reads of the athlete (name, birth date, gender); `null` is no such athlete. */
+    athlete?: { firstName: string; lastName: string; birthDate: string | null; gender: 'F' | 'M' | null } | null;
   } = {},
 ) {
   const provider = createFakeProvider({ results: [validResult], ...options.providerOptions });
@@ -205,6 +207,7 @@ function setup(
   let clock = Date.parse('2026-10-28T10:00:00Z');
   const pending = createFakePending(() => clock);
   const catalog = createFakeCatalog(() => clock);
+  const athleteReads: string[] = [];
   const service = createResultsImport({
     registry: createProviderRegistry([provider], [platform]),
     gate: fakeGate.gate,
@@ -213,9 +216,16 @@ function setup(
     organizationChain: async () => data,
     pending: pending.store,
     tournaments: catalog.catalog,
+    athletes: {
+      read: async (athleteId) => {
+        athleteReads.push(athleteId);
+        return options.athlete === undefined ? { firstName: 'Ana', lastName: 'Perez', birthDate: null, gender: null } : options.athlete;
+      },
+    },
     now: () => clock,
   });
   return {
+    athleteReads,
     catalog,
     provider,
     platform,
@@ -987,7 +997,7 @@ describe('findInTournament', () => {
       organizationId: PLATFORM_ORG,
       provider: PLATFORM,
       reference: TYPED,
-      payload: { name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [] }], resultCount: 2, results: found.results },
+      payload: { name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [] }], resultCount: 2, results: found.results, matchedBy: 'identity_number' },
       expiresAt: Date.parse('2026-10-28T10:00:00Z') + CANDIDATE_TTL_MS,
     });
     // The device gets the id, the name, the club and the count: no number, no key, no row.
@@ -1001,7 +1011,7 @@ describe('findInTournament', () => {
     const outcome = await tournament(s);
     expect(outcome.ok).toBe(true);
     const [row] = [...s.pending.rows.values()];
-    expect(row.payload).toEqual({ name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [] }], resultCount: 1, results: [validResult] });
+    expect(row.payload).toEqual({ name: 'Ana Example', affiliations: [{ club: 'Synthetic Club', league: null, years: [] }], resultCount: 1, results: [validResult], matchedBy: 'identity_number' });
     expect(JSON.stringify(outcome)).not.toMatch(/2012-01-01|0000000000/);
   });
 
@@ -1602,5 +1612,238 @@ describe('refreshTournaments probing the last 7 days', () => {
   it('does not ask a platform that cannot probe anything', async () => {
     const s = setup({ platformOptions: index });
     expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+  });
+});
+
+// Issue #1482: a tournament with only a PDF has no identity numbers. The server reads the athlete (name, birth date, gender) and the adapter finds them by
+// those; the person is confirmed without a number being kept, and when no source says the pool length the guardian picks it at the confirmation.
+describe('a tournament read from its PDF', () => {
+  const KEY = '20260314';
+  const athlete = { firstName: 'Ana', lastName: 'Perez', birthDate: '2012-03-04', gender: 'F' as const };
+  const row = { ...validResult, sourceResultKey: `${KEY}|pdf|1|6-3`, pool: null };
+  const second = { ...row, sourceResultKey: `${KEY}|pdf|2|1-2`, distance: '100m' };
+  const answer = (overrides: Record<string, unknown> = {}) => ({
+    found: true,
+    athlete: { name: 'PEREZ GOMEZ Ana', club: 'Synthetic Club' },
+    results: [row, second],
+    matchedBy: 'name_and_birth_date',
+    course: null,
+    ...overrides,
+  });
+  const withCatalog = (options: Parameters<typeof setup>[0] = {}, course: 'SCM' | 'LCM' | null = null) => {
+    const s = setup({ athlete, platformOptions: { search: answer() }, ...options });
+    s.catalog.seed(PLATFORM_ORG, tournamentEntry(KEY, { course }));
+    return s;
+  };
+  const byKey = (s: ReturnType<typeof setup>, identityNumber: string | null = null) => s.service.findInTournament({ userId: USER, athleteId: ATHLETE, tournamentKey: KEY, identityNumber });
+  const searched = async (s: ReturnType<typeof setup>) => {
+    const outcome = await byKey(s);
+    if (!outcome.ok || !outcome.value.candidate) throw new Error('search failed');
+    return outcome.value.candidate;
+  };
+  const confirm = (s: ReturnType<typeof setup>, candidateId: string, course?: unknown) =>
+    s.service.confirmCandidate({ userId: USER, athleteId: ATHLETE, organizationId: PLATFORM_ORG, candidateId, ...(course === undefined ? {} : { course }) });
+
+  describe('looking the athlete up', () => {
+    it('reads the athlete after the gate and hands the platform their name, birth date and gender, with the identity number the server holds', async () => {
+      const s = withCatalog();
+      expect((await byKey(s)).ok).toBe(true);
+      expect(s.athleteReads).toEqual([ATHLETE]);
+      expect(s.platform.athleteCalls).toEqual([{ name: { firstName: 'Ana', lastName: 'Perez' }, birthDate: '2012-03-04', gender: 'F' }]);
+      expect(s.platform.calls).toEqual([{ year: 2026, dateKey: KEY, identityNumber: NUMBER }]);
+    });
+
+    it('does not read the athlete when the person may not import, nor when the tournament is not one of a platform', async () => {
+      const denied = withCatalog({ authorized: false });
+      expect(await byKey(denied)).toEqual({ ok: false, error: { code: 'not_authorized' } });
+      const unknown = setup({ athlete });
+      expect(await unknown.service.findInTournament({ userId: USER, athleteId: ATHLETE, url: 'https://other.example.test/t/1', identityNumber: null })).toEqual({ ok: false, error: { code: 'no_provider' } });
+      expect(denied.athleteReads).toEqual([]);
+      expect(unknown.athleteReads).toEqual([]);
+    });
+
+    it('does not read the athlete when the number is missing or in conflict (the rules of the number come first)', async () => {
+      const missing = withCatalog({ number: null });
+      expect(await byKey(missing)).toEqual({ ok: false, error: { code: 'identity_number_required' } });
+      const conflict = withCatalog();
+      expect(await byKey(conflict, '7654321')).toEqual({ ok: false, error: { code: 'identity_number_conflict' } });
+      expect([missing.athleteReads, conflict.athleteReads]).toEqual([[], []]);
+    });
+
+    it('is unavailable when the athlete cannot be read', async () => {
+      const s = withCatalog({ athlete: null });
+      expect(await byKey(s)).toEqual({ ok: false, error: { code: 'unavailable' } });
+      expect(s.platform.calls).toEqual([]);
+    });
+
+    it('answers unavailable with the reason birth_date_required when the platform needs a birth date the athlete has not saved, and spends the window', async () => {
+      const s = withCatalog({ athlete: { ...athlete, birthDate: null }, platformOptions: { search: answer(), failWith: new BirthDateRequiredError() } });
+      expect(await byKey(s)).toEqual({ ok: false, error: { code: 'unavailable', reason: 'birth_date_required' } });
+      expect((await byKey(s)).ok).toBe(false);
+      expect(s.platform.calls).toHaveLength(1);
+    });
+
+    it('keeps no_file and a plain unavailable as they were', async () => {
+      const gone = withCatalog({ platformOptions: { search: answer(), failWith: new NoFileError() } });
+      expect(await byKey(gone)).toEqual({ ok: false, error: { code: 'unavailable', reason: 'no_file' } });
+      const down = withCatalog({ platformOptions: { search: answer(), failWith: new ProviderUnavailableError() } });
+      expect(await byKey(down)).toEqual({ ok: false, error: { code: 'unavailable' } });
+    });
+
+    it('is not a find when the PDF has the person with no row to offer, and keeps nothing', async () => {
+      const s = withCatalog({ platformOptions: { search: answer({ results: [] }) } });
+      expect(await byKey(s)).toEqual({ ok: true, value: { organizationId: PLATFORM_ORG, candidate: null } });
+      expect(s.pending.rows.size).toBe(0);
+    });
+
+    it.each([['a matchedBy it does not know', { matchedBy: 'guess' }], ['a pool length that is not one', { course: '25m' }], ['a row with a pool that is not one', { results: [{ ...row, pool: '25m' }] }]])(
+      'is unavailable for an answer with %s',
+      async (_label, overrides) => {
+        const s = withCatalog({ platformOptions: { search: answer(overrides) } });
+        expect(await byKey(s)).toEqual({ ok: false, error: { code: 'unavailable' } });
+        expect(s.pending.rows.size).toBe(0);
+      },
+    );
+  });
+
+  describe('the pool length', () => {
+    it('is asked of the guardian when neither the PDF nor the catalog says it, and the rows wait with none', async () => {
+      const s = withCatalog();
+      const candidate = await searched(s);
+      expect(candidate).toEqual({ id: expect.any(String), name: 'PEREZ GOMEZ Ana', club: 'Synthetic Club', resultCount: 2, courseRequired: true });
+      expect(s.pending.rows.get(candidate.id)).toMatchObject({
+        kind: 'search',
+        reference: KEY,
+        payload: { name: 'PEREZ GOMEZ Ana', resultCount: 2, results: [row, second], matchedBy: 'name_and_birth_date' },
+      });
+    });
+
+    it('is not asked when the PDF says it: the rows are offered with it', async () => {
+      const s = withCatalog({ platformOptions: { search: answer({ course: 'LCM' }) } });
+      const candidate = await searched(s);
+      expect(candidate).not.toHaveProperty('courseRequired');
+      expect(s.pending.rows.get(candidate.id)?.payload).toMatchObject({ results: [{ pool: 'LCM' }, { pool: 'LCM' }] });
+    });
+
+    it('is not asked when the catalog row of the tournament has it', async () => {
+      const s = withCatalog({}, 'SCM');
+      const candidate = await searched(s);
+      expect(candidate).not.toHaveProperty('courseRequired');
+      expect(s.pending.rows.get(candidate.id)?.payload).toMatchObject({ results: [{ pool: 'SCM' }, { pool: 'SCM' }] });
+    });
+
+    it('prefers what the PDF says to what the catalog holds', async () => {
+      const s = withCatalog({ platformOptions: { search: answer({ course: 'LCM' }) } }, 'SCM');
+      const candidate = await searched(s);
+      expect(s.pending.rows.get(candidate.id)?.payload).toMatchObject({ results: [{ pool: 'LCM' }, { pool: 'LCM' }] });
+    });
+
+    it('keeps the pool a row already has (a Lenex row) and asks for nothing', async () => {
+      const s = withCatalog({ platformOptions: { search: { found: true, athlete: { name: 'Ana Example', club: null }, results: [validResult] } } });
+      const candidate = await searched(s);
+      expect(candidate).toEqual({ id: expect.any(String), name: 'Ana Example', club: null, resultCount: 1 });
+    });
+
+    it('asks for it too when the address was pasted: the catalog is not consulted', async () => {
+      const s = setup({ athlete, platformOptions: { search: answer() } });
+      s.catalog.seed(PLATFORM_ORG, tournamentEntry(KEY, { course: 'SCM' }));
+      const outcome = await s.service.findInTournament({ userId: USER, athleteId: ATHLETE, url: TOURNAMENT_URL, identityNumber: null });
+      expect(outcome.ok && outcome.value.candidate).toMatchObject({ courseRequired: true });
+    });
+
+    it('leaves nothing but the name, the club, the count and the flag on the device side', async () => {
+      const s = withCatalog();
+      const json = JSON.stringify(await byKey(s));
+      for (const secret of [NUMBER, '2012-03-04', KEY, 'pdf', 'Synthetic Open']) expect(json).not.toContain(secret);
+    });
+  });
+
+  describe('confirming', () => {
+    it('keeps no identity number for a person found by name: the evidence is recorded and nothing is saved', async () => {
+      const s = withCatalog({ number: null }, 'SCM');
+      // No number saved: the typed one is what the rule of the number asks for, and it is not kept for a person found by name.
+      const typed = await s.service.findInTournament({ userId: USER, athleteId: ATHLETE, tournamentKey: KEY, identityNumber: '7654321' });
+      if (!typed.ok || !typed.value.candidate) throw new Error('search failed');
+      expect((await confirm(s, typed.value.candidate.id)).ok).toBe(true);
+      expect(s.identityNumbers.saved).toEqual([]);
+      expect(s.confirmations.recorded).toHaveLength(1);
+    });
+
+    it('keeps the number for a person found by it, as before', async () => {
+      const s = setup({ number: null, platformOptions: { search: { found: true, athlete: { name: 'Ana Example', club: null }, results: [validResult] } } });
+      const outcome = await s.service.findInTournament({ userId: USER, athleteId: ATHLETE, url: TOURNAMENT_URL, identityNumber: '7654321' });
+      if (!outcome.ok || !outcome.value.candidate) throw new Error('search failed');
+      await confirm(s, outcome.value.candidate.id);
+      expect(s.identityNumbers.saved).toEqual([[ATHLETE, '7654321']]);
+    });
+
+    it('refuses a confirmation with no pool length when the rows need one, records nothing and keeps the entry for the retry', async () => {
+      const s = withCatalog();
+      const { id } = await searched(s);
+      expect(await confirm(s, id)).toEqual({ ok: false, error: { code: 'bad_request' } });
+      expect(s.confirmations.recorded).toEqual([]);
+      expect((await confirm(s, id, 'LCM')).ok).toBe(true);
+    });
+
+    it.each([['25m'], [25], [null], ['scm'], ['']])('refuses the pool length %j, before the entry is taken', async (course) => {
+      const s = withCatalog();
+      const { id } = await searched(s);
+      expect(await confirm(s, id, course)).toEqual({ ok: false, error: { code: 'bad_request' } });
+      expect(s.confirmations.recorded).toEqual([]);
+      expect((await confirm(s, id, 'SCM')).ok).toBe(true);
+    });
+
+    it('fills the pool of every row offered with the one chosen, and the rows keep their key as the reference', async () => {
+      const s = withCatalog();
+      const { id } = await searched(s);
+      const outcome = await confirm(s, id, 'SCM');
+      if (!outcome.ok || !outcome.value) throw new Error('expected results');
+      const { sourceResultKey: _a, ...rest } = row;
+      const { sourceResultKey: _b, ...restSecond } = second;
+      expect(outcome.value.results).toEqual([{ id: expect.any(String), ...rest, pool: 'SCM' }, { id: expect.any(String), ...restSecond, pool: 'SCM' }]);
+      expect(s.pending.rows.get(outcome.value.results[0].id)).toMatchObject({ kind: 'results', reference: `${KEY}|pdf|1|6-3`, payload: { pool: 'SCM' } });
+    });
+
+    it('keeps the choice for the tournament, only where the catalog has no length', async () => {
+      const s = withCatalog();
+      const { id } = await searched(s);
+      await confirm(s, id, 'LCM');
+      expect(s.catalog.courseCalls).toEqual([{ organizationId: PLATFORM_ORG, dateKey: KEY, course: 'LCM' }]);
+      expect(s.catalog.rows().find((entry) => entry.dateKey === KEY)?.course).toBe('LCM');
+    });
+
+    it('does not replace a length the catalog got in the meantime, and still offers the rows with the one chosen', async () => {
+      const s = withCatalog();
+      const { id } = await searched(s);
+      s.catalog.seed(PLATFORM_ORG, tournamentEntry(KEY, { course: 'SCM' }));
+      const outcome = await confirm(s, id, 'LCM');
+      expect(outcome.ok && outcome.value?.results.map((result) => result.pool)).toEqual(['LCM', 'LCM']);
+      expect(s.catalog.rows().find((entry) => entry.dateKey === KEY)?.course).toBe('SCM');
+    });
+
+    it('still confirms and offers the rows when the length cannot be kept for the tournament', async () => {
+      const s = withCatalog();
+      const { id } = await searched(s);
+      s.catalog.failSetCourse(new Error('db down'));
+      const outcome = await confirm(s, id, 'SCM');
+      expect(outcome.ok && outcome.value?.results).toHaveLength(2);
+    });
+
+    it('does not touch the catalog, and ignores a pool length nobody needed, when the rows already have it', async () => {
+      const s = withCatalog({}, 'LCM');
+      const { id } = await searched(s);
+      const outcome = await confirm(s, id, 'SCM');
+      expect(outcome.ok && outcome.value?.results.map((result) => result.pool)).toEqual(['LCM', 'LCM']);
+      expect(s.catalog.courseCalls).toEqual([]);
+    });
+
+    it('does not need a pool length for a federation confirmation, and a federation entry ignores one', async () => {
+      const s = setup({ providerOptions: { candidates: [{ sourceAthleteKey: NUMBER, name: 'Ana Example', affiliations: [], resultCount: 1 }] } });
+      const searchedFederation = await s.service.findCandidates({ userId: USER, athleteId: ATHLETE, organizationId: ORG, firstName: 'Ana', lastName: 'Example' });
+      if (!searchedFederation.ok) throw new Error('search failed');
+      const [candidate] = searchedFederation.value;
+      expect(await s.service.confirmCandidate({ userId: USER, athleteId: ATHLETE, organizationId: ORG, candidateId: candidate.id, course: 'SCM' })).toEqual({ ok: true, value: undefined });
+      expect(s.catalog.courseCalls).toEqual([]);
+    });
   });
 });
