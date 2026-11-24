@@ -8,7 +8,7 @@ import { useFirstScreenReady } from '../../../core/startup';
 import { useRecordSyncStates, type RecordSyncState } from '../../../core/sync';
 import type { AthleteAvatarSlot } from '../../../core/ui';
 import { importedAchievement, latestAchievement, type EventAchievement, type ImportedHistoryResult } from '../achievements';
-import { groupImportedResults } from '../groupImported';
+import { groupImportedResults, type ImportedGroup } from '../groupImported';
 import { repeatedRecordIds } from '../repeatedRecordIds';
 import type { EventValue } from '../components/EventSelector';
 import type { ImportPromptProps } from '../components/ImportPrompt';
@@ -132,7 +132,7 @@ function toResult(m: OtherSchoolResult & { origin: HistoryOrigin }, personalBest
 }
 
 // An imported official result is always a competition result, read-only; it can be the personal best like any race.
-function toImportedResult(r: ImportedHistoryResult, sourceName: string | undefined, personalBestId: string | undefined): HistoryResult {
+function toImportedResult({ result: r, sourceName, validated, federationName }: ImportedGroup, personalBestId: string | undefined): HistoryResult {
   return {
     id: r.id,
     stroke: r.stroke,
@@ -142,6 +142,7 @@ function toImportedResult(r: ImportedHistoryResult, sourceName: string | undefin
     origin: 'import',
     ...(sourceName ? { sourceName } : {}),
     ...(r.competition ? { competition: r.competition } : {}),
+    ...(validated && federationName ? { validatedBy: federationName } : {}),
     value: { kind: 'race' },
     time: r.hundredths,
     isPersonalBest: r.id === personalBestId,
@@ -303,7 +304,7 @@ export function AthleteProfileContainer({
       ...(other ?? []).filter((m) => !localIds.has(m.id)).map((m) => ({ m: { ...m, origin: 'other_school' as const }, syncState: undefined })),
     ].sort((a, b) => newestFirst(a.m, b.m));
     // Stable by date: the device's own rows keep their order within a day.
-    const results = [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map((g) => toImportedResult(g.result, g.sourceName, best?.id))].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const results = [...rows.flatMap(({ m, syncState }) => toResult(m, best?.id, syncState)), ...imported.map((g) => toImportedResult(g, best?.id))].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     // Issue 1035: the list and the chart key their rows by id; if a source ever repeats one, development names it (ids and kinds only).
     if (__DEV__) {
       const repeated = repeatedRecordIds(results);

@@ -28,7 +28,7 @@ describe('athletes history gallery entries', () => {
   });
 
   it('cover both components with all their states', () => {
-    expect(stateKeys('historyList')).toEqual(['mixed', 'long-text']);
+    expect(stateKeys('historyList')).toEqual(['mixed', 'long-text', 'validated']);
     expect(stateKeys('importPrompt')).toEqual(['not-imported', 'imported', 'no-source']);
   });
 

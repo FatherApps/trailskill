@@ -3,7 +3,7 @@ import { PixelRatio, StyleSheet, Text, type StyleProp, type ViewStyle } from 're
 
 import { colors, contrastRatio, size, space, ThemeProvider, type ThemeName } from '../../../core/theme';
 import { StrokeIcon } from '../../../core/ui';
-import { historyFixture, historyResults } from '../__fixtures__/history';
+import { historyFixture, historyResults, historyValidatedResults } from '../__fixtures__/history';
 import { marginOfCard, rowLabel } from '../__fixtures__/historyRows';
 import { HistoryList, type HistoryResult } from '../components/HistoryList';
 
@@ -136,6 +136,15 @@ describe('HistoryList', () => {
     expect(hiddenText(historyFixture.sourceName)).toHaveLength(1);
     expect(hiddenText('Botón externo')).toHaveLength(1);
     expect(hiddenText(`Otra escuela: ${historyFixture.otherSchool}`)).toHaveLength(1);
+  });
+
+  it('shows the federation that validated an imported result as a tag and in the row label, only when the data brings one (issue 1470)', async () => {
+    await render(<HistoryList results={[historyValidatedResults[0], byId('import')]} />);
+
+    expect(hiddenText(`Validado en ${historyFixture.sourceName}`)).toHaveLength(1);
+    const labels = screen.getAllByLabelText(importRow, hidden).map((row) => row.props.accessibilityLabel);
+    expect(labels.filter((label: string) => label.includes(`Validado en ${historyFixture.sourceName}`))).toHaveLength(1);
+    expect(labels).toHaveLength(2);
   });
 
   it.each([

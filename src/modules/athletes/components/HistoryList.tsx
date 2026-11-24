@@ -7,7 +7,7 @@ import type { RecordSyncState } from '../../../core/sync';
 import { space as spaceTokens, typography as baseTypography, useTheme, type ColorToken } from '../../../core/theme';
 import type { Hundredths } from '../../../core/time';
 import { spokenTime } from '../../../core/time';
-import { Icon, StrokeIcon, SyncStatus, TimeValue, type IconName } from '../../../core/ui';
+import { Icon, StrokeIcon, SyncStatus, Tag, TimeValue, type IconName } from '../../../core/ui';
 import '../i18n';
 import { formatDate } from './formatDate';
 
@@ -32,6 +32,8 @@ export type HistoryResult = {
   sourceName?: string;
   // Name of the competition of an imported result, from data.
   competition?: string;
+  // Name of the federation that confirmed an imported result a results platform also has, from data; absent when nobody did.
+  validatedBy?: string;
   value: HistoryValue;
   // A missing time is `null`, never 0.
   time: Hundredths | null;
@@ -152,6 +154,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
   const context = t(`athletes.history.context.${result.context}`);
   const value = valueLabel(result.value);
   const origin = originLabel(result);
+  const validated = result.validatedBy ? t('athletes.history.validated', { federation: result.validatedBy }) : null;
   const dot = dotOf(result);
   const shortDate = formatDate(result.date, 'short');
   const longDate = formatDate(result.date, 'long');
@@ -174,6 +177,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
     value,
     result.competition,
     origin,
+    validated,
     spokenResult,
     result.time !== null && result.isPersonalBest ? t('time_value.pb_spoken') : null,
     caption,
@@ -214,6 +218,7 @@ function HistoryRow({ result }: { result: HistoryResult }) {
           <Text style={[typography['body-strong'], { color: colors[historyListColors.title] }]}>{title}</Text>
           <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{meta}</Text>
           {origin && <Text style={[typography.caption, { color: colors[historyListColors.meta] }]}>{origin}</Text>}
+          {validated && <Tag variant="ok" icon="verified_user" label={validated} />}
         </View>
       </View>
       <View {...hidden} style={[styles.trailing, large && styles.trailingLarge, { gap: space[1] }]}>
