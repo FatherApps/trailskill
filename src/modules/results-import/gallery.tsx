@@ -30,28 +30,35 @@ const catalogFixture = [
   tournament('g4', '20251018', 'Torneo Zeta Abierto', 'Ciudad Zeta'),
 ];
 
-const pickView = (filter: { text?: string; year?: number | null; dateKey?: string | null } = {}, calendarOpen = false): ConfirmPersonView => ({
-  kind: 'tournament_pick',
-  athleteName: 'Ana',
-  online: true,
-  text: filter.text ?? '',
-  onChangeText: noop,
-  years: catalogYears(catalogFixture),
-  year: filter.year ?? null,
-  onChangeYear: noop,
-  calendarOpen,
-  onToggleCalendar: noop,
-  month: { year: 2026, month: 5 },
-  counts: countByDateKey(catalogFixture),
-  dateKey: filter.dateKey ?? null,
-  onSelectDay: noop,
-  onClearDay: noop,
-  onPreviousMonth: noop,
-  onNextMonth: noop,
-  groups: groupTournaments(catalogFixture, filter),
-  onPick: noop,
-  onPasteUrl: noop,
-});
+const pickView = (filter: { text?: string; year?: number | null; dateKey?: string | null } = {}, calendarOpen = false, open: string[] = []): ConfirmPersonView => {
+  const groups = groupTournaments(catalogFixture, filter);
+  // Like the container: a filter opens every section.
+  const filtering = !!filter.text || (filter.year ?? null) !== null || !!filter.dateKey;
+  return {
+    kind: 'tournament_pick',
+    athleteName: 'Ana',
+    online: true,
+    text: filter.text ?? '',
+    onChangeText: noop,
+    years: catalogYears(catalogFixture),
+    year: filter.year ?? null,
+    onChangeYear: noop,
+    calendarOpen,
+    onToggleCalendar: noop,
+    month: { year: 2026, month: 5 },
+    counts: countByDateKey(catalogFixture),
+    dateKey: filter.dateKey ?? null,
+    onSelectDay: noop,
+    onClearDay: noop,
+    onPreviousMonth: noop,
+    onNextMonth: noop,
+    groups,
+    openCities: filtering ? groups.map((group) => group.city) : open,
+    onToggleCity: noop,
+    onPick: noop,
+    onPasteUrl: noop,
+  };
+};
 const screenOf = (view: ConfirmPersonView) => <ConfirmPersonScreen view={view} onBack={noop} />;
 
 // Holds the selection, so tapping a row changes it in the gallery.
@@ -105,6 +112,7 @@ export const galleryEntries: GalleryEntry[] = [
     title: 'TournamentPicker',
     states: {
       list: () => screenOf(pickView()),
+      'one-city-open': () => screenOf(pickView({}, false, ['Ciudad Alfa'])),
       filtered: () => screenOf(pickView({ text: 'alfa', year: 2025 })),
       empty: () => screenOf(pickView({ text: 'nada coincide' })),
       // Pending design: the design system has no calendar; it is built from tokens only.

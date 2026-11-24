@@ -88,6 +88,12 @@ const press = async (label: string) => fireEvent.press(await screen.findByRole('
 const chip = async (label: string) => fireEvent.press(await screen.findByRole('radio', { name: label }));
 const fill = async (label: string, text: string) => fireEvent.changeText(await screen.findByLabelText(label), text);
 
+// The city sections start folded: a header is «Ciudad X, N torneos» and opens its rows.
+const open = async (city: string) => fireEvent.press(await screen.findByRole('button', { name: new RegExp(`^${city},`) }));
+const openAll = async () => {
+  for (const city of ['Ciudad Alfa', 'Ciudad Beta', 'Ciudad Zeta']) await open(city);
+};
+
 const PASTE = '¿No está en la lista? Pegar la dirección';
 
 async function searchWith(s: ReturnType<typeof setup>) {
@@ -110,6 +116,7 @@ describe('TournamentImportContainer', () => {
   it('lists the synced tournaments without a connection, and says a search needs one', async () => {
     const s = setup({ online: false });
     await s.mount();
+    await open('Ciudad Beta');
     expect(await screen.findByText('Torneo Beta')).toBeOnTheScreen();
     expect(screen.getByText('Sin conexión. Puedes ver la lista; para buscar en un torneo necesitas conexión.')).toBeOnTheScreen();
     expect(s.refreshCatalog).not.toHaveBeenCalled();
@@ -270,6 +277,7 @@ describe('TournamentImportContainer: the list', () => {
   it('asks the server to refresh the catalog once and does not wait for the answer', async () => {
     const s = setup({ refresh: () => new Promise<void>(() => {}) });
     await s.mount();
+    await open('Ciudad Beta');
     expect(await screen.findByText('Torneo Beta')).toBeOnTheScreen();
     expect(s.refreshCatalog).toHaveBeenCalledTimes(1);
   });
@@ -278,12 +286,13 @@ describe('TournamentImportContainer: the list', () => {
     let finishRefresh = () => {};
     const s = setup({ refresh: () => new Promise<void>((resolve) => (finishRefresh = resolve)) });
     await s.mount();
-    await screen.findByText('Torneo Beta');
-    expect(screen.queryByText('Torneo Delta')).toBeNull();
+    await screen.findByText('Ciudad Beta');
+    expect(screen.queryByText('Ciudad Delta')).toBeNull();
 
     s.rows.push(tournament('t6', '20270110', 'Torneo Delta', 'Ciudad Delta'));
     await act(async () => finishRefresh());
 
+    await open('Ciudad Delta');
     expect(await screen.findByText('Torneo Delta')).toBeOnTheScreen();
     expect(screen.getByRole('radio', { name: '2027' })).toBeOnTheScreen();
   });
@@ -291,11 +300,12 @@ describe('TournamentImportContainer: the list', () => {
   it('shows the rows a sync brings without reopening the screen', async () => {
     const s = setup();
     const view = await s.mount();
-    await screen.findByText('Torneo Beta');
+    await screen.findByText('Ciudad Beta');
 
     s.rows.push(tournament('t6', '20270110', 'Torneo Delta', 'Ciudad Delta'));
     await view.rerender(s.element(1));
 
+    await open('Ciudad Delta');
     expect(await screen.findByText('Torneo Delta')).toBeOnTheScreen();
     // The filters the person typed are kept.
     expect(s.refreshCatalog).toHaveBeenCalledTimes(1);
@@ -304,7 +314,7 @@ describe('TournamentImportContainer: the list', () => {
   it('shows a chip for each year of the catalog, newest first, and Todos chosen', async () => {
     const s = setup();
     await s.mount();
-    await screen.findByText('Torneo Beta');
+    await screen.findByText('Ciudad Beta');
     expect(screen.getAllByRole('radio').map((chip) => chip.props.accessibilityLabel)).toEqual(['2026', '2025', 'Todos']);
     expect(screen.getByRole('radio', { name: 'Todos', checked: true })).toBeOnTheScreen();
   });
@@ -312,7 +322,7 @@ describe('TournamentImportContainer: the list', () => {
   it('gets a new year chip when its rows are in the catalog', async () => {
     const s = setup({ entries: [...catalogEntries, tournament('t6', '20270110', 'Torneo Delta', 'Ciudad Delta')] });
     await s.mount();
-    await screen.findByText('Torneo Beta');
+    await screen.findByText('Ciudad Beta');
     expect(screen.getAllByRole('radio').map((chip) => chip.props.accessibilityLabel)).toEqual(['2027', '2026', '2025', 'Todos']);
   });
 
@@ -328,8 +338,9 @@ describe('TournamentImportContainer: the list', () => {
   it('groups by city from A to Z with the name and the date of each tournament', async () => {
     const s = setup();
     await s.mount();
-    await screen.findByText('Torneo Beta');
+    await screen.findByText('Ciudad Beta');
     expect(texts(/^Ciudad /)).toEqual(['Ciudad Alfa', 'Ciudad Beta', 'Ciudad Zeta']);
+    await openAll();
     expect(screen.getByRole('button', { name: 'Torneo Alfa Nocturno, 18 oct 2025' })).toBeOnTheScreen();
     expect(screen.getAllByText('18 oct 2025')).toHaveLength(2);
   });
@@ -367,6 +378,7 @@ describe('TournamentImportContainer: the list', () => {
   it('sends the tournamentKey and not a url when the tournament comes from the list', async () => {
     const s = setup();
     await s.mount();
+    await open('Ciudad Beta');
     await press('Torneo Beta, 10 may 2026');
     await fill('Número de identificación', NUMBER);
     expect(screen.queryByLabelText('Dirección del torneo')).toBeNull();
@@ -379,14 +391,17 @@ describe('TournamentImportContainer: the list', () => {
   it('can go back to the list from the chosen tournament', async () => {
     const s = setup();
     await s.mount();
+    await open('Ciudad Beta');
     await press('Torneo Beta, 10 may 2026');
     await press('Elegir otro torneo');
+    await open('Ciudad Alfa');
     expect(await screen.findByText('Torneo Alfa Nocturno')).toBeOnTheScreen();
   });
 
   it('says «Aún sin resultados» when the tournament picked from the list has no file', async () => {
     const s = setup({ hint: { present: true, lastThree: '123' }, search: { tournamentFailure: { code: 'no_file' } } });
     await s.mount();
+    await open('Ciudad Beta');
     await press('Torneo Beta, 10 may 2026');
     await press('Buscar en el torneo');
 
@@ -400,6 +415,93 @@ describe('TournamentImportContainer: the list', () => {
 
     expect(await screen.findByText('El origen no está disponible')).toBeOnTheScreen();
     expect(screen.queryByText('Aún sin resultados')).toBeNull();
+  });
+});
+
+describe('TournamentImportContainer: the city sections', () => {
+  const header = (city: string, count: number, expanded: boolean) =>
+    screen.getByRole('button', { name: `${city}, ${count} ${count === 1 ? 'torneo' : 'torneos'}`, expanded });
+
+  it('starts with every city folded and each header showing the city and its number of tournaments', async () => {
+    const s = setup();
+    await s.mount();
+    await screen.findByText('Ciudad Beta');
+
+    expect(header('Ciudad Alfa', 2, false)).toBeOnTheScreen();
+    expect(header('Ciudad Beta', 2, false)).toBeOnTheScreen();
+    expect(header('Ciudad Zeta', 1, false)).toBeOnTheScreen();
+    expect(screen.getByText('1 torneo')).toBeOnTheScreen();
+    expect(screen.getAllByText('2 torneos')).toHaveLength(2);
+    expect(screen.queryByText('Torneo Beta')).toBeNull();
+  });
+
+  it('opens a folded city and folds it again without touching the others', async () => {
+    const s = setup();
+    await s.mount();
+    await open('Ciudad Beta');
+
+    expect(header('Ciudad Beta', 2, true)).toBeOnTheScreen();
+    expect(screen.getByText('Torneo Beta')).toBeOnTheScreen();
+    expect(screen.getByText('Torneo Gamma')).toBeOnTheScreen();
+    expect(header('Ciudad Alfa', 2, false)).toBeOnTheScreen();
+    expect(screen.queryByText('Copa Alfa')).toBeNull();
+
+    await open('Ciudad Beta');
+    expect(header('Ciudad Beta', 2, false)).toBeOnTheScreen();
+    expect(screen.queryByText('Torneo Beta')).toBeNull();
+  });
+
+  it('opens every city with a search text and folds them again when it is cleared', async () => {
+    const s = setup();
+    await s.mount();
+    await fill('Buscar', 'ciudad');
+
+    expect(await screen.findByText('Torneo Beta')).toBeOnTheScreen();
+    expect(screen.getByText('Copa Alfa')).toBeOnTheScreen();
+    expect(screen.getByText('Torneo Zeta Abierto')).toBeOnTheScreen();
+    expect(header('Ciudad Zeta', 1, true)).toBeOnTheScreen();
+
+    await fill('Buscar', '');
+    expect(await screen.findByRole('button', { name: 'Ciudad Zeta, 1 torneo', expanded: false })).toBeOnTheScreen();
+    expect(screen.queryByText('Torneo Beta')).toBeNull();
+  });
+
+  it('opens every city with a year other than Todos and folds them again on Todos', async () => {
+    const s = setup();
+    await s.mount();
+    await chip('2026');
+
+    expect(await screen.findByText('Torneo Beta')).toBeOnTheScreen();
+    expect(screen.getByText('Torneo Gamma')).toBeOnTheScreen();
+
+    await chip('Todos');
+    expect(await screen.findByRole('button', { name: 'Ciudad Beta, 2 torneos', expanded: false })).toBeOnTheScreen();
+    expect(screen.queryByText('Torneo Beta')).toBeNull();
+  });
+
+  it('opens every city with a day of the calendar and folds them again when the day and the year are cleared', async () => {
+    const s = setup();
+    await s.mount();
+    await press('Filtrar por fecha');
+    await press('10 de mayo, 2 torneos');
+
+    expect(await screen.findByText('Torneo Beta')).toBeOnTheScreen();
+    expect(screen.getByText('Copa Alfa')).toBeOnTheScreen();
+
+    await press('Quitar fecha');
+    await chip('Todos');
+    expect(await screen.findByRole('button', { name: 'Ciudad Beta, 2 torneos', expanded: false })).toBeOnTheScreen();
+    expect(screen.queryByText('Torneo Beta')).toBeNull();
+  });
+
+  it('forgets the cities opened by hand once the filters have been used', async () => {
+    const s = setup();
+    await s.mount();
+    await open('Ciudad Zeta');
+    await fill('Buscar', 'beta');
+    await fill('Buscar', '');
+
+    expect(await screen.findByRole('button', { name: 'Ciudad Zeta, 1 torneo', expanded: false })).toBeOnTheScreen();
   });
 });
 

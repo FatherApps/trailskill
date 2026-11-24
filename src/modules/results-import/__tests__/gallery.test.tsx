@@ -17,7 +17,7 @@ describe('results-import gallery entries', () => {
     expect(Object.keys(galleryEntries[1]!.states)).toEqual([
       'list', 'long-text', 'imported', 'checking', 'none', 'unavailable', 'rate-limited', 'expired', 'import-failed', 'changes', 'change-failed',
     ]);
-    expect(Object.keys(galleryEntries[2]!.states)).toEqual(['list', 'filtered', 'empty', 'calendar', 'calendar-empty-day', 'no-file']);
+    expect(Object.keys(galleryEntries[2]!.states)).toEqual(['list', 'one-city-open', 'filtered', 'empty', 'calendar', 'calendar-empty-day', 'no-file']);
   });
 
   it.each(cases)('renders %s / %s in the %s theme', async (id, state, theme) => {
