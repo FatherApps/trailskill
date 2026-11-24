@@ -43,7 +43,8 @@
       "external_timer": "Botón externo",
       "other_school": "Otra escuela",
       "other_school_named": "Otra escuela: {{source}}"
-    }
+    },
+    "validated": "Validado en {{federation}}"
   },
   "import_prompt": {
     "question": "¿{{name}} compitió antes?",

@@ -29,8 +29,8 @@ describe('groupImportedResults', () => {
     expect(grouped[0].sourceName).toBe('Federación Demo · Torneo Demo');
   });
 
-  it('keeps two results when the time differs, without overwriting either', () => {
-    const grouped = group([swim('a', 'xx-fed', '2026-05-10', 3012), swim('b', 'xx-tour', '2026-05-10', 3020)]);
+  it('keeps two results when the time differs beyond the tolerance, without overwriting either', () => {
+    const grouped = group([swim('a', 'xx-fed', '2026-05-10', 3012), swim('b', 'xx-tour', '2026-05-10', 3023)]);
     expect(grouped.map((g) => [g.result.id, g.sourceName])).toEqual([
       ['a', 'Federación Demo'],
       ['b', 'Torneo Demo'],
@@ -128,5 +128,73 @@ describe('groupImportedResults', () => {
     const fed = swim('a', 'xx-fed', '2026-05-08', 3012);
     expect(best([fed])).toBe(3012);
     expect(best([fed, swim('b', 'xx-tour', '2026-05-10', 3012)])).toBe(3012);
+  });
+
+  describe('validated by the federation (issue 1470)', () => {
+    const grouped = (results: ImportedHistoryResult[]) => groupImportedResults(results, names, sessionDated, federation);
+
+    it('is validated when the group holds a federation and a platform source, and names the federation from data', () => {
+      const [one, ...rest] = grouped([swim('a', 'xx-fed', '2026-05-08', 3012), swim('b', 'xx-tour', '2026-05-10', 3012)]);
+      expect(rest).toHaveLength(0);
+      expect(one).toMatchObject({ validated: true, federationName: 'Federación Demo' });
+      expect(one.result).toMatchObject({ id: 'a', swumOn: '2026-05-08', hundredths: 3012 });
+    });
+
+    it('is not validated with a single source, nor with a federation and an unlisted source', () => {
+      expect(grouped([swim('a', 'xx-fed', '2026-05-08', 3012)])[0].validated).toBe(false);
+      expect(grouped([swim('b', 'xx-tour', '2026-05-10', 3012)])[0]).toMatchObject({ validated: false });
+      expect(grouped([swim('b', 'xx-tour', '2026-05-10', 3012)])[0].federationName).toBeUndefined();
+      expect(grouped([swim('a', 'xx-fed', '2026-05-08', 3012), swim('c', 'xx-other', '2026-05-08', 3012)])[0].validated).toBe(false);
+    });
+
+    it('joins sources up to 0.10 s apart when each is the only candidate of the other, and not at 0.11 s', () => {
+      const near = grouped([swim('a', 'xx-fed', '2026-05-08', 3012), swim('b', 'xx-tour', '2026-05-10', 3022)]);
+      expect(near).toHaveLength(1);
+      expect(near[0]).toMatchObject({ validated: true });
+      expect(near[0].result.id).toBe('a');
+      expect(grouped([swim('a', 'xx-fed', '2026-05-08', 3012), swim('b', 'xx-tour', '2026-05-10', 3023)])).toHaveLength(2);
+      expect(grouped([swim('a', 'xx-fed', '2026-05-08', 3022), swim('b', 'xx-tour', '2026-05-10', 3012)])).toHaveLength(1);
+    });
+
+    it('does not join by tolerance outside the 3 days, another event, or the same source', () => {
+      expect(grouped([swim('a', 'xx-fed', '2026-05-06', 3012), swim('b', 'xx-tour', '2026-05-10', 3015)])).toHaveLength(2);
+      expect(grouped([swim('a', 'xx-fed', '2026-05-10', 3012), swim('b', 'xx-tour', '2026-05-10', 3015, { stroke: 'BK' })])).toHaveLength(2);
+      expect(grouped([swim('a', 'xx-fed', '2026-05-10', 3012), swim('b', 'xx-fed', '2026-05-10', 3015)])).toHaveLength(2);
+    });
+
+    it('never joins a missing time by tolerance', () => {
+      expect(grouped([swim('a', 'xx-fed', '2026-05-10', 3012), swim('b', 'xx-tour', '2026-05-10', null)])).toHaveLength(2);
+    });
+
+    it('asks for the exact time when a side has two candidates within the tolerance', () => {
+      // Two platform rows near the federation one: neither joins.
+      const two = grouped([swim('a', 'xx-fed', '2026-05-10', 3012), swim('b', 'xx-tour', '2026-05-10', 3015), swim('c', 'xx-tour', '2026-05-09', 3018)]);
+      expect(two).toHaveLength(3);
+      expect(two.every((g) => !g.validated)).toBe(true);
+      // The same with the extra candidate on the federation side.
+      expect(grouped([swim('a', 'xx-fed', '2026-05-10', 3012), swim('d', 'xx-fed', '2026-05-09', 3016), swim('b', 'xx-tour', '2026-05-10', 3015)])).toHaveLength(3);
+    });
+
+    it('joins only the exact pair when another candidate is within the tolerance', () => {
+      const result = grouped([swim('a', 'xx-fed', '2026-05-10', 3012), swim('b', 'xx-tour', '2026-05-10', 3012), swim('c', 'xx-tour', '2026-05-09', 3015)]);
+      expect(result).toHaveLength(2);
+      expect(result.filter((g) => g.validated).map((g) => g.result.id)).toEqual(['a']);
+    });
+
+    it('joins two separate pairs independently', () => {
+      const result = grouped([
+        swim('a', 'xx-fed', '2026-05-10', 3012),
+        swim('b', 'xx-tour', '2026-05-10', 3015),
+        swim('c', 'xx-fed', '2026-05-10', 6000, { distance: '100m' }),
+        swim('d', 'xx-tour', '2026-05-10', 6004, { distance: '100m' }),
+      ]);
+      expect(result).toHaveLength(2);
+      expect(result.every((g) => g.validated)).toBe(true);
+    });
+
+    it('counts a validated group once in the personal best', () => {
+      const best = personalBest(grouped([swim('a', 'xx-fed', '2026-05-08', 3012), swim('b', 'xx-tour', '2026-05-10', 3020)]).map(({ result, sourceName }) => importedAchievement(result, sourceName)));
+      expect(best).toMatchObject({ id: 'a', hundredths: 3012 });
+    });
   });
 });
