@@ -3,10 +3,10 @@ import { keyHasNumber, normalizeNumber } from './identityNumber.ts';
 import { NoFileError, SourceUnreachableError, type Affiliation, type Candidate, type NormalizedResult, type ResultsProvider, type TournamentEntry, type TournamentProvider, type TournamentSearch } from './port.ts';
 import type { OrganizationData, ProviderRegistry } from './registry.ts';
 
-// The worker's proposal, pending maintainer review: one source query per athlete and provider every 10 minutes, search and refresh alike.
+// Decided by the maintainer on 2026-11-23: one source query per athlete and provider every minute, search and refresh alike.
 // A results query right after a search the same user confirmed shares that search's claim (see `QueryGate`), so one
 // search -> confirm -> results flow is one query.
-export const QUERY_INTERVAL_MS = 10 * 60 * 1000;
+export const QUERY_INTERVAL_MS = 60 * 1000;
 
 // Short enough that a passing blip is retried within a minute, long enough that a source that is down is not hammered by repeated taps.
 export const RETRY_AFTER_FAILURE_MS = 60 * 1000;
