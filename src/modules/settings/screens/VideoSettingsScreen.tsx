@@ -1,5 +1,5 @@
 import { t } from '../../../core/i18n';
-import { videoStopAfterSeconds, type VideoRecordingPreferences } from '../../../core/preferences';
+import { videoQualities, videoStopAfterSeconds, type VideoRecordingPreferences } from '../../../core/preferences';
 import { Banner, Button, Segmented } from '../../../core/ui';
 import { SettingsFrame } from '../components/SettingsFrame';
 import { SettingsSection } from '../components/SettingsSection';
@@ -17,7 +17,7 @@ export type VideoSettingsScreenProps = {
   onBack: () => void;
 };
 
-// "Configuración de video": how the individual stopwatch records. The quality stays on "Ajustes". Presentational.
+// "Configuración de video": how the individual stopwatch records, its quality first. Presentational.
 export function VideoSettingsScreen({ video: view, onBack }: VideoSettingsScreenProps) {
   const { settings } = view;
   const onOff = [
@@ -26,6 +26,14 @@ export function VideoSettingsScreen({ video: view, onBack }: VideoSettingsScreen
   ];
   return (
     <SettingsFrame title={t('settings.video.title')} intro={t('settings.video.intro')} onBack={onBack}>
+      <SettingsSection label={t('settings.video.quality_label')} hint={t('settings.video.quality_hint')}>
+        <Segmented
+          accessibilityLabel={t('settings.video.quality_label')}
+          value={settings.quality}
+          onChange={(quality) => view.onChange({ quality })}
+          options={videoQualities.map((quality) => ({ value: quality, label: t(`settings.video.quality.${quality}`) }))}
+        />
+      </SettingsSection>
       <SettingsSection label={t('settings.video.audio_label')} hint={t('settings.video.audio_hint')}>
         <Segmented
           accessibilityLabel={t('settings.video.audio_label')}

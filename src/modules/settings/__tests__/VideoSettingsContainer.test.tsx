@@ -28,6 +28,14 @@ describe('VideoSettingsContainer', () => {
       expect((await repository.load()).videoRecording).toEqual({ quality: 'medium', audio: false, showStopwatch: true, startWithTime: false, stopAfterSeconds: 10, doNotDisturb: false }),
     );
   });
+
+  it('saves the quality, keeping the other video settings', async () => {
+    const { repository } = await setup();
+    await fireEvent.press(within(screen.getByLabelText('Calidad del video')).getByText('Alta 1080p'));
+    await waitFor(async () =>
+      expect((await repository.load()).videoRecording).toEqual({ quality: 'high', audio: true, showStopwatch: true, startWithTime: false, stopAfterSeconds: 5, doNotDisturb: false }),
+    );
+  });
 });
 
 // Issue #1090.

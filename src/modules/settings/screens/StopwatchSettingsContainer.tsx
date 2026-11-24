@@ -4,7 +4,7 @@ import { usePreferences } from '../../../core/preferences';
 import { keyName, timingButton, useExternalKeyboards, useLearnKey, type TimingButtonPort } from '../../timing';
 import { StopwatchSettingsScreen, type ButtonKey } from './StopwatchSettingsScreen';
 
-// "Cronómetro avanzado": reads and saves the button preferences; every change applies at once.
+// "Cronómetro avanzado": reads and saves the precision, free laps and button preferences; every change applies at once.
 export function StopwatchSettingsContainer({ onBack, buttons = timingButton }: { onBack: () => void; buttons?: TimingButtonPort }) {
   const { preferences, update } = usePreferences();
   const timingButtons = preferences.timingButtons;
@@ -27,6 +27,7 @@ export function StopwatchSettingsContainer({ onBack, buttons = timingButton }: {
 
   return (
     <StopwatchSettingsScreen
+      precision={{ value: preferences.timePrecision, onChange: (timePrecision) => update({ timePrecision }) }}
       freeLaps={{ value: preferences.freeLaps, onChange: (freeLaps) => update({ freeLaps }) }}
       onBack={() => {
         cancel();

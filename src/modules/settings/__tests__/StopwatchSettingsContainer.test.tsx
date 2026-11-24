@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 
-import { createInMemoryPreferencesRepository, defaultPreferences, PreferencesProvider } from '../../../core/preferences';
+import { createInMemoryPreferencesRepository, defaultPreferences, defaultTimingButtons, PreferencesProvider } from '../../../core/preferences';
 import { createFakeTimingButton, unavailableTimingButton } from '../../timing';
 import { StopwatchSettingsContainer } from '../screens/StopwatchSettingsContainer';
 
@@ -22,6 +22,18 @@ describe('StopwatchSettingsContainer', () => {
     const { repository } = await setup(unavailableTimingButton);
     await fireEvent.press(within(screen.getByLabelText('Laps libres')).getByText('Sí'));
     await waitFor(async () => expect(await repository.load()).toEqual({ ...defaultPreferences, freeLaps: true }));
+  });
+
+  it('saves the precision, keeping the other preferences, even without the buttons', async () => {
+    const { repository } = await setup(unavailableTimingButton);
+    await fireEvent.press(screen.getByText('Milésimas'));
+    await waitFor(async () => expect(await repository.load()).toEqual({ ...defaultPreferences, timePrecision: 'thousandths' }));
+  });
+
+  it('saves the vibration, keeping the other button settings', async () => {
+    const { repository } = await setup();
+    await fireEvent.press(within(screen.getByLabelText('Vibrar al marcar')).getByText('No'));
+    await waitFor(async () => expect((await repository.load()).timingButtons).toEqual({ ...defaultTimingButtons, vibrate: false }));
   });
 
   it('learns a new start key from the next press and saves it', async () => {
