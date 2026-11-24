@@ -16,6 +16,7 @@ import {
   type Db,
 } from './adapters.ts';
 import { createHandler } from './handler.ts';
+import { createIsOperatorToken } from './operator.ts';
 import { createCoColombiaacuatica } from './providers/co-colombiaacuatica/index.ts';
 import { createCoFecna } from './providers/co-fecna/index.ts';
 import { createProviderRegistry } from './registry.ts';
@@ -76,4 +77,7 @@ const authenticate = async (request: Request) => {
   return error ? null : (data.user?.id ?? null);
 };
 
-Deno.serve(createHandler({ authenticate, service, official }));
+// Only `backfill_tournaments` asks for the operator: a caller whose bearer token is this function's own service role key (compared in constant time).
+const isOperatorToken = createIsOperatorToken(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
+
+Deno.serve(createHandler({ authenticate, isOperatorToken, service, official }));
