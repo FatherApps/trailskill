@@ -39,11 +39,17 @@ Accepted by the maintainer on 2026-11-24 (decision a21 in #1464) and implemented
 
 ### Switch (settings row)
 
-A yes/no setting shown as one card. The whole card is tappable, not only the switch.
+The official pattern for a yes/no setting: one card with an iPhone-style switch. Reference implementation: `SettingsSwitchRow` (`src/modules/settings/components/SettingsSwitchRow.tsx`).
 
 - Layout: icon on the left, name and explanation in the middle, switch on the right.
-- On: track `primary`, thumb `on-primary`.
-- Off: track `surface-2` with a `border-strong` edge so the control keeps a 3:1 contrast against the card; the thumb's side also tells the state, not color alone.
+- Whole-card tap: the whole card is the control, not only the switch. It is one `Pressable`; a tap anywhere on it toggles the value.
+- Accessibility: role `switch`, `checked` state, the name as the label and the explanation as the hint. The state is also told by the thumb's side, not by color alone. Keyboard focus shows the standard focus ring.
+- Card: background `surface-1`, 1.5 px border `border`, radius `md` (24), padding `space-4` (18), gap `space-3` (12), minimum height `target-min` (48). Pressed: the card darkens 4%.
+- Icon: 40 px circle (`avatar-md`) on `surface-2`, default Material Symbols Outlined icon. Name in `body-strong` and explanation in `caption`, colors `ink` and `ink-muted`.
+- Switch: 28 px thumb (`avatar-sm`), 4 px padding (`space-1`), 1.5 px border, pill radius; overall about 67 x 39 px.
+- On: track and border `primary`, thumb `on-primary`, thumb at the right.
+- Off: track `surface-2`, border `border-strong` so the control keeps a 3:1 contrast against the card, thumb `surface-1`, thumb at the left.
+- Disabled: the component has no disabled state yet, so the design system does not define one. A disabled setting needs a decision from the maintainer (`needs-decision`) before it is built.
 
 ### Icons
 

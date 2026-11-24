@@ -185,6 +185,8 @@ Navigate with the `useRouter()` hook from `expo-router`, never the module-level 
 
 ### Visual fidelity
 
+Everything is implemented exactly as it is in the design system. A pull request that departs from it must justify why in its description, in the «Capturas» section of the template.
+
 Issues labeled `area: front-mobile` or `area: front-tablet` are checked against their design-system reference: the component's README or the matching `Pantalla*` reference screen.
 
 - The pull request includes side-by-side screenshots of the reference and the implementation, using synthetic data only.
