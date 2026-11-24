@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.19.0](https://github.com/FatherApps/trailskill/compare/v0.18.0...v0.19.0) (2026-11-24)
+
+
+### Features
+
+* **results-import:** pick the pool length when confirming a tournament found in a PDF ([#1485](https://github.com/FatherApps/trailskill/issues/1485)) ([88ec11e](https://github.com/FatherApps/trailskill/commit/88ec11e6081b654e56ac84b95c105d0ebb13524f)), closes [#1482](https://github.com/FatherApps/trailskill/issues/1482)
+* **results-import:** read the results PDF when a tournament has no Lenex file ([#1484](https://github.com/FatherApps/trailskill/issues/1484)) ([ace6708](https://github.com/FatherApps/trailskill/commit/ace670895462b71e988f187cb8ba7027ff4a60c8)), closes [#1482](https://github.com/FatherApps/trailskill/issues/1482)
+* **results-import:** tournament catalog from the platform calendar ([#1483](https://github.com/FatherApps/trailskill/issues/1483)) ([e282c32](https://github.com/FatherApps/trailskill/commit/e282c3224c86d10fa71af9d04e79aa73abecd5a9)), closes [#1481](https://github.com/FatherApps/trailskill/issues/1481)
+* **settings:** show the yes/no settings as switch rows ([#1465](https://github.com/FatherApps/trailskill/issues/1465)) ([02c7043](https://github.com/FatherApps/trailskill/commit/02c70432f2a43f8becc262168c30c5e642188d5a))
+
 ## [0.18.0](https://github.com/FatherApps/trailskill/compare/v0.17.0...v0.18.0) (2026-11-24)
 
 
