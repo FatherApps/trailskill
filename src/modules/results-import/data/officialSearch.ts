@@ -1,3 +1,4 @@
+import type { PoolCode } from '../../../core/sport';
 import { supabase } from '../../../core/sync';
 import type { FoundResult } from './officialResults';
 import { isRealDateKey } from './tournamentCatalog';
@@ -22,13 +23,22 @@ export type SearchFailure =
   | { code: 'identity_number_conflict' }
   // A tournament has no federation to resolve the person: without a stored number and none typed, nothing is asked.
   | { code: 'identity_number_required' }
+  // The tournament has no Lenex file, so its PDF is searched by birth date, and the athlete has none saved.
+  | { code: 'birth_date_required' }
   | { code: 'offline' }
   | { code: 'unexpected' };
 
 export type SearchOutcome<T> = { ok: true; value: T } | { ok: false; error: SearchFailure };
 
 /** What the device sees of a person found in a tournament: only a name and a club, never a document or a birth date. */
-export type TournamentCandidate = { id: string; name: string; club: string | null; resultCount: number };
+export type TournamentCandidate = {
+  id: string;
+  name: string;
+  club: string | null;
+  resultCount: number;
+  /** Only when no source says the pool length of the tournament: the guardian picks it when confirming. */
+  courseRequired?: true;
+};
 
 /** A result the server offers once the tournament was confirmed; importing it is a separate call that names these ids. */
 export type TournamentResult = FoundResult;
@@ -60,8 +70,11 @@ export interface OfficialSearchRepository {
    * platform's rate limit. A `tournamentKey` that is not a real day is never sent: it answers `unexpected`.
    */
   tournament(input: TournamentTarget): Promise<SearchOutcome<{ organizationId: string; candidate: TournamentCandidate | null }>>;
-  /** Online only. Confirms "Is this person?" for a tournament candidate and returns the results the server now offers. Nothing is saved yet. */
-  confirmTournament(input: { athleteId: string; organizationId: string; candidateId: string }): Promise<SearchOutcome<TournamentResult[]>>;
+  /**
+   * Online only. Confirms "Is this person?" for a tournament candidate and returns the results the server now offers. Nothing is saved yet.
+   * `course` is the pool length the guardian picked, sent only for a candidate that asked for it (`courseRequired`).
+   */
+  confirmTournament(input: { athleteId: string; organizationId: string; candidateId: string; course?: PoolCode }): Promise<SearchOutcome<TournamentResult[]>>;
 }
 
 export interface ImportSourcesRepository {
@@ -81,6 +94,8 @@ function failureFrom(body: unknown): SearchFailure {
   const error = (body as { error?: { code?: unknown; retryAt?: unknown; reason?: unknown } } | null)?.error;
   // The tournament has no file yet: `unavailable` with a reason, so a device that does not know the reason keeps `unavailable`.
   if (error?.code === 'unavailable' && error.reason === 'no_file') return { code: 'no_file' };
+  // The same for a tournament read from its PDF: the athlete needs a saved birth date.
+  if (error?.code === 'unavailable' && error.reason === 'birth_date_required') return { code: 'birth_date_required' };
   const code = KNOWN_FAILURES.find((known) => known === error?.code);
   if (code === 'rate_limited') return typeof error?.retryAt === 'string' ? { code, retryAt: error.retryAt } : { code: 'unexpected' };
   return code ? { code } : { code: 'unexpected' };
@@ -110,8 +125,8 @@ export function createSupabaseOfficialSearchRepository(client: FunctionsClient =
             { action: 'tournament', athleteId, ...(tournamentKey !== undefined ? { tournamentKey } : { url }), ...(identityNumber ? { identityNumber } : {}) },
             (value) => value as { organizationId: string; candidate: TournamentCandidate | null },
           ),
-    confirmTournament: ({ athleteId, organizationId, candidateId }) =>
-      call(client, { action: 'confirm', athleteId, organizationId, candidateId }, (value) => (value as { results?: TournamentResult[] } | null)?.results ?? []),
+    confirmTournament: ({ athleteId, organizationId, candidateId, course }) =>
+      call(client, { action: 'confirm', athleteId, organizationId, candidateId, ...(course ? { course } : {}) }, (value) => (value as { results?: TournamentResult[] } | null)?.results ?? []),
   };
 }
 
@@ -157,7 +172,7 @@ export function createInMemoryOfficialSearchRepository(options: {
   const searches: { athleteId: string; organizationId: string; firstName: string; lastName: string }[] = [];
   const confirmed: { athleteId: string; organizationId: string; candidateId: string }[] = [];
   const tournaments: TournamentTarget[] = [];
-  const tournamentConfirmed: { athleteId: string; organizationId: string; candidateId: string }[] = [];
+  const tournamentConfirmed: { athleteId: string; organizationId: string; candidateId: string; course?: PoolCode }[] = [];
   return {
     searches,
     confirmed,

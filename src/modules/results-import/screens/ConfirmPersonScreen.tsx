@@ -2,7 +2,8 @@ import { ScrollView, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, ColorHeader, StateView, TextField } from '../../../core/ui';
+import type { PoolCode } from '../../../core/sport';
+import { Banner, Button, ColorHeader, Segmented, StateView, TextField } from '../../../core/ui';
 import { TournamentPicker, type TournamentPickerProps } from '../components/TournamentPicker';
 import type { SearchCandidate } from '../data/officialSearch';
 import '../i18n';
@@ -40,6 +41,8 @@ export type ConfirmPersonView =
       confirmingId: string | null;
       onConfirm: (candidateId: string) => void;
       onNone: () => void;
+      // Only when no source says the pool length: the guardian picks it, and cannot confirm before. `value` is null until then.
+      course?: { value: PoolCode | null; onChange: (pool: PoolCode) => void };
     }
   | ({ kind: 'tournament_pick' } & TournamentPickerProps)
   // The tournament picked from the list has no published file yet.
@@ -225,10 +228,27 @@ export function ConfirmPersonScreen({ view, onBack }: ConfirmPersonScreenProps) 
               <Text style={[typography.body, { color: colors['ink-muted'] }]}>
                 {t('results_import.candidates.results', { count: candidate.resultCount })}
               </Text>
+              {view.course && (
+                <View style={{ gap: space[2] }}>
+                  <Text style={[typography['body-strong'], { color: colors.ink }]}>{t('results_import.course.label')}</Text>
+                  <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('results_import.course.help')}</Text>
+                  <Segmented
+                    accessibilityLabel={t('results_import.course.label')}
+                    options={[
+                      { value: 'SCM', label: t('results_import.course.scm') },
+                      { value: 'LCM', label: t('results_import.course.lcm') },
+                    ]}
+                    // Nothing is selected until the guardian picks: no option has the empty value.
+                    value={(view.course.value ?? '') as PoolCode}
+                    onChange={view.course.onChange}
+                  />
+                </View>
+              )}
               <Button
                 label={t('results_import.candidates.confirm')}
                 loading={view.confirmingId === candidate.id}
                 loadingLabel={t('results_import.candidates.confirming')}
+                disabledReason={view.course && view.course.value === null ? t('results_import.course.required') : undefined}
                 onPress={() => view.onConfirm(candidate.id)}
               />
             </View>

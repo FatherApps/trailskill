@@ -170,6 +170,83 @@ describe('TournamentImportContainer', () => {
     expect(screen.queryByText(NUMBER)).toBeNull();
   });
 
+  describe('the pool length of a tournament that does not say it', () => {
+    const needsCourse = { organizationId: 'org-platform', candidate: { ...found.candidate, courseRequired: true as const } };
+    const confirmButton = () => screen.getByRole('button', { name: /^Sí, es esta persona/ });
+
+    it('asks 25 m or 50 m in «¿Es esta persona?» and does not let the guardian confirm before picking', async () => {
+      const s = setup({ search: { tournament: needsCourse } });
+      await searchWith(s);
+
+      expect(await screen.findByText('¿Es esta persona?')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Largo de la piscina')).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: '25 m' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: '50 m' })).toBeOnTheScreen();
+      expect(screen.getByRole('radio', { name: '25 m' })).not.toBeSelected();
+      expect(screen.getByRole('radio', { name: '50 m' })).not.toBeSelected();
+      expect(confirmButton()).toBeDisabled();
+      expect(confirmButton()).toHaveAccessibleName('Sí, es esta persona · elige el largo');
+
+      fireEvent.press(confirmButton());
+      expect(s.search.tournamentConfirmed).toEqual([]);
+      expect(s.importChosen).not.toHaveBeenCalled();
+    });
+
+    it.each([['25 m', 'SCM'], ['50 m', 'LCM']] as const)('sends the length chosen (%s) with the confirmation and imports what the server offers', async (label, course) => {
+      const s = setup({ search: { tournament: needsCourse } });
+      await searchWith(s);
+      await chip(label);
+      expect(screen.getByRole('radio', { name: label })).toBeSelected();
+      await press('Sí, es esta persona');
+
+      await waitFor(() => expect(s.importChosen).toHaveBeenCalledWith('athlete-1', ['r1', 'r2']));
+      expect(s.search.tournamentConfirmed).toEqual([{ athleteId: 'athlete-1', organizationId: 'org-platform', candidateId: 'c1', course }]);
+    });
+
+    it('lets the guardian change the pick before confirming, and sends the last one', async () => {
+      const s = setup({ search: { tournament: needsCourse } });
+      await searchWith(s);
+      await chip('25 m');
+      await chip('50 m');
+      await press('Sí, es esta persona');
+
+      await waitFor(() => expect(s.search.tournamentConfirmed).toHaveLength(1));
+      expect(s.search.tournamentConfirmed[0].course).toBe('LCM');
+    });
+
+    it('starts without a pick for the next candidate, after searching again', async () => {
+      const s = setup({ search: { tournament: needsCourse } });
+      await searchWith(s);
+      await chip('50 m');
+      await press('No es ninguna de estas');
+      await fill('Número de identificación', NUMBER);
+      await press('Buscar en el torneo');
+
+      expect(await screen.findByRole('radio', { name: '50 m' })).not.toBeSelected();
+      expect(confirmButton()).toBeDisabled();
+    });
+
+    it('shows no length control, and sends none, when a source says the length (courseRequired is absent)', async () => {
+      const s = setup();
+      await searchWith(s);
+
+      expect(await screen.findByText('¿Es esta persona?')).toBeOnTheScreen();
+      expect(screen.queryByLabelText('Largo de la piscina')).toBeNull();
+      expect(confirmButton()).toBeEnabled();
+      await press('Sí, es esta persona');
+      await waitFor(() => expect(s.search.tournamentConfirmed).toHaveLength(1));
+      expect(s.search.tournamentConfirmed[0]).not.toHaveProperty('course');
+    });
+
+    it('says the birth date is missing when the server needs it for the tournament PDF', async () => {
+      const s = setup({ search: { tournamentFailure: { code: 'birth_date_required' } } });
+      await searchWith(s);
+
+      expect(await screen.findByText(/no encontramos la fecha de nacimiento de Ana/)).toBeOnTheScreen();
+      expect(await screen.findByLabelText('Dirección del torneo')).toBeOnTheScreen();
+    });
+  });
+
   it('saves nothing when the guardian says it is not this person', async () => {
     const s = setup();
     await searchWith(s);

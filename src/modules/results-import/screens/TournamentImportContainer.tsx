@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { isValidIdentityNumber, normalizeIdentityNumber, type IdentityDocumentRepository } from '../../accounts';
 import { t } from '../../../core/i18n';
+import type { PoolCode } from '../../../core/sport';
 import type { OfficialResultsService } from '../data/officialResults';
 import type { ImportSource, ImportSourcesRepository, OfficialSearchRepository, SearchFailure, TournamentCandidate } from '../data/officialSearch';
 import '../i18n';
@@ -73,6 +74,8 @@ export function TournamentImportContainer({
   const [numberInvalid, setNumberInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  // The pool length the guardian picked for the candidate that asks for it; a new candidate starts without one.
+  const [course, setCourse] = useState<PoolCode | null>(null);
   const [attempt, setAttempt] = useState(0);
   const countdown = useRetryCountdown(step.kind === 'rate_limited' ? step.retryAt : null);
   const [entries, setEntries] = useState<TournamentCatalogEntry[] | null>(null);
@@ -149,6 +152,8 @@ export function TournamentImportContainer({
         return setStep({ kind: 'start', message: t('results_import.errors.number_required') });
       case 'identity_number_conflict':
         return setStep({ kind: 'start', message: t('results_import.errors.number_conflict') });
+      case 'birth_date_required':
+        return setStep({ kind: 'start', message: t('results_import.errors.birth_date_required', { name: athlete.firstName.trim() }) });
       case 'no_file':
         return setStep({ kind: 'no_file' });
       case 'unavailable':
@@ -158,7 +163,7 @@ export function TournamentImportContainer({
       default:
         return setStep(onUnexpected);
     }
-  }, []);
+  }, [athlete.firstName]);
 
   if (!authorized) {
     return <ConfirmPersonScreen view={{ kind: 'unauthorized', athleteName, onGoToAuthorizations }} onBack={onBack} />;
@@ -244,13 +249,15 @@ export function TournamentImportContainer({
     // Found or not, the typed number is no longer needed on the screen.
     setNumber('');
     const { organizationId, candidate } = outcome.value;
+    setCourse(null);
     setStep(candidate ? { kind: 'candidate', organizationId, candidate } : { kind: 'empty' });
   }
 
   async function confirm(organizationId: string, candidate: TournamentCandidate) {
     setConfirmingId(candidate.id);
     try {
-      const confirmed = await search.confirmTournament({ athleteId: athlete.id, organizationId, candidateId: candidate.id });
+      // The pool length travels only for a candidate that asked for it: the server refuses a confirmation without it.
+      const confirmed = await search.confirmTournament({ athleteId: athlete.id, organizationId, candidateId: candidate.id, ...(candidate.courseRequired && course ? { course } : {}) });
       if (!confirmed.ok) {
         if (confirmed.error.code === 'unknown_id') return setStep({ kind: 'start', message: t('results_import.errors.expired') });
         return fail(confirmed.error, { kind: 'candidate', organizationId, candidate });
@@ -312,7 +319,12 @@ export function TournamentImportContainer({
           ],
           confirmingId,
           onNone: goToStart,
-          onConfirm: () => void guarded(() => confirm(step.organizationId, step.candidate)),
+          course: step.candidate.courseRequired ? { value: course, onChange: setCourse } : undefined,
+          // Never without the pick: the button already says so, and this keeps a second press from reaching the server.
+          onConfirm: () => {
+            if (step.candidate.courseRequired && course === null) return;
+            void guarded(() => confirm(step.organizationId, step.candidate));
+          },
         };
       case 'empty':
         return { kind: 'tournament_empty', athleteName, onRetry: goToStart };
