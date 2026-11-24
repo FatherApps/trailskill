@@ -181,3 +181,21 @@ export const historyLongTextResults: HistoryResult[] = [
     syncState: 'on_device',
   },
 ];
+
+// An imported result the federation confirmed (issue 1470): the row carries the federation's name, from data.
+export const historyValidatedResults: HistoryResult[] = [
+  { ...historyResults.find((r) => r.id === 'import')!, id: 'import-validated', validatedBy: sourceName },
+  {
+    id: 'long-validated',
+    stroke: 'IM',
+    distance: '400m',
+    date: '2026-05-30',
+    context: 'competition',
+    origin: 'import',
+    sourceName: historyFixture.longSourceName,
+    validatedBy: historyFixture.longSourceName,
+    value: { kind: 'race' },
+    time: 34210,
+    syncState: 'synced',
+  },
+];

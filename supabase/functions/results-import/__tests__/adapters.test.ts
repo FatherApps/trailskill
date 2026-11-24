@@ -14,7 +14,7 @@ function createFakeDb(replies: { data?: unknown; error?: DbError | null }[] = []
   const calls: RpcCall[] = [];
   const deleted: [string, string][] = [];
   const tables: Record<string, Record<string, unknown>[]> = {};
-  const selects: { table: string; columns: string; equals?: Record<string, string> }[] = [];
+  const selects: { table: string; columns: string; equals?: Record<string, string | number> }[] = [];
   let selectError: DbError | null = null;
   let deleteError: DbError | null = null;
   const db: Db = {
@@ -94,7 +94,7 @@ describe('createQueryGate with a search time to live', () => {
     expect(fake.calls).toEqual([
       {
         fn: 'results_import_claim_results_query',
-        args: { athlete: ATHLETE, provider: PROVIDER, requested_by: USER, min_interval: '600 seconds', search_ttl: '900 seconds' },
+        args: { athlete: ATHLETE, provider: PROVIDER, requested_by: USER, min_interval: '60 seconds', search_ttl: '900 seconds' },
       },
     ]);
   });
@@ -118,7 +118,7 @@ describe('createQueryGate release', () => {
     const fake = createFakeDb([{ data: true }]);
     await release(fake);
     expect(fake.calls).toEqual([
-      { fn: 'results_import_release_claim', args: { athlete: ATHLETE, provider: PROVIDER, claimed_at: CLAIMED_AT, min_interval: '600 seconds', retry_after: '60 seconds' } },
+      { fn: 'results_import_release_claim', args: { athlete: ATHLETE, provider: PROVIDER, claimed_at: CLAIMED_AT, min_interval: '60 seconds', retry_after: '60 seconds' } },
     ]);
   });
 
@@ -416,6 +416,26 @@ describe('createTournamentCatalog', () => {
     ];
     expect(await createTournamentCatalog(fake.db).find('20261010')).toEqual([{ organizationId: ORGANIZATION, year: 2026 }]);
     expect(fake.selects).toEqual([{ table: 'results_import_tournaments', columns: 'organization_id,year', equals: { date_key: '20261010' } }]);
+  });
+
+  it('lists the days a platform holds in one year by asking the table for exactly that platform and year', async () => {
+    const fake = createFakeDb();
+    fake.tables.results_import_tournaments = [
+      { organization_id: ORGANIZATION, year: 2026, date_key: '20261010' },
+      { organization_id: ORGANIZATION, year: 2025, date_key: '20251011' },
+      { organization_id: 'platform-2', year: 2026, date_key: '20261012' },
+    ];
+    expect(await createTournamentCatalog(fake.db).held(ORGANIZATION, 2026)).toEqual(['20261010']);
+    expect(fake.selects).toEqual([{ table: 'results_import_tournaments', columns: 'date_key', equals: { organization_id: ORGANIZATION, year: 2026 } }]);
+  });
+
+  it('throws when the days held cannot be read or a row is not what it should be', async () => {
+    const failing = createFakeDb();
+    failing.failSelect({ code: 'XX000', message: 'leaked' });
+    await expect(createTournamentCatalog(failing.db).held(ORGANIZATION, 2026)).rejects.toThrow('Reading the tournaments failed (XX000)');
+    const odd = createFakeDb();
+    odd.tables.results_import_tournaments = [{ organization_id: ORGANIZATION, year: 2026, date_key: 20261010 }];
+    await expect(createTournamentCatalog(odd.db).held(ORGANIZATION, 2026)).rejects.toThrow('Reading the tournaments failed');
   });
 
   it('throws when the table cannot be read or a row is not what it should be', async () => {

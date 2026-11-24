@@ -48,13 +48,14 @@ const athleteXml = (a: SyntheticAthlete) =>
 
 export function lenex({
   course = 'LCM',
-  meetName = 'Festival Sintético &amp; Amigos',
+  meetName = 'Festival Sintético &amp; Amigos' as string | null,
+  meetCity = 'Ciudad' as string | null,
   athletes = [ME, OTHER],
   sessions = DEFAULT_EVENTS,
   prolog = '<?xml version="1.0" encoding="UTF-8"?>',
-}: { course?: string; meetName?: string; athletes?: SyntheticAthlete[]; sessions?: string; prolog?: string } = {}): string {
+}: { course?: string; athletes?: SyntheticAthlete[]; meetName?: string | null; meetCity?: string | null; sessions?: string; prolog?: string } = {}): string {
   const clubs = [...new Set(athletes.map((a) => a.club))]
     .map((club) => `<CLUB name="${club}"><ATHLETES>${athletes.filter((a) => a.club === club).map(athleteXml).join('')}</ATHLETES></CLUB>`)
     .join('');
-  return `${prolog}<LENEX version="3.0"><CONSTRUCTOR name="Synthetic"/><MEETS><MEET name="${meetName}" course="${course}" city="Ciudad"><SESSIONS>${sessions}</SESSIONS><CLUBS>${clubs}</CLUBS></MEET></MEETS></LENEX>`;
+  return `${prolog}<LENEX version="3.0"><CONSTRUCTOR name="Synthetic"/><MEETS><MEET${meetName === null ? '' : ` name="${meetName}"`} course="${course}"${meetCity === null ? '' : ` city="${meetCity}"`}><SESSIONS>${sessions}</SESSIONS><CLUBS>${clubs}</CLUBS></MEET></MEETS></LENEX>`;
 }

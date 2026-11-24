@@ -41,7 +41,7 @@ describe('athletes gallery entries', () => {
     expect(stateKeys('athleteResultSharingRow')).toEqual(['one-on', 'all-off', 'save-failed', 'long-text']);
     expect(stateKeys('eventSelector')).toEqual(['one-pool', 'two-pools']);
     expect(stateKeys('personalBest')).toEqual(['with-improvement', 'no-improvement', 'missing', 'training']);
-    expect(stateKeys('historyList')).toEqual(['mixed', 'long-text']);
+    expect(stateKeys('historyList')).toEqual(['mixed', 'long-text', 'validated']);
     expect(stateKeys('progressChart')).toEqual(['many-results', 'two-results', 'one-result', 'empty', 'completed-without-time', 'long-event']);
     expect(stateKeys('importPrompt')).toEqual(['not-imported', 'imported', 'no-source']);
     expect(stateKeys('photoCard')).toEqual(['no-photo', 'with-photo', 'waiting', 'unauthorized', 'saving', 'camera-denied', 'remove-offline']);

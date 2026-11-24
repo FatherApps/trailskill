@@ -163,12 +163,62 @@ describe('OfficialUpdateContainer', () => {
     expect(service.importChosen).not.toHaveBeenCalled();
   });
 
-  it('shows when the next try is allowed after a rate limit', async () => {
-    const retryAt = new Date(2026, 9, 29, 12, 10).toISOString();
-    const { view } = setup({ service: { results: jest.fn().mockResolvedValue(fail({ code: 'rate_limited', retryAt })) } });
-    await render(view);
-    fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
-    expect(await screen.findByText('Podrás volver a intentarlo a las 12:10.')).toBeOnTheScreen();
+  describe('after a rate limit', () => {
+    const NOW = new Date('2026-10-29T12:00:00.000Z');
+    const retryIn = (seconds: number) => new Date(NOW.getTime() + seconds * 1000).toISOString();
+    const retry = () => screen.queryByRole('button', { name: 'Volver a intentar' });
+    const tick = (ms: number) => act(async () => jest.advanceTimersByTime(ms));
+    const updateButton = () => screen.getByRole('button', { name: /^Actualizar resultados oficiales/ });
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(NOW);
+    });
+    afterEach(() => jest.useRealTimers());
+
+    it('counts down in mm:ss, and neither the panel nor the update button retries until zero', async () => {
+      const { view } = setup({ service: { results: jest.fn().mockResolvedValue(fail({ code: 'rate_limited', retryAt: retryIn(90) })) } });
+      await render(view);
+      await fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
+
+      expect(await screen.findByText('Podrás volver a intentarlo en 01:30.')).toBeOnTheScreen();
+      expect(retry()).toBeNull();
+      expect(updateButton()).toBeDisabled();
+      await tick(1000);
+      expect(screen.getByText('Podrás volver a intentarlo en 01:29.')).toBeOnTheScreen();
+      await tick(88_000);
+      expect(screen.getByText(/en 00:01\./)).toBeOnTheScreen();
+      await tick(1000);
+      expect(screen.getByText('Ya puedes volver a intentarlo.')).toBeOnTheScreen();
+      expect(retry()).toBeOnTheScreen();
+      expect(updateButton()).toBeEnabled();
+    });
+
+    it('shows 00:00 and the retry for a time already past, never a negative number', async () => {
+      const { view } = setup({ service: { results: jest.fn().mockResolvedValue(fail({ code: 'rate_limited', retryAt: retryIn(-300) })) } });
+      await render(view);
+      await fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
+
+      expect(await screen.findByText('Ya puedes volver a intentarlo.')).toBeOnTheScreen();
+      expect(retry()).toBeOnTheScreen();
+    });
+
+    it('asks again at zero, and a second refusal counts down to its own new time', async () => {
+      const results = jest
+        .fn()
+        .mockResolvedValueOnce(fail({ code: 'rate_limited', retryAt: retryIn(2) }))
+        .mockResolvedValueOnce(fail({ code: 'rate_limited', retryAt: retryIn(2 + 30) }));
+      const { view } = setup({ service: { results } });
+      await render(view);
+      await fireEvent.press(await screen.findByText('Actualizar resultados oficiales'));
+      await screen.findByText(/en 00:02\./);
+      await tick(2000);
+
+      await fireEvent.press(retry()!);
+      expect(await screen.findByText('Podrás volver a intentarlo en 00:30.')).toBeOnTheScreen();
+      expect(results).toHaveBeenCalledTimes(2);
+      expect(retry()).toBeNull();
+    });
   });
 
   it('says "No disponible" when the source fails and leaves the changes and the button in place', async () => {

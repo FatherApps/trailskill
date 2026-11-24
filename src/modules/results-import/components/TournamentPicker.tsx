@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { t } from '../../../core/i18n';
 import { useTheme } from '../../../core/theme';
-import { Banner, Button, ChipRow, StateView, TextField } from '../../../core/ui';
+import { Banner, Button, ChipRow, Icon, StateView, TextField } from '../../../core/ui';
 import type { CalendarMonth } from '../data/tournamentCalendar';
 import type { TournamentCatalogEntry, TournamentGroup } from '../data/tournamentCatalog';
 import { MonthCalendar } from './MonthCalendar';
@@ -27,6 +27,9 @@ export type TournamentPickerProps = {
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   groups: TournamentGroup[];
+  // The cities (`TournamentGroup.city`) whose tournaments are shown; the others are folded.
+  openCities: string[];
+  onToggleCity: (city: string) => void;
   onPick: (entry: TournamentCatalogEntry) => void;
   onPasteUrl: () => void;
 };
@@ -35,7 +38,7 @@ const ALL = 'all';
 
 // Presentational: the catalog, the filters and their events come from the container.
 export function TournamentPicker(props: TournamentPickerProps) {
-  const { colors, space, typography } = useTheme();
+  const { colors, size, space, typography } = useTheme();
   const { years, year, dateKey, groups } = props;
   const paste = <Button variant="ghost" label={t('results_import.tournament.pick.paste')} onPress={props.onPasteUrl} />;
 
@@ -80,21 +83,30 @@ export function TournamentPicker(props: TournamentPickerProps) {
         <>
           {groups.map((group) => (
             <View key={group.city} style={{ gap: space[2] }}>
-              <Text accessibilityRole="header" style={[typography['body-strong'], { color: colors['ink-muted'] }]}>
-                {group.city}
-              </Text>
-              {group.tournaments.map((entry) => (
-                <Pressable
-                  key={entry.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${entry.name}, ${formatTournamentDate(entry.dateKey)}`}
-                  onPress={() => props.onPick(entry)}
-                  style={{ backgroundColor: colors['surface-1'], padding: space[3], gap: space[1], borderWidth: 1, borderColor: colors['border-strong'] }}
-                >
-                  <Text style={[typography['body-strong'], { color: colors.ink }]}>{entry.name}</Text>
-                  <Text style={[typography.body, { color: colors['ink-muted'] }]}>{formatTournamentDate(entry.dateKey)}</Text>
-                </Pressable>
-              ))}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('results_import.tournament.pick.city_label', { city: group.city, count: group.tournaments.length })}
+                accessibilityState={{ expanded: props.openCities.includes(group.city) }}
+                onPress={() => props.onToggleCity(group.city)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], minHeight: size['target-min'] }}
+              >
+                <Icon name={props.openCities.includes(group.city) ? 'expand_more' : 'chevron_right'} color="ink-muted" />
+                <Text style={[typography['body-strong'], { color: colors['ink-muted'], flexShrink: 1 }]}>{group.city}</Text>
+                <Text style={[typography.body, { color: colors['ink-muted'] }]}>{t('results_import.tournament.pick.city_count', { count: group.tournaments.length })}</Text>
+              </Pressable>
+              {props.openCities.includes(group.city) &&
+                group.tournaments.map((entry) => (
+                  <Pressable
+                    key={entry.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${entry.name}, ${formatTournamentDate(entry.dateKey)}`}
+                    onPress={() => props.onPick(entry)}
+                    style={{ backgroundColor: colors['surface-1'], padding: space[3], gap: space[1], borderWidth: 1, borderColor: colors['border-strong'] }}
+                  >
+                    <Text style={[typography['body-strong'], { color: colors.ink }]}>{entry.name}</Text>
+                    <Text style={[typography.body, { color: colors['ink-muted'] }]}>{formatTournamentDate(entry.dateKey)}</Text>
+                  </Pressable>
+                ))}
             </View>
           ))}
           {paste}

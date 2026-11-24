@@ -12,7 +12,7 @@ export type DbError = { code?: string; message?: string };
 export interface Db {
   rpc(fn: string, args: Record<string, unknown>): Promise<{ data: unknown; error: DbError | null }>;
   /** `equals` narrows the rows to those whose columns hold exactly these values; each value travels as a bound parameter. */
-  select(table: string, columns: string, equals?: Record<string, string>): Promise<{ data: Record<string, unknown>[] | null; error: DbError | null }>;
+  select(table: string, columns: string, equals?: Record<string, string | number>): Promise<{ data: Record<string, unknown>[] | null; error: DbError | null }>;
   deleteById(table: string, id: string): Promise<{ error: DbError | null }>;
 }
 
@@ -211,7 +211,7 @@ export function createImportRecorder(db: Db): ImportRecorder {
 /**
  * `public.results_import_claim_tournament_refresh` answers `{ retry_at, claimed_at }` like the query claim: taken (`retry_at` null, `claimed_at` the instant
  * stored, kept as the string the database wrote so `release` matches it) or refused (the instant it can be taken again). `results_import_save_tournaments`
- * saves what a platform listed by (platform, day) and answers how many rows. `find` reads the catalog table: which platform holds a day, and its year.
+ * saves what a platform listed by (platform, day) and answers how many rows. `find` reads the catalog table: which platform holds a day, and its year; `held`, which days of a year a platform holds.
  */
 export function createTournamentCatalog(db: Db): TournamentCatalog {
   return {
@@ -240,6 +240,14 @@ export function createTournamentCatalog(db: Db): TournamentCatalog {
       const { data, error } = await db.rpc('results_import_save_tournaments', { organization: organizationId, rows });
       if (error || typeof data !== 'number') throw failure('Saving the tournaments', error);
       return data;
+    },
+    async held(organizationId, year) {
+      const { data, error } = await db.select('results_import_tournaments', 'date_key', { organization_id: organizationId, year });
+      if (error || !data) throw failure('Reading the tournaments', error);
+      return data.map(({ date_key: dateKey }) => {
+        if (typeof dateKey !== 'string') throw failure('Reading the tournaments', null);
+        return dateKey;
+      });
     },
     async find(dateKey) {
       const { data, error } = await db.select('results_import_tournaments', 'organization_id,year', { date_key: dateKey });

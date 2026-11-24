@@ -6,6 +6,9 @@ const ATHLETE = '11111111-1111-4111-8111-111111111111';
 const ORG = '22222222-2222-4222-8222-222222222222';
 const USER = 'user-from-jwt';
 const SECRET = 'secret-internal-detail';
+// A throwaway key, never a real one.
+const OPERATOR = 'throwaway-service-role-key';
+const NOW = Date.parse('2026-10-28T10:00:00Z');
 
 type Calls = { method: string; argument: unknown }[];
 
@@ -16,13 +19,25 @@ function setup(
     confirm?: Outcome<unknown> | Error;
     tournament?: Outcome<unknown>;
     refresh?: Outcome<unknown>;
+    backfill?: Outcome<unknown> | Error;
     official?: ActionOutcome<unknown>;
   } = {},
 ) {
   const calls: Calls = [];
+  let authentications = 0;
   const handle = createHandler({
-    authenticate: async () => (options.userId === undefined ? USER : options.userId),
+    authenticate: async () => {
+      authentications += 1;
+      return options.userId === undefined ? USER : options.userId;
+    },
+    isOperatorToken: async (token) => token === OPERATOR,
+    now: () => NOW,
     service: {
+      async backfillTournaments(argument) {
+        calls.push({ method: 'backfillTournaments', argument });
+        if (options.backfill instanceof Error) throw options.backfill;
+        return (options.backfill ?? { ok: true, value: { probed: 3, found: 1, saved: 1, next: null } }) as Awaited<ReturnType<Parameters<typeof createHandler>[0]['service']['backfillTournaments']>>;
+      },
       async findCandidates(argument) {
         calls.push({ method: 'findCandidates', argument });
         return options.search ?? { ok: true, value: [] };
@@ -58,7 +73,7 @@ function setup(
   });
   const post = (body: unknown, init: RequestInit = {}) =>
     handle(new Request('https://example.test/functions/v1/results-import', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body), ...init }));
-  return { calls, handle, post };
+  return { calls, handle, post, authentications: () => authentications };
 }
 
 const searchBody = { action: 'search', athleteId: ATHLETE, organizationId: ORG, firstName: 'Ana', lastName: 'Example' };
@@ -350,5 +365,86 @@ describe('results-import handler: refresh_tournaments', () => {
     const response = await setup({ refresh: { ok: false, error: { code: 'unavailable' } } }).post(body);
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ ok: false, error: { code: 'unavailable' } });
+  });
+});
+
+describe('backfill_tournaments', () => {
+  const asOperator = (token = OPERATOR) => ({ headers: { Authorization: `Bearer ${token}` } });
+  const body = { action: 'backfill_tournaments', year: 2026, month: 9 };
+
+  it('runs for the service role of the function and answers what the service answers, without asking who the user is', async () => {
+    const s = setup();
+    const response = await s.post(body, asOperator());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, value: { probed: 3, found: 1, saved: 1, next: null } });
+    expect(s.calls).toEqual([{ method: 'backfillTournaments', argument: { year: 2026, month: 9 } }]);
+    expect(s.authentications()).toBe(0);
+  });
+
+  it('answers 403 not_authorized to the token of a user, and calls nothing', async () => {
+    const s = setup();
+    const response = await s.post(body, asOperator('a-user-jwt'));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'not_authorized' } });
+    expect(s.calls).toEqual([]);
+  });
+
+  it.each([
+    ['no Authorization header', {}],
+    ['an empty bearer', { headers: { Authorization: 'Bearer ' } }],
+    ['another scheme', { headers: { Authorization: `Basic ${OPERATOR}` } }],
+  ])('answers 401 unauthenticated with %s, and calls nothing', async (_name, init) => {
+    const s = setup();
+    const response = await s.post(body, init);
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'unauthenticated' } });
+    expect(s.calls).toEqual([]);
+  });
+
+  it.each([
+    ['a year before 2023', { year: 2022, month: 12 }],
+    ['month 0', { year: 2026, month: 0 }],
+    ['month 13', { year: 2026, month: 13 }],
+    ['a month that has not started', { year: 2026, month: 11 }],
+    ['a future year', { year: 2027, month: 1 }],
+    ['a year as text', { year: '2026', month: 9 }],
+    ['a fractional month', { year: 2026, month: 9.5 }],
+    ['a null month', { year: 2026, month: null }],
+    ['no year', { month: 9 }],
+    ['no month', { year: 2026 }],
+  ])('answers 400 for %s, and calls nothing', async (_name, fields) => {
+    const s = setup();
+    const response = await s.post({ action: 'backfill_tournaments', ...fields }, asOperator());
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ ok: false, error: { code: 'bad_request' } });
+    expect(s.calls).toEqual([]);
+  });
+
+  it.each([
+    [{ year: 2023, month: 1 }],
+    [{ year: 2026, month: 10 }],
+  ])('accepts the first month (2023-01) and the current one: %j', async (fields) => {
+    const s = setup();
+    expect((await s.post({ action: 'backfill_tournaments', ...fields }, asOperator())).status).toBe(200);
+    expect(s.calls).toEqual([{ method: 'backfillTournaments', argument: fields }]);
+  });
+
+  it('sends a body that is not valid JSON down the users path, which refuses it', async () => {
+    const s = setup();
+    expect((await s.post('{nope', asOperator())).status).toBe(400);
+    expect(s.calls).toEqual([]);
+  });
+
+  it('answers what the service refuses and 500 when it throws, with no detail', async () => {
+    expect((await setup({ backfill: { ok: false, error: { code: 'unavailable' } } }).post(body, asOperator())).status).toBe(502);
+    const response = await setup({ backfill: new Error(SECRET) }).post(body, asOperator());
+    expect(response.status).toBe(500);
+    expect(JSON.stringify(await response.json())).not.toContain(SECRET);
+  });
+
+  it('gives the service role no way into the other actions: they still need a verified user', async () => {
+    const s = setup({ userId: null });
+    expect((await s.post(searchBody, asOperator())).status).toBe(401);
+    expect(s.calls).toEqual([]);
   });
 });

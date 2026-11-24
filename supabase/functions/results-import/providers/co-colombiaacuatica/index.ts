@@ -1,5 +1,6 @@
 import type { TournamentProvider } from '../../port.ts';
 import { createTournamentLookup, PROVIDER_KEY, tournamentFromUrl } from './lookup.ts';
+import { createTournamentProbe } from './probe.ts';
 import { createTournamentList } from './tournaments.ts';
 
 /** The platform adapter for the registry: `createProviderRegistry([...], [createCoColombiaacuatica()])`. Organizations of type `results_platform` pick it with the provider key. */
@@ -15,6 +16,7 @@ export function createCoColombiaacuatica(fetchImpl: (url: string, init?: Request
       }
     },
     listTournaments: createTournamentList(fetchImpl),
+    probeTournaments: createTournamentProbe(fetchImpl),
     lookup: createTournamentLookup(fetchImpl),
   };
 }
