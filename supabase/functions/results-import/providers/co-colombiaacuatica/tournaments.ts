@@ -133,8 +133,9 @@ function readCalendarEvents(script: string): Record<string, string | undefined>[
     if (script[at++] !== '{') fail();
     const fields: Record<string, string | undefined> = {};
     for (trivia(); script[at] !== '}'; trivia()) {
-      const key = isQuote() ? text() : /^[\w$]+/.exec(script.slice(at, at + 64))?.[0];
-      if (key === undefined || (at += isQuote() ? 0 : key.length, false)) fail();
+      const quoted = isQuote();
+      const key = quoted ? text() : /^[\w$]+/.exec(script.slice(at, at + 64))?.[0];
+      if (key === undefined || (at += quoted ? 0 : key.length, false)) fail();
       trivia();
       if (script[at++] !== ':') fail();
       trivia();
@@ -145,7 +146,7 @@ function readCalendarEvents(script: string): Record<string, string | undefined>[
         fields[key!] = undefined;
       }
       trivia();
-      if (script[at] === ',') (at += 1), trivia();
+      if (script[at] === ',') at += 1;
       else if (script[at] !== '}') fail();
     }
     at += 1;

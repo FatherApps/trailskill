@@ -87,6 +87,11 @@ describe('parseCalendar', () => {
     expect(parseCalendar(html).map((entry) => entry.dateKey)).toEqual(['20261122']);
   });
 
+  it('reads keys written as text, as JavaScript allows', () => {
+    const html = `<script>x({ events: [ { "title": "Liga | Con clave de texto", 'url': '${pdf('20261120')}' } ] })</script>`;
+    expect(parseCalendar(html).map((entry) => [entry.dateKey, entry.name])).toEqual([['20261120', 'Con clave de texto']]);
+  });
+
   it('keeps a masters swimming event: it is swimming', () => {
     expect(one('Liga | Campeonato Internacional Máster de Natación').map((entry) => entry.name)).toEqual(['Campeonato Internacional Máster de Natación']);
   });
