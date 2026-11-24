@@ -289,6 +289,27 @@ The migrations and the function go together, neither without the other: the clai
 
 **Tournament list refresh (issue #1341).** The function has an action `refresh_tournaments` that fills `results_import_tournaments` from each registered results platform (the tournaments of the current UTC year and of the year before, by day, in one read of the platform: January still refreshes last December and the new year starts by itself, with nothing to configure), and its `tournament` action takes `{ tournamentKey }` (a `YYYYMMDD` day of that list) or `{ url }` (the address as pasted, the fallback), exactly one of them. There is no `pg_cron` or `pg_net` job: the app calls the action, any signed-in user may, and a platform is asked at most once every 24 hours (the claim lives in the database, `results_import_claim_tournament_refresh`, so two calls at the same moment ask once). A platform that fails leaves the saved list as it was and the action answers `unavailable` (HTTP 502). Delivering the action is the manual step of `functions-bundle.sh` below, after the migration `20261121160000_results-import_tournament_refresh.sql` (a new table and three functions; apply the production backup rule before it). Until the function is delivered, the action does not exist on the server, and the migration changes nothing the old function uses.
 
+**Backfill of the tournament catalog (issue #1471).** The platform's index does not show every tournament of 2023-2025 or every day of the current year. The action `backfill_tournaments` (`{ "action": "backfill_tournaments", "year": 2023, "month": 1 }`) completes the catalog one month at a time: for each day of the month that the catalog does not hold yet (never a future day) it sends one `HEAD` to that day's Lenex zip, and for a day that answers `200` it reads the zip once and saves the name and city of the tournament (never an athlete). A day with no usable name or city is counted in `found` and not saved. `refresh_tournaments` does the same for the last 7 days that neither the index nor the catalog has, and the index overwrites what the probe saved. Only the operator may call `backfill_tournaments`: the `Authorization: Bearer` token must be the function's own `SUPABASE_SERVICE_ROLE_KEY` (a user token gets `403 not_authorized`, no token `401 unauthenticated`); the other actions do not accept it. It answers `{ probed, found, saved, next, stoppedBy? }`: `next` is the following month, `null` when the month asked is the current one, and the same month when the platform stopped the run (`stoppedBy` is the `YYYYMMDD` of the day where it stopped). The run stops dry, with no later day asked, on a `403`, `429`, any other `4xx` (also `405`, a platform that does not accept `HEAD`), a redirect, a `5xx`, a timeout or a network failure. Switching from `HEAD` to a `GET` of every zip needs the maintainer's approval.
+
+**Each run in production needs the maintainer's authorization**, also the one for the current year, and so does delivering the function. Read the key from the environment of your shell, never from a file in the repository or the command line history, and call month by month from `2023-01`, keeping the answer of each call as the input of the next, with 10 seconds between calls (about 36 calls for 2023-2025), until `next` is `null` or `stoppedBy` comes back:
+
+```sh
+year=2023; month=1
+while :; do
+  answer=$(curl -s -X POST "https://<api hostname>/functions/v1/results-import" \
+    -H "Authorization: Bearer $SERVICE_ROLE_KEY" -H 'Content-Type: application/json' \
+    -d "{\"action\":\"backfill_tournaments\",\"year\":$year,\"month\":$month}")
+  printf '%s\n' "$answer"
+  [ -n "$(printf '%s' "$answer" | jq -r '.value.stoppedBy // empty')" ] && break
+  next=$(printf '%s' "$answer" | jq -r '.value.next // empty | "\(.year) \(.month)"')
+  [ -z "$next" ] && break
+  set -- $next; year=$1; month=$2
+  sleep 10
+done
+```
+
+The loop also ends on an error answer (no `value`). After a `stoppedBy`, find out why before asking again: the same month can be asked again and the days the catalog already has are not asked twice. A month with several slow zips can come close to the time limit of the Edge Function; if it times out, ask the same month again.
+
 **Nothing activates the platform.** Delivering the function does not turn on tournament import. The platform adapter exists (a folder of `supabase/functions/results-import/providers/`), and the function registers it in `supabase/functions/results-import/index.ts`, but it only resolves an address when the database holds its `organizations` row (type `results_platform`) and its `results_import_sources` row. No migration and no seed creates them: the maintainer loads them in each environment with the runbook [Load the results providers per environment](../docs/release/results-providers.md), a separate step the maintainer decides.
 
 1. **Vault secret.** `athlete_identity_key` must exist, see [Identity number key (Vault)](#identity-number-key-vault).
