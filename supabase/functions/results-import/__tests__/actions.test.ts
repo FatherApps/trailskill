@@ -104,6 +104,7 @@ function setup(
     organizationChain: async () => chain,
     pending,
     tournaments: createFakeCatalog().catalog,
+    athletes: { read: async () => ({ firstName: 'Ana', lastName: 'Perez', birthDate: null, gender: null }) },
   });
   const recorded: Parameters<ImportRecorder['record']>[0][] = [];
   const recorder: ImportRecorder = {

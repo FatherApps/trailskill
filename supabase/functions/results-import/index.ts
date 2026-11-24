@@ -5,6 +5,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { createOfficialResultsActions } from './actions.ts';
 import {
   createAccess,
+  createAthleteProfiles,
   createConfirmationReader,
   createConfirmations,
   createIdentityNumbers,
@@ -53,6 +54,7 @@ const service = createResultsImport({
   organizationChain,
   pending,
   tournaments: createTournamentCatalog(db),
+  athletes: createAthleteProfiles(db),
 });
 const official = createOfficialResultsActions({
   service,

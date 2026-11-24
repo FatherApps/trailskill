@@ -1,6 +1,10 @@
 import type { PoolCode } from '../../../../../src/core/sport/catalogs.ts';
 import { ProviderUnavailableError, type TournamentEntry } from '../../port.ts';
 import { CALENDAR_URL, INDEX_URL, TOURNAMENT_PDF, fetchBounded, isTournamentKey, tournamentPdfUrl } from './lookup.ts';
+import { courseFromTitle, plain } from './shared.ts';
+
+// Where the pool length of a title is read moved to shared.ts (the PDF reader needs it too); these stay exported from here.
+export { COURSE_MARKERS, courseFromTitle } from './shared.ts';
 
 // The index of one year is about 80 KB and the calendar of every year about 700 KB; 2 MB each leaves room to grow and still bounds what a wrong answer can make us hold.
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
@@ -58,9 +62,6 @@ export function parseTournamentIndex(html: string): TournamentEntry[] {
   return entries;
 }
 
-// Text as the matching reads it: no accents, no capital letters, one space between words.
-const plain = (text: string) => spaces(text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase());
-
 /**
  * What marks a calendar event as another discipline than swimming, found in its title (organizer or name). They come from the titles of the
  * real calendar: underwater activities (the platform also lists them: «subacuáticas», fin swimming, apnea, underwater rugby and hockey),
@@ -72,28 +73,6 @@ export const EXCLUDED_DISCIPLINE_MARKERS = [
   'clavad', 'diving', 'polo', 'waterpolo', 'artistic', 'sincroniz', 'aguas abiertas', 'aguas libres', 'open water',
 ] as const;
 const EXCLUDED = new RegExp(`\\b(?:${EXCLUDED_DISCIPLINE_MARKERS.join('|')})`);
-
-/**
- * What a title says in so many words about the pool length, as a pattern of its plain text and the pool it names: «25 m», «50 m»,
- * «piscina corta/larga», «curso corto/largo», SC/LC and SCM/LCM. Never inferred from anything else. Exported for the results of a PDF.
- */
-export const COURSE_MARKERS: readonly (readonly [RegExp, PoolCode])[] = [
-  [/\b25 ?m(?:etros)?\b/, 'SCM'],
-  [/\b50 ?m(?:etros)?\b/, 'LCM'],
-  [/\bpiscina corta\b/, 'SCM'],
-  [/\bpiscina larga\b/, 'LCM'],
-  [/\bcurso corto\b/, 'SCM'],
-  [/\bcurso largo\b/, 'LCM'],
-  [/\bscm?\b/, 'SCM'],
-  [/\blcm?\b/, 'LCM'],
-];
-
-/** The pool length a title names, or null when it names none or both (a title that says both says nothing). */
-export function courseFromTitle(title: string): PoolCode | null {
-  const text = plain(title);
-  const pools = new Set(COURSE_MARKERS.filter(([pattern]) => pattern.test(text)).map(([, pool]) => pool));
-  return pools.size === 1 ? [...pools][0] : null;
-}
 
 /**
  * The events of the calendar's `events: [ ... ]` as plain data: for each one, its fields that are text. The page writes them as a JavaScript

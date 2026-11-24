@@ -20,7 +20,7 @@ describe('createCoColombiaacuatica', () => {
   it('looks the tournament up through the fetch it was given', async () => {
     const zip = await buildZip([{ name: 'resultados20251018.lef', data: new TextEncoder().encode(lenex()), method: 8 }]);
     const fetchImpl = jest.fn(async () => new Response(zip, { status: 200 }));
-    const search = await createCoColombiaacuatica(fetchImpl).lookup(FOLDER, '1234567');
+    const search = await createCoColombiaacuatica(fetchImpl).lookup(FOLDER, { identityNumber: '1234567', name: { firstName: 'Ana', lastName: 'Perez' }, birthDate: null, gender: null });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(search.found && search.results.length).toBe(3);
   });

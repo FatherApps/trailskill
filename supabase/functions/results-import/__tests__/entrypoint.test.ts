@@ -16,6 +16,16 @@ describe('results-import entry point', () => {
   });
 });
 
+describe('results-import entry point athletes', () => {
+  it('gives the service the reader of the athlete (name, birth date, gender) and the PDF of the platform stays behind a dynamic import', () => {
+    expect(source).toMatch(/createResultsImport\(\{[\s\S]*athletes: createAthleteProfiles\(db\),[\s\S]*\}\)/);
+    const unpdf = fs.readFileSync(path.join(__dirname, '..', 'providers', 'co-colombiaacuatica', 'unpdf.ts'), 'utf8');
+    // Pinned to one version, loaded only when a PDF is read, never at startup (Jest and a lookup that finds a zip never load it).
+    expect(unpdf).toMatch(/await import\('npm:unpdf@2\.1\.0'\)/);
+    expect(unpdf).not.toMatch(/^import .* from 'npm:/m);
+  });
+});
+
 describe('results-import entry point operator', () => {
   it('recognises the operator by the function\'s own service role key, and hands the check to the handler', () => {
     expect(source).toMatch(/createIsOperatorToken\(Deno\.env\.get\('SUPABASE_SERVICE_ROLE_KEY'\)\)/);

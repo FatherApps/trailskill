@@ -53,8 +53,30 @@ export interface ResultsProvider {
   fetchResults(sourceAthleteKey: string): Promise<NormalizedResult[]>;
 }
 
-/** What a tournament lookup finds for one identity number: the athlete's name and club, and that athlete's rows. Never the number or a birth date. */
-export type TournamentSearch = { found: false } | { found: true; athlete: { name: string; club: string | null }; results: NormalizedResult[] };
+/** A row of a tournament. Its pool length is null only until the guardian confirms (a tournament read from its PDF may not say it): the service fills it before the row is offered. */
+export type TournamentResult = Omit<NormalizedResult, 'pool'> & { pool: PoolCode | null };
+
+/** The athlete as the server knows them, to find them in a tournament that has no identity numbers: the first name and surname, the birth date (`YYYY-MM-DD`) and, when known, F or M. Never leaves the server. */
+export type TournamentAthlete = { identityNumber: string; name: { firstName: string; lastName: string }; birthDate: string | null; gender: 'F' | 'M' | null };
+
+/** How a person was found: by the identity number the file holds (the Lenex file), or by the name and birth date a PDF shows. */
+export type MatchedBy = 'identity_number' | 'name_and_birth_date';
+
+/**
+ * What a tournament lookup finds for one athlete: the athlete's name and club, and that athlete's rows. Never the number or a birth date.
+ * `matchedBy` is `identity_number` and `course` null when absent (the Lenex file). `course` is the pool length the tournament says in so many words (its PDF's header), if it does.
+ */
+export type TournamentSearch =
+  | { found: false }
+  | { found: true; athlete: { name: string; club: string | null }; results: TournamentResult[]; matchedBy?: MatchedBy; course?: PoolCode | null };
+
+/** The tournament has no Lenex file and the athlete has no birth date to look them up by in its PDF. Nothing can be asked until a guardian saves it. */
+export class BirthDateRequiredError extends ProviderUnavailableError {
+  constructor() {
+    super('The athlete has no birth date to find them in the tournament PDF');
+    this.name = 'BirthDateRequiredError';
+  }
+}
 
 /**
  * One tournament of a platform's list. `dateKey` is `YYYYMMDD`, the platform's own key for the tournament; `city` has the platform's
@@ -71,7 +93,7 @@ export type TournamentEntry = {
   sourceUrl: string;
 };
 
-/** A results platform: the person picks a tournament from its list, or pastes its address, and the adapter reads that tournament only, by identity number. */
+/** A results platform: the person picks a tournament from its list, or pastes its address, and the adapter reads that tournament only, by identity number or, in a PDF, by name and birth date. */
 export interface TournamentProvider {
   /** '<country>-<platform>', lower case, the organization's ISO country code first. */
   readonly key: string;
@@ -86,7 +108,7 @@ export interface TournamentProvider {
    * `stoppedBy`, it is not counted, and no later day is asked.
    */
   probeTournaments?(dateKeys: readonly string[]): Promise<{ probed: number; found: number; entries: TournamentEntry[]; stoppedBy?: string }>;
-  lookup(url: string, identityNumber: string): Promise<TournamentSearch>;
+  lookup(url: string, athlete: TournamentAthlete): Promise<TournamentSearch>;
   /** The same lookup for a tournament of the list, by its year and key. */
-  lookup(year: number, dateKey: string, identityNumber: string): Promise<TournamentSearch>;
+  lookup(year: number, dateKey: string, athlete: TournamentAthlete): Promise<TournamentSearch>;
 }
