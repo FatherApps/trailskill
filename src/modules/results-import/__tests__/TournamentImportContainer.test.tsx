@@ -263,11 +263,52 @@ describe('TournamentImportContainer', () => {
     expect(s.importChosen).not.toHaveBeenCalled();
   });
 
-  it('tells when to try again after a rate limit', async () => {
-    const s = setup({ search: { tournamentFailure: { code: 'rate_limited', retryAt: '2026-05-10T15:30:00Z' } } });
-    await searchWith(s);
+  describe('after a rate limit', () => {
+    const NOW = new Date('2026-05-10T15:00:00.000Z');
+    const retryIn = (seconds: number) => new Date(NOW.getTime() + seconds * 1000).toISOString();
+    const retry = () => screen.queryByRole('button', { name: 'Volver a intentar' });
+    const tick = (ms: number) => act(async () => jest.advanceTimersByTime(ms));
 
-    expect(await screen.findByText('Espera un momento')).toBeOnTheScreen();
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(NOW);
+    });
+    afterEach(() => jest.useRealTimers());
+
+    it('counts down in mm:ss and offers the retry only at zero', async () => {
+      await searchWith(setup({ search: { tournamentFailure: { code: 'rate_limited', retryAt: retryIn(120) } } }));
+
+      expect(await screen.findByText('Espera un momento')).toBeOnTheScreen();
+      expect(screen.getByText('Ya consultamos el origen hace poco. Podrás volver a intentar en 02:00.')).toBeOnTheScreen();
+      expect(retry()).toBeNull();
+      await tick(1000);
+      expect(screen.getByText(/en 01:59\./)).toBeOnTheScreen();
+      await tick(118_000);
+      expect(retry()).toBeNull();
+      await tick(1000);
+      expect(screen.getByText('Ya puedes volver a intentar.')).toBeOnTheScreen();
+      expect(retry()).toBeOnTheScreen();
+    });
+
+    it('shows 00:00 and the retry for a time already past, never a negative number', async () => {
+      await searchWith(setup({ search: { tournamentFailure: { code: 'rate_limited', retryAt: retryIn(-30) } } }));
+
+      expect(await screen.findByText('Ya puedes volver a intentar.')).toBeOnTheScreen();
+      expect(retry()).toBeOnTheScreen();
+    });
+
+    it('goes back to the search form, and a second refusal counts down to its own new time', async () => {
+      const s = setup({ search: { tournamentFailure: { code: 'rate_limited', retryAt: retryIn(1) } } });
+      await searchWith(s);
+      await tick(1000);
+      const second = jest.spyOn(s.search, 'tournament').mockResolvedValueOnce({ ok: false, error: { code: 'rate_limited', retryAt: retryIn(1 + 45) } });
+
+      await fireEvent.press(retry()!);
+      await press('Buscar en el torneo');
+      expect(await screen.findByText(/en 00:45\./)).toBeOnTheScreen();
+      expect(retry()).toBeNull();
+      expect(second).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

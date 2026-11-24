@@ -20,8 +20,8 @@ export type OfficialResultsView =
   | { kind: 'none' }
   // The source is down or offline: nothing already imported is touched.
   | { kind: 'unavailable'; onRetry: () => void }
-  // `retryAt` is already formatted ("12:10").
-  | { kind: 'rate_limited'; retryAt: string }
+  // `time` is the countdown ("mm:ss"); `onRetry` appears only when it reaches zero.
+  | { kind: 'rate_limited'; time: string; onRetry?: () => void }
   | {
       kind: 'list';
       items: ResultItem[];
@@ -86,7 +86,8 @@ export function OfficialResultsScreen({ view, notice, changes, onUseNew, onKeepC
           kind="empty"
           icon="schedule"
           title={t('results_import.update.rate_limited.title')}
-          message={t('results_import.update.rate_limited.message', { time: view.retryAt })}
+          message={view.onRetry ? t('results_import.update.rate_limited.ready') : t('results_import.update.rate_limited.message', { time: view.time })}
+          action={view.onRetry ? { label: t('results_import.update.rate_limited.action'), onPress: view.onRetry } : undefined}
         />
       )}
       {view.kind === 'list' && (

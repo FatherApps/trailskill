@@ -9,6 +9,7 @@ import type { ImportFooterStore } from '../components/ImportFooterSlot';
 import { OfficialUpdateButton } from '../components/OfficialUpdateButton';
 import type { ImportedResult, ImportedResultsRepository, PendingResultChange } from '../data/importedResults';
 import type { FoundResult, IdentityConfirmation, PendingChangeResolver } from '../data/officialResults';
+import { useRetryCountdown } from '../retryCountdown';
 import { updateButtonState, type CheckOutcome, type createOfficialUpdate } from '../officialUpdate';
 import { OfficialResultsScreen, type ChangeItem, type ImportNotice, type OfficialResultsView } from './OfficialResultsScreen';
 
@@ -28,19 +29,19 @@ export type OfficialUpdateContainerProps = {
 type Loaded = { identityConfirmed: boolean; authorized: boolean; lastImportedAt: string | null; imported: ImportedResult[]; pending: PendingResultChange[] };
 
 const shortDate = (iso: string) => formatDate(iso.slice(0, 10), 'short') ?? '';
-const clock = (iso: string) => {
-  const at = new Date(iso);
-  return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
-};
 
-function toView(outcome: CheckOutcome, handlers: { retry: () => void; toggle: (id: string) => void; submit: () => void; dismiss: () => void }, state: { selected: string[]; importing: boolean }): OfficialResultsView {
+function toView(
+  outcome: CheckOutcome,
+  handlers: { retry: () => void; toggle: (id: string) => void; submit: () => void; dismiss: () => void },
+  state: { selected: string[]; importing: boolean; countdown: { text: string; ready: boolean } },
+): OfficialResultsView {
   switch (outcome.kind) {
     case 'none':
       return { kind: 'none' };
     case 'unavailable':
       return { kind: 'unavailable', onRetry: handlers.retry };
     case 'rate_limited':
-      return { kind: 'rate_limited', retryAt: clock(outcome.retryAt) };
+      return { kind: 'rate_limited', time: state.countdown.text, onRetry: state.countdown.ready ? handlers.retry : undefined };
     case 'found':
       return {
         kind: 'list',
@@ -67,6 +68,7 @@ export function OfficialUpdateContainer({ athleteId, update, repository, identit
   const [answered, setAnswered] = useState<string[]>([]);
   const [failedChange, setFailedChange] = useState<string>();
   const [busyChange, setBusyChange] = useState<string>();
+  const countdown = useRetryCountdown(outcome?.kind === 'rate_limited' ? outcome.retryAt : null);
 
   const read = useCallback(async (): Promise<Loaded> => {
     const [identityConfirmed, granted, lastImportedAt, imported, pending] = await Promise.all([
@@ -155,7 +157,7 @@ export function OfficialUpdateContainer({ athleteId, update, repository, identit
   const view: OfficialResultsView = checking
     ? { kind: 'checking' }
     : outcome
-      ? toView(outcome, { retry: check, toggle, submit, dismiss }, { selected, importing })
+      ? toView(outcome, { retry: check, toggle, submit, dismiss }, { selected, importing, countdown })
       : { kind: 'idle' };
 
   const chosenCount = view.kind === 'list' ? view.selectedIds.length : 0;
@@ -177,7 +179,7 @@ export function OfficialUpdateContainer({ athleteId, update, repository, identit
 
   return (
     <View style={{ alignSelf: 'stretch', gap: space[3] }}>
-      <OfficialUpdateButton checking={button.disabled} lastUpdated={button.lastUpdatedAt ? shortDate(button.lastUpdatedAt) : null} onPress={check} />
+      <OfficialUpdateButton waiting={outcome?.kind === 'rate_limited' && !countdown.ready} checking={button.disabled} lastUpdated={button.lastUpdatedAt ? shortDate(button.lastUpdatedAt) : null} onPress={check} />
       <OfficialResultsScreen
         view={view}
         notice={notice}

@@ -4,6 +4,7 @@ import { isValidIdentityNumber, normalizeIdentityNumber, type IdentityDocumentRe
 import { t } from '../../../core/i18n';
 import type { ImportSource, ImportSourcesRepository, OfficialSearchRepository, SearchCandidate, SearchFailure } from '../data/officialSearch';
 import '../i18n';
+import { useRetryCountdown } from '../retryCountdown';
 import { ConfirmPersonScreen, type ConfirmPersonView, type NumberHint } from './ConfirmPersonScreen';
 
 export type ConfirmPersonContainerProps = {
@@ -18,9 +19,6 @@ export type ConfirmPersonContainerProps = {
   onDone: () => void;
   onBack: () => void;
 };
-
-export const formatRetryTime = (retryAt: string) =>
-  new Date(retryAt).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
 
 type Loaded = { status: 'loading' } | { status: 'error' } | { status: 'ready'; source: ImportSource; hint: NumberHint } | { status: 'no_source' };
 
@@ -55,6 +53,7 @@ export function ConfirmPersonContainer({
   const [busy, setBusy] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const countdown = useRetryCountdown(step.kind === 'rate_limited' ? step.retryAt : null);
 
   const athleteName = athlete.firstName.trim();
   const requestKey = `${athlete.id}|${attempt}`;
@@ -187,7 +186,7 @@ export function ConfirmPersonContainer({
       case 'confirmed':
         return { kind: 'confirmed', athleteName, sourceName: source.name, onDone };
       case 'rate_limited':
-        return { kind: 'rate_limited', time: formatRetryTime(step.retryAt) };
+        return { kind: 'rate_limited', time: countdown.text, onRetry: countdown.ready ? () => goToStart() : undefined };
       case 'unauthorized':
         return { kind: 'unauthorized', athleteName, onGoToAuthorizations };
       case 'unavailable':
