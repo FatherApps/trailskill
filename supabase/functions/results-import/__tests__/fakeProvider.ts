@@ -48,16 +48,40 @@ type PlatformOptions = {
   search?: unknown;
   tournaments?: TournamentEntry[];
   failWith?: Error;
+  /** Gives the platform a `probeTournaments`, answering whatever this returns (typed loosely, so a test can make it invalid). */
+  probe?: (dateKeys: readonly string[]) => unknown;
 };
 
-export function createFakePlatform(options: PlatformOptions = {}): TournamentProvider & { calls: PlatformCall[]; listCalls: number[][]; setFailure(error: Error | undefined): void } {
+/** A platform that has a tournament on `days` and is stopped (a 403, say) at `stopAt`: what `probeTournaments` answers, day by day. */
+export function probing(days: Record<string, Partial<TournamentEntry>>, stopAt?: string) {
+  return (dateKeys: readonly string[]) => {
+    const result: { probed: number; found: number; entries: TournamentEntry[]; stoppedBy?: string } = { probed: 0, found: 0, entries: [] };
+    for (const dateKey of dateKeys) {
+      if (dateKey === stopAt) return { ...result, stoppedBy: dateKey };
+      result.probed += 1;
+      if (dateKey in days) {
+        result.found += 1;
+        result.entries.push(tournamentEntry(dateKey, days[dateKey]));
+      }
+    }
+    return result;
+  };
+}
+
+export function createFakePlatform(options: PlatformOptions = {}): TournamentProvider & { calls: PlatformCall[]; listCalls: number[][]; probeCalls: string[][]; setFailure(error: Error | undefined): void } {
   const calls: PlatformCall[] = [];
   const listCalls: number[][] = [];
+  const probeCalls: string[][] = [];
   let failWith = options.failWith;
   return {
     key: options.key ?? 'zz-games',
     calls,
     listCalls,
+    probeCalls,
+    probeTournaments: options.probe && (async (dateKeys) => {
+      probeCalls.push([...dateKeys]);
+      return (await options.probe!(dateKeys)) as Awaited<ReturnType<NonNullable<TournamentProvider['probeTournaments']>>>;
+    }),
     setFailure: (error) => void (failWith = error),
     accepts: options.accepts ?? ((url) => url.startsWith('https://games.example.test/')),
     async listTournaments(years) {
@@ -106,6 +130,9 @@ export function createFakeCatalog(now: () => number = Date.now) {
         rows.set(`${organizationId}|${entry.dateKey}`, { ...entry, organizationId, refreshedAt: now() });
       }
       return days.size;
+    },
+    async held(organizationId, year) {
+      return [...rows.values()].filter((row) => row.organizationId === organizationId && row.year === year).map((row) => row.dateKey);
     },
     async find(dateKey) {
       return [...rows.values()].filter((row) => row.dateKey === dateKey).map(({ organizationId, year }) => ({ organizationId, year }));

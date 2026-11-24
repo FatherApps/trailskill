@@ -32,6 +32,9 @@ export function tournamentFromUrl(raw: string): { tournament: string; zipUrl: st
   return tournamentFromKey(Number(year), date ?? '');
 }
 
+/** The PDF address of a tournament of the list, the shape `TOURNAMENT_PDF` reads: what the catalog keeps as the tournament's source. */
+export const tournamentPdfUrl = (year: number, dateKey: string) => `https://${HOST}/backtun/torneos/resultados/pdf/${year}/${dateKey}resultados.pdf`;
+
 /** A `YYYYMMDD` key of a day that exists, whose first four digits are the year. */
 export const isTournamentKey = (year: number, dateKey: string) =>
   /^\d{8}$/.test(dateKey) && year === Number(dateKey.slice(0, 4)) && isRealDay(year, Number(dateKey.slice(4, 6)), Number(dateKey.slice(6)));
@@ -42,9 +45,9 @@ export function tournamentFromKey(year: number, dateKey: string): { tournament: 
   return { tournament: dateKey, zipUrl: `https://${HOST}/backtun/torneos/${year}/${dateKey}/resultados${dateKey}Lenex.zip` };
 }
 
-async function download(fetchImpl: FetchImpl, url: string, signal: AbortSignal, limit: number): Promise<Uint8Array> {
+async function download(fetchImpl: FetchImpl, url: string, signal: AbortSignal, limit: number, method: 'GET' | 'HEAD'): Promise<Uint8Array> {
   // `manual`: a redirect is answered, never followed. A request that fails is a platform that did not answer.
-  const response = await fetchImpl(url, { redirect: 'manual', signal }).catch(() => {
+  const response = await fetchImpl(url, { ...(method === 'GET' ? {} : { method }), redirect: 'manual', signal }).catch(() => {
     throw new SourceUnreachableError();
   });
   const cancel = () => response.body?.cancel().catch(() => undefined);
@@ -73,7 +76,7 @@ async function download(fetchImpl: FetchImpl, url: string, signal: AbortSignal, 
  * a 404 and the size `limit` as typed "unavailable". Only a platform that did not answer is `SourceUnreachableError`. The deadline
  * covers the wait on the network only; what the caller does with the bytes has none.
  */
-export async function fetchBounded(fetchImpl: FetchImpl, url: string, limit: number): Promise<Uint8Array> {
+export async function fetchBounded(fetchImpl: FetchImpl, url: string, limit: number, method: 'GET' | 'HEAD' = 'GET'): Promise<Uint8Array> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
@@ -83,7 +86,7 @@ export async function fetchBounded(fetchImpl: FetchImpl, url: string, limit: num
     }, TOTAL_TIMEOUT_MS);
   });
   try {
-    return await Promise.race([download(fetchImpl, url, controller.signal, limit), deadline]);
+    return await Promise.race([download(fetchImpl, url, controller.signal, limit, method), deadline]);
   } catch (error) {
     throw error instanceof ProviderUnavailableError ? error : new ProviderUnavailableError(NO_ANSWER);
   } finally {

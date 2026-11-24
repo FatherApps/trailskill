@@ -79,6 +79,13 @@ export interface TournamentProvider {
   accepts(url: string): boolean;
   /** The tournaments of those years the platform lists, each with its own `year`, from one read of the platform. A source that answers in a shape this does not know throws `ProviderUnavailableError`, never an empty list. */
   listTournaments(years: readonly number[]): Promise<TournamentEntry[]>;
+  /**
+   * Optional: asks the platform about each of those days (`YYYYMMDD`) in order, one request at a time, for a tournament its list did not show.
+   * `probed` counts the days answered, `found` those that had a tournament, `entries` those whose name and city could be read (a day without
+   * them is counted in `found` and left out: nothing is guessed). A day the platform does not answer cleanly stops the run: that day is
+   * `stoppedBy`, it is not counted, and no later day is asked.
+   */
+  probeTournaments?(dateKeys: readonly string[]): Promise<{ probed: number; found: number; entries: TournamentEntry[]; stoppedBy?: string }>;
   lookup(url: string, identityNumber: string): Promise<TournamentSearch>;
   /** The same lookup for a tournament of the list, by its year and key. */
   lookup(year: number, dateKey: string, identityNumber: string): Promise<TournamentSearch>;

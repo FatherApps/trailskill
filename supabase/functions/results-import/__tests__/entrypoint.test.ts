@@ -16,6 +16,13 @@ describe('results-import entry point', () => {
   });
 });
 
+describe('results-import entry point operator', () => {
+  it('recognises the operator by the function\'s own service role key, and hands the check to the handler', () => {
+    expect(source).toMatch(/createIsOperatorToken\(Deno\.env\.get\('SUPABASE_SERVICE_ROLE_KEY'\)\)/);
+    expect(source).toMatch(/createHandler\(\{ authenticate, isOperatorToken, service, official \}\)/);
+  });
+});
+
 describe('production providers side by side', () => {
   const fecna = createCoFecna();
   const platform = createCoColombiaacuatica();

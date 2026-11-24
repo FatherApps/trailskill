@@ -8,8 +8,12 @@ type Official = ReturnType<typeof createOfficialResultsActions>;
 export type HandlerDeps = {
   /** The id of the user whose JWT the request carries, or null. The user is never taken from the body. */
   authenticate: (request: Request) => Promise<string | null>;
-  service: Pick<Service, 'findCandidates' | 'confirmCandidate' | 'findInTournament' | 'refreshTournaments'>;
+  service: Pick<Service, 'findCandidates' | 'confirmCandidate' | 'findInTournament' | 'refreshTournaments' | 'backfillTournaments'>;
   official: Pick<Official, 'status' | 'results' | 'import'>;
+  /** Whether a bearer token is the operator's (the function's own service role key), compared in constant time. Only `backfill_tournaments` asks for it. */
+  isOperatorToken: (token: string) => Promise<boolean>;
+  /** The clock for the months `backfill_tournaments` accepts. */
+  now?: () => number;
 };
 
 type HandlerError = ActionError | { code: 'unauthenticated' } | { code: 'internal' };
@@ -30,6 +34,8 @@ const STATUS: Record<HandlerError['code'], number> = {
 
 const NAME_MAX_LENGTH = 100;
 const URL_MAX_LENGTH = 500;
+// The first year the platform's catalog is filled back to.
+const BACKFILL_FIRST_YEAR = 2023;
 const TOURNAMENT_KEY = /^\d{8}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -63,6 +69,13 @@ const tournamentTarget = (body: Record<string, unknown>) => {
 };
 
 type Body = Record<string, unknown>;
+
+// Looks at the body of a copy of the request: whether it asks for the operator's action. A body that is not JSON is the users' path's to refuse.
+const isBackfill = (request: Request) =>
+  request.clone().json().then(
+    (body) => typeof body === 'object' && body !== null && !Array.isArray(body) && (body as Body).action === 'backfill_tournaments',
+    () => false,
+  );
 type Action = (userId: string, body: Body) => Promise<Response> | Response;
 
 /**
@@ -73,8 +86,10 @@ type Action = (userId: string, body: Body) => Promise<Response> | Response;
  * answers `{ organizationId, candidate }`; `confirm` then answers `{ results }` for it (or `{}` for a federation). The tournament is given by
  * exactly one of `tournamentKey` (a `YYYYMMDD` day of the platform's list, see `refresh_tournaments`) or `url` (the address as pasted, the fallback).
  * `refresh_tournaments` fills that list from each platform, at most once a day each, and answers `{ refreshed, skipped }`.
+ * `backfill_tournaments` is the operator's: it does not ask who the user is but whether the bearer token is the function's own service role key
+ * (401 without a bearer, 403 for any other token), and answers `{ probed, found, saved, next, stoppedBy? }` for `{ year, month }`.
  */
-export function createHandler({ authenticate, service, official }: HandlerDeps) {
+export function createHandler({ authenticate, service, official, isOperatorToken, now = Date.now }: HandlerDeps) {
   const answer = <T>(outcome: { ok: true; value: T } | { ok: false; error: ActionError }, value: (v: T) => unknown) =>
     outcome.ok ? respond(200, { ok: true, value: value(outcome.value) }) : refuse(outcome.error);
 
@@ -118,8 +133,26 @@ export function createHandler({ authenticate, service, official }: HandlerDeps) 
     },
   };
 
+  // The operator's action, apart from the user's: its caller is not a user, so the user check is never asked and the others never see this action.
+  async function backfill(request: Request): Promise<Response> {
+    const token = /^Bearer (\S+)$/i.exec(request.headers.get('Authorization') ?? '')?.[1];
+    if (!token) return refuse({ code: 'unauthenticated' });
+    if (!(await isOperatorToken(token))) return refuse({ code: 'not_authorized' });
+    const { year, month } = (await request.json()) as Body;
+    const today = new Date(now());
+    const started = Number.isInteger(year) && Number.isInteger(month) && (year as number) * 12 + (month as number) <= today.getUTCFullYear() * 12 + today.getUTCMonth() + 1;
+    if (!started || (year as number) < BACKFILL_FIRST_YEAR || (month as number) < 1 || (month as number) > 12) return refuse({ code: 'bad_request' });
+    try {
+      return answer(await service.backfillTournaments({ year: year as number, month: month as number }), (value) => value);
+    } catch (error) {
+      console.error(`results-import failed: ${error instanceof Error ? error.name : 'unknown'}`);
+      return refuse({ code: 'internal' });
+    }
+  }
+
   return async function handle(request: Request): Promise<Response> {
     if (request.method !== 'POST') return respond(405, { ok: false, error: { code: 'bad_request' } });
+    if (await isBackfill(request)) return backfill(request);
     const userId = await authenticate(request);
     if (!userId) return refuse({ code: 'unauthenticated' });
     let body: unknown;

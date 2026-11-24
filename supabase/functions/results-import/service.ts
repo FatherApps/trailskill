@@ -25,6 +25,8 @@ export interface TournamentCatalog {
   release(request: { organizationId: string; claimedAt: string; intervalMs: number; retryAfterMs: number }): Promise<boolean>;
   /** Saves by (platform, day), all or none, and never removes a tournament the list no longer has. Answers how many rows it saved. */
   save(organizationId: string, entries: TournamentEntry[]): Promise<number>;
+  /** The days (`YYYYMMDD`) of that year the platform's catalog already has. */
+  held(organizationId: string, year: number): Promise<string[]>;
   /** The platforms whose catalog has a tournament of this day (`YYYYMMDD`), with its year. */
   find(dateKey: string): Promise<{ organizationId: string; year: number }[]>;
 }
@@ -232,6 +234,24 @@ function cleanTournament(raw: unknown, years: readonly number[]): TournamentEntr
   return { dateKey, year, name, city, discipline, course: null, sourceUrl };
 }
 
+const isCount = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0;
+const dateKeyOf = (ms: number) => new Date(ms).toISOString().slice(0, 10).replaceAll('-', '');
+
+type Probed = { probed: number; found: number; entries: TournamentEntry[]; stoppedBy?: string };
+
+// What a platform's probe answered, rebuilt: counts, and entries (cleaned like the list's) only of the days asked. The stop must be a day asked too.
+function cleanProbe(raw: unknown, asked: readonly string[]): Probed | null {
+  if (!isRecord(raw) || !isCount(raw.probed) || !isCount(raw.found)) return null;
+  const years = [...new Set(asked.map((key) => Number(key.slice(0, 4))))];
+  const entries = cleanList(raw.entries, (entry) => {
+    const clean = cleanTournament(entry, years);
+    return clean && asked.includes(clean.dateKey) ? clean : null;
+  });
+  const { stoppedBy } = raw;
+  if (entries === null || (stoppedBy !== undefined && !(typeof stoppedBy === 'string' && asked.includes(stoppedBy)))) return null;
+  return { probed: raw.probed, found: raw.found, entries, ...(stoppedBy === undefined ? {} : { stoppedBy }) };
+}
+
 // Typed number against the stored one, as the sources compare them. One that does not normalize never matches.
 function sameNumber(typed: string, stored: string): boolean {
   try {
@@ -311,7 +331,51 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
     return value === null ? UNAVAILABLE : { ok: true, value };
   }
 
+  // Asks a platform about the days its catalog does not hold, and saves what it found, also before a stop. Null when the platform failed or
+  // answered what is not valid (nothing is saved then); a platform that cannot probe has nothing to ask.
+  async function probeDays(provider: TournamentProvider, organizationId: string, dateKeys: string[]): Promise<{ probed: number; found: number; saved: number; stoppedBy?: string } | null> {
+    const none = { probed: 0, found: 0, saved: 0 };
+    if (!provider.probeTournaments) return none;
+    const held = new Set<string>();
+    for (const year of new Set(dateKeys.map((key) => Number(key.slice(0, 4))))) for (const key of await tournaments.held(organizationId, year)) held.add(key);
+    const asked = dateKeys.filter((key) => !held.has(key));
+    if (asked.length === 0) return none;
+    let raw: unknown;
+    try {
+      raw = await provider.probeTournaments(asked);
+    } catch {
+      return null;
+    }
+    const probed = cleanProbe(raw, asked);
+    if (probed === null) return null;
+    const saved = probed.entries.length > 0 ? await tournaments.save(organizationId, probed.entries) : 0;
+    return { probed: probed.probed, found: probed.found, saved, ...(probed.stoppedBy === undefined ? {} : { stoppedBy: probed.stoppedBy }) };
+  }
+
   return {
+    // The operator's backfill of one month: asks each platform that can probe about the days of the month its catalog lacks (never a future
+    // day, by the UTC date of `now`) and saves what it found. `next` is the following month for the operator's loop, null at the current
+    // month, and the same month when a platform stopped (`stoppedBy` is that day): the days not asked are asked again from the catalog.
+    async backfillTournaments({ year, month }: { year: number; month: number }): Promise<Outcome<{ probed: number; found: number; saved: number; next: { year: number; month: number } | null; stoppedBy?: string }>> {
+      const today = dateKeyOf(now());
+      const [thisYear, thisMonth] = [Number(today.slice(0, 4)), Number(today.slice(4, 6))];
+      const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const dateKeys = Array.from({ length: last }, (_, index) => `${year}${String(month).padStart(2, '0')}${String(index + 1).padStart(2, '0')}`).filter((key) => key <= today);
+      const total = { probed: 0, found: 0, saved: 0 };
+      let stoppedBy: string | undefined;
+      for (const { provider, organizationId } of registry.platformOrganizations(await organizationChain())) {
+        const done = await probeDays(provider, organizationId, dateKeys);
+        if (done === null) return UNAVAILABLE;
+        total.probed += done.probed;
+        total.found += done.found;
+        total.saved += done.saved;
+        stoppedBy = done.stoppedBy;
+        if (stoppedBy !== undefined) break;
+      }
+      const next = stoppedBy !== undefined ? { year, month } : year * 12 + month >= thisYear * 12 + thisMonth ? null : month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+      return { ok: true, value: { ...total, next, ...(stoppedBy === undefined ? {} : { stoppedBy }) } };
+    },
+
     // Asks every registered platform for the tournaments of the current UTC year and the year before (so January still refreshes December's
     // tournaments and a new year starts by itself), in one read each, at most once per day each (the claim is per platform, never per
     // person: the refresh needs no athlete). What a platform lists is saved by day; a platform that fails, or whose list is not valid, leaves
@@ -353,6 +417,10 @@ export function createResultsImport({ registry, gate, identityNumbers, confirmat
           throw error;
         }
         refreshed += 1;
+        // The list lags: the last 7 days (up to today) that it and the catalog lack are asked of the platform. What this finds is a bonus: a stop,
+        // a failure or an answer that is not valid leaves the refresh as it is, and the list overwrites a day the probe completed.
+        const recent = Array.from({ length: 7 }, (_, index) => dateKeyOf(now() - (6 - index) * 24 * 60 * 60 * 1000));
+        await probeDays(provider, organizationId, recent).catch(() => undefined);
       }
       return refreshed === 0 && failed > 0 ? UNAVAILABLE : { ok: true, value: { refreshed, skipped } };
     },

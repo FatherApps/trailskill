@@ -15,7 +15,7 @@ import {
   type PendingStore,
   type QueryGate,
 } from '../service.ts';
-import { createFakeCatalog, createFakePlatform, createFakeProvider, TOURNAMENT_URL, tournamentEntry } from './fakeProvider.ts';
+import { createFakeCatalog, createFakePlatform, createFakeProvider, probing, TOURNAMENT_URL, tournamentEntry } from './fakeProvider.ts';
 
 const ORG = 'fed';
 const ATHLETE = 'athlete-1';
@@ -1437,5 +1437,153 @@ describe('findInTournament by the key of a tournament of the list', () => {
     const s = withCatalog({ authorized: false });
     expect(await byKey(s)).toEqual({ ok: false, error: { code: 'not_authorized' } });
     expect(s.platform.calls).toEqual([]);
+  });
+});
+
+describe('backfillTournaments', () => {
+  // The clock of `setup` is 2026-10-28 10:00 UTC.
+  const days = (year: number, month: number, last: number) => Array.from({ length: last }, (_, index) => `${year}${String(month).padStart(2, '0')}${String(index + 1).padStart(2, '0')}`);
+
+  it('asks the platform for the days of the month it does not hold, and never a future one', async () => {
+    const s = setup({ platformOptions: { probe: probing({ '20261010': {} }) } });
+    s.catalog.seed(PLATFORM_ORG, tournamentEntry('20261003'));
+    s.catalog.seed('other-platform', tournamentEntry('20261004'));
+    const outcome = await s.service.backfillTournaments({ year: 2026, month: 10 });
+    expect(s.platform.probeCalls).toEqual([days(2026, 10, 28).filter((day) => day !== '20261003')]);
+    expect(outcome).toEqual({ ok: true, value: { probed: 27, found: 1, saved: 1, next: null } });
+  });
+
+  it('asks nothing for a month that has not started', async () => {
+    const s = setup({ platformOptions: { probe: probing({}) } });
+    expect(await s.service.backfillTournaments({ year: 2026, month: 11 })).toEqual({ ok: true, value: { probed: 0, found: 0, saved: 0, next: null } });
+    expect(s.platform.probeCalls).toEqual([]);
+  });
+
+  it.each([
+    [2026, 9, 30, { year: 2026, month: 10 }],
+    [2023, 1, 31, { year: 2023, month: 2 }],
+    [2025, 12, 31, { year: 2026, month: 1 }],
+    [2026, 10, 28, null],
+  ])('answers the next month after %i-%i: %j', async (year, month, last, next) => {
+    const s = setup({ platformOptions: { probe: probing({}) } });
+    const outcome = await s.service.backfillTournaments({ year, month });
+    expect(outcome).toEqual({ ok: true, value: { probed: last, found: 0, saved: 0, next } });
+  });
+
+  it('saves what it found with its own fields, the catalog way, and counts found apart from saved', async () => {
+    const probe = () => ({ probed: 2, found: 3, entries: [{ ...tournamentEntry('20260901'), idNumber: '1234567' }, tournamentEntry('20260902')] });
+    const s = setup({ platformOptions: { probe } });
+    expect(await s.service.backfillTournaments({ year: 2026, month: 9 })).toEqual({ ok: true, value: { probed: 2, found: 3, saved: 2, next: { year: 2026, month: 10 } } });
+    expect(s.catalog.rows()).toEqual([
+      { ...tournamentEntry('20260901'), organizationId: PLATFORM_ORG, refreshedAt: Date.parse('2026-10-28T10:00:00Z') },
+      { ...tournamentEntry('20260902'), organizationId: PLATFORM_ORG, refreshedAt: Date.parse('2026-10-28T10:00:00Z') },
+    ]);
+  });
+
+  it('stops where the platform stopped: it answers stoppedBy and the same month, and keeps what was found before', async () => {
+    const s = setup({ platformOptions: { probe: probing({ '20260905': {}, '20260915': {} }, '20260910') } });
+    expect(await s.service.backfillTournaments({ year: 2026, month: 9 })).toEqual({ ok: true, value: { probed: 9, found: 1, saved: 1, next: { year: 2026, month: 9 }, stoppedBy: '20260910' } });
+    expect(s.catalog.rows().map((row) => row.dateKey)).toEqual(['20260905']);
+  });
+
+  it('does a month again from the day it stopped at only for the days the catalog still lacks', async () => {
+    const s = setup({ platformOptions: { probe: probing({ '20260905': {} }, '20260910') } });
+    await s.service.backfillTournaments({ year: 2026, month: 9 });
+    await s.service.backfillTournaments({ year: 2026, month: 9 });
+    expect(s.platform.probeCalls[1]).toEqual(days(2026, 9, 30).filter((day) => day !== '20260905'));
+  });
+
+  it('leaves a platform that cannot probe alone', async () => {
+    const s = setup();
+    expect(await s.service.backfillTournaments({ year: 2026, month: 9 })).toEqual({ ok: true, value: { probed: 0, found: 0, saved: 0, next: { year: 2026, month: 10 } } });
+  });
+
+  it.each([
+    ['an entry of a day that was not asked', () => ({ probed: 1, found: 1, entries: [tournamentEntry('20260801')] })],
+    ['an entry that is not valid', () => ({ probed: 1, found: 1, entries: [tournamentEntry('20260901', { name: '' })] })],
+    ['an entry with a pool length', () => ({ probed: 1, found: 1, entries: [{ ...tournamentEntry('20260901'), course: 'LCM' }] })],
+    ['an answer that is not one', () => 'nothing'],
+    ['entries that are not a list', () => ({ probed: 1, found: 1, entries: 'x' })],
+    ['counts that are not numbers', () => ({ probed: 'one', found: 1, entries: [] })],
+  ])('is unavailable and saves nothing when the platform answers %s', async (_name, probe) => {
+    const s = setup({ platformOptions: { probe } });
+    expect(await s.service.backfillTournaments({ year: 2026, month: 9 })).toEqual(unavailable);
+    expect(s.catalog.rows()).toEqual([]);
+  });
+
+  it('is unavailable when the platform throws', async () => {
+    const s = setup({
+      platformOptions: {
+        probe: () => {
+          throw new ProviderUnavailableError();
+        },
+      },
+    });
+    expect(await s.service.backfillTournaments({ year: 2026, month: 9 })).toEqual(unavailable);
+  });
+
+  it('does not ask the refresh claim of the platform', async () => {
+    const s = setup({ platformOptions: { probe: probing({}) } });
+    await s.service.backfillTournaments({ year: 2026, month: 9 });
+    expect(s.catalog.claims).toEqual([]);
+  });
+});
+
+describe('refreshTournaments probing the last 7 days', () => {
+  const index = { tournaments: [tournamentEntry('20261025', { name: 'Listed Open' })] };
+
+  it('asks for the last 7 days up to today that neither the index nor the catalog has', async () => {
+    const s = setup({ platformOptions: { ...index, probe: probing({ '20261026': {} }) } });
+    s.catalog.seed(PLATFORM_ORG, tournamentEntry('20261023'));
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+    expect(s.platform.probeCalls).toEqual([['20261022', '20261024', '20261026', '20261027', '20261028']]);
+    expect(s.catalog.rows().map((row) => row.dateKey).sort()).toEqual(['20261023', '20261025', '20261026']);
+  });
+
+  it('reads the catalog of both years when the 7 days cross the new year', async () => {
+    const s = setup({ platformOptions: { probe: probing({}) } });
+    s.catalog.seed(PLATFORM_ORG, tournamentEntry('20261230'));
+    s.advanceClock(Date.parse('2027-01-02T12:00:00Z') - Date.parse('2026-10-28T10:00:00Z'));
+    await s.service.refreshTournaments();
+    expect(s.platform.probeCalls).toEqual([['20261227', '20261228', '20261229', '20261231', '20270101', '20270102']]);
+  });
+
+  it('keeps the index and answers refreshed when the probe stops, and keeps what it found before', async () => {
+    const s = setup({ platformOptions: { ...index, probe: probing({ '20261022': {} }, '20261027') } });
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+    expect(s.catalog.rows().map((row) => row.dateKey).sort()).toEqual(['20261022', '20261025']);
+  });
+
+  it.each([
+    ['throws', () => { throw new SourceUnreachableError(); }],
+    ['answers what is not valid', () => ({ probed: 1, found: 1, entries: [tournamentEntry('20200101')] })],
+  ])('keeps the index and answers refreshed when the probe %s', async (_name, probe) => {
+    const s = setup({ platformOptions: { ...index, probe } });
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
+    expect(s.catalog.rows().map((row) => row.dateKey)).toEqual(['20261025']);
+  });
+
+  it('keeps the claim of the day when the probe fails: the index was refreshed', async () => {
+    const s = setup({ platformOptions: { ...index, probe: () => { throw new SourceUnreachableError(); } } });
+    await s.service.refreshTournaments();
+    expect(s.catalog.releases).toEqual([]);
+  });
+
+  it('does not probe when the platform failed to list or the claim was fresh', async () => {
+    const s = setup({ platformOptions: { ...index, probe: probing({}), failWith: new ProviderUnavailableError() } });
+    expect(await s.service.refreshTournaments()).toEqual(unavailable);
+    expect(s.platform.probeCalls).toEqual([]);
+  });
+
+  it('overwrites a day the probe completed with what the index lists later', async () => {
+    const s = setup({ platformOptions: { tournaments: [tournamentEntry('20261026', { name: 'Listed Later', city: 'Listed City' })] } });
+    s.catalog.seed(PLATFORM_ORG, tournamentEntry('20261026', { name: 'Probed Open', city: 'Probed City' }));
+    await s.service.refreshTournaments();
+    expect(s.catalog.rows().map((row) => [row.dateKey, row.name, row.city])).toEqual([['20261026', 'Listed Later', 'Listed City']]);
+  });
+
+  it('does not ask a platform that cannot probe anything', async () => {
+    const s = setup({ platformOptions: index });
+    expect(await s.service.refreshTournaments()).toEqual({ ok: true, value: { refreshed: 1, skipped: 0 } });
   });
 });
