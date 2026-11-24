@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.0](https://github.com/FatherApps/trailskill/compare/v0.17.0...v0.18.0) (2026-11-24)
+
+
+### Features
+
+* **athletes:** add «Validado en» tag and 0.10 s tolerance between sources ([#1475](https://github.com/FatherApps/trailskill/issues/1475)) ([c2c004f](https://github.com/FatherApps/trailskill/commit/c2c004fb039ee8cf3f5cd9a74c172c01112eb3b9)), closes [#1470](https://github.com/FatherApps/trailskill/issues/1470)
+* **results-import:** backfill_tournaments sondea el zip Lenex de cada día ([#1476](https://github.com/FatherApps/trailskill/issues/1476)) ([1c32292](https://github.com/FatherApps/trailskill/commit/1c32292d5566e20e49ea8076f1157e5d778d7363)), closes [#1471](https://github.com/FatherApps/trailskill/issues/1471)
+* **results-import:** collapsible city sections in the tournament picker ([#1473](https://github.com/FatherApps/trailskill/issues/1473)) ([2344834](https://github.com/FatherApps/trailskill/commit/23448348ee4ba6aa298c063e2bba4ad53d8157b3)), closes [#1467](https://github.com/FatherApps/trailskill/issues/1467)
+* **results-import:** count down to the retry time after a rate limit ([#1474](https://github.com/FatherApps/trailskill/issues/1474)) ([ceb9f27](https://github.com/FatherApps/trailskill/commit/ceb9f2748a64ace8f5492b05b9b628fc7c5eb101)), closes [#1469](https://github.com/FatherApps/trailskill/issues/1469)
+* **results-import:** una consulta al origen por minuto por nadador y proveedor ([#1472](https://github.com/FatherApps/trailskill/issues/1472)) ([dd99b7c](https://github.com/FatherApps/trailskill/commit/dd99b7cb71fa3286bc3a9bbb84b3cd90a0cbdaaf)), closes [#1468](https://github.com/FatherApps/trailskill/issues/1468)
+* **settings:** move precision and vibration to Cronómetro avanzado and video quality to Configuración de video ([#1463](https://github.com/FatherApps/trailskill/issues/1463)) ([51a59d3](https://github.com/FatherApps/trailskill/commit/51a59d3a40101f2472d2cea2e5670e4c22abeb14)), closes [#1462](https://github.com/FatherApps/trailskill/issues/1462)
+
 ## [0.17.0](https://github.com/FatherApps/trailskill/compare/v0.16.0...v0.17.0) (2026-11-23)
 
 
