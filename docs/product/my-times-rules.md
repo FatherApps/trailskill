@@ -113,6 +113,7 @@ Details:
 - Marks, the personal best and the history take the date and the tournament from the result shown.
 - The joining rule does not change: same stroke, distance, pool and hundredths, and the same source on the same date or two sources up to 3 days apart. The source names line lists every source.
 - Only the reading changes: nothing is merged or deleted in storage.
+- When a federation confirmed an imported result that a results platform also has, the history shows the tag «Validado en <federation>»; the federation name comes from data (issue #1470).
 
 ## 8. Advanced stopwatch (free laps)
 
