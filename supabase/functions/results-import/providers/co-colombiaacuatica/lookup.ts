@@ -13,8 +13,10 @@ const HOST = 'www.colombiaacuatica.com';
 const FOLDER = new RegExp(`^https://${HOST.replaceAll('.', '\\.')}/backtun/torneos/(\\d{4})/(\\d{8})/(?:index\\.php)?$`);
 /** The page that lists the tournaments of the year. */
 export const INDEX_URL = `https://${HOST}/seccion/resultados`;
-/** The PDF link of a row of that page, exactly: the key of the tournament is in its path. */
-export const TOURNAMENT_PDF = new RegExp(`^https://${HOST.replaceAll('.', '\\.')}/backtun/torneos/resultados/pdf/(\\d{4})/(\\d{8})resultados\\.pdf$`);
+/** The calendar of the platform: the tournaments of every year, with the organizer, and sometimes the pool length, in the title. */
+export const CALENDAR_URL = `https://${HOST}/seccion/calendario`;
+/** The PDF link of a row of that page or of an event of the calendar, exactly: the key of the tournament is in its path. The host is case-insensitive, as a host is: the calendar writes it with capitals. */
+export const TOURNAMENT_PDF = new RegExp(`^https://${HOST.replaceAll('.', '\\.')}/backtun/torneos/resultados/pdf/(\\d{4})/(\\d{8})resultados\\.pdf$`, 'i');
 
 const REJECTED = 'The tournament address is not one this provider accepts';
 const REDIRECTS = 'The tournament address redirects';

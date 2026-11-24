@@ -99,7 +99,7 @@ export function createFakePlatform(options: PlatformOptions = {}): TournamentPro
 
 /**
  * The catalog as the database keeps it (`results_import_claim_tournament_refresh`, `_release_`, `_save_tournaments` and the table): one claim per
- * platform per interval that a release gives back only while nobody claimed since, and rows saved by (platform, day), the first of a day winning.
+ * platform per interval that a release gives back only while nobody claimed since, and rows saved by (platform, day), the first of a day winning and a stored pool length kept.
  */
 export function createFakeCatalog(now: () => number = Date.now) {
   const claimed = new Map<string, number>();
@@ -127,7 +127,9 @@ export function createFakeCatalog(now: () => number = Date.now) {
       for (const entry of entries) {
         if (days.has(entry.dateKey)) continue;
         days.add(entry.dateKey);
-        rows.set(`${organizationId}|${entry.dateKey}`, { ...entry, organizationId, refreshedAt: now() });
+        // As the upsert does: a pool length already stored is kept when the new read has none (`course = coalesce(t.course, excluded.course)`).
+        const course = rows.get(`${organizationId}|${entry.dateKey}`)?.course ?? entry.course;
+        rows.set(`${organizationId}|${entry.dateKey}`, { ...entry, course, organizationId, refreshedAt: now() });
       }
       return days.size;
     },
