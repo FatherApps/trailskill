@@ -22,7 +22,7 @@ Closes #
 
 ## Capturas
 
-<!-- Solo para cambios de interfaz y siempre con datos ficticios. Si no aplica: N/A. -->
+<!-- Solo para cambios de interfaz y siempre con datos ficticios. Si no aplica: N/A. Todo se implementa tal como está en el design system: si este PR se aparta, escribe aquí por qué. -->
 
 ## Riesgos e impacto
 
@@ -47,6 +47,7 @@ Motivo:
 - [ ] Se consideró el uso sin conexión y los datos faltantes (un tiempo faltante no es cero).
 - [ ] Reutiliza funciones y componentes existentes (o explica por qué no).
 - [ ] Cambios de interfaz: incluye capturas lado a lado comparadas con el sistema de diseño, con datos ficticios.
+- [ ] Todo se implementa tal como está en el design system; si el PR se aparta, lo justifica en «Capturas».
 
 ## Requiere aprobación del maintainer
 
