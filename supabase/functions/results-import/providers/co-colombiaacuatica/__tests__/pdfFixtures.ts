@@ -20,7 +20,7 @@ type RowInput = {
   ht?: number | null;
   ln?: number | null;
   team?: string;
-  points?: number | null;
+  points?: number | string | null;
   name: string;
   prelim?: string;
   time: string;

@@ -45,9 +45,10 @@ const DATE_RANGE = /^(\d{1,2})\s*-\s*\d{1,2}\s+de\s+(\p{L}+)\s+de\s+(\d{4})$/u;
 const DATE_ACROSS = /^(\d{1,2})\s+de\s+(\p{L}+)\s*-\s*\d{1,2}\s+de\s+\p{L}+\s+de\s+(\d{4})$/u;
 const DATE_ONE = /^(\d{1,2})\s+de\s+(\p{L}+)\s+de\s+(\d{4})$/u;
 
-// Individual events: «<n> <dist>m <ES>/<dist>m <EN> Men|Women». Anything else that looks like an event (relays «4x50m», mixed) is one to skip.
+// Individual events: «<n> <dist>m <ES>/<dist>m <EN> Men|Women». Any other header of that shape (relays «4x50m», mixed, a kick event «25m Patada Mariposa» with no «/» part)
+// is an event to skip: its rows must never be read as the event before.
 const EVENT = /(\d+)\s+(\d+)m\s+([^/|]+?)\s*\/\s*\d+m\s+([^|]+?)\s+(Men|Women)\b/;
-const OTHER_EVENT = /(\d+)\s+(?:\d+x)?\d+m\s[^|]*\/[^|]*\b(?:Men|Women|Mixed)\b/;
+const OTHER_EVENT = /(\d+)\s+(?:\d+x)?\d+m\s[^|]*\b(?:Men|Women|Mixed)\b/;
 const AGE_GROUP = /Age Group:\s*([^|]*?)\s*\|\s*[mfMF]\b/;
 
 const STROKE_BY_SPANISH: Record<string, StrokeCode> = { libre: 'FR', espalda: 'BK', pecho: 'BR', mariposa: 'FL', combinado: 'IM' };
@@ -65,7 +66,8 @@ function hundredthsOf(cell: string): number | null {
   const match = TIME.exec(cell);
   if (!match) return null;
   const [minutes, seconds, cents] = [Number(match[1] ?? 0), Number(match[2]), Number(match[3])];
-  if (seconds > 59) return unavailable(UNREADABLE);
+  // Seconds over 59 are a typing error of the platform (decided in #1486): a missing time for that row, never 0 and never read as another time.
+  if (seconds > 59) return null;
   const total = (minutes * 60 + seconds) * 100 + cents;
   return total === 0 ? null : total;
 }
@@ -145,7 +147,7 @@ export function parsePdfResults(lines: readonly string[], dateKey: string): Pars
     if (lead.length === 1) return unavailable(UNREADABLE);
     const team = cells[next++];
     if (!hasLetters(team)) return unavailable(UNREADABLE);
-    if (/^\d{1,4}$/.test(cells[next] ?? '')) next += 1; // Points: not in every row.
+    if (/^\d{1,4}(?:\.\d{1,2})?$/.test(cells[next] ?? '')) next += 1; // Points: a whole number or with decimals («22.00»), not in every row.
     const name = cells[next++];
     if (!hasLetters(name)) return unavailable(UNREADABLE);
     // Prelim and Time come next (one or both), then the observation, if any: the swimmer's time is the last of those. What follows them is one text cell at most,

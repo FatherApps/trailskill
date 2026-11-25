@@ -37,11 +37,32 @@ describe('parsePdfResults', () => {
     expect(rows.map(({ birth, hundredths, gender }) => [birth, hundredths, gender])).toEqual([['860103', null, 'M'], ['860104', 3125, 'M']]);
   });
 
+  it('skips a Points cell with decimals («22.00»), as one with none or a whole number', () => {
+    const { rows } = parse([
+      event(2, FREE_50, 'Men'),
+      ageGroup('Open 45-49', 'm'),
+      row({ place: 1, birth: '860103', ht: 1, ln: 6, points: '22.00', name: 'SINTETICO RARO Pedro', prelim: 'N.T.', time: '31.25' }),
+      row({ place: 2, birth: '860104', ht: 1, ln: 5, points: '8.5', name: 'SINTETICO RARO Juan', time: '1:02.10' }),
+    ]);
+    expect(rows.map(({ birth, name, hundredths }) => [birth, name, hundredths])).toEqual([['860103', 'SINTETICO RARO Pedro', 3125], ['860104', 'SINTETICO RARO Juan', 6210]]);
+  });
+
   it.each([
     ['N.T.', 'N.T.'], ['NT', 'NT'], ['DQ', 'DQ'], ['No Show', 'No Show'], ['DNF', 'DNF'], ['a zero time', '00.00'],
   ])('gives missing hundredths (never 0) for %s', (_label, time) => {
     const { rows } = parse([event(1, FREE_50, 'Men'), ageGroup('Open 20-24', 'm'), row({ birth: '000101', name: 'SINTETICO RARO Pedro', time })]);
     expect(rows[0].hundredths).toBeNull();
+  });
+
+  it('gives missing hundredths for a time with seconds over 59, only in that row, and never reads it as another time', () => {
+    const { rows } = parse([
+      event(1, FREE_50, 'Men'),
+      ageGroup('Open 20-24', 'm'),
+      row({ place: 1, birth: '000101', ht: 1, name: 'SINTETICO RARO Pedro', prelim: '24.13', time: '2:98.40' }),
+      row({ place: 2, birth: '000102', ht: 2, name: 'SINTETICO RARO Juan', time: '00:97.97' }),
+      row({ place: 3, birth: '000103', ht: 3, name: 'SINTETICO RARO Luis', time: '31.25' }),
+    ]);
+    expect(rows.map((r) => [r.birth, r.hundredths])).toEqual([['000101', null], ['000102', null], ['000103', 3125]]);
   });
 
   it('reads times with and without minutes, to the hundredth', () => {
@@ -77,6 +98,26 @@ describe('parsePdfResults', () => {
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ eventNumber: 6, stroke: 'BR', hundredths: 4000 });
+  });
+
+  it('skips an event whose header has no «/» part («25m Patada Mariposa»), and its rows never go to the event before', () => {
+    const { rows } = parse([
+      event(8, '25m Espalda/25m Back', 'Men'),
+      ageGroup('07 years', 'm'),
+      row({ place: 1, birth: '180917', name: 'SINTETICO RARO Pedro', time: '30.06' }),
+      event(9, '25m Patada Mariposa', 'Women'),
+      ageGroup('07 years', 'f'),
+      row({ place: 1, birth: '180918', name: 'SINTETICA PRUEBA Ana', time: '35.10' }),
+      `Continuing... Event: ${cells(9, '25m Patada Mariposa')}${'\t'}Age Group: 07 YEARS | F`,
+      row({ place: 2, birth: '180919', name: 'SINTETICA PRUEBA Luisa', time: '36.20' }),
+      event(10, '25m Patada Espalda', 'Men'),
+      ageGroup('07 years', 'm'),
+      row({ place: 1, birth: '180920', name: 'SINTETICO RARO Juan', time: '37.30' }),
+      event(11, '50m Pecho/50m Breast', 'Women'),
+      ageGroup('Open 20-24'),
+      row({ birth: '000101', name: 'SINTETICA PRUEBA Ana', time: '40.00' }),
+    ]);
+    expect(rows.map((r) => [r.eventNumber, r.birth])).toEqual([[8, '180917'], [11, '000101']]);
   });
 
   it.each([
@@ -179,7 +220,6 @@ describe('parsePdfResults', () => {
       ['no name', cells('1', '000101', '1', '1', 'ZZA/Club Sintetico', 'NT', '30.00')],
       ['no time and no status', row({ birth: '000101', name: 'SINTETICO RARO Pedro', prelim: '', time: '' })],
       ['a time it does not know', row({ birth: '000101', name: 'SINTETICO RARO Pedro', time: '30,00' })],
-      ['seconds over 59', row({ birth: '000101', name: 'SINTETICO RARO Pedro', time: '1:75.00' })],
       ['three times', cells('1', '000101', '1', '1', 'ZZA/Club Sintetico', 'SINTETICO RARO Pedro', '31.00', '30.00', '30.00')],
       ['two observations', cells('1', '000101', '1', '1', 'ZZA/Club Sintetico', 'SINTETICO RARO Pedro', 'NT', '30.00', 'RC', 'RN')],
     ])('refuses a row with %s, never skipping it in silence', (_label, line) => {
