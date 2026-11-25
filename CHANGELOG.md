@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/FatherApps/trailskill/compare/v0.19.0...v0.19.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **results-import:** read a Points cell with decimals in a tournament PDF ([#1487](https://github.com/FatherApps/trailskill/issues/1487)) ([a6541f1](https://github.com/FatherApps/trailskill/commit/a6541f1ff5524956882f021be3ffddf759751c85)), closes [#1486](https://github.com/FatherApps/trailskill/issues/1486)
+
 ## [0.19.0](https://github.com/FatherApps/trailskill/compare/v0.18.0...v0.19.0) (2026-11-24)
 
 
