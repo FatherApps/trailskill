@@ -37,6 +37,16 @@ describe('parsePdfResults', () => {
     expect(rows.map(({ birth, hundredths, gender }) => [birth, hundredths, gender])).toEqual([['860103', null, 'M'], ['860104', 3125, 'M']]);
   });
 
+  it('skips a Points cell with decimals («22.00»), as one with none or a whole number', () => {
+    const { rows } = parse([
+      event(2, FREE_50, 'Men'),
+      ageGroup('Open 45-49', 'm'),
+      row({ place: 1, birth: '860103', ht: 1, ln: 6, points: '22.00', name: 'SINTETICO RARO Pedro', prelim: 'N.T.', time: '31.25' }),
+      row({ place: 2, birth: '860104', ht: 1, ln: 5, points: '8.5', name: 'SINTETICO RARO Juan', time: '1:02.10' }),
+    ]);
+    expect(rows.map(({ birth, name, hundredths }) => [birth, name, hundredths])).toEqual([['860103', 'SINTETICO RARO Pedro', 3125], ['860104', 'SINTETICO RARO Juan', 6210]]);
+  });
+
   it.each([
     ['N.T.', 'N.T.'], ['NT', 'NT'], ['DQ', 'DQ'], ['No Show', 'No Show'], ['DNF', 'DNF'], ['a zero time', '00.00'],
   ])('gives missing hundredths (never 0) for %s', (_label, time) => {

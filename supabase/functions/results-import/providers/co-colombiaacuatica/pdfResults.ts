@@ -145,7 +145,7 @@ export function parsePdfResults(lines: readonly string[], dateKey: string): Pars
     if (lead.length === 1) return unavailable(UNREADABLE);
     const team = cells[next++];
     if (!hasLetters(team)) return unavailable(UNREADABLE);
-    if (/^\d{1,4}$/.test(cells[next] ?? '')) next += 1; // Points: not in every row.
+    if (/^\d{1,4}(?:\.\d{1,2})?$/.test(cells[next] ?? '')) next += 1; // Points: a whole number or with decimals («22.00»), not in every row.
     const name = cells[next++];
     if (!hasLetters(name)) return unavailable(UNREADABLE);
     // Prelim and Time come next (one or both), then the observation, if any: the swimmer's time is the last of those. What follows them is one text cell at most,
