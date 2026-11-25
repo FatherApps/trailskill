@@ -100,6 +100,26 @@ describe('parsePdfResults', () => {
     expect(rows[0]).toMatchObject({ eventNumber: 6, stroke: 'BR', hundredths: 4000 });
   });
 
+  it('skips an event whose header has no «/» part («25m Patada Mariposa»), and its rows never go to the event before', () => {
+    const { rows } = parse([
+      event(8, '25m Espalda/25m Back', 'Men'),
+      ageGroup('07 years', 'm'),
+      row({ place: 1, birth: '180917', name: 'SINTETICO RARO Pedro', time: '30.06' }),
+      event(9, '25m Patada Mariposa', 'Women'),
+      ageGroup('07 years', 'f'),
+      row({ place: 1, birth: '180918', name: 'SINTETICA PRUEBA Ana', time: '35.10' }),
+      `Continuing... Event: ${cells(9, '25m Patada Mariposa')}${'\t'}Age Group: 07 YEARS | F`,
+      row({ place: 2, birth: '180919', name: 'SINTETICA PRUEBA Luisa', time: '36.20' }),
+      event(10, '25m Patada Espalda', 'Men'),
+      ageGroup('07 years', 'm'),
+      row({ place: 1, birth: '180920', name: 'SINTETICO RARO Juan', time: '37.30' }),
+      event(11, '50m Pecho/50m Breast', 'Women'),
+      ageGroup('Open 20-24'),
+      row({ birth: '000101', name: 'SINTETICA PRUEBA Ana', time: '40.00' }),
+    ]);
+    expect(rows.map((r) => [r.eventNumber, r.birth])).toEqual([[8, '180917'], [11, '000101']]);
+  });
+
   it.each([
     ['50m Libre/50m Free', 'FR', '50m'], ['100m Espalda/100m Back', 'BK', '100m'], ['200m Pecho/200m Breast', 'BR', '200m'], ['25m Mariposa/25m Fly', 'FL', '25m'],
     ['400m Combinado/400m IM', 'IM', '400m'], ['200m Combinado Individual/200m Individual Medley', 'IM', '200m'], ['800m Libre/800m Freestyle', 'FR', '800m'],

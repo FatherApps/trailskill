@@ -45,9 +45,10 @@ const DATE_RANGE = /^(\d{1,2})\s*-\s*\d{1,2}\s+de\s+(\p{L}+)\s+de\s+(\d{4})$/u;
 const DATE_ACROSS = /^(\d{1,2})\s+de\s+(\p{L}+)\s*-\s*\d{1,2}\s+de\s+\p{L}+\s+de\s+(\d{4})$/u;
 const DATE_ONE = /^(\d{1,2})\s+de\s+(\p{L}+)\s+de\s+(\d{4})$/u;
 
-// Individual events: «<n> <dist>m <ES>/<dist>m <EN> Men|Women». Anything else that looks like an event (relays «4x50m», mixed) is one to skip.
+// Individual events: «<n> <dist>m <ES>/<dist>m <EN> Men|Women». Any other header of that shape (relays «4x50m», mixed, a kick event «25m Patada Mariposa» with no «/» part)
+// is an event to skip: its rows must never be read as the event before.
 const EVENT = /(\d+)\s+(\d+)m\s+([^/|]+?)\s*\/\s*\d+m\s+([^|]+?)\s+(Men|Women)\b/;
-const OTHER_EVENT = /(\d+)\s+(?:\d+x)?\d+m\s[^|]*\/[^|]*\b(?:Men|Women|Mixed)\b/;
+const OTHER_EVENT = /(\d+)\s+(?:\d+x)?\d+m\s[^|]*\b(?:Men|Women|Mixed)\b/;
 const AGE_GROUP = /Age Group:\s*([^|]*?)\s*\|\s*[mfMF]\b/;
 
 const STROKE_BY_SPANISH: Record<string, StrokeCode> = { libre: 'FR', espalda: 'BK', pecho: 'BR', mariposa: 'FL', combinado: 'IM' };
