@@ -54,6 +54,17 @@ describe('parsePdfResults', () => {
     expect(rows[0].hundredths).toBeNull();
   });
 
+  it('gives missing hundredths for a time with seconds over 59, only in that row, and never reads it as another time', () => {
+    const { rows } = parse([
+      event(1, FREE_50, 'Men'),
+      ageGroup('Open 20-24', 'm'),
+      row({ place: 1, birth: '000101', ht: 1, name: 'SINTETICO RARO Pedro', prelim: '24.13', time: '2:98.40' }),
+      row({ place: 2, birth: '000102', ht: 2, name: 'SINTETICO RARO Juan', time: '00:97.97' }),
+      row({ place: 3, birth: '000103', ht: 3, name: 'SINTETICO RARO Luis', time: '31.25' }),
+    ]);
+    expect(rows.map((r) => [r.birth, r.hundredths])).toEqual([['000101', null], ['000102', null], ['000103', 3125]]);
+  });
+
   it('reads times with and without minutes, to the hundredth', () => {
     const times = ['9.05', '59.99', '1:00.01', '12:34.56'];
     const { rows } = parse([event(1, FREE_50, 'Men'), ageGroup('Open 20-24', 'm'), ...times.map((time, index) => row({ birth: '000101', ht: index + 1, name: 'SINTETICO RARO Pedro', time }))]);
@@ -189,7 +200,6 @@ describe('parsePdfResults', () => {
       ['no name', cells('1', '000101', '1', '1', 'ZZA/Club Sintetico', 'NT', '30.00')],
       ['no time and no status', row({ birth: '000101', name: 'SINTETICO RARO Pedro', prelim: '', time: '' })],
       ['a time it does not know', row({ birth: '000101', name: 'SINTETICO RARO Pedro', time: '30,00' })],
-      ['seconds over 59', row({ birth: '000101', name: 'SINTETICO RARO Pedro', time: '1:75.00' })],
       ['three times', cells('1', '000101', '1', '1', 'ZZA/Club Sintetico', 'SINTETICO RARO Pedro', '31.00', '30.00', '30.00')],
       ['two observations', cells('1', '000101', '1', '1', 'ZZA/Club Sintetico', 'SINTETICO RARO Pedro', 'NT', '30.00', 'RC', 'RN')],
     ])('refuses a row with %s, never skipping it in silence', (_label, line) => {
