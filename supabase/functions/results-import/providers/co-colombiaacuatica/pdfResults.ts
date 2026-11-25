@@ -66,7 +66,7 @@ function hundredthsOf(cell: string): number | null {
   const match = TIME.exec(cell);
   if (!match) return null;
   const [minutes, seconds, cents] = [Number(match[1] ?? 0), Number(match[2]), Number(match[3])];
-  // Seconds over 59 are a typing error of the platform (provisional rule, #1486): a missing time for that row, never 0 and never read as another time.
+  // Seconds over 59 are a typing error of the platform (decided in #1486): a missing time for that row, never 0 and never read as another time.
   if (seconds > 59) return null;
   const total = (minutes * 60 + seconds) * 100 + cents;
   return total === 0 ? null : total;
